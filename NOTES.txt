@@ -1,0 +1,12 @@
+
+How does buffer preallocation work?
+
+		ET has a routine called et_events_new which in turn has a “mode” parameter.
+
+		Add the flag ET_NOALLOC to mode to force the ET system to use our preallocated buffers.
+
+		Pointer to data goes in the pdata element of the event.
+
+		How do we know when it is safe to free the preallocated buffer?
+
+			Simple, after the put you are "good to go"
