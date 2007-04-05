@@ -15,38 +15,42 @@
  *----------------------------------------------------------------------------
  *
  * Description:
- *      emu  - emu_send_thread.h
+ *      emu  - emu_reader.h
  *
  *----------------------------------------------------------------------------*/
-#ifndef EMU_SEND_THREAD_H_
-#define EMU_SEND_THREAD_H_
+#ifndef EMU_READER_H_
+#define EMU_READER_H_
 
-#define FIFO_TYPE 1
-#define ET_TYPE   2
- #include "et.h"
+#include "et_private.h"
+#include "et_network.h"
+#include "emu_common.h"
+#include "emu_thread_package.h"
+#include "emu_int_data_struct.h"
 
-typedef  struct emu_stargs *emu_sender_id;
+#define EMU_MAX_INPUTS 100
+#define EMU_READER_QUEUE_SIZE 20
 
-typedef struct emu_stargs {
+typedef struct emu_input *emu_input_id;
 
-    int type;
+typedef struct emu_input {
+	et_stat_id	 input_station;
+	et_stat_id	 output_station;
+	et_att_id     input_att;
+	et_att_id     output_att;
+
+} emu_input_desc;
+
+typedef  struct emu_reader *emu_reader_id;
+
+typedef struct emu_reader
+{
+    et_sys_id     id;
     int keep_going;
-    char *target;
-    et_sys_id the_et_id;
-    et_att_id input_et_att;
-    et_stat_id input_et_station;
-    et_att_id output_et_att;
-    et_stat_id output_et_station;
-    struct cbt *input_fifo;
+    et_sys_id output_et_id;
+	et_att_id     gc_att;
+    int number_inputs;
+	emu_input_desc inputs[EMU_MAX_INPUTS];
+}
+emu_reader_desc;
 
-} emu_send_thread_args;
-
-extern void emu_create_send_thread(emu_sender_id sender_id);
-
-extern emu_sender_id emu_initialize_sender (int type, char *myname, char *target);
-
-extern void *emu_FIFO_send_thread(void *arg);
-extern void *emu_FIFO_test_thread(void *arg);
-extern void *emu_ET_send_thread(void *arg);
-
-#endif /*EMU_SEND_THREAD_H_*/
+#endif /*EMU_READER_H_*/

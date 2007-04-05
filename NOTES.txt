@@ -10,3 +10,7 @@ How does buffer preallocation work?
 		How do we know when it is safe to free the preallocated buffer?
 
 			Simple, after the put you are "good to go"
+
+Test of speed of putting/getting to/from GRANDCENTRAL compared with one statin per input.
+
+et_server.c line 1681, shouldn't this be ET_SLEEP ?

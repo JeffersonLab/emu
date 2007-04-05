@@ -107,18 +107,24 @@ endif
 
 # MAC OS
 ifeq ($(OSNAME),Darwin)
-CFLAGS   = -O3 -fPIC -I$(ET_DIR)/src -I. $(AC_FLAGS) $(EMU_DEBUG_FLAG) 
+#Add flags for gdb
+#CFLAGS   = -O3 -fPIC -I$(ET_DIR)/src -I. $(AC_FLAGS) $(EMU_DEBUG_FLAG) 
+CFLAGS   = -O0 -g3 -fPIC -I$(ET_DIR)/src -I. $(AC_FLAGS) $(EMU_DEBUG_FLAG) 
 SHLIB_LD = ld -dylib /usr/lib/dylib1.o -lpthread -ldl -let /usr/lib/gcc/darwin/3.3/libgcc.a 
 LIBS     = -ldl /usr/lib/gcc/darwin/3.3/libgcc.a 
 endif
 
 
-PROGS = dummy_roc 
+PROGS = emu_test_producer emu_test_consumer
 
 OBJS = emu_int_fifo.o \
 	emu_sender.o \
 	emu_system_init.o \
-	emu_thread_package.o
+	emu_thread_package.o \
+	emu_reader.o \
+	../et/src/libet.a
+	
+
 
 all: echoarch $(LIBNAM) $(PROGS)
 
@@ -142,7 +148,7 @@ saveFiles:
 
 
 $(PROGS) : % : %.c $(LIBNAM)
-	$(CC) -o $@ $(CFLAGS) $< $(LIBNAM) -L$(LIB_DIR) -let $(LIBS)
+	$(CC) -o $@ $(CFLAGS) $< $(LIBNAM) -L$(LIB_DIR) $(LIB_DIR)/libet.a $(LIBS)
 
 
 $(LIBNAM): $(OBJS)
@@ -155,5 +161,7 @@ clean:
 
 .c:
 	$(CC) -o $* $(CFLAGS) $< -L../src -L$(LIB_DIR) -L/lib64/tls -L/usr/ucblib/amd64 -let $(LIBS)
+
+	
 .c.o:
 	$(CC) -c $(CFLAGS) $<

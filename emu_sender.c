@@ -6,7 +6,7 @@
  *    described in the NOTICE file included as part of this distribution.
  *
  *    Author:  heyes
- *    Created: 7 Mar 2007
+ *    Created: Mar 22, 2007
  *
  *             heyes@jlab.org                    Jefferson Lab, MS-12H
  *             Phone: (757) 269-7030             12000 Jefferson Ave.
@@ -15,10 +15,22 @@
  *----------------------------------------------------------------------------
  *
  * Description:
- *      emu  - emu_send_thread.c
+ *      emu  - emu_sender.c
  *
+ * 	This file contains the code for the "sender" module of the EMU. The code has
+ * been written to be reusable in the ROC. The module has two modes of operation.
+ * FIFO mode - a mutex protected circular FIFO is created as a data source.
+ * ET mode - a local ET system is created as the data source.
+ *
+ * Data records are added to the ET or FIFO by the data producer. That is a
+ * readout list in the case of ROC and build thread in the case of the EMU.
+ *
+ * A thread called the Sender is created that waits for data to be availible on
+ * the input and writes it to a remote ET system. To increase efficiency the
+ * output ET events are requested in NOALLOC mode. This allows one copy to be
+ * saved since we pass to the output ET a pointer to the existing record rather
+ * than copying the data from the input record to the output record.
  *----------------------------------------------------------------------------*/
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -44,23 +56,31 @@
 
 static void *emu_send_thread(void *arg);
 
-static unsigned long dummy_records[10][10];
-/*
+static unsigned long dummy_records[256][1000];
+
+/*****************************************************
+ *
  * emu emu_send_thread.c
  * Function emu_initialize_sender
  *
- *
+ * Arguments:
+ * 	type of input data source.
+ *  name of this CODA component.
+ * 	name of output ET system.
+ * The sender has two modes, FIFO or ET input data source. This function
+ * initializes either a FIFO or a local ET system as the input data source
+ * and attaches to a remote ET system as the output data sink.
  *
  */
 
-emu_sender_id emu_initialize_sender (int type, char *target)
+emu_sender_id emu_initialize_sender (int type, char *myname, char *target)
 {
     int status;
     emu_sender_id sender_id = (emu_sender_id) malloc(sizeof(emu_send_thread_args));
     bzero(sender_id, sizeof(emu_send_thread_args));
 
-    sender_id->fifo_thread_args.type = type;
-    sender_id->generic_args.target = strdup(target);
+    sender_id->type = type;
+    sender_id->target = strdup(target);
 
     switch (type)
     {
@@ -70,106 +90,77 @@ emu_sender_id emu_initialize_sender (int type, char *target)
             EMU_DEBUG(("input is from a FIFO sender_id %08x",sender_id));
             fifo = new_cb("EMU input FIFO");
 
-            sender_id->fifo_thread_args.input_fifo = fifo;
+            sender_id->input_fifo = fifo;
 
             break;
         }
     case ET_TYPE:
     default:
-        EMU_DEBUG(("default input is from a ET called %s", sender_id->generic_args.target));
+        EMU_DEBUG(("default input is from a ET called %s", sender_id->target));
         break;
     }
 
     /*
      * Both types of sender send their data to an ET system.
-    	 */
+     */
     {
         et_sys_id	 id;
-        et_statconfig	 sconfig;
         et_stat_id	 my_stat;
         et_att_id	 my_att;
         et_openconfig  openconfig;
+        int selections[] = {0,-1,-1,-1};
+        /*
+         * We Initialize the output ET system and tell it that it is just
+         * a "front" for a remote system.
+         */
 
         et_open_config_init(&openconfig);
         et_open_config_setmode(openconfig, ET_HOST_AS_REMOTE);
 
-        //et_open_config_setcast(openconfig, ET_BROADANDMULTICAST);
+        et_open_config_setcast(openconfig, ET_BROADCAST);
         //et_open_config_addmulticast(openconfig, ET_MULTICAST_ADDR);
         //et_open_config_setTTL(openconfig, 2);
 
 
         /* For direct access to a remote ET system, use ET_DIRECT
          * and specify the port that the server is on.
+         */
 
-          et_open_config_setcast(openconfig, ET_DIRECT);
-          et_open_config_sethost(openconfig, "alumina.jlab.org");
-          et_open_config_setserverport(openconfig, 11111);
-*/
+        //et_open_config_setcast(openconfig, ET_DIRECT);
+        et_open_config_sethost(openconfig, "albanac.jlab.org");
+        et_open_config_setserverport(openconfig, 11111);
 
-        if (et_open(&id, sender_id->generic_args.target, openconfig) != ET_OK)
+
+        if (et_open(&id, sender_id->target, openconfig) != ET_OK)
         {
             printf("et_netclient: cannot open ET system\n");
             exit(1);
         }
         et_open_config_destroy(openconfig);
 
-        /* define a station */
-        et_station_config_init(&sconfig);
-        et_station_config_setuser(sconfig, ET_STATION_USER_MULTI);
-        et_station_config_setrestore(sconfig, ET_STATION_RESTORE_OUT);
-        et_station_config_setprescale(sconfig, 1);
-        et_station_config_setcue(sconfig, 100);
-        et_station_config_setselect(sconfig, ET_STATION_SELECT_ALL);
-        et_station_config_setblock(sconfig, ET_STATION_NONBLOCKING);
-
-        /* create a station */
-        if ((status = et_station_create(id, &my_stat, "A_station", sconfig)) < ET_OK)
         {
-            if (status == ET_ERROR_EXISTS)
+            /* This could be confusing so here's a comment...
+             * The output of this component is attached to the input of the next component in the
+             * data-stream. So we find the input station and attach to it but the station id and attachment
+             * are stored in the fields called output NOT the ones called input...
+            */
+
+            char station_name[100];
+            sprintf(station_name,"%s_input",myname);
+            if (et_station_name_to_id(id,&sender_id->output_et_station,station_name) < 0)
             {
-                /* my_stat contains pointer to existing station */;
-                printf("et_netclient: station already exists\n");
-            }
-            else if (status == ET_ERROR_TOOMANY)
-            {
-                printf("et_netclient: too many stations created\n");
+                EMU_DEBUG(("error finding station %s",station_name));
                 exit(1);
             }
-            else if (status == ET_ERROR_REMOTE)
+
+            if (et_station_attach(id, sender_id->output_et_station, &sender_id->output_et_att) < 0)
             {
-                printf("et_netclient: memory or improper arg problems\n");
+                printf("et_netclient: error in station attach\n");
                 exit(1);
             }
-            else if (status == ET_ERROR_READ)
-            {
-                printf("et_netclient: network reading problem\n");
-                exit(1);
-            }
-            else if (status == ET_ERROR_WRITE)
-            {
-                printf("et_netclient: network writing problem\n");
-                exit(1);
-            }
-            else
-            {
-                printf("et_netclient: error in station creation\n");
-                exit(1);
-            }
+
         }
-
-        et_station_config_destroy(sconfig);
-
-        /* create an attachment */
-
-        //if (et_station_attach(id, my_stat, &sender_id->generic_args.output_et_att) < 0)
-        if (et_station_attach(id, ET_GRANDCENTRAL, &sender_id->generic_args.output_et_att) < 0)
-        {
-            printf("et_netclient: error in station attach\n");
-            exit(1);
-        }
-
-        sender_id->generic_args.output_et_id = id;
-
+        sender_id->the_et_id = id;
     }
 
 
@@ -180,17 +171,29 @@ error:
     return NULL;
 }
 
+/*
+ * emu emu_sender.c
+ * Function emu_create_send_thread
+ *
+ * This function creates the thread that does all the work.
+ * For debugging purposes it can also create a test thread for FIFO mode
+ * that loops poking dummy records into the input FIFO.
+ */
+
 
 void emu_create_send_thread(emu_sender_id sender_id)
 {
 
     int status;
 
-    EMU_DEBUG (("Create send thread with sender_id %08x type %d", sender_id,sender_id->fifo_thread_args.type));
+    EMU_DEBUG (("Create send thread with sender_id %08x type %d", sender_id,sender_id->type));
 
-    sender_id->et_thread_args.keep_going = 1;
+    // The send thread will run forever unless there is an error or the keep_going
+    // flag is cleared.
 
-    switch (sender_id->fifo_thread_args.type)
+    sender_id->keep_going = 1;
+
+    switch (sender_id->type)
     {
     case FIFO_TYPE:
         EMU_DEBUG(("input is from a FIFO"));
@@ -217,57 +220,205 @@ void *emu_FIFO_send_thread(void *arg)
 {
     struct emu_thread *thread_descriptor = (struct emu_thread *) arg;
     int status = 0;
-
+    et_event   *pe[1000];
+    int size, actual;
     emu_sender_id sender_id = (emu_sender_id) thread_descriptor->args;
+    et_sys_id et_id = sender_id->the_et_id;
+    et_att_id att = sender_id->output_et_att;
 
-    printf("I am a thread named \"%s\" my sender_id is %08x input type is %d\n", thread_descriptor->name, sender_id, sender_id->fifo_thread_args.type);
-    while( sender_id->fifo_thread_args.keep_going && ( sender_id->fifo_thread_args.input_fifo != NULL) && (status == 0))
+    printf("I am a thread named \"%s\" my sender_id is %08x input type is %d\n", thread_descriptor->name, sender_id, sender_id->type);
+
+    while( sender_id->keep_going)
     {
-        // Wait for data on FIFO
-        void *data = get_cb_data(sender_id->fifo_thread_args.input_fifo);
+        int count;
+        status = et_station_getattachments(et_id,sender_id->output_et_station,&count);
+        if (status != ET_OK)
+        {
+            printf("error in et_station_getattachments\n");
+            break;
+        }
 
-        // Convert data to a record
-        roc_record record = (roc_record) data;
-        EMU_DEBUG(("GOT Data %08x, len = %d",record,record->recordNB ))
-        status = emu_generic_sender(sender_id, data);
+        if (count == 0)
+        {
+            struct timespec waitforme;
+
+            waitforme.tv_sec  = 1;
+            waitforme.tv_nsec = 0;
+
+
+
+            //EMU_DEBUG(("PUT Waiting for att\n" ))
+            nanosleep(&waitforme, NULL);
+            continue;
+        }
+
+        while( sender_id->keep_going && ( sender_id->input_fifo != NULL) && (status == 0))
+        {
+            // Wait for data on FIFO
+
+            int i, waiting, queue_depth;
+            char *data;
+            //EMU_DEBUG(("get et event"));
+
+
+            /* Get a record right at the start. We do this so that we block
+             * here if there is no work to do.
+             */
+
+            data = get_cb_data(sender_id->input_fifo);
+
+            if ((int) data == -1)
+                break;
+
+            /* Get the count of the number of other events waiting on the queue.
+            */
+
+            waiting = get_cb_count(sender_id->input_fifo);
+
+            if (waiting == -1)
+                break;
+
+            /* Add the event we already popped off the queue.
+            */
+
+            waiting ++;
+
+            while (waiting)
+            {
+
+                /* Ask the ET system for enough ET events to hold the number of records in the queue
+                 * plus the one we just pulled off the top. ET returns an array of ET events that may
+                 * be less than the number we asked for but holds at least one event.
+                */
+
+                status = et_events_get(et_id,att,pe, ET_SLEEP | ET_NOALLOC | ET_MODIFY, NULL,waiting,&actual);
+
+                //printf("waiting = %d actual = %d\n",waiting,actual);
+
+                if (status != ET_OK)
+                {
+                    printf("error in et_event_new\n");
+                    break;
+                }
+
+                for (i =0;i<actual; i++)
+                {
+                    /* The first time that we come into this loop data != NULL because we already popped an
+                     * event off the queue. Next time around the loop data == NULL because we set it to NULL
+                     * at the bottom of the loop.
+                    */
+
+                    if (data == NULL)
+                        data = get_cb_data(sender_id->input_fifo);
+
+                    if ((int) data == -1)
+                        break;
+
+                    // Convert data to a record
+                    emu_data_record_ptr record = (emu_data_record_ptr) data;
+
+                    //EMU_DEBUG(("GOT Data %08x, len = %d, pdata %08x",record,record->record_data.length,pe[i]->pdata ))
+
+                    free(pe[i]->pdata);
+
+                    pe[i]->pdata = record;
+                    pe[i]->length = record->record_header.length;
+                    pe[i]->control[0] = sender_id->output_et_station+1;
+
+                    // EMU_DEBUG(("put et event\n \t control %d \n\t  owner %d \n\t NOALLOC %d \n\t modify %d \n\t MODIFY_HEADER %d", pe[i]->control[0],pe[i]->owner,ET_NOALLOC,pe[i]->modify,ET_MODIFY_HEADER ));
+                    pe[i]->owner = ET_NOALLOC;
+                    //pe[i]->modify = ET_MODIFY;
+                    //pe[i]->modify = 0;
+                    data = NULL;
+                    // EMU_DEBUG(("put et event control %d,%d,%d,%d"));
+                }
+
+                //EMU_DEBUG(("put et event"));
+
+                status = et_events_put(et_id,att, pe,actual);
+                if (status != ET_OK)
+                {
+                    printf("et_producer: put error\n");
+                    break;
+                }
+                waiting = waiting - actual;
+            }
+            //EMU_DEBUG(("done"));
+
+        }
+    }
+    sender_id->keep_going = 0;
+    {
+        /* If we quit this thread then we have to empty the input FIFO onto the floor
+         * until the thread putting events in notices that we are exiting.
+        *
+        */
+
+        delete_cb(sender_id->input_fifo);
+
     }
 
 clean_exit_emu_send_thread:
-    free(sender_id->generic_args.target);
-    free(sender_id);
     emu_thread_cleanup(thread_descriptor);
+    sender_id->keep_going = 0;
     return;
 }
+
+/*
+ * emu emu_sender.c
+ * Function emu_FIFO_test_thread
+ *
+ * This code pours simulated records into the input fifo as quickly as possible.
+ * The simulated data is stored in a statically allocated array to remove any delays due
+ * to calling malloc.
+ */
 
 void *emu_FIFO_test_thread(void *arg)
 {
     struct emu_thread *thread_descriptor = (struct emu_thread *) arg;
-    int status = 0;
+    int counter, status = 0;
+    int recordCounter = 0;
     circ_buf_t *fifo;
 
-    dummy_records[0][0] = 4;
-    dummy_records[1][0] = 4;
-    dummy_records[2][0] = 4;
-    dummy_records[3][0] = 4;
     emu_sender_id sender_id = (emu_sender_id) thread_descriptor->args;
-    fifo = sender_id->fifo_thread_args.input_fifo;
+    fifo = sender_id->input_fifo;
 
-    printf("I am a thread named \"%s\" my sender_id is %08x input type is %d\n", thread_descriptor->name, sender_id, sender_id->fifo_thread_args.type);
-    while( sender_id->fifo_thread_args.keep_going && ( sender_id->fifo_thread_args.input_fifo != NULL) && (status == 0))
+    printf("I am a thread named \"%s\" my sender_id is %08x input type is %d\n", thread_descriptor->name, sender_id, sender_id->type);
+    while( sender_id->keep_going && ( sender_id->input_fifo != NULL) && (status == 0))
     {
+        struct timespec waitforme;
+
+        /* set some useful timeout periods */
+        waitforme.tv_sec  = 0;
+        waitforme.tv_nsec = 50000000; /* 50 millisec */
+
+        // Convert data to a record
+        emu_data_record_ptr record = (emu_data_record_ptr) &dummy_records[recordCounter & 0xFF][0];
+        record->record_header.length = 500;
+        record->record_header.recordNB = recordCounter;
+
+        recordCounter++;
+
+        record->record_header.rocID = sender_id->output_et_station;
+
+        record->record_header.payload[0] = 0x12345678;
+        record->record_header.payload[1] = 0xDEADD00D;
+        record->record_header.payload[2] = 0xC0DA4DA0;
+        record->record_header.payload[3] = 0xCA117030;
+        record->record_header.payload[4] = 0xCEBAF000;
+        record->record_header.payload[5] = 0xBEEF3142;
+
+        if (recordCounter % 10000 == 0)
+            printf("Another 10k records, %d so far\n",recordCounter);
 
 
 
-        EMU_DEBUG(("PUT Data %08x, len = %d",&dummy_records[0][0],dummy_records[0][0] ))
-        put_cb_data(fifo,(void *) &dummy_records[0][0]);
-        put_cb_data(fifo,(void *) &dummy_records[1][0]);
-        put_cb_data(fifo,(void *) &dummy_records[2][0]);
-        put_cb_data(fifo,(void *) &dummy_records[3][0]);
+        //EMU_DEBUG(("PUT Data %08x, len = %d",&dummy_records[0][0],dummy_records[0][0] ))
+        //nanosleep(&waitforme, NULL);
+        put_cb_data(fifo,(void *) record);
     }
 
 clean_exit_emu_send_thread:
-    free(sender_id->generic_args.target);
-    free(sender_id);
     emu_thread_cleanup(thread_descriptor);
     return;
 }
@@ -284,36 +435,11 @@ void *emu_ET_send_thread(void *arg)
 
     emu_sender_id sender_id = (emu_sender_id) thread_descriptor->args;
 
-    printf("I am a thread named \"%s\" my sender_id is  %08x input type is %d\n", thread_descriptor->name, sender_id, sender_id->fifo_thread_args.type);
+    printf("I am a thread named \"%s\" my sender_id is  %08x input type is %d\n", thread_descriptor->name, sender_id, sender_id->type);
 
 clean_exit_emu_send_thread:
     EMU_DEBUG(("free %08x",sender_id));
-    free(sender_id);
     emu_thread_cleanup(thread_descriptor);
     return;
 }
 
-int emu_generic_sender(emu_sender_id sender_id, roc_record data)
-{
-    et_event   *pe;
-    int size, status;
-    EMU_DEBUG(("get et event"));
-
-    status = et_event_new(sender_id->generic_args.output_et_id,sender_id->generic_args.output_et_att,&pe, ET_SLEEP | ET_NOALLOC, NULL, size);
-    if (status != ET_OK)
-    {
-        printf("et_producer: error in et_event_new\n");
-        return 1;
-    }
-    EMU_DEBUG(("put et event"));
-    pe->pdata = (char *) data;
-    pe->length = 4;
-    status = et_event_put(sender_id->generic_args.output_et_id,sender_id->generic_args.output_et_att, pe);
-    if (status != ET_OK)
-    {
-        printf("et_producer: put error\n");
-        return 1;
-    }
-        EMU_DEBUG(("done"));
-    return 0;
-}

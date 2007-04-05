@@ -22,7 +22,7 @@
 #ifndef EMU_INT_FIFO_H_
 #define EMU_INT_FIFO_H_
 
-#define QSIZE                           8
+#define QSIZE                           10
 
 typedef struct cbt {
   char *name;
@@ -42,7 +42,7 @@ typedef struct cbt {
 extern circ_buf_t *new_cb(char *name);
 extern void  delete_cb(circ_buf_t *cbp);
 extern int   put_cb_data(circ_buf_t *cbp, void *data);
-extern int   put_cb_count(circ_buf_t *cbp);
+extern int   get_cb_count(circ_buf_t *cbp);
 extern void *get_cb_data(circ_buf_t *cbp);
 extern char *get_cb_name(circ_buf_t *cbp);
 

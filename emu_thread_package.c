@@ -41,6 +41,7 @@
 pthread_mutex_t thread_list_lock = PTHREAD_MUTEX_INITIALIZER;
 
 static struct emu_thread *emu_thread_thread_list = (struct emu_thread *) NULL;
+static int thread_count = 0;
 
 /*
  * author heyes
@@ -107,6 +108,8 @@ int emu_create_thread(int detatched,char *name, void *thread_body, void *thread_
 
     }
 
+	thread_count++;
+
     pthread_mutex_unlock(&thread_list_lock);
 
     return 0;
@@ -130,8 +133,8 @@ void emu_thread_monitor()
     struct timespec waitforme, monitor, beat;
 
     /* set some useful timeout periods */
-    waitforme.tv_sec  = 0;
-    waitforme.tv_nsec = 500000000; /* 500 millisec */
+    waitforme.tv_sec  = 5;
+    waitforme.tv_nsec = 0; /* 500 millisec */
 
     while (monitor_threads)
     {
@@ -144,7 +147,7 @@ void emu_thread_monitor()
             while (thread_descriptor != NULL)
             {
                 struct emu_thread *emu_thread_next = thread_descriptor->next;
-                printf("Thread named %s has state %d\n", thread_descriptor->name, thread_descriptor->status);
+                //printf("Thread named %s has state %d\n", thread_descriptor->name, thread_descriptor->status);
                 if (thread_descriptor->status == EMU_THREAD_ENDED)
                 {
                     printf( "  - thread %s has ended\n", thread_descriptor->name);
@@ -152,20 +155,36 @@ void emu_thread_monitor()
                     // are we at the head of the list
                     if (thread_descriptor == emu_thread_thread_list)
                     {
-                        //yes
+                        /* yes
+						 * Then move the next thread along to the head of the list
+						 * If there was no next thread then exit the monitor.
+						 * If there was another thread then, since it's at the top of
+						 * the list set prev = NULL;
+						 */
 
                         printf("     thread was head of list\n");
+                        emu_thread_thread_list = emu_thread_next;
+                        if (emu_thread_thread_list == NULL)
+                            monitor_threads=0;
+                        else
+                            emu_thread_thread_list->prev = NULL;
 
-                        emu_thread_thread_list = NULL;
-                        thread_descriptor = NULL;
-                        break;
                     }
                     else
                     {
-                        // no
+                        /* No
+						 * We are in the middle of the list or the tail.
+						 * Since we are not at the head prev != NULL so we set the next field of the
+						 * thread above us to the address of the thread below us. If there is a thread
+						 * below us then we set it's prev field to point to the thread above us.
+						 * Now the thread above us points to the one below us and the one below us
+						 * points to the one above us. Nobody points to us any more so we're off the list!
+						 */
+
                         thread_descriptor->prev->next = thread_descriptor->next;
-                        thread_descriptor->next->prev = thread_descriptor->prev;
-                        break;
+                        if (thread_descriptor->next != NULL)
+                            thread_descriptor->next->prev = thread_descriptor->prev;
+
                     }
 
                     pthread_attr_destroy(&thread_descriptor->attr);
@@ -173,7 +192,9 @@ void emu_thread_monitor()
                     free(thread_descriptor->name);
                     EMU_DEBUG(("free %08x",thread_descriptor));
                     free(thread_descriptor);
-                    printf("   - thread resources freed\n");
+                    thread_count--;
+                    printf("   - thread resources freed %d threads left\n",thread_count);
+
                     pthread_mutex_unlock(&thread_list_lock);
                 }
                 thread_descriptor = emu_thread_next;

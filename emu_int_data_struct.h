@@ -18,17 +18,30 @@
  *      emu  - emu_int_data_struct.h
  *
  *----------------------------------------------------------------------------*/
- #ifndef EMU_INT_DATA_STRUCT_H_
+#ifndef EMU_INT_DATA_STRUCT_H_
 #define EMU_INT_DATA_STRUCT_H_
 
-typedef struct roc_record_struct *roc_record;
+typedef  union emu_data_record *emu_data_record_ptr;
 
-typedef struct roc_record_struct {
-	uint32_t recordNB;
-	uint32_t rocID;
-	uint32_t eventsInRecord;
-	uint32_t payload[];
-} roc_record_t;
+typedef union emu_data_record {
+    struct roc_record_struct
+    {
+        uint32_t length;
+        uint32_t recordNB;
+        uint32_t rocID;
+        uint32_t eventsInRecord;
+        uint32_t payload[];
+    } record_header;
+
+    struct roc_record_data
+    {
+        uint32_t length;
+    	uint32_t data[];
+    } record_data;
+} emu_data_record_union;
+
+
+
 
 
 
