@@ -7,6 +7,9 @@
  *
  *    Author:  heyes
  *    Created: Mar 26, 2007
+ *    Modification date : $Date$
+ *    Revision : $Revision$
+ *    URL : $HeadURL$
  *
  *             heyes@jlab.org                    Jefferson Lab, MS-12H
  *             Phone: (757) 269-7030             12000 Jefferson Ave.

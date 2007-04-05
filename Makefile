@@ -1,6 +1,9 @@
 #
 # EMU unix makefile
-#
+#   Modification date : $Date$
+#   Revision : $Revision$
+#   URL : $HeadURL$
+ 
 
 # operating system, platform, # of processor bits we are using
 OSNAME   := $(shell uname)
