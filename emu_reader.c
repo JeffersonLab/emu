@@ -26,41 +26,32 @@
 #include <stdlib.h>
 #include <string.h>
 #include <strings.h>
-#include <sys/types.h>
-#include <sys/mman.h>
-#include <signal.h>
-#include <unistd.h>
-#include <time.h>
-#include <dlfcn.h>
-#ifdef sun
-#include <thread.h>
-#endif
-#include <pthread.h>
 
+#include "emu_common.h"
+#include "emu_configuration.h"
+#include "emu_thread_package.h"
+#include "emu_int_data_struct.h"
 #include "emu_reader.h"
+#include "emu_signal_handler.h"
 
 
-static void emu_signal_handler(void *arg)
+static void reader_interrupt_signal_handler(void *arg)
 {
-    sigset_t       sigwaitset;
-    int status, sig_num;
     struct emu_thread *thread_descriptor = (struct emu_thread *) arg;
+    emu_reader_id reader_id = (emu_reader_id) thread_descriptor->args;
 
-    sigemptyset(&sigwaitset);
-    sigaddset(&sigwaitset, SIGINT);
-    /* turn this thread into a signal handler */
-    sigwait(&sigwaitset, &sig_num);
+    esh_wait_interrupt();
 
     printf("Interrupted by CONTROL-C\n");
-    printf("ET %08x is exiting\n",thread_descriptor->args);
-    et_system_close(((et_sys_id *)thread_descriptor->args));
+    printf("ET %08x is exiting\n",reader_id);
 
+    emu_reader_stop(reader_id);
     emu_thread_cleanup(thread_descriptor);
     exit(1);
 }
 
 
-static void emu_dummy_build_thread(void *arg)
+static void emu_reader_process(void *arg)
 {
     struct emu_thread *thread_descriptor = (struct emu_thread *) arg;
     emu_reader_id reader_id = thread_descriptor->args;
@@ -71,18 +62,18 @@ static void emu_dummy_build_thread(void *arg)
 
     EMU_DEBUG(("\nATTACH HANDLER"))
 
-    while(et_alive(id))
+    emu_enable_cancel();
+    thread_descriptor->status = EMU_THREAD_ACTIVE;
+    while(et_alive(id) && (thread_descriptor->status == EMU_THREAD_ACTIVE))
     {
-        struct timespec waitforme;
         int stat_id,status;
         int         num;
         et_station *ps;
 
-        waitforme.tv_sec  = 1;
-        waitforme.tv_nsec = 0;
+        if (reader_id->number_inputs == 0)
+            emu_sleep(2);
 
-
-        //printf("Max number of stations %d\n",etid->sys->config.nstations);
+        //        printf("Max number of inputs %d actual number %d\n",etid->sys->config.nstations/2,reader_id->number_inputs);
 
         for (num=0; num < reader_id->number_inputs ; num++)
         {
@@ -96,50 +87,144 @@ static void emu_dummy_build_thread(void *arg)
 
                 stat_id = num;
 
-               // EMU_DEBUG(("Foundactive Station %s at position %d",ps->name ,stat_id));
+                //                EMU_DEBUG(("Foundactive Station %s at position %d",ps->name ,stat_id));
 
                 status = et_events_get( etid,reader_id->inputs[num].output_att, pe, ET_SLEEP , NULL,10,&actual);
 
                 if (status != ET_OK)
                 {
                     printf("error in et_event_new\n");
-                    goto error;
+                    thread_descriptor->status = EMU_THREAD_ENDED;
+                    return;
                 }
 
                 for (i =0;i<actual; i++)
                 {
-                	emu_data_record_ptr record = (emu_data_record_ptr) pe[i]->pdata;
+                    emu_data_record_ptr record = (emu_data_record_ptr) pe[i]->pdata;
 
-                	printf ("Got a record number %d from input %d\n",record->record_header.recordNB, record->record_header.rocID);
-                	printf ("   length is %d\n", record->record_data.length);
-                	for (ix=0;ix<10;ix++) {
-                		printf("     data[%2d] - %08X\n",ix, record->record_data.data[ix]);
-                	}
-                	printf ("---------------------\n\n");
+                    printf ("Got a record number %d from input %d\n",record->record_header.recordNB, record->record_header.rocID);
+                    printf ("   length is %d\n", record->record_data.length);
+                    for (ix=0;ix<10;ix++)
+                    {
+                        printf("     data[%2d] - %08X\n",ix, record->record_data.data[ix]);
+                    }
+                    printf ("---------------------\n\n");
                     pe[i]->length = 0;
                     pe[i]->control[0] =reader_id->inputs[num].input_station;
                     pe[i]->owner = reader_id->gc_att;
                 }
 
-                //EMU_DEBUG(("put et event"));
+                //                EMU_DEBUG(("put record back in GC"));
 
                 status = et_events_put(etid,reader_id->gc_att, pe,actual);
 
                 if (status != ET_OK)
                 {
-                    printf("et_producer: put error\n");
-                    goto error;
+                    EMU_DEBUG(("put error"));
+                    thread_descriptor->status = EMU_THREAD_ENDED;
+                    return;
                 }
+            }
+            else
+            {
+                thread_descriptor->status = EMU_THREAD_ENDED;
+                return;
+
             }
 
         }
 
-        nanosleep(&waitforme, NULL);
         //EMU_DEBUG(("Waiting for a station to appear\n" ))
     }
-error:
-    emu_thread_cleanup(thread_descriptor);
-      exit(1);
+
+    //emu_thread_cleanup(thread_descriptor);
+
+}
+static void emu_reader_simulator(void *arg)
+{
+    struct emu_thread *thread_descriptor = (struct emu_thread *) arg;
+    emu_reader_id reader_id = thread_descriptor->args;
+    et_sys_id id = reader_id->id;
+    et_id      *etid = (et_id *) id;
+
+    int station_counter = 0;
+
+    EMU_DEBUG(("\nATTACH HANDLER"))
+
+    emu_enable_cancel();
+    thread_descriptor->status = EMU_THREAD_ACTIVE;
+    while(et_alive(id) && (thread_descriptor->status == EMU_THREAD_ACTIVE))
+    {
+        int stat_id,status;
+        int         num;
+        et_station *ps;
+
+        if (reader_id->number_inputs == 0)
+            emu_sleep(2);
+
+        //        printf("Max number of inputs %d actual number %d\n",etid->sys->config.nstations/2,reader_id->number_inputs);
+
+        for (num=0; num < reader_id->number_inputs ; num++)
+        {
+            et_station *ps = etid->grandcentral+reader_id->inputs[num].output_station;
+
+            if (ps->data.status == ET_STATION_ACTIVE)
+            {
+
+                et_event   *pe[1000];
+                int i, ix, actual = 0;
+
+                stat_id = num;
+
+                //                EMU_DEBUG(("Foundactive Station %s at position %d",ps->name ,stat_id));
+
+                status = et_events_get( etid,reader_id->inputs[num].output_att, pe, ET_SLEEP , NULL,10,&actual);
+
+                if (status != ET_OK)
+                {
+                    printf("error in et_event_new\n");
+                    thread_descriptor->status = EMU_THREAD_ENDED;
+                    return;
+                }
+
+                for (i =0;i<actual; i++)
+                {
+                    emu_data_record_ptr record = (emu_data_record_ptr) pe[i]->pdata;
+
+                    printf ("Got a record number %d from input %d\n",record->record_header.recordNB, record->record_header.rocID);
+                    printf ("   length is %d\n", record->record_data.length);
+                    for (ix=0;ix<10;ix++)
+                    {
+                        printf("     data[%2d] - %08X\n",ix, record->record_data.data[ix]);
+                    }
+                    printf ("---------------------\n\n");
+                    pe[i]->length = 0;
+                    pe[i]->control[0] =reader_id->inputs[num].input_station;
+                    pe[i]->owner = reader_id->gc_att;
+                }
+
+                //                EMU_DEBUG(("put record back in GC"));
+
+                status = et_events_put(etid,reader_id->gc_att, pe,actual);
+
+                if (status != ET_OK)
+                {
+                    EMU_DEBUG(("put error"));
+                    thread_descriptor->status = EMU_THREAD_ENDED;
+                    return;
+                }
+            }
+            else
+            {
+                thread_descriptor->status = EMU_THREAD_ENDED;
+                return;
+
+            }
+
+        }
+    }
+    //emu_thread_cleanup(thread_descriptor);
+
 }
 
 
@@ -150,7 +235,7 @@ error:
  *
  */
 
-static void reader_initialize (emu_reader_id reader_id,char *name)
+static void add_input (emu_reader_id reader_id,char *name)
 {
 
     et_statconfig	 sconfig;
@@ -245,7 +330,7 @@ static void reader_initialize (emu_reader_id reader_id,char *name)
         status = et_events_put(reader_id->id,reader_id->gc_att, pe,actual);
         if (status != ET_OK)
         {
-            printf("et_producer: put error\n");
+            EMU_DEBUG(("put error"));
             goto station_error;
             ;
         }
@@ -302,16 +387,16 @@ station_error:
  *
  */
 
-void emu_initialize_reader ( char *et_filename)
+emu_reader_id emu_reader_initialize ( )
 {
     emu_reader_id reader_id;
     int           errflg = 0;
     int           i_tmp;
 
-    int           status;
+    int           status = 0;
     int           et_verbose = ET_DEBUG_NONE;
     int           deleteFile = 0;
-
+    char *et_filename = emu_config()->emu_name;
     sigset_t      sigblockset;
     et_statconfig sconfig;
     et_sysconfig  config;
@@ -322,21 +407,13 @@ void emu_initialize_reader ( char *et_filename)
 
     bzero(reader_id, sizeof( struct emu_reader));
 
-    /*************************/
-    /* setup signal handling */
-    /*************************/
-    sigfillset(&sigblockset);
-    status = pthread_sigmask(SIG_BLOCK, &sigblockset, NULL);
-    if (status != 0)
-    {
-        printf("pthread_sigmask failure\n");
-        exit(1);
-    }
+    esh_block();
+
     /************************************/
     /* default configuration parameters */
     /************************************/
     int nevents = 2000;               /* total number of events */
-    int event_size = 3000;            /* size of event in bytes */
+    int event_size = 40000;            /* size of event in bytes */
 
     EMU_DEBUG(("asking for %d byte events.", event_size))
     EMU_DEBUG(("asking for %d events.", nevents))
@@ -396,7 +473,6 @@ void emu_initialize_reader ( char *et_filename)
 
     EMU_DEBUG(("ET system %s started %08x", et_filename,id))
 
-    emu_create_thread(0,"Control-C handler", emu_signal_handler, (void *) id);
 
     et_system_setdebug(id, ET_DEBUG_INFO);
 
@@ -408,29 +484,75 @@ void emu_initialize_reader ( char *et_filename)
         exit(1);
     }
 
-    emu_create_thread(0,"Attach handler", emu_dummy_build_thread, (void *) reader_id);
-    reader_initialize (reader_id,"ROC1");
-//    reader_initialize (reader_id,"ROC2");
-//	reader_initialize (reader_id,"ROC3");
-//	reader_initialize (reader_id,"ROC4");
-//	reader_initialize (reader_id,"ROC5");
-//	reader_initialize (reader_id,"ROC6");
-//	reader_initialize (reader_id,"ROC7");
-//	reader_initialize (reader_id,"ROC8");
-//	reader_initialize (reader_id,"ROC9");
-//	reader_initialize (reader_id,"ROC10");
-//	reader_initialize (reader_id,"ROC11");
-//	reader_initialize (reader_id,"ROC12");
-//	reader_initialize (reader_id,"ROC13");
-//	reader_initialize (reader_id,"ROC14");
-//	reader_initialize (reader_id,"ROC15");
-//	reader_initialize (reader_id,"ROC16");
-//	reader_initialize (reader_id,"ROC17");
-//	reader_initialize (reader_id,"ROC18");
-//	reader_initialize (reader_id,"ROC19");
-//	reader_initialize (reader_id,"ROC20");
+    {
+        int counter;
+        for (counter = 0; counter < emu_config()->input_count; counter++)
+        {
+            add_input (reader_id,emu_config()->input_names[counter]);
 
-    return;
+        }
+    }
+    reader_id->mode = EMU_READER_MODE_NORMAL;
+
+    return reader_id;
 }
 
+void emu_reader_start(emu_reader_id reader_id)
+{
+    if (reader_id->mode == EMU_READER_MODE_SIMULATE)
+    {
+        reader_id->worker_thread = emu_create_thread(1,"Reader Simulator Thread", emu_reader_simulator, (void *) reader_id);
+    }
+    else
+    {
+        reader_id->worker_thread = emu_create_thread(1,"Reader Worker Thread", emu_reader_simulator, (void *) reader_id);
+    }
+    emu_create_thread(1,"Control-C handler", reader_interrupt_signal_handler, (void *) reader_id);
 
+}
+
+void emu_reader_stop(emu_reader_id reader_id)
+{
+    int status;
+    int inputs,counter;
+
+    /* Need to graceully shut down the ET.
+     * First detach from the stations. Then remove them.
+     * Note: et_station_remove fails if there are still attached processes so we have a loop
+     * that retries the remove until success.
+     */
+
+    reader_id->keep_going = 0;
+    inputs = reader_id->number_inputs;
+
+    for (counter = 0; counter < inputs; counter ++)
+    {
+        et_station_detach(reader_id->id, reader_id->inputs[counter].input_att);
+        et_station_detach(reader_id->id, reader_id->inputs[counter].output_att);
+    }
+    for (counter = 0; counter < inputs; counter ++)
+    {
+        while (et_station_remove(reader_id->id, reader_id->inputs[counter].input_station)!= ET_OK)
+        {
+
+            EMU_DEBUG(("waiting for producers to detach"))
+            emu_sleep(TIME_BEFORE_REMOVE);
+        }
+
+        while (et_station_remove(reader_id->id, reader_id->inputs[counter].output_station)!= ET_OK)
+        {
+            EMU_DEBUG(("waiting for producers to detach"))
+            emu_sleep(TIME_BEFORE_REMOVE);
+        }
+    }
+
+    reader_id->number_inputs = 0;
+    et_station_detach(reader_id->id, reader_id->gc_att);
+    emu_thread_cleanup(reader_id->worker_thread);
+
+    //emu_sleep(2);
+
+    et_system_close(reader_id->id);
+
+    EMU_DEBUG(("et_system_close has finished"))
+}
