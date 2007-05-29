@@ -25,7 +25,7 @@
 #ifndef EMU_INT_FIFO_H_
 #define EMU_INT_FIFO_H_
 
-#define QSIZE                           10
+#define QSIZE                           500
 
 typedef struct cbt {
   char *name;
@@ -39,7 +39,8 @@ typedef struct cbt {
   pthread_cond_t notfull;       /* full -> not full condition */
   pthread_cond_t notempty;      /* empty -> notempty condition */
   pthread_cond_t empty;         /* empty -> notempty condition */
-  void *data[QSIZE];            /* Circular buffer of pointers */
+  int qsize;
+  void **data;            /* Circular buffer of pointers */
 } circ_buf_t;
 
 extern circ_buf_t *new_cb(char *name);
@@ -50,3 +51,4 @@ extern void *get_cb_data(circ_buf_t *cbp);
 extern char *get_cb_name(circ_buf_t *cbp);
 
 #endif /*EMU_INT_FIFO_H_*/
+

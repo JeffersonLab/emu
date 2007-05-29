@@ -29,31 +29,41 @@
 #include "emu_common.h"
 #include "emu_thread_package.h"
 #include "emu_int_data_struct.h"
+#include "emu_int_fifo.h"
 
 #define EMU_MAX_INPUTS 100
-#define EMU_READER_QUEUE_SIZE 20
+#define EMU_READER_QUEUE_SIZE 200
+
+#define TIME_BEFORE_REMOVE 1
 
 typedef struct emu_input *emu_input_id;
 
-typedef struct emu_input {
-	et_stat_id	 input_station;
-	et_stat_id	 output_station;
-	et_att_id     input_att;
-	et_att_id     output_att;
-
-} emu_input_desc;
+typedef struct emu_input
+{
+    et_stat_id	 input_station;
+    et_stat_id	 output_station;
+    et_att_id     input_att;
+    et_att_id     output_att;
+}
+emu_input_desc;
 
 typedef  struct emu_reader *emu_reader_id;
 
 typedef struct emu_reader
 {
+	int mode;
     et_sys_id     id;
     int keep_going;
-    et_sys_id output_et_id;
-	et_att_id     gc_att;
+    circ_buf_t *reader_output;
+    et_att_id     gc_att;
     int number_inputs;
-	emu_input_desc inputs[EMU_MAX_INPUTS];
+    emu_input_desc inputs[EMU_MAX_INPUTS];
+    struct emu_thread *worker_thread;
 }
 emu_reader_desc;
+
+emu_reader_id emu_reader_initialize ( );
+void emu_reader_start(emu_reader_id reader_id);
+void emu_reader_stop(emu_reader_id reader_id);
 
 #endif /*EMU_READER_H_*/

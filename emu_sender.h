@@ -26,6 +26,7 @@
 
 #define FIFO_TYPE 1
 #define ET_TYPE   2
+#define EMU_SENDER_QSIZE 60
  #include "et.h"
 
 typedef  struct emu_stargs *emu_sender_id;
@@ -34,22 +35,27 @@ typedef struct emu_stargs {
 
     int type;
     int keep_going;
+    int pause;
     char *target;
+    int port;
     et_sys_id the_et_id;
     et_att_id input_et_att;
     et_stat_id input_et_station;
     et_att_id output_et_att;
     et_stat_id output_et_station;
     struct cbt *input_fifo;
+    struct cbt *etmt_fifo;
+    struct emu_thread *attacher;
+    struct emu_thread *sender;
+    struct emu_thread *getter;
+    struct emu_thread *tester;
 
 } emu_send_thread_args;
 
-extern void emu_create_send_thread(emu_sender_id sender_id);
-
-extern emu_sender_id emu_initialize_sender (int type, char *myname, char *target);
-
-extern void *emu_FIFO_send_thread(void *arg);
-extern void *emu_FIFO_test_thread(void *arg);
-extern void *emu_ET_send_thread(void *arg);
-
+extern emu_sender_id emu_sender_initialize ();
+extern void emu_sender_start(emu_sender_id sender_id);
+extern void emu_sender_stop(emu_sender_id sender_id);
+extern void *emu_sender_process(void *arg);
+extern void *emu_sender_simulate(void *arg);
+extern void *emu_sender_etmtfifo(void *arg);
 #endif /*EMU_SEND_THREAD_H_*/

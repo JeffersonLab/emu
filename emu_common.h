@@ -24,6 +24,10 @@
 #ifndef EMU_COMMON_H_
 #define EMU_COMMON_H_
 
+#define ERROR -1
+
+#define EMU_NAME_LENGTH 10
+
 #ifdef EMU_DEBUG_ON
 #define EMU_DEBUG(args) { \
     printf ("LOG - %s:%d: ",__FILE__, __LINE__); \
@@ -34,8 +38,8 @@
 #define EMU_DEBUG(args)
 #endif
 
-
-
+ #define TRUE 1
+ #define FALSE 0
 
 #define err_abort(code,text) do { \
     fprintf (stderr, "%s at \"%s\":%d: %s\n", \

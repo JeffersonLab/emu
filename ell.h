@@ -6,7 +6,7 @@
  *    described in the NOTICE file included as part of this distribution.
  *
  *    Author:  heyes
- *    Created: 9 Mar 2007
+ *    Created: May 17, 2007
  *    Modification date : $Date$
  *    Revision : $Revision$
  *    URL : $HeadURL$
@@ -18,43 +18,41 @@
  *----------------------------------------------------------------------------
  *
  * Description:
- *      emu  - emu_thread_package.h
+ *      emu  - emu_linked_list.h
  *
  *----------------------------------------------------------------------------*/
-#ifndef EMU_THREAD_PACKAGE_H_
-#define EMU_THREAD_PACKAGE_H_
 
-#define EMU_THREAD_ENDED  0
-#define EMU_THREAD_STARTING 1
-#define EMU_THREAD_ACTIVE 2
-#define MONITOR_PERIOD 1 // one second
-
-#include <stdio.h>
-#include <string.h>
-#include <stdlib.h>
-#include <sys/types.h>
-#include <signal.h>
-#ifdef sun
-#include <thread.h>
-#endif
+#ifndef EMU_LINKED_LIST_H_
+#define EMU_LINKED_LIST_H_
+#define FALSE 0
 #include <pthread.h>
 
-#include "emu_common.h"
+typedef struct ell_el_str *ell_el;
 
-struct emu_thread {
-	char *name;
-	int status;
-	void *args;
-	pthread_attr_t  attr;
-	pthread_t       thread_id;
-	struct emu_thread *prev;
-	struct emu_thread *next;
-};
+typedef struct ell_el_str
+{
+    void  *payload;
+    ell_el next;
+    ell_el previous;
+}
+ell_el_ty;
 
-struct emu_thread *emu_create_thread(int detatched,char *name, void *thread_body, void *thread_args);
-void emu_thread_cleanup(struct emu_thread *thread_descriptor);
-void emu_thread_monitor();
-void emu_start_thread_monitor();
-int emu_thread_list();
+typedef struct ell_li_str *ell_li;
 
-#endif /*EMU_THREAD_PACKAGE_H_*/
+typedef struct ell_li_str
+{
+    char *name;
+    pthread_mutex_t lock;     /* lock the structure */
+    ell_el first;
+    ell_el last;
+}
+emu_list_type;
+
+
+ell_li ell_create_li(char *name);
+ell_el ell_add_el (ell_li l, void *data);
+ell_el ell_del_el (ell_li lp,void *data);
+void ell_print_li (ell_li l);
+void ell_clear_li (ell_li l);
+
+#endif /*EMU_LINKED_LIST_H_*/

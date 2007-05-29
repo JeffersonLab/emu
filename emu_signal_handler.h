@@ -6,7 +6,7 @@
  *    described in the NOTICE file included as part of this distribution.
  *
  *    Author:  heyes
- *    Created: 9 Mar 2007
+ *    Created: Apr 30, 2007
  *    Modification date : $Date$
  *    Revision : $Revision$
  *    URL : $HeadURL$
@@ -18,20 +18,12 @@
  *----------------------------------------------------------------------------
  *
  * Description:
- *      emu  - emu_thread_package.h
+ *      emu  - emu_signal_handler.h
  *
  *----------------------------------------------------------------------------*/
-#ifndef EMU_THREAD_PACKAGE_H_
-#define EMU_THREAD_PACKAGE_H_
 
-#define EMU_THREAD_ENDED  0
-#define EMU_THREAD_STARTING 1
-#define EMU_THREAD_ACTIVE 2
-#define MONITOR_PERIOD 1 // one second
-
-#include <stdio.h>
-#include <string.h>
-#include <stdlib.h>
+ #ifndef EMU_SIGNAL_HANDLER_H_
+#define EMU_SIGNAL_HANDLER_H_
 #include <sys/types.h>
 #include <signal.h>
 #ifdef sun
@@ -39,22 +31,8 @@
 #endif
 #include <pthread.h>
 
-#include "emu_common.h"
+void esh_create();
+void esh_start();
+void esh_add(char *name,void *(*handler_routine)(void *), void *arg)
 
-struct emu_thread {
-	char *name;
-	int status;
-	void *args;
-	pthread_attr_t  attr;
-	pthread_t       thread_id;
-	struct emu_thread *prev;
-	struct emu_thread *next;
-};
-
-struct emu_thread *emu_create_thread(int detatched,char *name, void *thread_body, void *thread_args);
-void emu_thread_cleanup(struct emu_thread *thread_descriptor);
-void emu_thread_monitor();
-void emu_start_thread_monitor();
-int emu_thread_list();
-
-#endif /*EMU_THREAD_PACKAGE_H_*/
+#endif /*EMU_SIGNAL_HANDLER_H_*/
