@@ -41,6 +41,7 @@ typedef struct emu_config_struct_t *emu_config_ptr;
 typedef struct emu_config_struct_t  {
 	char *emu_name;
 	char *output_target_name;
+	char *output_target_host;
 	char *input_names[EMU_MAX_INPUTS];
 	int port;
 	int input_count;

@@ -44,6 +44,7 @@ typedef struct cbt {
 } circ_buf_t;
 
 extern circ_buf_t *new_cb(char *name);
+extern circ_buf_t *new_sized_cb(char *name, int size);
 extern void  delete_cb(circ_buf_t *cbp);
 extern int   put_cb_data(circ_buf_t *cbp, void *data);
 extern int   get_cb_count(circ_buf_t *cbp);

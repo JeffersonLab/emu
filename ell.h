@@ -31,6 +31,7 @@ typedef struct ell_el_str *ell_el;
 
 typedef struct ell_el_str
 {
+	struct ell_li_str *ell_li;
     void  *payload;
     ell_el next;
     ell_el previous;
@@ -51,7 +52,16 @@ emu_list_type;
 
 ell_li ell_create_li(char *name);
 ell_el ell_add_el (ell_li l, void *data);
-ell_el ell_del_el (ell_li lp,void *data);
+//ell_el ell_remove (ell_li lp,void *data);
+ell_el ell_remove_el (ell_el el);
+ell_el ell_insert_el (ell_el el,void *data);
+ell_el ell_get_first(ell_li l);
+ell_el ell_get_last(ell_li l);
+int ell_get_count(ell_li l);
+ell_el ell_get_next(ell_el el);
+ell_el ell_get_prev(ell_el el);
+void *ell_get_data(ell_el el);
+
 void ell_print_li (ell_li l);
 void ell_clear_li (ell_li l);
 

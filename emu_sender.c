@@ -38,112 +38,96 @@
 
 static unsigned long dummy_records[256][10000];
 
-static void interrupt_signal_handler(void *arg)
+/*static void interrupt_signal_handler(void *arg)
 {
     emu_sender_id sender_id = (emu_sender_id) arg;
 
-    printf("Sender Interrupted by CONTROL-C\n");
-    emu_sender_stop(sender_id);
-}
+    printf("Ignore CONTROL-C\n");
+    //emu_sender_stop(sender_id);
+}*/
 
-void *emu_sender_attach(void *arg)
+static int emu_sender_simulate_pause(emu_sender_id sender_id)
+{
+    sender_id->pause = TRUE;
+}
+static int emu_sender_simulate_go(emu_sender_id sender_id)
+{
+    sender_id->pause = FALSE;
+}
+void *emu_et_monitor(void *arg)
 {
     struct emu_thread *thread_descriptor = (struct emu_thread *) arg;
-    int status = 0;
-    et_event   *pe[1000];
-    int size, actual;
     emu_sender_id sender_id = (emu_sender_id) thread_descriptor->args;
+    int status = 0;
     et_sys_id	 id;
-    et_stat_id	 my_stat;
-    et_att_id	 my_att;
     et_openconfig  openconfig;
-    int selections[] = {0,-1,-1,-1};
     struct timespec time_to_wait;
 
     /* This thread takes care of the connection to ET. We are a process remote from the ET so
-     * everything happens over  the network.
+     * everything happens over  the network. It's done as a thread because I don't want the open
+     * to block the whole program.
     */
-	printf("here\n");
-	printf("sender_id->target %s\n", sender_id->target);
-	printf("there\n");
-    // Thread lives until told to die
-    while (sender_id->keep_going)
+
+    et_open_config_init(&openconfig);
+
+    et_open_config_setmode(openconfig, ET_HOST_AS_REMOTE);
+    et_open_config_sethost(openconfig,emu_configuration->output_target_host);
+
+    et_open_config_setwait(openconfig,ET_OPEN_WAIT);
+    et_open_config_settimeout(openconfig,time_to_wait);
+    et_open_config_setpolicy(openconfig,ET_POLICY_FIRST);
+
+    printf("\n\nHERE LOOKING FOR %s\n", sender_id->target);
+
+    if (et_open(&id, sender_id->target, openconfig) != ET_OK)
     {
-        // Have we been here before?
+        printf("et_netclient: cannot open ET system\n");
+        exit(1);
+    }
 
-        if (sender_id->the_et_id == NULL )
+    printf("DONE\n\n\n");
+    et_open_config_destroy(openconfig);
+
+    /* This could be confusing so here's a comment...
+     * The output of this component is attached to the input of the next component in the
+     * data-stream. So we find the input station and attach to it but the station id and attachment
+     * are stored in the fields called output NOT the ones called input...
+    */
+
+    char station_name[100];
+    sprintf(station_name,"%s_input",emu_config()->emu_name);
+    if (et_station_name_to_id(id,&sender_id->output_et_station,station_name) < 0)
+    {
+        EMU_DEBUG(("error finding station %s",station_name));
+        exit(1);
+    }
+
+    if (et_station_attach(id, sender_id->output_et_station, &sender_id->output_et_att) < 0)
+    {
+        printf("et_netclient: error in station attach\n");
+        exit(1);
+    }
+
+    sender_id->the_et_id = id;
+    switch (sender_id->type)
+    {
+    case FIFO_TYPE:
+        EMU_DEBUG(("input is from a FIFO"));
+        sender_id->sender = emu_create_thread(1,"FIFO send thread 0", emu_sender_process, (void *) sender_id);
+        sender_id->getter = emu_create_thread(1,"ET buffer thread 0", emu_sender_etmtfifo, (void *) sender_id);
+        sender_id->pause = TRUE;
+        if (emu_configuration->process == NULL)
         {
-
-            /*
-             * We Initialize the output ET system and tell it that it is just
-             * a "front" for a remote system.
-             */
-
-            et_open_config_init(&openconfig);
-            /*et_open_config_setmode(openconfig, ET_HOST_AS_REMOTE);
-            et_open_config_sethost(openconfig,ET_HOST_ANYWHERE);
-            et_open_config_setcast(openconfig, ET_MULTICAST);
-            et_open_config_setmultiport(openconfig, ET_MULTICAST_PORT);
-            et_open_config_addmulticast(openconfig, ET_MULTICAST_ADDR);
-            et_open_config_addmulticast(openconfig, "239.111.222.0");*/
-
-            et_open_config_setmode(openconfig, ET_HOST_AS_REMOTE);
-            et_open_config_setcast(openconfig, ET_BROADCAST);
-            et_open_config_sethost(openconfig,ET_HOST_ANYWHERE);
-            et_open_config_setport(openconfig,ET_BROADCAST_PORT);
-            et_open_config_addbroadcast(openconfig,"129.57.31.255");
-            et_open_config_addbroadcast(openconfig,"129.57.29.255");
-            et_open_config_setTTL(openconfig, 2);
-
-            et_open_config_setwait(openconfig,ET_OPEN_WAIT);
-            et_open_config_settimeout(openconfig,time_to_wait);
-
-
-            /* For direct access to a remote ET system, use ET_DIRECT
-             * and specify the port that the server is on.
-             */
-
-            //et_open_config_setcast(openconfig, ET_DIRECT);
-            //et_open_config_sethost(openconfig, "albanac.jlab.org");
-
-            //et_open_config_addbroadcast(openconfig,"129.57.31.255");
-            //et_open_config_setport(openconfig, sender_id->port);
-
-            if (et_open(&id, sender_id->target, openconfig) != ET_OK)
-            {
-                printf("et_netclient: cannot open ET system\n");
-                exit(1);
-            }
-            et_open_config_destroy(openconfig);
-
-            {
-                /* This could be confusing so here's a comment...
-                 * The output of this component is attached to the input of the next component in the
-                 * data-stream. So we find the input station and attach to it but the station id and attachment
-                 * are stored in the fields called output NOT the ones called input...
-                */
-
-                char station_name[100];
-                sprintf(station_name,"%s_input",emu_config()->emu_name);
-                if (et_station_name_to_id(id,&sender_id->output_et_station,station_name) < 0)
-                {
-                    EMU_DEBUG(("error finding station %s",station_name));
-                    exit(1);
-                }
-
-                if (et_station_attach(id, sender_id->output_et_station, &sender_id->output_et_att) < 0)
-                {
-                    printf("et_netclient: error in station attach\n");
-                    exit(1);
-                }
-
-            }
-            sender_id->the_et_id = id;
+            GKB_add_key('g', emu_sender_simulate_go, (void *) sender_id,"start data taking (go)");
+            GKB_add_key('p', emu_sender_simulate_pause, (void *) sender_id, "pause data taking");
+            sender_id->tester = emu_create_thread(1,"FIFO test thread 0", emu_sender_simulate, (void *) sender_id);
         }
-        else
-        {
-            emu_sleep(2);
-        }
+        break;
+    case ET_TYPE:
+    default:
+        EMU_DEBUG(("default input is from a ET"));
+        //emu_create_thread(1,"ET send thread 0", emu_ET_send_thread, (void *) sender_id);
+        break;
     }
     emu_thread_cleanup(thread_descriptor);
 }
@@ -167,6 +151,8 @@ emu_sender_id emu_sender_initialize ()
 {
     int status;
     emu_sender_id sender_id;
+    circ_buf_t *fifo;
+
     if (emu_config()->output_target_name == NULL)
     {
         return NULL;
@@ -177,41 +163,33 @@ emu_sender_id emu_sender_initialize ()
 
     sender_id->type = FIFO_TYPE;
 
+    if (strchr(emu_config()->output_target_name,':') != NULL)
     {
-
-        if (strchr(emu_config()->output_target_name,':') != NULL)
-        {
-            sender_id->target  = strdup(emu_config()->output_target_name);
-            *strchr(sender_id->target,':') = '\0';
-            sender_id->port = atoi(strdup(strchr(emu_config()->output_target_name,':')+1));
-        }
-        else
-        {
-            sender_id->port = 11111;
-            sender_id->target = strdup(emu_config()->output_target_name);
-
-        }
-        printf ("target = %s port= %d\n",sender_id->target,sender_id->port);
+        sender_id->target  = strdup(emu_config()->output_target_name);
+        *strchr(sender_id->target,':') = '\0';
+        sender_id->port = atoi(strdup(strchr(emu_config()->output_target_name,':')+1));
     }
-
-
+    else
     {
-        circ_buf_t *fifo;
+        sender_id->port = 11111;
+        sender_id->target = strdup(emu_config()->output_target_name);
 
-        if (emu_configuration->process != NULL)
-        {
-            fifo = emu_configuration->process->output;
-        }
-        else
-        {
-            fifo = new_cb("EMU input FIFO");
-        }
-        sender_id->input_fifo = fifo;
-        sender_id->etmt_fifo = new_sized_cb("ET new event fifo",EMU_SENDER_QSIZE);
     }
+    printf ("target = %s port= %d\n",sender_id->target,sender_id->port);
+
+    if (emu_configuration->process != NULL)
+    {
+        fifo = emu_configuration->process->output;
+    }
+    else
+    {
+        fifo = new_cb("EMU input FIFO");
+    }
+    sender_id->input_fifo = fifo;
+    sender_id->etmt_fifo = new_sized_cb("ET new event fifo",EMU_SENDER_QSIZE);
 
     esh_block();
-    esh_add("sender Control-C handler", interrupt_signal_handler, (void *) sender_id);
+    //esh_add("sender Control-C handler", interrupt_signal_handler, (void *) sender_id);
 
     return sender_id;
 error:
@@ -219,14 +197,7 @@ error:
     return NULL;
 }
 
-static int emu_sender_simulate_pause(emu_sender_id sender_id)
-{
-    sender_id->pause = TRUE;
-}
-static int emu_sender_simulate_go(emu_sender_id sender_id)
-{
-    sender_id->pause = FALSE;
-}
+
 /*
  * emu emu_sender.c
  * Function emu_create_send_thread
@@ -252,28 +223,7 @@ void emu_sender_start(emu_sender_id sender_id)
      * Both types of sender send their data to an ET system.
      */
 
-    sender_id->sender = emu_create_thread(1,"ET connector thread 0", emu_sender_attach, (void *) sender_id);
-
-    switch (sender_id->type)
-    {
-    case FIFO_TYPE:
-        EMU_DEBUG(("input is from a FIFO"));
-        sender_id->sender = emu_create_thread(1,"FIFO send thread 0", emu_sender_process, (void *) sender_id);
-        sender_id->getter = emu_create_thread(1,"ET buffer thread 0", emu_sender_etmtfifo, (void *) sender_id);
-        sender_id->pause = TRUE;
-        if (emu_configuration->process == NULL)
-        {
-            GKB_add_key('g', emu_sender_simulate_go, (void *) sender_id,"start data taking (go)");
-            GKB_add_key('p', emu_sender_simulate_pause, (void *) sender_id, "pause data taking");
-            sender_id->tester = emu_create_thread(1,"FIFO test thread 0", emu_sender_simulate, (void *) sender_id);
-        }
-        break;
-    case ET_TYPE:
-    default:
-        EMU_DEBUG(("default input is from a ET"));
-        //emu_create_thread(1,"ET send thread 0", emu_ET_send_thread, (void *) sender_id);
-        break;
-    }
+    sender_id->sender = emu_create_thread(1,"ET connector thread 0", emu_et_monitor, (void *) sender_id);
 
     return;
 }
@@ -283,18 +233,25 @@ void emu_sender_stop(emu_sender_id sender_id)
     circ_buf_t *fifo;
     printf("Stop Sender ET\n",sender_id);
 
+	emu_thread_cleanup(sender_id->getter);
+	emu_thread_cleanup(sender_id->sender);
+
     if (emu_configuration->process == NULL)
     {
         fifo = sender_id->input_fifo;
         sender_id->input_fifo =NULL;
-        delete_cb(fifo);
+        if (fifo != NULL)
+            delete_cb(fifo);
 
         fifo = sender_id->etmt_fifo;
         sender_id->etmt_fifo =NULL;
-        delete_cb(fifo);
+
+        if (fifo != NULL)
+            delete_cb(fifo);
     }
     sender_id->keep_going = 0;
-    et_station_detach(sender_id->the_et_id,sender_id->output_et_att);
+    printf("Force ET close\n");
+    et_forcedclose(sender_id->the_et_id);
     printf("sender stopped\n");
 }
 
@@ -310,6 +267,8 @@ void *emu_sender_etmtfifo(void *arg)
     et_att_id att;
     int ix, count;
 
+    emu_enable_cancel();
+
     while (sender_id->keep_going)
     {
         et_id = sender_id->the_et_id;
@@ -321,14 +280,10 @@ void *emu_sender_etmtfifo(void *arg)
             continue;
         }
 
-        status = et_station_getattachments(et_id,sender_id->output_et_station,&count);
-        if (status != ET_OK)
+        if (et_alive(et_id) == 0)
         {
-            printf("error in et_station_getattachments\n");
-
-            // instead of breaking do something smart here!!
-            et_id = NULL;
-            continue;
+            EMU_DEBUG(("et_alive returned FALSE\n"))
+            break;
         }
         /* Ask the ET system for enough ET events to hold the number of records in the queue
           * plus the one we just pulled off the top. ET returns an array of ET events that may
@@ -345,15 +300,15 @@ void *emu_sender_etmtfifo(void *arg)
         if (status != ET_OK)
         {
             printf("error in et_event_new\n");
-            // instead of breaking do something smart here!!
-            et_id = NULL;
-            continue;
+
+            break;
         }
 
         for (ix = 0; ix < actual;ix++)
             put_cb_data(sender_id->etmt_fifo, (void *) pe[ix]);
     }
-
+    sender_id->keep_going = FALSE;
+    emu_thread_cleanup(thread_descriptor);
 }
 
 /*
@@ -373,6 +328,8 @@ void *emu_sender_process(void *arg)
     et_att_id att;
 
     printf("I am a thread named \"%s\" my sender_id is %08x input type is %d\n", thread_descriptor->name, sender_id, sender_id->type);
+
+    emu_enable_cancel();
 
     counter = 0;
 
@@ -402,11 +359,11 @@ void *emu_sender_process(void *arg)
         }
 
         emu_data_record_ptr record = (emu_data_record_ptr)  get_cb_data(sender_id->input_fifo);
-        if ((int) record == -1)
+        if (((int) record == -1)||(record == NULL))
             break;
 
         pe[counter] = (et_event *) get_cb_data(sender_id->etmt_fifo);
-        if ((int) pe[counter] == -1)
+        if (((int) pe[counter] == -1) || (pe[counter] == NULL))
             break;
 
 

@@ -31,24 +31,27 @@
  *----------------------------------------------------------------------------*/
 
 #include "emu_thread_package.h"
-/* List of active threads lock */
+#include "ell.h"
 
-pthread_mutex_t thread_list_lock = PTHREAD_MUTEX_INITIALIZER;
-
-static struct emu_thread *emu_thread_thread_list = (struct emu_thread *) NULL;
-static int thread_count = 0;
+static ell_li emu_thread_list = (ell_li) NULL;
 static int monitor_threads = 1;
 
-int emu_thread_list()
+int emu_list_threads()
 {
     struct emu_thread *thread_descriptor;
-    thread_descriptor = emu_thread_thread_list;
-	printf("list head is %08x\n", thread_descriptor);
-    while (thread_descriptor != NULL)
+    ell_el el;
+    el = ell_get_first(emu_thread_list);
+    printf("Thread list -------------------------------------\n");
+    while (el != NULL)
     {
+        /*List isn't empty*/
+        thread_descriptor = (struct emu_thread *) ell_get_data(el);
+
         printf ("thread %08x named : %s\n",thread_descriptor->thread_id,thread_descriptor->name);
-        thread_descriptor = thread_descriptor->next;
+        el = ell_get_next(el);
     }
+    printf("------------------------------------------------\n");
+    printf("%d threads in total\n\n",ell_get_count(emu_thread_list));
 }
 
 /* emu_create_thread.
@@ -62,6 +65,9 @@ struct emu_thread *emu_create_thread(int detatched,char *name, void *thread_body
 {
     int status;
     struct emu_thread *thread_descriptor;
+
+    if (emu_thread_list == NULL)
+        emu_thread_list = ell_create_li("Thread list");
 
     thread_descriptor = (struct emu_thread *) malloc(sizeof(struct emu_thread));
 
@@ -100,31 +106,7 @@ struct emu_thread *emu_create_thread(int detatched,char *name, void *thread_body
         err_cleanup(status, "Create Failed");
     }
 
-
-    // linked list of thread descriptors is protected by a mutex
-    pthread_mutex_lock(&thread_list_lock);
-    if (emu_thread_thread_list == NULL)
-    {
-        // list is empty so we become first on list
-        emu_thread_thread_list = thread_descriptor;
-
-        thread_descriptor->next = NULL;
-        thread_descriptor->prev = NULL;
-    }
-    else
-    {
-        // add to head of list
-        emu_thread_thread_list->prev = thread_descriptor;
-        thread_descriptor->next = emu_thread_thread_list;
-        thread_descriptor->prev = NULL;
-
-        emu_thread_thread_list = thread_descriptor;
-
-    }
-
-    thread_count++;
-    // done tweaking the list so free the mutex.
-    pthread_mutex_unlock(&thread_list_lock);
+    ell_add_el(emu_thread_list, thread_descriptor);
 
     return thread_descriptor;
 
@@ -156,46 +138,54 @@ void emu_thread_cleanup(struct emu_thread *thread_descriptor)
 {
     pthread_t thread_id;
     void *status;
+    struct emu_thread *emu_thread_next;
 
+    ell_el el;
 
     if (thread_descriptor == NULL)
     {
-        // lock out other threads while we tweak the list
-        pthread_mutex_lock(&thread_list_lock);
-        thread_descriptor = emu_thread_thread_list;
-        while (thread_descriptor != NULL && thread_descriptor->thread_id != pthread_self())
+        el = ell_get_first(emu_thread_list);
+        while (el != NULL)
         {
-            thread_descriptor = thread_descriptor->next;
+            /*List isn't empty*/
+            thread_descriptor = (struct emu_thread *) ell_get_data(el);
+
+            if (thread_descriptor->thread_id != pthread_self())
+            {
+                EMU_DEBUG(("Thread %08x (%s) is this thread and will be cleaned up",thread_id, thread_descriptor->name));
+                ell_remove_el(el);
+                emu_list_threads();
+                break;
+            }
+            el = ell_get_next(el);
         }
-        if (thread_descriptor != NULL)
-        {
-            EMU_DEBUG(("Attempt cleanup of thread %8x (%s)",pthread_self(), thread_descriptor->name));
-            thread_descriptor->status = EMU_THREAD_ENDED;
-        }
-        EMU_DEBUG(("Thread %08x (%s) is this thread and cleaned up",thread_id, thread_descriptor->name));
-	    emu_thread_list();
-        // done tweaking the list
-        pthread_mutex_unlock(&thread_list_lock);
 
         pthread_exit(NULL);
+        if (el == NULL)
+            return;
     }
     else
     {
-        pthread_mutex_lock(&thread_list_lock);
         thread_id = thread_descriptor->thread_id;
-        EMU_DEBUG(("Attempt cleanup of thread %08x",thread_id));
+        EMU_DEBUG(("Attempt cleanup of thread (%08x)",thread_id));
         // lock out other threads while we tweak the list
-        thread_descriptor = emu_thread_thread_list;
-        while (thread_descriptor != NULL && thread_descriptor->thread_id != thread_id)
+        el = ell_get_first(emu_thread_list);
+        while (el != NULL)
         {
-            thread_descriptor = thread_descriptor->next;
+            thread_descriptor = (struct emu_thread *) ell_get_data(el);
+            if (thread_id == thread_descriptor->thread_id)
+            {
+                break;
+            }
+            el = ell_get_next(el);
         }
-        if (thread_descriptor == NULL)
+        if (el == NULL)
         {
             EMU_DEBUG(("Thread %08x not found. Already cleaned up",thread_id));
-            pthread_mutex_unlock(&thread_list_lock);
             return;
         }
+        else
+            ell_remove_el(el);
 
         /* If we are cancelling another thread we can't free the descriptor until
          * we are sure that it isn't in use so cancel the thread then call join to wait
@@ -205,100 +195,18 @@ void emu_thread_cleanup(struct emu_thread *thread_descriptor)
         pthread_cancel(thread_id);
         //pthread_join(thread_id, &status);
 
-
-        thread_descriptor->status = EMU_THREAD_ENDED;
-        EMU_DEBUG(("Thread %08x (%s) found and cleaned up",thread_id, thread_descriptor->name));
-
-        // done tweaking the list
-        pthread_mutex_unlock(&thread_list_lock);
     }
+    pthread_attr_destroy(&thread_descriptor->attr);
+    EMU_DEBUG(("free %08x",thread_descriptor->name));
+    free(thread_descriptor->name);
+    EMU_DEBUG(("free %08x",thread_descriptor));
+    free(thread_descriptor);
+    printf("   - thread resources freed %d threads left\n nemaining threads are -\n",ell_get_count(emu_thread_list));
+    emu_list_threads();
+
+
 }
 
-/* emu_thread_monitor
- * This thread loops while there are threads to monitor and looks for thread
- * descriptors that belong to threads that have ended. It then removes the descriptor
- * from the list and frees any associated storage.
- */
-
-void emu_thread_monitor()
-{
-
-    while (monitor_threads)
-    {
-        if  (emu_thread_thread_list != NULL)
-        {
-            struct emu_thread *thread_descriptor;
-
-            // lock down the list while we play
-            pthread_mutex_lock(&thread_list_lock);
-            thread_descriptor = emu_thread_thread_list;
-
-            // With the list locked work down the list checking the status
-            //of each thread.
-            while (thread_descriptor != NULL)
-            {
-                struct emu_thread *emu_thread_next = thread_descriptor->next;
-                //printf("Thread named %s has state %d\n", thread_descriptor->name, thread_descriptor->status);
-                if (thread_descriptor->status == EMU_THREAD_ENDED)
-                {
-                    printf( "  - thread %s has ended\n", thread_descriptor->name);
-
-                    // are we at the head of the list
-                    if (thread_descriptor == emu_thread_thread_list)
-                    {
-                        /* yes
-                        * Then move the next thread along to the head of the list
-                        * If there was no next thread then exit the monitor.
-                        * If there was another thread then, since it's at the top of
-                        * the list set prev = NULL;
-                        */
-
-                        printf("     thread was head of list\n");
-                        emu_thread_thread_list = emu_thread_next;
-                        if (emu_thread_thread_list == NULL)
-                            monitor_threads=0;
-                        else
-                            emu_thread_thread_list->prev = NULL;
-
-                    }
-                    else
-                    {
-                        /* No
-                        * We are in the middle of the list or the tail.
-                        * Since we are not at the head prev != NULL so we set the next field of the
-                        * thread above us to the address of the thread below us. If there is a thread
-                        * below us then we set it's prev field to point to the thread above us.
-                        * Now the thread above us points to the one below us and the one below us
-                        * points to the one above us. Nobody points to us any more so we're off the list!
-                        */
-
-                        thread_descriptor->prev->next = thread_descriptor->next;
-                        if (thread_descriptor->next != NULL)
-                            thread_descriptor->next->prev = thread_descriptor->prev;
-
-                    }
-
-                    pthread_attr_destroy(&thread_descriptor->attr);
-                    EMU_DEBUG(("free %08x",thread_descriptor->name));
-                    free(thread_descriptor->name);
-                    EMU_DEBUG(("free %08x",thread_descriptor));
-                    free(thread_descriptor);
-                    thread_count--;
-                    printf("   - thread resources freed %d threads left\n nemaining threads are -\n",thread_count);
-                    emu_thread_list();
-
-                }
-                thread_descriptor = emu_thread_next;
-            }
-            // unlock list
-            pthread_mutex_unlock(&thread_list_lock);
-        }
-        // sleep for a while and repeat until there are no more threads to monitor.
-        emu_sleep(2);
-    }
-    printf("All threads terminated normally, exiting monitor\n");
-
-}
 
 /* emu_wait_thread_end
  * A main thread of the program may want to start the monitor as a thread then just wait for it to end.
@@ -312,30 +220,6 @@ void emu_wait_thread_end()
     pthread_exit(NULL);
 }
 
-/* emu_start_thread_monitor
- * Start emu_thread_monitor as a thread
- */
-
-void emu_start_thread_monitor()
-{
-    pthread_attr_t  attr;
-
-    pthread_t thread_id;
-    monitor_threads = 1;
-
-    pthread_attr_init(&attr);
-    pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
-    pthread_create(&thread_id, &attr, (void *) emu_thread_monitor, NULL);
-}
-
-/* emu_stop_thread_monitor
- * Stops emu_thread_monitor
- */
-
-void emu_stop_thread_monitor()
-{
-    monitor_threads = 0;
-}
 
 
 //end of file

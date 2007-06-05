@@ -81,7 +81,7 @@ main ()
             {
                 printf ("Enter data item value to remove  ");
                 scanf ("%d", &data);
-                listmember = ell_del_el (listpointer, (void *) data);
+                listmember = ell_remove_el (listpointer, (void *) data);
                 if (listmember == NULL)
                 {
                     printf("item not found in list\n");
@@ -126,6 +126,9 @@ ell_el ell_add_el (ell_li lp, void * data)
 
     ell_el le = (ell_el) malloc(sizeof(ell_el_ty));
     bzero((void *) le, sizeof(ell_el_ty));
+
+    le->ell_li = lp;
+
     le->payload = data;
     pthread_mutex_lock(&lp->lock);
 
@@ -151,9 +154,28 @@ ell_el ell_add_el (ell_li lp, void * data)
     return le;
 }
 
-ell_el ell_del_el (ell_li lp, void *data)
+ell_el ell_insert_el (ell_el elem, void * data)
+{
+
+    pthread_mutex_lock(&elem->ell_li->lock);
+
+    ell_el le = (ell_el) malloc(sizeof(ell_el_ty));
+    bzero((void *) le, sizeof(ell_el_ty));
+    le->ell_li = elem->ell_li;
+
+    le->payload = data;
+
+    le->next = elem->next;
+    elem->next = le;
+    le->previous = elem;
+    pthread_mutex_unlock(&elem->ell_li->lock);
+    return le;
+}
+
+ell_el ell_remove_el (ell_el el)
 {
     ell_el le;
+	ell_li lp = el->ell_li;
 
     pthread_mutex_lock(&lp->lock);
 
@@ -161,14 +183,14 @@ ell_el ell_del_el (ell_li lp, void *data)
 
     if (le == NULL)
     {
-        printf("WARNING: searching for %08x when list %s was empty!\n", data, lp->name);
+        printf("WARNING: searching for %08x when list %s was empty!\n", el, lp->name);
         pthread_mutex_unlock(&lp->lock);
         return NULL;
     }
     // search list for item to remove
     while(le != NULL)
     {
-        if (le->payload ==data)
+        if (le == el)
         {
             // special cases first
 
@@ -201,17 +223,53 @@ ell_el ell_del_el (ell_li lp, void *data)
                 le->next->previous = le->previous;
             }
             free(le);
-            printf ("Element %08x removed from %s\n", data, lp->name);
+            printf ("Element %08x removed from %s\n", el, lp->name);
             goto done_remove;
         }
         // not found yet so keep looking
         le = le->next;
     }
     le = NULL;
-    printf("WARNING: %08x not found in list %s\n", data,lp->name);
+    printf("WARNING: %08x not found in list %s\n", el,lp->name);
 done_remove:
     pthread_mutex_unlock(&lp->lock);
     return le;
+}
+
+ell_el ell_get_first(ell_li lp)
+{
+	return lp->first;
+}
+
+ell_el ell_get_last(ell_li lp)
+{
+	return lp->last;
+}
+
+ell_el ell_get_next(ell_el el)
+{
+	return el->next;
+}
+
+ell_el ell_get_prev(ell_el el)
+{
+	return el->previous;
+}
+
+void *ell_get_data(ell_el el)
+{
+	return el->payload;
+}
+
+int ell_get_count(ell_li lp)
+{
+	int counter = 0;
+	ell_el le = lp->first;
+	while (le != NULL) {
+		counter++;
+		le = le->next;
+	}
+	return counter;
 }
 
 void ell_print_li (ell_li lp)

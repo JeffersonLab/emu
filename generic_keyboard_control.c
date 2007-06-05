@@ -31,6 +31,7 @@
 #include <sys/types.h>
 #include <unistd.h>
 #include "emu_thread_package.h"
+#include "ell.h"
 
 typedef struct key_function *key_function_ptr;
 
@@ -40,11 +41,11 @@ typedef struct key_function
     int (*handler)();
     void *arg;
     char *help;
-    key_function_ptr next;
+
 }
 key_function_struct;
 
-static key_function_ptr key_function_list = NULL;
+ell_li key_function_list = NULL;
 
 void GKB_add_key(char key, int (*handler)(),void *arg, char *help)
 {
@@ -52,29 +53,31 @@ void GKB_add_key(char key, int (*handler)(),void *arg, char *help)
 
     bzero ((void *) p, sizeof(key_function_struct));
 
+    if (key_function_list == NULL)
+        key_function_list = ell_create_li("Keybd cmd handlers");
+
     p->help = strdup(help);
     p->key = key;
     p->handler = handler;
     p->arg = arg;
 
-    // this is only called from one thread so no nead to make thread safe.
-
-    p->next = key_function_list;
-    key_function_list = p;
+    ell_add_el(key_function_list,p);
 }
 
 int GKB_print_help()
 {
-    key_function_ptr p = key_function_list;
+    ell_el el = ell_get_first(key_function_list);
+    key_function_ptr p;
 
-    printf("----\n");
+    printf("Help ----\n");
 
-    while( p!=NULL)
+    while( el !=NULL)
     {
+        p = ell_get_data(el);
         printf("   %c : %s\n",p->key,p->help);
-        p= p->next;
+        el = ell_get_next(el);
     }
-    printf("----\n");
+    printf("---------\n\n");
     return 0;
 }
 
@@ -90,10 +93,12 @@ void GKB_handler(void *arg)
     while (1)
     {
         char key = getchar();
-        key_function_ptr p = key_function_list;
+        key_function_ptr p;
+        ell_el el = ell_get_first(key_function_list);
         int status;
-        while (p != NULL)
+        while (el != NULL)
         {
+            p = ell_get_data(el);
             if (p->key == key)
             {
                 status = (int) (*(p->handler))(p->arg);
@@ -103,7 +108,8 @@ void GKB_handler(void *arg)
                     return;
                 }
             }
-            p = p->next;
+            el = ell_get_next(el);
+
         }
     }
 

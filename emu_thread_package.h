@@ -53,8 +53,6 @@ struct emu_thread {
 
 struct emu_thread *emu_create_thread(int detatched,char *name, void *thread_body, void *thread_args);
 void emu_thread_cleanup(struct emu_thread *thread_descriptor);
-void emu_thread_monitor();
-void emu_start_thread_monitor();
-int emu_thread_list();
+int emu_list_threads();
 
 #endif /*EMU_THREAD_PACKAGE_H_*/

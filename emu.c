@@ -31,6 +31,7 @@ static char *help_string =  "usage: emu -v -n name [-o name]\n"
                             "      -v for verbose output\n"
                             "      -n EMU name\n"
                             "      -i input\n"
+                            "      -h host\n"
                             "      -S sender simulation\n"
                             "      -R reader simulation\n"
                             "      -P process simulation\n"
@@ -57,7 +58,7 @@ int emu_initialize(int argc,char **argv)
 
     bzero(emu_configuration, sizeof(emu_config_t));
     emu_configuration->reader_mode = EMU_MODE_NORMAL;
-    while ((c = getopt(argc, argv, "hv:n:i:o:p:")) != EOF)
+    while ((c = getopt(argc, argv, "h:v:n:i:o:p:")) != EOF)
     {
         switch (c)
         {
@@ -80,6 +81,10 @@ int emu_initialize(int argc,char **argv)
         }*/
 
             emu_configuration->output_target_name = strdup(optarg);
+            break;
+        case 'h':
+
+            emu_configuration->output_target_host = strdup(optarg);
             break;
         case 'i':
             if (strchr(optarg,':') == NULL)
@@ -121,7 +126,6 @@ int emu_initialize(int argc,char **argv)
             emu_configuration->port = atoi(optarg);
             break;
         case ':':
-        case 'h':
         case '?':
         default:
             print_help();
@@ -161,7 +165,7 @@ int main(int argc,char **argv)
     GKB_add_key('h', GKB_print_help, NULL,"Print out this help message");
 
     GKB_add_key('q', emu_quit, NULL, "quit");
-    GKB_add_key('t',emu_thread_list,NULL,"list threads");
+    GKB_add_key('t',emu_list_threads,NULL,"list threads");
     GKB_start();
 
     if (emu_initialize(argc, argv) == ERROR)
@@ -188,9 +192,7 @@ int main(int argc,char **argv)
     if(emu_configuration->send != NULL)
         emu_sender_start(emu_configuration->send);
 
-    // The thread monitor is a thread that scans the list of threads
-    // and reaps dead ones.
-    emu_thread_monitor();
+    emu_wait_thread_end();
 
 }
 

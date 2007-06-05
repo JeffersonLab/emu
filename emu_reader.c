@@ -24,15 +24,16 @@
 
 #include "emu.h"
 
+static void add_input (emu_reader_id reader_id,char *name);
+
 static void interrupt_signal_handler(void *arg)
 {
     emu_reader_id reader_id = (emu_reader_id) arg;
 
-    printf("Reader Interrupted by CONTROL-C\n");
+    printf("Ignore CONTROL-C\n");
 
-    emu_reader_stop(reader_id);
+    //emu_reader_stop(reader_id);
 }
-
 
 static void emu_reader_process(void *arg)
 {
@@ -119,6 +120,7 @@ static void emu_reader_process(void *arg)
     //emu_thread_cleanup(thread_descriptor);
 
 }
+
 static void emu_reader_simulator(void *arg)
 {
     struct emu_thread *thread_descriptor = (struct emu_thread *) arg;
@@ -207,12 +209,123 @@ static void emu_reader_simulator(void *arg)
 }
 
 
-/*
- * emu emu_reader.c
- * Function reader_initialize station
- *
- *
- */
+emu_reader_id emu_reader_initialize ( )
+{
+    emu_reader_id reader_id;
+    int           errflg = 0;
+    int           i_tmp;
+
+    int           status = 0;
+    int           et_verbose = ET_DEBUG_NONE;
+    int           deleteFile = 0;
+    char *et_filename = emu_config()->emu_name;
+    sigset_t      sigblockset;
+    et_statconfig sconfig;
+    et_sysconfig  config;
+    et_stat_id    statid;
+    et_sys_id     id;
+
+    if (emu_config()->input_count == 0)
+        return NULL;
+
+    reader_id = malloc(sizeof( struct emu_reader));
+
+    bzero(reader_id, sizeof( struct emu_reader));
+
+    /************************************/
+    /* default configuration parameters */
+    /************************************/
+    int nevents = 2000;               /* total number of events */
+    int event_size = 40000;            /* size of event in bytes */
+
+    EMU_DEBUG(("asking for %d byte events.", event_size))
+    EMU_DEBUG(("asking for %d events.", nevents))
+
+    remove(et_filename);
+
+
+    /********************************/
+    /* set configuration parameters, MOVE THIS SOMEWHERE ELSE*/
+    /********************************/
+
+    if (et_system_config_init(&config) == ET_ERROR)
+    {
+        printf("et_start: no more memory\n");
+        exit(1);
+    }
+
+    //et_system_config_setport(config,emu_configuration->port);
+    et_system_config_addmulticast(config, ET_MULTICAST_ADDR);
+    et_system_config_addmulticast(config, "239.111.222.0");
+
+    //et_system_config_setcast(config,ET_MULTICAST);
+
+    /* total number of events */
+    et_system_config_setevents(config, nevents);
+
+    /* size of event in bytes */
+    et_system_config_setsize(config, event_size);
+
+    /* max number of temporary (specially allocated mem) events */
+    /* This cannot exceed total # of events                     */
+    et_system_config_settemps(config, nevents);
+
+    /* limit on # of stations */
+    et_system_config_setstations(config, ET_ATTACHMENTS_MAX);
+
+    /* soft limit on # of attachments (hard limit = ET_ATTACHMENTS_MAX) */
+    et_system_config_setattachments(config, 200);
+
+    /* soft limit on # of processes (hard limit = ET_PROCESSES_MAX) */
+    et_system_config_setprocs(config, ET_PROCESSES_MAX);
+
+
+    /* Make sure filename is null-terminated string */
+    if (et_system_config_setfile(config, et_filename) == ET_ERROR)
+    {
+        printf("bad filename argument\n");
+        exit(1);
+    }
+
+
+
+    /*************************/
+    /*    start ET system    */
+    /*************************/
+
+    EMU_DEBUG(("starting ET system %s\n", et_filename))
+
+    if (et_system_start(&id, config) != ET_OK)
+    {
+        printf("error in starting ET system");
+        exit(1);
+    }
+
+    EMU_DEBUG(("ET system %s started %08x", et_filename,id))
+
+
+    et_system_setdebug(id, ET_DEBUG_INFO);
+
+    reader_id->id = id;
+
+    if (et_station_attach(id, ET_GRANDCENTRAL, &reader_id->gc_att) < 0)
+    {
+        printf("et_netclient: error in station attach\n");
+        exit(1);
+    }
+
+    {
+        int counter;
+        for (counter = 0; counter < emu_config()->input_count; counter++)
+        {
+            add_input (reader_id,emu_config()->input_names[counter]);
+
+        }
+    }
+    reader_id->mode = emu_config()->reader_mode;
+    esh_add("Reader Control-C handler", interrupt_signal_handler, (void *) reader_id);
+    return reader_id;
+}
 
 static void add_input (emu_reader_id reader_id,char *name)
 {
@@ -357,131 +470,6 @@ station_error:
         exit(1);
     }
 
-}
-
-/*
- * emu emu_reader.c
- * Function emu_main
- *
- *
- */
-
-emu_reader_id emu_reader_initialize ( )
-{
-    emu_reader_id reader_id;
-    int           errflg = 0;
-    int           i_tmp;
-
-    int           status = 0;
-    int           et_verbose = ET_DEBUG_NONE;
-    int           deleteFile = 0;
-    char *et_filename = emu_config()->emu_name;
-    sigset_t      sigblockset;
-    et_statconfig sconfig;
-    et_sysconfig  config;
-    et_stat_id    statid;
-    et_sys_id     id;
-
-    if (emu_config()->input_count == 0)
-        return NULL;
-
-    reader_id = malloc(sizeof( struct emu_reader));
-
-    bzero(reader_id, sizeof( struct emu_reader));
-
-    /************************************/
-    /* default configuration parameters */
-    /************************************/
-    int nevents = 2000;               /* total number of events */
-    int event_size = 40000;            /* size of event in bytes */
-
-    EMU_DEBUG(("asking for %d byte events.", event_size))
-    EMU_DEBUG(("asking for %d events.", nevents))
-
-    remove(et_filename);
-
-
-    /********************************/
-    /* set configuration parameters, MOVE THIS SOMEWHERE ELSE*/
-    /********************************/
-
-    if (et_system_config_init(&config) == ET_ERROR)
-    {
-        printf("et_start: no more memory\n");
-        exit(1);
-    }
-
-    //et_system_config_setport(config,emu_configuration->port);
-    et_system_config_addmulticast(config, ET_MULTICAST_ADDR);
-    et_system_config_addmulticast(config, "239.111.222.0");
-
-    //et_system_config_setcast(config,ET_MULTICAST);
-
-    /* total number of events */
-    et_system_config_setevents(config, nevents);
-
-    /* size of event in bytes */
-    et_system_config_setsize(config, event_size);
-
-    /* max number of temporary (specially allocated mem) events */
-    /* This cannot exceed total # of events                     */
-    et_system_config_settemps(config, nevents);
-
-    /* limit on # of stations */
-    et_system_config_setstations(config, ET_ATTACHMENTS_MAX);
-
-    /* soft limit on # of attachments (hard limit = ET_ATTACHMENTS_MAX) */
-    et_system_config_setattachments(config, 200);
-
-    /* soft limit on # of processes (hard limit = ET_PROCESSES_MAX) */
-    et_system_config_setprocs(config, ET_PROCESSES_MAX);
-
-
-    /* Make sure filename is null-terminated string */
-    if (et_system_config_setfile(config, et_filename) == ET_ERROR)
-    {
-        printf("bad filename argument\n");
-        exit(1);
-    }
-
-
-
-    /*************************/
-    /*    start ET system    */
-    /*************************/
-
-    EMU_DEBUG(("starting ET system %s\n", et_filename))
-
-    if (et_system_start(&id, config) != ET_OK)
-    {
-        printf("error in starting ET system");
-        exit(1);
-    }
-
-    EMU_DEBUG(("ET system %s started %08x", et_filename,id))
-
-
-    et_system_setdebug(id, ET_DEBUG_INFO);
-
-    reader_id->id = id;
-
-    if (et_station_attach(id, ET_GRANDCENTRAL, &reader_id->gc_att) < 0)
-    {
-        printf("et_netclient: error in station attach\n");
-        exit(1);
-    }
-
-    {
-        int counter;
-        for (counter = 0; counter < emu_config()->input_count; counter++)
-        {
-            add_input (reader_id,emu_config()->input_names[counter]);
-
-        }
-    }
-    reader_id->mode = emu_config()->reader_mode;
-    esh_add("Reader Control-C handler", interrupt_signal_handler, (void *) reader_id);
-    return reader_id;
 }
 
 void emu_reader_start(emu_reader_id reader_id)
