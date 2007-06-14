@@ -1,0 +1,17 @@
+<!DOCTYPE component [
+	<!ELEMENT component (name,(inputs|parameters)*)>
+	<!ELEMENT name (#PCDATA)>
+	<!ELEMENT inputs (#PCDATA)>
+	<!ELEMENT parameters (param*)>
+	<!ELEMENT param EMPTY>
+	<!ATTLIST param name CDATA #REQUIRED>
+	<!ATTLIST param value CDATA #REQUIRED>
+	<!ATTLIST param key CDATA "">
+	<!ATTLIST param help CDATA "">
+]>
+<component>
+	<name>EMU1</name>
+	<parameters>
+	</parameters>
+	<inputs>ROC1</inputs>
+</component>
