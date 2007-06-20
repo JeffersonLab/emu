@@ -43,8 +43,7 @@ static int monitor_threads = 1;
     goto cleanup; \
     }
 
-int gtp_list()
-{
+int gtp_list() {
     struct gtp_thread *thread_descriptor;
     gll_el el;
     el = gll_get_first(thread_list);
@@ -54,8 +53,7 @@ int gtp_list()
     printf("%.8s %.26s\n",DASH,DASH);
 
 
-    while (el != NULL)
-    {
+    while (el != NULL) {
         /*List isn't empty*/
         thread_descriptor = (struct gtp_thread *) gll_get_data(el);
 
@@ -74,13 +72,41 @@ int gtp_list()
  */
 
 
-struct gtp_thread *gtp_create(int detatched,char *name, void *thread_body, void *thread_args)
-{
+struct gtp_thread *gtp_create(int detatched,char *name, void *thread_body, void *thread_args) {
     int status;
     struct gtp_thread *thread_descriptor;
 
-    if (thread_list == NULL)
+    if (thread_list == NULL) {
+
+#ifdef sun
+
+        int		  con, con_add;
+
+        /*
+         * want one thread for each station's conductor + extra threads
+         * for heartbeat production and detection + 1 for main thd +
+         * 1 for add stations thd + 2 for udp & tcp threads. However,
+         * if we exceed system resources, we'll need to try something
+         * more conservative.
+         */
+        con = thr_getconcurrency();
+        if (thr_setconcurrency(con + config->nstations + ET_EXTRA_THREADS + 4) != 0) {
+            /* exceeded # of threads allowed so reduce and try again */
+            if (thr_setconcurrency(config->nstations + ET_EXTRA_THREADS + 4) != 0) {
+                /* exceeded # of threads allowed so try fixed number */
+                if (thr_setconcurrency(20) != 0) {
+                    /* exceeded # of threads allowed so let system choose */
+                    thr_setconcurrency(0);
+                }
+            }
+        }
+        con_add = thr_getconcurrency() - con;
+        if (con_add < 1) {
+            con_add = 0;
+        }
+#endif
         thread_list = gll_create_li("Thread list");
+    }
 
     thread_descriptor = (struct gtp_thread *) malloc(sizeof(struct gtp_thread));
 
@@ -93,16 +119,13 @@ struct gtp_thread *gtp_create(int detatched,char *name, void *thread_body, void 
     // get thread attribute ready
     status = pthread_attr_init(&thread_descriptor->attr);
 
-    if(status != 0)
-    {
+    if(status != 0) {
         err_cleanup(status, "Init thd attr %s");
     }
 
-    if (detatched)
-    {
+    if (detatched) {
         status = pthread_attr_setdetachstate(&thread_descriptor->attr, PTHREAD_CREATE_DETACHED);
-        if(status != 0)
-        {
+        if(status != 0) {
             err_cleanup(status, "Set thd detach %s");
         }
     }
@@ -112,8 +135,7 @@ struct gtp_thread *gtp_create(int detatched,char *name, void *thread_body, void 
 
     status = pthread_create(&thread_descriptor->thread_id, &thread_descriptor->attr, thread_body, (void *) thread_descriptor);
 
-    if (status != 0)
-    {
+    if (status != 0) {
         err_cleanup(status, "Create Failed");
     }
 
@@ -132,8 +154,7 @@ cleanup:
 /* gtp_enable_cancel
  */
 
-void gtp_enable_cancel()
-{
+void gtp_enable_cancel() {
     int old;
 
     pthread_setcancelstate(PTHREAD_CANCEL_ENABLE,&old);
@@ -145,24 +166,20 @@ void gtp_enable_cancel()
  * cleanly end the thread described in the thread_descriptor.
  */
 
-void gtp_cancel(struct gtp_thread *thread_descriptor)
-{
+void gtp_cancel(struct gtp_thread *thread_descriptor) {
     pthread_t thread_id;
     void *status;
     struct gtp_thread *emu_thread_next;
 
     gll_el el;
 
-    if (thread_descriptor == NULL)
-    {
+    if (thread_descriptor == NULL) {
         el = gll_get_first(thread_list);
-        while (el != NULL)
-        {
+        while (el != NULL) {
             /*List isn't empty*/
             thread_descriptor = (struct gtp_thread *) gll_get_data(el);
 
-            if (thread_descriptor->thread_id != pthread_self())
-            {
+            if (thread_descriptor->thread_id != pthread_self()) {
                 gll_remove_el(el);
                 gtp_list();
                 break;
@@ -173,27 +190,21 @@ void gtp_cancel(struct gtp_thread *thread_descriptor)
         pthread_exit(NULL);
         if (el == NULL)
             return;
-    }
-    else
-    {
+    } else {
         thread_id = thread_descriptor->thread_id;
 
         // lock out other threads while we tweak the list
         el = gll_get_first(thread_list);
-        while (el != NULL)
-        {
+        while (el != NULL) {
             thread_descriptor = (struct gtp_thread *) gll_get_data(el);
-            if (thread_id == thread_descriptor->thread_id)
-            {
+            if (thread_id == thread_descriptor->thread_id) {
                 break;
             }
             el = gll_get_next(el);
         }
-        if (el == NULL)
-        {
+        if (el == NULL) {
             return;
-        }
-        else
+        } else
             gll_remove_el(el);
 
         /* If we are cancelling another thread we can't free the descriptor until
@@ -222,8 +233,7 @@ void gtp_cancel(struct gtp_thread *thread_descriptor)
  * main thread
  */
 
-void emu_wait_thread_end()
-{
+void emu_wait_thread_end() {
     // it's really this simple...
     pthread_exit(NULL);
 }

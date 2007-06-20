@@ -14,3 +14,31 @@ How does buffer preallocation work?
 Test of speed of putting/getting to/from GRANDCENTRAL compared with one statin per input.
 
 et_server.c line 1681, shouldn't this be ET_SLEEP ?
+
+04/16/07 - wrote generic key control pacakge to allow EMU to be controlled via the keyboard.
+
+04/19/07 - Added autodepend to Makefile.
+
+
+TODO:
+
+	Check that the data sent by the sender makes it through to the reader.
+
+	Reorganize code.
+		Configuration
+		ET management - try to put all the ET code in one file
+
+
+	Add mechanism for adding inputs to the EMU
+
+		IDEA!
+			Each EMU always has a max number of inputs.
+			Preallocate stations for all possible inputs.
+
+Refactor:
+
+Drew up model in MM, refactored the sender and the reader to use the init,start,stop,process,simulate model.
+
+Need to add a stop to the sender!
+
+Encapsulated system calls.

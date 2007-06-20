@@ -28,6 +28,10 @@
 #define ET_TYPE   2
 #define EMU_SENDER_QSIZE 60
  #include "et.h"
+ #include "emu_utilities.h"
+ #include "support/gtp.h"
+ #include "support/gdf.h"
+ #include "support/gph.h"
 
 typedef  struct emu_stargs *emu_sender_id;
 
@@ -43,12 +47,12 @@ typedef struct emu_stargs {
     et_stat_id input_et_station;
     et_att_id output_et_att;
     et_stat_id output_et_station;
-    struct cbt *input_fifo;
-    struct cbt *etmt_fifo;
-    struct emu_thread *attacher;
-    struct emu_thread *sender;
-    struct emu_thread *getter;
-    struct emu_thread *tester;
+    struct gdf *input_fifo;
+    struct gdf *etmt_fifo;
+    struct gtp_thread *attacher;
+    struct gtp_thread *sender;
+    struct gtp_thread *getter;
+    struct gtp_thread *tester;
 
 } emu_send_thread_args;
 

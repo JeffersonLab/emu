@@ -26,15 +26,18 @@
 
 #include "et_private.h"
 #include "et_network.h"
-#include "emu_common.h"
-#include "emu_thread_package.h"
-#include "emu_int_data_struct.h"
-#include "emu_int_fifo.h"
+#include "emu_utilities.h"
+#include "emu_record_format.h"
+#include "support/gtp.h"
+#include "support/gdf.h"
 
 #define EMU_MAX_INPUTS 100
 #define EMU_READER_QUEUE_SIZE 200
 
 #define TIME_BEFORE_REMOVE 1
+
+#define EMU_MODE_PROCESS 0
+#define EMU_MODE_SIMULATE 1
 
 typedef struct emu_input *emu_input_id;
 
@@ -44,6 +47,10 @@ typedef struct emu_input
     et_stat_id	 output_station;
     et_att_id     input_att;
     et_att_id     output_att;
+
+    long long record_count;
+    long long word_count;
+
 }
 emu_input_desc;
 
@@ -54,11 +61,15 @@ typedef struct emu_reader
 	int mode;
     et_sys_id     id;
     int keep_going;
-    circ_buf_t *reader_output;
+    gdf_struc *reader_output;
     et_att_id     gc_att;
     int number_inputs;
     emu_input_desc inputs[EMU_MAX_INPUTS];
-    struct emu_thread *worker_thread;
+
+    long long record_count;
+    long long word_count;
+
+    struct gtp_thread *worker_thread;
 }
 emu_reader_desc;
 

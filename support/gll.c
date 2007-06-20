@@ -24,7 +24,7 @@
 
 /*							     */
 /* queue.c 						     */
-/* Demo of dynamic data structures in C                      */
+/* Demo of dynamic data structures in C           */
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -34,26 +34,21 @@
 
 //#define TEST_MAIN
 #ifdef TEST_MAIN
-void Menu (int *choice)
-{
+void Menu (int *choice) {
     char    local;
 
     printf ("\nEnter\t1 to add item,\n\t2 to remove item\n\t3 to print queue\n\t4 to quit\n");
-    do
-    {
+    do {
         local = getchar ();
-        if ((isdigit (local) == FALSE) && (local != '\n'))
-        {
+        if ((isdigit (local) == FALSE) && (local != '\n')) {
             printf ("\nyou must enter an integer.\n");
             printf ("Enter 1 to add, 2 to remove, 3 to print, 4 to quit\n");
         }
-    }
-    while (isdigit ((unsigned char) local) == FALSE);
+    } while (isdigit ((unsigned char) local) == FALSE);
     *choice = (int) local - '0';
 }
 
-main ()
-{
+main () {
     gll_el listmember;
     gll_li listpointer;
 
@@ -61,15 +56,12 @@ main ()
     choice;
 
     listpointer = gll_create_li("TEST list");
-    if (listpointer == NULL)
-    {
+    if (listpointer == NULL) {
         exit(-1);
     }
-    do
-    {
+    do {
         Menu (&choice);
-        switch (choice)
-        {
+        switch (choice) {
         case 1:
             printf ("Enter data item value to add  ");
             scanf ("%d", &data);
@@ -78,13 +70,11 @@ main ()
         case 2:
             if (listpointer == NULL)
                 printf ("Queue empty!\n");
-            else
-            {
+            else {
                 printf ("Enter data item value to remove  ");
                 scanf ("%d", &data);
                 listmember = gll_remove_el (listpointer, (void *) data);
-                if (listmember == NULL)
-                {
+                if (listmember == NULL) {
                     printf("item not found in list\n");
                 }
             }
@@ -100,41 +90,85 @@ main ()
             printf ("Invalid menu choice - try again\n");
             break;
         }
-    }
-    while (choice != 4);
+    } while (choice != 4);
     gll_clear_li (listpointer);
 }				/* main */
 #endif
 static gll_li gll_li_li = NULL;
 
+gll_st gll_create_st() {
+    gll_st st;
 
-gll_li gll_create_li(char *name)
-{
+    st = (gll_st) malloc(sizeof(gll_stack_type));
+    bzero ((void *) st, sizeof(gll_stack_type));
+
+    pthread_mutex_init(&st->lock, NULL);
+    return st;
+}
+
+void *gll_pop(gll_st st) {
+    if (st == NULL)
+        return;
+
+    gll_el top = st->top;
+    void *data;
+
+    if (top == NULL)
+        return NULL;
+
+    pthread_mutex_lock(&st->lock);
+	st->depth--;
+    st->top = top->next;
+    data = top->payload;
+    free(top);
+
+    pthread_mutex_unlock(&st->lock);
+    return data;
+}
+
+void gll_push(gll_st st,void *data) {
+    if (st == NULL)
+        return;
+
+    gll_el le = (gll_el) malloc(sizeof(gll_el_ty));
+    bzero((void *) le, sizeof(gll_el_ty));
+
+    le->payload = data;
+
+    pthread_mutex_lock(&st->lock);
+
+    gll_el top = st->top;
+	st->depth++;
+    st->top = le;
+
+    le->next = top;
+
+    pthread_mutex_unlock(&st->lock);
+
+}
+
+gll_li gll_create_li(char *name) {
     gll_li lp = NULL;
 
-    if (gll_li_li == NULL)
-    {
+    if (gll_li_li == NULL) {
         gll_li_li = (gll_li) malloc(sizeof(gll_list_type));
         bzero ((void *) gll_li_li, sizeof(gll_list_type));
         gll_li_li->name = strdup("Master list of lists");
         pthread_mutex_init(&gll_li_li->lock, NULL);
     }
 
-    if (name != NULL)
-    {
+    if (name != NULL) {
         lp = (gll_li) malloc(sizeof(gll_list_type));
         bzero ((void *) lp, sizeof(gll_list_type));
         lp->name = strdup(name);
         pthread_mutex_init(&lp->lock, NULL);
         gll_add_el(gll_li_li, lp);
-    }
-    else
+    } else
         printf("list must have a name\n");
     return lp;
 }
 
-gll_el gll_add_el (gll_li lp, void * data)
-{
+gll_el gll_add_el (gll_li lp, void * data) {
     if (lp == NULL || data == NULL)
         return NULL;
 
@@ -146,8 +180,7 @@ gll_el gll_add_el (gll_li lp, void * data)
     le->payload = data;
     pthread_mutex_lock(&lp->lock);
 
-    if (lp->last != NULL)
-    {
+    if (lp->last != NULL) {
         // if last is not NULL then we tag on to end of list
         le->previous = lp->last;
         le -> next = NULL;
@@ -155,9 +188,7 @@ gll_el gll_add_el (gll_li lp, void * data)
         lp->last->next = le;
 
         lp->last = le;
-    }
-    else
-    {
+    } else {
         // if last is NULL then first is also NULL and the list is empty
         lp -> first = le;
         lp->last = le;
@@ -168,8 +199,7 @@ gll_el gll_add_el (gll_li lp, void * data)
     return le;
 }
 
-gll_el gll_insert_el (gll_el el, void * data)
-{
+gll_el gll_insert_el (gll_el el, void * data) {
     if (el == NULL || data == NULL)
         return NULL;
     pthread_mutex_lock(&el->ell_li->lock);
@@ -187,8 +217,7 @@ gll_el gll_insert_el (gll_el el, void * data)
     return le;
 }
 
-gll_el gll_remove_el (gll_el el)
-{
+gll_el gll_remove_el (gll_el el) {
     if (el == NULL)
         return NULL;
     gll_el le;
@@ -198,42 +227,32 @@ gll_el gll_remove_el (gll_el el)
 
     le = lp->first;
 
-    if (le == NULL)
-    {
+    if (le == NULL) {
         printf("WARNING: searching for %08x when list %s was empty!\n", el, lp->name);
         pthread_mutex_unlock(&lp->lock);
         return NULL;
     }
     // search list for item to remove
-    while(le != NULL)
-    {
-        if (le == el)
-        {
+    while(le != NULL) {
+        if (le == el) {
             // special cases first
 
-            if ( (le == lp->first) && (le == lp->last))
-            {
+            if ( (le == lp->first) && (le == lp->last)) {
                 // Only item in list?
                 printf("only item on list\n");
                 lp->first = NULL;
                 lp->last = NULL;
-            }
-            else if (le == lp->first)
-            {
+            } else if (le == lp->first) {
                 // start of list
                 printf("first item on list\n");
                 lp->first = le->next;
                 lp->first->previous = NULL;
-            }
-            else if (le == lp->last)
-            {
+            } else if (le == lp->last) {
                 //end of list
                 printf("last item on list\n");
                 lp->last = le->previous;
                 lp->last->next = NULL;
-            }
-            else
-            {
+            } else {
                 // somewhere in the middle
                 printf("somewhere in the middle\n");
                 le->previous->next = le->next;
@@ -254,8 +273,7 @@ done_remove:
     return le;
 }
 
-gll_el gll_find_el (gll_li li,void *data)
-{
+gll_el gll_find_el (gll_li li,void *data) {
     if (li == NULL || data == NULL)
         return NULL;
 
@@ -265,17 +283,14 @@ gll_el gll_find_el (gll_li li,void *data)
 
     le = li->first;
 
-    if (le == NULL)
-    {
+    if (le == NULL) {
         printf("WARNING: searching for %08x when list %s was empty!\n", le, li->name);
         pthread_mutex_unlock(&li->lock);
         return NULL;
     }
     // search list for item to remove
-    while(le != NULL)
-    {
-        if (le->payload == data)
-        {
+    while(le != NULL) {
+        if (le->payload == data) {
             break;
         }
         // not found yet so keep looking
@@ -285,60 +300,51 @@ gll_el gll_find_el (gll_li li,void *data)
     return le;
 }
 
-gll_el gll_get_first(gll_li lp)
-{
+gll_el gll_get_first(gll_li lp) {
     if (lp == NULL)
         return NULL;
     return lp->first;
 }
 
-gll_el gll_get_last(gll_li lp)
-{
+gll_el gll_get_last(gll_li lp) {
     if (lp == NULL)
         return NULL;
     return lp->last;
 }
 
-gll_el gll_get_next(gll_el el)
-{
+gll_el gll_get_next(gll_el el) {
     if (el == NULL)
         return NULL;
     return el->next;
 }
 
-gll_el gll_get_prev(gll_el el)
-{
+gll_el gll_get_prev(gll_el el) {
     if (el == NULL)
         return NULL;
     return el->previous;
 }
 
-void *gll_get_data(gll_el el)
-{
+void *gll_get_data(gll_el el) {
     if (el == NULL)
         return NULL;
     return el->payload;
 }
 
-int gll_get_count(gll_li lp)
-{
+int gll_get_count(gll_li lp) {
     if (lp == NULL)
         return -1;
 
     int counter = 0;
     gll_el le = lp->first;
-    while (le != NULL)
-    {
+    while (le != NULL) {
         counter++;
         le = le->next;
     }
     return counter;
 }
 
-void gll_print_li (gll_li lp)
-{
-    if (lp == NULL)
-    {
+void gll_print_li (gll_li lp) {
+    if (lp == NULL) {
         printf("NULL pointer passed to ell_print_li\n");
         return;
     }
@@ -352,11 +358,9 @@ void gll_print_li (gll_li lp)
 
     if (lp->first == NULL)
         printf ("\tlist is empty!\n");
-    else
-    {
+    else {
         le = lp->first;
-        while (le != NULL)
-        {
+        while (le != NULL) {
             printf ("\t%08x,", le -> payload);
             le = le -> next;
         }
@@ -365,8 +369,7 @@ void gll_print_li (gll_li lp)
     pthread_mutex_unlock(&lp->lock);
 }
 
-int gll_list ()
-{
+int gll_list () {
     gll_li lp = gll_li_li;
     gll_el le;
 
@@ -376,12 +379,10 @@ int gll_list ()
 
     if (gll_get_count (lp) <=0)
         printf ("\tlist of lists is empty!\n");
-    else
-    {
+    else {
         le = gll_get_first(lp);
 
-        while (le != NULL)
-        {
+        while (le != NULL) {
             lp = (gll_li) gll_get_data(le);
             printf ("%-20s %5d\n", lp->name,gll_get_count(lp));
             le = gll_get_next(le);
@@ -392,14 +393,12 @@ int gll_list ()
     return 0;
 }
 
-void gll_clear_li (gll_li lp)
-{
+void gll_clear_li (gll_li lp) {
     gll_el le,tmp;
     pthread_mutex_lock(&lp->lock);
 
     le = lp->first;
-    while (le != NULL)
-    {
+    while (le != NULL) {
         tmp = le;
         le = le -> next;
         free(tmp);

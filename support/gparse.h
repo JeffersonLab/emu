@@ -6,7 +6,7 @@
  *    described in the NOTICE file included as part of this distribution.
  *
  *    Author:  heyes
- *    Created: Apr 23, 2007
+ *    Created: Jun 15, 2007
  *    Modification date : $Date$
  *    Revision : $Revision$
  *    URL : $HeadURL$
@@ -18,43 +18,26 @@
  *----------------------------------------------------------------------------
  *
  * Description:
- *      emu  - emu_configuration.h
+ *      emu  - gparse.h
  *
  *----------------------------------------------------------------------------*/
 
+ #ifndef GPARSE_H_
+#define GPARSE_H_
+typedef struct attr {
+    char *tag;
+    char *value;
+}
+attr_struct;
 
-#ifndef EMU_CONFIGURATION_H_
-#define EMU_CONFIGURATION_H_
-
-#include "emu_reader.h"
-#include "emu_process.h"
-#include "emu_sender.h"
-
-
-#define EMU_MODE_NORMAL  0
-#define EMU_MODE_SIMULATE 1
-
-int emu_initialize(int argc,char **argv);
-
-typedef struct emu_config_struct_t *emu_config_ptr;
-
-typedef struct emu_config_struct_t  {
-	char *emu_name;
-	char *output_target_name;
-	char *output_target_host;
-	char *input_names[EMU_MAX_INPUTS];
-	int port;
-	int input_count;
-	int reader_mode;
-	int process_mode;
-	int sender_mode;
-	emu_reader_id read;
-	emu_process_id process;
-	emu_sender_id send;
-} emu_config_t;
-
-extern emu_config_ptr emu_config ();
-#ifndef EMU_MAIN
-extern emu_config_ptr emu_configuration;
-#endif
-#endif /*EMU_CONFIGURATION_H_*/
+typedef struct element {
+    char *tag;
+    char *value;
+    char *context;
+    int n_attr;
+    struct attr *attr;
+}
+element_struct;
+extern int gparse_file(char *filename);
+extern void gparse_register(char *tag_name, char *context, void (*handler_rtn)(struct element *));
+#endif /*GPARSE_H_*/

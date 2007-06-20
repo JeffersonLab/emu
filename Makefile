@@ -54,9 +54,10 @@ DIRS =  $(OSNAME) \
 
 AR          = ar
 RANLIB      = ranlib
-EMU_DEBUG_FLAG = -DEMU_DEBUG_ON
+EMU_DEBUG_FLAG = -DEMU_DEBUG_ON  -DDTD_SUPPORT -DMAX_SPEED -DDTDVALID_SUPPORT
 #EMU_DEBUG_FLAG = 
 LIBNAM   = libemu.a
+SUPLIB = libsupport.a
 
 # for all POSIX systems _REENTRANT makes libc functions reentrant
 AC_FLAGS = -D_REENTRANT -D_POSIX_PTHREAD_SEMANTICS
@@ -113,28 +114,56 @@ ifeq ($(OSNAME),Darwin)
 #Add flags for gdb
 #CFLAGS   = -O3 -fPIC -I$(ET_DIR)/src -I. $(AC_FLAGS) $(EMU_DEBUG_FLAG) 
 CFLAGS   = -O0 -g3 -fPIC -I$(ET_DIR)/src -I. $(AC_FLAGS) $(EMU_DEBUG_FLAG) 
-SHLIB_LD = ld -dylib /usr/lib/dylib1.o -lpthread -ldl -let /usr/lib/gcc/darwin/3.3/libgcc.a 
+SHLIB_LD = ld -dylib /usr/lib/dylib1.o -lpthread -ldl -let -Lparsifal -lxmlparse /usr/lib/gcc/darwin/3.3/libgcc.a 
 LIBS     = -ldl /usr/lib/gcc/darwin/3.3/libgcc.a 
 endif
 
+DEPENDS = dependencies.mk
 
-PROGS = emu_test_producer emu_test_consumer
+PROGS =  emu 
+#datatype
 
-OBJS = emu_int_fifo.o \
-	emu_sender.o \
-	emu_system_init.o \
-	emu_thread_package.o \
+OBJS = emu_sender.o \
 	emu_reader.o \
-	../et/src/libet.a
+	emu_process.o 
 	
+	
+SUPOBJS = 	support/gtp.o \
+	support/gsh.o \
+	support/gsl.o \
+	support/gkb.o \
+	support/gll.o \
+	support/gdf.o \
+	support/gparse.o \
+	support/gph.o 
+	
+SRC=emu_emu.c \
+    emu_reader.c \
+	emu_sender.c \
+	emu_reader.c \
+	emu_process.c \
+	support/gparse.c \
+	support/gtp.c \
+	support/gsh.c \
+	support/gsl.c \
+	support/gkb.c \
+	support/gll.c \
+	support/gdf.c \
+	support/gph.c 
 
+PARSIFAL_SRC = parsifal/bistream.c 	parsifal/encoding.c 	parsifal/xmlhash.c 	parsifal/parsifal.c 	parsifal/xmlsbuf.c parsifal/	xmlvect.c 	parsifal/xmlpool.c 	parsifal/dtdvalid.c
 
-all: echoarch $(LIBNAM) $(PROGS)
+PARSIFAL_OBJS =  parsifal/bistream.o parsifal/encoding.o parsifal/xmlhash.o parsifal/parsifal.o parsifal/xmlsbuf.o parsifal/xmlvect.o parsifal/xmlpool.o parsifal/dtdvalid.o
+
+PARSLIB=parsifal/libxmlparse.a
+
+all: echoarch $(PARSLIB) $(SUPLIB) $(LIBNAM)  $(PROGS)
 
 echoarch:
 	@echo
 	@echo $(MESSAGE)
 	@echo
+	
 
 mkdirs: mkinstalldirs
 	@echo "Creating directories"
@@ -150,21 +179,50 @@ saveFiles:
 	-rm -f *.o
 
 
-$(PROGS) : % : %.c $(LIBNAM)
-	$(CC) -o $@ $(CFLAGS) $< $(LIBNAM) -L$(LIB_DIR) $(LIB_DIR)/libet.a $(LIBS)
+$(PROGS) : % : %.c $(LIBNAM)  $(SUPLIB) $(PARSLIB) 
+	$(CC) -o $@ $(CFLAGS) $< $(LIBNAM) $(SUPLIB) $(PARSLIB) -L$(LIB_DIR) $(LIB_DIR)/libet.a $(LIBS)
 
 
 $(LIBNAM): $(OBJS)
 	$(AR) cr $@ $(OBJS)
 	$(RANLIB) $@
 
+$(SUPLIB): $(SUPOBJS)
+	$(AR) cr $@ $(SUPOBJS)
+	$(RANLIB) $@
+
+$(PARSLIB): $(PARSIFAL_OBJS)
+	$(AR) cr $@ $(PARSIFAL_OBJS)
+	$(RANLIB) $@
+
 clean: 
-	-rm -f core *~ *.o *.so *.a $(PROGS)
+	-rm -f core *~ *.o *.so *.a *.P $(PROGS)
+	-rm -f support/core support/*~ support/*.o support/*.so support/*.a support/*.P 
+	-rm -f parsifal/core parsifal/*~ parsifal/*.o parsifal/*.so parsifal/*.a 
 	-rm -f ./.$(OSNAME)/$(PLATFORM)/$(ET_BIT_ARCH)/*
+	
+MAKEDEPEND = gcc -M $(CFLAGS) -o $*.d $<
 
-.c:
-	$(CC) -o $* $(CFLAGS) $< -L../src -L$(LIB_DIR) -L/lib64/tls -L/usr/ucblib/amd64 -let $(LIBS)
+#%.o : %.c
+#	@echo Compiling - $@ from $<...
+#	@$(MAKEDEPEND);  cp $*.d $*.P;  sed -e 's/#.*//' -e 's/^[^:]*: *//' -e 's/ *\\$$//'   -e '/^$$/ d' -e 's/$$/ :/' < $*.d >> $*.P;   rm -f $*.d
+#	$(CC) -c $(CFLAGS) -o $@ $<
 
+  %.o : %.c
+	@echo Compiling - $@ from $<...
+	$(CC) -c $(CFLAGS) -MD -o $@ $<
+	@cp $*.d $*.P; \
+ sed -e 's/#.*//' -e 's/^[^:]*: *//' -e 's/ *\\$$//' \
+  -e '/^$$/ d' -e 's/$$/ :/' < $*.d >> $*.P; \
+  rm -f $*.d
+            
+-include $(SRC:.c=.P)
+ 
+c:
+	@echo Compiling $@ from $<...
+	$(CC) -o $* $(CFLAGS) $< -L../src -L$(LIB_DIR) $(LIBS)
 	
 .c.o:
+	@echo Compiling - $@ from $<...
 	$(CC) -c $(CFLAGS) $<
+	

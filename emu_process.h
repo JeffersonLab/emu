@@ -25,15 +25,15 @@
 #ifndef EMU_PROCESS_H_
 #define EMU_PROCESS_H_
 
-#include "emu_int_fifo.h"
+#include "support/gdf.h"
 
 typedef  struct emu_process *emu_process_id;
 
 typedef struct emu_process
 {
-    circ_buf_t *input;
-    circ_buf_t *output;
-    struct emu_thread *process;
+    gdf_struc *input;
+    gdf_struc *output;
+    struct gtp_thread *process;
 }
 emu_process_desc;
 

@@ -49,6 +49,19 @@ typedef struct gll_li_str
 }
 gll_list_type;
 
+typedef struct gll_st_str *gll_st;
+
+typedef struct gll_st_str
+{
+    pthread_mutex_t lock;     /* lock the structure */
+    gll_el top;
+    int depth;
+}
+gll_stack_type;
+
+gll_st gll_create_st();
+void *gll_pop(gll_st st);
+void gll_push(gll_st st,void *data);
 
 gll_li gll_create_li(char *name);
 gll_el gll_add_el (gll_li l, void *data);

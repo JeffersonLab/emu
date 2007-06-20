@@ -16,10 +16,18 @@
 	<!ATTLIST param help CDATA "">
 ]>
 <component>
-	<name>EMU1</name>
+	<name>ROC1</name>
+	<send>
+		<output>
+			<name>EMU1</name>
+			<host>albanac</host>
+			<port>11111</port>
+		</output>
+	</send>
 	<parameters>
+		<param name="debug" value="OFF"/>
+		<param name="scaler setting" value="0x2456" key="x" help="hello world"/>
+		<param name="readout_list" value="myreadout.so"/>
+		<param name="calibration table" value="DC_wire_map.txt"/>
 	</parameters>
-	<read>
-		<input>ROC1</input>
-	</read>
 </component>

@@ -34,7 +34,12 @@
  * saved since we pass to the output ET a pointer to the existing record rather
  * than copying the data from the input record to the output record.
  *----------------------------------------------------------------------------*/
-#include "emu.h"
+#include "emu_sender.h";
+#include "emu_process.h"
+#include "emu_record_format.h"
+
+#define TRUE 1
+#define FALSE 0
 
 static unsigned long dummy_records[256][10000];
 
@@ -46,17 +51,14 @@ static unsigned long dummy_records[256][10000];
     //emu_sender_stop(sender_id);
 }*/
 
-static int emu_sender_simulate_pause(emu_sender_id sender_id)
-{
+static int emu_sender_simulate_pause(emu_sender_id sender_id) {
     sender_id->pause = TRUE;
 }
-static int emu_sender_simulate_go(emu_sender_id sender_id)
-{
+static int emu_sender_simulate_go(emu_sender_id sender_id) {
     sender_id->pause = FALSE;
 }
-void *emu_et_monitor(void *arg)
-{
-    struct emu_thread *thread_descriptor = (struct emu_thread *) arg;
+void *emu_et_monitor(void *arg) {
+    struct gtp_thread *thread_descriptor = (struct gtp_thread *) arg;
     emu_sender_id sender_id = (emu_sender_id) thread_descriptor->args;
     int status = 0;
     et_sys_id	 id;
@@ -71,16 +73,15 @@ void *emu_et_monitor(void *arg)
     et_open_config_init(&openconfig);
 
     et_open_config_setmode(openconfig, ET_HOST_AS_REMOTE);
-    et_open_config_sethost(openconfig,emu_configuration->output_target_host);
-
+    et_open_config_sethost(openconfig,gph_get_param("/component/send/output/host"));
+	et_open_config_setport(openconfig,atoi("/component/send/output/port"));
     et_open_config_setwait(openconfig,ET_OPEN_WAIT);
     et_open_config_settimeout(openconfig,time_to_wait);
     et_open_config_setpolicy(openconfig,ET_POLICY_FIRST);
 
     printf("\n\nHERE LOOKING FOR %s\n", sender_id->target);
 
-    if (et_open(&id, sender_id->target, openconfig) != ET_OK)
-    {
+    if (et_open(&id, sender_id->target, openconfig) != ET_OK) {
         printf("et_netclient: cannot open ET system\n");
         exit(1);
     }
@@ -95,41 +96,37 @@ void *emu_et_monitor(void *arg)
     */
 
     char station_name[100];
-    sprintf(station_name,"%s_input",emu_config()->emu_name);
-    if (et_station_name_to_id(id,&sender_id->output_et_station,station_name) < 0)
-    {
+    sprintf(station_name,"%s_input",gph_get_param("/component/name"));
+    if (et_station_name_to_id(id,&sender_id->output_et_station,station_name) < 0) {
         EMU_DEBUG(("error finding station %s",station_name));
         exit(1);
     }
 
-    if (et_station_attach(id, sender_id->output_et_station, &sender_id->output_et_att) < 0)
-    {
+    if (et_station_attach(id, sender_id->output_et_station, &sender_id->output_et_att) < 0) {
         printf("et_netclient: error in station attach\n");
         exit(1);
     }
 
     sender_id->the_et_id = id;
-    switch (sender_id->type)
-    {
+    switch (sender_id->type) {
     case FIFO_TYPE:
         EMU_DEBUG(("input is from a FIFO"));
-        sender_id->sender = emu_create_thread(1,"FIFO send thread 0", emu_sender_process, (void *) sender_id);
-        sender_id->getter = emu_create_thread(1,"ET buffer thread 0", emu_sender_etmtfifo, (void *) sender_id);
+        sender_id->sender = gtp_create(1,"FIFO send thread 0", emu_sender_process, (void *) sender_id);
+        sender_id->getter = gtp_create(1,"ET buffer thread 0", emu_sender_etmtfifo, (void *) sender_id);
         sender_id->pause = TRUE;
-        if (emu_configuration->process == NULL)
-        {
-            GKB_add_key('g', emu_sender_simulate_go, (void *) sender_id,"start data taking (go)");
-            GKB_add_key('p', emu_sender_simulate_pause, (void *) sender_id, "pause data taking");
-            sender_id->tester = emu_create_thread(1,"FIFO test thread 0", emu_sender_simulate, (void *) sender_id);
+        if (gph_get_value("/component/proc/ID") == NULL) {
+            gkb_add_key('g', emu_sender_simulate_go, (void *) sender_id,"start data taking (go)");
+            gkb_add_key('p', emu_sender_simulate_pause, (void *) sender_id, "pause data taking");
+            sender_id->tester = gtp_create(1,"FIFO test thread 0", emu_sender_simulate, (void *) sender_id);
         }
         break;
     case ET_TYPE:
     default:
         EMU_DEBUG(("default input is from a ET"));
-        //emu_create_thread(1,"ET send thread 0", emu_ET_send_thread, (void *) sender_id);
+        //gtp_create(1,"ET send thread 0", emu_ET_send_thread, (void *) sender_id);
         break;
     }
-    emu_thread_cleanup(thread_descriptor);
+    gtp_cancel(thread_descriptor);
 }
 
 /*****************************************************
@@ -147,14 +144,12 @@ void *emu_et_monitor(void *arg)
  *
  */
 
-emu_sender_id emu_sender_initialize ()
-{
+emu_sender_id emu_sender_initialize () {
     int status;
     emu_sender_id sender_id;
-    circ_buf_t *fifo;
-
-    if (emu_config()->output_target_name == NULL)
-    {
+    gdf_struc *fifo;
+	char *target_name = gph_get_param("/component/send/output/name");
+    if ((target_name == NULL) || (strcmp(target_name,"") == 0)) {
         return NULL;
     }
 
@@ -163,33 +158,24 @@ emu_sender_id emu_sender_initialize ()
 
     sender_id->type = FIFO_TYPE;
 
-    if (strchr(emu_config()->output_target_name,':') != NULL)
-    {
-        sender_id->target  = strdup(emu_config()->output_target_name);
-        *strchr(sender_id->target,':') = '\0';
-        sender_id->port = atoi(strdup(strchr(emu_config()->output_target_name,':')+1));
-    }
-    else
-    {
-        sender_id->port = 11111;
-        sender_id->target = strdup(emu_config()->output_target_name);
 
-    }
+    sender_id->port = atoi(gph_get_param("/component/send/output/port"));
+    sender_id->target = gph_get_param("/component/send/output/name");
+
+
     printf ("target = %s port= %d\n",sender_id->target,sender_id->port);
 
-    if (emu_configuration->process != NULL)
-    {
-        fifo = emu_configuration->process->output;
-    }
-    else
-    {
-        fifo = new_cb("EMU input FIFO");
+    if (gph_get_value("/component/proc/ID") != NULL) {
+        emu_process_id id = gph_get_value("/component/proc/ID");
+        fifo = id->output;
+    } else {
+        fifo = gdf_new("EMU input FIFO");
     }
     sender_id->input_fifo = fifo;
-    sender_id->etmt_fifo = new_sized_cb("ET new event fifo",EMU_SENDER_QSIZE);
+    sender_id->etmt_fifo = gdf_new_sized("ET new event fifo",EMU_SENDER_QSIZE);
 
-    esh_block();
-    //esh_add("sender Control-C handler", interrupt_signal_handler, (void *) sender_id);
+    gsh_block();
+    //gsh_add("sender Control-C handler", interrupt_signal_handler, (void *) sender_id);
 
     return sender_id;
 error:
@@ -208,8 +194,7 @@ error:
  */
 
 
-void emu_sender_start(emu_sender_id sender_id)
-{
+void emu_sender_start(emu_sender_id sender_id) {
 
     int status;
 
@@ -223,31 +208,29 @@ void emu_sender_start(emu_sender_id sender_id)
      * Both types of sender send their data to an ET system.
      */
 
-    sender_id->sender = emu_create_thread(1,"ET connector thread 0", emu_et_monitor, (void *) sender_id);
+    sender_id->sender = gtp_create(1,"ET connector thread 0", emu_et_monitor, (void *) sender_id);
 
     return;
 }
 
-void emu_sender_stop(emu_sender_id sender_id)
-{
-    circ_buf_t *fifo;
+void emu_sender_stop(emu_sender_id sender_id) {
+    gdf_struc *fifo;
     printf("Stop Sender ET\n",sender_id);
 
-	emu_thread_cleanup(sender_id->getter);
-	emu_thread_cleanup(sender_id->sender);
+    gtp_cancel(sender_id->getter);
+    gtp_cancel(sender_id->sender);
 
-    if (emu_configuration->process == NULL)
-    {
+    if (gph_get_value("/component/proc/ID") == NULL) {
         fifo = sender_id->input_fifo;
         sender_id->input_fifo =NULL;
         if (fifo != NULL)
-            delete_cb(fifo);
+            gdf_delete(fifo);
 
         fifo = sender_id->etmt_fifo;
         sender_id->etmt_fifo =NULL;
 
         if (fifo != NULL)
-            delete_cb(fifo);
+            gdf_delete(fifo);
     }
     sender_id->keep_going = 0;
     printf("Force ET close\n");
@@ -255,10 +238,9 @@ void emu_sender_stop(emu_sender_id sender_id)
     printf("sender stopped\n");
 }
 
-void *emu_sender_etmtfifo(void *arg)
-{
+void *emu_sender_etmtfifo(void *arg) {
 
-    struct emu_thread *thread_descriptor = (struct emu_thread *) arg;
+    struct gtp_thread *thread_descriptor = (struct gtp_thread *) arg;
     int status = 0;
     et_event   *pe[1000];
     int size, actual;
@@ -266,22 +248,19 @@ void *emu_sender_etmtfifo(void *arg)
     et_sys_id et_id;
     et_att_id att;
     int ix, count;
+    struct timespec doze;
+    gtp_enable_cancel();
 
-    emu_enable_cancel();
-
-    while (sender_id->keep_going)
-    {
+    while (sender_id->keep_going) {
         et_id = sender_id->the_et_id;
         att = sender_id->output_et_att;
-        if (et_id == NULL)
-        {
+        if (et_id == NULL) {
             printf("etmtfifo waiting for ET\n");
-            emu_sleep(1);
+            gsl_sleep(1);
             continue;
         }
 
-        if (et_alive(et_id) == 0)
-        {
+        if (et_alive(et_id) == 0) {
             EMU_DEBUG(("et_alive returned FALSE\n"))
             break;
         }
@@ -292,13 +271,15 @@ void *emu_sender_etmtfifo(void *arg)
         count = EMU_SENDER_QSIZE;
         // - get_cb_count(sender_id->etmt_fifo);
 
-
-        status = et_events_get(et_id,att,pe, ET_SLEEP | ET_NOALLOC | ET_MODIFY, NULL,count,&actual);
+        doze.tv_nsec = 0;
+        doze.tv_sec = 1;
+        status = et_events_get(et_id,att,pe, ET_TIMED | ET_NOALLOC | ET_MODIFY, &doze,count,&actual);
 
         //printf("count = %d actual = %d\n",count,actual);
 
-        if (status != ET_OK)
-        {
+        if (status == ET_ERROR_TIMEOUT)
+            continue;
+        if (status != ET_OK) {
             printf("error in et_event_new\n");
 
             break;
@@ -308,7 +289,7 @@ void *emu_sender_etmtfifo(void *arg)
             put_cb_data(sender_id->etmt_fifo, (void *) pe[ix]);
     }
     sender_id->keep_going = FALSE;
-    emu_thread_cleanup(thread_descriptor);
+    gtp_cancel(thread_descriptor);
 }
 
 /*
@@ -317,40 +298,37 @@ void *emu_sender_etmtfifo(void *arg)
  * The thread to do all of the work.
  */
 
-void *emu_sender_process(void *arg)
-{
-    struct emu_thread *thread_descriptor = (struct emu_thread *) arg;
+void *emu_sender_process(void *arg) {
+    struct gtp_thread *thread_descriptor = (struct gtp_thread *) arg;
     int status = 0;
     et_event   *pe[1000];
     int counter, ninput, nfree_et;
     emu_sender_id sender_id = (emu_sender_id) thread_descriptor->args;
+    emu_process_id process_id;
     et_sys_id et_id;
     et_att_id att;
 
+    process_id = gph_get_value("/component/proc/ID");
     printf("I am a thread named \"%s\" my sender_id is %08x input type is %d\n", thread_descriptor->name, sender_id, sender_id->type);
 
-    emu_enable_cancel();
+    gtp_enable_cancel();
 
     counter = 0;
 
-    while ( sender_id->keep_going)
-    {
-        if ( (counter == EMU_SENDER_QSIZE) || ((counter > 0) && ((get_cb_count(sender_id->etmt_fifo) == 0) || (get_cb_count(sender_id->input_fifo) == 0))))
-        {
+    while ( sender_id->keep_going) {
+        if ( (counter == EMU_SENDER_QSIZE) || ((counter > 0) && ((gdf_count(sender_id->etmt_fifo) == 0) || (gdf_count(sender_id->input_fifo) == 0)))) {
             et_id = sender_id->the_et_id;
             att = sender_id->output_et_att;
-            if (et_id == NULL)
-            {
+            if (et_id == NULL) {
                 printf("sender waiting for ET\n");
-                emu_sleep(1);
+                gsl_sleep(1);
                 continue;
             }
 
             //printf("sending with counter %d\n",counter);
             status = et_events_put(et_id,att, pe,counter);
             counter = 0;
-            if (status != ET_OK)
-            {
+            if (status != ET_OK) {
                 printf("et_producer: put error\n");
                 // instead of breaking do something smart here!!
                 et_id = NULL;
@@ -358,11 +336,11 @@ void *emu_sender_process(void *arg)
             }
         }
 
-        emu_data_record_ptr record = (emu_data_record_ptr)  get_cb_data(sender_id->input_fifo);
+        emu_data_record_ptr record = (emu_data_record_ptr)  gdf_get(sender_id->input_fifo);
         if (((int) record == -1)||(record == NULL))
             break;
 
-        pe[counter] = (et_event *) get_cb_data(sender_id->etmt_fifo);
+        pe[counter] = (et_event *) gdf_get(sender_id->etmt_fifo);
         if (((int) pe[counter] == -1) || (pe[counter] == NULL))
             break;
 
@@ -370,13 +348,13 @@ void *emu_sender_process(void *arg)
         pe[counter]->pdata = record;
         pe[counter]->length = record->record_header.length;
         pe[counter]->control[0] = sender_id->output_et_station+1;
-        if (emu_configuration->process == NULL)
+        if (process_id == NULL)
             pe[counter]->owner = ET_NOALLOC;
 
         counter ++;
     }
 
-    emu_thread_cleanup(thread_descriptor);
+    gtp_cancel(thread_descriptor);
     sender_id->keep_going = 0;
     return;
 }
@@ -391,22 +369,19 @@ void *emu_sender_process(void *arg)
  * to calling malloc.
  */
 
-void *emu_sender_simulate(void *arg)
-{
-    struct emu_thread *thread_descriptor = (struct emu_thread *) arg;
+void *emu_sender_simulate(void *arg) {
+    struct gtp_thread *thread_descriptor = (struct gtp_thread *) arg;
     int counter, status = 0;
     int recordCounter = 0;
-    circ_buf_t *fifo;
+    gdf_struc *fifo;
 
     emu_sender_id sender_id = (emu_sender_id) thread_descriptor->args;
     fifo = sender_id->input_fifo;
 
     printf("I am a thread named \"%s\" my sender_id is %08x input type is %d\n", thread_descriptor->name, sender_id, sender_id->type);
-    while( sender_id->keep_going && ( sender_id->input_fifo != NULL) && (status == 0))
-    {
-        if (sender_id->pause)
-        {
-            emu_sleep(1);
+    while( sender_id->keep_going && ( sender_id->input_fifo != NULL) && (status == 0)) {
+        if (sender_id->pause) {
+            gsl_sleep(1);
             continue;
         }
         // Convert data to a record
@@ -428,15 +403,13 @@ void *emu_sender_simulate(void *arg)
         if (recordCounter % 10000 == 0)
             printf("Another 10k records, %d so far\n",recordCounter);
 
-
-
         //EMU_DEBUG(("PUT Data %08x, len = %d",&dummy_records[0][0],dummy_records[0][0] ))
 
         put_cb_data(fifo,(void *) record);
     }
 
 clean_exit_emu_send_thread:
-    emu_thread_cleanup(thread_descriptor);
+    gtp_cancel(thread_descriptor);
     return;
 }
 

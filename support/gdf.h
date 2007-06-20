@@ -25,7 +25,7 @@
 #ifndef _GDF_
 #define _GDF_
 #include <pthread.h>
-#define QSIZE                           500
+#define QSIZE                           10
 
 typedef struct gdf {
   char *name;
