@@ -1,0 +1,142 @@
+<!-- This file is an ANT build script. ANT is a Java based build tool. -->
+<!-- It is availale from http://jakarta.apache.org/ant/                -->
+
+
+<!-- ================================================================= -->
+<project name="EMU" default="all">
+
+    <property name="version" value="0.01"/>
+    <property environment="env"/>
+
+    <!-- The directory where source files are stored. -->
+    <property name="java.source.dir" value="javasrc"/>
+
+    <!-- Destination for compiled files -->
+    <property name="javac.dest" value="classes"/>
+
+    <!-- Destination for generated jar files -->
+    <property name="jar.dest" value="${env.INSTALL_DIR}/lib"/>
+
+    <!-- Destination for documentation files generated or not -->
+    <property name="doc" value="doc"/>
+
+    <target name="usage">
+        <echo>
+
+            These are the targets supported by this ANT build scpript:
+
+            build - compile all project files, if a certain library is missing,
+            then the compilation of its dependents are skipped.
+
+            clean - delete the dist directory
+            javadoc - build project javadoc files
+
+            jar - build jar files
+
+            dist - will create a complete distribution in dist/
+        </echo>
+    </target>
+
+    <!-- ================================================================= -->
+    <target name="init">
+        <tstamp/>
+    </target>
+
+    <target name="clean">
+        <delete dir="${javac.dest}"/>
+        <delete dir="${doc}"/>
+    </target>
+
+    <!-- make the toplevel directories -->
+    <target name="dirs">
+        <mkdir dir="${javac.dest}"/>
+        <mkdir dir="${doc}"/>
+    </target>
+
+    <target name="build" depends="dirs">
+        <mkdir dir="${javac.dest}"/>
+
+        <path id="coda.classpath">
+            <fileset dir="${javac.dest}">
+                <include name="*.class"/>
+            </fileset>
+            <fileset dir="external_lib">
+                <include name="*.jar"/>
+            </fileset>
+        </path>
+
+        <javac srcdir="${java.source.dir}"
+               debug="on"
+               verbose="no"
+               failonerror="yes"
+               listfiles="yes"
+               optimize="yes"
+               destdir="${javac.dest}">
+            <classpath refid="coda.classpath"/>
+            <include name="**/*.java"/>
+        </javac>
+        <copy overwrite="true" todir="${javac.dest}">
+            <fileset dir="${java.source.dir}">
+                <include name="**/*.properties"/>
+                <include name="**/*.png"/>
+                <include name="**/*.jpg"/>
+                <include name="**/*.gif"/>
+                <include name="**/*.xml"/>
+            </fileset>
+        </copy>
+    </target>
+
+    <!-- Build a jar file containing the emu  -->
+    <target name="emu_jar" depends="build">
+        <!-- The manifest makes this jar runnable via "java -jar lib/coda.jar"    -->
+        <delete file="${jar.dest}/emu.jar"/>
+        <jar jarfile="${jar.dest}/emu.jar" manifest="${java.source.dir}/org/jlab/coda/emu/manifest.mf">
+            <fileset dir="${javac.dest}">
+                <include name="org/jlab/**/*.class"/>
+                <include name="**/*.properties"/>
+                <include name="**/*.png"/>
+                <include name="**/*.jpg"/>
+                <include name="**/*.gif"/>
+                <include name="**/*.xml"/>
+            </fileset>
+
+        </jar>
+
+    </target>
+
+    <!-- Build a jar file containing the emu  -->
+    <target name="mod_jar" depends="build">
+        <!-- The manifest makes this jar runnable via "java -jar lib/coda.jar"    -->
+        <delete file="${jar.dest}/modules.jar"/>
+        <jar jarfile="${jar.dest}/modules.jar">
+            <fileset dir="${javac.dest}">
+                <include name="modules/*.class"/>
+            </fileset>
+        </jar>
+        <delete file="${jar.dest}/user_modules.jar"/>
+        <jar jarfile="${jar.dest}/user_modules.jar">
+            <fileset dir="${javac.dest}">
+                <include name="modules/Process.class"/>
+            </fileset>
+        </jar>
+
+    </target>
+
+    <target name="all" depends="emu_jar, mod_jar">
+        <copy overwrite="false" todir="${jar.dest}">
+            <fileset dir="external_lib">
+            </fileset>
+        </copy>
+        <copy overwrite="true" todir="../install/conf">
+            <fileset dir="conf">
+            </fileset>
+        </copy>
+    </target>
+
+    <target name="install" depends="all"/>
+
+    <target name="allclean " depends="clean, all"/>
+
+
+</project>
+

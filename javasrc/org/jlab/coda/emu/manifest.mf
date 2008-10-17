@@ -1,0 +1,9 @@
+Manifest-Version: 1.0
+Created-By: coda.jlab.org
+Specification-Title: CODA III EMU
+Sealed: true
+Main-Class: org.jlab.coda.emu.EMUComponentImpl
+Class-Path: cMsg-3.0.jar resolver.jar xercesImpl.jar forms_rt.jar jgoodies-forms.jar swing-layout.jar
+
+
+
