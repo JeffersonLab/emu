@@ -63,6 +63,9 @@
             <fileset dir="external_lib">
                 <include name="*.jar"/>
             </fileset>
+            <fileset dir="${jar.dest}">
+                <include name="cMsg-3.0.jar"/>
+            </fileset>
         </path>
 
         <javac srcdir="${java.source.dir}"
