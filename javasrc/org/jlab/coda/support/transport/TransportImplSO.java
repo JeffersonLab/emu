@@ -280,7 +280,7 @@ public class TransportImplSO extends DataTransportCore implements DataTransport 
      * @param name of type String
      * @return DataChannel
      */
-    public DataChannel createChannel(String name) {
+    public DataChannel createChannel(String name) throws TransportException {
         DataChannel c = new DataChannelImplSO(name() + ":" + name, this);
         channels.put(c.getName(), c);
         return c;
@@ -339,22 +339,12 @@ public class TransportImplSO extends DataTransportCore implements DataTransport 
         if (cmd.equals(CODATransition.prestart)) {
             try {
                 multicastAddr = InetAddress.getByName("239.200.0.0");
-            } catch (UnknownHostException e1) {
-                CODAState.ERROR.getCauses().add(e1);
-                state = CODAState.ERROR;
-                return;
-            }
 
-            try {
-                multicastPort = Integer.parseInt(getAttr("port"));
-            } catch (NumberFormatException e) {
-                e.printStackTrace();
-            }
+                multicastPort = getIntAttr("port");
 
-            try {
                 if (server) startServer();
                 else connect();
-            } catch (TransportException e) {
+            } catch (Exception e) {
                 CODAState.ERROR.getCauses().add(e);
                 state = CODAState.ERROR;
                 return;
