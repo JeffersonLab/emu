@@ -99,10 +99,7 @@ public class TransportImplCMsg extends DataTransportCore implements DataTranspor
 
             try {
 
-
-                cMsgMessage rmsg = new cMsgMessage();
-
-                msg.makeResponse(rmsg);
+                cMsgMessage rmsg = msg.response();
 
                 rmsg.setText(localhost.getHostAddress());
                 rmsg.setUserInt(serverSocket.getLocalPort());
@@ -174,16 +171,17 @@ public class TransportImplCMsg extends DataTransportCore implements DataTranspor
                     l = in.read();
 
                     int bytes = in.read(cbuf, 0, l);
-
+                    System.out.println("bytes is : " + bytes);
                     String s = new String(cbuf, 0, bytes);
-
-                    DataChannelImplSO c = (DataChannelImplSO) channels.get(s);
+                    System.out.println("channel name is : " + s);
+                    DataChannelImplCMsg c = (DataChannelImplCMsg) channels.get(s);
 
                     if (c != null) {
                         c.setDataSocket(incoming);
                         c.startInputHelper();
                     }
-                } catch (IOException e) {
+                } catch (Exception e) {
+                    System.err.println("Exception " + e.getMessage());
                     e.printStackTrace();
                     return;
                 }
@@ -232,18 +230,22 @@ public class TransportImplCMsg extends DataTransportCore implements DataTranspor
     /** Method connect ... */
     public void connect() {
         try {
-            System.out.println("Connect called ");
+            System.out.println("Connect called !!");
 
             cMsgMessage msg = new cMsgMessage();
             msg.setSubject(name());
             msg.setType("get_socket");
+            msg.setText("no text");
             System.out.println("Message sent is : " + msg.toString());
+
             cMsgMessage reply = CMSGPortal.getServer().sendAndGet(msg, 10000);
             host = new String(reply.getText());
-            System.out.println("cMsg response : " +reply.toString());
+            System.out.println("cMsg response : " + reply.toString());
             System.out.println("cMsg reply text : " + reply.getText() + ", int " + reply.getUserInt());
 
+            host = new String(reply.getText());
             port = reply.getUserInt();
+            System.out.println("host : " + host + ", " + port + " set in " + name() + " " + this);
         } catch (cMsgException e) {
             e.printStackTrace();  //To change body of catch statement use File | Settings | File Templates.
         } catch (TimeoutException e) {
@@ -258,7 +260,8 @@ public class TransportImplCMsg extends DataTransportCore implements DataTranspor
      * @return DataChannel
      */
     public DataChannel createChannel(String name) {
-        DataChannel c = new DataChannelImplSO(name() + ":" + name, this);
+        System.out.println("create channel " + name);
+        DataChannel c = new DataChannelImplCMsg(name() + ":" + name, this);
         channels.put(c.getName(), c);
         return c;
     }

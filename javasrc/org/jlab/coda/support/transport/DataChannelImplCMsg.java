@@ -56,16 +56,16 @@ public class DataChannelImplCMsg implements DataChannel {
     /**
      * Constructor DataChannelImplSO creates a new DataChannelImplSO instance.
      *
-     * @param pname of type String
-     * @param ti    of type DataTransport
+     * @param pname     of type String
+     * @param transport of type DataTransport
      */
-    DataChannelImplCMsg(String pname, DataTransport ti) {
-
-        transport = (TransportImplCMsg) ti;
+    DataChannelImplCMsg(String pname, TransportImplCMsg transport) {
+        System.out.println("DataChannelImplCMsg : " + pname);
+        this.transport = transport;
         name = pname;
 
         String capacityS = "40";
-        String tmp = ti.getAttr("pool");
+        String tmp = transport.getAttr("pool");
         if (capacityS != null) capacityS = tmp;
 
         int capacity = Integer.valueOf(capacityS);
@@ -82,23 +82,31 @@ public class DataChannelImplCMsg implements DataChannel {
                 e.printStackTrace();
             }
         }
-        try {
-            Socket dataSocket = new Socket(transport.getHost(), transport.getPort());
 
-            dataSocket.setTcpNoDelay(true);
-            OutputStream out = dataSocket.getOutputStream();
-            DataOutputStream dout = new DataOutputStream(out);
+        if (transport.isServer()) {
 
-            dout.write(name.length());
+        } else {
+            try {
+                System.out.println("Create data socket : " + transport.getHost() + " " + transport.getPort() + " " + transport);
 
-            dout.write(name.getBytes());
+                dataSocket = new Socket(transport.getHost(), transport.getPort());
 
-            startOutputHelper();
+                dataSocket.setTcpNoDelay(true);
+                OutputStream out = dataSocket.getOutputStream();
+                DataOutputStream dout = new DataOutputStream(out);
 
-        } catch (SocketException e) {
-            e.printStackTrace();  //To change body of catch statement use File | Settings | File Templates.
-        } catch (IOException e) {
-            e.printStackTrace();  //To change body of catch statement use File | Settings | File Templates.
+                System.out.println("Send name over data socket : " + name);
+                dout.write(name.length());
+
+                dout.write(name.getBytes());
+
+                startOutputHelper();
+
+            } catch (SocketException e) {
+                e.printStackTrace();  //To change body of catch statement use File | Settings | File Templates.
+            } catch (IOException e) {
+                e.printStackTrace();  //To change body of catch statement use File | Settings | File Templates.
+            }
         }
 
     }
@@ -169,7 +177,7 @@ public class DataChannelImplCMsg implements DataChannel {
 
                     int rl = dr.getRecordLength();
                     int bl = dr.getBufferLength();
-
+                    System.out.println("Recieved length : " + rl + " buffer is " + bl);
                     // rl is the count of long words in the buffer.
                     // the buffer needs to be (rl+1)*4 bytes long
                     // the extra 4 bytes hold the length
@@ -183,7 +191,7 @@ public class DataChannelImplCMsg implements DataChannel {
                     // read in the payload, remember to offset 4 bytes so
                     // we don't overwrite the length
                     in.readFully(dr.getData(), 4, rl * 4);
-
+                    System.out.println("got all data, send ack");
                     os.write(0xaa);
                     full.put(dr);
                 }
@@ -213,7 +221,7 @@ public class DataChannelImplCMsg implements DataChannel {
                 while (true) {
                     d = full.take();
                     len = d.getRecordLength();
-
+                    System.out.println("DataSocket " + dataSocket + " open = " + dataSocket.isConnected() + " length " + d.getData());
                     out.write(d.getData(), 0, 4);
                     out.write(d.getData(), 4, len * 4);
                     ack = is.read();
