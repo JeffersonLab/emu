@@ -23,12 +23,14 @@ import org.jlab.coda.support.config.DataNotFoundException;
 import org.jlab.coda.support.control.CmdExecException;
 import org.jlab.coda.support.control.Command;
 import org.jlab.coda.support.control.State;
+import org.jlab.coda.support.log.Logger;
 
 import java.io.DataInputStream;
-import java.io.IOException;
-import java.net.*;
+import java.net.InetAddress;
+import java.net.ServerSocket;
+import java.net.Socket;
+import java.net.SocketException;
 import java.util.Map;
-import java.util.concurrent.TimeoutException;
 
 /**
  * <pre>
@@ -43,23 +45,22 @@ public class TransportImplCMsg extends DataTransportCore implements DataTranspor
     /** Field connected */
     private boolean connected = false;
 
-    private String TEST_UDL = "cMsg://localhost:3456/cMsg/test";
-    private Thread monitor;
-
-    private String UDL;
-
     /** Field localhost */
     private InetAddress localhost;
 
     /** Field serverSocket */
     private ServerSocket serverSocket;
 
+    /** Field host */
     private String host = null;
 
+    /** Field port */
     private int port = 0;
 
     /** Field state */
     private State state = CODAState.UNCONFIGURED;
+    /** Field connectTimeout */
+    private final int connectTimeout = 10000;
 
     /**
      * Constructor TransportImplSO creates a new TransportImplSO instance.
@@ -71,7 +72,6 @@ public class TransportImplCMsg extends DataTransportCore implements DataTranspor
      */
     public TransportImplCMsg(String pname, Map<String, String> attrib) throws DataNotFoundException {
         super(pname, attrib);
-        UDL = TEST_UDL;
     }
 
     /** Method close ... */
@@ -88,55 +88,87 @@ public class TransportImplCMsg extends DataTransportCore implements DataTranspor
         }
     }
 
+    /**
+     * Method callback ...
+     *
+     * @param msg of type cMsgMessage
+     * @param o   of type Object
+     */
     public void callback(cMsgMessage msg, Object o) {
 
         String type = msg.getType();
-        String subject = msg.getSubject();
 
-        System.out.println("cMsg type : " + type + ", subject : " + subject + ", text : " + msg.getText() + ", int " + msg.getUserInt());
         if (type.matches("get_socket")) {
-            System.out.println("Someone asked for our socket data " + msg.toString());
 
             try {
-
                 cMsgMessage rmsg = msg.response();
 
                 rmsg.setText(localhost.getHostAddress());
                 rmsg.setUserInt(serverSocket.getLocalPort());
                 rmsg.setSubject(name());
                 rmsg.setType("socket_ack");
-                System.out.println("Sending response : " + rmsg.toString());
 
                 CMSGPortal.getServer().send(rmsg);
-
-                //cMsgServer.flush(0);
+                CMSGPortal.getServer().flush(0);
             } catch (cMsgException e) {
-                e.printStackTrace();  //To change body of catch statement use File | Settings | File Templates.
+                e.printStackTrace();
+                CODAState.ERROR.getCauses().add(e);
+                state = CODAState.ERROR;
             }
         }
 
     }
 
+    /**
+     * Method maySkipMessages ...
+     *
+     * @return boolean
+     */
     public boolean maySkipMessages() {
         return false;
     }
 
+    /**
+     * Method mustSerializeMessages ...
+     *
+     * @return boolean
+     */
     public boolean mustSerializeMessages() {
         return true;
     }
 
+    /**
+     * Method getMaximumCueSize returns the maximumCueSize of this TransportImplCMsg object.
+     *
+     * @return the maximumCueSize (type int) of this TransportImplCMsg object.
+     */
     public int getMaximumCueSize() {
-        return 10000;
+        return connectTimeout;
     }
 
+    /**
+     * Method getSkipSize returns the skipSize of this TransportImplCMsg object.
+     *
+     * @return the skipSize (type int) of this TransportImplCMsg object.
+     */
     public int getSkipSize() {
         return 1;
     }
 
+    /**
+     * Method getMaximumThreads returns the maximumThreads of this TransportImplCMsg object.
+     *
+     * @return the maximumThreads (type int) of this TransportImplCMsg object.
+     */
     public int getMaximumThreads() {
         return 200;
     }
 
+    /**
+     * Method getMessagesPerThread returns the messagesPerThread of this TransportImplCMsg object.
+     *
+     * @return the messagesPerThread (type int) of this TransportImplCMsg object.
+     */
     public int getMessagesPerThread() {
         return 1;
     }
@@ -145,16 +177,16 @@ public class TransportImplCMsg extends DataTransportCore implements DataTranspor
      * <pre>
      * Class <b>AcceptHelper </b>
      * </pre>
-     *
-     * @author heyes
-     *         Created on Sep 17, 2008
+     * <p/>
+     * This thread listens on the serverSocket for incomming connections
+     * It then looks for a channel with the name read from the socket and
+     * associates the connection with that channel.
      */
     private class AcceptHelper implements Runnable {
 
         /** Method run ... */
         public void run() {
-            byte[] cbuf = new byte[100];
-            int l;
+
             try {
                 serverSocket.setReceiveBufferSize(100000);
             } catch (SocketException e1) {
@@ -167,15 +199,17 @@ public class TransportImplCMsg extends DataTransportCore implements DataTranspor
 
                     DataInputStream in = new DataInputStream(incoming
                             .getInputStream());
+                    int magic = in.readInt();
+                    if (magic != 0xC0DA2008) {
+                        Logger.warn("Invalid connection, got " + magic + " expected " + 0xC0DA2008);
+                    }
+                    int l = in.readByte();
+                    byte[] cbuf = new byte[l + 1];
+                    in.readFully(cbuf, 0, l);
 
-                    l = in.read();
-
-                    int bytes = in.read(cbuf, 0, l);
-                    System.out.println("bytes is : " + bytes);
-                    String s = new String(cbuf, 0, bytes);
-                    System.out.println("channel name is : " + s);
-                    DataChannelImplCMsg c = (DataChannelImplCMsg) channels.get(s);
-
+                    String cname = new String(cbuf, 0, l);
+                    DataChannelImplCMsg c = (DataChannelImplCMsg) channels.get(cname);
+                    Logger.info("transp " + name() + " accepts chan " + cname + " : " + incoming);
                     if (c != null) {
                         c.setDataSocket(incoming);
                         c.startInputHelper();
@@ -183,6 +217,8 @@ public class TransportImplCMsg extends DataTransportCore implements DataTranspor
                 } catch (Exception e) {
                     System.err.println("Exception " + e.getMessage());
                     e.printStackTrace();
+                    CODAState.ERROR.getCauses().add(e);
+                    state = CODAState.ERROR;
                     return;
                 }
             }
@@ -194,32 +230,23 @@ public class TransportImplCMsg extends DataTransportCore implements DataTranspor
     /**
      * Method startServer ...
      *
-     * @throws org.jlab.coda.support.transport.TransportException
-     *          when
+     * @throws TransportException
+     * @see DataTransport#startServer()
      */
     public void startServer() throws TransportException {
         // set connected flag
 
         try {
             localhost = InetAddress.getLocalHost();
-        } catch (UnknownHostException e) {
-            e.printStackTrace();
-            throw new TransportException(e.getMessage());
-        }
 
-        try {
             serverSocket = new ServerSocket(0, 1, localhost);
-        } catch (IOException e) {
-            e.printStackTrace();
-            throw new TransportException(e.getMessage());
-        }
-        try {
+
             System.out.println("subscribe " + name());
             CMSGPortal.getServer().subscribe(name(), "get_socket", this, null);
 
-        } catch (cMsgException e) {
+        } catch (Exception e) {
             e.printStackTrace();
-            throw new TransportException(e.getMessage());
+            throw new TransportException(e.getMessage(), e);
         }
 
         Thread acceptHelperThread = new Thread(EMUComponentImpl.THREAD_GROUP, new AcceptHelper(), name() + " accept");
@@ -228,28 +255,20 @@ public class TransportImplCMsg extends DataTransportCore implements DataTranspor
     }
 
     /** Method connect ... */
-    public void connect() {
+    public void connect() throws TransportException {
         try {
-            System.out.println("Connect called !!");
-
             cMsgMessage msg = new cMsgMessage();
             msg.setSubject(name());
             msg.setType("get_socket");
             msg.setText("no text");
-            System.out.println("Message sent is : " + msg.toString());
 
-            cMsgMessage reply = CMSGPortal.getServer().sendAndGet(msg, 10000);
-            host = new String(reply.getText());
-            System.out.println("cMsg response : " + reply.toString());
-            System.out.println("cMsg reply text : " + reply.getText() + ", int " + reply.getUserInt());
+            cMsgMessage reply = CMSGPortal.getServer().sendAndGet(msg, connectTimeout);
 
-            host = new String(reply.getText());
+            host = reply.getText();
             port = reply.getUserInt();
-            System.out.println("host : " + host + ", " + port + " set in " + name() + " " + this);
-        } catch (cMsgException e) {
-            e.printStackTrace();  //To change body of catch statement use File | Settings | File Templates.
-        } catch (TimeoutException e) {
-            e.printStackTrace();  //To change body of catch statement use File | Settings | File Templates.
+        } catch (Exception e) {
+            e.printStackTrace();
+            throw new TransportException(e.getMessage(), e);
         }
     }
 
@@ -259,7 +278,7 @@ public class TransportImplCMsg extends DataTransportCore implements DataTranspor
      * @param name of type String
      * @return DataChannel
      */
-    public DataChannel createChannel(String name) {
+    public DataChannel createChannel(String name) throws TransportException {
         System.out.println("create channel " + name);
         DataChannel c = new DataChannelImplCMsg(name() + ":" + name, this);
         channels.put(c.getName(), c);
@@ -313,6 +332,7 @@ public class TransportImplCMsg extends DataTransportCore implements DataTranspor
      *
      * @param cmd of type Command
      * @see org.jlab.coda.emu.EmuModule#execute(org.jlab.coda.support.control.Command)
+     * @see org.jlab.coda.emu.EmuModule#execute(Command)
      */
     public void execute(Command cmd) throws CmdExecException {
 
@@ -348,18 +368,38 @@ public class TransportImplCMsg extends DataTransportCore implements DataTranspor
 
     }
 
+    /**
+     * Method getHost returns the host of this TransportImplCMsg object.
+     *
+     * @return the host (type String) of this TransportImplCMsg object.
+     */
     public String getHost() {
         return host;
     }
 
+    /**
+     * Method setHost sets the host of this TransportImplCMsg object.
+     *
+     * @param host the host of this TransportImplCMsg object.
+     */
     public void setHost(String host) {
         this.host = host;
     }
 
+    /**
+     * Method getPort returns the port of this TransportImplCMsg object.
+     *
+     * @return the port (type int) of this TransportImplCMsg object.
+     */
     public int getPort() {
         return port;
     }
 
+    /**
+     * Method setPort sets the port of this TransportImplCMsg object.
+     *
+     * @param port the port of this TransportImplCMsg object.
+     */
     public void setPort(int port) {
         this.port = port;
     }
