@@ -1,0 +1,14 @@
+<?xml version="1.0"?>
+<component>
+    <name>EMU3</name>
+    <transports>
+        <EMU3_ET type="et" create="true" size="20000" pool="40"/>
+    </transports>
+
+    <modules src="/CODA/source/install/lib/modules.jar" usr_src="/CODA/source/install/lib/user_modules.jar">
+        <R1 type="Read">
+            <EMU2 uses="EMU3_ET"/>
+        </R1>
+        <P1 type="Process"/>
+    </modules>
+</component>

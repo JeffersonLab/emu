@@ -1,0 +1,22 @@
+<?xml version="1.0"?>
+<component>
+    <name>EMU4</name>
+    <transports>
+        <EMU4_SOCKET type="SO" server="true" port="7030" size="800000" pool="2"/>
+        <EMU6_SOCKET type="SO" server="false" port="7030" size="800000" pool="2"/>
+    </transports>
+    <modules src="modules.jar" usr_src="user_modules.jar">
+        <ReadModule type="Read">
+            <EMU1 uses="EMU4_SOCKET"/>
+            <EMU2 uses="EMU4_SOCKET"/>
+            <EMU3 uses="EMU4_SOCKET"/>
+        </ReadModule>
+        <SendModule type="Send">
+            <EMU4 uses="EMU6_SOCKET"/>
+        </SendModule>
+        <ProcessModule type="Process" concurrency="2">
+            <ReadModule/>
+            <SendModule output="true"/>
+        </ProcessModule>
+    </modules>
+</component>

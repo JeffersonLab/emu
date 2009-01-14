@@ -11,9 +11,9 @@
 
 package org.jlab.coda.support.w3;
 
-import org.jlab.coda.emu.EMUComponentImpl;
-import org.jlab.coda.support.kbd.ApplicationConsole;
-import org.jlab.coda.support.log.Logger;
+import org.jlab.coda.emu.Emu;
+import org.jlab.coda.support.keyboardControl.ApplicationConsole;
+import org.jlab.coda.support.logger.Logger;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -30,7 +30,7 @@ public class CmdListener implements Runnable {
 
     /** Constructor CmdListener creates a new CmdListener instance. */
     public CmdListener() {
-        Thread serverLoop = new Thread(EMUComponentImpl.THREAD_GROUP, this, "Telnet port 8084 monitor");
+        Thread serverLoop = new Thread(Emu.THREAD_GROUP, this, "Telnet port 8084 monitor");
         serverLoop.start();
     }
 

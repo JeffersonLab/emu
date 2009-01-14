@@ -11,7 +11,11 @@
 
 package org.jlab.coda.support.transport;
 
-import org.jlab.coda.support.config.DataNotFoundException;
+import org.jlab.coda.support.codaComponent.CODAState;
+import org.jlab.coda.support.configurer.DataNotFoundException;
+import org.jlab.coda.support.control.State;
+import org.jlab.coda.support.evio.DataTransportRecord;
+import org.jlab.coda.support.logger.Logger;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -19,12 +23,17 @@ import java.util.Map;
 /** @author heyes */
 @SuppressWarnings({"WeakerAccess"})
 public class DataTransportCore {
+    /** Field state */
+    protected State state = CODAState.UNCONFIGURED;
+
+    /** Field connected */
+    private boolean connected = false;
 
     /** Field transports */
     private static final HashMap<String, DataTransportCore> transports = new HashMap<String, DataTransportCore>();
 
     /** Field type */
-    private String type = "unknown";
+    private String transportClass = "unknown";
 
     /** Field name */
     private String name = null;
@@ -37,6 +46,10 @@ public class DataTransportCore {
 
     /** Field channels */
     protected final HashMap<String, DataChannel> channels = new HashMap<String, DataChannel>();
+
+    protected static int instanceCount = 0;
+
+    protected int myInstance = -1;
 
     /**
      * Method tester ...
@@ -67,16 +80,18 @@ public class DataTransportCore {
 
         attr = attrib;
 
-        type = getAttr("type");
-        if (type == null) {
-            throw new DataNotFoundException("Transport : " + name() + ", missing type attribute");
+        transportClass = getAttr("class");
+        if (transportClass == null) {
+            throw new DataNotFoundException("Transport : " + name() + ", missing class attribute");
         }
         String serverS = getAttr("server");
         if (serverS == null) {
             throw new DataNotFoundException("Transport : " + name() + ", missing server attribute");
         }
         server = Boolean.valueOf(serverS);
+        myInstance = instanceCount++;
 
+        Logger.debug("INSTANCE " + pname + "of " + this.getClass() + " : " + myInstance);
     }
 
     /** Method test ... */
@@ -98,8 +113,8 @@ public class DataTransportCore {
     *
     * @see org.jlab.coda.support.transport.EmuDataTransport#getName()
     */
-    public String getType() {
-        return type;
+    public String getTransportClass() {
+        return transportClass;
     }
 
     /**
@@ -146,8 +161,21 @@ public class DataTransportCore {
      * @param pname of type String
      * @return String
      */
-    public String getAttr(String pname) {
-        return attr.get(pname);
+    public String getAttr(String pname) throws DataNotFoundException {
+        String attribute = attr.get(pname);
+
+        if (attribute == null) throw new DataNotFoundException("attribute " + pname + " not found in config for " + name());
+        return attribute;
+    }
+
+    /**
+     * Method getIntAttr ...
+     *
+     * @param pname of type String
+     * @return int
+     */
+    public int getIntAttr(String pname) throws DataNotFoundException {
+        return Integer.valueOf(getAttr(pname));
     }
 
     /**
@@ -166,5 +194,115 @@ public class DataTransportCore {
 
     public boolean isServer() {
         return server;
+    }
+
+    /**
+     * Method isConnected returns the connected of this DataTransport object.
+     *
+     * @return the connected (type boolean) of this DataTransport object.
+     */
+    public boolean isConnected() {
+        return connected;
+    }
+
+    public void setConnected(boolean connected) {
+        this.connected = connected;
+    }
+
+    /** Method close ... */
+    public void close() {
+        setConnected(false);
+        // close remaining channels.
+        Logger.debug("close transport " + name());
+
+        if (!channels().isEmpty()) {
+            synchronized (channels()) {
+                for (DataChannel c : channels().values()) {
+                    c.close();
+                }
+                channels().clear();
+            }
+        }
+    }
+
+    /** @return the state */
+    public State state() {
+        return state;
+    }
+
+    /* cMsg related methods - implements callback interface */
+
+    /**
+     * Method maySkipMessages ...
+     *
+     * @return boolean
+     */
+    public boolean maySkipMessages() {
+        return false;
+    }
+
+    /**
+     * Method mustSerializeMessages ...
+     *
+     * @return boolean
+     */
+    public boolean mustSerializeMessages() {
+        return true;
+    }
+
+    /**
+     * Method getMaximumCueSize returns the maximumCueSize of this TransportImplCMsg object.
+     *
+     * @return the maximumCueSize (type int) of this TransportImplCMsg object.
+     */
+    public int getMaximumCueSize() {
+        return 100;
+    }
+
+    /**
+     * Method getSkipSize returns the skipSize of this TransportImplCMsg object.
+     *
+     * @return the skipSize (type int) of this TransportImplCMsg object.
+     */
+    public int getSkipSize() {
+        return 1;
+    }
+
+    /**
+     * Method getMaximumThreads returns the maximumThreads of this TransportImplCMsg object.
+     *
+     * @return the maximumThreads (type int) of this TransportImplCMsg object.
+     */
+    public int getMaximumThreads() {
+        return 200;
+    }
+
+    /**
+     * Method getMessagesPerThread returns the messagesPerThread of this TransportImplCMsg object.
+     *
+     * @return the messagesPerThread (type int) of this TransportImplCMsg object.
+     */
+    public int getMessagesPerThread() {
+        return 1;
+    }
+
+    /**
+     * Method receive ...
+     *
+     * @param channel of type DataChannel
+     * @return int[]
+     */
+    public DataTransportRecord receive(DataChannel channel) throws InterruptedException {
+        return channel.getQueue().take();
+    }
+
+    /**
+     * Method send ...
+     *
+     * @param channel of type DataChannel
+     * @param data    of type long[]
+     */
+    public void send(DataChannel channel, DataTransportRecord data) {
+        channel.getQueue().add(data);
     }
 }

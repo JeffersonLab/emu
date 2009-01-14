@@ -15,7 +15,7 @@
 char *transport_test::channelNames[10];
 int transport_test::channel_count;
 int transport_test::size;
-int transport_test::ROCID = 0;
+int transport_test::ROCID = 1234;
 
 void *read_thread(void *arg)
 {
@@ -39,15 +39,18 @@ void *read_thread(void *arg)
             counter++;
             // if (data != NULL)
             //    printf ("%s %08x %08x %08x %08x\n",chan->name,data->length,data->data[0],data->data[1],data->data[2]);
-            if (counter % 10 == 0)
+            if (counter % 1000 == 0)
             {
                 double now = gsl_time();
                 printf ("----------------%p\n", data);
-                printf ("%ld blocks in %f seconds = %2.1e blocks/s\n", counter, now - start_time, 10/(now - start_time));
+                printf ("block %ld at %2.1e blocks/s\n", counter, 1000/(now - start_time));
                 start_time = now;
                 if (data != NULL)
                 {
-                    printf ("%08x %08x %08x %08x %08x %08x %08x\n",data->length,data->data[0],data->data[1],data->data[2],data->data[3],data->data[4],data->data[5]);
+					
+					printf ("%08x\n",data->length);
+					for(int ix=0;ix<20;ix++)
+						printf("%08x\n",ntohl(data->data[ix]));
                 }
             }
             gchannel_free(data);
@@ -63,6 +66,7 @@ void *send_thread(void *arg)
     gchannel_hdr *buf = NULL;
     int32_t *data;
     long counter = 0;
+
     double start_time = gsl_time();
 
     int len = 250000; // 1MByte buffer
@@ -82,31 +86,32 @@ void *send_thread(void *arg)
         int offset;
         data = buf->data;
 
-        data[0] = htonl(0x00002000 | transport_test::ROCID | (0xff & (counter)));
+        data[0] = htonl(0x00001000 | (transport_test::ROCID<<16) | (0xff & (counter)));
         data[1] = htonl(counter++);
-
-        offset = 2;
-        int block_number = 0;
-        while (1)
+	    int nevents = 0;
+        offset = 3;
+#define EVENT_SIZE 8
+		for (nevents=0;nevents<4;nevents++)
         {
-
-            int block_size = 5000 + (0xff & random());
-            if (offset + block_size + 1> limit)
-                break;
-            data[offset] = htonl(block_size);
-            data[offset+1] = htonl(0x00001000 | transport_test::ROCID | (0xff & (block_number++)));
-            data[offset+3] = htonl(0x1111);
-            data[offset+4] = htonl(0x2222);
+            data[offset] = htonl(EVENT_SIZE);
+            data[offset+1] = htonl(0x00001000 | (transport_test::ROCID<<16) | (0xff & (nevents++)));
+            data[offset+2] = htonl(0x1111);
+            data[offset+3] = htonl(0x2222);
+            data[offset+4] = htonl(0x3333);
             data[offset+5] = htonl(0xaaaa);
             data[offset+6] = htonl(0xbbbb);
             data[offset+7] = htonl(0xcccc);
             data[offset+8] = htonl(0xdddd);
-
-            offset += (block_size+1);
+            offset += (EVENT_SIZE+1);
         }
-        buf->length = offset + 1;
-        printf("%08x %08x %08x %08x %08x %08x %08x %08x \n",buf->length,ntohl(data[0]),ntohl(data[1]),ntohl(data[2]),ntohl(data[3]),ntohl(data[4]),ntohl(data[5]),ntohl(data[6]));
-
+		data[2] = htonl(nevents);
+		
+        buf->length = offset;
+        
+		printf ("---\n%08x\n",buf->length);
+		for(int ix=0;ix<20;ix++)
+			printf("%08x\n",ntohl(data[ix]));
+			
         status = gchannel_send(buf);
 
         if (status != 0 && status != ETIMEDOUT)
@@ -118,7 +123,7 @@ void *send_thread(void *arg)
         if (counter % 1000 == 0)
         {
             double now = gsl_time();
-            printf ("%d, %2.1e\n", buf->length, (now - start_time)/1000);
+            printf ("%d, %2.1e\n", buf->length, 1000/(now - start_time));
             start_time = now;
         }
     }
@@ -166,7 +171,7 @@ int main(int argc, char **argv)
     char *input = NULL;
     char *type = NULL;
     char c;
-    int size=100;
+    int size=5000;
 
     while ((c = getopt(argc, argv, "pn:t:c:s:i:")) != EOF)
     {

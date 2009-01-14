@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<configuration xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+               xsi:noNamespaceSchemaLocation="monitorConfiguration.xsd">
+
+    <graphics>
+        <width>1100</width>
+        <height>700</height>
+        <xPosition>0</xPosition>
+        <yPosition>22</yPosition>
+        <fileNameList>
+            EMU3_ET
+        </fileNameList>
+    </graphics>
+
+    <etConnection>
+        <fileName>EMU3_ET</fileName>
+        <multicasting>
+            <location>local</location>
+            <multicastAddressList>
+                239.200.0.0
+            </multicastAddressList>
+            <multicastPort>11111</multicastPort>
+            <ttl>1</ttl>
+        </multicasting>
+        <period>5</period>
+        <dividerPosition>550</dividerPosition>
+        <orientation>horizontal</orientation>
+    </etConnection>
+
+</configuration>

@@ -1,0 +1,21 @@
+<?xml version="1.0"?>
+<component>
+    <name>EMU_B1</name>
+    <dataTransport>
+        <TEST type="ET" port="22222" size="8192" pool="16536"/>
+    </dataTransport>
+    <parameters>
+
+    </parameters>
+    <modules src="/CODA/source/install/lib/modules.jar" usr_src="/CODA/source/install/lib/user_modules.jar">
+        <Read>
+            <input value="EMU_A1"/>
+            <input value="EMU_A2"/>
+            <input value="EMU_A3"/>
+            <input value="EMU_A4"/>
+        </Read>
+        <Process name="PROC1" format="CEF"/>
+        <Process name="PROC2" format="CEF"/>
+        <Process name="PROC3" format="CEF"/>
+    </modules>
+</component>

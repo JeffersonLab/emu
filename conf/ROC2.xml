@@ -1,0 +1,15 @@
+<?xml version="1.0"?>
+<component>
+    <name>ROC2</name>
+    <manifold name="" type="et" host="ahost" port="11111"
+</port>" />
+<modules>
+<send name="sender"/>
+</modules>
+<parameters>
+<param name="debug" value="OFF"/>
+<param name="scaler setting" value="0x2456" key="x" help="hello world"/>
+<param name="readout_list" value="myreadout.so"/>
+<param name="calibration table" value="DC_wire_map.txt"/>
+</parameters>
+        </component>

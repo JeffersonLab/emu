@@ -17,14 +17,14 @@ package org.jlab.coda.support.ui;
 
 import org.jdesktop.layout.GroupLayout;
 import org.jdesktop.layout.LayoutStyle;
-import org.jlab.coda.emu.EMUComponentImpl;
-import org.jlab.coda.support.component.CODATransition;
-import org.jlab.coda.support.component.RunControl;
-import org.jlab.coda.support.component.SessionControl;
-import org.jlab.coda.support.config.Configurer;
-import org.jlab.coda.support.config.DataNode;
-import org.jlab.coda.support.log.Logger;
-import org.jlab.coda.support.log.QueueAppender;
+import org.jlab.coda.emu.Emu;
+import org.jlab.coda.support.codaComponent.CODATransition;
+import org.jlab.coda.support.codaComponent.RunControl;
+import org.jlab.coda.support.codaComponent.SessionControl;
+import org.jlab.coda.support.configurer.Configurer;
+import org.jlab.coda.support.configurer.DataNode;
+import org.jlab.coda.support.logger.Logger;
+import org.jlab.coda.support.logger.QueueAppender;
 import org.jlab.coda.support.ui.log.SwingLogConsoleDialog;
 import org.w3c.dom.Document;
 import org.w3c.dom.Node;
@@ -37,15 +37,17 @@ import java.util.ResourceBundle;
 
 /** @author unknown */
 public class DebugFrame extends JFrame {
+    private int documentCount = 0;
+
     public DebugFrame() {
         initComponents();
-        setTitle(EMUComponentImpl.INSTANCE.name());
+        setTitle(Emu.INSTANCE.name());
         QueueAppender logQueueAppender = new QueueAppender(1024);
         Logger.addAppender(logQueueAppender);
         logPanel.monitor(logQueueAppender);
-        smartToolbar.configure(EMUComponentImpl.INSTANCE, CODATransition.class);
-        smartToolbar1.configure(EMUComponentImpl.INSTANCE, RunControl.class);
-        smartToolbar2.configure(EMUComponentImpl.INSTANCE, SessionControl.class);
+        smartToolbar.configure(Emu.INSTANCE, CODATransition.class);
+        smartToolbar1.configure(Emu.INSTANCE, RunControl.class);
+        smartToolbar2.configure(Emu.INSTANCE, SessionControl.class);
 
         setVisible(true);
     }
@@ -56,18 +58,29 @@ public class DebugFrame extends JFrame {
      * @param doc of type Document
      */
     public void addDocument(Document doc) {
-        Node node = doc.getFirstChild();
-        DataNode dn = Configurer.getDataNodes(node);
+        System.out.println("Here in addDocument " + doc);
+        try {
+            Node node = doc.getDocumentElement();
+            DataNode dn = Configurer.getDataNodes(node);
+            JInternalFrame f = new JInternalFrame(node.getNodeName(), true, true, true, true);
 
-        JInternalFrame f = new JInternalFrame(node.getNodeName(), true, true, true, true);
-        f.getContentPane().add(dn);
-        f.setMinimumSize(new Dimension(300, 300));
-        f.pack();
-        f.setVisible(true);
-        desktopPane.add(f);
-        desktopPane.validate();
-        doc.setUserData("DisplayPanel", f, null);
-        pack();
+            f.getContentPane().add(dn.getContainer());
+            f.setMinimumSize(new Dimension(300, 300));
+            f.setLocation(300 * documentCount, 0);
+            f.pack();
+            f.setVisible(true);
+            f.setSelected(true);
+            desktopPane.add(f);
+            desktopPane.validate();
+
+            doc.setUserData("DisplayPanel", f, null);
+            pack();
+        } catch (Exception e) {
+            System.err.println("ERROR " + e.getMessage());
+            e.printStackTrace();
+        }
+
+        documentCount++;
     }
 
     /**
@@ -76,8 +89,11 @@ public class DebugFrame extends JFrame {
      * @param doc of type Document
      */
     public void removeDocument(Document doc) {
-        JPanel p = (JPanel) doc.getUserData("DisplayPanel");
+        documentCount--;
+        JInternalFrame p = (JInternalFrame) doc.getUserData("DisplayPanel");
         desktopPane.remove(p);
+        desktopPane.validate();
+        desktopPane.repaint();
     }
 
     /**
@@ -245,32 +261,11 @@ public class DebugFrame extends JFrame {
 
         GroupLayout contentPaneLayout = new GroupLayout(contentPane);
         contentPane.setLayout(contentPaneLayout);
-        contentPaneLayout.setHorizontalGroup(contentPaneLayout.createParallelGroup()
-                .add(contentPaneLayout.createSequentialGroup()
-                .addContainerGap()
-                .add(contentPaneLayout.createParallelGroup()
-                        .add(GroupLayout.TRAILING, desktopPane, GroupLayout.DEFAULT_SIZE, 704, Short.MAX_VALUE)
-                        .add(smartToolbar1, GroupLayout.DEFAULT_SIZE, 704, Short.MAX_VALUE)
-                        .add(smartToolbar, GroupLayout.DEFAULT_SIZE, 704, Short.MAX_VALUE)
-                        .add(GroupLayout.TRAILING, logScrollPane, GroupLayout.DEFAULT_SIZE, 704, Short.MAX_VALUE)
-                        .add(smartToolbar2, GroupLayout.DEFAULT_SIZE, 704, Short.MAX_VALUE))
-                .addContainerGap()));
-        contentPaneLayout.setVerticalGroup(contentPaneLayout.createParallelGroup()
-                .add(contentPaneLayout.createSequentialGroup()
-                .addContainerGap()
-                .add(smartToolbar, GroupLayout.PREFERRED_SIZE, GroupLayout.DEFAULT_SIZE, GroupLayout.PREFERRED_SIZE)
-                .addPreferredGap(LayoutStyle.RELATED)
-                .add(smartToolbar1, GroupLayout.PREFERRED_SIZE, GroupLayout.DEFAULT_SIZE, GroupLayout.PREFERRED_SIZE)
-                .addPreferredGap(LayoutStyle.RELATED)
-                .add(smartToolbar2, GroupLayout.PREFERRED_SIZE, GroupLayout.DEFAULT_SIZE, GroupLayout.PREFERRED_SIZE)
-                .addPreferredGap(LayoutStyle.UNRELATED)
-                .add(desktopPane, GroupLayout.PREFERRED_SIZE, 582, GroupLayout.PREFERRED_SIZE)
-                .add(8, 8, 8)
-                .add(logScrollPane, GroupLayout.DEFAULT_SIZE, 113, Short.MAX_VALUE)
-                .addContainerGap()));
+        contentPaneLayout.setHorizontalGroup(contentPaneLayout.createParallelGroup().add(contentPaneLayout.createSequentialGroup().addContainerGap().add(contentPaneLayout.createParallelGroup().add(GroupLayout.TRAILING, desktopPane, GroupLayout.DEFAULT_SIZE, 704, Short.MAX_VALUE).add(smartToolbar1, GroupLayout.DEFAULT_SIZE, 704, Short.MAX_VALUE).add(smartToolbar, GroupLayout.DEFAULT_SIZE, 704, Short.MAX_VALUE).add(GroupLayout.TRAILING, logScrollPane, GroupLayout.DEFAULT_SIZE, 704, Short.MAX_VALUE).add(smartToolbar2, GroupLayout.DEFAULT_SIZE, 704, Short.MAX_VALUE)).addContainerGap()));
+        contentPaneLayout.setVerticalGroup(contentPaneLayout.createParallelGroup().add(contentPaneLayout.createSequentialGroup().addContainerGap().add(smartToolbar, GroupLayout.PREFERRED_SIZE, GroupLayout.DEFAULT_SIZE, GroupLayout.PREFERRED_SIZE).addPreferredGap(LayoutStyle.RELATED).add(smartToolbar1, GroupLayout.PREFERRED_SIZE, GroupLayout.DEFAULT_SIZE, GroupLayout.PREFERRED_SIZE).addPreferredGap(LayoutStyle.RELATED).add(smartToolbar2, GroupLayout.PREFERRED_SIZE, GroupLayout.DEFAULT_SIZE, GroupLayout.PREFERRED_SIZE).addPreferredGap(LayoutStyle.UNRELATED).add(desktopPane, GroupLayout.PREFERRED_SIZE, 582, GroupLayout.PREFERRED_SIZE).add(8, 8, 8).add(logScrollPane, GroupLayout.DEFAULT_SIZE, 113, Short.MAX_VALUE).addContainerGap()));
         pack();
         setLocationRelativeTo(getOwner());
-        // JFormDesigner - End of component initialization  //GEN-END:initComponents
+        // JFormDesigner - End of codaComponent initialization  //GEN-END:initComponents
     }
 
     // JFormDesigner - Variables declaration - DO NOT MODIFY  //GEN-BEGIN:variables

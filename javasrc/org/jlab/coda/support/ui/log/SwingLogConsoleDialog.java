@@ -11,10 +11,10 @@
 
 package org.jlab.coda.support.ui.log;
 
-import org.jlab.coda.support.log.Logger;
-import org.jlab.coda.support.log.LoggerAppender;
-import org.jlab.coda.support.log.LoggingEvent;
-import org.jlab.coda.support.log.QueueAppender;
+import org.jlab.coda.support.logger.Logger;
+import org.jlab.coda.support.logger.LoggerAppender;
+import org.jlab.coda.support.logger.LoggingEvent;
+import org.jlab.coda.support.logger.QueueAppender;
 
 import javax.swing.*;
 import javax.swing.text.*;

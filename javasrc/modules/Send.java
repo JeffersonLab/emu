@@ -11,20 +11,13 @@
 
 package modules;
 
-import org.jlab.coda.emu.EMUComponentImpl;
 import org.jlab.coda.emu.EmuModule;
-import org.jlab.coda.support.component.CODAState;
-import org.jlab.coda.support.component.CODATransition;
-import org.jlab.coda.support.config.Configurer;
-import org.jlab.coda.support.config.DataNotFoundException;
+import org.jlab.coda.support.codaComponent.CODAState;
+import org.jlab.coda.support.codaComponent.CODATransition;
 import org.jlab.coda.support.control.Command;
 import org.jlab.coda.support.control.State;
+import org.jlab.coda.support.logger.Logger;
 import org.jlab.coda.support.transport.DataChannel;
-import org.jlab.coda.support.transport.DataTransport;
-import org.jlab.coda.support.transport.EmuTransportFactory;
-import org.w3c.dom.NamedNodeMap;
-import org.w3c.dom.Node;
-import org.w3c.dom.NodeList;
 
 import java.util.HashMap;
 
@@ -41,8 +34,11 @@ public class Send implements EmuModule {
     /** Field state */
     private State state = CODAState.UNCONFIGURED;
 
-    /** Field channels */
-    private final HashMap<String, DataChannel> channels = new HashMap<String, DataChannel>();
+    /** Field input_channels */
+    private HashMap<String, DataChannel> input_channels = new HashMap<String, DataChannel>();
+
+    /** Field output_channels */
+    private HashMap<String, DataChannel> output_channels = new HashMap<String, DataChannel>();
 
     /** Field name */
     private String name = null;
@@ -69,22 +65,6 @@ public class Send implements EmuModule {
         return name;
     }
 
-    /**
-     * Method channels ...
-     *
-     * @return HashMap<String, DataChannel>
-     * @see org.jlab.coda.emu.EmuModule#channels()
-     */
-    /*
-    * (non-Javadoc)
-    *
-    * @see org.jlab.coda.emu.EmuModule#getChannels()
-    */
-    public HashMap<String, DataChannel> channels() {
-
-        return channels;
-    }
-
     /** @return the state */
     public State state() {
         return state;
@@ -100,46 +80,21 @@ public class Send implements EmuModule {
 
         if (cmd.equals(CODATransition.end)) {
             state = CODAState.ENDED;
-
-            for (DataChannel c : channels.values()) {
-                c.close();
-            }
-            channels.clear();
-        }
-
-        if (cmd.equals(CODATransition.prestart)) {
-            try {
-                Node top = Configurer.getNode(EMUComponentImpl.INSTANCE
-                        .configuration(), "component/modules/" + name());
-
-                NodeList l = top.getChildNodes();
-
-                for (int ix = 0; ix < l.getLength(); ix++) {
-                    Node n = l.item(ix);
-                    if (n.getNodeType() != Node.ELEMENT_NODE) continue;
-
-                    if (!n.hasAttributes()) {
-                        continue;
-                    }
-                    NamedNodeMap nnm = n.getAttributes();
-
-                    String uses = nnm.getNamedItem("uses").getNodeValue();
-
-                    DataTransport trans = EmuTransportFactory
-                            .findNamedTransport(uses);
-
-                    DataChannel c = trans.createChannel(n.getNodeName());
-                    channels.put(c.getName(), c);
-
-                }
-
-            } catch (DataNotFoundException e) {
-                CODAState.ERROR.getCauses().add(e);
-                state = CODAState.ERROR;
-                return;
-            }
         }
 
         state = cmd.success();
+    }
+
+    protected void finalize() throws Throwable {
+        Logger.info("Finalize " + name);
+        super.finalize();
+    }
+
+    public void setInput_channels(HashMap<String, DataChannel> input_channels) {
+        this.input_channels = input_channels;
+    }
+
+    public void setOutput_channels(HashMap<String, DataChannel> output_channels) {
+        this.output_channels = output_channels;
     }
 }

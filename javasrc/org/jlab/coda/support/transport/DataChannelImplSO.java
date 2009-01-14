@@ -11,14 +11,13 @@
 
 package org.jlab.coda.support.transport;
 
-import org.jlab.coda.emu.EMUComponentImpl;
+import org.jlab.coda.emu.Emu;
 import org.jlab.coda.support.control.CmdExecException;
-import org.jlab.coda.support.evio.DataRecord;
-import org.jlab.coda.support.log.Logger;
+import org.jlab.coda.support.evio.DataTransportRecord;
+import org.jlab.coda.support.logger.Logger;
 
 import java.io.*;
 import java.net.Socket;
-import java.net.SocketException;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 
@@ -45,13 +44,12 @@ public class DataChannelImplSO implements DataChannel {
     private Thread dataThread;
 
     /** Field size */
-    private final int size = 20000;
+    private int size = 20000;
 
     /** Field full */
-    private final BlockingQueue<DataRecord> full;
+    private final BlockingQueue<DataTransportRecord> queue;
 
-    /** Field empty */
-    private final BlockingQueue<DataRecord> empty;
+    private int capacity = 40;
 
     /**
      * Constructor DataChannelImplSO creates a new DataChannelImplSO instance.
@@ -59,59 +57,30 @@ public class DataChannelImplSO implements DataChannel {
      * @param pname of type String
      * @param ti    of type DataTransport
      */
-    DataChannelImplSO(String pname, DataTransport ti) {
+    DataChannelImplSO(String pname, DataTransport ti) throws DataTransportException {
 
         transport = ti;
         name = pname;
 
-        String capacityS = "40";
-        String tmp = ti.getAttr("pool");
-        if (capacityS != null) capacityS = tmp;
-
-        int capacity = Integer.valueOf(capacityS);
-
-        full = new ArrayBlockingQueue<DataRecord>(capacity);
-        empty = new ArrayBlockingQueue<DataRecord>(capacity);
-
-        for (int ix = 0; ix < capacity; ix++) {
-            DataRecord d = new DataRecord(size);
-
-            try {
-                empty.put(d);
-            } catch (InterruptedException e) {
-                e.printStackTrace();
-            }
+        try {
+            capacity = transport.getIntAttr("capacity");
+        } catch (Exception e) {
+            Logger.info(e.getMessage() + " default to " + capacity + " records.");
         }
 
+        try {
+            size = transport.getIntAttr("size");
+        } catch (Exception e) {
+            Logger.info(e.getMessage() + " default to " + size + " byte records.");
+        }
+
+        queue = new ArrayBlockingQueue<DataTransportRecord>(capacity);
 
     }
 
     /** @see DataChannel#getName() */
     public String getName() {
         return name;
-    }
-
-    /**
-     * Method receive ...
-     *
-     * @return int[]
-     */
-    public int[] receive() {
-        return transport.receive(this);
-    }
-
-    /**
-     * Method send ...
-     *
-     * @param data of type long[]
-     */
-    public void send(long[] data) {
-        transport.send(this, data);
-    }
-
-    /** Method close ... */
-    public void close() {
-        transport.closeChannel(this);
     }
 
     /**
@@ -139,36 +108,25 @@ public class DataChannelImplSO implements DataChannel {
         public void run() {
             try {
 
-                DataInputStream in = new DataInputStream(dataSocket
-                        .getInputStream());
+                DataInputStream in = new DataInputStream(dataSocket.getInputStream());
 
                 OutputStream os = dataSocket.getOutputStream();
 
                 while (dataSocket.isConnected()) {
                     // take an empty buffer
-                    DataRecord dr = empty.take();
 
-                    in.readFully(dr.getData(), 0, 4);
+                    int length = in.readInt();
 
-                    int rl = dr.getRecordLength();
-                    int bl = dr.getBufferLength();
-
-                    // rl is the count of long words in the buffer.
-                    // the buffer needs to be (rl+1)*4 bytes long
-                    // the extra 4 bytes hold the length
-                    if ((rl + 1) * 4 > bl) {
-                        // new data buffer 10% bigger than needed
-                        dr = new DataRecord((rl + 1 + rl / 10) * 4);
-                        // put back the length
-                        dr.setRecordLength(rl);
-                    }
+                    DataTransportRecord dr = new DataTransportRecord(length * 4 + 8);
+                    // setr the length
+                    dr.setLength(length);
 
                     // read in the payload, remember to offset 4 bytes so
                     // we don't overwrite the length
-                    in.readFully(dr.getData(), 4, rl * 4);
+                    in.readFully(dr.getData(), 4, length * 4);
 
                     os.write(0xaa);
-                    full.put(dr);
+                    queue.put(dr);
                 }
             } catch (Exception e) {
                 Logger.warn("DataInputHelper exit " + e.getMessage());
@@ -185,17 +143,16 @@ public class DataChannelImplSO implements DataChannel {
         public void run() {
             try {
 
-                DataOutputStream out = new DataOutputStream(dataSocket
-                        .getOutputStream());
+                DataOutputStream out = new DataOutputStream(dataSocket.getOutputStream());
 
-                DataRecord d;
+                DataTransportRecord d;
                 int len;
                 int ack;
                 InputStream is = dataSocket.getInputStream();
 
                 while (true) {
-                    d = full.take();
-                    len = d.getRecordLength();
+                    d = queue.take();
+                    len = d.length();
 
                     out.write(d.getData(), 0, 4);
                     out.write(d.getData(), 4, len * 4);
@@ -203,8 +160,7 @@ public class DataChannelImplSO implements DataChannel {
                     if (ack != 0xaa) {
                         throw new CmdExecException("DataOutputHelper : ack = " + ack);
                     }
-                    d.setRecordLength(0);
-                    empty.put(d);
+
                 }
             } catch (Exception e) {
                 Logger.warn("DataOutputHelper exit " + e.getMessage());
@@ -216,14 +172,14 @@ public class DataChannelImplSO implements DataChannel {
 
     /** Method startInputHelper ... */
     public void startInputHelper() {
-        dataThread = new Thread(EMUComponentImpl.THREAD_GROUP, new DataInputHelper(), getName() + " data input");
+        dataThread = new Thread(Emu.THREAD_GROUP, new DataInputHelper(), getName() + " data input");
 
         dataThread.start();
     }
 
     /** Method startOutputHelper ... */
     public void startOutputHelper() {
-        dataThread = new Thread(EMUComponentImpl.THREAD_GROUP, new DataOutputHelper(), getName() + " data out");
+        dataThread = new Thread(Emu.THREAD_GROUP, new DataOutputHelper(), getName() + " data out");
 
         dataThread.start();
     }
@@ -233,16 +189,38 @@ public class DataChannelImplSO implements DataChannel {
      *
      * @return the full (type BlockingQueue<DataRecord>) of this DataChannel object.
      */
-    public BlockingQueue<DataRecord> getFull() {
-        return full;
+    public BlockingQueue<DataTransportRecord> getQueue() {
+        return queue;
     }
 
     /**
-     * Method getEmpty returns the empty of this DataChannel object.
+     * Method receive ...
      *
-     * @return the empty (type BlockingQueue<DataRecord>) of this DataChannel object.
+     * @return int[]
      */
-    public BlockingQueue<DataRecord> getEmpty() {
-        return empty;
+    public DataTransportRecord receive() throws InterruptedException {
+        return transport.receive(this);
     }
+
+    /**
+     * Method send ...
+     *
+     * @param data of type long[]
+     */
+    public void send(DataTransportRecord data) {
+        transport.send(this, data);
+    }
+
+    /** Method close ... */
+    public void close() {
+        if (dataThread != null) dataThread.interrupt();
+        try {
+            if (dataSocket != null) dataSocket.close();
+        } catch (IOException e) {
+            // ignore
+        }
+        queue.clear();
+
+    }
+
 }

@@ -1,0 +1,22 @@
+<?xml version="1.0"?>
+<component>
+    <name>EMU5</name>
+    <transports>
+        <EMU5_SOCKET type="SO" server="true" port="7030" size="800000" pool="2"/>
+        <EMU7_SOCKET type="SO" server="false" port="7030" size="800000" pool="2"/>
+    </transports>
+    <modules src="modules.jar" usr_src="user_modules.jar">
+        <ReadModule type="Read">
+            <EMU1 uses="EMU5_SOCKET"/>
+            <EMU2 uses="EMU5_SOCKET"/>
+            <EMU3 uses="EMU5_SOCKET"/>
+        </ReadModule>
+        <SendModule type="Send">
+            <EMU5 uses="EMU7_SOCKET"/>
+        </SendModule>
+        <ProcessModule type="Process" concurrency="2">
+            <ReadModule/>
+            <SendModule output="true"/>
+        </ProcessModule>
+    </modules>
+</component>

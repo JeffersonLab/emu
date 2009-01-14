@@ -232,6 +232,9 @@ extern "C" void *gchannel_accept_helper_cmsg(void *arg)
 
             goto gchannel_accept_helper_cmsg_end;
         }
+        uint32_t magic;
+        read(i32ConnectFD,&magic,4);
+        printf("got %08x\n", ntohl(magic));
         char l;
         read(i32ConnectFD,&l,1);
         printf("got a connection %d\n",i32ConnectFD);
@@ -328,6 +331,7 @@ extern "C" int gchannel_create_transport_cmsg(gtransport m)
     cMsgReceiveStart(transp->domainId);
 
     /* subscribe */
+    printf("cMsgSubscribe: %s %s\n", transp->name, "get_socket");
     err = cMsgSubscribe(transp->domainId, transp->name, "get_socket", cmsg_transport_callback, transp, NULL, &transp->unSubHandle);
     if (err != CMSG_OK)
     {
@@ -377,7 +381,7 @@ extern "C" void *gchannel_read_helper_cmsg(void *arg)
         }
         while (status == ETIMEDOUT);
 
-        //printf ("gchannel_read_helper_cmsg : got record number %lld\n",c->record_count);
+        //printf ("gchannel_read_helper_cmsg : get record number %lld from socket %d\n",c->record_count,chan->dataSock);
 
         int bytes = recv(chan->dataSock,&in_data->length,sizeof(in_data->length),MSG_WAITALL);
 
@@ -694,6 +698,8 @@ extern "C" int gchannel_open_cmsg(gchannel c)
     }
 
     printf("sending %s which is %d bytes long\n",c->name,strlen(c->name));
+    uint32_t magic = htonl(0xC0DA2008);
+    cmsg_gchannel_net_send(chan->dataSock,(char *) &magic,4);
     char l = strlen(c->name);
     cmsg_gchannel_net_send(chan->dataSock,&l,1);
     cmsg_gchannel_net_send(chan->dataSock,c->name,strlen(c->name));

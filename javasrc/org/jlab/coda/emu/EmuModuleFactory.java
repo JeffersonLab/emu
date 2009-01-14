@@ -10,17 +10,18 @@
  */
 package org.jlab.coda.emu;
 
-import org.jlab.coda.support.component.CODAState;
-import org.jlab.coda.support.component.CODATransition;
-import org.jlab.coda.support.component.RunControl;
-import org.jlab.coda.support.config.Configurer;
-import org.jlab.coda.support.config.DataNotFoundException;
+import org.jlab.coda.support.codaComponent.CODAState;
+import org.jlab.coda.support.codaComponent.CODATransition;
+import org.jlab.coda.support.codaComponent.RunControl;
+import org.jlab.coda.support.configurer.Configurer;
+import org.jlab.coda.support.configurer.DataNotFoundException;
 import org.jlab.coda.support.control.CmdExecException;
 import org.jlab.coda.support.control.Command;
 import org.jlab.coda.support.control.State;
-import org.jlab.coda.support.log.Logger;
+import org.jlab.coda.support.logger.Logger;
 import org.jlab.coda.support.transport.DataChannel;
-import org.jlab.coda.support.transport.EmuTransportFactory;
+import org.jlab.coda.support.transport.DataTransport;
+import org.jlab.coda.support.transport.DataTransportFactory;
 import org.w3c.dom.NamedNodeMap;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
@@ -44,19 +45,19 @@ import java.util.Vector;
  * @author heyes
  *         Created on Sep 17, 2008
  */
-public class EmuModuleFactory implements EmuModule {
+public class EmuModuleFactory {
 
     /** Field modules */
     private static final Collection<EmuModule> modules = new Vector<EmuModule>();
 
     /** Field classloader */
-    private URLClassLoader classloader = null;
+    private ClassLoader classloader = null;
 
     /** Field state */
     private State state = CODAState.UNCONFIGURED;
 
     /** Field TRANSPORT_FACTORY */
-    private final static EmuTransportFactory TRANSPORT_FACTORY = new EmuTransportFactory();
+    private final static DataTransportFactory TRANSPORT_FACTORY = new DataTransportFactory();
 
     /**
      * Method execute ...
@@ -67,95 +68,155 @@ public class EmuModuleFactory implements EmuModule {
     @SuppressWarnings({"ConstantConditions"})
     public void execute(Command cmd) throws CmdExecException {
         Logger.info("EmuModuleFactory.execute : " + cmd);
-
+        System.out.println("EmuModuleFactory.execute : " + cmd);
         if (state != CODAState.ERROR && cmd.equals(RunControl.configure)) {
             // If we get this far configure succeeded.
             state = CODAState.CONFIGURED;
             return;
         }
 
-        if (cmd.equals(CODATransition.download)) try {
-            // There are no modules loaded so we need to load some!
-            URL[] locations;
-            Node m = Configurer.getNode(EMUComponentImpl.INSTANCE
-                    .configuration(), "component/modules");
+        if (cmd.equals(CODATransition.download)) {
+            try {
 
-            if (m == null) throw new DataNotFoundException("modules section missing from config");
+                // There are no modules loaded so we need to load some!
+                URL[] locations;
 
-            NamedNodeMap nm = m.getAttributes();
+                Node modulesConfig = Configurer.getNode(Emu.INSTANCE.configuration(), "codaComponent/modules");
+                if (modulesConfig == null) throw new DataNotFoundException("modules section missing from config");
 
-            Node srcAttr = nm.getNamedItem("src");
+                if (!modulesConfig.hasChildNodes()) throw new DataNotFoundException("modules section present in config but no modules");
 
-            if (srcAttr == null) throw new DataNotFoundException("modules tag has no src attribute");
+                NamedNodeMap nm = modulesConfig.getAttributes();
 
-            String src = srcAttr.getNodeValue();
+                Node srcAttr = nm.getNamedItem("src");
+                Node usrSrcAttr = nm.getNamedItem("usr_src");
 
-            srcAttr = nm.getNamedItem("usr_src");
+                String src = "modules.jar";
 
-            if (srcAttr == null) {
-                Logger.warn("modules tag has no usr_src attribute");
+                if (srcAttr != null) src = srcAttr.getNodeValue();
 
-                Logger.info("Loading modules from", src);
+                src = System.getenv("INSTALL_DIR") + "/lib/" + src;
 
-                File pluginFile = new File(System.getenv("INSTALL_DIR") + "/lib/" + src);
+                if (usrSrcAttr == null) {
 
-                locations = new URL[] {pluginFile.toURL()};
-            } else {
-                String usrSrc = srcAttr.getNodeValue();
+                    Logger.info("Loading modules from" + src);
 
-                Logger.info("Load modules " + System.getenv("INSTALL_DIR") + "/lib/" + src + "," + usrSrc);
+                    locations = new URL[] {(new File(src)).toURL()};
+                } else {
+                    String usrSrc = usrSrcAttr.getNodeValue();
 
-                File pluginFile = new File(System.getenv("INSTALL_DIR") + "/lib/" + src);
-                File pluginFile2 = new File(System.getenv("INSTALL_DIR") + "/lib/" + usrSrc);
+                    Logger.info("Load system modules from " + src);
+                    Logger.info("Load user modules from " + usrSrc);
 
-                locations = new URL[] {pluginFile.toURL(), pluginFile2.toURL()};
+                    locations = new URL[] {(new File(src)).toURL(), (new File(usrSrc)).toURL()};
+                }
+
+                classloader = new URLClassLoader(locations);
+
+                modules.clear();
+
+                System.gc();
+                System.gc();
+
+                System.runFinalization();
+
+                TRANSPORT_FACTORY.execute(cmd);
+
+                Node n = modulesConfig.getFirstChild();
+                do {
+                    if (n.getNodeType() == Node.ELEMENT_NODE) {
+                        NamedNodeMap nm2 = n.getAttributes();
+
+                        Node typeAttr = nm2.getNamedItem("class");
+                        if (typeAttr == null) throw new DataNotFoundException("module " + n.getNodeName() + " has no class attribute");
+
+                        String moduleClassName = "modules." + typeAttr.getNodeValue();
+                        Logger.info("Require module" + moduleClassName);
+
+                        EmuModule module = LoadModule(n.getNodeName(), moduleClassName);
+
+                    }
+                } while ((n = n.getNextSibling()) != null);
+
+                classloader = null;
+
+            } catch (Exception e) {
+                Logger.error("EmuModuleFactory.execute() threw " + e.getMessage());
+                e.printStackTrace();
+                CODAState.ERROR.getCauses().add(e);
+                state = CODAState.ERROR;
+                throw new CmdExecException();
             }
+        } else if (cmd.equals(CODATransition.prestart)) {
+            TRANSPORT_FACTORY.execute(cmd);
+            try {
+                Node modulesConfig = Configurer.getNode(Emu.INSTANCE.configuration(), "codaComponent/modules");
+                Node moduleNode = modulesConfig.getFirstChild();
+                do {
+                    if ((moduleNode.getNodeType() == Node.ELEMENT_NODE) && moduleNode.hasChildNodes()) {
+                        EmuModule module = findModule(moduleNode.getNodeName());
+                        if (module != null) {
+                            HashMap<String, DataChannel> in = new HashMap<String, DataChannel>();
+                            HashMap<String, DataChannel> out = new HashMap<String, DataChannel>();
+                            NodeList l = moduleNode.getChildNodes();
+                            for (int ix = 0; ix < l.getLength(); ix++) {
+                                Node channelNode = l.item(ix);
+                                if (channelNode.getNodeType() != Node.ELEMENT_NODE) continue;
 
-            if (!m.hasChildNodes()) throw new DataNotFoundException("modules section present in config but no modules");
+                                NamedNodeMap nnm = channelNode.getAttributes();
 
-            NodeList l = m.getChildNodes();
+                                Node channelNameNode = nnm.getNamedItem("name");
 
+                                String channelName = channelNameNode.getNodeValue();
+
+                                Node channelTranspNode = nnm.getNamedItem("transp");
+
+                                String channelTransName = channelTranspNode.getNodeValue();
+                                System.out.println("module " + module.name() + " channel " + channelName + " transp " + channelTransName);
+                                DataTransport trans = DataTransportFactory.findNamedTransport(channelTransName);
+
+                                if (channelNode.getNodeName().matches("inchannel")) {
+                                    DataChannel channel = trans.createChannel(channelName, true);
+                                    in.put(channelTransName + ":" + channelName, channel);
+                                }
+                                if (channelNode.getNodeName().matches("outchannel")) {
+                                    DataChannel channel = trans.createChannel(channelName, false);
+                                    out.put(channelTransName + ":" + channelName, channel);
+
+                                }
+                            }
+                            module.setInput_channels(in);
+                            module.setOutput_channels(out);
+                        }
+                    }
+                } while ((moduleNode = moduleNode.getNextSibling()) != null);
+
+            } catch (Exception e) {
+                Logger.error("EmuModuleFactory.execute() threw " + e.getMessage());
+                e.printStackTrace();
+                CODAState.ERROR.getCauses().add(e);
+                state = CODAState.ERROR;
+                throw new CmdExecException();
+            }
+        } else TRANSPORT_FACTORY.execute(cmd);
+
+        // pass the command to the module
+        for (EmuModule module : modules)
+            module.execute(cmd);
+
+        if (cmd.equals(RunControl.reset)) {
+            Logger.info("EmuModuleFactory : RESET");
+            System.out.println("EmuModuleFactory : RESET");
             modules.clear();
+            classloader = null;
 
             System.gc();
             System.gc();
 
             System.runFinalization();
-
-            // Transport factory is a special "hidden" module
-            modules.add(TRANSPORT_FACTORY);
-
-            classloader = new URLClassLoader(locations);
-
-            for (int ix = 0; ix < l.getLength(); ix++) {
-                Node n = l.item(ix);
-                if (n.getNodeType() == Node.ELEMENT_NODE) {
-                    NamedNodeMap nm2 = n.getAttributes();
-
-                    Node typeAttr = nm2.getNamedItem("type");
-                    if (srcAttr == null) throw new DataNotFoundException("module " + n.getNodeName() + " has no type attribute");
-
-                    String type = typeAttr.getNodeValue();
-                    String moduleClassName = "modules." + type;
-                    Logger.info("Require module" + moduleClassName);
-
-                    EmuModule module = LoadModule(n.getNodeName(), moduleClassName);
-
-                }
-            }
-            classloader = null;
-
-        } catch (Exception e) {
-            Logger.error("EmuModuleFactory.execute() threw " + e.getMessage());
-            e.printStackTrace();
-            CODAState.ERROR.getCauses().add(e);
-            state = CODAState.ERROR;
-            throw new CmdExecException();
+            state = CODAState.UNCONFIGURED;
+            CODAState.ERROR.getCauses().clear();
         }
-
-        // pass the command to the module
-        for (EmuModule module : modules)
-            module.execute(cmd);
 
         if (cmd.success() != null) state = cmd.success();
 
@@ -193,18 +254,6 @@ public class EmuModuleFactory implements EmuModule {
     public String name() {
 
         return "ModuleFactory";
-    }
-
-    /**
-     * Method channels is required by EmuModule but the Module Factory has no
-     * data channels so we return null.
-     *
-     * @return HashMap<String, DataChannel>
-     * @see EmuModule#channels()
-     */
-    public HashMap<String, DataChannel> channels() {
-
-        return null;
     }
 
     /**

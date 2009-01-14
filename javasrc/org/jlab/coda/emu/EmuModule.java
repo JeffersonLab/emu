@@ -37,18 +37,27 @@ public interface EmuModule {
     public State state();
 
     /**
-     * Method channels returns a hashmap providing named access to the datachannels
-     * associated with this module.
-     *
-     * @return HashMap<String, DataChannel>
-     */
-    public HashMap<String, DataChannel> channels();
-
-    /**
      * Method execute When passed a Command object executes the command
      * in the context of the receiving module.
      *
      * @param cmd of type Command
+     * @throws org.jlab.coda.support.control.CmdExecException
+     *
      */
     public void execute(Command cmd) throws CmdExecException;
+
+    /**
+     * Method setInput_channels sets the input_channels of this EmuModule object.
+     *
+     * @param input_channels the input_channels of this EmuModule object.
+     */
+    public void setInput_channels(HashMap<String, DataChannel> input_channels);
+
+    /**
+     * Method setOutput_channels sets the output_channels of this EmuModule object.
+     *
+     * @param output_channels the output_channels of this EmuModule object.
+     */
+    public void setOutput_channels(HashMap<String, DataChannel> output_channels);
+
 }

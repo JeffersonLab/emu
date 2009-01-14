@@ -11,7 +11,11 @@
 
 package org.jlab.coda.support.transport;
 
-import org.jlab.coda.emu.EmuModule;
+import org.jlab.coda.support.configurer.DataNotFoundException;
+import org.jlab.coda.support.control.CmdExecException;
+import org.jlab.coda.support.control.Command;
+import org.jlab.coda.support.control.State;
+import org.jlab.coda.support.evio.DataTransportRecord;
 
 import java.util.HashMap;
 
@@ -21,14 +25,14 @@ import java.util.HashMap;
  * @author heyes
  *         Created on Sep 17, 2008
  */
-public interface DataTransport extends EmuModule {
+public interface DataTransport {
     /**
      * Method getType returns the type of this DataTransport object.
      *
      * @return the type (type String) of this DataTransport object.
      */
     // field manipulation
-    public String getType();
+    public String getTransportClass();
 
     /**
      * Method setName sets the name of this DataTransport object.
@@ -36,6 +40,23 @@ public interface DataTransport extends EmuModule {
      * @param pname the name of this DataTransport object.
      */
     public void setName(String pname);
+
+    /**
+     * Method state ...
+     *
+     * @return State
+     */
+    public State state();
+
+    /**
+     * Method execute When passed a Command object executes the command
+     * in the context of the receiving module.
+     *
+     * @param cmd of type Command
+     * @throws org.jlab.coda.support.control.CmdExecException
+     *
+     */
+    public void execute(Command cmd) throws CmdExecException;
 
     /**
      * @return the name
@@ -57,23 +78,34 @@ public interface DataTransport extends EmuModule {
      *
      * @param pname of type String
      * @return String
+     * @throws org.jlab.coda.support.configurer.DataNotFoundException
+     *
      */
-    public String getAttr(String pname);
+    public String getAttr(String pname) throws DataNotFoundException;
+
+    /**
+     * Method getIntAttr ...
+     *
+     * @param pname of type String
+     * @return int
+     * @throws DataNotFoundException when
+     */
+    public int getIntAttr(String pname) throws DataNotFoundException;
 
     /**
      * Method createChannel ...
      *
-     * @param name of type String
+     * @param name    of type String
+     * @param isInput
      * @return DataChannel
      */
     // Data Transport control
-    public DataChannel createChannel(String name);
+    public DataChannel createChannel(String name, boolean isInput) throws DataTransportException;
 
     /**
      * Method channels ...
      *
      * @return HashMap<String, DataChannel>
-     * @see org.jlab.coda.emu.EmuModule#channels()
      */
     public HashMap<String, DataChannel> channels();
 
@@ -85,32 +117,12 @@ public interface DataTransport extends EmuModule {
     public boolean isConnected();
 
     /**
-     * Method startServer ...
-     *
-     * @throws TransportException when
-     */
-    public void startServer() throws TransportException;
-
-    /** Method connect ... */
-    public void connect();
-
-    /**
-     * Method closeChannel ...
-     *
-     * @param channel of type DataChannel
-     */
-    public void closeChannel(DataChannel channel);
-
-    /** Method close ... */
-    public void close();
-
-    /**
      * Method send ...
      *
      * @param channel of type DataChannel
      * @param data    of type long[]
      */
-    public void send(DataChannel channel, long[] data);
+    public void send(DataChannel channel, DataTransportRecord data);
 
     /**
      * Method receive ...
@@ -118,7 +130,7 @@ public interface DataTransport extends EmuModule {
      * @param channel of type DataChannel
      * @return int[]
      */
-    public int[] receive(DataChannel channel);
+    public DataTransportRecord receive(DataChannel channel) throws InterruptedException;
 
     /**
      * Method isServer returns the server of this DataTransport object.
@@ -126,4 +138,6 @@ public interface DataTransport extends EmuModule {
      * @return the server (type boolean) of this DataTransport object.
      */
     public boolean isServer();
+
+    public void close();
 }

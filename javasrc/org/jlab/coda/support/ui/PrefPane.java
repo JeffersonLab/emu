@@ -14,7 +14,7 @@ package org.jlab.coda.support.ui;
 import com.intellij.uiDesigner.core.GridConstraints;
 import com.intellij.uiDesigner.core.GridLayoutManager;
 import com.intellij.uiDesigner.core.Spacer;
-import org.jlab.coda.support.log.Logger;
+import org.jlab.coda.support.logger.Logger;
 
 import javax.swing.*;
 import java.awt.*;

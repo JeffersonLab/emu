@@ -18,17 +18,17 @@ package org.jlab.coda.support.ui;
 import org.jdesktop.layout.GroupLayout;
 import org.jdesktop.layout.LayoutStyle;
 import org.jlab.coda.cMsg.*;
-import org.jlab.coda.support.component.CODAState;
-import org.jlab.coda.support.component.CODATransition;
-import org.jlab.coda.support.component.RunControl;
-import org.jlab.coda.support.component.SessionControl;
-import org.jlab.coda.support.config.Configurer;
+import org.jlab.coda.support.codaComponent.CODAState;
+import org.jlab.coda.support.codaComponent.CODATransition;
+import org.jlab.coda.support.codaComponent.RunControl;
+import org.jlab.coda.support.codaComponent.SessionControl;
+import org.jlab.coda.support.configurer.Configurer;
 import org.jlab.coda.support.control.Command;
 import org.jlab.coda.support.control.CommandAcceptor;
 import org.jlab.coda.support.control.State;
-import org.jlab.coda.support.log.Logger;
-import org.jlab.coda.support.log.LoggingEvent;
-import org.jlab.coda.support.log.QueueAppender;
+import org.jlab.coda.support.logger.Logger;
+import org.jlab.coda.support.logger.LoggingEvent;
+import org.jlab.coda.support.logger.QueueAppender;
 import org.jlab.coda.support.ui.log.SwingLogConsoleDialog;
 import org.w3c.dom.Document;
 
@@ -42,7 +42,7 @@ import java.util.ResourceBundle;
 /** @author Graham Heyes */
 public class EMUCommander extends JFrame {
 
-    String TEST_UDL = "cMsg://localhost:3456/cMsg/test";
+    String TEST_UDL = "cMsg://localhost:7030/cMsg/test";
     Thread monitor;
     cMsg server;
     String UDL;
@@ -337,28 +337,11 @@ public class EMUCommander extends JFrame {
 
         GroupLayout contentPaneLayout = new GroupLayout(contentPane);
         contentPane.setLayout(contentPaneLayout);
-        contentPaneLayout.setHorizontalGroup(contentPaneLayout.createParallelGroup()
-                .add(GroupLayout.TRAILING, contentPaneLayout.createSequentialGroup()
-                .addContainerGap()
-                .add(contentPaneLayout.createParallelGroup(GroupLayout.TRAILING)
-                        .add(GroupLayout.LEADING, smartToolbar2, GroupLayout.DEFAULT_SIZE, 704, Short.MAX_VALUE)
-                        .add(GroupLayout.LEADING, smartToolbar1, GroupLayout.DEFAULT_SIZE, 704, Short.MAX_VALUE)
-                        .add(GroupLayout.LEADING, smartToolbar, GroupLayout.DEFAULT_SIZE, 704, Short.MAX_VALUE)
-                        .add(GroupLayout.LEADING, logScrollPane, GroupLayout.DEFAULT_SIZE, 704, Short.MAX_VALUE))
-                .addContainerGap()));
-        contentPaneLayout.setVerticalGroup(contentPaneLayout.createParallelGroup()
-                .add(contentPaneLayout.createSequentialGroup()
-                .add(smartToolbar, GroupLayout.PREFERRED_SIZE, GroupLayout.DEFAULT_SIZE, GroupLayout.PREFERRED_SIZE)
-                .addPreferredGap(LayoutStyle.UNRELATED)
-                .add(smartToolbar1, GroupLayout.PREFERRED_SIZE, GroupLayout.DEFAULT_SIZE, GroupLayout.PREFERRED_SIZE)
-                .addPreferredGap(LayoutStyle.UNRELATED)
-                .add(smartToolbar2, GroupLayout.PREFERRED_SIZE, GroupLayout.DEFAULT_SIZE, GroupLayout.PREFERRED_SIZE)
-                .addPreferredGap(LayoutStyle.UNRELATED)
-                .add(logScrollPane, GroupLayout.DEFAULT_SIZE, 703, Short.MAX_VALUE)
-                .addContainerGap()));
+        contentPaneLayout.setHorizontalGroup(contentPaneLayout.createParallelGroup().add(GroupLayout.TRAILING, contentPaneLayout.createSequentialGroup().addContainerGap().add(contentPaneLayout.createParallelGroup(GroupLayout.TRAILING).add(GroupLayout.LEADING, smartToolbar2, GroupLayout.DEFAULT_SIZE, 704, Short.MAX_VALUE).add(GroupLayout.LEADING, smartToolbar1, GroupLayout.DEFAULT_SIZE, 704, Short.MAX_VALUE).add(GroupLayout.LEADING, smartToolbar, GroupLayout.DEFAULT_SIZE, 704, Short.MAX_VALUE).add(GroupLayout.LEADING, logScrollPane, GroupLayout.DEFAULT_SIZE, 704, Short.MAX_VALUE)).addContainerGap()));
+        contentPaneLayout.setVerticalGroup(contentPaneLayout.createParallelGroup().add(contentPaneLayout.createSequentialGroup().add(smartToolbar, GroupLayout.PREFERRED_SIZE, GroupLayout.DEFAULT_SIZE, GroupLayout.PREFERRED_SIZE).addPreferredGap(LayoutStyle.UNRELATED).add(smartToolbar1, GroupLayout.PREFERRED_SIZE, GroupLayout.DEFAULT_SIZE, GroupLayout.PREFERRED_SIZE).addPreferredGap(LayoutStyle.UNRELATED).add(smartToolbar2, GroupLayout.PREFERRED_SIZE, GroupLayout.DEFAULT_SIZE, GroupLayout.PREFERRED_SIZE).addPreferredGap(LayoutStyle.UNRELATED).add(logScrollPane, GroupLayout.DEFAULT_SIZE, 703, Short.MAX_VALUE).addContainerGap()));
         pack();
         setLocationRelativeTo(getOwner());
-        // JFormDesigner - End of component initialization  //GEN-END:initComponents
+        // JFormDesigner - End of codaComponent initialization  //GEN-END:initComponents
     }
 
     // JFormDesigner - Variables declaration - DO NOT MODIFY  //GEN-BEGIN:variables

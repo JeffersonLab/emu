@@ -11,13 +11,14 @@
 
 package org.jlab.coda.support.transport;
 
-import org.jlab.coda.emu.EMUComponentImpl;
+import org.jlab.coda.emu.Emu;
 import org.jlab.coda.support.control.CmdExecException;
-import org.jlab.coda.support.evio.DataRecord;
-import org.jlab.coda.support.log.Logger;
+import org.jlab.coda.support.evio.DataTransportRecord;
+import org.jlab.coda.support.logger.Logger;
 
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
+import java.io.IOException;
 import java.net.Socket;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
@@ -33,7 +34,7 @@ import java.util.concurrent.BlockingQueue;
 public class DataChannelImplCMsg implements DataChannel {
 
     /** Field transport */
-    private final TransportImplCMsg transport;
+    private final DataTransportImplCMsg dataTransport;
 
     /** Field name */
     private final String name;
@@ -51,10 +52,7 @@ public class DataChannelImplCMsg implements DataChannel {
     private int capacity = 40;
 
     /** Field full - filled buffer queue */
-    private final BlockingQueue<DataRecord> full;
-
-    /** Field empty - empty buffer queue */
-    private final BlockingQueue<DataRecord> empty;
+    private final BlockingQueue<DataTransportRecord> queue;
 
     /** Field out */
     private DataOutputStream out;
@@ -62,61 +60,54 @@ public class DataChannelImplCMsg implements DataChannel {
     /** Field in */
     private DataInputStream in;
 
+    private boolean isInput = false;
+
     /**
      * Constructor DataChannelImplSO creates a new DataChannelImplSO instance.
      *
-     * @param name      of type String
-     * @param transport of type DataTransport
-     * @throws TransportException - unable to create buffers or socket.
+     * @param name          of type String
+     * @param dataTransport of type DataTransport
+     * @param input
+     * @throws DataTransportException - unable to create buffers or socket.
      */
-    DataChannelImplCMsg(String name, TransportImplCMsg transport) throws TransportException {
+    DataChannelImplCMsg(String name, DataTransportImplCMsg dataTransport, boolean input) throws DataTransportException {
 
-        this.transport = transport;
+        this.dataTransport = dataTransport;
         this.name = name;
-
+        this.isInput = input;
         try {
-            capacity = transport.getIntAttr("capacity");
+            capacity = dataTransport.getIntAttr("capacity");
         } catch (Exception e) {
             Logger.info(e.getMessage() + " default to " + capacity + " records.");
         }
 
         try {
-            size = transport.getIntAttr("size");
+            size = dataTransport.getIntAttr("size");
         } catch (Exception e) {
             Logger.info(e.getMessage() + " default to " + size + " byte records.");
         }
 
-        full = new ArrayBlockingQueue<DataRecord>(capacity);
-        empty = new ArrayBlockingQueue<DataRecord>(capacity);
+        queue = new ArrayBlockingQueue<DataTransportRecord>(capacity);
 
-        // Fill the queue with records of default size
-        while (empty.remainingCapacity() > 0) {
-            try {
-                empty.put(new DataRecord(size));
-            } catch (InterruptedException e) {
-                throw new TransportException("DataChannelImplCMsg :can't fill the pool of empty buffers ", e);
-            }
-        }
-
-        // If we are a server the accept helper in the transport implementation will
+        // If we are a server the accept helper in the dataTransport implementation will
         // handle connections
-        if (!transport.isServer()) {
-
+        if (!isInput) {
             try {
-                dataSocket = new Socket(transport.getHost(), transport.getPort());
+                dataSocket = new Socket(dataTransport.getHost(), dataTransport.getPort());
 
                 dataSocket.setTcpNoDelay(true);
 
                 out = new DataOutputStream(dataSocket.getOutputStream());
                 in = new DataInputStream(dataSocket.getInputStream());
-                // Always write a 4 byte length followed by data
+                // Always write a 1 byte length followed by data
+                out.writeInt(0xC0DA2008);
                 out.write(name.length());
                 out.write(name.getBytes());
 
                 startOutputHelper();
 
             } catch (Exception e) {
-                throw new TransportException("DataChannelImplCMsg : Cannot create data channel", e);
+                throw new DataTransportException("DataChannelImplCMsg : Cannot create data channel", e);
             }
         }
 
@@ -132,8 +123,8 @@ public class DataChannelImplCMsg implements DataChannel {
      *
      * @return int[]
      */
-    public int[] receive() {
-        return transport.receive(this);
+    public DataTransportRecord receive() throws InterruptedException {
+        return dataTransport.receive(this);
     }
 
     /**
@@ -141,13 +132,20 @@ public class DataChannelImplCMsg implements DataChannel {
      *
      * @param data of type long[]
      */
-    public void send(long[] data) {
-        transport.send(this, data);
+    public void send(DataTransportRecord data) {
+        dataTransport.send(this, data);
     }
 
     /** Method close ... */
     public void close() {
-        transport.closeChannel(this);
+        if (dataThread != null) dataThread.interrupt();
+        try {
+            if (dataSocket != null) dataSocket.close();
+        } catch (IOException e) {
+            // ignore
+        }
+        queue.clear();
+
     }
 
     /**
@@ -163,15 +161,16 @@ public class DataChannelImplCMsg implements DataChannel {
      * Method setDataSocket sets the dataSocket of this DataChannelImplSO object.
      *
      * @param incoming the dataSocket of this DataChannelImplSO object.
-     * @throws TransportException - the socket closed while we were in here, unlikely.
+     * @throws DataTransportException - the socket closed while we were in here, unlikely.
      */
-    public void setDataSocket(Socket incoming) throws TransportException {
+    public void setDataSocket(Socket incoming) throws DataTransportException {
         this.dataSocket = incoming;
         try {
             out = new DataOutputStream(dataSocket.getOutputStream());
             in = new DataInputStream(dataSocket.getInputStream());
+            Logger.info("socket : " + dataSocket + " associated with channel " + name);
         } catch (Exception e) {
-            throw new TransportException("setDataSocket failed ", e);
+            throw new DataTransportException("setDataSocket failed ", e);
         }
     }
 
@@ -193,29 +192,20 @@ public class DataChannelImplCMsg implements DataChannel {
 
                 while (dataSocket.isConnected()) {
                     // take an empty buffer
-                    DataRecord dr = empty.take();
 
-                    in.readFully(dr.getData(), 0, 4);
+                    int length = in.readInt();
 
-                    int rl = dr.getRecordLength();
-                    int bl = dr.getBufferLength();
-
-                    // rl is the count of long words in the buffer.
-                    // the buffer needs to be (rl+1)*4 bytes long
-                    // the extra 4 bytes hold the length
-                    if ((rl + 1) * 4 > bl) {
-                        // new data buffer 10% bigger than needed
-                        dr = new DataRecord((rl + 1 + rl / 10) * 4);
-                        // put back the length
-                        dr.setRecordLength(rl);
-                    }
+                    DataTransportRecord dr = new DataTransportRecord(length * 4 + 8);
+                    // setr the length
+                    dr.setLength(length);
 
                     // read in the payload, remember to offset 4 bytes so
                     // we don't overwrite the length
-                    in.readFully(dr.getData(), 4, rl * 4);
+                    in.readFully(dr.getData(), 4, length * 4);
 
+                    // Send ack
                     out.write(0xaa);
-                    full.put(dr);
+                    queue.put(dr);
                 }
                 Logger.warn(name + " - data socket disconnected");
             } catch (Exception e) {
@@ -239,19 +229,19 @@ public class DataChannelImplCMsg implements DataChannel {
         /** Method run ... */
         public void run() {
             try {
-                DataRecord d;
+                DataTransportRecord d;
 
                 while (dataSocket.isConnected()) {
-                    d = full.take();
-
-                    out.write(d.getData(), 0, 4);
-                    out.write(d.getData(), 4, d.getRecordLength() * 4);
+                    d = queue.take();
+                    System.out.println("Block------------");
+                    d.dumpHeader();
+                    out.write(d.getData(), 0, (d.length() + 1) * 4);
                     int ack = in.read();
                     if (ack != 0xaa) {
                         throw new CmdExecException("DataOutputHelper : ack = " + ack);
                     }
-                    d.setRecordLength(0);
-                    empty.put(d);
+                    d.setLength(0);
+
                 }
                 Logger.warn(name + " - data socket disconnected");
             } catch (Exception e) {
@@ -264,14 +254,14 @@ public class DataChannelImplCMsg implements DataChannel {
 
     /** Method startInputHelper ... */
     public void startInputHelper() {
-        dataThread = new Thread(EMUComponentImpl.THREAD_GROUP, new DataInputHelper(), getName() + " data input");
+        dataThread = new Thread(Emu.THREAD_GROUP, new DataInputHelper(), getName() + " data input");
 
         dataThread.start();
     }
 
     /** Method startOutputHelper ... */
     public void startOutputHelper() {
-        dataThread = new Thread(EMUComponentImpl.THREAD_GROUP, new DataOutputHelper(), getName() + " data out");
+        dataThread = new Thread(Emu.THREAD_GROUP, new DataOutputHelper(), getName() + " data out");
 
         dataThread.start();
     }
@@ -281,16 +271,8 @@ public class DataChannelImplCMsg implements DataChannel {
      *
      * @return the full (type BlockingQueue<DataRecord>) of this DataChannel object.
      */
-    public BlockingQueue<DataRecord> getFull() {
-        return full;
+    public BlockingQueue<DataTransportRecord> getQueue() {
+        return queue;
     }
 
-    /**
-     * Method getEmpty returns the empty of this DataChannel object.
-     *
-     * @return the empty (type BlockingQueue<DataRecord>) of this DataChannel object.
-     */
-    public BlockingQueue<DataRecord> getEmpty() {
-        return empty;
-    }
 }

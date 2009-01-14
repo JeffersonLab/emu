@@ -1,0 +1,27 @@
+<?xml version="1.0"?>
+<component>
+    <name>EMU1</name>
+    <parameters>
+    </parameters>
+    <manifold>
+        <type>et</type>
+        <port>11111</port>
+        <size>8192</size>
+        <pool>16536</pool>
+    </manifold>
+    <modules>
+        <read>
+            <input>ROC1</input>
+            <input>ROC2</input>
+        </read>
+        <process>
+        </process>
+        <send>
+            <output>
+                <name>EMU2</name>
+                <type>et</type>
+                <port>22222</port>
+            </output>
+        </send>
+    </modules>
+</component>

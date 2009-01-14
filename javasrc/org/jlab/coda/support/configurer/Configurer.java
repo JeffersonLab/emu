@@ -15,7 +15,7 @@
 
 package org.jlab.coda.support.configurer;
 
-import org.jlab.coda.support.log.Logger;
+import org.jlab.coda.support.logger.Logger;
 import org.w3c.dom.*;
 import org.w3c.dom.bootstrap.DOMImplementationRegistry;
 import org.w3c.dom.ls.*;

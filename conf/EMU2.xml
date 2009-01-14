@@ -1,0 +1,26 @@
+<?xml version="1.0"?>
+<configname>static file</configname>
+<component>
+<name>EMU2</name>
+<transports>
+    <EMU2_SOCKET type="SO" server="true" port="7030" size="200000" pool="2"/>
+    <EMU4_SOCKET type="SO" server="false" port="7030" size="800000" pool="2"/>
+    <EMU5_SOCKET type="SO" server="false" port="7030" size="800000" pool="2"/>
+</transports>
+<modules src="modules.jar" usr_src="user_modules.jar">
+    <ReadModule type="Read">
+        <ROC1 uses="EMU2_SOCKET"/>
+        <ROC2 uses="EMU2_SOCKET"/>
+        <ROC3 uses="EMU2_SOCKET"/>
+        <ROC4 uses="EMU2_SOCKET"/>
+    </ReadModule>
+    <SendModule type="Send">
+        <EMU2 uses="EMU4_SOCKET"/>
+        <EMU2 uses="EMU5_SOCKET"/>
+    </SendModule>
+    <ProcessModule type="Process" concurrency="2">
+        <ReadModule/>
+        <SendModule output="true"/>
+    </ProcessModule>
+</modules>
+</component>

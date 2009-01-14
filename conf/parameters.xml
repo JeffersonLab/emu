@@ -1,0 +1,15 @@
+<!DOCTYPE parameters [
+        <!ELEMENT parameters (param*)>
+        <!ELEMENT param (name,value)>
+        <!ELEMENT name (#PCDATA)>
+        <!ELEMENT value (#PCDATA)>
+        ]>
+<parameters>
+    <param name="" value="12345" key="k" help="this is helpless"/>
+    <param name="name" key="n" help="name of this EMU" value="EMU1"/>
+    <param name="target name" key="o" help="name of emu to send to" value=""/>
+    <param name="target host" key="h" help="host to send to" value=""/>
+    <param name="input list" key="i" help="list of inputs" value="ROC1"/>
+    <param name="target port" key="p" help="port to send to" value=""/>
+
+</parameters>
