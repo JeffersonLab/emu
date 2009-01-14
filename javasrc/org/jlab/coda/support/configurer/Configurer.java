@@ -13,15 +13,13 @@
  * Configure the EMU using XML from a file or string.
  */
 
-package org.jlab.coda.support.config;
+package org.jlab.coda.support.configurer;
 
 import org.jlab.coda.support.log.Logger;
 import org.w3c.dom.*;
 import org.w3c.dom.bootstrap.DOMImplementationRegistry;
 import org.w3c.dom.ls.*;
 import org.w3c.dom.traversal.NodeFilter;
-
-import javax.swing.*;
 
 /**
  * -----------------------------------------------------
@@ -100,15 +98,19 @@ public class Configurer implements DOMErrorHandler, LSParserFilter {
         Node el = node.getFirstChild();
         while (el != null) {
             Node next = el.getNextSibling();
-            if (el.getNodeType() == Node.TEXT_NODE) {
-                String str = el.getNodeValue().trim();
-                if (str.equals("")) {
-                    node.removeChild(el);
-                }
-            } else {
-                if (el.getNodeType() == Node.ELEMENT_NODE) {
+            switch (el.getNodeType()) {
+                case Node.TEXT_NODE:
+                    String str = el.getNodeValue().trim();
+                    if (str.equals("")) {
+                        node.removeChild(el);
+                    }
+                    break;
+                case Node.ELEMENT_NODE:
                     removeEmptyTextNodes((Element) el);
-                }
+                    break;
+                case Node.COMMENT_NODE:
+                    node.removeChild(el);
+                    break;
             }
             el = next;
         }
@@ -322,7 +324,7 @@ public class Configurer implements DOMErrorHandler, LSParserFilter {
                             // model.setValueAt(nameAttr.getNodeValue(),titleRow,col);
                         } else {
                             // model.setValueAt(n.getTextContent(),titleRow,col);
-                            dn.add(new JLabel(n.getTextContent()));
+                            dn.add(new DataNode(n));
                         }
 
                     } else {
@@ -331,7 +333,6 @@ public class Configurer implements DOMErrorHandler, LSParserFilter {
                 }
 
             }
-            dn.add(Box.createHorizontalGlue());
         }
 
         if (node.hasAttributes()) {
@@ -342,8 +343,6 @@ public class Configurer implements DOMErrorHandler, LSParserFilter {
                 DataNode adn = new DataNode(aNode);
                 dn.add(adn);
             }
-            // dn.add(Box.createVerticalGlue());
-            dn.add(Box.createHorizontalGlue());
         }
         // dn.add(Box.createHorizontalGlue());
         return dn;

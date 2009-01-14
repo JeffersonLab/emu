@@ -12,7 +12,7 @@
 /**
  *
  */
-package org.jlab.coda.support.config;
+package org.jlab.coda.support.configurer;
 
 /** @author heyes */
 @SuppressWarnings("serial")
