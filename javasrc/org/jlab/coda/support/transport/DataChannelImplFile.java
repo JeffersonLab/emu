@@ -1,8 +1,9 @@
 package org.jlab.coda.support.transport;
 
 import org.jlab.coda.emu.Emu;
-import org.jlab.coda.support.evio.DataFile;
-import org.jlab.coda.support.evio.DataTransportRecord;
+import org.jlab.coda.support.codaComponent.CODAState;
+import org.jlab.coda.support.data.DataBank;
+import org.jlab.coda.support.data.DataFile;
 import org.jlab.coda.support.logger.Logger;
 
 import java.io.*;
@@ -34,7 +35,7 @@ public class DataChannelImplFile implements DataChannel {
     private int capacity = 40;
 
     /** Field full - filled buffer queue */
-    private final BlockingQueue<DataTransportRecord> queue;
+    private final BlockingQueue<DataBank> queue;
 
     private File file;
     private String fileName = "dataFile.coda";
@@ -64,7 +65,7 @@ public class DataChannelImplFile implements DataChannel {
             Logger.info(e.getMessage() + " default to file name" + fileName);
         }
 
-        queue = new ArrayBlockingQueue<DataTransportRecord>(capacity);
+        queue = new ArrayBlockingQueue<DataBank>(capacity);
 
         try {
             if (isInput) {
@@ -105,14 +106,16 @@ public class DataChannelImplFile implements DataChannel {
                 Logger.info("Data Input helper for File");
                 while (!dataThread.isInterrupted()) {
 
-                    DataTransportRecord dr = dataFile.readRecord(1);
+                    DataBank dr = dataFile.read();
 
                     queue.put(dr);
                 }
                 Logger.warn(name + " - File closed");
             } catch (Exception e) {
                 Logger.warn("DataInputHelper exit " + e.getMessage());
-                e.printStackTrace();
+                Logger.warn(name + " - File closed");
+                CODAState.ERROR.getCauses().add(e);
+                dataTransport.state = CODAState.ERROR;
             }
 
         }
@@ -131,19 +134,19 @@ public class DataChannelImplFile implements DataChannel {
         /** Method run ... */
         public void run() {
             try {
-                DataTransportRecord d;
+                DataBank d;
                 Logger.info("Data Output helper for File");
                 while (!dataThread.isInterrupted()) {
                     d = queue.take();
 
                     dataFile.write(d);
 
-                    d.setLength(0);
-
                 }
                 Logger.warn(name + " - data file closed");
             } catch (Exception e) {
                 Logger.warn("DataOutputHelper exit " + e.getMessage());
+                CODAState.ERROR.getCauses().add(e);
+                dataTransport.state = CODAState.ERROR;
             }
 
         }
@@ -160,7 +163,7 @@ public class DataChannelImplFile implements DataChannel {
      *
      * @return int[]
      */
-    public DataTransportRecord receive() throws InterruptedException {
+    public DataBank receive() throws InterruptedException {
         return dataTransport.receive(this);
     }
 
@@ -169,7 +172,7 @@ public class DataChannelImplFile implements DataChannel {
      *
      * @param data of type long[]
      */
-    public void send(DataTransportRecord data) {
+    public void send(DataBank data) {
         dataTransport.send(this, data);
     }
 
@@ -189,9 +192,9 @@ public class DataChannelImplFile implements DataChannel {
     /**
      * Method getFull returns the full of this DataChannel object.
      *
-     * @return the full (type BlockingQueue<DataRecord>) of this DataChannel object.
+     * @return the full (type BlockingQueue<DataBank>) of this DataChannel object.
      */
-    public BlockingQueue<DataTransportRecord> getQueue() {
+    public BlockingQueue<DataBank> getQueue() {
         return queue;
     }
 

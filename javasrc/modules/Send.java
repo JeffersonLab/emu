@@ -19,7 +19,7 @@ import org.jlab.coda.support.control.State;
 import org.jlab.coda.support.logger.Logger;
 import org.jlab.coda.support.transport.DataChannel;
 
-import java.util.HashMap;
+import java.util.ArrayList;
 
 /**
  * <pre>
@@ -35,10 +35,10 @@ public class Send implements EmuModule {
     private State state = CODAState.UNCONFIGURED;
 
     /** Field input_channels */
-    private HashMap<String, DataChannel> input_channels = new HashMap<String, DataChannel>();
+    private ArrayList<DataChannel> input_channels = new ArrayList<DataChannel>();
 
     /** Field output_channels */
-    private HashMap<String, DataChannel> output_channels = new HashMap<String, DataChannel>();
+    private ArrayList<DataChannel> output_channels = new ArrayList<DataChannel>();
 
     /** Field name */
     private String name = null;
@@ -90,11 +90,11 @@ public class Send implements EmuModule {
         super.finalize();
     }
 
-    public void setInput_channels(HashMap<String, DataChannel> input_channels) {
+    public void setInput_channels(ArrayList<DataChannel> input_channels) {
         this.input_channels = input_channels;
     }
 
-    public void setOutput_channels(HashMap<String, DataChannel> output_channels) {
+    public void setOutput_channels(ArrayList<DataChannel> output_channels) {
         this.output_channels = output_channels;
     }
 }

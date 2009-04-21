@@ -133,21 +133,21 @@ extern "C" void *gchannel_accept_helper_so(void *arg)
     transp->listen_sock = socket(PF_INET, SOCK_STREAM, 0);
     int window_size = 40000;
     int flag = 1;
-    
+
     if(-1 == transp->listen_sock)
     {
         printf("can not create socket");
         transp->listen_sock = -1;
         goto gchannel_accept_helper_so_end;
     }
-    
+
     setsockopt(transp->listen_sock, SOL_SOCKET, SO_SNDBUF,
                (char *) &window_size, sizeof(window_size));
 
 
     setsockopt(transp->listen_sock, IPPROTO_TCP, TCP_NODELAY,
                (char *) &flag, sizeof(flag));
-               
+
     char hostname[1000];
     gethostname(hostname,1000);
     printf("hostname is %s\n", hostname);
@@ -256,13 +256,13 @@ extern "C" void *gchannel_multicast_helper_so(void *arg)
             goto gchannel_multicast_helper_so_end;
         }
         printf("got %s\n", buffer);
-        
+
         if (strcmp(buffer,transp->name) == 0)
         {
             sprintf(buffer,"%s %s %d",transp->name,transp->listen_host,transp->port);
-            
+
             printf("sending \"%s\" back\n", buffer);
-            
+
             sendto(transp->multicast_sock, (void*) buffer, strlen(buffer), 0,(sockaddr*) &cliaddr, slen);
         }
     }
@@ -425,13 +425,14 @@ extern "C" void *gchannel_read_helper_so(void *arg)
             goto gchannel_read_helper_so_end;
         }
 
+        printf("gchannel_read_helper_so : length = %08x", in_data->length);
         // Always transmit lengths in network byte order so translate back.
         in_data->length = ntohl(in_data->length);
-
+        printf("gchannel_read_helper_so : length = ntohl %08x", ntohl(in_data->length));
         bytes = recv(chan->dataSock,&in_data->data,in_data->length*sizeof(int32_t),MSG_WAITALL);
 
         // printf("gchannel_read_helper_so %s %08x %08x %08x \n",chan->name,in_data->data[0],in_data->data[1],in_data->data[2]);
-        
+
         // printf("gchannel_read_helper_so length is %ld bytes %d\n",in_data->length * sizeof(int32_t), bytes);
 
         // printf("gchannel_read_helper_so Put on %08x\n",c->fifo);

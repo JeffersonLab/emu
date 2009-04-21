@@ -13,6 +13,7 @@ package org.jlab.coda.emu;
 import org.jlab.coda.support.codaComponent.CODAState;
 import org.jlab.coda.support.codaComponent.CODATransition;
 import org.jlab.coda.support.codaComponent.RunControl;
+import org.jlab.coda.support.codaComponent.StatedObject;
 import org.jlab.coda.support.configurer.Configurer;
 import org.jlab.coda.support.configurer.DataNotFoundException;
 import org.jlab.coda.support.control.CmdExecException;
@@ -31,8 +32,8 @@ import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import java.net.URL;
 import java.net.URLClassLoader;
+import java.util.ArrayList;
 import java.util.Collection;
-import java.util.HashMap;
 import java.util.Vector;
 
 /**
@@ -45,10 +46,10 @@ import java.util.Vector;
  * @author heyes
  *         Created on Sep 17, 2008
  */
-public class EmuModuleFactory {
+public class EmuModuleFactory implements StatedObject {
 
     /** Field modules */
-    private static final Collection<EmuModule> modules = new Vector<EmuModule>();
+    private static final Collection<org.jlab.coda.emu.EmuModule> modules = new Vector<org.jlab.coda.emu.EmuModule>();
 
     /** Field classloader */
     private ClassLoader classloader = null;
@@ -81,7 +82,7 @@ public class EmuModuleFactory {
                 // There are no modules loaded so we need to load some!
                 URL[] locations;
 
-                Node modulesConfig = Configurer.getNode(Emu.INSTANCE.configuration(), "codaComponent/modules");
+                Node modulesConfig = Configurer.getNode(org.jlab.coda.emu.Emu.INSTANCE.configuration(), "component/modules");
                 if (modulesConfig == null) throw new DataNotFoundException("modules section missing from config");
 
                 if (!modulesConfig.hasChildNodes()) throw new DataNotFoundException("modules section present in config but no modules");
@@ -141,7 +142,6 @@ public class EmuModuleFactory {
                 classloader = null;
 
             } catch (Exception e) {
-                Logger.error("EmuModuleFactory.execute() threw " + e.getMessage());
                 e.printStackTrace();
                 CODAState.ERROR.getCauses().add(e);
                 state = CODAState.ERROR;
@@ -150,14 +150,14 @@ public class EmuModuleFactory {
         } else if (cmd.equals(CODATransition.prestart)) {
             TRANSPORT_FACTORY.execute(cmd);
             try {
-                Node modulesConfig = Configurer.getNode(Emu.INSTANCE.configuration(), "codaComponent/modules");
+                Node modulesConfig = Configurer.getNode(Emu.INSTANCE.configuration(), "component/modules");
                 Node moduleNode = modulesConfig.getFirstChild();
                 do {
                     if ((moduleNode.getNodeType() == Node.ELEMENT_NODE) && moduleNode.hasChildNodes()) {
                         EmuModule module = findModule(moduleNode.getNodeName());
                         if (module != null) {
-                            HashMap<String, DataChannel> in = new HashMap<String, DataChannel>();
-                            HashMap<String, DataChannel> out = new HashMap<String, DataChannel>();
+                            ArrayList<DataChannel> in = new ArrayList<DataChannel>();
+                            ArrayList<DataChannel> out = new ArrayList<DataChannel>();
                             NodeList l = moduleNode.getChildNodes();
                             for (int ix = 0; ix < l.getLength(); ix++) {
                                 Node channelNode = l.item(ix);
@@ -177,11 +177,11 @@ public class EmuModuleFactory {
 
                                 if (channelNode.getNodeName().matches("inchannel")) {
                                     DataChannel channel = trans.createChannel(channelName, true);
-                                    in.put(channelTransName + ":" + channelName, channel);
+                                    in.add(channel);
                                 }
                                 if (channelNode.getNodeName().matches("outchannel")) {
                                     DataChannel channel = trans.createChannel(channelName, false);
-                                    out.put(channelTransName + ":" + channelName, channel);
+                                    out.add(channel);
 
                                 }
                             }
@@ -218,7 +218,7 @@ public class EmuModuleFactory {
             CODAState.ERROR.getCauses().clear();
         }
 
-        if (cmd.success() != null) state = cmd.success();
+        if (cmd.success() != null && state != CODAState.ERROR) state = cmd.success();
 
     }
 
@@ -289,23 +289,17 @@ public class EmuModuleFactory {
 
         if (modules.size() == 0) return state;
 
-        State module_state = null;
-        State test_state = null;
-        // Logger.info("check state against state of " + modules.get(0).name() + " who reports " + state);
-        for (EmuModule module : modules) {
-            module_state = module.state();
+        for (StatedObject module : modules) {
 
-            if ((test_state != null) && (test_state != module_state)) {
-                //noinspection ThrowableInstanceNeverThrown
-                CODAState.ERROR.getCauses().add(
-
-                        new Exception(new StringBuilder().append("ModuleFactory: module ").append(module.name()).append(" is in state ").append(module_state).append(", expected ").append(test_state).toString()));
+            if (module.state() == CODAState.ERROR) {
                 state = CODAState.ERROR;
             }
-            test_state = module_state;
 
         }
-        state = module_state;
+
+        if (TRANSPORT_FACTORY.state() == CODAState.ERROR) {
+            state = CODAState.ERROR;
+        }
         return state;
 
     }

@@ -78,7 +78,8 @@
             <classpath refid="coda.classpath"/>
             <include name="**/*.java"/>
         </javac>
-        <copy overwrite="true" todir="${javac.dest}">
+
+        <copy overwrite="true" todir="${javac.dest}/org/jlab/coda">
             <fileset dir="${java.source.dir}">
                 <include name="**/*.properties"/>
                 <include name="**/*.png"/>
@@ -93,7 +94,7 @@
     <target name="emu_jar" depends="build">
         <!-- The manifest makes this jar runnable via "java -jar lib/coda.jar"    -->
         <delete file="${jar.dest}/emu.jar"/>
-        <jar jarfile="${jar.dest}/emu.jar" manifest="${java.source.dir}/org/jlab/coda/emu/manifest.mf">
+        <jar jarfile="${jar.dest}/emu.jar" manifest="${java.source.dir}/emu/manifest.mf">
             <fileset dir="${javac.dest}">
                 <include name="org/jlab/**/*.class"/>
                 <include name="**/*.properties"/>

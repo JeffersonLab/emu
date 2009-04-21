@@ -18,7 +18,7 @@ import org.jlab.coda.support.codaComponent.RunControl;
 import org.jlab.coda.support.configurer.DataNotFoundException;
 import org.jlab.coda.support.control.Command;
 import org.jlab.coda.support.control.State;
-import org.jlab.coda.support.evio.DataTransportRecord;
+import org.jlab.coda.support.data.DataTransportRecord;
 
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
@@ -353,13 +353,13 @@ public class DataTransportImplSO extends DataTransportCore implements DataTransp
         }
 
         if (cmd.equals(CODATransition.end)) {
-            // TODO do something!
+
             state = cmd.success();
             return;
         }
 
         if (cmd.equals(RunControl.reset)) {
-            // TODO do something!
+
             state = cmd.success();
             return;
         }

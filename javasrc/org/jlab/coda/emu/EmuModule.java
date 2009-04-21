@@ -11,12 +11,12 @@
 
 package org.jlab.coda.emu;
 
+import org.jlab.coda.support.codaComponent.StatedObject;
 import org.jlab.coda.support.control.CmdExecException;
 import org.jlab.coda.support.control.Command;
-import org.jlab.coda.support.control.State;
 import org.jlab.coda.support.transport.DataChannel;
 
-import java.util.HashMap;
+import java.util.ArrayList;
 
 /**
  * Interface EmuModule a simple interface to a modular part of
@@ -25,16 +25,13 @@ import java.util.HashMap;
  * @author heyes
  *         Created on Sep 17, 2008
  */
-public interface EmuModule {
+public interface EmuModule extends StatedObject {
     /**
      * The name of the module
      *
      * @return the name
      */
     public String name();
-
-    /** @return the state */
-    public State state();
 
     /**
      * Method execute When passed a Command object executes the command
@@ -51,13 +48,13 @@ public interface EmuModule {
      *
      * @param input_channels the input_channels of this EmuModule object.
      */
-    public void setInput_channels(HashMap<String, DataChannel> input_channels);
+    public void setInput_channels(ArrayList<DataChannel> input_channels);
 
     /**
      * Method setOutput_channels sets the output_channels of this EmuModule object.
      *
      * @param output_channels the output_channels of this EmuModule object.
      */
-    public void setOutput_channels(HashMap<String, DataChannel> output_channels);
+    public void setOutput_channels(ArrayList<DataChannel> output_channels);
 
 }

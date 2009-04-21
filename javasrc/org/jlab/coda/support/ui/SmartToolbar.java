@@ -37,20 +37,20 @@ public class SmartToolbar extends JToolBar {
      *
      */
     public SmartToolbar() {
-        // TODO Auto-generated constructor stub
+        //
         this.setFloatable(true);
     }
 
     /** @param orientation  */
     public SmartToolbar(int orientation) {
         super(orientation);
-        // TODO Auto-generated constructor stub
+        //
     }
 
     /** @param name  */
     public SmartToolbar(String name) {
         super(name);
-        // TODO Auto-generated constructor stub
+        //
     }
 
     /**
@@ -59,7 +59,7 @@ public class SmartToolbar extends JToolBar {
      */
     public SmartToolbar(String name, int orientation) {
         super(name, orientation);
-        // TODO Auto-generated constructor stub
+        //
     }
 
     CommandAcceptor target = null;
@@ -92,10 +92,10 @@ public class SmartToolbar extends JToolBar {
 
             }
         } catch (SecurityException e) {
-            // TODO Auto-generated catch block
+
             e.printStackTrace();
         } catch (IllegalArgumentException e) {
-            // TODO Auto-generated catch block
+
             e.printStackTrace();
         }
     }
@@ -135,13 +135,13 @@ public class SmartToolbar extends JToolBar {
                     target.postCommand(cmd);
                     update();
                 } catch (SecurityException e1) {
-                    // TODO Auto-generated catch block
+
                     e1.printStackTrace();
                 } catch (IllegalArgumentException e1) {
-                    // TODO Auto-generated catch block
+
                     e1.printStackTrace();
                 } catch (InterruptedException e3) {
-                    // TODO Auto-generated catch block
+
                     e3.printStackTrace();
                 }
             }

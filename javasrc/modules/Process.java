@@ -19,14 +19,12 @@ import org.jlab.coda.support.configurer.Configurer;
 import org.jlab.coda.support.configurer.DataNotFoundException;
 import org.jlab.coda.support.control.Command;
 import org.jlab.coda.support.control.State;
-import org.jlab.coda.support.evio.DataTransportRecord;
-import org.jlab.coda.support.evio.EVIORecordException;
+import org.jlab.coda.support.data.DataBank;
 import org.jlab.coda.support.logger.Logger;
 import org.jlab.coda.support.transport.DataChannel;
 
 import java.util.ArrayList;
 import java.util.Date;
-import java.util.HashMap;
 import java.util.Iterator;
 import java.util.concurrent.BlockingQueue;
 
@@ -47,10 +45,10 @@ public class Process implements EmuModule, Runnable {
     private State state = CODAState.UNCONFIGURED;
 
     /** Field input_channels */
-    private HashMap<String, DataChannel> input_channels = new HashMap<String, DataChannel>();
+    private ArrayList<DataChannel> input_channels = new ArrayList<DataChannel>();
 
     /** Field output_channels */
-    private HashMap<String, DataChannel> output_channels = new HashMap<String, DataChannel>();
+    private ArrayList<DataChannel> output_channels = new ArrayList<DataChannel>();
 
     /** Field actionThread */
     private Thread actionThread;
@@ -59,7 +57,7 @@ public class Process implements EmuModule, Runnable {
     private final Throwable last_error = null;
 
     /** Field count */
-    private long count = 0;
+    private int count = 0;
 
     /** Field data_count */
     private long data_count = 0;
@@ -117,81 +115,58 @@ public class Process implements EmuModule, Runnable {
     /** Method run ... */
     public void run() {
 
-        ArrayList<BlockingQueue<DataTransportRecord>> full_in_queues = new ArrayList<BlockingQueue<DataTransportRecord>>();
-        ArrayList<BlockingQueue<DataTransportRecord>> full_out_queues = new ArrayList<BlockingQueue<DataTransportRecord>>();
-
-        for (DataChannel c : input_channels.values())
-            full_in_queues.add(c.getQueue());
-
         boolean hasOutputs = !output_channels.isEmpty();
-
-        if (hasOutputs) {
-            for (DataChannel c : output_channels.values())
-                full_out_queues.add(c.getQueue());
-        }
 
         System.out.println("Action Thread state " + state);
         while ((state == CODAState.ACTIVE) || (state == CODAState.PAUSED)) {
             try {
-                Iterator<BlockingQueue<DataTransportRecord>> outputIter = null;
+                Iterator<DataChannel> outputIter = null;
 
-                if (hasOutputs) outputIter = full_out_queues.iterator();
+                if (hasOutputs) outputIter = output_channels.iterator();
 
                 while (state == CODAState.ACTIVE) {
 
-                    if (hasOutputs && !outputIter.hasNext()) outputIter = full_out_queues.iterator();
-                    //System.out.println("there are " + full_in_queues.size() + " inputs");
-                    BlockingQueue<DataTransportRecord> out_queue = null;
-                    if (hasOutputs) out_queue = outputIter.next();
-                    ArrayList<DataTransportRecord> inList = new ArrayList<DataTransportRecord>();
+                    if (hasOutputs && !outputIter.hasNext()) outputIter = output_channels.iterator();
+                    DataChannel outC = null;
+                    BlockingQueue<DataBank> out_queue = null;
+                    if (hasOutputs) {
+                        outC = outputIter.next();
+                        out_queue = outC.getQueue();
+                    }
+                    ArrayList<DataBank> inList = new ArrayList<DataBank>();
                     int outLen = 0;
-                    for (BlockingQueue<DataTransportRecord> in_queue : full_in_queues) {
-                        DataTransportRecord dr = in_queue.take();
-                        dr.check();
-                        outLen += (dr.length() + 1);
+                    for (DataChannel c : input_channels) {
+                        DataBank dr = c.getQueue().take();
+                        outLen += (dr.getLength() + 1);
                         inList.add(dr);
                     }
 
                     //TODO setSourceID to something that makes sense
-                    DataTransportRecord outDr = new DataTransportRecord((outLen + 2 + DataTransportRecord.PAYLOAD) * 4, count, 0, 99);
-                    outDr.setLength(outLen);
+                    DataBank outDr = new DataBank(outLen);
+                    outDr.getPayload();
 
-                    int out_offset = 4 * DataTransportRecord.PAYLOAD;
-                    int evTotal = 0;
-                    for (DataTransportRecord dr : inList) {
-                        int length = (dr.length() + 1) * 4;
-                        //System.out.println("Copy record " + count);
-                        //dr.dumpHeader();
-                        System.arraycopy(dr.getData(), 0, outDr.getData(), out_offset, length);
-                        //System.out.println("copied");
-                        evTotal += dr.getEventCount();
-                        out_offset += length;
+                    for (DataBank dr : inList) {
+                        dr.getBuffer().rewind();
+                        outDr.getBuffer().put(dr.getBuffer());
                     }
-                    int dataLen = out_offset / 4 - 1;
 
-                    outDr.setLength(dataLen);
-                    outDr.setEventCount(evTotal);
-
-                    data_count += dataLen;
+                    outDr.setNumber(count);
+                    outDr.setDataType(0x20);
+                    data_count += outDr.getLength();
                     count++;
 
-                    if (hasOutputs) out_queue.put(outDr);
+                    if (hasOutputs) {
+                        out_queue.put(outDr);
+                    }
 
-                    // System.out.format("Process.run : loop to next
-                    // queue");
                 }
 
-                Thread.sleep(2000);
+                Thread.sleep(2);
             } catch (InterruptedException e) {
                 if (state == CODAState.ENDED) return;
-            } catch (EVIORecordException e) {
-                // End the run...
-                for (int ix = 0; ix < e.getCauses().size(); ix++) {
-                    CODAState.ERROR.getCauses().add(e.getCauses().get(ix));
-                }
-                state = CODAState.ERROR;
             }
         }
+
     }
 
     /** @return the state */
@@ -278,11 +253,11 @@ public class Process implements EmuModule, Runnable {
         super.finalize();
     }
 
-    public void setInput_channels(HashMap<String, DataChannel> input_channels) {
+    public void setInput_channels(ArrayList<DataChannel> input_channels) {
         this.input_channels = input_channels;
     }
 
-    public void setOutput_channels(HashMap<String, DataChannel> output_channels) {
+    public void setOutput_channels(ArrayList<DataChannel> output_channels) {
         this.output_channels = output_channels;
     }
 }

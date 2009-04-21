@@ -14,7 +14,7 @@
 #include <arpa/inet.h>
 char *transport_test::channelNames[10];
 int transport_test::channel_count;
-int transport_test::size;
+int transport_test::size; 
 int transport_test::ROCID = 0;
 
 void *read_thread(void *arg)

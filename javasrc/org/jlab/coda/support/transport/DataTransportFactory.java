@@ -15,6 +15,7 @@ import org.jlab.coda.emu.Emu;
 import org.jlab.coda.support.codaComponent.CODAState;
 import org.jlab.coda.support.codaComponent.CODATransition;
 import org.jlab.coda.support.codaComponent.RunControl;
+import org.jlab.coda.support.codaComponent.StatedObject;
 import org.jlab.coda.support.configurer.Configurer;
 import org.jlab.coda.support.configurer.DataNotFoundException;
 import org.jlab.coda.support.control.CmdExecException;
@@ -31,7 +32,7 @@ import java.util.Map;
 import java.util.Vector;
 
 /** @author heyes */
-public class DataTransportFactory {
+public class DataTransportFactory implements StatedObject {
 
     /** Field transports */
     private static final Vector<DataTransport> transports = new Vector<DataTransport>();
@@ -80,12 +81,10 @@ public class DataTransportFactory {
         state = transports.get(0).state();
 
         for (DataTransport transport : transports) {
+            //System.out.println("check state : " + transport.name() + " " + transport.state());
             s = transport.state();
 
-            if (s != state) {
-
-                //noinspection ThrowableInstanceNeverThrown
-                CODAState.ERROR.getCauses().add(new Exception(new StringBuilder().append("TransportFactory: transport ").append(transport.name()).append(" is in state ").append(s).append(", expected ").append(state).toString()));
+            if (s == CODAState.ERROR) {
                 state = CODAState.ERROR;
             }
 
@@ -106,7 +105,8 @@ public class DataTransportFactory {
 
         if (cmd.equals(CODATransition.download)) {
             try {
-                Node m = Configurer.getNode(Emu.INSTANCE.configuration(), "codaComponent/transports");
+                Node m = Configurer.getNode(Emu.INSTANCE.configuration(), "component/transports");
+                System.out.println("component/transports node = " + m);
                 if (!m.hasChildNodes()) throw new DataNotFoundException("transport section present in config but no transports");
 
                 NodeList l = m.getChildNodes();
@@ -157,28 +157,25 @@ public class DataTransportFactory {
                             transports.add((DataTransport) co.newInstance(args));
                             Logger.info("DataTransportFactory created : " + serverName + " class " + transportClass);
                         } catch (Exception e) {
-                            System.err.println("Exception " + e.getMessage());
-                            e.printStackTrace();
                             CODAState.ERROR.getCauses().add(e);
-                            DataNotFoundException dnf = new DataNotFoundException("Unable to create data transport of transportClass " + transportClass);
-                            CODAState.ERROR.getCauses().add(dnf);
-                            Logger.error(dnf);
-                            state = CODAState.ERROR;
-                            return;
+                            throw new CmdExecException();
                         }
 
                     }
                     state = cmd.success();
                 }
             } catch (Exception e) {
-                CODAState.ERROR.getCauses().add(new DataNotFoundException("transport section missing from config"));
                 state = CODAState.ERROR;
-                return;
+                throw new CmdExecException("transport section missing from config");
             }
             try {
-                transports.add(new DataTransportImplFifo("Fifo", new HashMap<String, String>()));
+                HashMap<String, String> attrs = new HashMap<String, String>();
+                attrs.put("class", "Fifo");
+                attrs.put("server", "false");
+                transports.add(new DataTransportImplFifo("Fifo", attrs));
             } catch (DataNotFoundException e) {
-                e.printStackTrace();  //To change body of catch statement use File | Settings | File Templates.
+                CODAState.ERROR.getCauses().add(e);
+                throw new CmdExecException();
             }
 
         }

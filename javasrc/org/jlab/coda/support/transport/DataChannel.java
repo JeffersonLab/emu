@@ -11,7 +11,7 @@
 
 package org.jlab.coda.support.transport;
 
-import org.jlab.coda.support.evio.DataTransportRecord;
+import org.jlab.coda.support.data.DataBank;
 
 import java.util.concurrent.BlockingQueue;
 
@@ -30,14 +30,14 @@ public interface DataChannel {
      *
      * @return int[]
      */
-    public DataTransportRecord receive() throws InterruptedException;
+    public DataBank receive() throws InterruptedException;
 
     /**
      * Method send ...
      *
      * @param data of type long[]
      */
-    public void send(DataTransportRecord data);
+    public void send(DataBank data);
 
     /** Method close ... */
     public void close();
@@ -45,8 +45,8 @@ public interface DataChannel {
     /**
      * Method getFull returns the full of this DataChannel object.
      *
-     * @return the full (type BlockingQueue<DataRecord>) of this DataChannel object.
+     * @return the full (type BlockingQueue<DataBank>) of this DataChannel object.
      */
-    public BlockingQueue<DataTransportRecord> getQueue();
+    public BlockingQueue<DataBank> getQueue();
 
 }

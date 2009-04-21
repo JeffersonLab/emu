@@ -38,7 +38,6 @@ void *read_thread(void *arg)
         {
             counter++;
             // if (data != NULL)
-            //    printf ("%s %08x %08x %08x %08x\n",chan->name,data->length,data->data[0],data->data[1],data->data[2]);
             if (counter % 1000 == 0)
             {
                 double now = gsl_time();
@@ -47,9 +46,9 @@ void *read_thread(void *arg)
                 start_time = now;
                 if (data != NULL)
                 {
-					
+
 					printf ("%08x\n",data->length);
-					for(int ix=0;ix<20;ix++)
+					for(int ix=0;ix<data->length;ix++)
 						printf("%08x\n",ntohl(data->data[ix]));
                 }
             }
@@ -105,13 +104,13 @@ void *send_thread(void *arg)
             offset += (EVENT_SIZE+1);
         }
 		data[2] = htonl(nevents);
-		
+
         buf->length = offset;
-        
+
 		printf ("---\n%08x\n",buf->length);
 		for(int ix=0;ix<20;ix++)
 			printf("%08x\n",ntohl(data[ix]));
-			
+
         status = gchannel_send(buf);
 
         if (status != 0 && status != ETIMEDOUT)

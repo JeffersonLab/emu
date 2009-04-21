@@ -60,7 +60,7 @@ public class Emu implements KbdHandler, CODAComponent {
     public static ThreadGroup THREAD_GROUP = null;
 
     /** Field MODULE_FACTORY */
-    private final static EmuModuleFactory MODULE_FACTORY = new EmuModuleFactory();
+    private final static org.jlab.coda.emu.EmuModuleFactory MODULE_FACTORY = new org.jlab.coda.emu.EmuModuleFactory();
 
     /** Field name */
     private String name = "unconfigured";
@@ -424,8 +424,7 @@ public class Emu implements KbdHandler, CODAComponent {
             MODULE_FACTORY.execute(cmd);
             Logger.info("command " + cmd + " executed, state " + cmd.success());
         } catch (CmdExecException e) {
-            Logger.error("Command " + cmd + " failed");
-
+            CODAState.ERROR.getCauses().add(new CmdExecException("Command " + cmd + " failed"));
         }
 
         if (cmd.equals(RunControl.reset)) {

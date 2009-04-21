@@ -13,13 +13,15 @@ package org.jlab.coda.support.transport;
 
 import org.jlab.coda.emu.Emu;
 import org.jlab.coda.support.control.CmdExecException;
-import org.jlab.coda.support.evio.DataTransportRecord;
+import org.jlab.coda.support.data.DataBank;
+import org.jlab.coda.support.data.DataTransportRecord;
 import org.jlab.coda.support.logger.Logger;
 
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
 import java.net.Socket;
+import java.nio.channels.SocketChannel;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 
@@ -52,13 +54,15 @@ public class DataChannelImplCMsg implements DataChannel {
     private int capacity = 40;
 
     /** Field full - filled buffer queue */
-    private final BlockingQueue<DataTransportRecord> queue;
+    private final BlockingQueue<DataBank> queue;
 
     /** Field out */
     private DataOutputStream out;
 
     /** Field in */
     private DataInputStream in;
+
+    private SocketChannel channel;
 
     private boolean isInput = false;
 
@@ -87,7 +91,7 @@ public class DataChannelImplCMsg implements DataChannel {
             Logger.info(e.getMessage() + " default to " + size + " byte records.");
         }
 
-        queue = new ArrayBlockingQueue<DataTransportRecord>(capacity);
+        queue = new ArrayBlockingQueue<DataBank>(capacity);
 
         // If we are a server the accept helper in the dataTransport implementation will
         // handle connections
@@ -96,7 +100,7 @@ public class DataChannelImplCMsg implements DataChannel {
                 dataSocket = new Socket(dataTransport.getHost(), dataTransport.getPort());
 
                 dataSocket.setTcpNoDelay(true);
-
+                channel = dataSocket.getChannel();
                 out = new DataOutputStream(dataSocket.getOutputStream());
                 in = new DataInputStream(dataSocket.getInputStream());
                 // Always write a 1 byte length followed by data
@@ -123,7 +127,7 @@ public class DataChannelImplCMsg implements DataChannel {
      *
      * @return int[]
      */
-    public DataTransportRecord receive() throws InterruptedException {
+    public DataBank receive() throws InterruptedException {
         return dataTransport.receive(this);
     }
 
@@ -132,7 +136,7 @@ public class DataChannelImplCMsg implements DataChannel {
      *
      * @param data of type long[]
      */
-    public void send(DataTransportRecord data) {
+    public void send(DataBank data) {
         dataTransport.send(this, data);
     }
 
@@ -191,17 +195,8 @@ public class DataChannelImplCMsg implements DataChannel {
             try {
 
                 while (dataSocket.isConnected()) {
-                    // take an empty buffer
 
-                    int length = in.readInt();
-
-                    DataTransportRecord dr = new DataTransportRecord(length * 4 + 8);
-                    // setr the length
-                    dr.setLength(length);
-
-                    // read in the payload, remember to offset 4 bytes so
-                    // we don't overwrite the length
-                    in.readFully(dr.getData(), 4, length * 4);
+                    DataTransportRecord dr = (DataTransportRecord) DataTransportRecord.read(in);
 
                     // Send ack
                     out.write(0xaa);
@@ -229,22 +224,22 @@ public class DataChannelImplCMsg implements DataChannel {
         /** Method run ... */
         public void run() {
             try {
-                DataTransportRecord d;
+                DataBank d;
 
                 while (dataSocket.isConnected()) {
                     d = queue.take();
-                    System.out.println("Block------------");
-                    d.dumpHeader();
-                    out.write(d.getData(), 0, (d.length() + 1) * 4);
+
+                    DataBank.write(out, d);
                     int ack = in.read();
                     if (ack != 0xaa) {
                         throw new CmdExecException("DataOutputHelper : ack = " + ack);
                     }
-                    d.setLength(0);
 
                 }
                 Logger.warn(name + " - data socket disconnected");
             } catch (Exception e) {
+                e.printStackTrace();
+                System.out.println("DataOutputHelper exit " + e.getMessage());
                 Logger.warn("DataOutputHelper exit " + e.getMessage());
             }
 
@@ -271,7 +266,7 @@ public class DataChannelImplCMsg implements DataChannel {
      *
      * @return the full (type BlockingQueue<DataRecord>) of this DataChannel object.
      */
-    public BlockingQueue<DataTransportRecord> getQueue() {
+    public BlockingQueue<DataBank> getQueue() {
         return queue;
     }
 

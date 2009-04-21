@@ -39,7 +39,7 @@ public class CmdListener implements Runnable {
         try {
             server.close();
         } catch (IOException e) {
-            // TODO Auto-generated catch block
+
             // ignore
         }
     }

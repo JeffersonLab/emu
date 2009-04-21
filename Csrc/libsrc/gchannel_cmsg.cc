@@ -316,7 +316,7 @@ extern "C" int gchannel_create_transport_cmsg(gtransport m)
     sprintf(tmp,"%s accept helper",transp->name);
     pthread_create(&transp->accept_helper, NULL, gchannel_accept_helper_cmsg, (void *) m);
 
-    cMsgSetDebugLevel(CMSG_DEBUG_INFO);
+    cMsgSetDebugLevel(CMSG_DEBUG_ERROR );
 
     int err;
 
@@ -381,8 +381,6 @@ extern "C" void *gchannel_read_helper_cmsg(void *arg)
         }
         while (status == ETIMEDOUT);
 
-        //printf ("gchannel_read_helper_cmsg : get record number %lld from socket %d\n",c->record_count,chan->dataSock);
-
         int bytes = recv(chan->dataSock,&in_data->length,sizeof(in_data->length),MSG_WAITALL);
 
         if (bytes != sizeof(in_data->length))
@@ -395,12 +393,6 @@ extern "C" void *gchannel_read_helper_cmsg(void *arg)
         in_data->length = ntohl(in_data->length);
 
         bytes = recv(chan->dataSock,&in_data->data,in_data->length*sizeof(int32_t),MSG_WAITALL);
-
-        // printf("gchannel_read_helper_cmsg %s %08x %08x %08x \n",chan->name,in_data->data[0],in_data->data[1],in_data->data[2]);
-
-        // printf("gchannel_read_helper_cmsg length is %ld bytes %d\n",in_data->length * sizeof(int32_t), bytes);
-
-        // printf("gchannel_read_helper_cmsg Put on %08x\n",c->fifo);
 
         do
         {
@@ -508,7 +500,7 @@ extern "C" int gchannel_open_transport_cmsg(gtransport m)
 
 	char *UDL = "cMsg://localhost:7030/cMsg/test";
 
-	cMsgSetDebugLevel(CMSG_DEBUG_INFO);
+	cMsgSetDebugLevel(CMSG_DEBUG_ERROR);
 
 	int err = cMsgConnect(UDL, "gchannel_open_transport", "data transport", &transp->domainId);
 	if (err != CMSG_OK)

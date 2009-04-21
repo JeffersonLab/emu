@@ -14,7 +14,7 @@ package org.jlab.coda.support.transport;
 import org.jlab.coda.support.codaComponent.CODAState;
 import org.jlab.coda.support.configurer.DataNotFoundException;
 import org.jlab.coda.support.control.State;
-import org.jlab.coda.support.evio.DataTransportRecord;
+import org.jlab.coda.support.data.DataBank;
 import org.jlab.coda.support.logger.Logger;
 
 import java.util.HashMap;
@@ -292,7 +292,7 @@ public class DataTransportCore {
      * @param channel of type DataChannel
      * @return int[]
      */
-    public DataTransportRecord receive(DataChannel channel) throws InterruptedException {
+    public DataBank receive(DataChannel channel) throws InterruptedException {
         return channel.getQueue().take();
     }
 
@@ -302,7 +302,7 @@ public class DataTransportCore {
      * @param channel of type DataChannel
      * @param data    of type long[]
      */
-    public void send(DataChannel channel, DataTransportRecord data) {
+    public void send(DataChannel channel, DataBank data) {
         channel.getQueue().add(data);
     }
 }

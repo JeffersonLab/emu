@@ -15,7 +15,7 @@ import org.jlab.coda.support.configurer.DataNotFoundException;
 import org.jlab.coda.support.control.CmdExecException;
 import org.jlab.coda.support.control.Command;
 import org.jlab.coda.support.control.State;
-import org.jlab.coda.support.evio.DataTransportRecord;
+import org.jlab.coda.support.data.DataBank;
 
 import java.util.HashMap;
 
@@ -122,7 +122,7 @@ public interface DataTransport {
      * @param channel of type DataChannel
      * @param data    of type long[]
      */
-    public void send(DataChannel channel, DataTransportRecord data);
+    public void send(DataChannel channel, DataBank data);
 
     /**
      * Method receive ...
@@ -130,7 +130,7 @@ public interface DataTransport {
      * @param channel of type DataChannel
      * @return int[]
      */
-    public DataTransportRecord receive(DataChannel channel) throws InterruptedException;
+    public DataBank receive(DataChannel channel) throws InterruptedException;
 
     /**
      * Method isServer returns the server of this DataTransport object.

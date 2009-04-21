@@ -377,10 +377,10 @@ public class Configurer implements DOMErrorHandler, LSParserFilter {
 
             if (found == null) {
                 // could be an attribute so look for attribute named s[ix]
-                Element el = (Element) n;
+                Node el = n;
 
                 NamedNodeMap nnm = el.getAttributes();
-
+                //System.out.println("Looking for " + value + " in " +n);
                 found = nnm.getNamedItem(value);
                 if (found != null) {
                     return found;

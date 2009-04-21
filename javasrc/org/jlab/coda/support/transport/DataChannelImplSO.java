@@ -13,7 +13,8 @@ package org.jlab.coda.support.transport;
 
 import org.jlab.coda.emu.Emu;
 import org.jlab.coda.support.control.CmdExecException;
-import org.jlab.coda.support.evio.DataTransportRecord;
+import org.jlab.coda.support.data.DataBank;
+import org.jlab.coda.support.data.DataTransportRecord;
 import org.jlab.coda.support.logger.Logger;
 
 import java.io.*;
@@ -47,7 +48,7 @@ public class DataChannelImplSO implements DataChannel {
     private int size = 20000;
 
     /** Field full */
-    private final BlockingQueue<DataTransportRecord> queue;
+    private final BlockingQueue<DataBank> queue;
 
     private int capacity = 40;
 
@@ -74,7 +75,7 @@ public class DataChannelImplSO implements DataChannel {
             Logger.info(e.getMessage() + " default to " + size + " byte records.");
         }
 
-        queue = new ArrayBlockingQueue<DataTransportRecord>(capacity);
+        queue = new ArrayBlockingQueue<DataBank>(capacity);
 
     }
 
@@ -117,19 +118,14 @@ public class DataChannelImplSO implements DataChannel {
 
                     int length = in.readInt();
 
-                    DataTransportRecord dr = new DataTransportRecord(length * 4 + 8);
-                    // setr the length
-                    dr.setLength(length);
-
-                    // read in the payload, remember to offset 4 bytes so
-                    // we don't overwrite the length
-                    in.readFully(dr.getData(), 4, length * 4);
+                    DataTransportRecord dr = (DataTransportRecord) DataBank.read(in);
 
                     os.write(0xaa);
                     queue.put(dr);
                 }
             } catch (Exception e) {
                 Logger.warn("DataInputHelper exit " + e.getMessage());
+
             }
 
         }
@@ -145,17 +141,16 @@ public class DataChannelImplSO implements DataChannel {
 
                 DataOutputStream out = new DataOutputStream(dataSocket.getOutputStream());
 
-                DataTransportRecord d;
+                DataBank d;
                 int len;
                 int ack;
                 InputStream is = dataSocket.getInputStream();
 
                 while (true) {
                     d = queue.take();
-                    len = d.length();
 
-                    out.write(d.getData(), 0, 4);
-                    out.write(d.getData(), 4, len * 4);
+                    DataBank.write(out, d);
+
                     ack = is.read();
                     if (ack != 0xaa) {
                         throw new CmdExecException("DataOutputHelper : ack = " + ack);
@@ -189,7 +184,7 @@ public class DataChannelImplSO implements DataChannel {
      *
      * @return the full (type BlockingQueue<DataRecord>) of this DataChannel object.
      */
-    public BlockingQueue<DataTransportRecord> getQueue() {
+    public BlockingQueue<DataBank> getQueue() {
         return queue;
     }
 
@@ -198,7 +193,7 @@ public class DataChannelImplSO implements DataChannel {
      *
      * @return int[]
      */
-    public DataTransportRecord receive() throws InterruptedException {
+    public DataBank receive() throws InterruptedException {
         return transport.receive(this);
     }
 
@@ -207,7 +202,7 @@ public class DataChannelImplSO implements DataChannel {
      *
      * @param data of type long[]
      */
-    public void send(DataTransportRecord data) {
+    public void send(DataBank data) {
         transport.send(this, data);
     }
 
