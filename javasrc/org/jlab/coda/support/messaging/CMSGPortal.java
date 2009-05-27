@@ -32,21 +32,20 @@ import java.util.Date;
  * Time: 8:37:33 AM
  */
 public class CMSGPortal implements LoggerAppender {
-    private String TEST_UDL = "cMsg:cMsg://albanac.jlab.org:7030/cMsg/test";
 
     private static cMsg server = null;
-    private String UDL;
-    protected CODAComponent comp;
-    protected Thread monitorThread;
+    private final String UDL;
+    final CODAComponent comp;
+    private final Thread monitorThread;
 
-    protected static CMSGPortal self = null;
+    private static CMSGPortal self = null;
 
     public static CMSGPortal getCMSGPortal(CODAComponent c) {
         if (self == null) self = new CMSGPortal(c);
         return self;
     }
 
-    protected class ServerMonitor implements Runnable {
+    private class ServerMonitor implements Runnable {
 
         /**
          * When an object implementing interface <code>Runnable</code> is used
@@ -105,6 +104,7 @@ public class CMSGPortal implements LoggerAppender {
 
         comp = c;
         String udl = c.getCmsgUDL();
+        String TEST_UDL = "cMsg:cMsg://localhost:7030/cMsg/test";
         if (udl != null) UDL = udl;
         else UDL = TEST_UDL;
 
