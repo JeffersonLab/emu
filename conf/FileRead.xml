@@ -1,0 +1,27 @@
+<?xml version="1.0"?>
+<!--
+  ~ Copyright (c) 2008, Jefferson Science Associates
+  ~
+  ~ Thomas Jefferson National Accelerator Facility
+  ~ Data Acquisition Group
+  ~
+  ~ 12000, Jefferson Ave, Newport News, VA 23606
+  ~ Phone : (757)-269-7100
+  ~
+  -->
+
+<component name="FileRead">
+    <transports>
+        <client name="BitBucket_SOCKET" class="CMsg"/>
+        <client name="File" class="File"/>
+        <client name="File2" class="File"/>
+    </transports>
+    <modules src="modules.jar" usr_src="user_modules.jar">
+        <ProcessModule class="Process">
+            <inchannel name="Data File" transp="File"/>
+            <inchannel name="Data File2" transp="File2"/>
+            <outchannel name="SingleEmu" transp="BitBucket_SOCKET"/>
+        </ProcessModule>
+    </modules>
+</component>
+

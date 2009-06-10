@@ -1,0 +1,13 @@
+<?xml version="1.0"?>
+<component>
+    <transports>
+        <server name="Reader_SOCKET" type="CMsg"/>
+    </transports>
+
+    <modules>
+        <ProcessModule class="Process">
+            <inchannel name="ROC1" transp="Reader_SOCKET"/>
+        </ProcessModule>
+    </modules>
+</component>
+
