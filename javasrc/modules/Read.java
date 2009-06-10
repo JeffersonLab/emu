@@ -34,12 +34,6 @@ public class Read implements EmuModule {
     /** Field state */
     private State state = CODAState.UNCONFIGURED;
 
-    /** Field input_channels */
-    private ArrayList<DataChannel> input_channels = new ArrayList<DataChannel>();
-
-    /** Field output_channels */
-    private ArrayList<DataChannel> output_channels = new ArrayList<DataChannel>();
-
     /** Field name */
     private String name = null;
 
@@ -54,6 +48,7 @@ public class Read implements EmuModule {
 
     /**
      * @return the name
+     *
      * @see org.jlab.coda.emu.EmuModule#name()
      */
     /*
@@ -74,6 +69,7 @@ public class Read implements EmuModule {
      * Method execute ...
      *
      * @param cmd of type Command
+     *
      * @see org.jlab.coda.emu.EmuModule#execute(Command)
      */
     public void execute(Command cmd) {
@@ -92,10 +88,10 @@ public class Read implements EmuModule {
     }
 
     public void setInput_channels(ArrayList<DataChannel> input_channels) {
-        this.input_channels = input_channels;
+
     }
 
     public void setOutput_channels(ArrayList<DataChannel> output_channels) {
-        this.output_channels = output_channels;
+
     }
 }

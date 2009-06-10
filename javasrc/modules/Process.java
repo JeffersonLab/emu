@@ -29,52 +29,56 @@ import java.util.Iterator;
 import java.util.concurrent.BlockingQueue;
 
 /**
- * <pre>
- * Class <b>Process </b>
- * </pre>
- *
- * @author heyes
- *         Created on Sep 17, 2008
+ * This class codes an object that implements the EmuModule interface and can be loaded
+ * into an EMU to process data. It reads DataBanks from  one or more DataChannel objects
+ * and writes them to one or more output DataChannel objects.
+ * <p/>
+ * This simple version of process pulls one bank of each input, concatenates the banks
+ * as the payload of a new bank that is written on an output DataChannel. If there are
+ * more than one output DataCannels a simple round robbin algorithm is used to select
+ * the DataChannel to write to.
  */
 public class Process implements EmuModule, Runnable {
 
-    /** Field name */
+    /** Field name is the name of this module */
     private final String name;
 
-    /** Field state */
+    /** Field state is the state of the module */
     private State state = CODAState.UNCONFIGURED;
 
-    /** Field input_channels */
+    /** Field input_channels is an ArrayList of DataCannel objects that are inputs */
     private ArrayList<DataChannel> input_channels = new ArrayList<DataChannel>();
 
-    /** Field output_channels */
+    /** Field output_channels is an ArrayList of DataCannel objects that are outputs */
     private ArrayList<DataChannel> output_channels = new ArrayList<DataChannel>();
 
-    /** Field actionThread */
+    /** Field actionThread is a Thread object that is the main thread of this module. */
     private Thread actionThread;
 
-    /** Field last_error */
+    /** Field last_error is the last error thrown by the module */
     private final Throwable last_error = null;
 
-    /** Field count */
+    /** Field count is a count of the number of DataBank objects written to the outputs. */
     private int count = 0;
 
-    /** Field data_count */
+    /** Field data_count is the sum of the sizes in 32-bit words of DataBank objects written to the outputs. */
     private long data_count = 0;
 
     /**
-     * <pre>
-     * Class <b>Watcher </b>
-     * </pre>
-     *
-     * @author heyes
-     *         Created on Sep 17, 2008
+     * This class codes a thread that copies the event number and data count into the EMU status
+     * once every two hundred milliseconds this is much more efficient than updating the status
+     * every time that the counters are incremented.
      */
     private class Watcher extends Thread {
-        /** Method run ... */
+        /**
+         * Method run is the action loop of the thread. It executes while the module is in the
+         * state ACTIVE or PAUSED. It is exited on end of run or reset.
+         * It is started by the GO transition.
+         */
         public void run() {
             while ((state == CODAState.ACTIVE) || (state == CODAState.PAUSED)) {
                 try {
+                    // In the paused state only wake every two seconds.
                     sleep(2000);
 
                     synchronized (this) {
@@ -100,6 +104,7 @@ public class Process implements EmuModule, Runnable {
 
     /**
      * Constructor Process creates a new Process instance.
+     * This does nothing except set the name.
      *
      * @param name of type String
      */
@@ -112,12 +117,28 @@ public class Process implements EmuModule, Runnable {
         return name;
     }
 
-    /** Method run ... */
+    /**
+     * Method run is the action loop of the main thread of the module.
+     * <pre>
+     * The thread is started by the GO transition and runs while the state of the module is
+     * ACTIVE or PAUSED.
+     * <p/>
+     * When the state is ACTIVE and the list of output DataChannels is not empty the thread
+     * selects an output by taking the next one from a simple iterator. The thread then pulls
+     * one DataBank off each input DataChannel and stores them in an ArrayList.
+     * <p/>
+     * An empty DataBank long enough to store all of the banks pulled off the inputs is created.
+     * Each incoming bank from the ArrayList is copied into the new bank.
+     * The count of outgoing banks and the count of data words are incremented.
+     * If the Module has an output the bank of banks is put on the output DataChannel.
+     * </pre>
+     */
     public void run() {
 
         boolean hasOutputs = !output_channels.isEmpty();
 
         System.out.println("Action Thread state " + state);
+
         while ((state == CODAState.ACTIVE) || (state == CODAState.PAUSED)) {
             try {
                 Iterator<DataChannel> outputIter = null;
@@ -127,7 +148,7 @@ public class Process implements EmuModule, Runnable {
                 while (state == CODAState.ACTIVE) {
 
                     if (hasOutputs && !outputIter.hasNext()) outputIter = output_channels.iterator();
-                    DataChannel outC = null;
+                    DataChannel outC;
                     BlockingQueue<DataBank> out_queue = null;
                     if (hasOutputs) {
                         outC = outputIter.next();
@@ -248,15 +269,30 @@ public class Process implements EmuModule, Runnable {
         state = cmd.success();
     }
 
+    /**
+     * finalize is called when the module is unloaded and cleans up allocated resources.
+     *
+     * @throws Throwable
+     */
     protected void finalize() throws Throwable {
         Logger.info("Finalize " + name);
         super.finalize();
     }
 
+    /**
+     * This method allows the input_channels list to be set.
+     *
+     * @param input_channels the input_channels of this EmuModule object.
+     */
     public void setInput_channels(ArrayList<DataChannel> input_channels) {
         this.input_channels = input_channels;
     }
 
+    /**
+     * This method allows the output_channels list to be set
+     *
+     * @param output_channels the output_channels of this EmuModule object.
+     */
     public void setOutput_channels(ArrayList<DataChannel> output_channels) {
         this.output_channels = output_channels;
     }
