@@ -14,6 +14,7 @@ package org.jlab.coda.support.transport;
 import org.jlab.coda.cMsg.cMsgCallbackInterface;
 import org.jlab.coda.cMsg.cMsgException;
 import org.jlab.coda.cMsg.cMsgMessage;
+import org.jlab.coda.cMsg.cMsgSubscriptionHandle;
 import org.jlab.coda.emu.Emu;
 import org.jlab.coda.support.codaComponent.CODAState;
 import org.jlab.coda.support.codaComponent.CODATransition;
@@ -47,6 +48,9 @@ public class DataTransportImplCMsg extends DataTransportCore implements DataTran
     /** Field serverSocket */
     private ServerSocket serverSocket;
     Thread acceptHelperThread;
+
+    /** Field subscription */
+    cMsgSubscriptionHandle sub;
 
     /** Field host */
     private String host = null;
@@ -168,7 +172,7 @@ public class DataTransportImplCMsg extends DataTransportCore implements DataTran
             serverSocket = new ServerSocket(0, 1, localhost);
 
             System.out.println("subscribe " + name());
-            CMSGPortal.getServer().subscribe(name(), "get_socket", this, null);
+            sub = CMSGPortal.getServer().subscribe(name(), "get_socket", this, null);
 
         } catch (Exception e) {
             e.printStackTrace();
@@ -242,7 +246,7 @@ public class DataTransportImplCMsg extends DataTransportCore implements DataTran
         if ((cmd.equals(CODATransition.end)) || (cmd.equals(RunControl.reset))) {
             try {
                 Logger.debug("CMsg Unsubscribe : " + name() + " " + myInstance);
-                CMSGPortal.getServer().unsubscribe(this);
+                CMSGPortal.getServer().unsubscribe(sub);
 
                 serverSocket.close();
 

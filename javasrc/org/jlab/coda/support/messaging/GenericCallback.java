@@ -24,7 +24,7 @@ class GenericCallback {
      *
      * @return the maximumCueSize (type int) of this transitionHandler object.
      */
-    public int getMaximumCueSize() {
+    public int getMaximumQueueSize() {
         return 10000;
     }
 

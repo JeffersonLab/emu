@@ -255,7 +255,7 @@ public class DataTransportCore {
      *
      * @return the maximumCueSize (type int) of this TransportImplCMsg object.
      */
-    public int getMaximumCueSize() {
+    public int getMaximumQueueSize() {
         return 100;
     }
 
