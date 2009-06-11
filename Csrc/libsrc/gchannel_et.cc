@@ -30,9 +30,7 @@
 #include "gph.h"
 
 #include "et.h"
-#define EMU_ET_STATIONS_MAX 100
-#define EMU_ET_PROCESSES_MAX 110 // et's default value
-#define EMU_ET_ATTACHMENTS_MAX 110 // et's default value
+#include "et_private.h"
 
 #include "jni.h"
 
@@ -113,13 +111,13 @@ extern "C" int gchannel_create_transport_et(gtransport m) {
     et_system_config_settemps(config, et->capacity);
 
     /* limit on # of stations */
-    et_system_config_setstations(config, EMU_ET_STATIONS_MAX);
+    et_system_config_setstations(config, ET_ATTACHMENTS_MAX);
 
     /* soft limit on # of attachments (hard limit = ET_ATTACHMENTS_MAX) */
-    et_system_config_setattachments(config, EMU_ET_ATTACHMENTS_MAX);
+    et_system_config_setattachments(config, 200);
 
     /* soft limit on # of processes (hard limit = ET_PROCESSES_MAX) */
-    et_system_config_setprocs(config, EMU_ET_PROCESSES_MAX);
+    et_system_config_setprocs(config, ET_PROCESSES_MAX);
 
     printf("starting ET system %s\n", et->et_filename);
 
