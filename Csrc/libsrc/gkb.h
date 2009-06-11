@@ -25,7 +25,7 @@
 #ifndef GENERIC_KEY_CONTROL_H_
 #define GENERIC_KEY_CONTROL_H_
 
-#include "gmp.hxx";
+#include "gmp.hxx"
 
 #ifdef __cplusplus
 extern "C" void gkb_add_key(char key, int (*handler)(void* arg),void *arg, char *help);

@@ -68,7 +68,7 @@ void gsh_create()
 
 static void cc_handler(void *arg)
 {
-    struct gtp_thread *thread_descriptor = (struct gtp_thread *) arg;
+    /*struct gtp_thread *thread_descriptor = (struct gtp_thread *) arg;*/
     sigset_t       sigwaitset;
     int sig_num;
     gll_el le;
