@@ -164,6 +164,7 @@ extern "C" void *gchannel_accept_helper_cmsg(void *arg)
     transp->listen_sock = socket(PF_INET, SOCK_STREAM, 0);
     int window_size = 40000;
     int flag = 1;
+    struct hostent *hostentry;
 
     if(-1 == transp->listen_sock)
     {
@@ -182,7 +183,7 @@ extern "C" void *gchannel_accept_helper_cmsg(void *arg)
 
     printf("hostname is %s\n", transp->host);
 
-    struct hostent *hostentry = gethostbyname(transp->host);
+    hostentry = gethostbyname(transp->host);
 
     bzero(&transp->listenAddr, sizeof(transp->listenAddr));
 
