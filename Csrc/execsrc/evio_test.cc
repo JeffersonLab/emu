@@ -1,5 +1,6 @@
 #include "transport_test.h"
 
+#include "gchannel.h"
 #include "gdf.h"
 #include "gsl.h"
 #include <stdio.h>
