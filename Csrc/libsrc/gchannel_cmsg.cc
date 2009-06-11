@@ -30,7 +30,6 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include "cMsg.h"
-#include "cMsgDomain.h"
 #include <fcntl.h>
 #include <netdb.h>
 #include <stdio.h>

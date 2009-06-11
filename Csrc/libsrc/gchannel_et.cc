@@ -29,8 +29,7 @@
 #include "gchannel.h"
 #include "gph.h"
 
-#include "et_private.h"
-#include "et_network.h"
+#include "et.h"
 
 #include "jni.h"
 
