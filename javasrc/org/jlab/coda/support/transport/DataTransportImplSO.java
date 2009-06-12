@@ -63,6 +63,7 @@ public class DataTransportImplSO extends DataTransportCore implements DataTransp
      *
      * @param pname  of type String
      * @param attrib of type Map
+     *
      * @throws DataNotFoundException when
      */
     public DataTransportImplSO(String pname, Map<String, String> attrib) throws DataNotFoundException {
@@ -177,7 +178,7 @@ public class DataTransportImplSO extends DataTransportCore implements DataTransp
      *
      * @throws DataTransportException when
      */
-    public void startServer() throws DataTransportException {
+    void startServer() throws DataTransportException {
         // set connected flag
 
         try {
@@ -264,7 +265,7 @@ public class DataTransportImplSO extends DataTransportCore implements DataTransp
     }
 
     /** Method connect ... */
-    public void connect() {
+    void connect() {
         Thread connectHelperThread = new Thread(Emu.THREAD_GROUP, new ConnectHelper(), name() + " connect");
 
         connectHelperThread.start();
@@ -275,7 +276,8 @@ public class DataTransportImplSO extends DataTransportCore implements DataTransp
      * Method createChannel ...
      *
      * @param name    of type String
-     * @param isInput
+     * @param isInput set to true if this is an input channel
+     *
      * @return DataChannel
      */
     public DataChannel createChannel(String name, boolean isInput) throws DataTransportException {
@@ -285,31 +287,14 @@ public class DataTransportImplSO extends DataTransportCore implements DataTransp
     }
 
     /**
-     * Method closeChannel ...
-     *
-     * @param channel of type DataChannel
-     */
-    public void closeChannel(DataChannel channel) {
-
-    }
-
-    /**
      * Method receive ...
      *
      * @param channel of type DataChannel
+     *
      * @return int[]
      */
     public DataTransportRecord receive(DataChannel channel) {
         return null;
-    }
-
-    /**
-     * Method send ...
-     *
-     * @param channel of type DataChannel
-     * @param data    of type long[]
-     */
-    public void send(DataChannel channel, long[] data) {
     }
 
     /**
@@ -330,6 +315,7 @@ public class DataTransportImplSO extends DataTransportCore implements DataTransp
      * Method execute ...
      *
      * @param cmd of type Command
+     *
      * @see org.jlab.coda.emu.EmuModule#execute(Command)
      */
     public void execute(Command cmd) {

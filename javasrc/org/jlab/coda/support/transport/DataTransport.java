@@ -25,6 +25,7 @@ import java.util.HashMap;
  * @author heyes
  *         Created on Sep 17, 2008
  */
+@SuppressWarnings({"RedundantThrows"})
 public interface DataTransport {
     /**
      * Method getType returns the type of this DataTransport object.
@@ -53,13 +54,16 @@ public interface DataTransport {
      * in the context of the receiving module.
      *
      * @param cmd of type Command
-     * @throws org.jlab.coda.support.control.CmdExecException
      *
+     * @throws org.jlab.coda.support.control.CmdExecException
+     *          exception processing command
      */
+    @SuppressWarnings({"RedundantThrows"})
     public void execute(Command cmd) throws CmdExecException;
 
     /**
      * @return the name
+     *
      * @see org.jlab.coda.emu.EmuModule#name()
      */
     public String name();
@@ -77,9 +81,11 @@ public interface DataTransport {
      * Method getAttr ...
      *
      * @param pname of type String
-     * @return String
-     * @throws org.jlab.coda.support.configurer.DataNotFoundException
      *
+     * @return String
+     *
+     * @throws org.jlab.coda.support.configurer.DataNotFoundException
+     *          couldn't find named attribute
      */
     public String getAttr(String pname) throws DataNotFoundException;
 
@@ -87,8 +93,10 @@ public interface DataTransport {
      * Method getIntAttr ...
      *
      * @param pname of type String
+     *
      * @return int
-     * @throws DataNotFoundException when
+     *
+     * @throws DataNotFoundException couldn't find named attribute
      */
     public int getIntAttr(String pname) throws DataNotFoundException;
 
@@ -96,8 +104,11 @@ public interface DataTransport {
      * Method createChannel ...
      *
      * @param name    of type String
-     * @param isInput
+     * @param isInput set if this channel is incoming
+     *
      * @return DataChannel
+     *
+     * @throws DataTransportException thrown if transport problem
      */
     // Data Transport control
     public DataChannel createChannel(String name, boolean isInput) throws DataTransportException;
@@ -123,14 +134,6 @@ public interface DataTransport {
      * @param data    of type long[]
      */
     public void send(DataChannel channel, DataBank data);
-
-    /**
-     * Method receive ...
-     *
-     * @param channel of type DataChannel
-     * @return int[]
-     */
-    public DataBank receive(DataChannel channel) throws InterruptedException;
 
     /**
      * Method isServer returns the server of this DataTransport object.

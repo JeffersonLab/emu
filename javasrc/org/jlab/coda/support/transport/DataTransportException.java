@@ -19,7 +19,7 @@ package org.jlab.coda.support.transport;
  * @author heyes
  *         Created on Sep 17, 2008
  */
-public class DataTransportException extends Exception {
+class DataTransportException extends Exception {
 
     /** Field serialVersionUID */
     private static final long serialVersionUID = 1L;

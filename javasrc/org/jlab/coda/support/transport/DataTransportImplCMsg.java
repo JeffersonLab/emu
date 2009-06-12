@@ -20,7 +20,6 @@ import org.jlab.coda.support.codaComponent.CODAState;
 import org.jlab.coda.support.codaComponent.CODATransition;
 import org.jlab.coda.support.codaComponent.RunControl;
 import org.jlab.coda.support.configurer.DataNotFoundException;
-import org.jlab.coda.support.control.CmdExecException;
 import org.jlab.coda.support.control.Command;
 import org.jlab.coda.support.logger.Logger;
 import org.jlab.coda.support.messaging.CMSGPortal;
@@ -47,7 +46,7 @@ public class DataTransportImplCMsg extends DataTransportCore implements DataTran
 
     /** Field serverSocket */
     private ServerSocket serverSocket;
-    Thread acceptHelperThread;
+    private Thread acceptHelperThread;
 
     /** Field subscription */
     cMsgSubscriptionHandle sub;
@@ -63,6 +62,7 @@ public class DataTransportImplCMsg extends DataTransportCore implements DataTran
      *
      * @param pname  of type String
      * @param attrib of type Map
+     *
      * @throws org.jlab.coda.support.configurer.DataNotFoundException
      *          when
      */
@@ -161,7 +161,7 @@ public class DataTransportImplCMsg extends DataTransportCore implements DataTran
     /**
      * Method startServer ...
      *
-     * @throws DataTransportException
+     * @throws DataTransportException problem with transport
      */
     private void startServer() throws DataTransportException {
         // set connected flag
@@ -184,7 +184,11 @@ public class DataTransportImplCMsg extends DataTransportCore implements DataTran
         setConnected(true);
     }
 
-    /** Method connect ... */
+    /**
+     * Method connect ...
+     *
+     * @throws DataTransportException problem with transport
+     */
     private void connect() throws DataTransportException {
         try {
             cMsgMessage msg = new cMsgMessage();
@@ -206,7 +210,8 @@ public class DataTransportImplCMsg extends DataTransportCore implements DataTran
      * Method createChannel ...
      *
      * @param name    of type String
-     * @param isInput
+     * @param isInput set if this is an input channel
+     *
      * @return DataChannel
      */
     public DataChannel createChannel(String name, boolean isInput) throws DataTransportException {
@@ -222,10 +227,11 @@ public class DataTransportImplCMsg extends DataTransportCore implements DataTran
      * Method execute ...
      *
      * @param cmd of type Command
+     *
      * @see org.jlab.coda.emu.EmuModule#execute(org.jlab.coda.support.control.Command)
      * @see org.jlab.coda.emu.EmuModule#execute(Command)
      */
-    public void execute(Command cmd) throws CmdExecException {
+    public void execute(Command cmd) {
         System.out.println("DataTransportImplCMsg execute : " + cmd);
 
         if (cmd.equals(CODATransition.prestart)) {

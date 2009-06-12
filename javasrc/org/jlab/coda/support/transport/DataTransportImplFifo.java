@@ -1,7 +1,6 @@
 package org.jlab.coda.support.transport;
 
 import org.jlab.coda.support.configurer.DataNotFoundException;
-import org.jlab.coda.support.control.CmdExecException;
 import org.jlab.coda.support.control.Command;
 
 import java.util.Map;
@@ -11,7 +10,7 @@ import java.util.Map;
  * User: heyes
  * Date: Nov 10, 2008
  * Time: 1:18:47 PM
- * To change this template use File | Settings | File Templates.
+ * Implement a DataTransport that uses DataChannel based on BlockingQueue
  */
 public class DataTransportImplFifo extends DataTransportCore implements DataTransport {
 
@@ -23,19 +22,18 @@ public class DataTransportImplFifo extends DataTransportCore implements DataTran
      * Method execute When passed a Command object executes the command
      * in the context of the receiving module.
      *
-     * @param cmd of type Command
-     * @throws org.jlab.coda.support.control.CmdExecException
-     *
+     * @param cmd something to chew on.
      */
-    public void execute(Command cmd) throws CmdExecException {
-        //To change body of implemented methods use File | Settings | File Templates.
+    public void execute(Command cmd) {
+        // Dummy, nothing to see here people, move along...
     }
 
     /**
      * Method createChannel ...
      *
-     * @param name    of type String
-     * @param isInput
+     * @param name    name of the fifo
+     * @param isInput true if this is an input
+     *
      * @return DataChannel
      */
     public DataChannel createChannel(String name, boolean isInput) throws DataTransportException {

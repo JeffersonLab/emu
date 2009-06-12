@@ -44,13 +44,8 @@ public class DataChannelImplSO implements DataChannel {
     /** Field dataThread */
     private Thread dataThread;
 
-    /** Field size */
-    private int size = 20000;
-
     /** Field full */
     private final BlockingQueue<DataBank> queue;
-
-    private int capacity = 40;
 
     /**
      * Constructor DataChannelImplSO creates a new DataChannelImplSO instance.
@@ -58,17 +53,19 @@ public class DataChannelImplSO implements DataChannel {
      * @param pname of type String
      * @param ti    of type DataTransport
      */
-    DataChannelImplSO(String pname, DataTransport ti) throws DataTransportException {
+    DataChannelImplSO(String pname, DataTransport ti) {
 
         transport = ti;
         name = pname;
 
+        int capacity = 40;
         try {
             capacity = transport.getIntAttr("capacity");
         } catch (Exception e) {
             Logger.info(e.getMessage() + " default to " + capacity + " records.");
         }
 
+        int size = 20000;
         try {
             size = transport.getIntAttr("size");
         } catch (Exception e) {
@@ -116,8 +113,6 @@ public class DataChannelImplSO implements DataChannel {
                 while (dataSocket.isConnected()) {
                     // take an empty buffer
 
-                    int length = in.readInt();
-
                     DataTransportRecord dr = (DataTransportRecord) DataBank.read(in);
 
                     os.write(0xaa);
@@ -142,7 +137,6 @@ public class DataChannelImplSO implements DataChannel {
                 DataOutputStream out = new DataOutputStream(dataSocket.getOutputStream());
 
                 DataBank d;
-                int len;
                 int ack;
                 InputStream is = dataSocket.getInputStream();
 
@@ -186,15 +180,6 @@ public class DataChannelImplSO implements DataChannel {
      */
     public BlockingQueue<DataBank> getQueue() {
         return queue;
-    }
-
-    /**
-     * Method receive ...
-     *
-     * @return int[]
-     */
-    public DataBank receive() throws InterruptedException {
-        return transport.receive(this);
     }
 
     /**

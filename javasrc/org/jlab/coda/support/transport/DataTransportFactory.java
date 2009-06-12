@@ -47,7 +47,9 @@ public class DataTransportFactory implements StatedObject {
      * Method findNamedTransport ...
      *
      * @param name of type String
+     *
      * @return DataTransport
+     *
      * @throws org.jlab.coda.support.configurer.DataNotFoundException
      *          when
      */
@@ -65,6 +67,7 @@ public class DataTransportFactory implements StatedObject {
 
     /**
      * @return the name
+     *
      * @see org.jlab.coda.emu.EmuModule#name()
      */
     public String name() {
@@ -97,6 +100,9 @@ public class DataTransportFactory implements StatedObject {
      * Method execute ...
      *
      * @param cmd of type Command
+     *
+     * @throws org.jlab.coda.support.control.CmdExecException
+     *          if command is invalid or fails
      * @see org.jlab.coda.emu.EmuModule#execute(Command)
      */
     @SuppressWarnings({"ConstantConditions", "ThrowableInstanceNeverThrown"})
@@ -191,27 +197,8 @@ public class DataTransportFactory implements StatedObject {
             }
             transports.clear();
             state = cmd.success();
-            return;
         }
 
-    }
-
-    /**
-     * Method setInput_channels sets the input_channels of this EmuModule object.
-     *
-     * @param input_channels the input_channels of this EmuModule object.
-     */
-    public void setInput_channels(HashMap<String, DataChannel> input_channels) {
-        // dummy, does nothing
-    }
-
-    /**
-     * Method setOutput_channels sets the output_channels of this EmuModule object.
-     *
-     * @param output_channels the output_channels of this EmuModule object.
-     */
-    public void setOutput_channels(HashMap<String, DataChannel> output_channels) {
-        // dummy, does nothing
     }
 
 }

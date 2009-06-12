@@ -21,7 +21,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 /** @author heyes */
-@SuppressWarnings({"WeakerAccess"})
+@SuppressWarnings({"WeakerAccess", "SameReturnValue", "SameReturnValue", "SameReturnValue", "SameReturnValue", "SameReturnValue", "SameReturnValue"})
 public class DataTransportCore {
     /** Field state */
     protected State state = CODAState.UNCONFIGURED;
@@ -29,8 +29,8 @@ public class DataTransportCore {
     /** Field connected */
     private boolean connected = false;
 
-    /** Field transports */
-    private static final HashMap<String, DataTransportCore> transports = new HashMap<String, DataTransportCore>();
+    // TODO Field transports - not used
+    //private static final HashMap<String, DataTransportCore> transports = new HashMap<String, DataTransportCore>();
 
     /** Field type */
     private String transportClass = "unknown";
@@ -62,6 +62,7 @@ public class DataTransportCore {
      * Method fifo_list ...
      *
      * @param arg of type long
+     *
      * @return long
      */
     public static native long fifo_list(long arg);
@@ -71,12 +72,13 @@ public class DataTransportCore {
      *
      * @param pname  of type String
      * @param attrib of type Map
+     *
      * @throws DataNotFoundException when
      */
     public DataTransportCore(String pname, Map<String, String> attrib) throws DataNotFoundException {
 
         name = pname;
-        transports.put(pname, this);
+        // TODO transports.put(pname, this);
 
         attr = attrib;
 
@@ -92,15 +94,6 @@ public class DataTransportCore {
         myInstance = instanceCount++;
 
         Logger.debug("INSTANCE " + pname + "of " + this.getClass() + " : " + myInstance);
-    }
-
-    /** Method test ... */
-    /*
-    * (non-Javadoc)
-    *
-    * @see org.jlab.coda.support.transport.EmuDataTransport#test()
-    */
-    public void test() {
     }
 
     /**
@@ -159,7 +152,11 @@ public class DataTransportCore {
      * Method getAttr ...
      *
      * @param pname of type String
+     *
      * @return String
+     *
+     * @throws org.jlab.coda.support.configurer.DataNotFoundException
+     *          if there is no such attribute
      */
     public String getAttr(String pname) throws DataNotFoundException {
         String attribute = attr.get(pname);
@@ -172,7 +169,11 @@ public class DataTransportCore {
      * Method getIntAttr ...
      *
      * @param pname of type String
+     *
      * @return int
+     *
+     * @throws org.jlab.coda.support.configurer.DataNotFoundException
+     *          if there is no such attribute
      */
     public int getIntAttr(String pname) throws DataNotFoundException {
         return Integer.valueOf(getAttr(pname));
@@ -290,7 +291,10 @@ public class DataTransportCore {
      * Method receive ...
      *
      * @param channel of type DataChannel
+     *
      * @return int[]
+     *
+     * @throws InterruptedException on wakeup with no data.
      */
     public DataBank receive(DataChannel channel) throws InterruptedException {
         return channel.getQueue().take();

@@ -21,7 +21,6 @@ import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
 import java.net.Socket;
-import java.nio.channels.SocketChannel;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 
@@ -33,6 +32,7 @@ import java.util.concurrent.BlockingQueue;
  * @author heyes
  *         Created on Sep 12, 2008
  */
+@SuppressWarnings({"WeakerAccess"})
 public class DataChannelImplCMsg implements DataChannel {
 
     /** Field transport */
@@ -47,12 +47,6 @@ public class DataChannelImplCMsg implements DataChannel {
     /** Field dataThread */
     private Thread dataThread;
 
-    /** Field size - the default size of the buffers used to receive data */
-    private int size = 20000;
-
-    /** Field capacity - number of records that will fit in the fifos */
-    private int capacity = 40;
-
     /** Field full - filled buffer queue */
     private final BlockingQueue<DataBank> queue;
 
@@ -62,29 +56,27 @@ public class DataChannelImplCMsg implements DataChannel {
     /** Field in */
     private DataInputStream in;
 
-    private SocketChannel channel;
-
-    private boolean isInput = false;
-
     /**
      * Constructor DataChannelImplSO creates a new DataChannelImplSO instance.
      *
-     * @param name          of type String
-     * @param dataTransport of type DataTransport
-     * @param input
+     * @param name          of type String is the name of this channel.
+     * @param dataTransport of type DataTransport that this channel belongs to.
+     * @param input         true if this is an input data channel, otherwise false.
+     *
      * @throws DataTransportException - unable to create buffers or socket.
      */
     DataChannelImplCMsg(String name, DataTransportImplCMsg dataTransport, boolean input) throws DataTransportException {
 
         this.dataTransport = dataTransport;
         this.name = name;
-        this.isInput = input;
+        int capacity = 40;
         try {
             capacity = dataTransport.getIntAttr("capacity");
         } catch (Exception e) {
             Logger.info(e.getMessage() + " default to " + capacity + " records.");
         }
 
+        int size = 20000;
         try {
             size = dataTransport.getIntAttr("size");
         } catch (Exception e) {
@@ -95,12 +87,12 @@ public class DataChannelImplCMsg implements DataChannel {
 
         // If we are a server the accept helper in the dataTransport implementation will
         // handle connections
-        if (!isInput) {
+        if (!input) {
             try {
                 dataSocket = new Socket(dataTransport.getHost(), dataTransport.getPort());
 
                 dataSocket.setTcpNoDelay(true);
-                channel = dataSocket.getChannel();
+                dataSocket.getChannel();
                 out = new DataOutputStream(dataSocket.getOutputStream());
                 in = new DataInputStream(dataSocket.getInputStream());
                 // Always write a 1 byte length followed by data
@@ -126,6 +118,8 @@ public class DataChannelImplCMsg implements DataChannel {
      * Method receive ...
      *
      * @return int[]
+     *
+     * @throws InterruptedException on wakeup of fifo without data.
      */
     public DataBank receive() throws InterruptedException {
         return dataTransport.receive(this);
@@ -134,7 +128,7 @@ public class DataChannelImplCMsg implements DataChannel {
     /**
      * Method send ...
      *
-     * @param data of type long[]
+     * @param data is the bank to send
      */
     public void send(DataBank data) {
         dataTransport.send(this, data);
@@ -165,6 +159,7 @@ public class DataChannelImplCMsg implements DataChannel {
      * Method setDataSocket sets the dataSocket of this DataChannelImplSO object.
      *
      * @param incoming the dataSocket of this DataChannelImplSO object.
+     *
      * @throws DataTransportException - the socket closed while we were in here, unlikely.
      */
     public void setDataSocket(Socket incoming) throws DataTransportException {

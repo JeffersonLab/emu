@@ -11,8 +11,9 @@ import java.util.concurrent.BlockingQueue;
  * User: heyes
  * Date: Nov 10, 2008
  * Time: 1:37:43 PM
- * To change this template use File | Settings | File Templates.
+ * Implementation of a DataChannel using BlockingQueue (FIFO)
  */
+@SuppressWarnings({"RedundantThrows"})
 public class DataChannelImplFifo implements DataChannel {
 
     /** Field transport */
@@ -24,36 +25,31 @@ public class DataChannelImplFifo implements DataChannel {
     /** Field dataThread */
     private Thread dataThread;
 
-    /** Field size - the default size of the buffers used to receive data */
-    private int size = 20000;
-
-    /** Field capacity - number of records that will fit in the fifos */
-    private int capacity = 40;
-
     /** Field full - filled buffer queue */
     private final BlockingQueue<DataBank> queue;
-
-    private boolean isInput = false;
 
     /**
      * Constructor DataChannelImplFifo creates a new DataChannelImplFifo instance.
      *
      * @param name          of type String
      * @param dataTransport of type DataTransport
-     * @param input
+     * @param input         true if this is an input
+     *
      * @throws DataTransportException - unable to create fifo buffer.
      */
+    @SuppressWarnings({"UnusedParameters"})
     DataChannelImplFifo(String name, DataTransportImplFifo dataTransport, boolean input) throws DataTransportException {
 
         this.dataTransport = dataTransport;
         this.name = name;
-        this.isInput = input;
+        int capacity = 40;
         try {
             capacity = dataTransport.getIntAttr("capacity");
         } catch (Exception e) {
             Logger.info(e.getMessage() + " default to " + capacity + " records.");
         }
 
+        int size = 20000;
         try {
             size = dataTransport.getIntAttr("size");
         } catch (Exception e) {
@@ -61,6 +57,7 @@ public class DataChannelImplFifo implements DataChannel {
         }
 
         queue = new ArrayBlockingQueue<DataBank>(capacity);
+
     }
 
     /** @see org.jlab.coda.support.transport.DataChannel#getName() */
@@ -72,6 +69,8 @@ public class DataChannelImplFifo implements DataChannel {
      * Method receive ...
      *
      * @return int[]
+     *
+     * @throws InterruptedException on wakeup of fifo with no data
      */
     public DataBank receive() throws InterruptedException {
         return dataTransport.receive(this);

@@ -26,13 +26,6 @@ public interface DataChannel {
     public String getName();
 
     /**
-     * Method receive ...
-     *
-     * @return int[]
-     */
-    public DataBank receive() throws InterruptedException;
-
-    /**
      * Method send ...
      *
      * @param data of type long[]
