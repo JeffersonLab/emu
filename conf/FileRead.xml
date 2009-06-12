@@ -13,7 +13,7 @@
 <component name="FileRead">
     <transports>
         <client name="BitBucket_SOCKET" class="CMsg"/>
-        <client name="File" class="File"/>
+        <client name="File" class="File" filename="dataFile.coda"/>
         <client name="File2" class="File"/>
     </transports>
     <modules src="modules.jar" usr_src="user_modules.jar">
@@ -24,4 +24,3 @@
         </ProcessModule>
     </modules>
 </component>
-
