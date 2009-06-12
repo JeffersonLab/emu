@@ -34,6 +34,7 @@ import org.w3c.dom.Document;
 import org.w3c.dom.Node;
 
 import java.io.File;
+import java.io.IOException;
 import java.io.PrintWriter;
 import java.util.HashMap;
 import java.util.Vector;
@@ -41,86 +42,120 @@ import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 
 /**
- * -----------------------------------------------------
- * Copyright (c) 2008 Jefferson lab data acquisition group
- * Class ComponentImpl ...
- *
- * @author heyes
- *         Created on Sep 12, 2008
+ * This is the main class of the EMU (Event Management Unit) program. It implements the CODAComponent interface
+ * which allows communication with Run Control and implements a state machine. The class also implemnts the
+ * KbdHandler interface which allows the EMU program to accept commands from the keyboard.
  */
 public class Emu implements KbdHandler, CODAComponent {
 
-    /** Field INSTANCE */
+    /** Field INSTANCE, there is only one instance of the Emu class and it is stored in INSTANCE. */
     public static CODAComponent INSTANCE = null;
 
-    /** Field FRAMEWORK */
-    protected static DebugFrame FRAMEWORK = null;
-
-    /** Field THREAD_GROUP */
-    public static ThreadGroup THREAD_GROUP = null;
-
-    /** Field MODULE_FACTORY */
-    private final static org.jlab.coda.emu.EmuModuleFactory MODULE_FACTORY = new org.jlab.coda.emu.EmuModuleFactory();
-
-    /** Field name */
-    private String name = "unconfigured";
-
-    /** Field listener */
-    private CmdListener listener = null;
-
-    /** Field statusMonitor */
-    private Thread statusMonitor = null;
-
-    /** Field mailbox */
-    private final LinkedBlockingQueue<Command> mailbox;
-
-    /** Field loadedConfig */
-    private Document loadedConfig = null;
-
-    /** Field localConfig */
-    private Document localConfig = null;
-
-    /** Field cmsgPortal */
-    private CMSGPortal cmsgPortal;
-
-    /** Field cmsgUDL */
-    private String cmsgUDL = null;
-
-    /** Field session */
-    private String session;
-    /** Field expid */
-    private String expid;
-    /** Field hostName */
-    private String hostName;
-    /** Field userName */
-    private String userName;
-    /** Field config */
-    private String config = "unconfigured";
-    /** Field codaClass */
-    private final String codaClass = "EMU";
-
-    /** Field runNumber */
-    private int runNumber;
-    /** Field runType */
-    private int runType;
-    /** Field codaid */
-    private int codaid;
-    private String emuName;
-    private String installDir;
+    /**
+     * Field FRAMEWORK, the Emu can display a window containing debug information, a message log
+     * and toolbars that allow commands to be issued without Run Control. This is implemented by
+     * the DebugFrame class. If the DebugFrame is displayed it's instance is stored in FRAMEWORK.
+     */
+    private static DebugFrame FRAMEWORK = null;
 
     /**
-     * Method main ...
+     * Field THREAD_GROUP, the Emu attempts to start all of it's threads in one thread group.
+     * the thread group is stored in THREAD_GROUP.
+     */
+    public static ThreadGroup THREAD_GROUP = null;
+
+    /**
+     * Field MODULE_FACTORY, most of the data manipulation in the Emu is done by plug-in modules.
+     * The modules are specified in an XML configuration file and managed by an object of the
+     * EmuModuleFactory class. The single instance of EmuModuleFactory is stored in MODULE_FACTORY.
+     */
+    private final static org.jlab.coda.emu.EmuModuleFactory MODULE_FACTORY = new org.jlab.coda.emu.EmuModuleFactory();
+
+    /** Field name is the name of the Emu, initially "unconfigured" */
+    private String name = "unconfigured";
+
+    /** Field listener, a thread listens for commands and is of class CmdListener */
+    private CmdListener listener = null;
+
+    /** Field statusMonitor, the Emu monitors it's own status via a thread. */
+    private Thread statusMonitor = null;
+
+    /**
+     * Field mailbox, commands from the keyboard or cMsg are converted into objects
+     * of class Command that are then posted in the queue called mailbox.
+     */
+    private final LinkedBlockingQueue<Command> mailbox;
+
+    /**
+     * Field loadedConfig is the XML document loaded when the configure command is executed.
+     * It may change from run to run and tells the Emu which modules to load, which data transports to
+     * start and what data channels to open.
+     */
+    private Document loadedConfig = null;
+
+    /**
+     * Field localConfig is an XML document loaded when the configure command is executed.
+     * This config contains all of the status variables that change from run to run.
+     */
+    private Document localConfig = null;
+
+    /** Field cmsgPortal, a CMSGPortal object encapsulates the cMsg API. There is one instance. */
+    private final CMSGPortal cmsgPortal;
+
+    /** Field cmsgUDL, the UDL of the cMsg server */
+    private String cmsgUDL = null;
+
+    /** Field session, the name of the current DAQ session */
+    private String session;
+    /** Field expid, the numberic code corresponding to session */
+    private String expid;
+    /** Field hostName, the name of the host this Emu is running on. */
+    private String hostName;
+    /** Field userName, the name of the user account the Emu is running under. */
+    private String userName;
+    /** Field config, the name of the current configuration, passed via the configure command. */
+    private String config = "unconfigured";
+    /** Field codaClass, this is an EMU therefore the class of CODA component is EMU. */
+    private final String codaClass = "EMU";
+
+    /** Field runNumber, the run number. */
+    private int runNumber;
+    /** Field runType, the numeric code representing the run type. */
+    private int runType;
+    /** Field codaid, a unique numeric identifier for this Emu. */
+    private int codaid;
+    /** Field installDir, the path to the directory that the EMU software is installed in. */
+    private final String installDir;
+
+    /**
+     * Method main, entry point for this program simply creates an object of class Emu.
+     * The Emu gets arguments from the environment via environment variables and Java properties.
      *
      * @param args of type String[]
      */
+    @SuppressWarnings({"UnusedParameters"})
     public static void main(String[] args) {
         // This gets called only once
         new Emu();
 
     }
 
-    /** Constructor ComponentImpl creates a new ComponentImpl instance. */
-    // End of fields
+    /**
+     * Constructor
+     * The constructor is only called once and the created object is stored in INSTANCE.
+     * A thread is started to monitor the state field.
+     * Java system properties ar read and if required a debug GUI or keyboard command line
+     * interface are stated.
+     * <p/>
+     * The emu is named from the "name" property.
+     * <p/>
+     * The emu loads local.xml which contains a specification of status parameters.
+     * <p/>
+     * The emu starts up a connecton to the cMsg server.
+     * <p/>
+     * By the end of the constructor several threads have been started  and the static
+     * method main will not exit while they are running.
+     */
     protected Emu() {
         INSTANCE = this;
         setName("EMUComponent");
@@ -139,13 +174,13 @@ public class Emu implements KbdHandler, CODAComponent {
             listener = new CmdListener();
         }
 
-        Logger.info("CODAComponent constructor called");
+        Logger.info("CODAComponent constructor called.");
 
         mailbox = new LinkedBlockingQueue<Command>();
 
         statusMonitor.start();
 
-        emuName = System.getProperty("name");
+        String emuName = System.getProperty("name");
         if (emuName == null) {
             Logger.error("CODAComponent exit - name not defined");
             System.exit(-1);
@@ -162,6 +197,7 @@ public class Emu implements KbdHandler, CODAComponent {
         try {
             localConfig = Configurer.parseFile(configF);
         } catch (DataNotFoundException e) {
+            e.printStackTrace();
             Logger.error("CODAComponent exit - $INSTALL_DIR/conf/local.xml not found");
             System.exit(-1);
         }
@@ -171,6 +207,13 @@ public class Emu implements KbdHandler, CODAComponent {
             Node node = localConfig.getFirstChild();
             Configurer.getDataNodes(node);
         }
+
+        try {
+            System.getProperties().storeToXML(System.out, "test");
+        } catch (IOException e) {
+            e.printStackTrace();  //To change body of catch statement use File | Settings | File Templates.
+        }
+
         cmsgUDL = System.getProperty("cmsgUDL");
 
         cmsgPortal = CMSGPortal.getCMSGPortal(this);
@@ -204,7 +247,6 @@ public class Emu implements KbdHandler, CODAComponent {
         if (FRAMEWORK != null) FRAMEWORK.setTitle(pname);
     }
 
-    /** Method list ... */
     /*
     * (non-Javadoc)
     *
@@ -216,16 +258,22 @@ public class Emu implements KbdHandler, CODAComponent {
     }
 
     /**
-     * Method postCommand ...
+     * Method postCommand puts a command object into a mailbox that is periodically checked by the main thread
+     * of the emu.
      *
      * @param cmd of type Command
+     *
      * @throws InterruptedException when
      */
     public void postCommand(Command cmd) throws InterruptedException {
         mailbox.put(cmd);
     }
 
-    /** Method run ... */
+    /**
+     * Method run stored in field statusMonitor this thread monitors the mailbox for incoming commands
+     * and monitors the state of the emu (actually the state of the MODULE_FACTORY) to detect any
+     * error conditions.
+     */
     /*
     * (non-Javadoc)
     *
@@ -234,7 +282,7 @@ public class Emu implements KbdHandler, CODAComponent {
     public void run() {
         Logger.info("CODAComponent state monitor thread started");
         State oldState = null;
-        State state = null;
+        State state;
         // Thread.currentThread().getThreadGroup().list();
         do {
 
@@ -290,17 +338,19 @@ public class Emu implements KbdHandler, CODAComponent {
     }
 
     /**
-     * Method keyHandler ...
+     * Method the Emu class implements the KbdHandler interface which allows the emu to
+     * respond to text commands.
      *
-     * @param s        of type String
-     * @param out      of type PrintWriter
-     * @param argument of type Object
+     * @param command of type String is the incoming command
+     * @param out     of type PrintWriter
+     *
      * @return boolean
-     * @see org.jlab.coda.support.keyboardControl.KbdHandler#keyHandler(String, PrintWriter, Object)
+     *
+     * @see org.jlab.coda.support.keyboardControl.KbdHandler#keyHandler(String,java.io.PrintWriter)
      */
-    public boolean keyHandler(String s, PrintWriter out, Object argument) {
+    public boolean keyHandler(String command, PrintWriter out) {
         try {
-            CODATransition cmd = CODATransition.valueOf(s);
+            CODATransition cmd = CODATransition.valueOf(command);
             this.postCommand(cmd);
         } catch (InterruptedException e) {
             e.printStackTrace();
@@ -313,11 +363,6 @@ public class Emu implements KbdHandler, CODAComponent {
         return true;
     }
 
-    /**
-     * Method printHelp ...
-     *
-     * @param out of type PrintWriter
-     */
     /*
     * (non-Javadoc)
     *
@@ -338,7 +383,7 @@ public class Emu implements KbdHandler, CODAComponent {
         return MODULE_FACTORY.state();
     }
 
-    /** @return the framework */
+    /** @return the debug gui */
     public static DebugFrame getFramework() {
         return FRAMEWORK;
     }
@@ -355,43 +400,36 @@ public class Emu implements KbdHandler, CODAComponent {
 
     /**
      * @return the name
+     *
      * @see org.jlab.coda.emu.EmuModule#name()
      */
-    /*
-    * (non-Javadoc)
-    *
-    * @see org.jlab.coda.support.codaComponent.CODAComponent#getName()
-    */
+
     public String name() {
         return name;
     }
 
     /**
-     * Method execute ...
+     * Method execute takes a Command object and attempts to execute it.
      *
      * @param cmd of type Command
+     *
      * @see org.jlab.coda.emu.EmuModule#execute(Command)
      */
-    public synchronized void execute(Command cmd) {
-        boolean done = false;
+    synchronized void execute(Command cmd) {
         if (cmd.equals(RunControl.configure)) {
             String configF = System.getProperty("config");
             if (configF == null) {
-                configF = installDir + File.separator + "conf" + File.separator + emuName + ".xml";
+                configF = installDir + File.separator + "conf" + File.separator + name + ".xml";
             }
             Document oldConfig = loadedConfig;
 
             try {
-                if (cmd.hasArgs()) {
-                    cMsgPayloadItem arg = (cMsgPayloadItem) cmd.getArg("configuration");
+                if (cmd.hasArgs() && (cmd.getArg("config") != null)) {
+                    cMsgPayloadItem arg = (cMsgPayloadItem) cmd.getArg("config");
                     if (arg.getType() == cMsgConstants.payloadStr) {
                         loadedConfig = Configurer.parseString(arg.getString());
                     } else {
-                        Exception e = new DataNotFoundException("cMsg: configuration argument for configure is not a string");
-                        Logger.error("Configure FAILED", e);
-                        CODAState.ERROR.getCauses().add(e);
-                        MODULE_FACTORY.ERROR();
-                        return;
+                        throw new DataNotFoundException("cMsg: configuration argument for configure is not a string");
                     }
                 } else {
                     loadedConfig = Configurer.parseFile(configF);
@@ -424,7 +462,8 @@ public class Emu implements KbdHandler, CODAComponent {
             MODULE_FACTORY.execute(cmd);
             Logger.info("command " + cmd + " executed, state " + cmd.success());
         } catch (CmdExecException e) {
-            CODAState.ERROR.getCauses().add(new CmdExecException("Command " + cmd + " failed"));
+            CODAState.ERROR.getCauses().add(e);
+            MODULE_FACTORY.ERROR();
         }
 
         if (cmd.equals(RunControl.reset)) {
@@ -439,13 +478,8 @@ public class Emu implements KbdHandler, CODAComponent {
 
     }
 
-    /** Method quit ... */
-/*
-* (non-Javadoc)
-*
-* @see org.jlab.coda.emu.CODAComponent#reset()
-*/
-    public void quit() {
+    /** Does what it says. */
+    void quit() {
 
         ApplicationConsole.closeAll();
 
@@ -466,106 +500,109 @@ public class Emu implements KbdHandler, CODAComponent {
      * Method channels ...
      *
      * @return HashMap<String, DataChannel>
+     *
      * @see org.jlab.coda.emu.Emu#channels()
      */
+    @SuppressWarnings({"SameReturnValue"})
     public HashMap<String, DataChannel> channels() {
         return null;
     }
 
     /**
-     * Method getCodaid returns the codaid of this CODAComponent object.
+     * Method getCodaid returns the codaid.
      *
-     * @return the codaid (type int) of this CODAComponent object.
+     * @return the codaid (type int).
      */
     public int getCodaid() {
         return codaid;
     }
 
     /**
-     * Method getSession returns the session of this CODAComponent object.
+     * Method getSession returns the session.
      *
-     * @return the session (type String) of this CODAComponent object.
+     * @return the session (type String).
      */
     public String getSession() {
         return session;
     }
 
     /**
-     * Method getExpid returns the expid of this CODAComponent object.
+     * Method getExpid returns the expid.
      *
-     * @return the expid (type String) of this CODAComponent object.
+     * @return the expid (type String).
      */
     public String getExpid() {
         return expid;
     }
 
     /**
-     * Method getHostName returns the hostName of this CODAComponent object.
+     * Method getHostName returns the hostName.
      *
-     * @return the hostName (type String) of this CODAComponent object.
+     * @return the hostName (type String).
      */
     public String getHostName() {
         return hostName;
     }
 
     /**
-     * Method getUserName returns the userName of this CODAComponent object.
+     * Method getUserName returns the userName.
      *
-     * @return the userName (type String) of this CODAComponent object.
+     * @return the userName (type String).
      */
     public String getUserName() {
         return userName;
     }
 
     /**
-     * Method getConfig returns the config of this CODAComponent object.
+     * Method getConfig returns the config string.
      *
-     * @return the config (type String) of this CODAComponent object.
+     * @return the config (type String).
      */
     public String getConfig() {
         return config;
     }
 
     /**
-     * Method getCodaClass returns the codaClass of this CODAComponent object.
+     * Method getCodaClass returns the codaClass.
      *
-     * @return the codaClass (type String) of this CODAComponent object.
+     * @return the codaClass (type String).
      */
     public String getCodaClass() {
         return codaClass;
     }
 
     /**
-     * Method getRunNumber returns the runNumber of this CODAComponent object.
+     * Method getRunNumber returns the runNumber.
      *
-     * @return the runNumber (type int) of this CODAComponent object.
+     * @return the runNumber (type int).
      */
     public int getRunNumber() {
         return runNumber;
     }
 
     /**
-     * Method getRunType returns the runType of this CODAComponent object.
+     * Method getRunType returns the runType.
      *
-     * @return the runType (type int) of this CODAComponent object.
+     * @return the runType (type int).
      */
     public int getRunType() {
         return runType;
     }
 
     /**
-     * Method getCmsgUDL returns the cmsgUDL of this CODAComponent object.
+     * Method getCmsgUDL returns the cmsgUDL.
      *
-     * @return the cmsgUDL (type String) of this CODAComponent object.
+     * @return the cmsgUDL (type String).
      */
     public String getCmsgUDL() {
         return cmsgUDL;
     }
 
     /**
-     * Method setConfig sets the config of this EMUComponentImpl object.
+     * Method setConfig sets the config of this object.
      *
-     * @param config the config of this EMUComponentImpl object.
+     * @param config the new config string.
+     *
      * @see org.jlab.coda.support.codaComponent.CODAComponent#setConfig(String)
      */
     public void setConfig(String config) {
@@ -573,9 +610,10 @@ public class Emu implements KbdHandler, CODAComponent {
     }
 
     /**
-     * Method setRunNumber sets the runNumber of this EMUComponentImpl object.
+     * Method setRunNumber sets the runNumber.
      *
-     * @param runNumber the runNumber of this EMUComponentImpl object.
+     * @param runNumber the new runNumber.
+     *
      * @see org.jlab.coda.support.codaComponent.CODAComponent#setRunNumber(int)
      */
     public void setRunNumber(int runNumber) {
@@ -583,9 +621,10 @@ public class Emu implements KbdHandler, CODAComponent {
     }
 
     /**
-     * Method setRunType sets the runType of this EMUComponentImpl object.
+     * Method setRunType sets the runType.
      *
-     * @param runType the runType of this EMUComponentImpl object.
+     * @param runType the new runType.
+     *
      * @see org.jlab.coda.support.codaComponent.CODAComponent#setRunType(int)
      */
     public void setRunType(int runType) {
@@ -593,9 +632,10 @@ public class Emu implements KbdHandler, CODAComponent {
     }
 
     /**
-     * Method setCodaid sets the codaid of this EMUComponentImpl object.
+     * Method setCodaid sets the codaid.
      *
-     * @param codaid the codaid of this EMUComponentImpl object.
+     * @param codaid the new codaid.
+     *
      * @see org.jlab.coda.support.codaComponent.CODAComponent#setCodaid(int)
      */
     public void setCodaid(int codaid) {
@@ -603,7 +643,7 @@ public class Emu implements KbdHandler, CODAComponent {
     }
 
     /**
-     * Method getCmsgPortal returns the cmsgPortal of this EMUComponentImpl object.
+     * Method getCmsgPortal returns the cmsgPortal.
      *
      * @return the cmsgPortal (type CMSGPortal) of this EMUComponentImpl object.
      */
