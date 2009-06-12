@@ -15,7 +15,7 @@ import java.util.concurrent.BlockingQueue;
  * User: heyes
  * Date: Nov 10, 2008
  * Time: 1:37:43 PM
- * To change this template use File | Settings | File Templates.
+ * Implementation of a DataChannel reading/writing from/to a file in EVIO format.
  */
 public class DataChannelImplFile implements DataChannel {
 
@@ -31,26 +31,21 @@ public class DataChannelImplFile implements DataChannel {
     /** Field size - the default size of the buffers used to receive data */
     private int size = 20000;
 
-    /** Field capacity - number of records that will fit in the fifos */
-    private int capacity = 40;
-
     /** Field full - filled buffer queue */
     private final BlockingQueue<DataBank> queue;
 
     private File file;
-    private String fileName = "dataFile.coda";
 
     /** Field out */
     private DataFile dataFile = null;
-
-    private boolean isInput = false;
 
     /**
      * Constructor DataChannelImplFifo creates a new DataChannelImplFifo instance.
      *
      * @param name          of type String
      * @param dataTransport of type DataTransport
-     * @param input
+     * @param input         true if this is an input
+     *
      * @throws org.jlab.coda.support.transport.DataTransportException
      *          - unable to create fifo buffer.
      */
@@ -58,17 +53,18 @@ public class DataChannelImplFile implements DataChannel {
 
         this.dataTransport = dataTransport;
         this.name = name;
-        this.isInput = input;
+        String fileName = "dataFile.coda";
         try {
             fileName = dataTransport.getAttr("filename");
         } catch (Exception e) {
             Logger.info(e.getMessage() + " default to file name" + fileName);
         }
 
+        int capacity = 40;
         queue = new ArrayBlockingQueue<DataBank>(capacity);
 
         try {
-            if (isInput) {
+            if (input) {
                 dataFile = new DataFile(new DataInputStream(new FileInputStream(fileName)));
                 dataThread = new Thread(Emu.THREAD_GROUP, new DataInputHelper(), getName() + " data input");
 
@@ -83,7 +79,8 @@ public class DataChannelImplFile implements DataChannel {
 
             }
         } catch (Exception e) {
-            throw new DataTransportException("DataChannelImplCMsg : Cannot create data file", e);
+            if (input) throw new DataTransportException("DataChannelImplCMsg : Cannot open data file " + fileName + " " + e.getMessage(), e);
+            else throw new DataTransportException("DataChannelImplCMsg : Cannot create data file" + fileName + " " + e.getMessage(), e);
         }
     }
 
@@ -102,7 +99,6 @@ public class DataChannelImplFile implements DataChannel {
         /** Method run ... */
         public void run() {
             try {
-                int length;
                 Logger.info("Data Input helper for File");
                 while (!dataThread.isInterrupted()) {
 
@@ -162,6 +158,8 @@ public class DataChannelImplFile implements DataChannel {
      * Method receive ...
      *
      * @return int[]
+     *
+     * @throws InterruptedException on wakeup with no data
      */
     public DataBank receive() throws InterruptedException {
         return dataTransport.receive(this);
