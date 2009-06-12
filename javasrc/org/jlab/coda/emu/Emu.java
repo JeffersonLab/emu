@@ -346,9 +346,9 @@ public class Emu implements KbdHandler, CODAComponent {
      *
      * @return boolean
      *
-     * @see org.jlab.coda.support.keyboardControl.KbdHandler#keyHandler(String,java.io.PrintWriter)
+     * @see org.jlab.coda.support.keyboardControl.KbdHandler#keyHandler(String,java.io.PrintWriter,Object)
      */
-    public boolean keyHandler(String command, PrintWriter out) {
+    public boolean keyHandler(String command, PrintWriter out, Object argument) {
         try {
             CODATransition cmd = CODATransition.valueOf(command);
             this.postCommand(cmd);
