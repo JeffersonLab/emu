@@ -20,13 +20,17 @@ package org.jlab.coda.support.control;
  */
 public interface CommandAcceptor {
     /**
-     * Method postCommand ...
+     * This method puts a command object into a mailbox of a CODA
+     * component that is periodically checked by that component.
      *
-     * @param cmd of type Command
-     * @throws InterruptedException when
+     * @param cmd of type Command (eg. start transition, control run variables, control session)
+     * @throws InterruptedException
      */
     public void postCommand(Command cmd) throws InterruptedException;
 
-    /** @return the state */
+    /**
+     * Get the state of the CODA component.
+     * @return the state of the CODA component
+     */
     public State state();
 }

@@ -207,7 +207,7 @@ public class Process implements EmuModule, Runnable {
     /** @see org.jlab.coda.emu.EmuModule#execute(Command) */
     public void execute(Command cmd) {
         Date theDate = new Date();
-        if (cmd.equals(CODATransition.end)) {
+        if (cmd.equals(CODATransition.END)) {
             state = CODAState.ENDED;
             actionThread.interrupt();
 
@@ -221,7 +221,7 @@ public class Process implements EmuModule, Runnable {
             }
         }
 
-        if (cmd.equals(CODATransition.prestart)) {
+        if (cmd.equals(CODATransition.PRESTART)) {
             count = 0;
             data_count = 0;
 
@@ -236,13 +236,13 @@ public class Process implements EmuModule, Runnable {
             }
         }
 
-        if (cmd.equals(CODATransition.pause)) {
+        if (cmd.equals(CODATransition.PAUSE)) {
             state = CODAState.PAUSED;
             actionThread.interrupt();
             watcher.interrupt();
         }
 
-        if (cmd.equals(CODATransition.go)) {
+        if (cmd.equals(CODATransition.GO)) {
             System.out.println("GO in Process module");
             State old_state = state;
             state = CODAState.ACTIVE;

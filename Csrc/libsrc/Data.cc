@@ -92,14 +92,11 @@ void Data::clear() {
     owned.clear();
 }
 
-/*
- * findValueByPath(searchpath)
- * 
+/**
  * Given a unique path return the value of the object found there.
  *
- * @param string path - place to look
- *
- * @return char * - value of matching object
+ * @param path place to look
+ * @return value of matching object
  */
 
 const char *Data::findValueByPath(string searchpath) {
@@ -110,14 +107,11 @@ const char *Data::findValueByPath(string searchpath) {
         return found->getValue();
 }
 
-/*
- * findOneByPath(path)
- * 
+/**
  * Given a path return the matching object.
  *
- * @param string searchpath - place to look
- *
- * @return *Data - matching object
+ * @param searchpath place to look
+ * @return pointer to matching object
  */
 
 Data *Data::findOneByPath(string searchpath) {

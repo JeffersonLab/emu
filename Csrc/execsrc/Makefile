@@ -38,7 +38,8 @@ LIB_SRCDIR = $(TOPLEVEL)/Csrc/libsrc
 ifeq ($(BMS_OS),Darwin)
 MISC_LIBS += $(BIN_DEPENDS) -framework JavaVM -framework CoreFoundation
 else
-MISC_LIBS = -rdynamic -Wl,--whole-archive $(BIN_DEPENDS) -Wl,--no-whole-archive -let$(DEBUG_SUFFIX) -lpthread -ldl -Wl,-E
+#MISC_LIBS += -rdynamic -Wl,--whole-archive -Wl,--no-whole-archive -ldl -Wl,-E
+MISC_LIBS += -rdynamic -Wl,-E
 endif
 
 # tell make that the executable depends on the libraries

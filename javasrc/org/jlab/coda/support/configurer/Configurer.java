@@ -9,10 +9,6 @@
  *
  */
 
-/**
- * Configure the EMU using XML from a file or string.
- */
-
 package org.jlab.coda.support.configurer;
 
 import org.jlab.coda.support.logger.Logger;
@@ -22,9 +18,14 @@ import org.w3c.dom.ls.*;
 import org.w3c.dom.traversal.NodeFilter;
 
 /**
- * -----------------------------------------------------
- * Copyright (c) 2008 Jefferson lab data acquisition group
- * Class Configurer ...
+ * This class is a singleton and contains one static reference
+ * to a DOM builder and a DOM serializer. It is used to
+ * configure the EMU using XML from a file or string.<p>
+ * 
+ * <code>LSParserFilter</code>s provide applications the ability to examine
+ * nodes as they are being constructed while parsing. As each node is
+ * examined, it may be modified or removed, or the entire parse may be
+ * terminated early.
  *
  * @author heyes
  *         Created on Sep 12, 2008
@@ -47,13 +48,15 @@ public class Configurer implements DOMErrorHandler, LSParserFilter {
     /** Field FILE_PARSE_MODE */
     protected static final int FILE_PARSE_MODE = 2;
 
-    /** Field impl */
-    private static DOMImplementationLS impl;
+    /** DOMImplementationLS contains the factory methods for creating
+     * Load and Save objects (objects that can parse and serialize XML DOM documents).
+     */
+    private static DOMImplementationLS domImplementor;
 
-    /** Field builder */
-    private static LSParser builder;
+    /** Object that can create a DOM tree. */
+    private static LSParser domBuilder;
 
-    /** Field domWriter */
+    /** Object for serializing (writing) a DOM document out into XML. */
     private static LSSerializer domWriter;
 
     /** Field configureMode */
@@ -61,31 +64,41 @@ public class Configurer implements DOMErrorHandler, LSParserFilter {
 
     static {
         try {
-            // create Error Handler
+            // create Error Handler (an item of this class)
             DOMErrorHandler errorHandler = new Configurer();
+            
             // get DOM Implementation using DOM Registry
-            System.setProperty(DOMImplementationRegistry.PROPERTY, "org.apache.xerces.dom.DOMXSImplementationSourceImpl");
+            // bug bug: use default SUN implementation instead?
+            //System.setProperty(DOMImplementationRegistry.PROPERTY, "org.apache.xerces.dom.DOMXSImplementationSourceImpl");
             DOMImplementationRegistry registry = DOMImplementationRegistry.newInstance();
 
-            impl = (DOMImplementationLS) registry.getDOMImplementation("LS");
+            // get one object that can create XML DOM parsers & serializers
+            domImplementor = (DOMImplementationLS) registry.getDOMImplementation("LS");
 
-            // create DOMBuilder
-            builder = impl.createLSParser(DOMImplementationLS.MODE_SYNCHRONOUS, null);
-            DOMConfiguration config = builder.getDomConfig();
+            // create one object that can create a DOM tree
+            domBuilder = domImplementor.createLSParser(DOMImplementationLS.MODE_SYNCHRONOUS, null);
 
-            // create filter
+            // get object used to configure the DOM parser
+            DOMConfiguration config = domBuilder.getDomConfig();
+
+            // create filter (an item of this class) and add it to the parser
+            // bug bug: why do we have 2 objects of this class being created?
+            // What's the point of making this object an LSParserFilter?
+            // All that is done below is to show every node to the filter and
+            // then accept everything. Were there some plans to filter nodes?
             LSParserFilter filter = new Configurer();
+            domBuilder.setFilter(filter);
 
-            builder.setFilter(filter);
-
-            // set error handler
+            // set error handler in DOM parser
             config.setParameter("error-handler", errorHandler);
 
-            // set validation feature
+            // set validation feature in DOM parser
             config.setParameter("validate", Boolean.FALSE);
 
-            domWriter = impl.createLSSerializer();
+            // create the DOM serializer
+            domWriter = domImplementor.createLSSerializer();
 
+            // get object used to configure the DOM serializer
             config = domWriter.getDomConfig();
             config.setParameter("xml-declaration", Boolean.FALSE);
 
@@ -94,6 +107,11 @@ public class Configurer implements DOMErrorHandler, LSParserFilter {
         }
     }
 
+
+    /**
+     * Remove any empty text (child) nodes from a DOM node.
+     * @param node node from which to remove empty (child) text nodes
+     */
     public static void removeEmptyTextNodes(Element node) {
         Node el = node.getFirstChild();
         while (el != null) {
@@ -116,46 +134,48 @@ public class Configurer implements DOMErrorHandler, LSParserFilter {
         }
     }
 
+    
     /**
-     * Method parseFile ...
+     * Method to parse a file containing an XML configuration.
      *
-     * @param configFile of type String
+     * @param configFile file containing an XML configuration
      * @return Document
      * @throws DataNotFoundException when
      */
     public static Document parseFile(String configFile) throws DataNotFoundException {
         try {
             // parse document
-            return builder.parseURI(configFile);
+            return domBuilder.parseURI(configFile);
         } catch (Exception e) {
-            throw new DataNotFoundException(e.getMessage());
+            throw new DataNotFoundException("Cannot parse configuration file", e);
         }
 
     }
 
     /**
-     * Method parseString ...
+     * Method to parse a string containing an XML configuration.
      *
-     * @param xmlConfig of type String
+     * @param xmlConfig string containing an XML configuration
      * @return Document
      * @throws DataNotFoundException when
      */
     public static Document parseString(String xmlConfig) throws DataNotFoundException {
 
-        LSInput input = impl.createLSInput();
+        LSInput input = domImplementor.createLSInput();
         input.setStringData(xmlConfig);
         try {
             // parse document
-            return builder.parse(input);
+            return domBuilder.parse(input);
         } catch (Exception e) {
-            throw new DataNotFoundException(e.getMessage());
+            throw new DataNotFoundException("Cannot parse XML string", e);
         }
     }
 
+
     /**
-     * Method serialize ...
+     * Method to serialize a DOM XML document into a string.
      *
-     * @param doc of type Document
+     * @param doc DOM object to serialize to string
      * @return String
      */
     public static String serialize(Document doc) {
@@ -167,10 +187,11 @@ public class Configurer implements DOMErrorHandler, LSParserFilter {
         }
     }
 
+    
     /**
-     * Method handleError ...
+     * Method to handle errors.
      *
-     * @param error of type DOMError
+     * @param error error of type DOMError
      * @return boolean
      */
     public boolean handleError(DOMError error) {
@@ -188,6 +209,7 @@ public class Configurer implements DOMErrorHandler, LSParserFilter {
 
     /** @see org.w3c.dom.ls.LSParserFilter#acceptNode(Node) */
     public short acceptNode(Node enode) {
+        // bug bug: why is this not LSParseFilter.FILTER_ACCEPT ?  - they're identical
         return NodeFilter.FILTER_ACCEPT;
     }
 
@@ -201,13 +223,17 @@ public class Configurer implements DOMErrorHandler, LSParserFilter {
         return LSParserFilter.FILTER_ACCEPT;
     }
 
+    // bug bug: getValue isn't symmetric with setValue, but then it is never used
     /**
-     * Method getValue ...
+     * Method to get the value of the Node object given by the path argument or
+     * null if there is no such object. If the Node is an attribute it's value
+     * is returned, else if <b>not</b> an attribute, then it returns it's first
+     * child's text (or null if no kids).
      *
-     * @param doc  of type Document
-     * @param path of type String
-     * @return String
-     * @throws DataNotFoundException when
+     * @param doc  DOM XML Document object
+     * @param path path into the XML object
+     * @return value of the Node associated with the given path
+     * @throws DataNotFoundException never thrown
      */
     public static String getValue(Document doc, String path) throws DataNotFoundException {
 
@@ -224,12 +250,14 @@ public class Configurer implements DOMErrorHandler, LSParserFilter {
     }
 
     /**
-     * Method getData ...
+     * Method to get the DataNode object associated with the
+     * Node object given by the path argument.
      *
-     * @param doc  of type Document
-     * @param path of type String
-     * @return DataNode
-     * @throws DataNotFoundException when
+     * @param doc  DOM XML Document object
+     * @param path path into the XML object
+     * @return DataNode object associated with the given path,
+     *         null if Node does exist at the specified path
+     * @throws DataNotFoundException when no DataNode object associated with the Node at the given path
      */
     private static DataNode getData(Document doc, String path) throws DataNotFoundException {
         Node n = getNode(doc, path);
@@ -240,27 +268,31 @@ public class Configurer implements DOMErrorHandler, LSParserFilter {
     }
 
     /**
-     * Method setValue ...
+     * Method to set the value of the DataNode object assocated with the
+     * Node object given by the path argument. Does nothing if there is no
+     * DataNode object at the given path.
      *
-     * @param doc   of type Document
-     * @param path  of type String
-     * @param value of type String
+     * @param doc  DOM XML Document object
+     * @param path path into the XML object
+     * @param value value to set the DataNode object to
      * @throws DataNotFoundException when
      */
     public static void setValue(Document doc, String path, String value) throws DataNotFoundException {
-
         DataNode dn = getData(doc, path);
         if (dn == null) return;
         dn.setValue(value);
     }
 
     /**
-     * Method newValue ...
+     * Method to set the value of the DataNode object assocated with the
+     * Node object given by the path argument. Does nothing if there is no
+     * DataNode object at the given path.<p>
+     * Not Used.
      *
-     * @param doc   of type Document
-     * @param path  of type String
-     * @param name  of type String
-     * @param value of type String
+     * @param doc  DOM XML Document object
+     * @param path path into the XML object
+     * @param name name of new attribute to add
+     * @param value value of the new attribute
      * @throws DataNotFoundException when
      */
     public static void newValue(Document doc, String path, String name, String value) throws DataNotFoundException {
@@ -283,7 +315,10 @@ public class Configurer implements DOMErrorHandler, LSParserFilter {
     }
 
     /**
-     * Method newContainer ...
+     * Method to set the value of the DataNode object assocated with the
+     * Node object given by the path argument. Does nothing if there is no
+     * DataNode object at the given path.<p>
+     * Not Used.
      *
      * @param doc  of type Document
      * @param path of type String
@@ -292,6 +327,7 @@ public class Configurer implements DOMErrorHandler, LSParserFilter {
      */
     public static void newContainer(Document doc, String path, String name) throws DataNotFoundException {
         Node n = getNode(doc, path);
+        if (n == null) return;
 
         Node newNode = doc.createElement(name);
 

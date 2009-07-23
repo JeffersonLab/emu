@@ -39,12 +39,17 @@ import java.awt.event.ActionListener;
 import java.io.File;
 import java.util.ResourceBundle;
 
-/** @author Graham Heyes */
+/**
+ * EMUCommander - a tool to send commands to EMUs and log responses.
+ * @author Graham Heyes
+ */
 public class EMUCommander extends JFrame {
 
     String TEST_UDL = "cMsg://localhost:7030/cMsg/test";
     Thread monitor;
+    /** cMsg connection object. */
     cMsg server;
+    /** UDL for cMsg connection. */
     String UDL;
     boolean verbose = true;
 
@@ -54,17 +59,21 @@ public class EMUCommander extends JFrame {
     private static String wideFormat = "%18s  %24s    %9d    %-30s  %-30s    %s";
     private static String wideHeader = "%18s  %24s    %9s    %-30s  %-30s    %s";
 
+
+    /** Run as executable. */
     public static void main(String[] args) {
         new EMUCommander();
     }
 
+    /**
+     * Defines code to execute depending on command used.
+     * In this case send out a cMsg message and update GUI.
+     */
     protected class CommandHandler implements CommandAcceptor {
         private String subject;
-
         private State state = CODAState.UNCONFIGURED;
 
         CommandHandler(String subject) {
-
             this.subject = subject;
         }
 
@@ -73,61 +82,84 @@ public class EMUCommander extends JFrame {
             msg.setSubject(cmd.toString());
             msg.setType(subject + cmd.toString());
             msg.setText(cmd.toString());
-            if (cmd.equals(RunControl.configure)) {
+
+            // If the command is to configure, read the config file
+            // and send it to all listeners by a cMsg message.
+            // Otherwise, just pass the command on by setting subject, type, & text.
+            if (cmd.equals(RunControl.CONFIGURE)) {
+
+                // Must set the name of this object
                 String emuName = System.getProperty("name");
                 if (emuName == null) {
-                    System.out.println("usage emu -Dname=\"my name\"");
+System.out.println("usage: java EMUCommander -Dname=\"my name\"");
                     System.exit(-1);
                 }
-                String installDir = System.getenv("INSTALL_DIR");
-                if (installDir == null) {
-                    System.out.println("Check that INSTALL_DIR is set");
-                    System.exit(-1);
-                }
-                String configF = installDir + File.separator + "conf" + File.separator + emuName + ".xml";
-                try {
 
-                    System.out.println("Parse : " + configF);
-                    Document d = Configurer.parseFile(configF);
+                // Check to see if config file given on command line
+                String configFile = System.getProperty("config");
+                if (configFile == null) {
+                    // Must define the INSTALL_DIR env var in order to find config files
+                    String installDir = System.getenv("INSTALL_DIR");
+                    if (installDir == null) {
+System.out.println("Check that INSTALL_DIR is set or give -Dconfig=xxx option on cmd line");
+                        System.exit(-1);
+                    }
+                    configFile = installDir + File.separator + "conf" + File.separator + emuName + ".xml";
+                }
+
+                try {
+System.out.println("Parse : " + configFile);
+                    Document d = Configurer.parseFile(configFile);
 
                     Configurer.removeEmptyTextNodes(d.getDocumentElement());
-                    System.out.println("Document : " + Configurer.serialize(d));
+System.out.println("Document : " + Configurer.serialize(d));
                     String content = Configurer.serialize(d);
 
                     msg.addPayloadItem(new cMsgPayloadItem("configuration", content));
-                    System.out.println("\"" + content + "\"");
+System.out.println("\"" + content + "\"");
                 } catch (Exception e) {
                     System.err.println("Exception " + e);
                 }
             }
+
             try {
-                System.out.println("CMSGPortal.append server=" + server);
+System.out.println("CMSGPortal.append server = " + server);
+                // send cMsg message
                 if (server != null) server.send(msg);
+
+                // resulting state if command succeeded
                 State tmp = cmd.success();
+
                 if (tmp != null) {
                     state = tmp;
-
-                    System.out.println("Allowed transitions are " + state.allowed());
-                    CODATransition.resume.allow(state.allowed());
-
-                    System.out.println("State of " + this + " is now " + state());
+System.out.println("Allowed transitions are " + state.allowed());
+                    // Allows all transitions given by state.allowed().
+                    // The "allow" method should be static, but is simpler to 
+                    // just pick a particular enum (in the case, RESUME)
+                    // and use that to allow various transitions.
+                    CODATransition.RESUME.allow(state.allowed());
+System.out.println("State of " + this + " is now " + state());
                 } else {
-                    System.out.println("State not changed by command");
+System.out.println("State not changed by command");
                 }
+
+                // enable/disable GUI buttons based on having commands enabled/disabled
                 smartToolbar.update();
                 smartToolbar1.update();
                 smartToolbar2.update();
+                
             } catch (cMsgException e) {
-                System.out.println("CMSGPortal.append error " + e.getMessage());
+System.out.println("CMSGPortal.append error " + e.getMessage());
             }
         }
 
         public State state() {
-            return state;  //To change body of implemented methods use File | Settings | File Templates.
+            return state;
         }
 
     }
 
+    /** No-arg constructor. */
     public EMUCommander() {
         initComponents();
         pack();
@@ -152,6 +184,7 @@ public class EMUCommander extends JFrame {
         }
         // subscribe and provide callback
         try {
+            // subscribe to ALL cMsg messages
             server.subscribe("*", "*", new CallbackAdapter(), null);
         } catch (cMsgException e) {
             e.printStackTrace();
@@ -367,6 +400,8 @@ public class EMUCommander extends JFrame {
     private SwingLogConsoleDialog logPanel;
     // JFormDesigner - End of variables declaration  //GEN-END:variables
 
+
+    // This subscription is for all cMsg messages (*,*)
     protected class CallbackAdapter extends cMsgCallbackAdapter {
         public void callback(cMsgMessage msg, Object userObject) {
             if (verbose) {

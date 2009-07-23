@@ -18,7 +18,7 @@
  *----------------------------------------------------------------------------
  *
  * Description:
- *      emu  - Data.h 
+ *      emu  - Data.h
  *
  *----------------------------------------------------------------------------*/
 
@@ -29,62 +29,104 @@
 #include <string>
 #include <map>
 #include <vector>
+
 using namespace std;
 
 class Data {
+    
 public:
-	// The root of the tree
-    static Data root;								// Objects associate to form a tree with one root
-    		
-	// Creation and distruction
-    Data();											// Constructor, nothing assigned at construction time
-    Data(Data *owner, char *pname,char *pvalue);	// More useful constructor object has name, value and is associated with a container
-    ~Data();										// Destructor
-    void clear();									// Does nothing except call clear
+    // The root of the tree
+    /** Objects associate to form a tree with one root. The metadata is assumed to be organized
+     * in a tree structure with one root and many branches. Since there is only
+     * one root it is implemented as a static member of the class.
+     */
+    static Data root;
+    	
+    // Creation and distruction
+    /** Constructor, no-arg. */
+    Data();
+    /** More useful constructor object has name, value and is associated with a container. */
+    Data(Data *owner, char *pname,char *pvalue);
+    /** Destructor. */
+    ~Data();
+    /** Does nothing except call clear. */
+    void clear();
     
     // Object management
-    void setName(char *pname);						// Set the name					
-    const char *getName();							// Get the name
-    void setFamily(char *ptag);						// An object can be associated with a family of similar objects
-    const char *getFamily();						// Get the family
-    void setValue(char *pvalue);					// Even though the object has nemed attributes it has an unnamed
-    const char *getValue();							// Attribute caled the value  
-    string getPath();								// String representing the path from the root of the data tree to this object
-    void setOwner(Data *parent);					// Set the container that this object is in (also sets the path)
-    void addData(Data *child);						// A Data object is a container for other Data objects
-    void addAttr(char *tag,char *value);			// A Data object can have tag+value attributes
-    char *getAttr(char *name);						// Given it's name return an attribute value
+    /** Sets the name of this tree node. */
+    void setName(char *pname);
+    /** Gets the name of this tree node. */
+    const char *getName();
+    /** Sets the family of this tree node. An object can be associated with a family of similar objects. */
+    void setFamily(char *ptag);
+    /** Gets the family of this tree node. */
+    const char *getFamily();
+    /** Sets the unnamed attribute called "value".
+     * Even though the object has named attributes this is one that is unnamed. */
+    void setValue(char *pvalue);
+    /** Gets the attribute called "value". */
+    const char *getValue();
+    /** Gets the string representing the path from the root of the data tree to this object. */
+    string getPath();
+    /** Sets the container that this object is in (also sets the path). */
+    void setOwner(Data *parent);
+    /** Adds a child Data object to this node. A Data object is a container for other Data objects. */
+    void addData(Data *child);
+    /** Adds an attribute to this node. A Data object can have many tag+value attributes. */
+    void addAttr(char *tag,char *value);
+    /** Gets an attribute's value given its name. */
+    char *getAttr(char *name); 
 
     // Searching
     // These functions search the tree starting at this object. 
     // Use with root to search the whole tree.
     
-    const char *findValueByPath(string searchpath);			// Given a path return the value of the first object found
-    Data *findOneByPath(string searchpath);					// Given a path return the Data object at that location
-    vector<Data*> *findAllByPath(string searchpath);		// Given a path return all Data objects (used with wildcard *) 
-  
-    const char *findValueByName(string searchpath);			// Given a name return the value of the first object found  
-    Data *findOneByName(string cname);						// Given a name findOneByPath the first object with that name 
-    vector<Data*> *findAllByName(string cname);				// Given a name findOneByPath all objects with that name
+    /** Given a path, return the value of the first object found. */
+    const char *findValueByPath(string searchpath);
+    /** Given a path, return the Data object at that location */
+    Data *findOneByPath(string searchpath);
+    /** Given a path, return all Data objects (used with wildcard *). */
+    vector<Data*> *findAllByPath(string searchpath);
     
-    const char *findValueByFamily(string searchpath);		// Given a family return the value of the first object found
-    Data *findOneByFamily(string cname);					// Given a family return the first object found in that family
-    vector<Data*> *findAllByFamily(string cname);			// Given a family return the all objects in that family
+    /** Given a name, return the value of the first object found. */
+    const char *findValueByName(string searchpath);
+    /** Given a name, findOneByPath the first object with that name. */
+    Data *findOneByName(string cname);
+    /** Given a name, findOneByPath all objects with that name. */
+    vector<Data*> *findAllByName(string cname);
+    
+    /** Given a family, return the value of the first object found. */
+    const char *findValueByFamily(string searchpath);
+    /** Given a family, return the first object found in that family. */
+    Data *findOneByFamily(string cname);
+    /** Given a family, return the all objects in that family. */
+    vector<Data*> *findAllByFamily(string cname);
 
-    char *serialize(int cont);								// Represent this object as a string
+    /** Represent this object as a string. */
+    char *serialize(int cont);
     
 private:
-    void serialize(int indent,string *s,int cont);			// Use to keep the printout pretty	
-    void findAll(vector<Data*> *v,string path);				// Used internally by findOneByPath
     
-    string name; 				// Name of this object
-    string path;				// Path to this object from root
-    string family;				// Family of objects similar to this one
-    string value;				// Value, default unnamed attribute
-    Data *owner;				// Container this object is in
+    /** Used to keep the printout pretty. */
+    void serialize(int indent,string *s,int cont);
+    /** Used internally by findOneByPath. */
+    void findAll(vector<Data*> *v,string path);
+    
+    /** Name of this object. */
+    string name;
+    /** Path to this object from root. */
+    string path;
+    /** Family of objects similar to this one. */
+    string family;
+    /** Value, default unnamed attribute. */
+    string value;
+    /** Container this object is in. */
+    Data *owner;
 
-    vector<Data*> owned;		// Objects contained by this object
-    map<string,string> attr;	// tag+value attributes of this object
+    /** Objects contained by this object. */
+    vector<Data*> owned;
+    /** Tag/Value attributes of this object. */
+    map<string,string> attr;
 };
 
 #endif /*DATA_H_*/

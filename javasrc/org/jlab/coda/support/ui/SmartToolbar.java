@@ -31,76 +31,75 @@ public class SmartToolbar extends JToolBar {
     /** Field buttonHandlers */
     private final HashMap<String, Command> buttonHandlers = new HashMap<String, Command>();
 
-    private Object[] oarray;
-
-    /**
-     *
-     */
+    /** No-arg constructor. */
     public SmartToolbar() {
-        //
         this.setFloatable(true);
     }
 
-    /** @param orientation  */
+    /** @param orientation {@inheritDoc} */
     public SmartToolbar(int orientation) {
         super(orientation);
-        //
     }
 
-    /** @param name  */
+    /** @param name {@inheritDoc} */
     public SmartToolbar(String name) {
         super(name);
-        //
     }
 
     /**
-     * @param name
-     * @param orientation
+     * @param name {@inheritDoc}
+     * @param orientation {@inheritDoc}
      */
     public SmartToolbar(String name, int orientation) {
         super(name, orientation);
-        //
     }
-
-    CommandAcceptor target = null;
 
     /**
      * Method configure ...
      *
-     * @param o of type Object
-     * @param c of type Class
+     * @param target object that allows commands to be sent (eg Emu is a CodaComponent which is a CommandAcceptor)
+     * @param c Class of the enum type
      */
-    public void configure(Object o, Class c) {
-        oarray = c.getEnumConstants();
-
-        target = (CommandAcceptor) o;
+    public void configure(CommandAcceptor target, Class c) {
+        // get array of enum elements or null if not enum type
+        Object[] oarray = c.getEnumConstants();
 
         try {
-
+            // for each enum item ...
             for (Object anOarray : oarray) {
                 Command cmd = (Command) anOarray;
                 String name = cmd.name();
 
+                // put into a hashmap(key,val)
                 buttonHandlers.put(name, cmd);
+
+                // create a button (arg is text to be displayed)
                 JButton tbb = new JButton(name);
 
-                addButtonListener(this, tbb);
+                // bug bug: I think we need to add this for it to work (Carl)
+                tbb.setActionCommand(name);
+
+                // add listener to button
+                addButtonListener(target, tbb);
+
                 // boolean enabled =
                 tbb.setEnabled(cmd.isEnabled());
                 tbb.setName(name);
                 this.add(tbb);
-
             }
-        } catch (SecurityException e) {
 
+        } catch (SecurityException e) {
             e.printStackTrace();
         } catch (IllegalArgumentException e) {
-
             e.printStackTrace();
         }
     }
 
-    /** Method update ... */
+    
+    /**
+     * Set each button's enable status to be the
+     * same as the enable status of its command.
+     */
     public void update() {
         Component[] buttons = this.getComponents();
 
@@ -108,47 +107,48 @@ public class SmartToolbar extends JToolBar {
             String name = button.getName();
             Command cmd = buttonHandlers.get(name);
             button.setEnabled(cmd.isEnabled());
-
         }
     }
 
+
     /**
-     * Method addButtonListener ...
+     * Each time the given button is pressed, the target object posts or
+     * executes the command associated with the button.
      *
-     * @param tb  of type JToolBar
+     * @param target object that allows commands to be sent (eg Emu is a CodaComponent which is a CommandAcceptor)
      * @param tbb of type JButton
      */
-    private void addButtonListener(final JToolBar tb, final JButton tbb) {
-        tbb.addActionListener(new ActionListener() {
-            /**
-             * Method actionPerformed ...
-             *
-             * @param e of type ActionEvent
-             */
-            public void actionPerformed(ActionEvent e) {
+    private void addButtonListener(final CommandAcceptor target, final JButton tbb) {
 
+        tbb.addActionListener(new ActionListener() {
+
+            public void actionPerformed(ActionEvent e) {
+                // The name of the button must be the ActionEvent's command
+                // (which is also the key of the map).
                 Command cmd = buttonHandlers.get(e.getActionCommand());
-                // We pressed a button. There can be no args
+                // We pressed a button. There can be no args.
                 cmd.clearArgs();
 
                 try {
+                    // execute the command associated with the given button
                     target.postCommand(cmd);
+                    // set enable status of all buttons
                     update();
+                    
                 } catch (SecurityException e1) {
-
                     e1.printStackTrace();
                 } catch (IllegalArgumentException e1) {
-
                     e1.printStackTrace();
                 } catch (InterruptedException e3) {
-
                     e3.printStackTrace();
                 }
             }
+
         });
     }
+    
 
-    /** Method reset ... */
+    /** Remove all components from this toolbar. */
     public void reset() {
         this.removeAll();
     }

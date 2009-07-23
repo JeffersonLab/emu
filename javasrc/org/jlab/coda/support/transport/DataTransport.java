@@ -20,7 +20,8 @@ import org.jlab.coda.support.data.DataBank;
 import java.util.HashMap;
 
 /**
- * Interface DataTransport ...
+ * This interface refers to how data is transported
+ * and does <b>not</b> refer to a particular data connection.
  *
  * @author heyes
  *         Created on Sep 17, 2008
@@ -34,6 +35,13 @@ public interface DataTransport {
      */
     // field manipulation
     public String getTransportClass();
+
+    /**
+     * @return the name
+     *
+     * @see org.jlab.coda.emu.EmuModule#name()
+     */
+    public String name();
 
     /**
      * Method setName sets the name of this DataTransport object.
@@ -50,7 +58,7 @@ public interface DataTransport {
     public State state();
 
     /**
-     * Method execute When passed a Command object executes the command
+     * This method is run when passed a Command object
      * in the context of the receiving module.
      *
      * @param cmd of type Command
@@ -60,13 +68,6 @@ public interface DataTransport {
      */
     @SuppressWarnings({"RedundantThrows"})
     public void execute(Command cmd) throws CmdExecException;
-
-    /**
-     * @return the name
-     *
-     * @see org.jlab.coda.emu.EmuModule#name()
-     */
-    public String name();
 
     /**
      * Method setAttr ...
@@ -136,9 +137,11 @@ public interface DataTransport {
     public void send(DataChannel channel, DataBank data);
 
     /**
-     * Method isServer returns the server of this DataTransport object.
+     * This method returns true if this DataTransport object
+     * is a server (sends data) or false if it is a client
+     * (receives data).
      *
-     * @return the server (type boolean) of this DataTransport object.
+     * @return true if this DataTransport object sends data, else false
      */
     public boolean isServer();
 

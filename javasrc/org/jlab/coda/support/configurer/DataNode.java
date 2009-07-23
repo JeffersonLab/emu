@@ -18,47 +18,58 @@ import javax.swing.*;
 
 /** @author heyes */
 public class DataNode {
-    /** Field node */
+
+    /** Node being analyzed. */
     private final Node node;
-    /** Field value */
-    private String value = null;
 
-    private JLabel tagField = null;
-    /** Field valueField */
-    private JTextField valueField = null;
+    /** Value of node. */
+    private String value;
 
-    private JPanel container = null;
+    /** JLabel containing attribute name. */
+    private JLabel tagField;
 
+    /** JTextField containing attribute value. */
+    private JTextField valueField;
+
+    /** If node is not an attribute, it's a panel which contains things. */
+    private JPanel container;
+
+    // Layout of the panel
     private GroupLayout layout;
-    private GroupLayout.ParallelGroup hGroup;
-
+    private GroupLayout.ParallelGroup   hGroup;
     private GroupLayout.SequentialGroup rows;
 
     /**
-     * Constructor DataNode creates a new DataNode instance.
+     * Constructor DataNode creates a new DataNode instance and cleverly
+     * stores it in the given Node argument. Thus each node in the the
+     * tree of Nodes has a DataNode object stored as user data.
      *
      * @param n of type Node
      */
     public DataNode(Node n) {
-        n.setUserData("DataNode", this, null);
-        node = n;
+        n.setUserData("DataNode", this, null);   // setUserData(String key, Object data, handler)
+        node  = n;
+        value = n.getNodeValue();
         String pname = n.getNodeName();
 
-        value = n.getNodeValue();
-
+        // If node is an XML element's attribute, create a label & value display
         if (n.getNodeType() == Node.ATTRIBUTE_NODE) {
             tagField = new JLabel(pname);
             valueField = new JTextField(value);
+
+        // else if not an attribute, create a panel in which to place things
         } else {
             container = new JPanel();
             container.setBorder(BorderFactory.createTitledBorder(pname));
 
+            // Create layout manager
             layout = new GroupLayout(container);
             container.setLayout(layout);
-            // Turn on automatically adding gaps between components
+
+            // Turn off automatically adding gaps between components
             layout.setAutocreateGaps(false);
 
-            // Turn on automatically creating gaps between components that touch
+            // Turn off automatically creating gaps between components that touch
             // the edge of the container and the container.
             layout.setAutocreateContainerGaps(false);
 
@@ -71,7 +82,6 @@ public class DataNode {
             rows = layout.createSequentialGroup();
 
             layout.setVerticalGroup(rows);
-
         }
 
     }
@@ -81,7 +91,9 @@ public class DataNode {
             hGroup.add(dn.getContainer());
             rows.add(dn.getContainer());
         } else {
-            GroupLayout.ParallelGroup row = layout.createParallelGroup(GroupLayout.BASELINE);
+            // bug bug: isn't layout null here???
+if (layout == null) System.out.println("HEY, layout is NULL !!!");
+            GroupLayout.ParallelGroup   row = layout.createParallelGroup(GroupLayout.BASELINE);
             GroupLayout.SequentialGroup col = layout.createSequentialGroup();
             row.add(dn.getTagField());
             col.add(dn.getTagField());
@@ -122,16 +134,19 @@ public class DataNode {
     }
 
     /**
-     * Method getDataNode ...
+     * Method to get the DataNode object associated with a particular Node object.
      *
-     * @param n of type Node
-     * @return DataNode
+     * @param n Node object
+     * @return assockated DataNode object
      */
     public static DataNode getDataNode(Node n) {
         return (DataNode) n.getUserData("DataNode");
     }
 
-    /** @return the parent */
+    /**
+     * Get the Node object associated with this DataNode object. 
+     * @return the Node object associated with this DataNode object
+     */
     public Node getNode() {
         return node;
     }

@@ -27,7 +27,8 @@ import java.util.Set;
  *         Created on Sep 24, 2008
  */
 class RCTransitionHandler extends GenericCallback implements cMsgCallbackInterface {
-    /** Field cmsgPortal */
+
+    /** Connection to cMsg server. */
     private CMSGPortal cmsgPortal;
 
     /**
@@ -40,23 +41,43 @@ class RCTransitionHandler extends GenericCallback implements cMsgCallbackInterfa
     }
 
     /**
-     * Method callback ...
+     * Method callback for subscription of subject = * and
+     * type = run/transition/* .
      *
-     * @param msg of type cMsgMessage
-     * @param o   of type Object
+     * @param msg cMsgMessage being received
+     * @param o   object given in subscription & passed in here (null in this case)
      */
     public void callback(cMsgMessage msg, Object o) {
 
         try {
             String type = msg.getType();
             String cmdS = type.substring(type.lastIndexOf("/") + 1);
-            Command cmd = CODATransition.valueOf(cmdS);
-            cmd.clearArgs();
+
+            // CODATransition is an enum but it implements Command so it is a Command object.
+            // Examples: download, prestart, go, end, pause, resume.
+            // The string cmdS may not be an allowed enum value, in which case an
+            // IllegalArgumentException will be thrown.
+            Command cmd;
+            try {
+                cmd = CODATransition.valueOf(cmdS);
+            } catch (IllegalArgumentException e) {
+                // bug bug: do we want this printed, logged, etc ???
+                System.out.println("Received an invalid transition command");
+                return;
+            }
+
+            // set the args for this command
             Set<String> names = msg.getPayloadNames();
+            cmd.clearArgs();
             for (String name : names) {
                 cmd.setArg(name, msg.getPayloadItem(name));
             }
+
+            // Get the EMU object and have it post this new command
+            // by putting it in a Q that is periodically checked by
+            // the EMU's "run" (main thread) method.
             cmsgPortal.comp.postCommand(cmd);
+            
         } catch (InterruptedException e) {
             e.printStackTrace();
         }

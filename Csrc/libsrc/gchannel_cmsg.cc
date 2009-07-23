@@ -266,7 +266,7 @@ gchannel_accept_helper_cmsg_end:
 extern "C" int gchannel_create_transport_cmsg(gtransport m)
 {
     char tmp[1000];
-    char *UDL = "cMsg:cMsg://albanac.jlab.org:7030/cMsg/test";
+    char *UDL = "cMsg:cMsg://antares:7030/cMsg/test";
     cmsg_transport transp = (cmsg_transport) malloc(sizeof(cmsg_transport_ty));
 
     bzero (transp,sizeof(cmsg_transport_ty));
@@ -466,7 +466,7 @@ extern "C" int gchannel_open_transport_cmsg(gtransport m)
     transp->name = strdup(m->name);
     transp->owner = false;
     transp->port = 7030;
-    transp->host = strdup("albanac");
+    transp->host = strdup("antares");
     transp->capacity = 2;
     transp->length = 32000000;
 

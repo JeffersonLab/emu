@@ -1,1 +1,1 @@
-java -DDebugUI -Dorg.jlab.coda.emu.name=SingleEmu  -jar $INSTALL_DIR/lib/emu.jar
+java -DDebugUI -Dname=SingleEmu  -jar $INSTALL_DIR/lib/emu.jar

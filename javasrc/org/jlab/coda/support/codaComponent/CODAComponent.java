@@ -14,117 +14,125 @@ package org.jlab.coda.support.codaComponent;
 import org.jlab.coda.support.control.CommandAcceptor;
 import org.w3c.dom.Document;
 
-/** @author heyes */
+/**
+ * This interface describes a component in the CODA run control system.
+ * To be a part of run control, a connection to the correct cMsg server
+ * is necessary.
+ * @author heyes
+ */
 public interface CODAComponent extends Runnable, CommandAcceptor {
 
-    /** @return the loadedConfig */
+    /**
+     * Get the configuration of this CODA component in the form of
+     * a parsed XML document object that is loaded from a file when
+     * the configure command is executed. It may change from run to run
+     * and tells the Emu which modules to load, which data transports to
+     * start and what data channels to open.
+     *
+     * @return the CODA component configuration object as a parsed XML document
+     */
     public Document configuration();
 
-    /** @return the localConfig */
+    /**
+     * Get the configuration of this CODA component in the form of
+     * a parsed XML document object that is loaded when the configure
+     * command is executed. It contains all of the status variables
+     * that change from run to run.
+     * 
+     * @return the CODA component configuration object as a parsed XML document
+     *         that contains all of the status variables that change from run to run
+     */
     public Document parameters();
 
     /**
-     * Method name ...
-     *
-     * @return String
+     * Get the name of this CODA component.
+     * @return the name of this CODA component
      */
     public String name();
 
     /**
-     * Method getCodaid returns the codaid of this CODAComponent object.
-     *
-     * @return the codaid (type int) of this CODAComponent object.
+     * Get the id of this CODA component.
+     * @return the id of this CODA component.
      */
     public int getCodaid();
 
     /**
-     * Method getSession returns the session of this CODAComponent object.
-     *
-     * @return the session (type String) of this CODAComponent object.
+     * Get the session of this CODA component.
+     * @return the session of this CODA component
      */
     public String getSession();
 
     /**
-     * Method getExpid returns the expid of this CODAComponent object.
-     *
-     * @return the expid (type String) of this CODAComponent object.
+     * Get the experiment id (expid) of this CODA component.
+     * @return the experiment id (expid) of this CODA component
      */
     public String getExpid();
 
     /**
-     * Method getHostName returns the hostName of this CODAComponent object.
-     *
-     * @return the hostName (type String) of this CODAComponent object.
+     * Get the name of the host this CODA component is running on.
+     * @return the hostName of this CODAComponent object.
      */
     public String getHostName();
 
     /**
-     * Method getUserName returns the userName of this CODAComponent object.
-     *
-     * @return the userName (type String) of this CODAComponent object.
+     * Get the user name of this CODA component.
+     * @return the user name of this CODA component
      */
     public String getUserName();
 
     /**
-     * Method getConfig returns the config of this CODAComponent object.
+     * Get the name of the current configuration
+     * (passed via the configure command) of this CODA component.
      *
-     * @return the config (type String) of this CODAComponent object.
+     * @return the current configuration name of this CODA component
      */
     public String getConfig();
 
     /**
-     * Method getCodaClass returns the codaClass of this CODAComponent object.
-     *
-     * @return the codaClass (type String) of this CODAComponent object.
+     * Get the class of this CODA component (e.g. "EMU", "ROC", "ER").
+     * @return the class of this CODA component (e.g. "EMU", "ROC", "ER")
      */
     public String getCodaClass();
 
     /**
-     * Method getRunNumber returns the runNumber of this CODAComponent object.
-     *
-     * @return the runNumber (type int) of this CODAComponent object.
+     * Get the run number of this CODA component.
+     * @return the run number of this CODA component
      */
     public int getRunNumber();
 
     /**
-     * Method getRunType returns the runType of this CODAComponent object.
-     *
-     * @return the runType (type int) of this CODAComponent object.
+     * Get the numeric code representing the runType of this CODA component.
+     * @return the numeric code representing the runType of this CODA component
      */
     public int getRunType();
 
     /**
-     * Method getCmsgUDL returns the cmsgUDL of this CODAComponent object.
-     *
-     * @return the cmsgUDL (type String) of this CODAComponent object.
+     * Get the UDL used to connect to the cMsg server by this CODA component.
+     * @return the UDL used to connect to the cMsg server by this CODA component
      */
     public String getCmsgUDL();
 
     /**
-     * Method setConfig sets the config of this CODAComponent object.
-     *
-     * @param conf the config of this CODAComponent object.
+     * Set the name of the current configuration of this CODA component.
+     * @param conf the name of the current configuration of this CODA component
      */
     public void setConfig(String conf);
 
     /**
-     * Method setRunNumber sets the runNumber of this CODAComponent object.
-     *
-     * @param runNumber the runNumber of this CODAComponent object.
+     * Set the run number of this CODA component.
+     * @param runNumber the run number of this CODA component
      */
     public void setRunNumber(int runNumber);
 
     /**
-     * Method setRunType sets the runType of this CODAComponent object.
-     *
-     * @param runType the runType of this CODAComponent object.
+     * Set the runType of this CODA component.
+     * @param runType the runType of this CODA component
      */
     public void setRunType(int runType);
 
     /**
-     * Method setCodaid sets the codaid of this CODAComponent object.
-     *
-     * @param codaid the codaid of this CODAComponent object.
+     * Set the id of this CODA component.
+     * @param codaid the coda id of this CODA component
      */
     public void setCodaid(int codaid);
 

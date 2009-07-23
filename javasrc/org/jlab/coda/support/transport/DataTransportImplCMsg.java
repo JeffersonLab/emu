@@ -234,7 +234,7 @@ public class DataTransportImplCMsg extends DataTransportCore implements DataTran
     public void execute(Command cmd) {
         System.out.println("DataTransportImplCMsg execute : " + cmd);
 
-        if (cmd.equals(CODATransition.prestart)) {
+        if (cmd.equals(CODATransition.PRESTART)) {
 
             try {
                 if (server) startServer();
@@ -249,7 +249,7 @@ public class DataTransportImplCMsg extends DataTransportCore implements DataTran
             return;
         }
 
-        if ((cmd.equals(CODATransition.end)) || (cmd.equals(RunControl.reset))) {
+        if ((cmd.equals(CODATransition.END)) || (cmd.equals(RunControl.RESET))) {
             try {
                 Logger.debug("CMsg Unsubscribe : " + name() + " " + myInstance);
                 CMSGPortal.getServer().unsubscribe(sub);

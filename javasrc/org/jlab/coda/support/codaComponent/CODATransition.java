@@ -17,20 +17,31 @@ import org.jlab.coda.support.control.State;
 import java.util.EnumSet;
 import java.util.HashMap;
 
-/** @author heyes */
+/**
+ * An enum which contains a list of possible transitions in CODA run control.
+ * Each of these transitions can be enabled or disabled.
+ * Why is "configure" not listed here?
+ * @author heyes
+ */
 public enum CODATransition implements Command {
 
-    /** Field download */download("Apply the configuration and load", "DOWNLOADED"),
-    /** Field prestart */prestart("Prepare to start", "PRESTARTED"),
-    /** Field go */go("Start taking data", "ACTIVE"),
-    /** Field end */end("End taking data", "ENDED"),
-    /** Field pause */pause("Pause taking data", "PAUSED"),
-    /** Field pause */resume("Resume taking data", "ACTIVE");
+    /** Download. */
+    DOWNLOAD("Apply the configuration and load", "DOWNLOADED"),
+    /** Prestart. */
+    PRESTART("Prepare to start", "PRESTARTED"),
+    /** Go. */
+    GO("Start taking data", "ACTIVE"),
+    /** End. */
+    END("End taking data", "ENDED"),
+    /** Pause. */
+    PAUSE("Pause taking data", "PAUSED"),
+    /** Resume. */
+    RESUME("Resume taking data", "ACTIVE");
 
-    /** Field description */
+    /** Description of the transition. */
     private final String description;
 
-    /** Field success */
+    /** CODA run control state entered into if transition suceeded. */
     private final String success;
 
     /** Field args */
@@ -50,31 +61,36 @@ public enum CODATransition implements Command {
         this.success = success;
     }
 
-    /** @see org.jlab.coda.support.control.Command#description() */
+    /**
+     * Get the description of this transition.
+     * @see org.jlab.coda.support.control.Command#description()
+     */
     public String description() {
         return description;
     }
 
-    /** @see org.jlab.coda.support.control.Command#isEnabled() */
+    /**
+     * Is this transition enabled?
+     * @see org.jlab.coda.support.control.Command#isEnabled()
+     */
     public boolean isEnabled() {
 
         return enabled;
     }
 
-    /** Method enable ... */
+    /** Set this transition to be enabled. */
     public void enable() {
         enabled = true;
     }
 
-    /** Method disable ... */
+    /** Set this transition to be disabled. */
     public void disable() {
         enabled = false;
     }
 
     /**
-     * Method allow ...
-     *
-     * @param cmds of type EnumSet
+     * Enable the transitions given in the argument set.
+     * @param cmds set of transitions to be marked as enabled
      */
     public void allow(EnumSet cmds) {
         for (CODATransition t : CODATransition.values()) {
@@ -117,9 +133,8 @@ public enum CODATransition implements Command {
     }
 
     /**
-     * Method success ...
-     *
-     * @return State
+     * Returns the CODA run control State (CODAState enum object) upon success of this transition.
+     * @return State (CODAState enum object) upon success of this transition
      */
     public State success() {
         return CODAState.valueOf(success);

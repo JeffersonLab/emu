@@ -150,6 +150,7 @@ public class DataTransportCore {
 
     /**
      * Method getAttr ...
+     * Includes: (queue)capacity, size, ...
      *
      * @param pname of type String
      *
@@ -167,6 +168,7 @@ public class DataTransportCore {
 
     /**
      * Method getIntAttr ...
+     * Includes: (queue)capacity, size, ...
      *
      * @param pname of type String
      *

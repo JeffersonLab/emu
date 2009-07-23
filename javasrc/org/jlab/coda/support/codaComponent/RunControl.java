@@ -17,23 +17,46 @@ import org.jlab.coda.support.control.State;
 import java.util.EnumSet;
 import java.util.HashMap;
 
-/** @author heyes */
+/**
+ * This enum enumerates the possible actions of a "run object"
+ * as opposed to a "session object" or "coda object". The run
+ * object is aware of the run but does not respond to CODA
+ * run control transition commands as a coda object would.
+ *
+ * This class does NOT seem much used - only the "configure"
+ * value.
+ *
+ * @author heyes
+ */
 
 public enum RunControl implements Command {
-    /** Field setState */setState("Set State", null),
-    /** Field setSession */setSession("Set Session", null),
-    /** Field getSession */getSession("getSession", null),
-    /** Field setInterval */setInterval("setInterval", null),
-    /** Field start */start("start", null),
-    /** Field stop */stop("stop", null),
-    /** Field reset */reset("Return to pre-configured state", "UNCONFIGURED"),
-    /** Field exit */exit("Shutdown the codaComponent", null),
-    /** Field startReporting */startReporting("start reporting", null),
-    /** Field stopReporting */stopReporting("stop reporting", null),
-    /** Field configure */configure("Load the configuration", "CONFIGURED"),
-    /** Field releaseSession */releaseSession("release session", null);
 
-    /** Field description */
+    /** Field setState */
+    SET_STATE("set state", null),
+    /** Field setSession */
+    SET_SESSION("set session", null),
+    /** Field getSession */
+    GET_SESSION("get session", null),
+    /** Field setInterval */
+    SET_INTERVAL("set interval", null),
+    /** Field start */
+    START("start", null),
+    /** Field stop */
+    STOP("stop", null),
+    /** Field reset */
+    RESET("return to pre-configured state", "UNCONFIGURED"),
+    /** Field exit */
+    EXIT("shutdown the codaComponent", null),
+    /** Field startReporting */
+    START_REPORTING("start reporting", null),
+    /** Field stopReporting */
+    STOP_REPORTING("stop reporting", null),
+    /** Field configure */
+    CONFIGURE("load the configuration", "CONFIGURED"),
+    /** Field releaseSession */
+    RELEASE_SESSION("release session", null);
+
+    /** Description of the command to the run object. */
     private final String description;
 
     /** Field args */
@@ -44,13 +67,14 @@ public enum RunControl implements Command {
     private boolean enabled = true;
 
     /**
-     * Constructor CODATransition creates a new CODATransition instance.
+     * Constructor which creates a new RunControl instance.
      *
-     * @param d of type String
+     * @param description description of the run control command
+     * @param success of the run control command
      */
-    RunControl(String d, String s) {
-        description = d;
-        success = s;
+    RunControl (String description, String success) {
+        this.description = description;
+        this.success = success;
     }
 
     /** @see org.jlab.coda.support.control.Command#description() */

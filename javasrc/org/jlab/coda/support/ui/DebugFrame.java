@@ -58,7 +58,7 @@ public class DebugFrame extends JFrame {
      * @param doc of type Document
      */
     public void addDocument(Document doc) {
-        System.out.println("Here in addDocument " + doc);
+System.out.println("Here in addDocument " + doc);
         try {
             Node node = doc.getDocumentElement();
             DataNode dn = Configurer.getDataNodes(node);

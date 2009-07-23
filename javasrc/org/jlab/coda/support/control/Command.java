@@ -13,65 +13,72 @@ package org.jlab.coda.support.control;
 
 import java.util.EnumSet;
 
-/** @author heyes */
+/**
+ * Interface describing a generic command.
+ * @author heyes
+ */
 public interface Command {
 
     /**
-     * Method name ...
-     *
-     * @return String
+     * Get the name of this command.
+     * @return name of this command
      */
     public String name();
 
-    /** @return the description */
+    /**
+     * Description of this command.
+     * @return the description of this command
+     */
     public String description();
 
-    /** @return the enabled */
+    /**
+     * Is this command enabled?
+     * @return is this command is enabled?
+     */
     public boolean isEnabled();
 
-    /** Method enable ... */
+    /** Enable this command. */
     public void enable();
 
-    /** Method disable ... */
+    /** Disable this command. */
     public void disable();
 
     /**
-     * Method allow ...
-     *
-     * @param cmds of type EnumSet
+     * Enable the given set of commands.
+     * @param cmds set of commands to be enabled
      */
     public void allow(EnumSet cmds);
 
     /**
-     * Method getArg ...
+     * Get the object (actually a cMsgPayloadItem) associated with this tag (unique mapping).
      *
-     * @param tag of type String
-     * @return Object
+     * @param tag name
+     * @return Object object associated with tag
      */
     public Object getArg(String tag);
 
     /**
-     * Method setArg ...
+     * Keep a set of tags each associated with a cMsgPayloadItem
+     * (although Object is used instead to avoid strict dependence
+     * on cMsg).
      *
-     * @param tag   of type String
-     * @param value of type Object
+     * @param tag   of type String (name of cMsgPayloadItem)
+     * @param value of type Object (actually cMsgPayloadItem)
      */
     public void setArg(String tag, Object value);
 
     /**
-     * Method hasArgs ...
-     *
+     * Does this command have any associated objects (args)?
      * @return boolean
      */
     public boolean hasArgs();
 
-    /** Method clearArgs ... */
+    /** Clear all args. */
     public void clearArgs();
 
     /**
-     * Method success ...
-     *
-     * @return State
+     * Get the resulting State (enum object) if command suceeded.
+     * @return resulting State (enum object) if command suceeded
      */
     public State success();
 }

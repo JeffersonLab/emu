@@ -39,22 +39,42 @@ public class RCSessionHandler extends GenericCallback implements cMsgCallbackInt
 
     /**
      * Method callback ...
+     * type = session/control/* .
      *
-     * @param msg of type cMsgMessage
-     * @param o   of type Object
+     * @param msg cMsgMessage being received
+     * @param o   object given in subscription & passed in here (null in this case)
      */
     public void callback(cMsgMessage msg, Object o) {
 
         try {
             String type = msg.getType();
             String cmdS = type.substring(type.lastIndexOf("/") + 1);
-            Command cmd = SessionControl.valueOf(cmdS);
+
+            // See if message's type (after last / ) is a recognized session-related command.
+            // Examples: set/get run number, set/get run type.
+            // The string cmdS may not be an allowed enum value, in which case an
+            // IllegalArgumentException will be thrown.
+            Command cmd;
+            try {
+                cmd = SessionControl.valueOf(cmdS);
+            } catch (IllegalArgumentException e) {
+                // bug bug: do we want this printed, logged, etc ???
+                System.out.println("Received an invalid session command");
+                return;
+            }
+            
+            // set the args for this command
             Set<String> names = msg.getPayloadNames();
             cmd.clearArgs();
             for (String name : names) {
                 cmd.setArg(name, msg.getPayloadItem(name));
             }
+
+            // Get the EMU object and have it post this new command
+            // by putting it in a Q that is periodically checked by
+            // the EMU's "run" (main thread) method.
             cmsgPortal.comp.postCommand(cmd);
+
         } catch (InterruptedException e) {
             e.printStackTrace();
         }

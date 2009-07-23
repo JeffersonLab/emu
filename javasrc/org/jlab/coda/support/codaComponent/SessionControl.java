@@ -17,12 +17,25 @@ import org.jlab.coda.support.control.State;
 import java.util.EnumSet;
 import java.util.HashMap;
 
-/** @author heyes */
+/**
+ * This enum enumerates the possible actions of a "session object"
+ * as opposed to a "run object" or "coda object". The session
+ * object is aware only of the run number and run type.
+ *
+ * Currently this enum does NOT seem to be used.
+ *
+ * @author heyes
+ */
 public enum SessionControl implements Command {
-    /** Field setRunNumber */setRunNumber("Set the run number"),
-    /** Field getRunNumber */getRunNumber("Get the run number"),
-    /** Field setRunType */setRunType("Set the run type"),
-    /** Field getRunType */getRunType("Get the run type");
+
+    /** Field setRunNumber */
+    SET_RUN_NUMBER("Set the run number"),
+    /** Field getRunNumber */
+    GET_RUN_NUMBER("Get the run number"),
+    /** Field setRunType */
+    SET_RUN_TYPE("Set the run type"),
+    /** Field getRunType */
+    GET_RUN_TYPE("Get the run type");
 
     /** Field args */
     private final HashMap<String, Object> args = new HashMap<String, Object>();
@@ -33,12 +46,11 @@ public enum SessionControl implements Command {
     boolean enabled = true;
 
     /**
-     * Constructor CODATransition creates a new CODATransition instance.
-     *
-     * @param d
+     * Constructor that creates a new SessionControl instance.
+     * @param description description of this session control command
      */
-    SessionControl(String d) {
-        description = d;
+    SessionControl(String description) {
+        this.description = description;
     }
 
     /** @return the description */

@@ -25,9 +25,8 @@ import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 
 /**
- * -----------------------------------------------------
- * Copyright (c) 2008 Jefferson lab data acquisition group
- * Class DataChannelImplSO ...
+ * Implementation of the DataChannel interface using cMsg
+ * as the communication protocol.
  *
  * @author heyes
  *         Created on Sep 12, 2008
@@ -57,11 +56,13 @@ public class DataChannelImplCMsg implements DataChannel {
     private DataInputStream in;
 
     /**
-     * Constructor DataChannelImplSO creates a new DataChannelImplSO instance.
+     * Constructor to create a new DataChannelImplCmsg instance.
+     * Used only by {@link DataTransportImplCMsg#createChannel}.
+     * bug bug : Why are we creating a socket here? Shouldn't we be using cMsg??
      *
-     * @param name          of type String is the name of this channel.
-     * @param dataTransport of type DataTransport that this channel belongs to.
-     * @param input         true if this is an input data channel, otherwise false.
+     * @param name          the name of this channel
+     * @param dataTransport the DataTransport object that this channel belongs to
+     * @param input         true if this is an input data channel, otherwise false
      *
      * @throws DataTransportException - unable to create buffers or socket.
      */
@@ -85,14 +86,15 @@ public class DataChannelImplCMsg implements DataChannel {
 
         queue = new ArrayBlockingQueue<DataBank>(capacity);
 
-        // If we are a server the accept helper in the dataTransport implementation will
+        // If we are a server (data sender) the accept helper in the dataTransport implementation will
         // handle connections
         if (!input) {
             try {
                 dataSocket = new Socket(dataTransport.getHost(), dataTransport.getPort());
 
                 dataSocket.setTcpNoDelay(true);
-                dataSocket.getChannel();
+                // bug bug : channel should be null
+                //dataSocket.getChannel();
                 out = new DataOutputStream(dataSocket.getOutputStream());
                 in = new DataInputStream(dataSocket.getInputStream());
                 // Always write a 1 byte length followed by data
@@ -115,22 +117,24 @@ public class DataChannelImplCMsg implements DataChannel {
     }
 
     /**
-     * Method receive ...
+     * Take a DataBank off the queue.
      *
      * @return int[]
      *
      * @throws InterruptedException on wakeup of fifo without data.
      */
     public DataBank receive() throws InterruptedException {
+        // bug bug why not do: queue.take(); ?  why invoke the transport object?
         return dataTransport.receive(this);
     }
 
     /**
-     * Method send ...
+     * Add a DataBank to the queue.
      *
      * @param data is the bank to send
      */
     public void send(DataBank data) {
+        // bug bug why not do: queue.add(data); ?  why invoke the transport object?
         dataTransport.send(this, data);
     }
 

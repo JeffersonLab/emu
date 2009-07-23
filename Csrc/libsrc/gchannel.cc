@@ -34,7 +34,8 @@
 extern "C" void gchannel_resolve(gtransport m, char *type) {
     void    *handle;
     char sym_name[100];
-    /* open the needed object */
+    /* Open the needed object. If the filename is NULL (0), then the
+     * returned handle is for the main program. */
     handle = dlopen(0,RTLD_NOW);
 
     sprintf(sym_name,"gchannel_create_transport_%s",type);

@@ -31,27 +31,31 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Vector;
 
-/** @author heyes */
+/**
+ * Only one of these objects is created in the EmuModuleFactory object
+ * which is, in turn has only one existing object created by the Emu class.
+ * Just like EmuModuleFactory can create, store and control Modules, this object
+ * can create, store and control DataTransport objects.
+ * 
+ * @author heyes
+ */
 public class DataTransportFactory implements StatedObject {
 
-    /** Field transports */
+    /** Vector containing all DataTransport objects. */
     private static final Vector<DataTransport> transports = new Vector<DataTransport>();
 
-    /** Field name */
+    /** Name of this object. */
     private final String name = "Transport factory";
 
     /** Field state */
     private State state = CODAState.UNCONFIGURED;
 
     /**
-     * Method findNamedTransport ...
+     * This method finds the DataTransport object corresponding to the given name.
      *
-     * @param name of type String
-     *
-     * @return DataTransport
-     *
-     * @throws org.jlab.coda.support.configurer.DataNotFoundException
-     *          when
+     * @param name name of transport object
+     * @return DataTransport object corresponding to given name
+     * @throws DataNotFoundException when no transport object of that name can be found
      */
     public static DataTransport findNamedTransport(String name) throws DataNotFoundException {
         DataTransport t;
@@ -97,7 +101,8 @@ public class DataTransportFactory implements StatedObject {
     }
 
     /**
-     * Method execute ...
+     * this method is only called by the EmuModuleFactory's (a singleton used by Emu)
+     * execute method.
      *
      * @param cmd of type Command
      *
@@ -109,7 +114,7 @@ public class DataTransportFactory implements StatedObject {
     public void execute(Command cmd) throws CmdExecException {
         Logger.info("DataTransportFactory.execute : " + cmd);
 
-        if (cmd.equals(CODATransition.download)) {
+        if (cmd.equals(CODATransition.DOWNLOAD)) {
             try {
                 Node m = Configurer.getNode(Emu.INSTANCE.configuration(), "component/transports");
                 System.out.println("component/transports node = " + m);
@@ -191,7 +196,7 @@ public class DataTransportFactory implements StatedObject {
             transport.execute(cmd);
         }
 
-        if (cmd.equals(RunControl.reset) || cmd.equals(CODATransition.end)) {
+        if (cmd.equals(RunControl.RESET) || cmd.equals(CODATransition.END)) {
             for (DataTransport t : transports) {
                 t.close();
             }

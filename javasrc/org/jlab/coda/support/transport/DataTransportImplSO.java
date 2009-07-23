@@ -87,6 +87,10 @@ public class DataTransportImplSO extends DataTransportCore implements DataTransp
     /**
      * <pre>
      * Class <b>MulticastHelper </b>
+     * Listen on a multicast socket and respond if we receive
+     * a packet with our name in it. Respond with our name, host
+     * address and server socket port number. This is run if we
+     * are a server and someone is looking for us.
      * </pre>
      *
      * @author heyes
@@ -106,10 +110,12 @@ public class DataTransportImplSO extends DataTransportCore implements DataTransp
                 multicastSocket.joinGroup(multicastAddr);
                 multicastSocket.setTimeToLive(3);
                 while (true) {
+                    // receive packet of client looking for server
                     multicastSocket.receive(dp);
                     String s = new String(dp.getData(), 0, dp.getLength());
 
                     if (s.matches(name())) {
+                        // if names match send a response packet with our name, host, and server port
                         s = name() + " " + localhost.getHostAddress() + " " + serverSocket.getLocalPort();
                         dp.setData(s.getBytes());
                         multicastSocket.send(dp);
@@ -128,6 +134,11 @@ public class DataTransportImplSO extends DataTransportCore implements DataTransp
     /**
      * <pre>
      * Class <b>AcceptHelper </b>
+     * Listen on a TCP server socket, accept connection,
+     * read in length and name, Use that name to retrieve
+     * DataChannel, and the socket to receive data as part
+     * of that DataChannel.
+     *
      * </pre>
      *
      * @author heyes
@@ -195,16 +206,23 @@ public class DataTransportImplSO extends DataTransportCore implements DataTransp
             throw new DataTransportException(e1.getMessage());
         }
 
+        // run this thread if we're a server and someone is looking for us by multicasting
         Thread multicastHelperThread = new Thread(Emu.THREAD_GROUP, new MulticastHelper(), name() + " multicast");
         multicastHelperThread.start();
+
+        // listen on server socket for clients
         Thread acceptHelperThread = new Thread(Emu.THREAD_GROUP, new AcceptHelper(), name() + " accept");
         acceptHelperThread.start();
+        
         connected = true;
     }
 
     /**
      * <pre>
      * Class <b>ConnectHelper </b>
+     * Create a multicast socket and send out packets
+     * with our name in it. If we're a client we do this
+     * to find a server.
      * </pre>
      *
      * @author heyes
@@ -221,18 +239,27 @@ public class DataTransportImplSO extends DataTransportCore implements DataTransp
                 multicastSocket = new MulticastSocket();
                 multicastSocket.joinGroup(multicastAddr);
                 multicastSocket.setTimeToLive(20);
+                
                 while (true) {
+
+                    // send out a packet with our name in it
                     String s = name();
                     DatagramPacket odp = new DatagramPacket(s.getBytes(), s.length(), multicastAddr, multicastPort);
                     multicastSocket.send(odp);
 
+                    // Receive a response packet if there is one from a server
+                    // of the above name (s), else block until there is one.
                     multicastSocket.receive(dp);
+
+                    // response should be string with space separation of: name, host, server port
                     String s1 = new String(dp.getData(), 0, dp.getLength());
 
                     String[] values = s1.split(" ");
 
+                    // if the name matches ours ...
                     if (values[0].matches(name())) {
 
+                        // create socket to the given host and port
                         Socket dataSocket = new Socket(values[1], Integer.parseInt(values[2]));
 
                         dataSocket.setTcpNoDelay(true);
@@ -242,10 +269,11 @@ public class DataTransportImplSO extends DataTransportCore implements DataTransp
                         String emuName = Emu.INSTANCE.name();
                         String channelName = name() + ":" + emuName;
 
+                        // first thing, send the channel name len and channel name
                         dout.write(channelName.length());
-
                         dout.write(channelName.getBytes());
-                        DataChannelImplSO c = (DataChannelImplSO) channels.get(name() + ":" + emuName);
+
+                        DataChannelImplSO c = (DataChannelImplSO) channels.get(channelName);
 
                         if (c != null) {
                             c.setDataSocket(dataSocket);
@@ -264,19 +292,18 @@ public class DataTransportImplSO extends DataTransportCore implements DataTransp
 
     }
 
-    /** Method connect ... */
+    /** This method connects to a server and finishes creating a channel by setting the socket. */
     void connect() {
+        // start thread to connecto to server
         Thread connectHelperThread = new Thread(Emu.THREAD_GROUP, new ConnectHelper(), name() + " connect");
-
         connectHelperThread.start();
-
     }
 
     /**
-     * Method createChannel ...
+     * Create a DataChannel for this transport implementation.
      *
      * @param name    of type String
-     * @param isInput set to true if this is an input channel
+     * @param isInput set to true if this is an input (client) channel
      *
      * @return DataChannel
      */
@@ -287,7 +314,7 @@ public class DataTransportImplSO extends DataTransportCore implements DataTransp
     }
 
     /**
-     * Method receive ...
+     * bug bug, what does this do?
      *
      * @param channel of type DataChannel
      *
@@ -298,9 +325,10 @@ public class DataTransportImplSO extends DataTransportCore implements DataTransp
     }
 
     /**
-     * Method isConnected returns the connected of this DataTransport object.
+     * This method returns the connection status of this DataTransport object
+     * (true if connected).
      *
-     * @return the connected (type boolean) of this DataTransport object.
+     * @return the connection status (boolean) of this DataTransport object (true if connected)
      */
     public boolean isConnected() {
         return connected;
@@ -312,7 +340,9 @@ public class DataTransportImplSO extends DataTransportCore implements DataTransp
     }
 
     /**
-     * Method execute ...
+     * This method is only called by the DataTransportFactory's
+     * (a singleton) execute method which is only called
+     * by the EmuModuleFactory's (a singleton) execute method.
      *
      * @param cmd of type Command
      *
@@ -320,10 +350,9 @@ public class DataTransportImplSO extends DataTransportCore implements DataTransp
      */
     public void execute(Command cmd) {
 
-        if (cmd.equals(CODATransition.prestart)) {
+        if (cmd.equals(CODATransition.PRESTART)) {
             try {
                 multicastAddr = InetAddress.getByName("239.200.0.0");
-
                 multicastPort = getIntAttr("port");
 
                 if (server) startServer();
@@ -338,13 +367,13 @@ public class DataTransportImplSO extends DataTransportCore implements DataTransp
             return;
         }
 
-        if (cmd.equals(CODATransition.end)) {
+        if (cmd.equals(CODATransition.END)) {
 
             state = cmd.success();
             return;
         }
 
-        if (cmd.equals(RunControl.reset)) {
+        if (cmd.equals(RunControl.RESET)) {
 
             state = cmd.success();
             return;

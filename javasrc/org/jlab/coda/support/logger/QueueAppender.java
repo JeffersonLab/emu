@@ -15,7 +15,7 @@ import java.util.concurrent.TimeUnit;
 
 /**
  * <pre>
- * Class <b>QueueAppender </b>
+ * Class <b>QueueAppender </b> which keeps a queue of logging events appended.
  * </pre>
  *
  * @author heyes
@@ -29,11 +29,10 @@ public class QueueAppender implements LoggerAppender {
     /**
      * Constructor QueueAppender creates a new QueueAppender instance.
      *
-     * @param buferSize of type int
+     * @param bufferSize size of queue to create
      */
-    public QueueAppender(int buferSize) {
-        queue = new ArrayBlockingQueue<LoggingEvent>(buferSize);
-
+    public QueueAppender(int bufferSize) {
+        queue = new ArrayBlockingQueue<LoggingEvent>(bufferSize);
     }
 
     /**
@@ -42,9 +41,14 @@ public class QueueAppender implements LoggerAppender {
      * @param event of type LoggingEvent
      */
     public void append(LoggingEvent event) {
+        // Returns true if able to add event, else it throws
+        // an IllegalStateException if the queue is full.
         queue.add(event);
+        
+        // if Q size over 1000, get rid of the first item put on the queue
         if (queue.size() > 1000) {
             try {
+                // will block if Q is empty
                 queue.take();
             } catch (InterruptedException e) {
                 // ignore
@@ -53,22 +57,28 @@ public class QueueAppender implements LoggerAppender {
     }
 
     /**
-     * Method poll ...
+     * Return a LoggingEvent object from the internal storage queue.
+     * If the queue is empty, return null.
      *
-     * @return LoggingEvent
+     * @return LoggingEvent object from the internal queue or null if queue is empty
      */
     public LoggingEvent poll() {
+        // returns null if Q is empty
         return queue.poll();
     }
 
     /**
-     * Method poll ...
+     * Return a LoggingEvent object from the internal storage queue.
+     * If the queue is empty, return null.
      *
-     * @return LoggingEvent
+     * @param wait time in seconds to wait if queue is empty
+     * @return LoggingEvent object from the internal queue or null if queue is empty
+     *         and timeout has expired
      */
     public LoggingEvent poll(int wait) {
 
         try {
+            // returns null if Q is empty & time expired
             return queue.poll(wait, TimeUnit.SECONDS);
         } catch (InterruptedException e) {
             return null;

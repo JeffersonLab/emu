@@ -74,7 +74,7 @@ public class Send implements EmuModule {
      */
     public void execute(Command cmd) {
 
-        if (cmd.equals(CODATransition.end)) {
+        if (cmd.equals(CODATransition.END)) {
             state = CODAState.ENDED;
         }
 

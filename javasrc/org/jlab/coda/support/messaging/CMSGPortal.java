@@ -26,25 +26,63 @@ import java.text.SimpleDateFormat;
 import java.util.Date;
 
 /**
- * Created by IntelliJ IDEA.
- * User: heyes
- * Date: Sep 22, 2008
- * Time: 8:37:33 AM
+ * This class (a singleton) creates a connection to a cMsg server for the
+ * purposes of receiving run control commands and logging cmlog messages.
  */
 public class CMSGPortal implements LoggerAppender {
 
-    private static cMsg server = null;
+    /** cMsg connection object. */
+    private static cMsg server;
+
+    /** UDL to connectiont to cMsg system. */
     private final String UDL;
+
+    /** Store a reference to the EMU here (which is the only object that uses this CMSGPortal object). */
     final CODAComponent comp;
+    
+    /** Thread which creates and maintains a healthy cMsg connection. */
     private final Thread monitorThread;
 
-    private static CMSGPortal self = null;
+    /** A reference to the singleton object of this class. */
+    private static CMSGPortal self;
 
+
+    /**
+     * Get and/or create this singleton object.
+     * @param c reference to EMU object (singleton too)
+     * @return reference to this singleton object
+     */
     public static CMSGPortal getCMSGPortal(CODAComponent c) {
         if (self == null) self = new CMSGPortal(c);
         return self;
     }
 
+
+    /**
+     * Constructor.
+     * @param c reference to EMU object (singleton too)
+     */
+    private CMSGPortal(CODAComponent c) {
+        comp = c;
+        // UDL for connection to cMsg server was originally specified
+        // with -DcmsgUDL=xxx flag to interpreter when running EMU.
+        String udl = c.getCmsgUDL();
+        // default test UDL
+        String TEST_UDL = "cMsg:cMsg://localhost/cMsg/test";
+        if (udl != null) UDL = udl;
+        else UDL = TEST_UDL;
+
+        Logger.addAppender(this);
+
+        // start a thread to maintain a connection to the cMsg server
+        monitorThread = new Thread(Emu.THREAD_GROUP, new ServerMonitor(), "cMSg Server Monitor");
+        monitorThread.start();
+    }
+
+
+    /**
+     * This class is run as a thread to ensure a viable cMsg connection.
+     */
     private class ServerMonitor implements Runnable {
 
         /**
@@ -59,17 +97,26 @@ public class CMSGPortal implements LoggerAppender {
          * @see Thread#run()
          */
         public void run() {
+
+            // While we have not been ordered to shutdown,
+            // make sure we have a viable connection to the cMsg server.
             while (!monitorThread.isInterrupted()) {
+
                 if (server == null || !server.isConnected()) try {
-
+                    // create connection to cMsg server
                     server = new cMsg(UDL, comp.name(), "EMU called " + comp.name());
-
                     server.connect();
+                    // allow receipt of messages
                     server.start();
+                    // install callback for download, prestart, go, etc
                     server.subscribe("*", "run/transition/*", new RCTransitionHandler(self), null);
+                    // install callback for reset, configure, start, stop, getsession, setsession, etc
                     server.subscribe("*", "run/control/*", new RCControlHandler(self), null);
+                    // install callback for set/get run number, set/get run type
                     server.subscribe("*", "session/control/*", new RCSessionHandler(self), null);
+
                     Logger.info("cMSg server connected");
+
                 } catch (cMsgException e) {
                     Logger.warn("cMSg server down, retry in 5 seconds");
                     if (server != null) {
@@ -81,45 +128,53 @@ public class CMSGPortal implements LoggerAppender {
                         server = null;
                     }
                 }
+
+                // wait for 5 seconds
                 try {
                     Thread.sleep(5000);
                 } catch (InterruptedException e) {
-
                     break;
                 }
             }
 
+            // We're here because we've been ordered to shutdown the connection
             if (server != null) try {
-
                 server.disconnect();
             } catch (cMsgException e1) {
                 // ignore
             }
+
             server = null;
             Logger.warn("cMSg server monitor thread exit");
         }
     }
 
-    private CMSGPortal(CODAComponent c) {
 
-        comp = c;
-        String udl = c.getCmsgUDL();
-        String TEST_UDL = "cMsg:cMsg://localhost:7030/cMsg/test";
-        if (udl != null) UDL = udl;
-        else UDL = TEST_UDL;
-
-        Logger.addAppender(this);
-
-        monitorThread = new Thread(Emu.THREAD_GROUP, new ServerMonitor(), "cMSg Server Monitor");
-        monitorThread.start();
-    }
-
+    /**
+     * Disconnect from the cMsg server.
+     * Called from the EMU when quitting.
+     * @throws cMsgException
+     */
     public void shutdown() throws cMsgException {
         Logger.removeAppender(this);
 
         monitorThread.interrupt();
     }
 
+
+    /**
+     * Get a reference to the cMsg connection object.
+     * @return cMsg connection object
+     */
+    public static cMsg getServer() {
+        return server;
+    }
+
+
+    /**
+     * Send a cmlog message using the cMsg system.
+     * @param event event to be logged
+     */
     public void append(LoggingEvent event) {
 
         if ((server != null) && server.isConnected()) {
@@ -143,7 +198,6 @@ public class CMSGPortal implements LoggerAppender {
                     DateFormat format = new SimpleDateFormat("HH:mm:ss.SSS ");
                     format.format(new Date(event.getEventTime()));
                     msg.addPayloadItem(new cMsgPayloadItem("tod", format.format(event.getEventTime())));
-
                 }
 
                 //System.out.println("cMsg Server : " + server.toString() + " " +server.isConnected());
@@ -160,7 +214,4 @@ public class CMSGPortal implements LoggerAppender {
         }
     }
 
-    public static cMsg getServer() {
-        return server;
-    }
 }

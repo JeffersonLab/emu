@@ -38,22 +38,20 @@ public interface EmuModule extends StatedObject {
      * in the context of the receiving module.
      *
      * @param cmd of type Command
-     * @throws org.jlab.coda.support.control.CmdExecException
+     * @throws CmdExecException
      *
      */
     public void execute(Command cmd) throws CmdExecException;
 
     /**
-     * Method setInput_channels sets the input_channels of this EmuModule object.
-     *
-     * @param input_channels the input_channels of this EmuModule object.
+     * Set the input channels of this EmuModule object.
+     * @param input_channels the input channels of this EmuModule object
      */
     public void setInput_channels(ArrayList<DataChannel> input_channels);
 
     /**
-     * Method setOutput_channels sets the output_channels of this EmuModule object.
-     *
-     * @param output_channels the output_channels of this EmuModule object.
+     * Set the output channels of this EmuModule object.
+     * @param output_channels the output channels of this EmuModule object
      */
     public void setOutput_channels(ArrayList<DataChannel> output_channels);
 

@@ -40,7 +40,8 @@ import java.util.Vector;
  * <pre>
  * Class <b>EmuModuleFactory </b>
  * This class is the implementation of an Emu Module that is able to
- * load and create other modules and monitor their state.
+ * load and create other modules and monitor their state. Only one of
+ * these objects exists and is created by the Emu class.
  * </pre>
  *
  * @author heyes
@@ -61,28 +62,30 @@ public class EmuModuleFactory implements StatedObject {
     private final static DataTransportFactory TRANSPORT_FACTORY = new DataTransportFactory();
 
     /**
-     * Method execute ...
+     * This method executes commands given to it.
      *
      * @param cmd of type Command
      * @see EmuModule#execute(Command)
      */
     @SuppressWarnings({"ConstantConditions"})
     public void execute(Command cmd) throws CmdExecException {
+
         Logger.info("EmuModuleFactory.execute : " + cmd);
         System.out.println("EmuModuleFactory.execute : " + cmd);
-        if (state != CODAState.ERROR && cmd.equals(RunControl.configure)) {
+        
+        if (state != CODAState.ERROR && cmd.equals(RunControl.CONFIGURE)) {
             // If we get this far configure succeeded.
             state = CODAState.CONFIGURED;
             return;
         }
 
-        if (cmd.equals(CODATransition.download)) {
+        if (cmd.equals(CODATransition.DOWNLOAD)) {
             try {
 
                 // There are no modules loaded so we need to load some!
                 URL[] locations;
 
-                Node modulesConfig = Configurer.getNode(org.jlab.coda.emu.Emu.INSTANCE.configuration(), "component/modules");
+                Node modulesConfig = Configurer.getNode(Emu.INSTANCE.configuration(), "component/modules");
                 if (modulesConfig == null) throw new DataNotFoundException("modules section missing from config");
 
                 if (!modulesConfig.hasChildNodes()) throw new DataNotFoundException("modules section present in config but no modules");
@@ -147,7 +150,7 @@ public class EmuModuleFactory implements StatedObject {
                 state = CODAState.ERROR;
                 throw new CmdExecException();
             }
-        } else if (cmd.equals(CODATransition.prestart)) {
+        } else if (cmd.equals(CODATransition.PRESTART)) {
             TRANSPORT_FACTORY.execute(cmd);
             try {
                 Node modulesConfig = Configurer.getNode(Emu.INSTANCE.configuration(), "component/modules");
@@ -204,7 +207,7 @@ public class EmuModuleFactory implements StatedObject {
         for (EmuModule module : modules)
             module.execute(cmd);
 
-        if (cmd.equals(RunControl.reset)) {
+        if (cmd.equals(RunControl.RESET)) {
             Logger.info("EmuModuleFactory : RESET");
             System.out.println("EmuModuleFactory : RESET");
             modules.clear();
