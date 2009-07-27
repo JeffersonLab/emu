@@ -16,7 +16,11 @@ import org.w3c.dom.Node;
 
 import javax.swing.*;
 
-/** @author heyes */
+/**
+ * bug bug: certain methods must be run in the SwingUpdate thread.
+ *
+ * @author heyes
+ */
 public class DataNode {
 
     /** Node being analyzed. */
@@ -57,7 +61,7 @@ public class DataNode {
             tagField = new JLabel(pname);
             valueField = new JTextField(value);
 
-        // else if not an attribute, create a panel in which to place things
+        // else if not an attribute, create a panel in which to contain things
         } else {
             container = new JPanel();
             container.setBorder(BorderFactory.createTitledBorder(pname));
@@ -86,13 +90,23 @@ public class DataNode {
 
     }
 
-    public void add(DataNode dn) {
+    
+    /**
+     * Add a DataNode object to this DataNode object as part of the JPanel.
+     * This method is only used if this object is a container since
+     * it doesn't make sense to add things to an attribute
+     * (and therefore "layout" is defined).
+     *
+     * @param dn DataNode object to add
+     */
+    public void addToPanel(DataNode dn) {
+        // if the node we're adding is a container, add the whole container into this one
         if (dn.isContainer()) {
             hGroup.add(dn.getContainer());
             rows.add(dn.getContainer());
+        // else if the node we're adding is an attribute, use the layout manager of this
+        // object and place in this container
         } else {
-            // bug bug: isn't layout null here???
-if (layout == null) System.out.println("HEY, layout is NULL !!!");
             GroupLayout.ParallelGroup   row = layout.createParallelGroup(GroupLayout.BASELINE);
             GroupLayout.SequentialGroup col = layout.createSequentialGroup();
             row.add(dn.getTagField());
@@ -101,6 +115,25 @@ if (layout == null) System.out.println("HEY, layout is NULL !!!");
             col.add(dn.getValueField());
             rows.add(row);
             hGroup.add(col);
+        }
+    }
+
+    /**
+     * Remove a DataNode object from this DataNode object as part of the JPanel.
+     * This method is only used if this object is a container since
+     * it doesn't make sense to remove things from an attribute
+     * (and therefore "layout" is defined).
+     *
+     * @param dn DataNode object to add
+     */
+    public void removeFromPanel(DataNode dn) {
+        // if the node we're removing is a container ...
+        if (dn.isContainer()) {
+            layout.removeLayoutComponent(dn.getContainer());
+        // else if the node we're removing is an attribute ...
+        } else {
+            layout.removeLayoutComponent(dn.getTagField());
+            layout.removeLayoutComponent(dn.getValueField());
         }
     }
 

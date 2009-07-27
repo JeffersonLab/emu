@@ -61,7 +61,7 @@ public class DebugFrame extends JFrame {
 System.out.println("Here in addDocument " + doc);
         try {
             Node node = doc.getDocumentElement();
-            DataNode dn = Configurer.getDataNodes(node);
+            DataNode dn = Configurer.treeToPanel(node);
             JInternalFrame f = new JInternalFrame(node.getNodeName(), true, true, true, true);
 
             f.getContentPane().add(dn.getContainer());

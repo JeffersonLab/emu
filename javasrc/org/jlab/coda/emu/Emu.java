@@ -280,7 +280,9 @@ System.out.println("Done parsing the file -> " + configFile);
             FRAMEWORK.addDocument(localConfig);
         } else {
             Node node = localConfig.getFirstChild();
-            Configurer.getDataNodes(node);
+            // Puts node & children (actually their associated DataNodes) into GUI
+            // and returns DataNode associated with node.
+            Configurer.treeToPanel(node);
         }
 
         // Prints out an XML document representing all the

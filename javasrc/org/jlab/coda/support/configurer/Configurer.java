@@ -284,9 +284,10 @@ public class Configurer implements DOMErrorHandler, LSParserFilter {
     }
 
     /**
-     * Method to set the value of the DataNode object assocated with the
-     * Node object given by the path argument. Does nothing if there is no
-     * DataNode object at the given path.<p>
+     * Method to add an attribute (name/value pair) DataNode object
+     * to or replace one with the same name assocated with the
+     * Node object given by the path argument. Does nothing if
+     * there is no Node object at the given path.<p>
      * Not Used.
      *
      * @param doc  DOM XML Document object
@@ -295,62 +296,91 @@ public class Configurer implements DOMErrorHandler, LSParserFilter {
      * @param value value of the new attribute
      * @throws DataNotFoundException when
      */
-    public static void newValue(Document doc, String path, String name, String value) throws DataNotFoundException {
+    public static void newValue(Document doc, String path, String name, String value)
+            throws DataNotFoundException {
         Node n = getNode(doc, path);
         if (n == null) return;
 
+        // the Element class extends Node
         Element el = (Element) n;
 
+        // the Attr class extends Node
         Attr a = doc.createAttribute(name);
         a.setNodeValue(value);
 
-        el.setAttributeNode(a);
+        // add this attribute node to tree or replace one with the same name
+        Attr replacedNode = el.setAttributeNode(a);
 
-        DataNode newdn = new DataNode(a);
-
+        // now the GUI stuff
         DataNode dn = (DataNode) n.getUserData("DataNode");
 
-        if (dn != null) dn.add(newdn);
+        // if there is a GUI ...
+        if (dn != null) {
+            // if we're replacing an existing node, remove the old one from the GUI first
+            // carl added this (is it necessary?)
+            if (replacedNode != null) {
+System.out.println("Attribute node being replaced");
+                DataNode rdn = (DataNode) replacedNode.getUserData("DataNode");
+                if (rdn != null) dn.removeFromPanel(rdn);
+            }
 
+            // create a DataNode object out of it so it can be added to GUI
+            DataNode newdn = new DataNode(a);
+
+            // add to GUI
+            dn.addToPanel(newdn);
+        }
     }
 
+
     /**
-     * Method to set the value of the DataNode object assocated with the
-     * Node object given by the path argument. Does nothing if there is no
-     * DataNode object at the given path.<p>
+     * Method to add a new container DataNode object to the
+     * Node object given by the path argument. Does nothing if
+     * there is no Node object at the given path.<p>
      * Not Used.
      *
-     * @param doc  of type Document
-     * @param path of type String
-     * @param name of type String
+     * @param doc  DOM XML Document object
+     * @param path path into the XML object
+     * @param name name of new container to add
      * @throws DataNotFoundException when
      */
-    public static void newContainer(Document doc, String path, String name) throws DataNotFoundException {
+    public static void newContainer(Document doc, String path, String name)
+            throws DataNotFoundException {
         Node n = getNode(doc, path);
         if (n == null) return;
 
+        // add new node to tree
         Node newNode = doc.createElement(name);
-
         n.appendChild(newNode);
 
+        // add to GUI
         DataNode newdn = new DataNode(newNode);
-
         DataNode dn = (DataNode) n.getUserData("DataNode");
-
-        if (dn != null) dn.add(newdn);
-
+        if (dn != null) dn.addToPanel(newdn);
     }
 
-    public static DataNode getDataNodes(Node node) {
+
+    /**
+     * Recursive method to, using the given arg as the top of the tree, add all nodes
+     * in the tree to a JPanel for display in a GUI.<p>
+     * Formerly getDataNodes.
+     *
+     * @param node Node object to be displayed in a JPanel
+     * @return DataNode object associated with arg
+     */
+    public static DataNode treeToPanel(Node node) {
 
         DataNode dn = new DataNode(node);
 
         if (node.hasChildNodes()) {
             NodeList l = node.getChildNodes();
+
             for (int jx = 0; jx < l.getLength(); jx++) {
                 Node n = l.item(jx);
                 String nn = n.getNodeName();
+
                 if ((nn != null) && !nn.startsWith("#")) {
+
                     if (nn.matches("name")) {
                         // special case
                         if (n.hasAttributes()) {
@@ -360,14 +390,13 @@ public class Configurer implements DOMErrorHandler, LSParserFilter {
                             // model.setValueAt(nameAttr.getNodeValue(),titleRow,col);
                         } else {
                             // model.setValueAt(n.getTextContent(),titleRow,col);
-                            dn.add(new DataNode(n));
+                            dn.addToPanel(new DataNode(n));
                         }
 
                     } else {
-                        dn.add(getDataNodes(n));
+                        dn.addToPanel(treeToPanel(n));
                     }
                 }
-
             }
         }
 
@@ -377,35 +406,41 @@ public class Configurer implements DOMErrorHandler, LSParserFilter {
             for (int ix = 0; ix < attr.getLength(); ix++) {
                 Node aNode = attr.item(ix);
                 DataNode adn = new DataNode(aNode);
-                dn.add(adn);
+                dn.addToPanel(adn);
             }
         }
         // dn.add(Box.createHorizontalGlue());
         return dn;
     }
 
+
     /**
-     * Method getNode ...
+     * Method to get the Node object associated with a specific path
+     * into an XML document.
      *
-     * @param doc  of type Document
-     * @param path of type String
-     * @return Node
+     * @param doc  DOM XML Document object
+     * @param path path into the XML object
+     * @return Node object (or null if none)
      * @throws DataNotFoundException when
      */
     public static Node getNode(Document doc, String path) throws DataNotFoundException {
         String[] s = path.split("/");
         Node n = doc;
         if (n == null) return null;
-        NodeList l = n.getChildNodes();
+
+        NodeList nodeList = n.getChildNodes();
         Node found = null;
+
+        // for each part of the path ...
         for (String value : s) {
             found = null;
+
             // search for a child with name s[ix]
-            for (int jx = 0; jx < l.getLength(); jx++) {
-                String nm = l.item(jx).getNodeName();
+            for (int jx = 0; jx < nodeList.getLength(); jx++) {
+                String nm = nodeList.item(jx).getNodeName();
                 if (nm != null) {
                     if (nm.matches(value)) {
-                        found = l.item(jx);
+                        found = nodeList.item(jx);
                         break;
                     }
                 }
@@ -428,10 +463,15 @@ public class Configurer implements DOMErrorHandler, LSParserFilter {
             }
 
             n = found;
-            l = n.getChildNodes();
+            nodeList = n.getChildNodes();
         }
-        if (found != null) return found;
-        else throw new DataNotFoundException("No node found with path : " + path);
+
+        if (found != null) {
+            return found;
+        }
+        else {
+            throw new DataNotFoundException("No node found with path : " + path);
+        }
     }
 
 }
