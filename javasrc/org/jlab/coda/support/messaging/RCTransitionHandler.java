@@ -51,10 +51,10 @@ class RCTransitionHandler extends GenericCallback implements cMsgCallbackInterfa
 
         try {
             String type = msg.getType();
-            String cmdS = type.substring(type.lastIndexOf("/") + 1);
+            String cmdS = (type.substring(type.lastIndexOf("/") + 1)).toUpperCase();
 
             // CODATransition is an enum but it implements Command so it is a Command object.
-            // Examples: download, prestart, go, end, pause, resume.
+            // Examples: DOWNLOAD, PRESTART, GO, END, PAUSE, RESUME.
             // The string cmdS may not be an allowed enum value, in which case an
             // IllegalArgumentException will be thrown.
             Command cmd;

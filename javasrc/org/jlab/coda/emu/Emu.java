@@ -429,7 +429,7 @@ System.out.println("Done parsing the file -> " + configFile);
      */
     public boolean keyHandler(String command, PrintWriter out, Object argument) {
         try {
-            CODATransition cmd = CODATransition.valueOf(command);
+            CODATransition cmd = CODATransition.valueOf(command.toUpperCase());
             this.postCommand(cmd);
         } catch (InterruptedException e) {
             e.printStackTrace();

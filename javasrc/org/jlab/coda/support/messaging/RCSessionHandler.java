@@ -48,7 +48,7 @@ public class RCSessionHandler extends GenericCallback implements cMsgCallbackInt
 
         try {
             String type = msg.getType();
-            String cmdS = type.substring(type.lastIndexOf("/") + 1);
+            String cmdS = (type.substring(type.lastIndexOf("/") + 1)).toUpperCase();
 
             // See if message's type (after last / ) is a recognized session-related command.
             // Examples: set/get run number, set/get run type.

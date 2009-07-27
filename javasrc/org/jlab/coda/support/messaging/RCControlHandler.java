@@ -49,7 +49,7 @@ public class RCControlHandler extends GenericCallback implements cMsgCallbackInt
 
         try {
             String type = msg.getType();
-            String cmdS = type.substring(type.lastIndexOf("/") + 1);
+            String cmdS = (type.substring(type.lastIndexOf("/") + 1)).toUpperCase();
 
             // See if message's type (after last / ) is a recognized run control command.
             // Examples: reset, configure, start, stop, getsession, setsession, etc.
