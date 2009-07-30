@@ -15,6 +15,9 @@ import org.jdesktop.layout.GroupLayout;
 import org.w3c.dom.Node;
 
 import javax.swing.*;
+import javax.swing.border.TitledBorder;
+import javax.swing.border.LineBorder;
+import java.awt.*;
 
 /**
  * bug bug: certain methods must be run in the SwingUpdate thread.
@@ -25,6 +28,8 @@ public class DataNode {
 
     /** Node being analyzed. */
     private final Node node;
+
+    private final int level;
 
     /** Value of node. */
     private String value;
@@ -38,33 +43,63 @@ public class DataNode {
     /** If node is not an attribute, it's a panel which contains things. */
     private JPanel container;
 
+    /** Border which may be renamed after constructor called. */
+    private TitledBorder titledBorder;
+
+    // We have 4 levels of colored borders
+    static private LineBorder[] borders;
+    static private Color[] colors;
+
+    static {
+        colors    = new Color[4];
+        colors[0] = new Color(0,0,255);   // blue
+        colors[1] = new Color(155,0,255); // purple
+        colors[2] = new Color(180,0,100); // maroon
+        colors[3] = new Color(230,0,0);   // red
+
+        borders     = new LineBorder[4];
+        borders[0] = new LineBorder(colors[0],1);
+        borders[1] = new LineBorder(colors[1],1);
+        borders[2] = new LineBorder(colors[2],1);
+        borders[3] = new LineBorder(colors[3],1);
+    }
+
     // Layout of the panel
     private GroupLayout layout;
     private GroupLayout.ParallelGroup   hGroup;
     private GroupLayout.SequentialGroup rows;
 
+    
     /**
      * Constructor DataNode creates a new DataNode instance and cleverly
      * stores it in the given Node argument. Thus each node in the the
      * tree of Nodes has a DataNode object stored as user data.
      *
      * @param n of type Node
+     * @param level level in node hierarchy (to determine color to use)
      */
-    public DataNode(Node n) {
+    public DataNode(Node n, int level) {
         n.setUserData("DataNode", this, null);   // setUserData(String key, Object data, handler)
         node  = n;
         value = n.getNodeValue();
+        this.level = level;
         String pname = n.getNodeName();
 
         // If node is an XML element's attribute, create a label & value display
         if (n.getNodeType() == Node.ATTRIBUTE_NODE) {
-            tagField = new JLabel(pname);
+            tagField   = new JLabel(pname);
             valueField = new JTextField(value);
+            valueField.setEditable(false);
+            valueField.setBackground(Color.white);
 
         // else if not an attribute, create a panel in which to contain things
         } else {
             container = new JPanel();
-            container.setBorder(BorderFactory.createTitledBorder(pname));
+
+            // title on border
+            titledBorder = BorderFactory.createTitledBorder(borders[level%4], pname, TitledBorder.LEFT,
+                                                            TitledBorder.TOP, null, colors[level%4]);
+            container.setBorder(titledBorder);
 
             // Create layout manager
             layout = new GroupLayout(container);
@@ -141,6 +176,10 @@ public class DataNode {
         return container != null;
     }
 
+    public int getLevel() {
+        return level;
+    }
+
     public JLabel getTagField() {
         return tagField;
     }
@@ -163,7 +202,8 @@ public class DataNode {
         this.value = value;
 
         node.setNodeValue(value);
-        valueField.setText(value);
+        if (container != null) titledBorder.setTitle(value);
+        if (valueField != null) valueField.setText(value);
     }
 
     /**

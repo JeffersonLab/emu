@@ -48,6 +48,7 @@ public class DebugFrame extends JFrame {
         smartToolbar.configure(Emu.INSTANCE, CODATransition.class);
         smartToolbar1.configure(Emu.INSTANCE, RunControl.class);
         smartToolbar2.configure(Emu.INSTANCE, SessionControl.class);
+        splitPane1.setDividerLocation(.75);
 
         setVisible(true);
     }
@@ -58,14 +59,14 @@ public class DebugFrame extends JFrame {
      * @param doc of type Document
      */
     public void addDocument(Document doc) {
-System.out.println("Here in addDocument " + doc);
         try {
             Node node = doc.getDocumentElement();
-            DataNode dn = Configurer.treeToPanel(node);
+            DataNode dn = Configurer.treeToPanel(node,0);
             JInternalFrame f = new JInternalFrame(node.getNodeName(), true, true, true, true);
 
+            f.setTitle(dn.getValue());
             f.getContentPane().add(dn.getContainer());
-            f.setMinimumSize(new Dimension(300, 300));
+            f.setMinimumSize(new Dimension(200, 200));
             f.setLocation(300 * documentCount, 0);
             f.pack();
             f.setVisible(true);
@@ -143,11 +144,13 @@ System.out.println("Here in addDocument " + doc);
         help = new JMenuItem();
         aboutMenuItem = new JMenuItem();
         smartToolbar = new SmartToolbar();
-        desktopPane = new JDesktopPane();
-        logScrollPane = new JScrollPane();
-        logPanel = new SwingLogConsoleDialog();
         smartToolbar1 = new SmartToolbar();
         smartToolbar2 = new SmartToolbar();
+        splitPane1 = new JSplitPane();
+        scrollPane1 = new JScrollPane();
+        desktopPane = new MDIDesktopPane();
+        logScrollPane = new JScrollPane();
+        logPanel = new SwingLogConsoleDialog();
 
         //======== this ========
         setTitle(bundle.getString("this.title"));
@@ -244,11 +247,6 @@ System.out.println("Here in addDocument " + doc);
             smartToolbar.setFloatable(false);
         }
 
-        //======== logScrollPane ========
-        {
-            logScrollPane.setViewportView(logPanel);
-        }
-
         //======== smartToolbar1 ========
         {
             smartToolbar1.setFloatable(false);
@@ -259,10 +257,49 @@ System.out.println("Here in addDocument " + doc);
             smartToolbar2.setFloatable(false);
         }
 
+        //======== splitPane1 ========
+        {
+            splitPane1.setOrientation(JSplitPane.VERTICAL_SPLIT);
+
+            //======== scrollPane1 ========
+            {
+                scrollPane1.setViewportView(desktopPane);
+            }
+            splitPane1.setTopComponent(scrollPane1);
+
+            //======== logScrollPane ========
+            {
+                logScrollPane.setViewportView(logPanel);
+            }
+            splitPane1.setBottomComponent(logScrollPane);
+        }
+
         GroupLayout contentPaneLayout = new GroupLayout(contentPane);
         contentPane.setLayout(contentPaneLayout);
-        contentPaneLayout.setHorizontalGroup(contentPaneLayout.createParallelGroup().add(contentPaneLayout.createSequentialGroup().addContainerGap().add(contentPaneLayout.createParallelGroup().add(GroupLayout.TRAILING, desktopPane, GroupLayout.DEFAULT_SIZE, 704, Short.MAX_VALUE).add(smartToolbar1, GroupLayout.DEFAULT_SIZE, 704, Short.MAX_VALUE).add(smartToolbar, GroupLayout.DEFAULT_SIZE, 704, Short.MAX_VALUE).add(GroupLayout.TRAILING, logScrollPane, GroupLayout.DEFAULT_SIZE, 704, Short.MAX_VALUE).add(smartToolbar2, GroupLayout.DEFAULT_SIZE, 704, Short.MAX_VALUE)).addContainerGap()));
-        contentPaneLayout.setVerticalGroup(contentPaneLayout.createParallelGroup().add(contentPaneLayout.createSequentialGroup().addContainerGap().add(smartToolbar, GroupLayout.PREFERRED_SIZE, GroupLayout.DEFAULT_SIZE, GroupLayout.PREFERRED_SIZE).addPreferredGap(LayoutStyle.RELATED).add(smartToolbar1, GroupLayout.PREFERRED_SIZE, GroupLayout.DEFAULT_SIZE, GroupLayout.PREFERRED_SIZE).addPreferredGap(LayoutStyle.RELATED).add(smartToolbar2, GroupLayout.PREFERRED_SIZE, GroupLayout.DEFAULT_SIZE, GroupLayout.PREFERRED_SIZE).addPreferredGap(LayoutStyle.UNRELATED).add(desktopPane, GroupLayout.PREFERRED_SIZE, 582, GroupLayout.PREFERRED_SIZE).add(8, 8, 8).add(logScrollPane, GroupLayout.DEFAULT_SIZE, 113, Short.MAX_VALUE).addContainerGap()));
+        contentPaneLayout.setHorizontalGroup(
+            contentPaneLayout.createParallelGroup()
+                .add(GroupLayout.TRAILING, contentPaneLayout.createSequentialGroup()
+                    .addContainerGap()
+                    .add(contentPaneLayout.createParallelGroup(GroupLayout.TRAILING)
+                        .add(GroupLayout.LEADING, splitPane1, GroupLayout.DEFAULT_SIZE, 706, Short.MAX_VALUE)
+                        .add(GroupLayout.LEADING, smartToolbar1, GroupLayout.DEFAULT_SIZE, 706, Short.MAX_VALUE)
+                        .add(GroupLayout.LEADING, smartToolbar, GroupLayout.DEFAULT_SIZE, 706, Short.MAX_VALUE)
+                        .add(GroupLayout.LEADING, smartToolbar2, GroupLayout.DEFAULT_SIZE, 706, Short.MAX_VALUE))
+                    .addContainerGap())
+        );
+        contentPaneLayout.setVerticalGroup(
+            contentPaneLayout.createParallelGroup()
+                .add(contentPaneLayout.createSequentialGroup()
+                    .addContainerGap()
+                    .add(smartToolbar, GroupLayout.PREFERRED_SIZE, GroupLayout.DEFAULT_SIZE, GroupLayout.PREFERRED_SIZE)
+                    .addPreferredGap(LayoutStyle.RELATED)
+                    .add(smartToolbar1, GroupLayout.PREFERRED_SIZE, GroupLayout.DEFAULT_SIZE, GroupLayout.PREFERRED_SIZE)
+                    .addPreferredGap(LayoutStyle.RELATED)
+                    .add(smartToolbar2, GroupLayout.PREFERRED_SIZE, GroupLayout.DEFAULT_SIZE, GroupLayout.PREFERRED_SIZE)
+                    .addPreferredGap(LayoutStyle.RELATED)
+                    .add(splitPane1, GroupLayout.DEFAULT_SIZE, 719, Short.MAX_VALUE)
+                    .addContainerGap())
+        );
         pack();
         setLocationRelativeTo(getOwner());
         // JFormDesigner - End of codaComponent initialization  //GEN-END:initComponents
@@ -285,10 +322,12 @@ System.out.println("Here in addDocument " + doc);
     private JMenuItem help;
     private JMenuItem aboutMenuItem;
     private SmartToolbar smartToolbar;
-    private JDesktopPane desktopPane;
-    private JScrollPane logScrollPane;
-    private SwingLogConsoleDialog logPanel;
     private SmartToolbar smartToolbar1;
     private SmartToolbar smartToolbar2;
+    private JSplitPane splitPane1;
+    private JScrollPane scrollPane1;
+    private MDIDesktopPane desktopPane;
+    private JScrollPane logScrollPane;
+    private SwingLogConsoleDialog logPanel;
     // JFormDesigner - End of variables declaration  //GEN-END:variables
 }

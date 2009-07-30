@@ -19,7 +19,18 @@
         <ProcessModule class="Process">
             <inchannel name="ROC1" transp="SingleEmu_SOCKET"/>
             <outchannel name="SingleEmu" transp="BitBucket_SOCKET"/>
-        </ProcessModule>
+         <juju>
+                <a name="aa">
+                    <b name="bb">
+                        <c name="cc">
+                            <d name="dd">
+                                <e name="ee"/>
+                            </d>
+                        </c>
+                    </b>
+                </a>
+            </juju>
+      </ProcessModule>
     </modules>
 </component>
 

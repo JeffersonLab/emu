@@ -164,7 +164,8 @@ public class Emu implements KbdHandler, CODAComponent {
                 "        [-h]                 print this help\n" +
                 "        [-debug]             turn on printout\n" +
                 "        [-Dname=xxx]         set name of EMU\n"+
-                "        [-Dconfig=xxx]       set config file name\n"+
+                "        [-Dconfig=xxx]       set config file name to be loaded at configuration\n"+
+                "        [-Dlconfig=xxx]      set local config file name for loading static info\n"+
                 "        [-Dexpid=xxx]        set experiment ID\n"+
                 "        [-Dsession=xxx]      set experimental session name\n"+
                 "        [-user.name=xxx]     set user's name (defaults to expid, then session)\n"+
@@ -253,7 +254,7 @@ public class Emu implements KbdHandler, CODAComponent {
         setName(emuName);
 
         // Check to see if config file given on command line
-        String configFile = System.getProperty("config");
+        String configFile = System.getProperty("lconfig");
         if (configFile == null) {
             // Must define the INSTALL_DIR env var in order to find config files
             installDir = System.getenv("INSTALL_DIR");
@@ -261,7 +262,7 @@ public class Emu implements KbdHandler, CODAComponent {
                 Logger.error("CODAComponent exit - INSTALL_DIR is not set");
                 System.exit(-1);
             }
-            configFile = installDir + File.separator + "conf" + File.separator + emuName + ".xml";
+            configFile = installDir + File.separator + "conf" + File.separator + "local.xml";
         }
 
         // Parse XML-format config file and store
@@ -282,7 +283,7 @@ System.out.println("Done parsing the file -> " + configFile);
             Node node = localConfig.getFirstChild();
             // Puts node & children (actually their associated DataNodes) into GUI
             // and returns DataNode associated with node.
-            Configurer.treeToPanel(node);
+            Configurer.treeToPanel(node,0);
         }
 
         // Prints out an XML document representing all the
@@ -392,9 +393,11 @@ System.out.println("Done parsing the file -> " + configFile);
                         Logger.info("State Change to : " + state.toString());
 
                         try {
+                            //Configurer.setValue(localConfig, "component/status/state", state.toString());
                             Configurer.setValue(localConfig, "status/state", state.toString());
                         } catch (DataNotFoundException e) {
                             // This is almost impossible but catch anyway
+System.out.println("ERROR in setting value in local config !!!");
                             Logger.error("CODAComponent thread failed to set state");
                         }
 

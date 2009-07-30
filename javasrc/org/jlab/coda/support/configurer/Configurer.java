@@ -64,9 +64,12 @@ public class Configurer implements DOMErrorHandler, LSParserFilter {
 
     static {
         try {
+            // create one item of this class
+            Configurer instance = new Configurer();
+
             // create Error Handler (an item of this class)
-            DOMErrorHandler errorHandler = new Configurer();
-            
+            DOMErrorHandler errorHandler = instance;
+
             // get DOM Implementation using DOM Registry
             // bug bug: use default SUN implementation instead?
             //System.setProperty(DOMImplementationRegistry.PROPERTY, "org.apache.xerces.dom.DOMXSImplementationSourceImpl");
@@ -86,7 +89,7 @@ public class Configurer implements DOMErrorHandler, LSParserFilter {
             // What's the point of making this object an LSParserFilter?
             // All that is done below is to show every node to the filter and
             // then accept everything. Were there some plans to filter nodes?
-            LSParserFilter filter = new Configurer();
+            LSParserFilter filter = instance;
             domBuilder.setFilter(filter);
 
             // set error handler in DOM parser
@@ -325,7 +328,7 @@ System.out.println("Attribute node being replaced");
             }
 
             // create a DataNode object out of it so it can be added to GUI
-            DataNode newdn = new DataNode(a);
+            DataNode newdn = new DataNode(a, dn.getLevel()+1);
 
             // add to GUI
             dn.addToPanel(newdn);
@@ -354,45 +357,120 @@ System.out.println("Attribute node being replaced");
         n.appendChild(newNode);
 
         // add to GUI
-        DataNode newdn = new DataNode(newNode);
         DataNode dn = (DataNode) n.getUserData("DataNode");
-        if (dn != null) dn.addToPanel(newdn);
+        if (dn != null) {
+            DataNode newdn = new DataNode(newNode, dn.getLevel()+1);
+            dn.addToPanel(newdn);
+        }
     }
 
 
     /**
      * Recursive method to, using the given arg as the top of the tree, add all nodes
      * in the tree to a JPanel for display in a GUI.<p>
-     * Formerly getDataNodes.
+     * (Formerly method named getDataNodes.)
+     *
+     * @param node Node object to be displayed in a JPanel
+     * @param level level of node in XML document tree (0 = top)
+     * @return DataNode object associated with arg
+     */
+    public static DataNode treeToPanel(Node node, int level) {
+
+        DataNode dn = new DataNode(node, level);
+
+        // Set name of this panel. Default is node name from parsing XML,
+        // but use the "name" attribute if it's defined.
+        if (node.hasAttributes()) {
+            NamedNodeMap attr = node.getAttributes();
+            Node nameAttr = attr.getNamedItem("name");
+            if (nameAttr != null) {
+//System.out.println("treeToPanel:   name = " + nameAttr.getNodeValue());
+                dn.setValue(nameAttr.getNodeValue());
+            }
+            else {
+                // do this to get Title in JInternalFrame
+                dn.setValue(node.getNodeName());
+            }
+        }
+        else {
+            // do this to get Title in JInternalFrame
+            dn.setValue(node.getNodeName());            
+        }
+
+        // each meaningful child is added to the panel
+        if (node.hasChildNodes()) {
+            // for each child of node ...
+            NodeList l = node.getChildNodes();
+            for (int jx = 0; jx < l.getLength(); jx++) {
+                Node n = l.item(jx);
+                String nn = n.getNodeName();
+
+                // ignore child node who has no name or whose name start with "#" (comment)
+                if ((nn != null) && !nn.startsWith("#")) {
+//System.out.println("treeToPanel: add " + nn);
+                    dn.addToPanel(treeToPanel(n, level+1));
+                }
+            }
+        }
+
+        // each attribute is added to the panel
+        if (node.hasAttributes()) {
+            NamedNodeMap attr = node.getAttributes();
+            for (int ix = 0; ix < attr.getLength(); ix++) {
+                Node aNode = attr.item(ix);
+                DataNode adn = new DataNode(aNode, level+1);
+                dn.addToPanel(adn);
+            }
+        }
+
+        return dn;
+    }
+
+
+
+/**
+     * Recursive method to, using the given arg as the top of the tree, add all nodes
+     * in the tree to a JPanel for display in a GUI.<p>
+     * Formerly method named getDataNodes.
      *
      * @param node Node object to be displayed in a JPanel
      * @return DataNode object associated with arg
      */
-    public static DataNode treeToPanel(Node node) {
+/*
+    public static DataNode treeToPanel2(Node node) {
 
         DataNode dn = new DataNode(node);
 
         if (node.hasChildNodes()) {
             NodeList l = node.getChildNodes();
 
+            // for each child of node ...
             for (int jx = 0; jx < l.getLength(); jx++) {
                 Node n = l.item(jx);
                 String nn = n.getNodeName();
+System.out.println("treeToPanel: child name = " + nn);
 
+                // ignore child node who has no name or whose name start with "#" (comment)
                 if ((nn != null) && !nn.startsWith("#")) {
-
-                    if (nn.matches("name")) {
-                        // special case
-                        if (n.hasAttributes()) {
-                            NamedNodeMap attr = n.getAttributes();
-                            Node nameAttr = attr.getNamedItem("name");
-                            if (nameAttr != null) dn.setValue(nameAttr.getNodeValue());
-                            // model.setValueAt(nameAttr.getNodeValue(),titleRow,col);
-                        } else {
-                            // model.setValueAt(n.getTextContent(),titleRow,col);
-                            dn.addToPanel(new DataNode(n));
+                    // if the child node has attributes, look for one called "name"
+                    // since that will now be the label for its panel
+                    if (n.hasAttributes()) {
+ System.out.println("treeToPanel: child has attributes");
+                        NamedNodeMap attr = n.getAttributes();
+                        Node nameAttr = attr.getNamedItem("name");
+                        if (nameAttr != null) {
+System.out.println("treeToPanel: child's \"name\" attribute name is " + nameAttr.getNodeValue());
+                            dn.setValue(nameAttr.getNodeValue());
                         }
 
+                        // model.setValueAt(nameAttr.getNodeValue(),titleRow,col);
+                        // else if child node has NO attributes (empty container or attribute ??),
+                        // add only it (and not tree under it) to the top panel
+                        // model.setValueAt(n.getTextContent(),titleRow,col);
+                        System.out.println("treeToPanel: \"name\" child has no attributes");
+                        dn.addToPanel(new DataNode(n));
+                        // else if child node's name is NOT "name",
+                    // add the whole branch to top panel
                     } else {
                         dn.addToPanel(treeToPanel(n));
                     }
@@ -400,6 +478,7 @@ System.out.println("Attribute node being replaced");
             }
         }
 
+        // add all attriubtes directly to the panel
         if (node.hasAttributes()) {
             NamedNodeMap attr = node.getAttributes();
 
@@ -412,6 +491,7 @@ System.out.println("Attribute node being replaced");
         // dn.add(Box.createHorizontalGlue());
         return dn;
     }
+*/
 
 
     /**
@@ -428,42 +508,52 @@ System.out.println("Attribute node being replaced");
         Node n = doc;
         if (n == null) return null;
 
-        NodeList nodeList = n.getChildNodes();
+        NodeList childNodes = n.getChildNodes();
         Node found = null;
 
         // for each part of the path ...
-        for (String value : s) {
+        for (String partialPath : s)  {
             found = null;
 
-            // search for a child with name s[ix]
-            for (int jx = 0; jx < nodeList.getLength(); jx++) {
-                String nm = nodeList.item(jx).getNodeName();
-                if (nm != null) {
-                    if (nm.matches(value)) {
-                        found = nodeList.item(jx);
-                        break;
-                    }
+            // search for a child with same name as partialPath
+            for (int jx = 0; jx < childNodes.getLength(); jx++) {
+                String childName = childNodes.item(jx).getNodeName();
+                if (childName != null) {
+                    System.out.println("getNode: looking in node " + childName);
+                }
+                if (childName != null && childName.matches(partialPath)) {
+                    found = childNodes.item(jx);
+                    break;
                 }
             }
 
+            // if we have NOT found the partialPath among the child nodes ...
             if (found == null) {
-                // could be an attribute so look for attribute named s[ix]
+                // it could be an attribute so look for attribute named partialPath
                 Node el = n;
 
+                // returns null if not an Element object
                 NamedNodeMap nnm = el.getAttributes();
-                //System.out.println("Looking for " + value + " in " +n);
-                found = nnm.getNamedItem(value);
-                if (found != null) {
-                    return found;
+                if (nnm != null) {
+                    System.out.println("getNode: Looking for " + partialPath + " in " + n + ", attri = " + nnm);
+                    found = nnm.getNamedItem(partialPath);
+                    // if we've found an attribute, it's the end of the line
+                    if (found != null) {
+                        return found;
+                    }
+                }
+                else {
+                    System.out.println("getNode: cannot find " + partialPath + " in nodes or attributes");
                 }
             }
 
             if (found == null) {
-                throw new DataNotFoundException("No child node of " + n.getNodeName() + " named " + value);
+                throw new DataNotFoundException("No child node of " + n.getNodeName() + " named " + partialPath);
             }
 
+            // now try to match up the next round of children with the next part ot the path
             n = found;
-            nodeList = n.getChildNodes();
+            childNodes = n.getChildNodes();
         }
 
         if (found != null) {

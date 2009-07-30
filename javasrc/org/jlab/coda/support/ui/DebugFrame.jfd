@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?> 
-<java version="1.5.0_13" class="java.beans.XMLDecoder"> 
+<java version="1.6.0_13" class="java.beans.XMLDecoder"> 
  <object class="com.jformdesigner.model.FormModel"> 
   <void method="setProperty"> 
    <string>i18n.autoExternalize</string> 
@@ -25,11 +25,11 @@
        <class>org.jdesktop.layout.GroupLayout</class> 
        <void method="setProperty"> 
         <string>$horizontalGroup</string> 
-        <string>par l {seq l {space :::p, par l {comp desktopPane::t::704:x, comp smartToolbar1::l::704:x, comp smartToolbar::l::704:x, comp logScrollPane::t::704:x, comp smartToolbar2::l::704:x}, space :::p}}</string> 
+        <string>par l {seq t {space :::p, par t {comp splitPane1::l::706:x, comp smartToolbar1::l::706:x, comp smartToolbar::l::706:x, comp smartToolbar2::l::706:x}, space :::p}}</string> 
        </void> 
        <void method="setProperty"> 
         <string>$verticalGroup</string> 
-        <string>par l {seq {space :::p, comp smartToolbar:::p::p, space :::p, comp smartToolbar1:::p::p, space :::p, comp smartToolbar2:::p::p, space u:::p, comp desktopPane:::p:582:p, space :p:8:p, comp logScrollPane::::113:x, space :::p}}</string> 
+        <string>par l {seq {space :::p, comp smartToolbar:::p::p, space :::p, comp smartToolbar1:::p::p, space :::p, comp smartToolbar2:::p::p, space :::p, comp splitPane1::::719:x, space :::p}}</string> 
        </void> 
       </object> 
       <void method="setProperty"> 
@@ -62,42 +62,6 @@
       </void> 
       <void method="add"> 
        <object class="com.jformdesigner.model.FormContainer"> 
-        <string>javax.swing.JDesktopPane</string> 
-        <object class="com.jformdesigner.model.FormLayoutManager"> 
-         <class>javax.swing.JDesktopPane</class> 
-        </object> 
-        <void property="name"> 
-         <string>desktopPane</string> 
-        </void> 
-       </object> 
-      </void> 
-      <void method="add"> 
-       <object class="com.jformdesigner.model.FormContainer"> 
-        <string>javax.swing.JScrollPane</string> 
-        <object class="com.jformdesigner.model.FormLayoutManager"> 
-         <class>javax.swing.JScrollPane</class> 
-        </object> 
-        <void property="name"> 
-         <string>logScrollPane</string> 
-        </void> 
-        <void method="add"> 
-         <object class="com.jformdesigner.model.FormComponent"> 
-          <string>org.jlab.coda.support.ui.log.SwingLogConsoleDialog</string> 
-          <void property="name"> 
-           <string>swingLogConsoleDialog1</string> 
-          </void> 
-          <void method="auxiliary"> 
-           <void method="setProperty"> 
-            <string>JavaCodeGenerator.variableName</string> 
-            <string>logPanel</string> 
-           </void> 
-          </void> 
-         </object> 
-        </void> 
-       </object> 
-      </void> 
-      <void method="add"> 
-       <object class="com.jformdesigner.model.FormContainer"> 
         <string>org.jlab.coda.support.ui.SmartToolbar</string> 
         <object class="com.jformdesigner.model.FormLayoutManager"> 
          <class>javax.swing.JToolBar</class> 
@@ -123,6 +87,82 @@
         </void> 
         <void property="name"> 
          <string>smartToolbar2</string> 
+        </void> 
+       </object> 
+      </void> 
+      <void method="add"> 
+       <object class="com.jformdesigner.model.FormContainer"> 
+        <string>javax.swing.JSplitPane</string> 
+        <object class="com.jformdesigner.model.FormLayoutManager"> 
+         <class>javax.swing.JSplitPane</class> 
+        </object> 
+        <void method="setProperty"> 
+         <string>orientation</string> 
+         <int>0</int> 
+        </void> 
+        <void property="name"> 
+         <string>splitPane1</string> 
+        </void> 
+        <void method="add"> 
+         <object class="com.jformdesigner.model.FormContainer"> 
+          <string>javax.swing.JScrollPane</string> 
+          <object class="com.jformdesigner.model.FormLayoutManager"> 
+           <class>javax.swing.JScrollPane</class> 
+          </object> 
+          <void property="name"> 
+           <string>scrollPane1</string> 
+          </void> 
+          <void method="add"> 
+           <object class="com.jformdesigner.model.FormContainer"> 
+            <string>org.jlab.coda.support.ui.MDIDesktopPane</string> 
+            <object class="com.jformdesigner.model.FormLayoutManager"> 
+             <class>javax.swing.JDesktopPane</class> 
+            </object> 
+            <void property="name"> 
+             <string>desktopPane</string> 
+            </void> 
+           </object> 
+          </void> 
+         </object> 
+         <object class="com.jformdesigner.model.FormLayoutConstraints"> 
+          <class>java.lang.String</class> 
+          <void method="setProperty"> 
+           <string>value</string> 
+           <string>left</string> 
+          </void> 
+         </object> 
+        </void> 
+        <void method="add"> 
+         <object class="com.jformdesigner.model.FormContainer"> 
+          <string>javax.swing.JScrollPane</string> 
+          <object class="com.jformdesigner.model.FormLayoutManager"> 
+           <class>javax.swing.JScrollPane</class> 
+          </object> 
+          <void property="name"> 
+           <string>logScrollPane</string> 
+          </void> 
+          <void method="add"> 
+           <object class="com.jformdesigner.model.FormComponent"> 
+            <string>org.jlab.coda.support.ui.log.SwingLogConsoleDialog</string> 
+            <void property="name"> 
+             <string>swingLogConsoleDialog1</string> 
+            </void> 
+            <void method="auxiliary"> 
+             <void method="setProperty"> 
+              <string>JavaCodeGenerator.variableName</string> 
+              <string>logPanel</string> 
+             </void> 
+            </void> 
+           </object> 
+          </void> 
+         </object> 
+         <object class="com.jformdesigner.model.FormLayoutConstraints"> 
+          <class>java.lang.String</class> 
+          <void method="setProperty"> 
+           <string>value</string> 
+           <string>right</string> 
+          </void> 
+         </object> 
         </void> 
        </object> 
       </void> 
