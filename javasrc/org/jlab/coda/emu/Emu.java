@@ -253,7 +253,7 @@ public class Emu implements KbdHandler, CODAComponent {
         }
         setName(emuName);
 
-        // Check to see if config file given on command line
+        // Check to see if LOCAL (static) config file given on command line
         String configFile = System.getProperty("lconfig");
         if (configFile == null) {
             // Must define the INSTALL_DIR env var in order to find config files
@@ -265,7 +265,7 @@ public class Emu implements KbdHandler, CODAComponent {
             configFile = installDir + File.separator + "conf" + File.separator + "local.xml";
         }
 
-        // Parse XML-format config file and store
+        // Parse LOCAL XML-format config file and store
         try {
 System.out.println("Try parsing the file -> " + configFile);
             localConfig = Configurer.parseFile(configFile);
@@ -276,7 +276,7 @@ System.out.println("Done parsing the file -> " + configFile);
             System.exit(-1);
         }
 
-        // Put config info into GUI
+        // Put LOCAL config info into GUI
         if (FRAMEWORK != null) {
             FRAMEWORK.addDocument(localConfig);
         } else {
@@ -460,7 +460,10 @@ System.out.println("ERROR in setting value in local config !!!");
 
     }
 
-    /** @see org.jlab.coda.emu.EmuModule#state() */
+    /**
+     * {@inheritDoc}
+     * This actually returns the state of the modules in this EMU.
+     */
     public State state() {
         return MODULE_FACTORY.state();
     }
@@ -470,22 +473,17 @@ System.out.println("ERROR in setting value in local config !!!");
         return FRAMEWORK;
     }
 
-    /** @see CODAComponent#configuration() */
+    /** {@inheritDoc} */
     public Document configuration() {
         return loadedConfig;
     }
 
-    /** @see CODAComponent#parameters() */
+    /** {@inheritDoc} */
     public Document parameters() {
         return localConfig;
     }
 
-    /**
-     * @return the name
-     *
-     * @see org.jlab.coda.emu.EmuModule#name()
-     */
-
+    /** {@inheritDoc} */
     public String name() {
         return name;
     }
@@ -498,48 +496,69 @@ System.out.println("ERROR in setting value in local config !!!");
      * @see org.jlab.coda.emu.EmuModule#execute(Command)
      */
     synchronized void execute(Command cmd) {
+
+        // When we are told to CONFIGURE, the EMU handles this even though
+        // this command is still passed on down to the modules. Read or
+        // re-read the config file and update debug GUI.
         if (cmd.equals(RunControl.CONFIGURE)) {
+
+            // First find our config file (not local config) defined
+            // on the command line, using a default if none given.
             String configF = System.getProperty("config");
             if (configF == null) {
                 configF = installDir + File.separator + "conf" + File.separator + name + ".xml";
             }
+            // save a reference to any previously used config
             Document oldConfig = loadedConfig;
 
             try {
+                // If a "config" button was pressed, there are no args, but
+                // if we received a config command over cMsg, there may be a
+                // config file specified. Find out what it is and load 'er up.
                 if (cmd.hasArgs() && (cmd.getArg("config") != null)) {
                     cMsgPayloadItem arg = (cMsgPayloadItem) cmd.getArg("config");
                     if (arg.getType() == cMsgConstants.payloadStr) {
+                        // Parse a string containing an XML configuration
+                        // and turn it into a Document object.
                         loadedConfig = Configurer.parseString(arg.getString());
                     } else {
                         throw new DataNotFoundException("cMsg: configuration argument for configure is not a string");
                     }
                 } else {
+                    // Parse a file containing an XML configuration
+                    // and turn it into a Document object.
                     loadedConfig = Configurer.parseFile(configF);
                 }
 
                 Configurer.removeEmptyTextNodes(loadedConfig.getDocumentElement());
 
+            // parsing XML error
             } catch (DataNotFoundException e) {
                 Logger.error("Configure FAILED", e.getMessage());
                 CODAState.ERROR.getCauses().add(e);
                 MODULE_FACTORY.ERROR();
                 return;
+            // "config" payload item has no string (should never happen)
             } catch (cMsgException e) {
                 Logger.error("Configure FAILED", e.getMessage());
                 CODAState.ERROR.getCauses().add(e);
                 MODULE_FACTORY.ERROR();
                 return;
             }
-            System.out.println("Here in execute");
+            
+//System.out.println("Here in execute");
+            // update (or add to) GUI, window with nonlocal config info (static info)
             if (FRAMEWORK != null) {
                 if (oldConfig != null) FRAMEWORK.removeDocument(oldConfig);
-
                 FRAMEWORK.addDocument(loadedConfig);
             }
-
         }
 
-        // All commands that are !done go to the modules.
+        // All commands are passed down to the modules here.
+        // The MODULE_FACTORY is created as a "static" singleton
+        // created upon the loading of this (EMU) class.
+        // Note: the "RunControl.CONFIGURE" command does nothing in the MODULE_FACTORY
+        // except to set its state to "CODAState.CONFIGURED".
         try {
             MODULE_FACTORY.execute(cmd);
             Logger.info("command " + cmd + " executed, state " + cmd.success());
@@ -548,14 +567,17 @@ System.out.println("ERROR in setting value in local config !!!");
             MODULE_FACTORY.ERROR();
         }
 
+        // if given the "reset" command, do that after the modules have reset
         if (cmd.equals(RunControl.RESET)) {
             if ((FRAMEWORK != null) && (loadedConfig != null)) FRAMEWORK.removeDocument(loadedConfig);
             loadedConfig = null;
         }
-        if (cmd.equals(RunControl.EXIT)) {
+        // if given the "exit" command, do that after the modules have exited
+        else if (cmd.equals(RunControl.EXIT)) {
             quit();
         }
-        // We are done so clean the cmd
+
+        // we are done so clean the cmd (necessary since this command object is static & is reused)
         cmd.clearArgs();
 
     }
