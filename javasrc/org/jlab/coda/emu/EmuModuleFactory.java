@@ -167,6 +167,7 @@ public class EmuModuleFactory implements StatedObject {
 //                System.gc();
 //                System.runFinalization();
 
+                // create the transport objects & channels before the modules  // bug bug: WHY?
                 TRANSPORT_FACTORY.execute(cmd);
 
                 Node n = modulesConfig.getFirstChild();
@@ -180,17 +181,11 @@ public class EmuModuleFactory implements StatedObject {
                         String moduleClassName = "modules." + typeAttr.getNodeValue();
                         Logger.info("Require module " + moduleClassName);
 
-                        // Tell the custom classloader to ONLY load the named class
-                        // and relegate all other loading to the system classloader.
-                        classloader.setClassToLoad(moduleClassName);
-                        
                         // the name of the module is the first arg (node name)
-                        EmuModule module = LoadModule(n.getNodeName(), moduleClassName);
+                        loadModule(n.getNodeName(), moduleClassName);
                     }
 
                 } while ((n = n.getNextSibling()) != null);
-
-                classloader = null;
 
             } catch (Exception e) {
                 e.printStackTrace();
@@ -261,20 +256,15 @@ public class EmuModuleFactory implements StatedObject {
             TRANSPORT_FACTORY.execute(cmd);
         }
 
-        // pass the command to the module
-        for (EmuModule module : modules)
+        // pass all commands down to all the modules
+        for (EmuModule module : modules) {
             module.execute(cmd);
-
+        }
+        
+        // RESET command
         if (cmd.equals(RunControl.RESET)) {
             Logger.info("EmuModuleFactory : RESET");
-            System.out.println("EmuModuleFactory : RESET");
             modules.clear();
-            classloader = null;
-
-            System.gc();
-            System.gc();
-
-            System.runFinalization();
             state = CODAState.UNCONFIGURED;
             CODAState.ERROR.getCauses().clear();
         }
@@ -298,7 +288,7 @@ public class EmuModuleFactory implements StatedObject {
      * @throws IllegalArgumentException  when
      * @throws InvocationTargetException when
      */
-    private EmuModule LoadModule(String name, String moduleName) throws InstantiationException,
+    private EmuModule loadModule(String name, String moduleName) throws InstantiationException,
                                                                         IllegalAccessException,
                                                                         ClassNotFoundException,
                                                                         SecurityException,
@@ -307,8 +297,13 @@ public class EmuModuleFactory implements StatedObject {
                                                                         InvocationTargetException {
         Logger.info("EmuModuleFactory loads module - " + moduleName +
                      " to create a module of name " + name);
-        System.out.println("classpath = " + System.getProperty("java.class.path"));
-        // Load the first class
+//System.out.println("classpath = " + System.getProperty("java.class.path"));
+
+        // Tell the custom classloader to ONLY load the named class
+        // and relegate all other loading to the system classloader.
+        classloader.setClassToLoad(moduleName);
+
+        // Load the class
         Class c = classloader.loadClass(moduleName);
 
         // constructor required to have a single string as arg
@@ -318,25 +313,28 @@ public class EmuModuleFactory implements StatedObject {
         // create an instance
         Object[] args = {name};
         EmuModule thing = (EmuModule) co.newInstance(args);
-        
+
         modules.add(thing);
         return thing;
     }
 
-    /** @return @see EmuModule#name() */
-    public String name() {
 
+    /**
+     * {@inheritDoc}
+     * @return {@inheritDoc}
+     */
+    public String name() {
         return "ModuleFactory";
     }
 
+
     /**
-     * Method findModule given it's name locate a module
+     * Method findModule given it's name locate a module.
      *
      * @param name of type String
      * @return EmuModule
      */
     public static EmuModule findModule(String name) {
-
         for (EmuModule module : modules) {
             if (module.name().matches(name)) {
                 return module;
@@ -344,6 +342,7 @@ public class EmuModuleFactory implements StatedObject {
         }
         return null;
     }
+
 
     /**
      * Method state checks that all of the modules created by the
@@ -363,24 +362,23 @@ public class EmuModuleFactory implements StatedObject {
         if (modules.size() == 0) return state;
 
         for (StatedObject module : modules) {
-
             if (module.state() == CODAState.ERROR) {
                 state = CODAState.ERROR;
             }
-
         }
 
         if (TRANSPORT_FACTORY.state() == CODAState.ERROR) {
             state = CODAState.ERROR;
         }
-        return state;
 
+        return state;
     }
+
 
     /**
      * Method check returns the state of each module in a vector.
      *
-     * @return Vector<State>
+     * @return vector of State objects - each one the state of a module
      */
     public Vector<State> check() {
         Vector<State> sv = new Vector<State>();
@@ -391,9 +389,9 @@ public class EmuModuleFactory implements StatedObject {
         return sv;
     }
 
+
     public void ERROR() {
         state = CODAState.ERROR;
-
     }
 
 }
