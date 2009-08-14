@@ -30,18 +30,26 @@ import java.net.URL;
  * Each time myClass is loaded, a new object of this type is used:<p>
  *<pre><code>
  *           EmuClassLoader emuClassloader = new EmuClassLoader();
- *           Class myObjectClass  = emuClassloader.loadClass("...myClass");
+ *           emuClassloader.setClassToLoad("myClass");
+ *           Class myObjectClass  = emuClassloader.loadClass("myClass");
  *           myInterface  object1 = (myInterface)  myObjectClass.newInstance();
  *           mySuperClass object2 = (mySuperClass) myObjectClass.newInstance();
  *
  *           // create new class loader so classes can be reloaded
  *           emuClassloader = new EmuClassLoader();
- *           myObjectClass  = emuClassloader.loadClass("...myClass");
+ *           emuClassloader.setClassToLoad("myClass");
+ *           myObjectClass  = emuClassloader.loadClass("myClass");
  *           object1 = (myInterface)  myObjectClass.newInstance();
  *           object2 = (mySuperClass) myObjectClass.newInstance();
  * </code></pre>
- * The reloading of that single class (myClass) in ensured if and only if a new object of this type
- * (EmuClassLoader) is used each time the class needs reloading.<p>
+ * The reloading of that single class (myClass) in ensured if and only if:
+ * <ol>
+ * <li>a new object of this type (EmuClassLoader) is used each time myClass needs reloading
+ * <li>the setClassToLoad("myClass") method is called, else this class defaults
+ * to standard URLClassLoader behavior (having parent classloader load everything it can)
+ * </ol>
+ * Using this object more than once to load the same class will result in the same class
+ * returned both times,
  *
  * <b>Dynamic Class Reloading</b><p>
  * (from http://tutorials.jenkov.com/java-reflection/dynamic-class-loading-reloading.html)<p>
@@ -57,10 +65,10 @@ import java.net.URL;
  * This is not impossible, but necessary to know when designing for class reloading.<p>
  *
  * The trick is to:
- * <ul>
+ * <ol>
  * <li>  Use an interface as the variable type, and just reload the implementing class, or
  * <li>  Use a superclass as the variable type, and just reload a subclass.
- * </ul><p>
+ * </ol><p>
  * Either of these two methods will work if the type of the variable, the interface or superclass,
  * is not reloaded when the implementing class or subclass is reloaded.<p>
  *
@@ -116,7 +124,7 @@ public class EmuClassLoader extends URLClassLoader {
     public Class loadClass(String name) throws ClassNotFoundException {
 
         // Default to standard URLClassLoader behavior
-        if (classToLoad == null) super.loadClass(name);
+        if (classToLoad == null) return super.loadClass(name);
 
         // We only want to load 1 specific class. Everything else needs to
         // be loaded by the system classloader (the parent in this case).
@@ -127,8 +135,16 @@ public class EmuClassLoader extends URLClassLoader {
         // Simply pass the request back to the parent and we're OK. Now
         // there's only one version of EmuModule that everyone agrees on.
         if (!classToLoad.equals(name)) {
-//System.out.println("ModuleClassLoader: have parent load " + name);
+//System.out.println("EmuClassLoader: have parent load " + name);
             return getParent().loadClass(name);
+        }
+
+        // If this loader has already loaded the class, return it since it
+        // is not allowed to load things twice.
+        Class c = findLoadedClass(name);
+        if (c != null) {
+//System.out.println("EmuClassLoader: returning already loaded class " + name);
+            return c;
         }
 
         // Cannot call super.loadClass(name) since that calls ClassLoader.loadClass(name)
@@ -136,7 +152,7 @@ public class EmuClassLoader extends URLClassLoader {
         // to the parent. We want to use the URLClassLoader to find it from scratch so call
         // the findClass() method directly.
 
-//System.out.println("ModuleClassLoader: I will load/find " + name);
+//System.out.println("EmuClassLoader: loading " + name);
         return findClass(name);
     }
 
