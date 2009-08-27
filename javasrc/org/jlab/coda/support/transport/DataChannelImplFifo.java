@@ -16,13 +16,10 @@ import java.util.concurrent.BlockingQueue;
 @SuppressWarnings({"RedundantThrows"})
 public class DataChannelImplFifo implements DataChannel {
 
-    /** Field transport */
-    private final DataTransportImplFifo dataTransport;
-
     /** Field name */
     private final String name;
 
-    /** Field dataThread */
+    /** bug bug: what is this??? Field dataThread */
     private Thread dataThread;
 
     /** Field full - filled buffer queue */
@@ -40,7 +37,6 @@ public class DataChannelImplFifo implements DataChannel {
     @SuppressWarnings({"UnusedParameters"})
     DataChannelImplFifo(String name, DataTransportImplFifo dataTransport, boolean input) throws DataTransportException {
 
-        this.dataTransport = dataTransport;
         this.name = name;
         int capacity = 40;
         try {
@@ -60,43 +56,42 @@ public class DataChannelImplFifo implements DataChannel {
 
     }
 
-    /** @see org.jlab.coda.support.transport.DataChannel#getName() */
+    /**
+     * {@inheritDoc}
+     * @return {@inheritDoc}
+     */
     public String getName() {
         return name;
     }
 
     /**
-     * Method receive ...
+     * This method receives or gets DataBank objects from this object's queue.
      *
-     * @return int[]
-     *
+     * @return DataBank object containing int[]
      * @throws InterruptedException on wakeup of fifo with no data
      */
     public DataBank receive() throws InterruptedException {
-        return dataTransport.receive(this);
+        return queue.take();
     }
 
     /**
-     * Method send ...
-     *
-     * @param data of type long[]
+     * {@inheritDoc}
+     * DataBank is sent to this object's queue
+     * @param data {@inheritDoc} -- containing long[]
      */
     public void send(DataBank data) {
-        dataTransport.send(this, data);
+        queue.add(data);
     }
 
-    /** Method close ... */
+    /** {@inheritDoc} */
     public void close() {
         if (dataThread != null) dataThread.interrupt();
-
         queue.clear();
-
     }
 
     /**
-     * Method getFull returns the full of this DataChannel object.
-     *
-     * @return the full (type BlockingQueue<DataRecord>) of this DataChannel object.
+     * {@inheritDoc}
+     * @return {@inheritDoc}
      */
     public BlockingQueue<DataBank> getQueue() {
         return queue;

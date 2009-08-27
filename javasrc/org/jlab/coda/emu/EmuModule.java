@@ -47,12 +47,12 @@ public interface EmuModule extends StatedObject {
      * Set the input channels of this EmuModule object.
      * @param input_channels the input channels of this EmuModule object
      */
-    public void setInput_channels(ArrayList<DataChannel> input_channels);
+    public void setInputChannels(ArrayList<DataChannel> input_channels);
 
     /**
      * Set the output channels of this EmuModule object.
      * @param output_channels the output channels of this EmuModule object
      */
-    public void setOutput_channels(ArrayList<DataChannel> output_channels);
+    public void setOutputChannels(ArrayList<DataChannel> output_channels);
 
 }

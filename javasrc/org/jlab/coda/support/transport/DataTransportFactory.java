@@ -12,6 +12,7 @@
 package org.jlab.coda.support.transport;
 
 import org.jlab.coda.emu.Emu;
+import org.jlab.coda.emu.EmuClassLoader;
 import org.jlab.coda.support.codaComponent.CODAState;
 import org.jlab.coda.support.codaComponent.CODATransition;
 import org.jlab.coda.support.codaComponent.RunControl;
@@ -30,6 +31,9 @@ import java.lang.reflect.Constructor;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Vector;
+import java.net.URL;
+import java.net.MalformedURLException;
+import java.io.File;
 
 /**
  * Only one of these objects is created in the EmuModuleFactory object
@@ -64,21 +68,17 @@ public class DataTransportFactory implements StatedObject {
 
         for (DataTransport transport : transports) {
             t = transport;
-            if (t.name().matches(name)) return t;
+            if (t.name().equals(name)) return t;
         }
         throw new DataNotFoundException("Data Transport not found");
     }
 
-    /**
-     * @return the name
-     *
-     * @see org.jlab.coda.emu.EmuModule#name()
-     */
+    /** {@inheritDoc} */
     public String name() {
         return name;
     }
 
-    /** @return the state */
+    /** {@inheritDoc} */
     public State state() {
         if (state == CODAState.ERROR) return state;
 
@@ -94,14 +94,138 @@ public class DataTransportFactory implements StatedObject {
             if (s == CODAState.ERROR) {
                 state = CODAState.ERROR;
             }
-
         }
 
         return state;
     }
 
+    
     /**
-     * this method is only called by the EmuModuleFactory's (a singleton used by Emu)
+     * This method is only called by the EmuModuleFactory's (a singleton used by Emu)
+     * execute method.
+     *
+     * @param cmd of type Command
+     *
+     * @throws org.jlab.coda.support.control.CmdExecException
+     *          if command is invalid or fails
+     * @see org.jlab.coda.emu.EmuModule#execute(Command)
+     */
+    @SuppressWarnings({"ConstantConditions", "ThrowableInstanceNeverThrown"})
+    public void executeNew(Command cmd) throws CmdExecException {
+        Logger.info("DataTransportFactory.execute : " + cmd);
+
+        // DOWNLOAD loads transport implementation classes, creates objects from them and
+        // stores them along with a transport fifo implementation object.
+        if (cmd.equals(CODATransition.DOWNLOAD)) {
+
+            try {
+                Node m = Configurer.getNode(Emu.INSTANCE.configuration(), "component/transports");
+//System.out.println("component/transports node = " + m);
+                if (!m.hasChildNodes()) throw new DataNotFoundException("transport section present in config but no transports");
+
+                NodeList l = m.getChildNodes();
+
+                // remove all current data transport objects
+                transports.removeAllElements();
+
+                // for each child node (under component/transports) ...
+                for (int ix = 0; ix < l.getLength(); ix++) {
+                    Node n = l.item(ix);
+
+                    if (n.getNodeType() == Node.ELEMENT_NODE) {
+                        // type is "server" (send data to) or "client" (send data from)
+                        String transportType = n.getNodeName();
+
+                        // store all attributes in a hashmap
+                        Map<String, String> attrib = new HashMap<String, String>();
+                        if (n.hasAttributes()) {
+                            NamedNodeMap attr = n.getAttributes();
+
+                            for (int jx = 0; jx < attr.getLength(); jx++) {
+                                Node a = attr.item(jx);
+                                attrib.put(a.getNodeName(), a.getNodeValue());
+                            }
+                        }
+
+                        if (transportType.equalsIgnoreCase("server")) attrib.put("server", "true");
+                        else attrib.put("server", "false");
+
+                        // get the name used to access transport
+                        String transportName = attrib.get("name");
+                        if (transportName == null) throw new DataNotFoundException("transport name attribute missing in config");
+                        Logger.info("DataTransportFactory creating : " + transportName);
+
+                        // Generate a name for the implementation of this transport
+                        // from the name passed from the configuration.
+                        String transportClass = attrib.get("class");
+                        if (transportClass == null) throw new DataNotFoundException("transport class attribute missing in config");
+                        String implName = "org.jlab.coda.support.transport.DataTransportImpl" + transportClass;
+
+                        try {
+                            Class c = DataTransportFactory.class.getClassLoader().loadClass(implName);
+Logger.info("&*&*&* Transport loaded class = " + c);
+
+                            // 2 constructor args
+                            Class[] parameterTypes = {String.class, Map.class};
+                            Constructor co = c.getConstructor(parameterTypes);
+
+                            // create an instance & store reference
+                            Object[] args = {transportName, attrib};
+                            transports.add((DataTransport) co.newInstance(args));
+
+                            Logger.info("DataTransportFactory created : " + transportName + " class " + transportClass);
+
+                        } catch (Exception e) {
+                            state = CODAState.ERROR;
+                            CODAState.ERROR.getCauses().add(e);
+                            throw new CmdExecException("cannot load transport class", e);
+                        }
+                    } // if node is element
+                    state = cmd.success();
+                } // for each child node
+            }
+            catch (DataNotFoundException e) {
+                state = CODAState.ERROR;
+                CODAState.ERROR.getCauses().add(e);
+                throw new CmdExecException("transport section missing/incomplete from config", e);
+            }
+
+            // create a fifo data transport // bug bug: WHY?
+            try {
+                HashMap<String, String> attrs = new HashMap<String, String>();
+                attrs.put("class", "Fifo");
+                attrs.put("server", "false");
+                transports.add(new DataTransportImplFifo("Fifo", attrs));
+            } catch (DataNotFoundException e) {
+                state = CODAState.ERROR;
+                CODAState.ERROR.getCauses().add(e);
+                throw new CmdExecException(e);
+            }
+
+        }  // end of DOWNLOAD
+
+
+        // Pass all commands down to all transport objects
+        for (DataTransport transport : transports) {
+            Logger.debug("Transport : " + transport.name() + " execute " + cmd);
+            transport.execute(cmd);
+        }
+
+
+        // RESET & END transitions
+        if (cmd.equals(RunControl.RESET) || cmd.equals(CODATransition.END)) {
+            for (DataTransport t : transports) {
+                t.close();
+            }
+            transports.clear();
+            state = cmd.success();
+        }
+
+    }
+
+
+    /**
+     * This method is only called by the EmuModuleFactory's (a singleton used by Emu)
      * execute method.
      *
      * @param cmd of type Command
@@ -114,88 +238,137 @@ public class DataTransportFactory implements StatedObject {
     public void execute(Command cmd) throws CmdExecException {
         Logger.info("DataTransportFactory.execute : " + cmd);
 
+        // DOWNLOAD loads transport implementation classes, creates objects from them and
+        // stores them along with a transport fifo implementation object.
         if (cmd.equals(CODATransition.DOWNLOAD)) {
+
             try {
                 Node m = Configurer.getNode(Emu.INSTANCE.configuration(), "component/transports");
-                System.out.println("component/transports node = " + m);
+//System.out.println("component/transports node = " + m);
                 if (!m.hasChildNodes()) throw new DataNotFoundException("transport section present in config but no transports");
 
                 NodeList l = m.getChildNodes();
 
+                // remove all current data transport objects
                 transports.removeAllElements();
 
-                System.gc();
-                System.gc();
+                // We don't really need to be loading the transport classes explicitly since they are
+                // part of the emu package. However, this gives us the future option of users creating
+                // their own transport classes and having them dynamically loaded. Just add another
+                // agreed-upon path to look in, but for now, just look in the classpath.
+                String classpath = System.getProperty("java.class.path");
+//System.out.println("CLASSPATH = \n" + classpath);
+                URL[] urls;
+                try {
+                    // if no class path, try current directory and emu.jar in current directory
+                    if (classpath == null) {
+                        urls    = new URL[2];
+                        urls[0] = new File(".").toURI().toURL();
+                        urls[1] = new File("emu.jar").toURI().toURL();
+                    }
+                    else {
+                        String[] paths = classpath.split(":");
+                        urls = new URL[paths.length];
+                        for (int i = 0; i < urls.length; i++) {
+                            urls[i] = new File(paths[i]).toURI().toURL();
+                        }
+                    }
+                }
+                // should never happen
+                catch (MalformedURLException e) {
+                    urls = null;
+                }
 
-                System.runFinalization();
+                // classloader that can reload classes
+                EmuClassLoader ecl = new EmuClassLoader(urls);
 
+                // for each child node (under component/transports) ...
                 for (int ix = 0; ix < l.getLength(); ix++) {
                     Node n = l.item(ix);
+
                     if (n.getNodeType() == Node.ELEMENT_NODE) {
+                        // type is "server" (send data to) or "client" (send data from)
                         String transportType = n.getNodeName();
 
+                        // store all attributes in a hashmap
                         Map<String, String> attrib = new HashMap<String, String>();
                         if (n.hasAttributes()) {
                             NamedNodeMap attr = n.getAttributes();
 
                             for (int jx = 0; jx < attr.getLength(); jx++) {
                                 Node a = attr.item(jx);
-
                                 attrib.put(a.getNodeName(), a.getNodeValue());
                             }
                         }
-                        if (transportType.matches("server")) attrib.put("server", "true");
+
+                        if (transportType.equalsIgnoreCase("server")) attrib.put("server", "true");
                         else attrib.put("server", "false");
+
                         // get the name used to access transport
-                        String serverName = attrib.get("name");
-                        if (serverName == null) throw new DataNotFoundException("transport server name attribute missing in config");
-                        Logger.info("DataTransportFactory creating : " + serverName);
-                        // Generate a name for the implementation of this
-                        // transport
-                        // from
-                        // the name passed from the configuration.
+                        String transportName = attrib.get("name");
+                        if (transportName == null) throw new DataNotFoundException("transport name attribute missing in config");
+                        Logger.info("DataTransportFactory creating : " + transportName);
+
+                        // Generate a name for the implementation of this transport
+                        // from the name passed from the configuration.
                         String transportClass = attrib.get("class");
-                        if (transportClass == null) throw new DataNotFoundException("transport server class attribute missing in config");
+                        if (transportClass == null) throw new DataNotFoundException("transport class attribute missing in config");
                         String implName = "org.jlab.coda.support.transport.DataTransportImpl" + transportClass;
 
                         try {
-                            ClassLoader cl = getClass().getClassLoader();
-                            Class c = cl.loadClass(implName);
-                            Class[] parameterTypes = {java.lang.String.class, Map.class};
-                            Constructor co = c.getConstructor(parameterTypes);
-                            // create an instance
-                            Object[] args = {serverName, attrib};
-                            transports.add((DataTransport) co.newInstance(args));
-                            Logger.info("DataTransportFactory created : " + serverName + " class " + transportClass);
-                        } catch (Exception e) {
-                            CODAState.ERROR.getCauses().add(e);
-                            throw new CmdExecException();
-                        }
+                            ecl.setClassToLoad(implName);
+                            Class c = ecl.loadClass(implName);
+Logger.info("&*&*&* Transport loaded class = " + c);
 
-                    }
+                            // 2 constructor args
+                            Class[] parameterTypes = {String.class, Map.class};
+                            Constructor co = c.getConstructor(parameterTypes);
+
+                            // create an instance & store reference
+                            Object[] args = {transportName, attrib};
+                            transports.add((DataTransport) co.newInstance(args));
+                            ecl.setClassToLoad(null);
+
+                            Logger.info("DataTransportFactory created : " + transportName + " class " + transportClass);
+
+                        } catch (Exception e) {
+                            state = CODAState.ERROR;
+                            CODAState.ERROR.getCauses().add(e);
+                            throw new CmdExecException("cannot load transport class", e);
+                        }
+                    } // if node is element
                     state = cmd.success();
-                }
-            } catch (Exception e) {
-                state = CODAState.ERROR;
-                throw new CmdExecException("transport section missing from config");
+                } // for each child node
             }
+            catch (DataNotFoundException e) {
+                state = CODAState.ERROR;
+                CODAState.ERROR.getCauses().add(e);
+                throw new CmdExecException("transport section missing/incomplete from config", e);
+            }
+
+            // create a fifo data transport // bug bug: WHY?
             try {
                 HashMap<String, String> attrs = new HashMap<String, String>();
                 attrs.put("class", "Fifo");
                 attrs.put("server", "false");
                 transports.add(new DataTransportImplFifo("Fifo", attrs));
             } catch (DataNotFoundException e) {
+                state = CODAState.ERROR;
                 CODAState.ERROR.getCauses().add(e);
-                throw new CmdExecException();
+                throw new CmdExecException(e);
             }
 
-        }
+        }  // end of DOWNLOAD
 
+
+        // Pass all commands down to all transport objects
         for (DataTransport transport : transports) {
             Logger.debug("Transport : " + transport.name() + " execute " + cmd);
             transport.execute(cmd);
         }
 
+
+        // RESET & END transitions
         if (cmd.equals(RunControl.RESET) || cmd.equals(CODATransition.END)) {
             for (DataTransport t : transports) {
                 t.close();
@@ -205,5 +378,7 @@ public class DataTransportFactory implements StatedObject {
         }
 
     }
+
+
 
 }

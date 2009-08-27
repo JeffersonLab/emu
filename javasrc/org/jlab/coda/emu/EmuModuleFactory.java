@@ -31,7 +31,6 @@ import java.io.File;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import java.net.URL;
-import java.net.URLClassLoader;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Vector;
@@ -197,48 +196,64 @@ public class EmuModuleFactory implements StatedObject {
 
         // PRESTART command does run-specific initialization ...
         else if (cmd.equals(CODATransition.PRESTART)) {
+
+            // pass prestart to transport objects first
             TRANSPORT_FACTORY.execute(cmd);
+
+            // now pass it on to the modules
             try {
                 Node modulesConfig = Configurer.getNode(Emu.INSTANCE.configuration(), "component/modules");
                 Node moduleNode = modulesConfig.getFirstChild();
+                // for each module in the list of modules ...
                 do {
+                    // modules section present in config but no modules if no children
                     if ((moduleNode.getNodeType() == Node.ELEMENT_NODE) && moduleNode.hasChildNodes()) {
                         EmuModule module = findModule(moduleNode.getNodeName());
                         if (module != null) {
-                            ArrayList<DataChannel> in = new ArrayList<DataChannel>();
+                            ArrayList<DataChannel> in  = new ArrayList<DataChannel>();
                             ArrayList<DataChannel> out = new ArrayList<DataChannel>();
-                            NodeList l = moduleNode.getChildNodes();
-                            for (int ix = 0; ix < l.getLength(); ix++) {
-                                Node channelNode = l.item(ix);
+                            
+                            // for each channel in the module ...
+                            NodeList childList = moduleNode.getChildNodes();
+                            for (int ix = 0; ix < childList.getLength(); ix++) {
+                                Node channelNode = childList.item(ix);
                                 if (channelNode.getNodeType() != Node.ELEMENT_NODE) continue;
 
                                 NamedNodeMap nnm = channelNode.getAttributes();
 
+                                // name of the channel
                                 Node channelNameNode = nnm.getNamedItem("name");
-
                                 String channelName = channelNameNode.getNodeValue();
 
+                                // name of transport object to which channel will belong
                                 Node channelTranspNode = nnm.getNamedItem("transp");
-
                                 String channelTransName = channelTranspNode.getNodeValue();
-                                System.out.println("module " + module.name() + " channel " + channelName + " transp " + channelTransName);
+                                
+System.out.println("module " + module.name() + " channel " + channelName + " transp " + channelTransName);
+                                // look up transport object
                                 DataTransport trans = DataTransportFactory.findNamedTransport(channelTransName);
 
-                                if (channelNode.getNodeName().matches("inchannel")) {
+                                if (channelNode.getNodeName().equalsIgnoreCase("inchannel")) {
+                                    // create channel
                                     DataChannel channel = trans.createChannel(channelName, true);
+                                    // add to list
                                     in.add(channel);
                                 }
-                                if (channelNode.getNodeName().matches("outchannel")) {
+                                else if (channelNode.getNodeName().equalsIgnoreCase("outchannel")) {
                                     DataChannel channel = trans.createChannel(channelName, false);
                                     out.add(channel);
-
+                                }
+                                else {
+System.out.println("Channel type \"" + channelNode.getNodeName() + "\" is unknown");
                                 }
                             }
-                            module.setInput_channels(in);
-                            module.setOutput_channels(out);
+                            
+                            // add input and output channel lists to module
+                            module.setInputChannels(in);
+                            module.setOutputChannels(out);
                         }
                     }
-                } while ((moduleNode = moduleNode.getNextSibling()) != null);
+                } while ((moduleNode = moduleNode.getNextSibling()) != null);  // while another module exists ...
 
             } catch (Exception e) {
                 Logger.error("EmuModuleFactory.execute() threw " + e.getMessage());

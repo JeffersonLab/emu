@@ -37,11 +37,11 @@ public class DataTransportImplFifo extends DataTransportCore implements DataTran
      * @return DataChannel
      */
     public DataChannel createChannel(String name, boolean isInput) throws DataTransportException {
-        System.out.println("create channel " + name);
+System.out.println("create channel " + name);
         DataChannel c = new DataChannelImplFifo(name() + ":" + name, this, isInput);
         channels().put(c.getName(), c);
-        System.out.println("put channel " + c.getName());
-        System.out.println("channels " + channels() + " " + this);
+System.out.println("put channel " + c.getName());
+System.out.println("channels " + channels() + " " + this);
         return c;
     }
 

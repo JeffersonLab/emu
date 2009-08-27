@@ -110,6 +110,8 @@ public class Process implements EmuModule, Runnable {
      */
     public Process(String name) {
         this.name = name;
+//System.out.println("**** HEY, HEY someone created one of ME (modules.Process object) ****");
+        System.out.println("**** LOADED NEW CLASS, DUDE!!! (modules.Process object) ****");
     }
 
     /** @see org.jlab.coda.emu.EmuModule#name() */
@@ -284,7 +286,7 @@ public class Process implements EmuModule, Runnable {
      *
      * @param input_channels the input_channels of this EmuModule object.
      */
-    public void setInput_channels(ArrayList<DataChannel> input_channels) {
+    public void setInputChannels(ArrayList<DataChannel> input_channels) {
         this.input_channels = input_channels;
     }
 
@@ -293,7 +295,7 @@ public class Process implements EmuModule, Runnable {
      *
      * @param output_channels the output_channels of this EmuModule object.
      */
-    public void setOutput_channels(ArrayList<DataChannel> output_channels) {
+    public void setOutputChannels(ArrayList<DataChannel> output_channels) {
         this.output_channels = output_channels;
     }
 }

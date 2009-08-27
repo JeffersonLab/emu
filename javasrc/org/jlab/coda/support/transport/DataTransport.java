@@ -14,8 +14,9 @@ package org.jlab.coda.support.transport;
 import org.jlab.coda.support.configurer.DataNotFoundException;
 import org.jlab.coda.support.control.CmdExecException;
 import org.jlab.coda.support.control.Command;
-import org.jlab.coda.support.control.State;
+//import org.jlab.coda.support.control.State;
 import org.jlab.coda.support.data.DataBank;
+import org.jlab.coda.support.codaComponent.StatedObject;
 
 import java.util.HashMap;
 
@@ -27,112 +28,87 @@ import java.util.HashMap;
  *         Created on Sep 17, 2008
  */
 @SuppressWarnings({"RedundantThrows"})
-public interface DataTransport {
+public interface DataTransport extends StatedObject {
     /**
-     * Method getType returns the type of this DataTransport object.
-     *
-     * @return the type (type String) of this DataTransport object.
+     * Get the name of the transport implementation class implementing this class.
+     * @return the name of the transport implementation class implementing this class
      */
-    // field manipulation
     public String getTransportClass();
 
-    /**
-     * @return the name
-     *
-     * @see org.jlab.coda.emu.EmuModule#name()
-     */
-    public String name();
+    // public State state(); from StatedObject
+    // public String name(); from StatedObject
 
     /**
-     * Method setName sets the name of this DataTransport object.
-     *
+     * This method sets the name of this DataTransport object.
      * @param pname the name of this DataTransport object.
      */
     public void setName(String pname);
-
-    /**
-     * Method state ...
-     *
-     * @return State
-     */
-    public State state();
 
     /**
      * This method is run when passed a Command object
      * in the context of the receiving module.
      *
      * @param cmd of type Command
-     *
-     * @throws org.jlab.coda.support.control.CmdExecException
-     *          exception processing command
+     * @throws CmdExecException if exception processing command
      */
     @SuppressWarnings({"RedundantThrows"})
     public void execute(Command cmd) throws CmdExecException;
 
     /**
-     * Method setAttr ...
+     * This method sets an attribute.
      *
-     * @param pname of type String
-     * @param value of type String
+     * @param pname name of attribute (key)
+     * @param value value of attribute (val)
      */
-    // Attribute management
     public void setAttr(String pname, String value);
 
     /**
-     * Method getAttr ...
+     * This method gets an attribute as a String object.
      *
-     * @param pname of type String
-     *
-     * @return String
-     *
-     * @throws org.jlab.coda.support.configurer.DataNotFoundException
-     *          couldn't find named attribute
+     * @param pname name of attribute
+     * @return value of attribute
+     * @throws DataNotFoundException if couldn't find named attribute
      */
     public String getAttr(String pname) throws DataNotFoundException;
 
     /**
-     * Method getIntAttr ...
+     * This method gets an attribute as an int.
      *
-     * @param pname of type String
-     *
-     * @return int
-     *
-     * @throws DataNotFoundException couldn't find named attribute
+     * @param pname name of attribute
+     * @return value of attribute
+     * @throws DataNotFoundException if couldn't find named attribute
      */
     public int getIntAttr(String pname) throws DataNotFoundException;
 
     /**
-     * Method createChannel ...
+     * This method creates a DataChannel object.
      *
-     * @param name    of type String
-     * @param isInput set if this channel is incoming
-     *
-     * @return DataChannel
-     *
-     * @throws DataTransportException thrown if transport problem
+     * @param name name of DataChannel
+     * @param isInput true if this channel reads data into the Emu, else false
+     * @return DataChannel object
+     * @throws DataTransportException if transport problem
      */
-    // Data Transport control
     public DataChannel createChannel(String name, boolean isInput) throws DataTransportException;
 
     /**
-     * Method channels ...
+     * This method gets all the DataChannel objects contained in a DataTransport object.
      *
-     * @return HashMap<String, DataChannel>
+     * @return hashmap containing the data channels (HashMap<String, DataChannel>)
      */
     public HashMap<String, DataChannel> channels();
 
     /**
-     * Method isConnected returns the connected of this DataTransport object.
+     * This method tells if this DataTransport object is connected.
      *
-     * @return the connected (type boolean) of this DataTransport object.
+     * @return true if this object is connected, else false
      */
     public boolean isConnected();
 
     /**
-     * Method send ...
+     * This method sends a DataBank object to some output (fifo, another process, etc.)
      *
-     * @param channel of type DataChannel
-     * @param data    of type long[]
+     * @param channel DataChannel to send data through
+     * @param data DataBank to send, containing long[]
      */
     public void send(DataChannel channel, DataBank data);
 
@@ -145,5 +121,6 @@ public interface DataTransport {
      */
     public boolean isServer();
 
+    /** Close this DataTransport object and all its channels. */
     public void close();
 }

@@ -57,7 +57,9 @@ public class DataChannelImplCMsg implements DataChannel {
 
     /**
      * Constructor to create a new DataChannelImplCmsg instance.
-     * Used only by {@link DataTransportImplCMsg#createChannel}.
+     * Used only by {@link DataTransportImplCMsg#createChannel} which is
+     * only used during PRESTART in the EmuModuleFactory.
+     * 
      * bug bug : Why are we creating a socket here? Shouldn't we be using cMsg??
      *
      * @param name          the name of this channel
@@ -86,8 +88,9 @@ public class DataChannelImplCMsg implements DataChannel {
 
         queue = new ArrayBlockingQueue<DataBank>(capacity);
 
-        // If we are a server (data sender) the accept helper in the dataTransport implementation will
-        // handle connections
+        // If we are a server (data sender) the AcceptHelper thread in
+        // the dataTransport implementation will handle connections and
+        // create the dataSocket. Otherwise, run code below.
         if (!input) {
             try {
                 dataSocket = new Socket(dataTransport.getHost(), dataTransport.getPort());

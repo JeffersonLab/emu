@@ -86,11 +86,11 @@ public class Send implements EmuModule {
         super.finalize();
     }
 
-    public void setInput_channels(ArrayList<DataChannel> input_channels) {
+    public void setInputChannels(ArrayList<DataChannel> input_channels) {
 
     }
 
-    public void setOutput_channels(ArrayList<DataChannel> output_channels) {
+    public void setOutputChannels(ArrayList<DataChannel> output_channels) {
 
     }
 }

@@ -21,8 +21,9 @@ import java.net.URL;
  *
  * This class is used to load module and transport classes at "download" in order to create the necessary
  * (from configuration) module and transport objects. The manner in which this class is used is as follows.
- * Either an interface (myInterface) or superclass (mySuperclass) is defined such that:<p>
+ * Either a public interface (myInterface) or (public?) superclass (mySuperclass) is defined such that:<p>
  *<pre><code>
+ *           public interface myInterface
  *           class myClass implements myInterface    or
  *           class mySuperclass extends myClass
  * </code></pre>
@@ -77,6 +78,14 @@ import java.net.URL;
  * the myInterface class, or the mySuperclass class, since these are referenced from within the myClass
  * class. Your class loader must delegate the loading of those classes to the same class loader that loaded the class
  * containing the interface or superclass typed variables.<p>
+ *
+ * <b>Class Unloading</b><p>
+ * To unload a class you have to create a custom classloader and load the class using it.
+ * After you are done with the class you need to release all references to the class as
+ * well as to the class loader by reassigning the variables or setting them to null.
+ * Then either wait for System.gc() to unload the class or you call it directly in a loop
+ * till no more bytes can be freed. However normally calling it twice does the trick, but
+ * that did NOT work for me (timmer) in the emu code.
  *
  */
 public class EmuClassLoader extends URLClassLoader {
@@ -134,8 +143,16 @@ public class EmuClassLoader extends URLClassLoader {
         // the EmuModule interface, this loader will be asked to load it.
         // Simply pass the request back to the parent and we're OK. Now
         // there's only one version of EmuModule that everyone agrees on.
+        if (name.contains("InnerClass")) {
+            System.out.println("$$$$ $$$$ $$$$ EmuClassLoader: found inner class -> " + name);
+        }
+        if (name.contains("EmuModule")) {
+            System.out.println("$$$$ $$$$ $$$$ EmuClassLoader: found EmuModule class -> " + name);
+        }
+
+        //if (!classToLoad.equals(name) && !name.contains("InnerClass")) {
         if (!classToLoad.equals(name)) {
-//System.out.println("EmuClassLoader: have parent load " + name);
+System.out.println("$$$$ EmuClassLoader: have parent load " + name);
             return getParent().loadClass(name);
         }
 
@@ -143,7 +160,7 @@ public class EmuClassLoader extends URLClassLoader {
         // is not allowed to load things twice.
         Class c = findLoadedClass(name);
         if (c != null) {
-//System.out.println("EmuClassLoader: returning already loaded class " + name);
+System.out.println("$$$$ EmuClassLoader: returning already loaded class " + name);
             return c;
         }
 
@@ -152,7 +169,7 @@ public class EmuClassLoader extends URLClassLoader {
         // to the parent. We want to use the URLClassLoader to find it from scratch so call
         // the findClass() method directly.
 
-//System.out.println("EmuClassLoader: loading " + name);
+System.out.println("$$$$ EmuClassLoader: loading " + name);
         return findClass(name);
     }
 

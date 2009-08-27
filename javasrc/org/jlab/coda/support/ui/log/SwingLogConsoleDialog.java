@@ -70,16 +70,16 @@ public class SwingLogConsoleDialog extends JTextPane implements LoggerAppender {
         Style style = addStyle("Red", null);
         StyleConstants.setForeground(style, Color.red);
         style = addStyle("WARN", null);
-        StyleConstants.setForeground(style, Color.orange);
+        StyleConstants.setForeground(style, new Color(200,155,0)); // darker yellow
         style = addStyle("INFO", null);
-        StyleConstants.setForeground(style, Color.green);
+        StyleConstants.setForeground(style, new Color(0,150,0)); // darker green
         style = addStyle("Gray", null);
         StyleConstants.setForeground(style, Color.gray);
         style = addStyle("DEBUG", null);
         StyleConstants.setForeground(style, Color.blue);
         style = addStyle("ERROR", null);
         StyleConstants.setBold(style, true);
-        StyleConstants.setItalic(style, true);
+        //StyleConstants.setItalic(style, true);
         //StyleConstants.setFontSize(style, 18);
         StyleConstants.setForeground(style, Color.red);
         style = addStyle("pt18", null);
@@ -105,23 +105,26 @@ public class SwingLogConsoleDialog extends JTextPane implements LoggerAppender {
     public void append(LoggingEvent event) {
         Document d = getDocument();
         try {
+            // add the time in gray
             d.insertString(d.getLength(), formatEventTime(event.getEventTime()), getStyle("Gray"));
-            d.insertString(d.getLength(), " ", getStyle("Gray"));
+
+            // add type of entry
             switch (event.getLevel()) {
                 case LoggingEvent.ERROR:
-                    d.insertString(d.getLength(), "ERROR --> ", getStyle("ERROR"));
+                    d.insertString(d.getLength(), "  ERROR \t", getStyle("ERROR"));
                     break;
                 case LoggingEvent.INFO:
-                    d.insertString(d.getLength(), "INFO: \t", getStyle("INFO"));
+                    d.insertString(d.getLength(), "  INFO \t", getStyle("INFO"));
                     break;
                 case LoggingEvent.DEBUG:
-                    d.insertString(d.getLength(), "DEBUG: \t", getStyle("DEBUG"));
+                    d.insertString(d.getLength(), "  DEBUG \t", getStyle("DEBUG"));
                     break;
                 case LoggingEvent.WARN:
-                    d.insertString(d.getLength(), "WARN: \t", getStyle("WARN"));
+                    d.insertString(d.getLength(), "  WARN \t", getStyle("WARN"));
                     break;
             }
 
+            // add the message
             d.insertString(d.getLength(), event.getMessage(), null);
 
             // if (event.hasData()) {
@@ -151,7 +154,9 @@ public class SwingLogConsoleDialog extends JTextPane implements LoggerAppender {
      * @return String
      */
     private String formatEventTime(long eventTime) {
-        DateFormat format = new SimpleDateFormat("HH:mm:ss.SSS ");
+        //String fullformat = "''yy EEE, MMM dd, HH:mm:ss.SSS ";
+
+        DateFormat format = new SimpleDateFormat("HH:mm:ss.SSS");
         return format.format(new Date(eventTime));
     }
 

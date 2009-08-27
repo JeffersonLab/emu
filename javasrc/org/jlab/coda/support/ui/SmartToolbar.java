@@ -130,7 +130,8 @@ public class SmartToolbar extends JToolBar {
                 cmd.clearArgs();
 
                 try {
-                    // execute the command associated with the given button
+                    // Execute the command associated with the given button.
+                    // (Emu puts cmd into Q which another thread pulls off).
                     target.postCommand(cmd);
                     // set enable status of all buttons
                     update();

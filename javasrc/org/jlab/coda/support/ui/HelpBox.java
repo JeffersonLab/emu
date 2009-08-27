@@ -72,7 +72,11 @@ public class HelpBox extends JDialog {
                     textPane1.setText(bundle.getString("HelpWindow"));
                     scrollPane1.setViewportView(textPane1);
                 }
-                contentPanel.add(scrollPane1, new GridConstraints(0, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_BOTH, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, null, null, null));
+                contentPanel.add(scrollPane1, new GridConstraints(0, 0, 1, 1,
+                    GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_BOTH,
+                    GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW,
+                    GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW,
+                    null, null, null));
             }
             dialogPane.add(contentPanel, BorderLayout.CENTER);
 
@@ -80,8 +84,8 @@ public class HelpBox extends JDialog {
             {
                 buttonBar.setBorder(new EmptyBorder(12, 0, 0, 0));
                 buttonBar.setLayout(new GridBagLayout());
-                ((GridBagLayout) buttonBar.getLayout()).columnWidths = new int[] {0, 80};
-                ((GridBagLayout) buttonBar.getLayout()).columnWeights = new double[] {1.0, 0.0};
+                ((GridBagLayout)buttonBar.getLayout()).columnWidths = new int[] {0, 80};
+                ((GridBagLayout)buttonBar.getLayout()).columnWeights = new double[] {1.0, 0.0};
 
                 //---- okButton ----
                 okButton.setText(bundle.getString("okButton.text"));
@@ -90,7 +94,9 @@ public class HelpBox extends JDialog {
                         okButtonActionPerformed(e);
                     }
                 });
-                buttonBar.add(okButton, new GridBagConstraints(1, 0, 1, 1, 0.0, 0.0, GridBagConstraints.CENTER, GridBagConstraints.BOTH, new Insets(0, 0, 0, 0), 0, 0));
+                buttonBar.add(okButton, new GridBagConstraints(1, 0, 1, 1, 0.0, 0.0,
+                    GridBagConstraints.CENTER, GridBagConstraints.BOTH,
+                    new Insets(0, 0, 0, 0), 0, 0));
             }
             dialogPane.add(buttonBar, BorderLayout.SOUTH);
         }

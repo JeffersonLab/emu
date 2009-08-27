@@ -40,11 +40,21 @@ class DataTransportException extends Exception {
     /**
      * Constructor TransportException creates a new TransportException instance.
      *
+     * @param cause   of type Exception
+     */
+    public DataTransportException(Exception cause) {
+        super(cause);
+        this.cause = cause;
+    }
+
+    /**
+     * Constructor TransportException creates a new TransportException instance.
+     *
      * @param message of type String
      * @param cause   of type Exception
      */
     public DataTransportException(String message, Exception cause) {
-        super(message);
+        super(message, cause);
         this.cause = cause;
     }
 

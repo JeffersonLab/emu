@@ -45,7 +45,7 @@ public interface DataChannel {
      * Get the queue of this data channel which contains
      * banks of data.
      *
-     * @return the queue of data banks sent to this data channel.
+     * @return the queue of data banks sent to this data channel
      */
     public BlockingQueue<DataBank> getQueue();
 
