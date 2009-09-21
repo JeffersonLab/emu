@@ -31,7 +31,9 @@
             clean - delete the dist directory
             javadoc - build project javadoc files
 
-            jar - build jar files
+            emu_jar - build jar files
+            
+            mod_jar - build module files
 
             dist - will create a complete distribution in dist/
         </echo>
