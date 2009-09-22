@@ -9,7 +9,7 @@
     <property environment="env"/>
 
     <!-- The directory where source files are stored. -->
-    <property name="java.source.dir" value="javasrc"/>
+    <property name="java.source.dir" value="java"/>
 
     <!-- Destination for compiled files -->
     <property name="javac.dest" value="classes"/>
