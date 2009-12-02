@@ -16,11 +16,14 @@ import org.jlab.coda.support.control.CmdExecException;
 import org.jlab.coda.support.data.DataBank;
 import org.jlab.coda.support.data.DataTransportRecord;
 import org.jlab.coda.support.logger.Logger;
+import org.jlab.coda.jevio.EvioBank;
+import org.jlab.coda.jevio.ByteParser;
 
 import java.io.*;
 import java.net.Socket;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
+import java.nio.ByteBuffer;
 
 /**
  * -----------------------------------------------------
@@ -45,7 +48,7 @@ public class DataChannelImplSO implements DataChannel {
     private Thread dataThread;
 
     /** Field full */
-    private final BlockingQueue<DataBank> queue;
+    private final BlockingQueue<EvioBank> queue;
 
     /**
      * Constructor DataChannelImplSO creates a new DataChannelImplSO instance.
@@ -72,7 +75,7 @@ public class DataChannelImplSO implements DataChannel {
             Logger.info(e.getMessage() + " default to " + size + " byte records.");
         }
 
-        queue = new ArrayBlockingQueue<DataBank>(capacity);
+        queue = new ArrayBlockingQueue<EvioBank>(capacity);
 
     }
 
@@ -110,13 +113,13 @@ public class DataChannelImplSO implements DataChannel {
 
                 OutputStream os = dataSocket.getOutputStream();
 
-                while (dataSocket.isConnected()) {
-                    // take an empty buffer
+                ByteParser parser = new ByteParser();
 
-                    DataTransportRecord dr = (DataTransportRecord) DataBank.read(in);
+                while (dataSocket.isConnected()) {
+                    EvioBank bank = parser.readEvent(in);
 
                     os.write(0xaa);
-                    queue.put(dr);
+                    queue.put(bank);
                 }
             } catch (Exception e) {
                 Logger.warn("DataInputHelper exit " + e.getMessage());
@@ -133,24 +136,31 @@ public class DataChannelImplSO implements DataChannel {
         @SuppressWarnings({"InfiniteLoopStatement"})
         public void run() {
             try {
-
+                int size;
+                EvioBank bank;
+                ByteBuffer bbuf = ByteBuffer.allocate(1000); // allocateDirect does(may) NOT have backing array
                 DataOutputStream out = new DataOutputStream(dataSocket.getOutputStream());
-
-                DataBank d;
-                int ack;
-                InputStream is = dataSocket.getInputStream();
+                InputStream in = dataSocket.getInputStream();
 
                 while (true) {
-                    d = queue.take();
+                    bank = queue.take();
 
-                    DataBank.write(out, d);
+                    // TODO: make buffer handling more efficient
+                    size = bank.getTotalBytes();  // bytes
+                    if (bbuf.capacity() < size) {
+                        bbuf = ByteBuffer.allocateDirect(size + 1000);
+                    }
+                    bbuf.clear();
+                    bank.write(bbuf);
+                    out.write(bbuf.array());
+                    out.flush();
 
-                    ack = is.read();
+                    int ack = in.read();
                     if (ack != 0xaa) {
                         throw new CmdExecException("DataOutputHelper : ack = " + ack);
                     }
-
                 }
+
             } catch (Exception e) {
                 Logger.warn("DataOutputHelper exit " + e.getMessage());
             }
@@ -174,11 +184,11 @@ public class DataChannelImplSO implements DataChannel {
     }
 
     /**
-     * Method getFull returns the full of this DataChannel object.
+     * Method getFull returns the queue of this DataChannel object.
      *
-     * @return the full (type BlockingQueue<DataRecord>) of this DataChannel object.
+     * @return the queue (type BlockingQueue<EvioBank>) of this DataChannel object.
      */
-    public BlockingQueue<DataBank> getQueue() {
+    public BlockingQueue<EvioBank> getQueue() {
         return queue;
     }
 
@@ -187,8 +197,8 @@ public class DataChannelImplSO implements DataChannel {
      *
      * @param data of type long[]
      */
-    public void send(DataBank data) {
-        transport.send(this, data);
+    public void send(EvioBank data) {
+        queue.add(data);
     }
 
     /** Method close ... */

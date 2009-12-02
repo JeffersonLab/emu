@@ -19,6 +19,7 @@ import org.jlab.coda.support.configurer.DataNotFoundException;
 import org.jlab.coda.support.control.Command;
 import org.jlab.coda.support.control.State;
 import org.jlab.coda.support.data.DataTransportRecord;
+import org.jlab.coda.jevio.EvioBank;
 
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
@@ -112,12 +113,12 @@ public class DataTransportImplSO extends DataTransportCore implements DataTransp
                 while (true) {
                     // receive packet of client looking for server
                     multicastSocket.receive(dp);
-                    String s = new String(dp.getData(), 0, dp.getLength());
+                    String s = new String(dp.getData(), 0, dp.getLength(), "US-ASCII");
 
-                    if (s.matches(name())) {
+                    if (s.equals(name())) {
                         // if names match send a response packet with our name, host, and server port
                         s = name() + " " + localhost.getHostAddress() + " " + serverSocket.getLocalPort();
-                        dp.setData(s.getBytes());
+                        dp.setData(s.getBytes("US-ASCII"));
                         multicastSocket.send(dp);
                     }
                 }
@@ -166,7 +167,7 @@ public class DataTransportImplSO extends DataTransportCore implements DataTransp
 
                     int bytes = in.read(cbuf, 0, l);
 
-                    String s = new String(cbuf, 0, bytes);
+                    String s = new String(cbuf, 0, bytes, "US-ASCII");
 
                     DataChannelImplSO c = (DataChannelImplSO) channels.get(s);
 
@@ -244,7 +245,8 @@ public class DataTransportImplSO extends DataTransportCore implements DataTransp
 
                     // send out a packet with our name in it
                     String s = name();
-                    DatagramPacket odp = new DatagramPacket(s.getBytes(), s.length(), multicastAddr, multicastPort);
+                    DatagramPacket odp = new DatagramPacket(s.getBytes("US-ASCII"), s.length(),
+                                                            multicastAddr, multicastPort);
                     multicastSocket.send(odp);
 
                     // Receive a response packet if there is one from a server
@@ -252,12 +254,12 @@ public class DataTransportImplSO extends DataTransportCore implements DataTransp
                     multicastSocket.receive(dp);
 
                     // response should be string with space separation of: name, host, server port
-                    String s1 = new String(dp.getData(), 0, dp.getLength());
+                    String s1 = new String(dp.getData(), 0, dp.getLength(), "US-ASCII");
 
                     String[] values = s1.split(" ");
 
                     // if the name matches ours ...
-                    if (values[0].matches(name())) {
+                    if (values[0].equals(name())) {
 
                         // create socket to the given host and port
                         Socket dataSocket = new Socket(values[1], Integer.parseInt(values[2]));
@@ -271,7 +273,7 @@ public class DataTransportImplSO extends DataTransportCore implements DataTransp
 
                         // first thing, send the channel name len and channel name
                         dout.write(channelName.length());
-                        dout.write(channelName.getBytes());
+                        dout.write(channelName.getBytes("US-ASCII"));
 
                         DataChannelImplSO c = (DataChannelImplSO) channels.get(channelName);
 
@@ -318,9 +320,9 @@ public class DataTransportImplSO extends DataTransportCore implements DataTransp
      *
      * @param channel of type DataChannel
      *
-     * @return int[]
+     * @return EvioBank containing data
      */
-    public DataTransportRecord receive(DataChannel channel) {
+    public EvioBank receive(DataChannel channel) {
         return null;
     }
 

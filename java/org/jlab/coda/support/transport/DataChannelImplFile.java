@@ -2,9 +2,10 @@ package org.jlab.coda.support.transport;
 
 import org.jlab.coda.emu.Emu;
 import org.jlab.coda.support.codaComponent.CODAState;
-import org.jlab.coda.support.data.DataBank;
-import org.jlab.coda.support.data.DataFile;
 import org.jlab.coda.support.logger.Logger;
+import org.jlab.coda.jevio.EvioBank;
+import org.jlab.coda.jevio.EvioFile;
+import org.jlab.coda.jevio.EventWriter;
 
 import java.io.*;
 import java.util.concurrent.ArrayBlockingQueue;
@@ -31,13 +32,16 @@ public class DataChannelImplFile implements DataChannel {
     /** Field size - the default size of the buffers used to receive data */
     private int size = 20000;
 
-    /** Field full - filled buffer queue */
-    private final BlockingQueue<DataBank> queue;
+    /** Field queue - filled buffer queue */
+    private final BlockingQueue<EvioBank> queue;
 
     private File file;
 
-    /** Field out */
-    private DataFile dataFile = null;
+    /** Evio data file. */
+    private EvioFile evioFile;
+
+    /** Object to write evio file. */
+    private EventWriter evioFileWriter;
 
     /**
      * Constructor DataChannelImplFifo creates a new DataChannelImplFifo instance.
@@ -61,23 +65,17 @@ public class DataChannelImplFile implements DataChannel {
         }
 
         int capacity = 40;
-        queue = new ArrayBlockingQueue<DataBank>(capacity);
+        queue = new ArrayBlockingQueue<EvioBank>(capacity);
 
         try {
             if (input) {
-                dataFile = new DataFile(new DataInputStream(new FileInputStream(fileName)));
+                evioFile = new EvioFile(fileName);
                 dataThread = new Thread(Emu.THREAD_GROUP, new DataInputHelper(), getName() + " data input");
-
-                dataThread.start();
-
             } else {
-
-                dataFile = new DataFile(new DataOutputStream(new FileOutputStream(fileName)));
+                evioFileWriter = new EventWriter(fileName);
                 dataThread = new Thread(Emu.THREAD_GROUP, new DataOutputHelper(), getName() + " data out");
-
-                dataThread.start();
-
             }
+            dataThread.start();
         } catch (Exception e) {
             if (input) throw new DataTransportException("DataChannelImplCMsg : Cannot open data file " + e.getMessage(), e);
             else throw new DataTransportException("DataChannelImplCMsg : Cannot create data file" + e.getMessage(), e);
@@ -101,10 +99,11 @@ public class DataChannelImplFile implements DataChannel {
             try {
                 Logger.info("Data Input helper for File");
                 while (!dataThread.isInterrupted()) {
-
-                    DataBank dr = dataFile.read();
-
-                    queue.put(dr);
+                    EvioBank bank = evioFile.parseNextEvent();
+                    if (bank == null) {
+                        break;
+                    }
+                    queue.put(bank);
                 }
                 Logger.warn(name + " - File closed");
             } catch (Exception e) {
@@ -130,13 +129,11 @@ public class DataChannelImplFile implements DataChannel {
         /** Method run ... */
         public void run() {
             try {
-                DataBank d;
+                EvioBank bank;
                 Logger.info("Data Output helper for File");
                 while (!dataThread.isInterrupted()) {
-                    d = queue.take();
-
-                    dataFile.write(d);
-
+                    bank = queue.take();
+                    evioFileWriter.writeEvent(bank);
                 }
                 Logger.warn(name + " - data file closed");
             } catch (Exception e) {
@@ -144,6 +141,7 @@ public class DataChannelImplFile implements DataChannel {
                 CODAState.ERROR.getCauses().add(e);
                 dataTransport.state = CODAState.ERROR;
             }
+            evioFileWriter.close();
 
         }
 
@@ -157,21 +155,20 @@ public class DataChannelImplFile implements DataChannel {
     /**
      * Method receive ...
      *
-     * @return int[]
-     *
+     * @return EvioBank containing data
      * @throws InterruptedException on wakeup with no data
      */
-    public DataBank receive() throws InterruptedException {
-        return dataTransport.receive(this);
+    public EvioBank receive() throws InterruptedException {
+        return queue.take();
     }
 
     /**
      * Method send ...
      *
-     * @param data of type long[]
+     * @param data in EvioBank format
      */
-    public void send(DataBank data) {
-        dataTransport.send(this, data);
+    public void send(EvioBank data) {
+        queue.add(data);
     }
 
     /** Method close ... */
@@ -179,7 +176,7 @@ public class DataChannelImplFile implements DataChannel {
         if (dataThread != null) dataThread.interrupt();
         try {
 
-            if (dataFile != null) dataFile.close();
+            if (evioFile != null) evioFile.close();
         } catch (Exception e) {
             //ignore
         }
@@ -188,11 +185,11 @@ public class DataChannelImplFile implements DataChannel {
     }
 
     /**
-     * Method getFull returns the full of this DataChannel object.
+     * Method getQueue returns the queue of this DataChannel object.
      *
-     * @return the full (type BlockingQueue<DataBank>) of this DataChannel object.
+     * @return the queue (type BlockingQueue<EvioBank>) of this DataChannel object.
      */
-    public BlockingQueue<DataBank> getQueue() {
+    public BlockingQueue<EvioBank> getQueue() {
         return queue;
     }
 

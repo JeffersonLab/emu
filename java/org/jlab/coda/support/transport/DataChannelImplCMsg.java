@@ -16,6 +16,8 @@ import org.jlab.coda.support.control.CmdExecException;
 import org.jlab.coda.support.data.DataBank;
 import org.jlab.coda.support.data.DataTransportRecord;
 import org.jlab.coda.support.logger.Logger;
+import org.jlab.coda.jevio.EvioBank;
+import org.jlab.coda.jevio.ByteParser;
 
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
@@ -23,6 +25,7 @@ import java.io.IOException;
 import java.net.Socket;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
+import java.nio.ByteBuffer;
 
 /**
  * Implementation of the DataChannel interface using cMsg
@@ -46,8 +49,8 @@ public class DataChannelImplCMsg implements DataChannel {
     /** Field dataThread */
     private Thread dataThread;
 
-    /** Field full - filled buffer queue */
-    private final BlockingQueue<DataBank> queue;
+    /** Field queue - filled buffer queue */
+    private final BlockingQueue<EvioBank> queue;
 
     /** Field out */
     private DataOutputStream out;
@@ -60,8 +63,6 @@ public class DataChannelImplCMsg implements DataChannel {
      * Used only by {@link DataTransportImplCMsg#createChannel} which is
      * only used during PRESTART in the EmuModuleFactory.
      * 
-     * bug bug : Why are we creating a socket here? Shouldn't we be using cMsg??
-     *
      * @param name          the name of this channel
      * @param dataTransport the DataTransport object that this channel belongs to
      * @param input         true if this is an input data channel, otherwise false
@@ -86,7 +87,7 @@ public class DataChannelImplCMsg implements DataChannel {
             Logger.info("      DataChannelImplCMsg.const : " + e.getMessage() + ", default to " + size + " byte records.");
         }
 
-        queue = new ArrayBlockingQueue<DataBank>(capacity);
+        queue = new ArrayBlockingQueue<EvioBank>(capacity);
 
         // If we are a server (data receiver) the AcceptHelper thread in
         // the dataTransport implementation will handle connections and
@@ -120,25 +121,22 @@ public class DataChannelImplCMsg implements DataChannel {
     }
 
     /**
-     * Take a DataBank off the queue.
+     * Take a EvioBank off the queue.
      *
-     * @return int[]
-     *
+     * @return data
      * @throws InterruptedException on wakeup of fifo without data.
      */
-    public DataBank receive() throws InterruptedException {
-        // bug bug why not do: queue.take(); ?  why invoke the transport object?
-        return dataTransport.receive(this);
+    public EvioBank receive() throws InterruptedException {
+        return queue.take();
     }
 
     /**
-     * Add a DataBank to the queue.
+     * Add a EvBank to the queue.
      *
      * @param data is the bank to send
      */
-    public void send(DataBank data) {
-        // bug bug why not do: queue.add(data); ?  why invoke the transport object?
-        dataTransport.send(this, data);
+    public void send(EvioBank data) {
+        queue.add(data);
     }
 
     /** Method close ... */
@@ -194,14 +192,13 @@ public class DataChannelImplCMsg implements DataChannel {
         /** Method run ... */
         public void run() {
             try {
-
+                ByteParser parser = new ByteParser();
                 while (dataSocket.isConnected()) {
-
-                    DataTransportRecord dr = (DataTransportRecord) DataTransportRecord.read(in);
+                    EvioBank bank = parser.readEvent(in);
 
                     // Send ack
                     out.write(0xaa);
-                    queue.put(dr);
+                    queue.put(bank);
                 }
                 Logger.warn("      DataChannelImplCMsg.DataInputHelper : " + name + " - data socket disconnected");
             } catch (Exception e) {
@@ -225,12 +222,23 @@ public class DataChannelImplCMsg implements DataChannel {
         /** Method run ... */
         public void run() {
             try {
-                DataBank d;
+                int size;
+                EvioBank bank;
+                ByteBuffer bbuf = ByteBuffer.allocate(1000); // allocateDirect does(may) NOT have backing array
 
                 while (dataSocket.isConnected()) {
-                    d = queue.take();
+                    bank = queue.take();
 
-                    DataBank.write(out, d);
+                    // TODO: make buffer handling more efficient
+                    size = bank.getTotalBytes();  // bytes
+                    if (bbuf.capacity() < size) {
+                        bbuf = ByteBuffer.allocateDirect(size + 1000);
+                    }
+                    bbuf.clear();
+                    bank.write(bbuf);
+                    out.write(bbuf.array());
+                    out.flush();
+
                     int ack = in.read();
                     if (ack != 0xaa) {
                         throw new CmdExecException("DataOutputHelper : ack = " + ack);
@@ -263,11 +271,11 @@ System.out.println("      DataChannelImplCMsg.DataOutputHelper : exit " + e.getM
     }
 
     /**
-     * Method getFull returns the full of this DataChannel object.
+     * Method getQueue returns the queue of this DataChannel object.
      *
-     * @return the full (type BlockingQueue<DataRecord>) of this DataChannel object.
+     * @return the queue (type BlockingQueue<EvioBank>) of this DataChannel object.
      */
-    public BlockingQueue<DataBank> getQueue() {
+    public BlockingQueue<EvioBank> getQueue() {
         return queue;
     }
 

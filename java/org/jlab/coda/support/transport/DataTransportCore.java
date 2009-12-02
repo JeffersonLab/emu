@@ -14,8 +14,8 @@ package org.jlab.coda.support.transport;
 import org.jlab.coda.support.codaComponent.CODAState;
 import org.jlab.coda.support.configurer.DataNotFoundException;
 import org.jlab.coda.support.control.State;
-import org.jlab.coda.support.data.DataBank;
 import org.jlab.coda.support.logger.Logger;
+import org.jlab.coda.jevio.EvioBank;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -230,22 +230,22 @@ public class DataTransportCore {
     }
 
     /**
-     * This method receives or gets DataBank objects from the given DataChannel object.
+     * This method receives or gets EvioBank objects from the given DataChannel object.
      *
-     * @return DataBank object containing int[]
+     * @return EvioBank object containing data
      * @throws InterruptedException on wakeup with no data.
      */
-    public DataBank receive(DataChannel channel) throws InterruptedException {
+    public EvioBank receive(DataChannel channel) throws InterruptedException {
         return channel.getQueue().take();
     }
 
     /**
-     * This method sends a DataBank object to the given DataChannel object.
+     * This method sends a EvioBank object to the given DataChannel object.
      *
      * @param channel DataChannel to send data through
-     * @param data DataBank to send, containing long[]
+     * @param data EvioBank to send, containing data
      */
-    public void send(DataChannel channel, DataBank data) {
+    public void send(DataChannel channel, EvioBank data) {
         channel.getQueue().add(data);
     }
 
