@@ -11,7 +11,8 @@
 
 package org.jlab.coda.support.transport;
 
-import org.jlab.coda.support.data.DataBank;
+
+import org.jlab.coda.jevio.EvioBank;
 
 import java.util.concurrent.BlockingQueue;
 
@@ -36,7 +37,7 @@ public interface DataChannel {
      * Send a bank of data.
      * @param data bank of data
      */
-    public void send(DataBank data);
+    public void send(EvioBank data);
 
     /** Close this data channel. */
     public void close();
@@ -47,6 +48,6 @@ public interface DataChannel {
      *
      * @return the queue of data banks sent to this data channel
      */
-    public BlockingQueue<DataBank> getQueue();
+    public BlockingQueue<EvioBank> getQueue();
 
 }
