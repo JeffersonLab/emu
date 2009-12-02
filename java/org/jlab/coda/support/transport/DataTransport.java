@@ -14,9 +14,8 @@ package org.jlab.coda.support.transport;
 import org.jlab.coda.support.configurer.DataNotFoundException;
 import org.jlab.coda.support.control.CmdExecException;
 import org.jlab.coda.support.control.Command;
-//import org.jlab.coda.support.control.State;
-import org.jlab.coda.support.data.DataBank;
 import org.jlab.coda.support.codaComponent.StatedObject;
+import org.jlab.coda.jevio.EvioBank;
 
 import java.util.HashMap;
 
@@ -105,12 +104,12 @@ public interface DataTransport extends StatedObject {
     public boolean isConnected();
 
     /**
-     * This method sends a DataBank object to some output (fifo, another process, etc.)
+     * This method sends a EvioBank object to some output (fifo, another process, etc.)
      *
      * @param channel DataChannel to send data through
-     * @param data DataBank to send, containing long[]
+     * @param data EvioBank to send, containing data
      */
-    public void send(DataChannel channel, DataBank data);
+    public void send(DataChannel channel, EvioBank data);
 
     /**
      * This method returns true if this DataTransport object
