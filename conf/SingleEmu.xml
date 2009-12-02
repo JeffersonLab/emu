@@ -12,25 +12,28 @@
 
 <component name="SingleEmu">
     <transports>
-        <server name="SingleEmu_SOCKET" class="CMsg"/>
-        <client name="BitBucket_SOCKET" class="CMsg"/>
+        <server name="SingleEmu_SOCKET" class="CmsgSock"/>
+        <client name="BitBucket_SOCKET" class="CmsgSock"/>
     </transports>
     <modules src="modules.jar" usr_src="user_modules.jar">
-        <ProcessModule class="Process">
+        <CarlsModule class="Process">
+            <!-- <booboochannel name="ROCKY" transp="SingleEmu_SOCKET"/> -->
             <inchannel name="ROC1" transp="SingleEmu_SOCKET"/>
-            <outchannel name="SingleEmu" transp="BitBucket_SOCKET"/>
-         <juju>
+            <outchannel name="BitBucket" transp="BitBucket_SOCKET"/>
+            <juju name="Swahili">
                 <a name="aa">
                     <b name="bb">
                         <c name="cc">
                             <d name="dd">
-                                <e name="ee"/>
+                                <e name="ee">
+                                    <!--comments-->
+                                </e>
                             </d>
                         </c>
                     </b>
                 </a>
             </juju>
-      </ProcessModule>
+      </CarlsModule>
     </modules>
 </component>
 

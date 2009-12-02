@@ -12,7 +12,7 @@
 
 <component name="SingleEmuFile">
     <transports>
-        <server name="SingleEmu_SOCKET" class="CMsg"/>
+        <server name="SingleEmu_SOCKET" class="CmsgSock"/>
         <client name="File" class="File"/>
     </transports>
     <modules src="modules.jar" usr_src="user_modules.jar">

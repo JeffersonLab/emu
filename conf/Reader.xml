@@ -1,7 +1,7 @@
 <?xml version="1.0"?>
 <component>
     <transports>
-        <server name="Reader_SOCKET" type="CMsg"/>
+        <server name="Reader_SOCKET" type="CmsgSock"/>
     </transports>
 
     <modules>

@@ -12,7 +12,7 @@
 
 <component name="FileRead">
     <transports>
-        <client name="BitBucket_SOCKET" class="CMsg"/>
+        <client name="BitBucket_SOCKET" class="CmsgSock"/>
         <client name="File" class="File" filename="dataFile.coda"/>
         <client name="File2" class="File"/>
     </transports>
