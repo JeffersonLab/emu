@@ -13,8 +13,6 @@ package org.jlab.coda.support.transport;
 
 import org.jlab.coda.emu.Emu;
 import org.jlab.coda.support.control.CmdExecException;
-import org.jlab.coda.support.data.DataBank;
-import org.jlab.coda.support.data.DataTransportRecord;
 import org.jlab.coda.support.logger.Logger;
 import org.jlab.coda.jevio.EvioBank;
 import org.jlab.coda.jevio.ByteParser;
