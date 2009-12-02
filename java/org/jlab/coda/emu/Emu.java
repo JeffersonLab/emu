@@ -193,8 +193,8 @@ public class Emu implements KbdHandler, CODAComponent {
      * Constructor
      * The constructor is only called once and the created object is stored in INSTANCE.
      * A thread is started to monitor the state field.
-     * Java system properties ar read and if required a debug GUI or keyboard command line
-     * interface are stated.
+     * Java system properties are read and if required a debug GUI or keyboard command line
+     * interface is started.
      * <p/>
      * The emu is named from the "name" property.
      * <p/>
@@ -202,7 +202,7 @@ public class Emu implements KbdHandler, CODAComponent {
      * <p/>
      * The emu starts up a connecton to the cMsg server.
      * <p/>
-     * By the end of the constructor several threads have been started  and the static
+     * By the end of the constructor several threads have been started and the static
      * method main will not exit while they are running.
      */
     protected Emu() {
@@ -323,32 +323,30 @@ System.out.println("Done parsing the file -> " + configFile);
     }
 
     /**
-     * Method setName sets the name of this ComponentImpl object.
+     * This method sets the name of this CODAComponent object.
      *
-     * @param pname the name of this ComponentImpl object.
+     * @param pname the name of this CODAComponent object.
      */
     private void setName(String pname) {
         name = pname;
         if (FRAMEWORK != null) FRAMEWORK.setTitle(pname);
     }
 
-    /*
-    * (non-Javadoc)
-    *
-    * @see org.jlab.coda.support.codaComponent.CODAComponent#list()
-    */
+    /**
+     * This method sends the loaded XML configuration to the logger.
+     */
     public void list() {
-        if (MODULE_FACTORY.state() != CODAState.UNCONFIGURED) Logger.info("Dump of configuration", Configurer.serialize(loadedConfig));
+        if (MODULE_FACTORY.state() != CODAState.UNCONFIGURED) Logger.info("Dump of configuration",
+                                                                          Configurer.serialize(loadedConfig));
         else Logger.warn("cannot list configuration, not configured");
     }
 
     /**
-     * Method postCommand puts a command object into a mailbox that is periodically checked by the main thread
+     * This method puts a command object into a mailbox that is periodically checked by the main thread
      * of the emu.
      *
-     * @param cmd of type Command
-     *
-     * @throws InterruptedException when
+     * @param cmd command to execute
+     * @throws InterruptedException
      */
     public void postCommand(Command cmd) throws InterruptedException {
         mailbox.put(cmd);
@@ -367,7 +365,7 @@ System.out.println("Done parsing the file -> " + configFile);
         do {
 
             try {
-
+                // do NOT block forever here
                 Command cmd = mailbox.poll(1, TimeUnit.SECONDS);
 
                 if (!Thread.interrupted()) {
@@ -387,10 +385,15 @@ System.out.println("Done parsing the file -> " + configFile);
                     state = MODULE_FACTORY.state();
 
                     if ((state != null) && (state != oldState)) {
+                        // Transition RESUME object is used only for convenience - 
+                        // to set the list of allowed transitions from this state.
                         CODATransition.RESUME.allow(state.allowed());
+
+                        // enable/diable GUI buttons according to our current state
                         if (FRAMEWORK != null) {
                             FRAMEWORK.getToolBar().update();
                         }
+                        
                         Logger.info("State Change to : " + state.toString());
 
                         try {
