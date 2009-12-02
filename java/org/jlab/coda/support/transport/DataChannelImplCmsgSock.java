@@ -35,10 +35,10 @@ import java.nio.ByteBuffer;
  *         Created on Sep 12, 2008
  */
 @SuppressWarnings({"WeakerAccess"})
-public class DataChannelImplCMsg implements DataChannel {
+public class DataChannelImplCmsgSock implements DataChannel {
 
     /** Field transport */
-    private final DataTransportImplCMsg dataTransport;
+    private final DataTransportImplCmsgSock dataTransport;
 
     /** Field name */
     private final String name;
@@ -60,7 +60,7 @@ public class DataChannelImplCMsg implements DataChannel {
 
     /**
      * Constructor to create a new DataChannelImplCmsg instance.
-     * Used only by {@link DataTransportImplCMsg#createChannel} which is
+     * Used only by {@link DataTransportImplCmsgSock#createChannel} which is
      * only used during PRESTART in the EmuModuleFactory.
      * 
      * @param name          the name of this channel
@@ -69,7 +69,7 @@ public class DataChannelImplCMsg implements DataChannel {
      *
      * @throws DataTransportException - unable to create buffers or socket.
      */
-    DataChannelImplCMsg(String name, DataTransportImplCMsg dataTransport, boolean input) throws DataTransportException {
+    DataChannelImplCmsgSock(String name, DataTransportImplCmsgSock dataTransport, boolean input) throws DataTransportException {
 
         this.dataTransport = dataTransport;
         this.name = name;
@@ -77,14 +77,14 @@ public class DataChannelImplCMsg implements DataChannel {
         try {
             capacity = dataTransport.getIntAttr("capacity");
         } catch (Exception e) {
-            Logger.info("      DataChannelImplCMsg.const : " +  e.getMessage() + ", default to " + capacity + " records.");
+            Logger.info("      DataChannelImplCmsgSock.const : " +  e.getMessage() + ", default to " + capacity + " records.");
         }
 
         int size = 20000;
         try {
             size = dataTransport.getIntAttr("size");
         } catch (Exception e) {
-            Logger.info("      DataChannelImplCMsg.const : " + e.getMessage() + ", default to " + size + " byte records.");
+            Logger.info("      DataChannelImplCmsgSock.const : " + e.getMessage() + ", default to " + size + " byte records.");
         }
 
         queue = new ArrayBlockingQueue<EvioBank>(capacity);
@@ -109,7 +109,7 @@ public class DataChannelImplCMsg implements DataChannel {
                 startOutputHelper();
 
             } catch (Exception e) {
-                throw new DataTransportException("      DataChannelImplCMsg : cannot create data channel", e);
+                throw new DataTransportException("      DataChannelImplCmsgSock : cannot create data channel", e);
             }
         }
 
@@ -171,7 +171,7 @@ public class DataChannelImplCMsg implements DataChannel {
         try {
             out = new DataOutputStream(dataSocket.getOutputStream());
             in = new DataInputStream(dataSocket.getInputStream());
-            Logger.info("      DataChannelImplCMsg.setDataSocket : " + dataSocket + " associated with channel " + name);
+            Logger.info("      DataChannelImplCmsgSock.setDataSocket : " + dataSocket + " associated with channel " + name);
         } catch (Exception e) {
             throw new DataTransportException("setDataSocket failed ", e);
         }
@@ -200,9 +200,9 @@ public class DataChannelImplCMsg implements DataChannel {
                     out.write(0xaa);
                     queue.put(bank);
                 }
-                Logger.warn("      DataChannelImplCMsg.DataInputHelper : " + name + " - data socket disconnected");
+                Logger.warn("      DataChannelImplCmsgSock.DataInputHelper : " + name + " - data socket disconnected");
             } catch (Exception e) {
-                Logger.warn("      DataChannelImplCMsg.DataInputHelper : exit " + e.getMessage());
+                Logger.warn("      DataChannelImplCmsgSock.DataInputHelper : exit " + e.getMessage());
                 e.printStackTrace();
             }
 
@@ -245,11 +245,11 @@ public class DataChannelImplCMsg implements DataChannel {
                     }
 
                 }
-                Logger.warn("      DataChannelImplCMsg.DataInputHelper : " + name + " - data socket disconnected");
+                Logger.warn("      DataChannelImplCmsgSock.DataInputHelper : " + name + " - data socket disconnected");
             } catch (Exception e) {
                 e.printStackTrace();
-System.out.println("      DataChannelImplCMsg.DataOutputHelper : exit " + e.getMessage());
-                Logger.warn("      DataChannelImplCMsg.DataOutputHelper : exit " + e.getMessage());
+System.out.println("      DataChannelImplCmsgSock.DataOutputHelper : exit " + e.getMessage());
+                Logger.warn("      DataChannelImplCmsgSock.DataOutputHelper : exit " + e.getMessage());
             }
 
         }
