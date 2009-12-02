@@ -2,11 +2,11 @@ package org.jlab.coda.support.data;
 
 import org.jlab.coda.jevio.*;
 import org.jlab.coda.jevio.DataType;
-import org.jlab.coda.jevio.records.Coda3Utilities;
 
 /**
- * This class is used to represent a block of raw data produced by a ROC.
- * The EMU will received this wrapped inside of a Transport record (@link Transport}.<p>
+ * This class is used as a layer on top of evio to handle CODA3 specific details.
+ * The EMU will received evio data as Data Transport Records which contain
+ * ROC Raw Records both of which are in formats given below.<p>
  *
  * <code><pre>
  *
@@ -107,71 +107,81 @@ import org.jlab.coda.jevio.records.Coda3Utilities;
  *
  *
  * @author timmer
- * @date Sep 18, 2009
- * @time 3:17:22 PM
+ * @date Oct 16, 2009
  */
 public class Evio {
 
+    /** In ROC Raw Record, mask to get rocID from tag. */
     private static final int ROCID_BIT_MASK  = 0x0fff;
+    /** In ROC Raw Record, mask to get 4 status bits from tag. */
     private static final int STATUS_BIT_MASK = 0xf000;
 
+    /** In ROC Raw Record, mask to get sync-event status bit from tag. */
     private static final int SYNC_BIT_MASK               = 0x1000;
+    /** In ROC Raw Record, mask to get has-error status bit from tag. */
     private static final int ERROR_BIT_MASK              = 0x2000;
+    /** In ROC Raw Record, mask to get reserved status bit from tag. */
     private static final int RESERVED_BIT_MASK           = 0x4000;
+    /** In ROC Raw Record, mask to get single-event status bit from tag. */
     private static final int SINGLE_EVENT_MODE_BIT_MASK  = 0x8000;
+
+    /** ID number designating a ROC Raw Record. */
+    private static final int ROC_RAW_RECORD_ID         = 0x0C02;
+    /** ID number designating a Data Transport Record. */
+    private static final int DATA_TRANSPORT_RECORD_ID  = 0x0C01;
 
 
     /**
-     * Private constructor since all methods are static.
+     * Private constructor since everything is static.
      */
     private Evio() { }
 
 
     /**
-     * Create a 16-bit tag out of a 4-bit status and 12-bit ROC id.
+     * Create a 16-bit tag for a ROC Raw record out of a 4-bit status and 12-bit ROC id.
      *
      * @param status lowest 4 bits are status of ROC
-     * @param rocId lowest 12 bits are ROC id
-     * @return a 16-bit tag out of a 4-bit status and 12-bit ROC id
+     * @param rocId  lowest 12 bits are ROC id
+     * @return a 16-bit tag for a ROC Raw record out of a 4-bit status and 12-bit ROC id
      */
     public static int createRocRawTag(int status, int rocId) {
         return ( ((status << 12) & STATUS_BIT_MASK) | (rocId & ROCID_BIT_MASK) );
     }
 
     /**
-     * Get the ROC id which is the lower 12 bits of the tag.
+     * Get the ROC id which is the lower 12 bits of the ROC Raw record tag.
      *
-     * @return the ROC id.
+     * @return the ROC id of the ROC Raw record tag.
      */
     public static int getRocRawId(int rocRawTag) {
         return ROCID_BIT_MASK & rocRawTag;
     }
 
     /**
-     * Method to see if the given tag from a RocRaw data record indicates the Roc is in single event mode.
+     * See if the given tag from a ROC Raw record indicates the ROC is in single event mode.
      * This condition is set by the ROC and it is only read here - never set.
      *
-     * @return <code>true</code> if the Roc is in single event mode.
+     * @return <code>true</code> if the ROC is in single event mode.
      */
     public static boolean isRocRawSingleEventMode(int rocRawTag) {
         return (rocRawTag & SINGLE_EVENT_MODE_BIT_MASK) != 0;
     }
 
     /**
-     * Method to see if the given tag from a RocRaw data record indicates the Roc is a sync event.
+     * See if the given tag from a ROC Raw record indicates it is a sync event.
      * This condition is set by the ROC and it is only read here - never set.
      *
-     * @return <code>true</code> if the Roc is a sync event.
+     * @return <code>true</code> if the ROC Raw record is a sync event.
      */
     public static boolean isRocRawSyncEvent(int rocRawTag) {
         return (rocRawTag & SYNC_BIT_MASK) != 0;
     }
 
     /**
-     * Method to see if the given tag from a RocRaw data record indicates the Roc has an error.
+     * See if the given tag from a ROC Raw record indicates the ROC has an error.
      * This condition is set by the ROC and it is only read here - never set.
      *
-     * @return <code>true</code> if the Roc has an error.
+     * @return <code>true</code> if the ROC has an error.
      */
     public static boolean hasRocRawError(int rocRawTag) {
         return (rocRawTag & ERROR_BIT_MASK) != 0;
@@ -179,7 +189,7 @@ public class Evio {
 
 
     /**
-     * Create an Evio ROC Raw Record bank to be placed in a Data Transport Record.
+     * Create an Evio ROC Raw record event/bank to be placed in a Data Transport record.
      *
      * @param rocID       ROC id number
      * @param eventID     starting event id number
@@ -188,37 +198,36 @@ public class Evio {
      * @param eventNumber starting event number
      * @param numEvents   number of physics events in created record
      * @param timestamp   starting event's timestamp
-     * @param recordId    record count - sequential number
+     * @param recordId    record count
      *
-     * @return created ROC Raw Record (evio event)
-     * @throws org.jlab.coda.jevio.EvioException
+     * @return created ROC Raw Rrcord (EvioEvent object)
+     * @throws EvioException
      */
     public static EvioEvent createRocRawRecord(int rocID,       int eventID,
                                                int dataBankTag, int dataBankNum,
                                                int eventNumber, int numEvents,
                                                int timestamp,   int recordId) throws EvioException {
 
-        int rocRawId = 0x0C02; // tag specifying ROC Raw Record
-
         // create a ROC Raw Data Record event/bank with numEvents physics events in it
-        int rocTag = Coda3Utilities.createRocRawTag(0, rocID);
+        int status = 0;  // TODO: may want to make status a method arg
+        int rocTag = createRocRawTag(status, rocID);
         EventBuilder eventBuilder = new EventBuilder(rocTag, org.jlab.coda.jevio.DataType.BANK, recordId);
         EvioEvent rocRawEvent = eventBuilder.getEvent();
 
         // create the trigger bank (of segments)
-        EvioBank triggerBank = new EvioBank(rocRawId, DataType.SEGMENT, numEvents);
+        EvioBank triggerBank = new EvioBank(ROC_RAW_RECORD_ID, DataType.SEGMENT, numEvents);
         eventBuilder.addChild(rocRawEvent, triggerBank);
 
         // generate one segment per event
-        int[] segData = new int[2];
-        EvioSegment ev;
+        int[] segmentData = new int[2];
+        EvioSegment segment;
         for (int i = 0; i < numEvents; i++) {
             // each segment contains eventNumber & timestamp of corresponding event in data bank
-            ev = new EvioSegment(eventID, DataType.UINT32);
-            eventBuilder.addChild(triggerBank, ev);
-            segData[0] = eventNumber++;
-            segData[1] = timestamp++;
-            eventBuilder.appendIntData(ev, segData);
+            segment = new EvioSegment(eventID, DataType.UINT32);
+            eventBuilder.addChild(triggerBank, segment);
+            segmentData[0] = eventNumber++;
+            segmentData[1] = timestamp++;
+            eventBuilder.appendIntData(segment, segmentData);
         }
 
         // put some data into event -- one int per event
@@ -231,13 +240,15 @@ public class Evio {
         EvioBank dataBank = new EvioBank(dataBankTag, DataType.INT32, dataBankNum);
         eventBuilder.addChild(rocRawEvent, dataBank);
         eventBuilder.appendIntData(dataBank, data);
+        
+        eventBuilder.setAllHeaderLengths();
 
         return rocRawEvent;
     }
 
 
     /**
-     * Create an Evio Data Transport Record event to send to the event builder.
+     * Create an Evio Data Transport Record event to send to the event building EMU.
      *
      * @param rocID       ROC id number
      * @param eventID     starting event id number
@@ -246,7 +257,7 @@ public class Evio {
      * @param eventNumber starting event number
      * @param numEvents   number of physics events in created record
      * @param timestamp   starting event's timestamp
-     * @param recordId    record count - sequential number
+     * @param recordId    record count
      * @param numPayloadBanks number of payload banks in this record
      *
      * @return
@@ -257,14 +268,12 @@ public class Evio {
                                                       int eventNumber, int numEvents,
                                                       int timestamp,   int recordId,
                                                       int numPayloadBanks) throws EvioException {
-        int dataTransportID = 0x0C01;
-
         // create event with jevio package
         EventBuilder eventBuilder = new EventBuilder(rocID, DataType.BANK, recordId);
         EvioEvent ev = eventBuilder.getEvent();
 
         // add a bank with record ID in it
-        EvioBank recordIdBank = new EvioBank(dataTransportID, DataType.INT32, numPayloadBanks);
+        EvioBank recordIdBank = new EvioBank(DATA_TRANSPORT_RECORD_ID, DataType.INT32, numPayloadBanks);
         eventBuilder.appendIntData(recordIdBank, new int[]{recordId++});
         eventBuilder.addChild(ev, recordIdBank);
 
@@ -279,6 +288,7 @@ public class Evio {
             timestamp   += numEvents;
             recordId++;
         }
+        eventBuilder.setAllHeaderLengths();
 
         return ev;
     }
