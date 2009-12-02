@@ -77,8 +77,8 @@ public class DataChannelImplFile implements DataChannel {
             }
             dataThread.start();
         } catch (Exception e) {
-            if (input) throw new DataTransportException("DataChannelImplCMsg : Cannot open data file " + e.getMessage(), e);
-            else throw new DataTransportException("DataChannelImplCMsg : Cannot create data file" + e.getMessage(), e);
+            if (input) throw new DataTransportException("DataChannelImplFile : Cannot open data file " + e.getMessage(), e);
+            else throw new DataTransportException("DataChannelImplFile : Cannot create data file" + e.getMessage(), e);
         }
     }
 
