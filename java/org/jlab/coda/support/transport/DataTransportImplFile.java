@@ -18,25 +18,14 @@ public class DataTransportImplFile extends DataTransportCore implements DataTran
         super(pname, attrib);
     }
 
-    /**
-     * Method execute When passed a Command object executes the command
-     * in the context of the receiving module.
-     *
-     * @param cmd something to chew on.
-     */
+    /** {@inheritDoc} */
     public void execute(Command cmd) {
         // Dummy - nothing to see here folks, move along.
     }
 
-    /**
-     * Method createChannel ...
-     *
-     * @param name    the name of this channel
-     * @param isInput true if not false
-     *
-     * @return DataChannel
-     */
-    public DataChannel createChannel(String name, boolean isInput) throws DataTransportException {
+    /** {@inheritDoc} */
+    public DataChannel createChannel(String name, Map<String,String> attributeMap, boolean isInput)
+            throws DataTransportException {
         System.out.println("create channel " + name);
         DataChannel c = new DataChannelImplFile(name() + ":" + name, this, isInput);
         channels().put(c.getName(), c);

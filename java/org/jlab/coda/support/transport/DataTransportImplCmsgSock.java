@@ -255,15 +255,9 @@ System.out.println("    DataTransportImplCmsgSock.connect : sendAndGet msg to (s
         }
     }
 
-    /**
-     * Method createChannel ...
-     *
-     * @param name    of type String
-     * @param isInput set if this is an input channel
-     *
-     * @return DataChannel
-     */
-    public DataChannel createChannel(String name, boolean isInput) throws DataTransportException {
+    /** {@inheritDoc} */
+    public DataChannel createChannel(String name, Map<String,String> attributeMap, boolean isInput)
+            throws DataTransportException {
 System.out.println("    DataTransportImplCmsgSock.createChannel : create data channel from " + name);
         DataChannel c = new DataChannelImplCmsgSock(name() + ":" + name, this, isInput);
         channels().put(c.getName(), c);
@@ -272,14 +266,7 @@ System.out.println("    DataTransportImplCmsgSock.createChannel : put channel " 
         return c;
     }
 
-    /**
-     * Method execute ...
-     *
-     * @param cmd of type Command
-     *
-     * @see org.jlab.coda.emu.EmuModule#execute(org.jlab.coda.support.control.Command)
-     * @see org.jlab.coda.emu.EmuModule#execute(Command)
-     */
+    /** {@inheritDoc} */
     public void execute(Command cmd) {
 System.out.println("    DataTransportImplCmsgSock.execute : " + cmd);
 

@@ -18,25 +18,14 @@ public class DataTransportImplFifo extends DataTransportCore implements DataTran
         super(pname, attrib);
     }
 
-    /**
-     * Method execute When passed a Command object executes the command
-     * in the context of the receiving module.
-     *
-     * @param cmd something to chew on.
-     */
+    /** {@inheritDoc} */
     public void execute(Command cmd) {
         // Dummy, nothing to see here people, move along...
     }
 
-    /**
-     * Method createChannel ...
-     *
-     * @param name    name of the fifo
-     * @param isInput true if this is an input
-     *
-     * @return DataChannel
-     */
-    public DataChannel createChannel(String name, boolean isInput) throws DataTransportException {
+    /** {@inheritDoc} */
+    public DataChannel createChannel(String name, Map<String,String> attributeMap, boolean isInput)
+            throws DataTransportException {
 System.out.println("    DataTransportImplFifo.createChannel : create channel " + name);
         DataChannel c = new DataChannelImplFifo(name() + ":" + name, this, isInput);
         channels().put(c.getName(), c);

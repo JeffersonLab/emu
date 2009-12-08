@@ -71,7 +71,7 @@ public class DataTransportImplSO extends DataTransportCore implements DataTransp
         super(pname, attrib);
     }
 
-    /** Method close ... */
+    /** {@inheritDoc} */
     public void close() {
         connected = false;
         // close remaining channels.
@@ -301,54 +301,37 @@ public class DataTransportImplSO extends DataTransportCore implements DataTransp
         connectHelperThread.start();
     }
 
-    /**
-     * Create a DataChannel for this transport implementation.
-     *
-     * @param name    of type String
-     * @param isInput set to true if this is an input (client) channel
-     *
-     * @return DataChannel
-     */
-    public DataChannel createChannel(String name, boolean isInput) throws DataTransportException {
+    /** {@inheritDoc} */
+    public DataChannel createChannel(String name, Map<String,String> attributeMap, boolean isInput)
+            throws DataTransportException {
         DataChannel c = new DataChannelImplSO(name() + ":" + name, this);
         channels.put(c.getName(), c);
         return c;
     }
 
-    /**
-     * bug bug, what does this do?
-     *
-     * @param channel of type DataChannel
-     *
-     * @return EvioBank containing data
-     */
+    /** {@inheritDoc} */
     public EvioBank receive(DataChannel channel) {
         return null;
     }
 
-    /**
-     * This method returns the connection status of this DataTransport object
-     * (true if connected).
-     *
-     * @return the connection status (boolean) of this DataTransport object (true if connected)
-     */
+    /** {@inheritDoc} */
     public boolean isConnected() {
         return connected;
     }
 
-    /** @return the state */
+    /** {@inheritDoc} */
     public State state() {
         return state;
     }
 
     /**
+     * {@inheritDoc}
      * This method is only called by the DataTransportFactory's
      * (a singleton) execute method which is only called
      * by the EmuModuleFactory's (a singleton) execute method.
      *
-     * @param cmd of type Command
-     *
-     * @see org.jlab.coda.emu.EmuModule#execute(Command)
+     * @param {@inheritDoc}
+     * @throws {@inheritDoc}
      */
     public void execute(Command cmd) {
 
