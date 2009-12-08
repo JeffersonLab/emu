@@ -34,7 +34,7 @@ public class DataTransportCore {
     protected State state = CODAState.UNCONFIGURED;
 
     /** Is this object connected? */
-    private boolean connected = false;
+    private boolean connected;
 
     // TODO Field transports - not used
     //private static final HashMap<String, DataTransportCore> transports = new HashMap<String, DataTransportCore>();
@@ -43,10 +43,10 @@ public class DataTransportCore {
     private String transportClass = "unknown";
 
     /** Name of this DataTransport object. */
-    private String name = null;
+    private String name;
 
     /** Does this DataTransport object receive data (server = true) or does it send data (server = false)? */
-    protected boolean server = false;
+    protected boolean server;
 
     /** Map of attributes. */
     public final Map<String, String> attr;
@@ -55,7 +55,7 @@ public class DataTransportCore {
     protected final HashMap<String, DataChannel> channels = new HashMap<String, DataChannel>();
 
     /** How many DataTransport objects are there? */
-    protected static int instanceCount = 0;
+    protected static int instanceCount;
 
     /** This object is the Nth DataTransport object created. */
     protected int myInstance = -1;
