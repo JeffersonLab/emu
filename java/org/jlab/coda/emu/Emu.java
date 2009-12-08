@@ -389,7 +389,7 @@ System.out.println("Done parsing the file -> " + configFile);
                         // to set the list of allowed transitions from this state.
                         CODATransition.RESUME.allow(state.allowed());
 
-                        // enable/diable GUI buttons according to our current state
+                        // enable/disable GUI buttons according to our current state
                         if (FRAMEWORK != null) {
                             FRAMEWORK.getToolBar().update();
                         }
