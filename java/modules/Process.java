@@ -19,9 +19,9 @@ import org.jlab.coda.support.configurer.Configurer;
 import org.jlab.coda.support.configurer.DataNotFoundException;
 import org.jlab.coda.support.control.Command;
 import org.jlab.coda.support.control.State;
-import org.jlab.coda.support.data.DataBank;
 import org.jlab.coda.support.logger.Logger;
 import org.jlab.coda.support.transport.DataChannel;
+import org.jlab.coda.jevio.*;
 
 import java.util.ArrayList;
 import java.util.Date;
@@ -31,12 +31,12 @@ import java.nio.IntBuffer;
 
 /**
  * This class codes an object that implements the EmuModule interface and can be loaded
- * into an EMU to process data. It reads DataBanks from  one or more DataChannel objects
+ * into an EMU to process data. It reads EvioBanks from  one or more DataChannel objects
  * and writes them to one or more output DataChannel objects.
  * <p/>
  * This simple version of process pulls one bank of each input, concatenates the banks
  * as the payload of a new bank that is written on an output DataChannel. If there are
- * more than one output DataCannels a simple round robbin algorithm is used to select
+ * more than one output DataChannels a simple round robbin algorithm is used to select
  * the DataChannel to write to.
  */
 public class Process implements EmuModule, Runnable {
@@ -60,10 +60,13 @@ public class Process implements EmuModule, Runnable {
     private final Throwable last_error = null;
 
     /** Field count is a count of the number of DataBank objects written to the outputs. */
-    private int count = 0;
+    private int count;
 
     /** Field data_count is the sum of the sizes in 32-bit words of DataBank objects written to the outputs. */
-    private long data_count = 0;
+    private long data_count;
+
+    /** Field watcher */
+    private Watcher watcher;
 
     /**
      * This class codes a thread that copies the event number and data count into the EMU status
@@ -82,6 +85,7 @@ public class Process implements EmuModule, Runnable {
                     // In the paused state only wake every two seconds.
                     sleep(2000);
 
+                    // synchronized to prevent problems if multiple watchers are running
                     synchronized (this) {
                         while (state == CODAState.ACTIVE) {
                             sleep(200);
@@ -92,16 +96,12 @@ public class Process implements EmuModule, Runnable {
 
                 } catch (InterruptedException e) {
                     Logger.info("Process thread " + name() + " interrupted");
-
                 } catch (DataNotFoundException e) {
                     e.printStackTrace();
                 }
             }
         }
     }
-
-    /** Field watcher */
-    private Watcher watcher = null;
 
     /**
      * Constructor Process creates a new Process instance.
@@ -140,7 +140,7 @@ public class Process implements EmuModule, Runnable {
 
         boolean hasOutputs = !output_channels.isEmpty();
 
-        System.out.println("Action Thread state " + state);
+System.out.println("Action Thread state " + state);
 
         while ((state == CODAState.ACTIVE) || (state == CODAState.PAUSED)) {
             try {
@@ -150,54 +150,46 @@ public class Process implements EmuModule, Runnable {
 
                 while (state == CODAState.ACTIVE) {
 
-                    if (hasOutputs && !outputIter.hasNext()) outputIter = output_channels.iterator();
+                    if (hasOutputs && !outputIter.hasNext()) {
+                        outputIter = output_channels.iterator();
+                    }
                     DataChannel outC;
-                    BlockingQueue<DataBank> out_queue = null;
+                    BlockingQueue<EvioBank> out_queue = null;
                     if (hasOutputs) {
                         outC = outputIter.next();
                         out_queue = outC.getQueue();
                     }
 
                     // Grab one data bank from each input, waiting if necessary
-                    ArrayList<DataBank> inList = new ArrayList<DataBank>();
-                    int outLen = 0;
+                    ArrayList<EvioBank> inList = new ArrayList<EvioBank>();
                     for (DataChannel c : input_channels) {
                         // blocking operation to grab a Bank
-                        DataBank dr = c.getQueue().take();
-                        // Get the length of the bank including the header
-                        // but NOT including the first int which is the length
-                        // (which is being returned here).
-                        outLen += (dr.getLength() + 1);
-                        inList.add(dr);
+                        EvioBank bank = c.getQueue().take();
+                        inList.add(bank);
                     }
 
                     // make one bank the size of all inputs together
-                    DataBank outDr = new DataBank(outLen);
-                    //TODO setSourceID to something that makes sense
-                    // Get the IntBuffer NOT including the first 2 32-bit ints (length and header).
-                    IntBuffer ib = outDr.getPayload();
-                    int sourceID = 5;
-                    ib.put(1, ((sourceID << 16) & (ib.get(1) & 0x0000ffff)));
+                    // second event, more traditional bank of banks
+                    int tag = 5; // sourceID
+                    //TODO set tag/sourceID to something that makes sense
+                    EventBuilder eventBuilder = new EventBuilder(tag, DataType.BANK, count); // args -> tag, type, num
+                    EvioEvent event = eventBuilder.getEvent();
 
-                    // take all input banks and put them into one output bank
-                    for (DataBank dr : inList) {
-                        dr.getBuffer().rewind();
-                        // Get the entire buffer as a buffer of 32 bit ints.
-                        // The buffer includes the first int which is the length
-                        // and the second int which is the header as well as the
-                        // actual data which follows that.
-                        outDr.getBuffer().put(dr.getBuffer());
+                    // take all input banks and put them into one output bank (event)
+                    for (EvioBank bank : inList) {
+                        try {
+                            eventBuilder.addChild(event, bank);
+                        }
+                        catch (EvioException e) { /* problems only if not adding banks */ }
                     }
+                    event.setAllHeaderLengths();
 
-                    outDr.setNumber(count);
-                    outDr.setDataType(0x20);
-                    data_count += outDr.getLength();
+                    data_count += event.getHeader().getLength();
                     count++;
 
                     if (hasOutputs) {
-                        out_queue.put(outDr);
+                        out_queue.put(event);
                     }
-
                 }
 
                 Thread.sleep(2);
@@ -231,9 +223,10 @@ public class Process implements EmuModule, Runnable {
         return last_error;
     }
 
-    /** @see org.jlab.coda.emu.EmuModule#execute(Command) */
+    /** {@inheritDoc} */
     public void execute(Command cmd) {
         Date theDate = new Date();
+        
         if (cmd.equals(CODATransition.END)) {
             state = CODAState.ENDED;
             actionThread.interrupt();
@@ -242,13 +235,14 @@ public class Process implements EmuModule, Runnable {
             watcher = null;
 
             try {
+                // set end-of-run time in local XML config
                 Configurer.setValue(Emu.INSTANCE.parameters(), "status/run_end_time", theDate.toString());
             } catch (DataNotFoundException e) {
                 e.printStackTrace();
             }
         }
 
-        if (cmd.equals(CODATransition.PRESTART)) {
+        else if (cmd.equals(CODATransition.PRESTART)) {
             count = 0;
             data_count = 0;
 
@@ -263,13 +257,13 @@ public class Process implements EmuModule, Runnable {
             }
         }
 
-        if (cmd.equals(CODATransition.PAUSE)) {
+        else if (cmd.equals(CODATransition.PAUSE)) {
             state = CODAState.PAUSED;
             actionThread.interrupt();
             watcher.interrupt();
         }
 
-        if (cmd.equals(CODATransition.GO)) {
+        else if (cmd.equals(CODATransition.GO)) {
 System.out.println("GO in Process module");
             State old_state = state;
             state = CODAState.ACTIVE;
@@ -285,7 +279,8 @@ System.out.println("GO in Process module");
                 state = CODAState.ERROR;
                 return;
             }
-            //actionThread.start(); // timmer commented out this line, bug bug?
+            // TODO: cannot restart an interrupted thread !!! bug bug
+            actionThread.start();
             if (old_state != CODAState.PAUSED) {
                 System.out.println("Start actionThread in Process module");
                 actionThread.start();
