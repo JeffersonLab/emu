@@ -227,7 +227,9 @@ Logger.info("  DataTransportFactory.execute DOWN : loaded class = " + c);
 
     /**
      * This method is only called by the EmuModuleFactory's (a singleton used by Emu)
-     * execute method.
+     * execute method. This is not used since I (timmer) could never get it to work
+     * quite right. It attempts to reload classes dynamically but somehow fails in
+     * loading internal classes correctly.
      *
      * @param cmd of type Command
      *
