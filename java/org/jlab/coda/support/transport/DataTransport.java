@@ -18,6 +18,7 @@ import org.jlab.coda.support.codaComponent.StatedObject;
 import org.jlab.coda.jevio.EvioBank;
 
 import java.util.HashMap;
+import java.util.Map;
 
 /**
  * This interface refers to how data is transported
@@ -83,11 +84,13 @@ public interface DataTransport extends StatedObject {
      * This method creates a DataChannel object.
      *
      * @param name name of DataChannel
+     * @param attributeMap hashmap of attriubtes taken from XML config file
      * @param isInput true if this channel reads data into the Emu, else false
      * @return DataChannel object
      * @throws DataTransportException if transport problem
      */
-    public DataChannel createChannel(String name, boolean isInput) throws DataTransportException;
+    public DataChannel createChannel(String name, Map<String, String> attributeMap, boolean isInput)
+            throws DataTransportException;
 
     /**
      * This method gets all the DataChannel objects contained in a DataTransport object.
