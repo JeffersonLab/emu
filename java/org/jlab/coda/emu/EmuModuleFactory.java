@@ -31,9 +31,7 @@ import java.io.File;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import java.net.URL;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Vector;
+import java.util.*;
 
 /**
  * <pre>
@@ -223,8 +221,14 @@ public class EmuModuleFactory implements StatedObject {
 System.out.println("EmuModuleFactory.execute PRE : looking at channel node = " + channelNode.getNodeName());
                                 // get attributes of channel node
                                 NamedNodeMap nnm = channelNode.getAttributes();
+                                if (nnm == null) {
+System.out.println("EmuModuleFactory.execute PRE : junk in config file (no attributes), skip " + channelNode.getNodeName());
+                                    continue;
+                                }
+
                                 // get "name" attribute node from map
                                 Node channelNameNode = nnm.getNamedItem("name");
+
                                 // if none (junk in config file) go to next channel
                                 if (channelNameNode == null) {
 System.out.println("EmuModuleFactory.execute PRE : junk in config file (no name attr), skip " + channelNode.getNodeName());
@@ -246,16 +250,23 @@ System.out.println("EmuModuleFactory.execute PRE : module " + module.name() + " 
                                 // look up transport object from name
                                 DataTransport trans = DataTransportFactory.findNamedTransport(channelTransName);
 
+                                // store all attributes in a hashmap to pass to channel
+                                Map<String, String> attributeMap = new HashMap<String, String>();
+                                for (int jx = 0; jx < nnm.getLength(); jx++) {
+                                    Node a = nnm.item(jx);
+                                    attributeMap.put(a.getNodeName(), a.getNodeValue());
+                                }
+
                                 // if it's an input channel ...
                                 if (channelNode.getNodeName().equalsIgnoreCase("inchannel")) {
                                     // create channel
-                                    DataChannel channel = trans.createChannel(channelName, true);
+                                    DataChannel channel = trans.createChannel(channelName, attributeMap, true);
                                     // add to list
                                     in.add(channel);
                                 }
                                 // if it's an output channel ...
                                 else if (channelNode.getNodeName().equalsIgnoreCase("outchannel")) {
-                                    DataChannel channel = trans.createChannel(channelName, false);
+                                    DataChannel channel = trans.createChannel(channelName, attributeMap, false);
                                     out.add(channel);
                                 }
                                 else {
