@@ -183,20 +183,17 @@ public class DataChannelImplSO implements DataChannel {
         dataThread.start();
     }
 
-    /**
-     * Method getFull returns the queue of this DataChannel object.
-     *
-     * @return the queue (type BlockingQueue<EvioBank>) of this DataChannel object.
-     */
+    /** {@inheritDoc} */
     public BlockingQueue<EvioBank> getQueue() {
         return queue;
     }
 
-    /**
-     * Method send ...
-     *
-     * @param data of type long[]
-     */
+    /** {@inheritDoc} */
+    public EvioBank receive() throws InterruptedException {
+        return queue.take();
+    }
+
+    /** {@inheritDoc} */
     public void send(EvioBank data) {
         queue.add(data);
     }

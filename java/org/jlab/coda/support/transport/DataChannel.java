@@ -29,13 +29,20 @@ public interface DataChannel {
 
     /**
      * Get the name of the data channel.
-     * @return the name of the data channel
+     * @return the name of the data channel.
      */
     public String getName();
 
     /**
+     * Take a bank of data off the queue.
+     * @return bank of data.
+     * @throws InterruptedException on wakeup without data.
+     */
+    public EvioBank receive() throws InterruptedException;
+    
+    /**
      * Send a bank of data.
-     * @param data bank of data
+     * @param data bank of data.
      */
     public void send(EvioBank data);
 
@@ -46,7 +53,7 @@ public interface DataChannel {
      * Get the queue of this data channel which contains
      * banks of data.
      *
-     * @return the queue of data banks sent to this data channel
+     * @return the queue of data banks sent to this data channel.
      */
     public BlockingQueue<EvioBank> getQueue();
 
