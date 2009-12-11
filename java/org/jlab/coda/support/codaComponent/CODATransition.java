@@ -18,9 +18,45 @@ import java.util.EnumSet;
 import java.util.HashMap;
 
 /**
- * An enum which contains a list of possible transitions in CODA run control.
+ * An enum which contains a list of possible transitions in CODA Emu state machine.
  * Each of these transitions can be enabled or disabled.
- * Why is "configure" not listed here?
+ * Notice that "configure" is not listed here as it is considered a command sent by
+ * runcontrol and not a transition {@link RunControl#CONFIGURE}.
+ *
+ * <code><pre>
+ *                 *****************
+ *                 * State Machine *
+ *                 *****************
+ * ____________________________________________________
+ *                 |                |
+ *    transition   |     STATE      |  transition
+ * ________________|________________|__________________
+ *
+ *
+ *                UNCONFIGURED/BOOTED
+ *
+ *
+ *                  <- CONFIGURED
+ *                 |
+ *     download    |
+ *                 |
+ *                 '-> DOWNLOADED <-,<----------,
+ *                  <-              ^           ^
+ *                 |                |           |
+ *     prestart    |                |   end     |
+ *                 |                |           |
+ *                 '-> PRESTARTED ->            |  end
+ *                  <-            <-            |
+ *                 |                ^           |
+ *        go       |                |  pause    |
+ *                 |                |           |
+ *                 '->  ACTIVE  --->'---------->'
+ *
+ * ____________________________________________________
+ *
+ *  NOTE: DOWNLOADED can always do a download
+ *
+ * </pre></code>
  * @author heyes
  */
 public enum CODATransition implements Command {
@@ -32,12 +68,11 @@ public enum CODATransition implements Command {
     /** Go. */
     GO("Start taking data", "ACTIVE"),
     /** End. */
-    END("End taking data", "ENDED"),
+    END("End taking data", "DOWNLOADED"),
     /** Pause. */
-    PAUSE("Pause taking data", "PAUSED"),
-    /** Resume. */
-    RESUME("Resume taking data", "ACTIVE");
+    PAUSE("Pause taking data", "PRESTARTED");
 
+    
     /** Description of the transition. */
     private final String description;
 
