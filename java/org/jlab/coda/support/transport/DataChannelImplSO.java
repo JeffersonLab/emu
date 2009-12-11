@@ -13,8 +13,6 @@ package org.jlab.coda.support.transport;
 
 import org.jlab.coda.emu.Emu;
 import org.jlab.coda.support.control.CmdExecException;
-import org.jlab.coda.support.data.DataBank;
-import org.jlab.coda.support.data.DataTransportRecord;
 import org.jlab.coda.support.logger.Logger;
 import org.jlab.coda.jevio.EvioBank;
 import org.jlab.coda.jevio.ByteParser;
@@ -23,13 +21,12 @@ import java.io.*;
 import java.net.Socket;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
+import java.util.Map;
 import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 
 /**
- * -----------------------------------------------------
- * Copyright (c) 2008 Jefferson lab data acquisition group
- * Class DataChannelImplSO ...
- *
+ * TODO: This class still needs testing.
  * @author heyes
  *         Created on Sep 12, 2008
  */
@@ -50,32 +47,51 @@ public class DataChannelImplSO implements DataChannel {
     /** Field full */
     private final BlockingQueue<EvioBank> queue;
 
+    /** Byte order of either input or output stream. */
+    ByteOrder byteOrder;
+
     /**
      * Constructor DataChannelImplSO creates a new DataChannelImplSO instance.
      *
-     * @param pname of type String
-     * @param ti    of type DataTransport
+     * @param name          the name of this channel
+     * @param transport     the DataTransport object that this channel belongs to
+     * @param attributeMap  the hashmap of config file attributes for this channel
+     * @param input         true if this is an input data channel, otherwise false
+     *
+     * @throws DataTransportException - unable to create buffers or socket.
      */
-    DataChannelImplSO(String pname, DataTransport ti) {
+    DataChannelImplSO(String name, DataTransportImplSO transport,
+                      Map <String, String> attributeMap, boolean input) {
 
-        transport = ti;
-        name = pname;
+        this.name = name;
+        this.transport = transport;
 
+        // set queue capacity
         int capacity = 40;
         try {
             capacity = transport.getIntAttr("capacity");
         } catch (Exception e) {
             Logger.info(e.getMessage() + " default to " + capacity + " records.");
         }
-
-        int size = 20000;
-        try {
-            size = transport.getIntAttr("size");
-        } catch (Exception e) {
-            Logger.info(e.getMessage() + " default to " + size + " byte records.");
-        }
-
         queue = new ArrayBlockingQueue<EvioBank>(capacity);
+
+        // set endianness of data
+         byteOrder = ByteOrder.BIG_ENDIAN;
+         try {
+             String order = attributeMap.get("endian");
+             if (order != null && order.equalsIgnoreCase("little")) {
+                 byteOrder = ByteOrder.LITTLE_ENDIAN;
+             }
+         } catch (Exception e) {
+             Logger.info("      DataChannelImplCmsgSock.const : no data endianness specifed, default to big.");
+         }
+
+        if (input) {
+            startInputHelper();
+        }
+        else {
+            startOutputHelper();
+        }
 
     }
 
@@ -110,15 +126,13 @@ public class DataChannelImplSO implements DataChannel {
             try {
 
                 DataInputStream in = new DataInputStream(dataSocket.getInputStream());
-
-                OutputStream os = dataSocket.getOutputStream();
-
-                ByteParser parser = new ByteParser();
+                OutputStream    os = dataSocket.getOutputStream();
+                ByteParser  parser = new ByteParser();
 
                 while (dataSocket.isConnected()) {
-                    EvioBank bank = parser.readEvent(in);
+                    EvioBank bank = parser.readEvent(in, byteOrder);
 
-                    os.write(0xaa);
+                    os.write(0xaa); // no need to swap for 1 byte
                     queue.put(bank);
                 }
             } catch (Exception e) {
@@ -139,23 +153,24 @@ public class DataChannelImplSO implements DataChannel {
                 int size;
                 EvioBank bank;
                 ByteBuffer bbuf = ByteBuffer.allocate(1000); // allocateDirect does(may) NOT have backing array
+                bbuf.order(byteOrder);
                 DataOutputStream out = new DataOutputStream(dataSocket.getOutputStream());
                 InputStream in = dataSocket.getInputStream();
 
                 while (true) {
                     bank = queue.take();
 
-                    // TODO: make buffer handling more efficient
                     size = bank.getTotalBytes();  // bytes
                     if (bbuf.capacity() < size) {
                         bbuf = ByteBuffer.allocateDirect(size + 1000);
+                        bbuf.order(byteOrder);
                     }
                     bbuf.clear();
                     bank.write(bbuf);
                     out.write(bbuf.array());
                     out.flush();
 
-                    int ack = in.read();
+                    int ack = in.read(); // no need to swap for 1 byte
                     if (ack != 0xaa) {
                         throw new CmdExecException("DataOutputHelper : ack = " + ack);
                     }
@@ -172,14 +187,12 @@ public class DataChannelImplSO implements DataChannel {
     /** Method startInputHelper ... */
     public void startInputHelper() {
         dataThread = new Thread(Emu.THREAD_GROUP, new DataInputHelper(), getName() + " data input");
-
         dataThread.start();
     }
 
     /** Method startOutputHelper ... */
     public void startOutputHelper() {
         dataThread = new Thread(Emu.THREAD_GROUP, new DataOutputHelper(), getName() + " data out");
-
         dataThread.start();
     }
 
