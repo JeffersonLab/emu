@@ -18,7 +18,6 @@ import org.jlab.coda.support.codaComponent.RunControl;
 import org.jlab.coda.support.configurer.DataNotFoundException;
 import org.jlab.coda.support.control.Command;
 import org.jlab.coda.support.control.State;
-import org.jlab.coda.support.data.DataTransportRecord;
 import org.jlab.coda.jevio.EvioBank;
 
 import java.io.DataInputStream;
@@ -296,7 +295,7 @@ public class DataTransportImplSO extends DataTransportCore implements DataTransp
 
     /** This method connects to a server and finishes creating a channel by setting the socket. */
     void connect() {
-        // start thread to connecto to server
+        // start thread to connect to server
         Thread connectHelperThread = new Thread(Emu.THREAD_GROUP, new ConnectHelper(), name() + " connect");
         connectHelperThread.start();
     }
@@ -304,7 +303,7 @@ public class DataTransportImplSO extends DataTransportCore implements DataTransp
     /** {@inheritDoc} */
     public DataChannel createChannel(String name, Map<String,String> attributeMap, boolean isInput)
             throws DataTransportException {
-        DataChannel c = new DataChannelImplSO(name() + ":" + name, this);
+        DataChannel c = new DataChannelImplSO(name() + ":" + name, this, attributeMap, isInput);
         channels.put(c.getName(), c);
         return c;
     }
