@@ -15,17 +15,19 @@ import org.jlab.coda.jevio.EvioBank;
 import org.jlab.coda.jevio.ByteParser;
 import org.jlab.coda.jevio.EvioException;
 import org.jlab.coda.support.logger.Logger;
-import org.jlab.coda.cMsg.cMsgSubscriptionHandle;
-import org.jlab.coda.cMsg.cMsgException;
-import org.jlab.coda.cMsg.cMsgCallbackAdapter;
-import org.jlab.coda.cMsg.cMsgMessage;
+import org.jlab.coda.cMsg.*;
 import org.jlab.coda.emu.Emu;
 
+import javax.xml.stream.XMLStreamWriter;
+import javax.xml.stream.XMLOutputFactory;
+import javax.xml.stream.XMLStreamException;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.Map;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.io.StringWriter;
+import java.io.PrintWriter;
 
 /**
  * @author timmer
@@ -48,6 +50,9 @@ public class DataChannelImplCmsg implements DataChannel {
     /** Object for parsing evio data contained in incoming messages. */
     private ByteParser parser;
 
+    /** Byte order of output data (input data's order is specified in msg). */
+    ByteOrder byteOrder;
+
     /** cMsg subscription for receiving messages with data. */
     private cMsgSubscriptionHandle sub;
 
@@ -67,12 +72,53 @@ public class DataChannelImplCmsg implements DataChannel {
          *                   message.
          */
         public void callback(cMsgMessage msg, Object userObject) {
+//System.out.println("Got a message on receiving channel callback");
             byte[] data = msg.getByteArray();
             if (data == null) return;
 
             try {
-                EvioBank bank = parser.parseEvent(data, ByteOrder.BIG_ENDIAN);
+                ByteOrder byteOrder = ByteOrder.BIG_ENDIAN;
+
+                if (msg.getByteArrayEndian() == cMsgConstants.endianLittle) {
+                    byteOrder = ByteOrder.LITTLE_ENDIAN;
+                }
+
+//                StringWriter sw = new StringWriter(2048);
+//                PrintWriter wr = new PrintWriter(sw, true);
+
+//                ByteBuffer bb = ByteBuffer.wrap(data);
+//                System.out.println("&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&");
+//                System.out.println("Receiving msg (array):");
+//                while (bb.hasRemaining()) {
+//                    wr.printf("%#010x\n", bb.getInt());
+//                }
+//                System.out.println(sw.toString() + "\n\n");
+
+
+                EvioBank bank = parser.parseEvent(data, byteOrder);
                 queue.put(bank);
+
+                ByteBuffer bbuf = ByteBuffer.allocate(1000);
+                bbuf.clear();
+                bank.write(bbuf);
+
+                System.out.println("\nReceiving msg:\n" + bank.toString());
+
+//                StringWriter sw2 = new StringWriter(1000);
+//                XMLStreamWriter xmlWriter = XMLOutputFactory.newInstance().createXMLStreamWriter(sw2);
+//                bank.toXML(xmlWriter);
+//                System.out.println("Receiving msg:\n" + sw2.toString());
+//                bbuf.flip();
+
+//                System.out.println("Receiving msg (bin):");
+//                sw.getBuffer().delete(0, sw.getBuffer().capacity());
+//                while (bbuf.hasRemaining()) {
+//                    wr.printf("%#010x\n", bbuf.getInt());
+//                }
+//                System.out.println(sw.toString() + "\n\n");
+//            }
+//            catch (XMLStreamException e) {
+//                e.printStackTrace();
             }
             catch (EvioException e) {
                 e.printStackTrace();
@@ -80,6 +126,8 @@ public class DataChannelImplCmsg implements DataChannel {
             catch (InterruptedException e) {
                 e.printStackTrace();
             }
+
+
         }
 
         // Define "getMaximumCueSize" to set max number of unprocessed messages kept locally
@@ -94,17 +142,20 @@ public class DataChannelImplCmsg implements DataChannel {
      *
      * @param name          the name of this channel
      * @param dataTransport the DataTransport object that this channel belongs to
+     * @param attributeMap  the hashmap of config file attributes for this channel
      * @param input         true if this is an input data channel, otherwise false
      *
      * @throws DataTransportException - unable to create buffers or socket.
      */
-    DataChannelImplCmsg(String name, DataTransportImplCmsg dataTransport, Map<String, String> attributeMap, boolean input)
+    DataChannelImplCmsg(String name, DataTransportImplCmsg dataTransport,
+                        Map<String, String> attributeMap, boolean input)
             throws DataTransportException {
 
         this.dataTransport = dataTransport;
         this.attributeMap  = attributeMap;
         this.name = name;
 
+        // set queue capacity
         int capacity = 40;
         try {
             capacity = dataTransport.getIntAttr("capacity");
@@ -134,6 +185,17 @@ public class DataChannelImplCmsg implements DataChannel {
             parser = new ByteParser();
         }
         else {
+            // set endianness of data
+            byteOrder = ByteOrder.BIG_ENDIAN;
+            try {
+                String order = attributeMap.get("endian");
+                if (order != null && order.equalsIgnoreCase("little")) {
+                    byteOrder = ByteOrder.LITTLE_ENDIAN;
+                }
+            } catch (Exception e) {
+                Logger.info("      DataChannelImplCmsg.const : no output data endianness specifed, default to big.");
+            }
+
             startOutputHelper();
         }
     }
@@ -191,7 +253,12 @@ public class DataChannelImplCmsg implements DataChannel {
                 int size;
                 EvioBank bank;
                 cMsgMessage msg = new cMsgMessage();
+                // TODO: set the proper msg subject and type
+                msg.setSubject("BitBucket");
+                msg.setType("data");
                 ByteBuffer buffer = ByteBuffer.allocate(1000); // allocateDirect does(may) NOT have backing array
+                // by default ByteBuffer is big endian
+                buffer.order(byteOrder);
 
                 while ( dataTransport.getCmsgConnection().isConnected()) {
                     bank = queue.take();  // blocks
@@ -199,20 +266,24 @@ public class DataChannelImplCmsg implements DataChannel {
                     size = bank.getTotalBytes();
                     if (buffer.capacity() < size) {
                         buffer = ByteBuffer.allocateDirect(size + 1000);
+                        buffer.order(byteOrder);
                     }
                     buffer.clear();
                     bank.write(buffer);
 
                     // put data into cmsg message
                     msg.setByteArrayNoCopy(buffer.array());
-                    // TODO: take care of byte order
+                    msg.setByteArrayEndian(byteOrder == ByteOrder.BIG_ENDIAN ? cMsgConstants.endianBig :
+                                                                               cMsgConstants.endianLittle);
 
                     // send it
                     dataTransport.getCmsgConnection().send(msg);
                 }
 
-                Logger.warn("      DataChannelImplCmsg.DataInputHelper : " + name + " - disconnected from cmsg server");
+                Logger.warn("      DataChannelImplCmsg.DataOutputHelper : " + name + " - disconnected from cmsg server");
 
+            } catch (InterruptedException e) {
+                Logger.warn("      DataChannelImplCmsg.DataOutputHelper : interrupted, exiting");
             } catch (Exception e) {
                 e.printStackTrace();
                 Logger.warn("      DataChannelImplCmsg.DataOutputHelper : exit " + e.getMessage());
