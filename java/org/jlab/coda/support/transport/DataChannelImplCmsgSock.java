@@ -23,7 +23,9 @@ import java.io.IOException;
 import java.net.Socket;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
+import java.util.Map;
 import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 
 /**
  * Implementation of the DataChannel interface using cMsg
@@ -56,6 +58,9 @@ public class DataChannelImplCmsgSock implements DataChannel {
     /** Field in */
     private DataInputStream in;
 
+    /** Byte order of either input or output stream. */
+    ByteOrder byteOrder;
+
     /**
      * Constructor to create a new DataChannelImplCmsg instance.
      * Used only by {@link DataTransportImplCmsgSock#createChannel} which is
@@ -63,29 +68,37 @@ public class DataChannelImplCmsgSock implements DataChannel {
      * 
      * @param name          the name of this channel
      * @param dataTransport the DataTransport object that this channel belongs to
+     * @param attributeMap  the hashmap of config file attributes for this channel
      * @param input         true if this is an input data channel, otherwise false
      *
      * @throws DataTransportException - unable to create buffers or socket.
      */
-    DataChannelImplCmsgSock(String name, DataTransportImplCmsgSock dataTransport, boolean input) throws DataTransportException {
+    DataChannelImplCmsgSock(String name, DataTransportImplCmsgSock dataTransport,
+                        Map<String, String> attributeMap, boolean input)
+            throws DataTransportException {
 
         this.dataTransport = dataTransport;
         this.name = name;
+
+        // set queue capacity
         int capacity = 40;
         try {
             capacity = dataTransport.getIntAttr("capacity");
         } catch (Exception e) {
             Logger.info("      DataChannelImplCmsgSock.const : " +  e.getMessage() + ", default to " + capacity + " records.");
         }
-
-        int size = 20000;
-        try {
-            size = dataTransport.getIntAttr("size");
-        } catch (Exception e) {
-            Logger.info("      DataChannelImplCmsgSock.const : " + e.getMessage() + ", default to " + size + " byte records.");
-        }
-
         queue = new ArrayBlockingQueue<EvioBank>(capacity);
+
+        // set endianness of data
+        byteOrder = ByteOrder.BIG_ENDIAN;
+        try {
+            String order = attributeMap.get("endian");
+            if (order != null && order.equalsIgnoreCase("little")) {
+                byteOrder = ByteOrder.LITTLE_ENDIAN;
+            }
+        } catch (Exception e) {
+            Logger.info("      DataChannelImplCmsgSock.const : no data endianness specifed, default to big.");
+        }
 
         // If we are a server (data receiver) the AcceptHelper thread in
         // the dataTransport implementation will handle connections and
@@ -192,10 +205,10 @@ public class DataChannelImplCmsgSock implements DataChannel {
             try {
                 ByteParser parser = new ByteParser();
                 while (dataSocket.isConnected()) {
-                    EvioBank bank = parser.readEvent(in);
+                    EvioBank bank = parser.readEvent(in, byteOrder);
 
                     // Send ack
-                    out.write(0xaa);
+                    out.write(0xaa); // no swap necessary for 1 byte
                     queue.put(bank);
                 }
                 Logger.warn("      DataChannelImplCmsgSock.DataInputHelper : " + name + " - data socket disconnected");
@@ -223,21 +236,23 @@ public class DataChannelImplCmsgSock implements DataChannel {
                 int size;
                 EvioBank bank;
                 ByteBuffer bbuf = ByteBuffer.allocate(1000); // allocateDirect does(may) NOT have backing array
+                // by default, ByteBuffer is big endian
+                bbuf.order(byteOrder);
 
                 while (dataSocket.isConnected()) {
                     bank = queue.take();
 
-                    // TODO: make buffer handling more efficient
                     size = bank.getTotalBytes();  // bytes
                     if (bbuf.capacity() < size) {
                         bbuf = ByteBuffer.allocateDirect(size + 1000);
+                        bbuf.order(byteOrder);
                     }
                     bbuf.clear();
                     bank.write(bbuf);
                     out.write(bbuf.array());
                     out.flush();
 
-                    int ack = in.read();
+                    int ack = in.read();  // no swap necessary for 1 byte
                     if (ack != 0xaa) {
                         throw new CmdExecException("DataOutputHelper : ack = " + ack);
                     }
