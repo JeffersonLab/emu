@@ -41,6 +41,12 @@ public class DataChannelImplCmsg implements DataChannel {
     /** Field name */
     private final String name;
 
+    /** Subject of either subscription or outgoing messages. */
+    private String subject;
+
+    /** Type of either subscription or outgoing messages. */
+    private String type;
+
     /** Field queue - filled buffer queue */
     private final BlockingQueue<EvioBank> queue;
 
@@ -82,18 +88,6 @@ public class DataChannelImplCmsg implements DataChannel {
                 if (msg.getByteArrayEndian() == cMsgConstants.endianLittle) {
                     byteOrder = ByteOrder.LITTLE_ENDIAN;
                 }
-
-//                StringWriter sw = new StringWriter(2048);
-//                PrintWriter wr = new PrintWriter(sw, true);
-
-//                ByteBuffer bb = ByteBuffer.wrap(data);
-//                System.out.println("&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&");
-//                System.out.println("Receiving msg (array):");
-//                while (bb.hasRemaining()) {
-//                    wr.printf("%#010x\n", bb.getInt());
-//                }
-//                System.out.println(sw.toString() + "\n\n");
-
 
                 EvioBank bank = parser.parseEvent(data, byteOrder);
                 queue.put(bank);
@@ -164,17 +158,16 @@ public class DataChannelImplCmsg implements DataChannel {
         }
         queue = new ArrayBlockingQueue<EvioBank>(capacity);
 
+        // Set subject & type for either subscription (incoming msgs) or for outgoing msgs.
+        // Use any defined in config file else use defaults
+        subject = attributeMap.get("subject");
+        if (subject == null) subject = name;
+        type = attributeMap.get("type");
+        if (type == null) type = "data";
 
         if (input) {
             try {
                 // create subscription for receiving messages containing data
-
-                // first use subject & type defined in config file; if none, use defaults
-                String subject = attributeMap.get("subject");
-                if (subject == null) subject = name;
-                String type = attributeMap.get("type");
-                if (type == null) type = "data";
-                
                 ReceiveMsgCallback cb = new ReceiveMsgCallback();
                 sub = dataTransport.getCmsgConnection().subscribe(subject, type, cb, null);
             }
@@ -253,9 +246,8 @@ public class DataChannelImplCmsg implements DataChannel {
                 int size;
                 EvioBank bank;
                 cMsgMessage msg = new cMsgMessage();
-                // TODO: set the proper msg subject and type
-                msg.setSubject("BitBucket");
-                msg.setType("data");
+                msg.setSubject(subject);
+                msg.setType(type);
                 ByteBuffer buffer = ByteBuffer.allocate(1000); // allocateDirect does(may) NOT have backing array
                 // by default ByteBuffer is big endian
                 buffer.order(byteOrder);
