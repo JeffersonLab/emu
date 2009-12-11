@@ -85,7 +85,6 @@ System.out.println("    DataTransportImplCmsg.execute : " + cmd);
             try {
                 Logger.debug("    DataTransportImplCmsg.execute PRESTART: cmsg connect : " + name() + " " + myInstance);
                 cmsgConnection.connect();
-                cmsgConnection.start(); // allow message flow to callbacks
 
             } catch (cMsgException e) {
                 CODAState.ERROR.getCauses().add(e);
@@ -95,6 +94,12 @@ System.out.println("    DataTransportImplCmsg.execute : " + cmd);
 
             state = cmd.success();
             return;
+        }
+        else if (cmd.equals(CODATransition.GO)) {
+            cmsgConnection.start(); // allow message flow to callbacks
+        }
+        else if (cmd.equals(CODATransition.PAUSE)) {
+            cmsgConnection.stop(); // stop message flow to callbacks
         }
         else if ((cmd.equals(CODATransition.END)) || (cmd.equals(RunControl.RESET))) {
 
