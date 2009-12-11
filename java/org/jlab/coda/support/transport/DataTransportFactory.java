@@ -190,7 +190,7 @@ Logger.info("  DataTransportFactory.execute DOWN : loaded class = " + c);
                 throw new CmdExecException("transport section missing/incomplete from config", e);
             }
 
-            // create a fifo data transport // bug bug: WHY?
+            // create a fifo data transport to allow communication between modules seemlessly
             try {
                 HashMap<String, String> attrs = new HashMap<String, String>();
                 attrs.put("class", "Fifo");
