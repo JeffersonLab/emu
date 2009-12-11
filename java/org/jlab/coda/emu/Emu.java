@@ -385,9 +385,11 @@ System.out.println("Done parsing the file -> " + configFile);
                     state = MODULE_FACTORY.state();
 
                     if ((state != null) && (state != oldState)) {
-                        // Transition RESUME object is used only for convenience - 
-                        // to set the list of allowed transitions from this state.
-                        CODATransition.RESUME.allow(state.allowed());
+                        // Allows all transitions given by state.allowed().
+                        // The "allow" method should be static, but is simpler to
+                        // just pick a particular enum (in the case, GO)
+                        // and use that to allow various transitions.
+                        CODATransition.GO.allow(state.allowed());
 
                         // enable/disable GUI buttons according to our current state
                         if (FRAMEWORK != null) {
