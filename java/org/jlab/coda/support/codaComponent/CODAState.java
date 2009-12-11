@@ -16,10 +16,45 @@ import java.util.EnumSet;
 import java.util.Vector;
 
 /**
- * This class is an enum which lists all the possible CODA run control
+ * This class is an enum which lists all the possible CODA Emu
  * state-machine states. Each of these states has a corresponding set
  * of transitions that are allowed.
  * This is the only class that implements the {@link State} interface.
+ * 
+ * <code><pre>
+ *                 *****************
+ *                 * State Machine *
+ *                 *****************
+ * ____________________________________________________
+ *                 |                |
+ *    transition   |     STATE      |  transition
+ * ________________|________________|__________________
+ *
+ *
+ *                UNCONFIGURED/BOOTED
+ *
+ *
+ *                  <- CONFIGURED
+ *                 |
+ *     download    |
+ *                 |
+ *                 '-> DOWNLOADED <-,<----------,
+ *                  <-              ^           ^
+ *                 |                |           |
+ *     prestart    |                |   end     |
+ *                 |                |           |
+ *                 '-> PRESTARTED ->            |  end
+ *                  <-            <-            |
+ *                 |                ^           |
+ *        go       |                |  pause    |
+ *                 |                |           |
+ *                 '->  ACTIVE  --->'---------->'
+ *
+ * ____________________________________________________
+ *
+ *  NOTE: DOWNLOADED can always do a download
+ *
+ * </pre></code>
  *
  * @author heyes
  */
@@ -29,16 +64,12 @@ public enum CODAState implements State {
     UNCONFIGURED("codaComponent is not configured", EnumSet.noneOf(CODATransition.class)),
     /** CONFIGURED state. */
     CONFIGURED("configuration is loaded", EnumSet.of(CODATransition.DOWNLOAD)),
-    /** DOWNLOADED state. */
+    /** DOWNLOADED state (same as ENDED). */
     DOWNLOADED("external modules loaded", EnumSet.of(CODATransition.DOWNLOAD, CODATransition.PRESTART)),
-    /** PRESTARTED state. */
-    PRESTARTED("modules initialized and ready to go", EnumSet.of(CODATransition.GO)),
+    /** PRESTARTED state (same as PAUSED). */
+    PRESTARTED("modules initialized and ready to go", EnumSet.of(CODATransition.GO, CODATransition.END)),
     /** ACTIVE state. */
     ACTIVE("taking data", EnumSet.of(CODATransition.PAUSE, CODATransition.END)),
-    /** PAUSED state. */
-    PAUSED("data taking is paused", EnumSet.of(CODATransition.GO, CODATransition.END)),
-    /** ENDED state. */
-    ENDED("data taking is ended", EnumSet.of(CODATransition.PRESTART)),
     /** ERROR state. */
     ERROR("an error has occured", EnumSet.noneOf(CODATransition.class));
 
