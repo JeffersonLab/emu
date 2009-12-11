@@ -259,7 +259,7 @@ System.out.println("    DataTransportImplCmsgSock.connect : sendAndGet msg to (s
     public DataChannel createChannel(String name, Map<String,String> attributeMap, boolean isInput)
             throws DataTransportException {
 System.out.println("    DataTransportImplCmsgSock.createChannel : create data channel from " + name);
-        DataChannel c = new DataChannelImplCmsgSock(name() + ":" + name, this, isInput);
+        DataChannel c = new DataChannelImplCmsgSock(name() + ":" + name, this, attributeMap, isInput);
         channels().put(c.getName(), c);
 System.out.println("    DataTransportImplCmsgSock.createChannel : put channel " + c.getName());
 //System.out.println("    DataTransportImplCmsgSock.createChannel : channels " + channels() + " " + this);
