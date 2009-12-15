@@ -135,9 +135,9 @@ System.out.println("CMSGPortal.append server = " + server);
 System.out.println("Allowed transitions are " + state.allowed());
                     // Allows all transitions given by state.allowed().
                     // The "allow" method should be static, but is simpler to 
-                    // just pick a particular enum (in the case, RESUME)
+                    // just pick a particular enum (in the case, GO)
                     // and use that to allow various transitions.
-                    CODATransition.RESUME.allow(state.allowed());
+                    CODATransition.GO.allow(state.allowed());
 System.out.println("State of " + this + " is now " + state());
                 } else {
 System.out.println("State not changed by command");
