@@ -218,11 +218,11 @@ public class EmuModuleFactory implements StatedObject {
                                 Node channelNode = childList.item(ix);
                                 if (channelNode.getNodeType() != Node.ELEMENT_NODE) continue;
 
-System.out.println("EmuModuleFactory.execute PRE : looking at channel node = " + channelNode.getNodeName());
+//System.out.println("EmuModuleFactory.execute PRE : looking at channel node = " + channelNode.getNodeName());
                                 // get attributes of channel node
                                 NamedNodeMap nnm = channelNode.getAttributes();
                                 if (nnm == null) {
-System.out.println("EmuModuleFactory.execute PRE : junk in config file (no attributes), skip " + channelNode.getNodeName());
+//System.out.println("EmuModuleFactory.execute PRE : junk in config file (no attributes), skip " + channelNode.getNodeName());
                                     continue;
                                 }
 
@@ -231,22 +231,22 @@ System.out.println("EmuModuleFactory.execute PRE : junk in config file (no attri
 
                                 // if none (junk in config file) go to next channel
                                 if (channelNameNode == null) {
-System.out.println("EmuModuleFactory.execute PRE : junk in config file (no name attr), skip " + channelNode.getNodeName());
+//System.out.println("EmuModuleFactory.execute PRE : junk in config file (no name attr), skip " + channelNode.getNodeName());
                                     continue;
                                 }
-System.out.println("EmuModuleFactory.execute PRE : channel node of attribute \"name\" = " + channelNameNode.getNodeName());
+//System.out.println("EmuModuleFactory.execute PRE : channel node of attribute \"name\" = " + channelNameNode.getNodeName());
                                 // get name of this channel
                                 String channelName = channelNameNode.getNodeValue();
-System.out.println("EmuModuleFactory.execute PRE : found channel of name " + channelName);
+//System.out.println("EmuModuleFactory.execute PRE : found channel of name " + channelName);
                                 // get "transp" attribute node from map
                                 Node channelTranspNode = nnm.getNamedItem("transp");
                                 if (channelTranspNode == null) {
-System.out.println("EmuModuleFactory.execute PRE : junk in config file (no transp attr), skip " + channelNode.getNodeName());
+//System.out.println("EmuModuleFactory.execute PRE : junk in config file (no transp attr), skip " + channelNode.getNodeName());
                                     continue;
                                 }
                                 // get name of transport
                                 String channelTransName = channelTranspNode.getNodeValue();
-System.out.println("EmuModuleFactory.execute PRE : module " + module.name() + " channel " + channelName + " transp " + channelTransName);
+//System.out.println("EmuModuleFactory.execute PRE : module " + module.name() + " channel " + channelName + " transp " + channelTransName);
                                 // look up transport object from name
                                 DataTransport trans = DataTransportFactory.findNamedTransport(channelTransName);
 
@@ -254,7 +254,7 @@ System.out.println("EmuModuleFactory.execute PRE : module " + module.name() + " 
                                 Map<String, String> attributeMap = new HashMap<String, String>();
                                 for (int jx = 0; jx < nnm.getLength(); jx++) {
                                     Node a = nnm.item(jx);
-System.out.println("Put (" + a.getNodeName() + "," + a.getNodeValue() + ") into attribute map for channel " + channelName);
+//System.out.println("Put (" + a.getNodeName() + "," + a.getNodeValue() + ") into attribute map for channel " + channelName);
                                     attributeMap.put(a.getNodeName(), a.getNodeValue());
                                 }
 
@@ -271,7 +271,7 @@ System.out.println("Put (" + a.getNodeName() + "," + a.getNodeValue() + ") into 
                                     out.add(channel);
                                 }
                                 else {
-System.out.println("EmuModuleFactory.execute PRE : channel type \"" + channelNode.getNodeName() + "\" is unknown");
+//System.out.println("EmuModuleFactory.execute PRE : channel type \"" + channelNode.getNodeName() + "\" is unknown");
                                 }
                             }
                             
