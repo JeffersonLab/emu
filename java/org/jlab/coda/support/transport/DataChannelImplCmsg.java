@@ -53,6 +53,9 @@ public class DataChannelImplCmsg implements DataChannel {
     /** Field dataThread */
     private Thread dataThread;
 
+    /** Do we pause the dataThread? */
+    private boolean pause;
+
     /** Object for parsing evio data contained in incoming messages. */
     private ByteParser parser;
 
@@ -220,6 +223,7 @@ public class DataChannelImplCmsg implements DataChannel {
      * Close this channel by unsubscribing from cmsg server and ending the data sending thread.
      */
     public void close() {
+        Logger.warn("      DataChannelImplCmsg.close : " + name + " - closing this channel");
         if (dataThread != null) dataThread.interrupt();
         try {
             if (sub != null) {
@@ -252,7 +256,14 @@ public class DataChannelImplCmsg implements DataChannel {
                 // by default ByteBuffer is big endian
                 buffer.order(byteOrder);
 
-                while ( dataTransport.getCmsgConnection().isConnected()) {
+                while ( dataTransport.getCmsgConnection().isConnected() ) {
+
+                    if (pause) {
+//Logger.warn("      DataChannelImplCmsg.DataOutputHelper : " + name + " - PAUSED");
+                        Thread.sleep(5);
+                        continue;
+                    }
+
                     bank = queue.take();  // blocks
 
                     size = bank.getTotalBytes();
@@ -284,10 +295,31 @@ public class DataChannelImplCmsg implements DataChannel {
 
     }
 
-    /** Method startOutputHelper ... */
+    /**
+     * Start the startOutputHelper thread which takes a bank from
+     * the queue, puts it in a message, and sends it.
+     */
     public void startOutputHelper() {
         dataThread = new Thread(Emu.THREAD_GROUP, new DataOutputHelper(), getName() + " data out");
         dataThread.start();
+    }
+
+    /**
+     * Pause the startOutputHelper thread which takes a bank from
+     * the queue, puts it in a message, and sends it.
+     */
+    public void pauseOutputHelper() {
+        if (dataThread == null) return;
+        pause = true;
+    }
+
+    /**
+     * Resume the startOutputHelper thread which takes a bank from
+     * the queue, puts it in a message, and sends it.
+     */
+    public void resumeOutputHelper() {
+        if (dataThread == null) return;
+        pause = false;
     }
 
     /**

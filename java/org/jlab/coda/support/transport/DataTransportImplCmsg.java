@@ -67,18 +67,14 @@ public class DataTransportImplCmsg extends DataTransportCore implements DataTran
 
     /** {@inheritDoc} */
     public DataChannel createChannel(String name, Map<String,String> attributeMap, boolean isInput) throws DataTransportException {
-System.out.println("    DataTransportImplCmsg.createChannel : create data channel from " + name);
         DataChannel c = new DataChannelImplCmsg(name, this, attributeMap, isInput);
         channels().put(name, c);
-System.out.println("    DataTransportImplCmsg.createChannel : put channel " + c.getName());
         return c;
     }
 
     /** {@inheritDoc} */
     public void execute(Command cmd) {
-System.out.println("    DataTransportImplCmsg.execute : " + cmd);
-        // retrieve already-created channel for connecting client
-        // DataChannelImplCmsg c = (DataChannelImplCmsg) channels().get(cname);
+Logger.debug("    DataTransportImplCmsg.execute : " + cmd);
 
         if (cmd.equals(CODATransition.PRESTART)) {
 
@@ -97,9 +93,25 @@ System.out.println("    DataTransportImplCmsg.execute : " + cmd);
         }
         else if (cmd.equals(CODATransition.GO)) {
             cmsgConnection.start(); // allow message flow to callbacks
+
+            if (!channels().isEmpty()) {
+                synchronized (channels()) {
+                    for (DataChannel c : channels().values()) {
+                        ((DataChannelImplCmsg)c).resumeOutputHelper();
+                    }
+                }
+            }
         }
         else if (cmd.equals(CODATransition.PAUSE)) {
             cmsgConnection.stop(); // stop message flow to callbacks
+
+            if (!channels().isEmpty()) {
+                synchronized (channels()) {
+                    for (DataChannel c : channels().values()) {
+                        ((DataChannelImplCmsg)c).pauseOutputHelper();
+                    }
+                }
+            }
         }
         else if ((cmd.equals(CODATransition.END)) || (cmd.equals(RunControl.RESET))) {
 
@@ -113,8 +125,6 @@ System.out.println("    DataTransportImplCmsg.execute : " + cmd);
             state = cmd.success();
             return;
         }
-
-        // Do nothing for DOWNLOAD, GO, PAUSE
 
         // We don't implement other commands so assume success.
         if (state != CODAState.ERROR) state = cmd.success();
