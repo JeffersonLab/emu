@@ -254,6 +254,7 @@ System.out.println("EmuModuleFactory.execute PRE : module " + module.name() + " 
                                 Map<String, String> attributeMap = new HashMap<String, String>();
                                 for (int jx = 0; jx < nnm.getLength(); jx++) {
                                     Node a = nnm.item(jx);
+System.out.println("Put (" + a.getNodeName() + "," + a.getNodeValue() + ") into attribute map for channel " + channelName);
                                     attributeMap.put(a.getNodeName(), a.getNodeValue());
                                 }
 
