@@ -204,18 +204,24 @@ Logger.info("  DataTransportFactory.execute DOWN : loaded class = " + c);
 
         }  // end of DOWNLOAD
 
-
         // Pass all commands down to all transport objects: DOWNLOAD, PRESTART, GO, PAUSE, RESET, END
         for (DataTransport transport : transports) {
             Logger.debug("  DataTransportFactory.execute : pass " + cmd + " down to " + transport.name());
             transport.execute(cmd);
         }
 
-
-        // RESET & END transitions require cleanup
-        if (cmd.equals(RunControl.RESET) || cmd.equals(CODATransition.END)) {
+        // close channels for END transition
+        if (cmd.equals(CODATransition.END)) {
             for (DataTransport t : transports) {
-                Logger.debug("  DataTransportFactory.execute END/RESET : " + t.name() + " close");
+                Logger.debug("  DataTransportFactory.execute END : " + t.name() + " close");
+                t.close();
+            }
+            state = cmd.success();
+        }
+
+        if (cmd.equals(RunControl.RESET)) {
+            for (DataTransport t : transports) {
+                Logger.debug("  DataTransportFactory.execute RESET : " + t.name() + " close");
                 t.close();
             }
             transports.clear();
