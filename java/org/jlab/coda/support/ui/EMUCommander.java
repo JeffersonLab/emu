@@ -86,7 +86,7 @@ public class EMUCommander extends JFrame {
             // If the command is to configure, read the config file
             // and send it to all listeners by a cMsg message.
             // Otherwise, just pass the command on by setting subject, type, & text.
-            if (cmd.equals(RunControl.CONFIGURE)) {
+            if (cmd.equals(CODATransition.CONFIGURE)) {
 
                 // Must set the name of this object
                 String emuName = System.getProperty("name");
