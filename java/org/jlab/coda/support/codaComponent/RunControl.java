@@ -51,8 +51,6 @@ public enum RunControl implements Command {
     START_REPORTING("start reporting", null),
     /** Field stopReporting */
     STOP_REPORTING("stop reporting", null),
-    /** Field configure */
-    CONFIGURE("load the configuration", "CONFIGURED"),
     /** Field releaseSession */
     RELEASE_SESSION("release session", null);
 

@@ -26,15 +26,17 @@ import java.util.Vector;
  *                 * State Machine *
  *                 *****************
  * ____________________________________________________
- *                 |                |
- *    transition   |     STATE      |  transition
- * ________________|________________|__________________
+ *                 |                 |
+ *    transition   |      STATE      |  transition
+ * ________________|_________________|__________________
  *
  *
- *                UNCONFIGURED/BOOTED
- *
- *
- *                  <- CONFIGURED
+ *                  <- UNCONFIGURED
+ *                 |
+ *     configure   |
+ *                 |
+ *                 '-> CONFIGURED
+ *                  <-
  *                 |
  *     download    |
  *                 |
@@ -61,7 +63,7 @@ import java.util.Vector;
 public enum CODAState implements State {
 
     /** UNCONFIGURED state. */
-    UNCONFIGURED("codaComponent is not configured", EnumSet.noneOf(CODATransition.class)),
+    UNCONFIGURED("codaComponent is not configured", EnumSet.of(CODATransition.CONFIGURE)),
     /** CONFIGURED state. */
     CONFIGURED("configuration is loaded", EnumSet.of(CODATransition.DOWNLOAD)),
     /** DOWNLOADED state (same as ENDED). */

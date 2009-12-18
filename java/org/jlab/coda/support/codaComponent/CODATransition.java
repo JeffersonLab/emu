@@ -20,23 +20,23 @@ import java.util.HashMap;
 /**
  * An enum which contains a list of possible transitions in CODA Emu state machine.
  * Each of these transitions can be enabled or disabled.
- * Notice that "configure" is not listed here as it is considered a command sent by
- * runcontrol and not a transition {@link RunControl#CONFIGURE}.
  *
  * <code><pre>
  *                 *****************
  *                 * State Machine *
  *                 *****************
  * ____________________________________________________
- *                 |                |
- *    transition   |     STATE      |  transition
- * ________________|________________|__________________
+ *                 |                 |
+ *    transition   |      STATE      |  transition
+ * ________________|_________________|__________________
  *
  *
- *                UNCONFIGURED/BOOTED
- *
- *
- *                  <- CONFIGURED
+ *                  <- UNCONFIGURED
+ *                 |
+ *     configure   |
+ *                 |
+ *                 '-> CONFIGURED
+ *                  <-
  *                 |
  *     download    |
  *                 |
@@ -61,16 +61,18 @@ import java.util.HashMap;
  */
 public enum CODATransition implements Command {
 
+    /** Field configure */
+    CONFIGURE("Load the configuration", "CONFIGURED", true),
     /** Download. */
-    DOWNLOAD("Apply the configuration and load", "DOWNLOADED"),
+    DOWNLOAD("Apply the configuration and load", "DOWNLOADED", false),
     /** Prestart. */
-    PRESTART("Prepare to start", "PRESTARTED"),
+    PRESTART("Prepare to start", "PRESTARTED", false),
     /** Go. */
-    GO("Start taking data", "ACTIVE"),
+    GO("Start taking data", "ACTIVE", false),
     /** End. */
-    END("End taking data", "DOWNLOADED"),
+    END("End taking data", "DOWNLOADED", false),
     /** Pause. */
-    PAUSE("Pause taking data", "PRESTARTED");
+    PAUSE("Pause taking data", "PRESTARTED", false);
 
     
     /** Description of the transition. */
@@ -91,9 +93,10 @@ public enum CODATransition implements Command {
      * @param description of type String
      * @param success     of type String
      */
-    CODATransition(String description, String success) {
+    CODATransition(String description, String success, boolean enabled) {
         this.description = description;
         this.success = success;
+        this.enabled = enabled;
     }
 
     /**
