@@ -83,7 +83,7 @@ public class Send implements EmuModule {
     public void execute(Command cmd) {
 
         if (cmd.equals(CODATransition.END)) {
-            state = CODAState.ENDED;
+            state = CODAState.DOWNLOADED;
         }
 
         state = cmd.success();
