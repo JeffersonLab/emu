@@ -71,7 +71,7 @@ public class EmuModuleFactory implements StatedObject {
 //System.out.println("EmuModuleFactory.execute : " + cmd);
 
         // CONFIGURE command does not involve components and is handled directly by the EMU ...
-        if (state != CODAState.ERROR && cmd.equals(RunControl.CONFIGURE)) {
+        if (state != CODAState.ERROR && cmd.equals(CODATransition.CONFIGURE)) {
             // If we got this far configure succeeded.
             state = CODAState.CONFIGURED;
             return;
