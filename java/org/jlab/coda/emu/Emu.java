@@ -14,6 +14,7 @@ package org.jlab.coda.emu;
 import org.jlab.coda.cMsg.cMsgConstants;
 import org.jlab.coda.cMsg.cMsgException;
 import org.jlab.coda.cMsg.cMsgPayloadItem;
+import org.jlab.coda.cMsg.cMsgMessage;
 import org.jlab.coda.support.codaComponent.CODAComponent;
 import org.jlab.coda.support.codaComponent.CODAState;
 import org.jlab.coda.support.codaComponent.CODATransition;
@@ -417,6 +418,25 @@ System.out.println("ERROR in setting value in local config !!!");
                         }
                         oldState = state;
                     }
+
+                    if (cmd != null) {
+// Once transition is made or cmd executed, response required
+                        // put this is a loop (need to response to send status command from run control
+                        cMsgMessage msg = new cMsgMessage();
+                        msg.setSubject(name);
+                        msg.setType("rc/report/status");
+                        String retString = cmd.success().name().toLowerCase();
+                        try {
+                            msg.addPayloadItem(new cMsgPayloadItem("state", retString));
+                            msg.addPayloadItem(new cMsgPayloadItem("codaClass", "CDEB"));
+                            CMSGPortal.getServer().send(msg);
+System.out.println("Sent back msg to sub = " + name + ", type = rc/report/status, state = " + retString);
+                        }
+                        catch (cMsgException e) {
+                            e.printStackTrace();
+                        }
+                    }
+
                 }
             } catch (InterruptedException e) {
                 break;
@@ -506,7 +526,7 @@ System.out.println("ERROR in setting value in local config !!!");
         // When we are told to CONFIGURE, the EMU handles this even though
         // this command is still passed on down to the modules. Read or
         // re-read the config file and update debug GUI.
-        if (cmd.equals(RunControl.CONFIGURE)) {
+        if (cmd.equals(CODATransition.CONFIGURE)) {
 
             // First find our config file (not local config) defined
             // on the command line, using a default if none given.
