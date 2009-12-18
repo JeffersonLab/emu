@@ -48,7 +48,7 @@ class RCTransitionHandler extends GenericCallback implements cMsgCallbackInterfa
      * @param o   object given in subscription & passed in here (null in this case)
      */
     public void callback(cMsgMessage msg, Object o) {
-
+System.out.println("GOT run/transition/" + msg.getType() + " message");
         try {
             String type = msg.getType();
             String cmdS = (type.substring(type.lastIndexOf("/") + 1)).toUpperCase();
@@ -77,7 +77,7 @@ class RCTransitionHandler extends GenericCallback implements cMsgCallbackInterfa
             // by putting it in a Q that is periodically checked by
             // the EMU's "run" (main thread) method.
             cmsgPortal.comp.postCommand(cmd);
-            
+
         } catch (InterruptedException e) {
             e.printStackTrace();
         }

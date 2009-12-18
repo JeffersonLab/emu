@@ -104,16 +104,19 @@ System.out.println("\n CMSGPortal using UDL = " + UDL + "\n");
 
                 if (server == null || !server.isConnected()) try {
                     // create connection to cMsg server
-System.out.println("\n CMSGPortal creating cMsg object using UDL = " + UDL + "\n");
+System.out.println("CMSGPortal creating cMsg object using UDL = " + UDL + "\n");
                     server = new cMsg(UDL, comp.name(), "EMU called " + comp.name());
                     server.connect();
                     // allow receipt of messages
                     server.start();
                     // install callback for download, prestart, go, etc
+System.out.println("CMSGPortal subscribe to sub = *, type = run/transition/*");
                     server.subscribe("*", "run/transition/*", new RCTransitionHandler(self), null);
                     // install callback for reset, configure, start, stop, getsession, setsession, etc
+System.out.println("CMSGPortal subscribe to sub = *, type = run/control/*");
                     server.subscribe("*", "run/control/*", new RCControlHandler(self), null);
                     // install callback for set/get run number, set/get run type
+System.out.println("CMSGPortal subscribe to sub = *, type = session/control/*");
                     server.subscribe("*", "session/control/*", new RCSessionHandler(self), null);
 
                     Logger.info("cMSg server connected");
@@ -139,10 +142,11 @@ System.out.println("\n CMSGPortal creating cMsg object using UDL = " + UDL + "\n
             }
 
             // We're here because we've been ordered to shutdown the connection
-            if (server != null) try {
-                server.disconnect();
-            } catch (cMsgException e1) {
-                // ignore
+            if (server != null) {
+                try { server.disconnect(); }
+                catch (cMsgException e) {
+                    // ignore
+                }
             }
 
             server = null;

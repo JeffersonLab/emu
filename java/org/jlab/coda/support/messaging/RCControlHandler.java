@@ -46,6 +46,7 @@ public class RCControlHandler extends GenericCallback implements cMsgCallbackInt
      * @param o   object given in subscription & passed in here (null in this case)
      */
     public void callback(cMsgMessage msg, Object o) {
+System.out.println("GOT run/control/" + msg.getType() + " message");
 
         try {
             String type = msg.getType();
