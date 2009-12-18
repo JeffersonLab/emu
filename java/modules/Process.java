@@ -80,7 +80,7 @@ public class Process implements EmuModule, Runnable {
          * It is started by the GO transition.
          */
         public void run() {
-            while ((state == CODAState.ACTIVE) || (state == CODAState.PAUSED)) {
+            while ((state == CODAState.ACTIVE) || (state == CODAState.PRESTARTED)) {
                 try {
                     // In the paused state only wake every two seconds.
                     sleep(2000);
@@ -100,6 +100,7 @@ public class Process implements EmuModule, Runnable {
                     e.printStackTrace();
                 }
             }
+System.out.println("Process module: quitting watcher thread");
         }
     }
 
@@ -142,15 +143,18 @@ public class Process implements EmuModule, Runnable {
 
 System.out.println("Action Thread state " + state);
 
-        while ((state == CODAState.ACTIVE) || (state == CODAState.PAUSED)) {
+        while ((state == CODAState.ACTIVE) || (state == CODAState.PRESTARTED)) {
+System.out.println("Process: is active or paused");
             try {
                 Iterator<DataChannel> outputIter = null;
 
                 if (hasOutputs) outputIter = output_channels.iterator();
 
                 while (state == CODAState.ACTIVE) {
+System.out.println("Process: is while loop");
 
                     if (hasOutputs && !outputIter.hasNext()) {
+System.out.println("Process: Has output channels");
                         outputIter = output_channels.iterator();
                     }
                     DataChannel outC;
@@ -164,7 +168,9 @@ System.out.println("Action Thread state " + state);
                     ArrayList<EvioBank> inList = new ArrayList<EvioBank>();
                     for (DataChannel c : input_channels) {
                         // blocking operation to grab a Bank
+System.out.println("Process: Try grabbing bank off Q");
                         EvioBank bank = c.getQueue().take();
+System.out.println("Process: Grabbed bank off Q");
                         inList.add(bank);
                     }
 
@@ -178,6 +184,7 @@ System.out.println("Action Thread state " + state);
                     // take all input banks and put them into one output bank (event)
                     for (EvioBank bank : inList) {
                         try {
+System.out.println("Process: Added bank to built event");
                             eventBuilder.addChild(event, bank);
                         }
                         catch (EvioException e) { /* problems only if not adding banks */ }
@@ -188,6 +195,7 @@ System.out.println("Action Thread state " + state);
                     count++;
 
                     if (hasOutputs) {
+System.out.println("Process: put bank on output Q");
                         out_queue.put(event);
                     }
                 }
@@ -195,7 +203,7 @@ System.out.println("Action Thread state " + state);
                 Thread.sleep(2);
 
             } catch (InterruptedException e) {
-                if (state == CODAState.ENDED) return;
+                if (state == CODAState.DOWNLOADED) return;
             }
         }
 
@@ -228,9 +236,10 @@ System.out.println("Action Thread state " + state);
         Date theDate = new Date();
         
         if (cmd.equals(CODATransition.END)) {
-            state = CODAState.ENDED;
-            actionThread.interrupt();
+            state = CODAState.DOWNLOADED;
 
+            if (actionThread != null) actionThread.interrupt();
+            actionThread = null;
             if (watcher != null) watcher.interrupt();
             watcher = null;
 
@@ -246,6 +255,7 @@ System.out.println("Action Thread state " + state);
             count = 0;
             data_count = 0;
 
+            watcher = new Watcher();
             actionThread = new Thread(Emu.THREAD_GROUP, this, name);
 
             try {
@@ -258,19 +268,21 @@ System.out.println("Action Thread state " + state);
         }
 
         else if (cmd.equals(CODATransition.PAUSE)) {
-            state = CODAState.PAUSED;
+            state = CODAState.PRESTARTED;
             actionThread.interrupt();
             watcher.interrupt();
+            actionThread = null;
+            watcher = null;
         }
 
         else if (cmd.equals(CODATransition.GO)) {
 System.out.println("GO in Process module");
             State old_state = state;
             state = CODAState.ACTIVE;
-            if (old_state != CODAState.PAUSED) {
+            if (watcher == null) {
                 watcher = new Watcher();
-                watcher.start();
             }
+            watcher.start();
 
             try {
                 Configurer.setValue(Emu.INSTANCE.parameters(), "status/run_start_time", theDate.toString());
@@ -279,12 +291,12 @@ System.out.println("GO in Process module");
                 state = CODAState.ERROR;
                 return;
             }
+            
             // TODO: cannot restart an interrupted thread !!! bug bug
-            actionThread.start();
-            if (old_state != CODAState.PAUSED) {
-                System.out.println("Start actionThread in Process module");
-                actionThread.start();
+            if (actionThread == null) {
+                actionThread = new Thread(Emu.THREAD_GROUP, this, name);
             }
+            actionThread.start();
         }
 
         state = cmd.success();
