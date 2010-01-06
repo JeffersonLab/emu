@@ -12,7 +12,7 @@
 /**
  * Interface for handler attached to keystorke.
  */
-package org.jlab.coda.support.keyboardControl;
+package org.jlab.coda.emu.support.keyboardControl;
 
 import java.io.PrintWriter;
 

@@ -9,7 +9,7 @@
  *
  */
 
-package org.jlab.coda.support.messaging;
+package org.jlab.coda.emu.support.messaging;
 
 /**
  * Created by IntelliJ IDEA.

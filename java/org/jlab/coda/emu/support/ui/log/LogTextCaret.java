@@ -8,7 +8,7 @@
  * Phone : (757)-269-7100
  *
  */
-package org.jlab.coda.support.ui.log;
+package org.jlab.coda.emu.support.ui.log;
 
 import javax.swing.text.DefaultCaret;
 import java.awt.*;

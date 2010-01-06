@@ -10,7 +10,7 @@
  */
 
 
-package org.jlab.coda.support.configurer;
+package org.jlab.coda.emu.support.configurer;
 
 /** @author heyes timmer */
 @SuppressWarnings("serial")

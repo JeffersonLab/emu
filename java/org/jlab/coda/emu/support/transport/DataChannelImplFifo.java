@@ -1,4 +1,4 @@
-package org.jlab.coda.support.transport;
+package org.jlab.coda.emu.support.transport;
 
 import org.jlab.coda.support.logger.Logger;
 import org.jlab.coda.jevio.EvioBank;

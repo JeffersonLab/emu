@@ -9,7 +9,7 @@
  *
  */
 
-package org.jlab.coda.support.transport;
+package org.jlab.coda.emu.support.transport;
 
 import org.jlab.coda.support.codaComponent.CODAState;
 import org.jlab.coda.support.configurer.DataNotFoundException;

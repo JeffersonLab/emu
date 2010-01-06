@@ -9,7 +9,7 @@
  *
  */
 
-package org.jlab.coda.support.configurer;
+package org.jlab.coda.emu.support.configurer;
 
 import org.jdesktop.layout.GroupLayout;
 import org.w3c.dom.Node;

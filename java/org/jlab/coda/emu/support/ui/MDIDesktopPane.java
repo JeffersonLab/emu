@@ -1,6 +1,6 @@
 // free source from http://www.javaworld.com/javaworld/jw-05-2001/jw-0525-mdi.html
 
-package org.jlab.coda.support.ui;
+package org.jlab.coda.emu.support.ui;
 
 import javax.swing.*;
 import java.awt.*;

@@ -8,7 +8,7 @@
  * Phone : (757)-269-7100
  *
  */
-package org.jlab.coda.support.logger;
+package org.jlab.coda.emu.support.logger;
 
 /**
  * Interface LoggerAppender ...

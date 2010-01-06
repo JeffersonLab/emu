@@ -9,7 +9,7 @@
  *
  */
 
-package org.jlab.coda.support.control;
+package org.jlab.coda.emu.support.control;
 
 import java.util.EnumSet;
 import java.util.Vector;

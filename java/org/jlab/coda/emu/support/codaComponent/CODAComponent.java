@@ -9,7 +9,7 @@
  *
  */
 
-package org.jlab.coda.support.codaComponent;
+package org.jlab.coda.emu.support.codaComponent;
 
 import org.jlab.coda.support.control.CommandAcceptor;
 import org.w3c.dom.Document;

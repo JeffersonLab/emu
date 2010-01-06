@@ -9,7 +9,7 @@
  *
  */
 
-package org.jlab.coda.support.w3;
+package org.jlab.coda.emu.support.w3;
 
 import org.jlab.coda.emu.Emu;
 import org.jlab.coda.support.keyboardControl.ApplicationConsole;

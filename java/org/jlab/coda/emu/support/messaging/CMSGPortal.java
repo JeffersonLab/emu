@@ -9,7 +9,7 @@
  *
  */
 
-package org.jlab.coda.support.messaging;
+package org.jlab.coda.emu.support.messaging;
 
 import org.jlab.coda.cMsg.cMsg;
 import org.jlab.coda.cMsg.cMsgException;

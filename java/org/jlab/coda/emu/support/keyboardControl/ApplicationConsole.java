@@ -12,7 +12,7 @@
 /**
  * Control the program from the keyboard.
  */
-package org.jlab.coda.support.keyboardControl;
+package org.jlab.coda.emu.support.keyboardControl;
 
 import org.jlab.coda.emu.Emu;
 import org.jlab.coda.support.logger.Logger;

@@ -9,7 +9,7 @@
  *
  */
 
-package org.jlab.coda.support.codaComponent;
+package org.jlab.coda.emu.support.codaComponent;
 
 import org.jlab.coda.support.control.State;
 import java.util.EnumSet;

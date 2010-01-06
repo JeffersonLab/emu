@@ -1,4 +1,4 @@
-package org.jlab.coda.support.data;
+package org.jlab.coda.emu.support.data;
 
 import org.jlab.coda.jevio.*;
 import org.jlab.coda.jevio.DataType;

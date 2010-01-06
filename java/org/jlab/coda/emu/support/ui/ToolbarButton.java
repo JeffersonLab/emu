@@ -9,7 +9,7 @@
  *
  */
 
-package org.jlab.coda.support.ui;
+package org.jlab.coda.emu.support.ui;
 
 import javax.swing.*;
 import java.awt.*;

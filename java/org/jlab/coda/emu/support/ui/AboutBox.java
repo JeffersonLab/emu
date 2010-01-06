@@ -13,7 +13,7 @@
  * Created by JFormDesigner on Mon Sep 22 08:16:09 EDT 2008
  */
 
-package org.jlab.coda.support.ui;
+package org.jlab.coda.emu.support.ui;
 
 import javax.swing.*;
 import java.awt.*;

@@ -9,7 +9,7 @@
  *
  */
 
-package org.jlab.coda.support.configurer;
+package org.jlab.coda.emu.support.configurer;
 
 import org.jlab.coda.support.logger.Logger;
 import org.w3c.dom.*;

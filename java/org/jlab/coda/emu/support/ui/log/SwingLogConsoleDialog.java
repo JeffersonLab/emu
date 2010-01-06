@@ -9,7 +9,7 @@
  *
  */
 
-package org.jlab.coda.support.ui.log;
+package org.jlab.coda.emu.support.ui.log;
 
 import org.jlab.coda.support.logger.Logger;
 import org.jlab.coda.support.logger.LoggerAppender;

@@ -9,7 +9,7 @@
  *
  */
 
-package org.jlab.coda.support.ui;
+package org.jlab.coda.emu.support.ui;
 
 import org.jlab.coda.support.control.Command;
 import org.jlab.coda.support.control.CommandAcceptor;

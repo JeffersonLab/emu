@@ -13,7 +13,7 @@
  * Created by JFormDesigner on Mon Sep 22 13:29:36 EDT 2008
  */
 
-package org.jlab.coda.support.ui;
+package org.jlab.coda.emu.support.ui;
 
 import org.jdesktop.layout.GroupLayout;
 import org.jdesktop.layout.LayoutStyle;
