@@ -54,7 +54,7 @@ System.out.println("GOT run/transition/" + msg.getType() + " message");
             String cmdS = (type.substring(type.lastIndexOf("/") + 1)).toUpperCase();
 
             // CODATransition is an enum but it implements Command so it is a Command object.
-            // Examples: DOWNLOAD, PRESTART, GO, END, PAUSE, RESUME.
+            // Examples: CONFIGURE, DOWNLOAD, PRESTART, GO, END, PAUSE, RESUME.
             // The string cmdS may not be an allowed enum value, in which case an
             // IllegalArgumentException will be thrown.
             Command cmd;

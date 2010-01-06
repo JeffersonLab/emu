@@ -53,7 +53,7 @@ System.out.println("GOT run/control/" + msg.getType() + " message");
             String cmdS = (type.substring(type.lastIndexOf("/") + 1)).toUpperCase();
 
             // See if message's type (after last / ) is a recognized run control command.
-            // Examples: reset, configure, start, stop, getsession, setsession, etc.
+            // Examples: reset, start, stop, getsession, setsession, etc.
             // The string cmdS may not be an allowed enum value, in which case an
             // IllegalArgumentException will be thrown.
             Command cmd;
