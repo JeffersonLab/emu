@@ -20,7 +20,7 @@ import java.util.HashMap;
 /**
  * This enum enumerates the possible actions of a "session object"
  * as opposed to a "run object" or "coda object". The session
- * object is aware only of the run number and run type.
+ * object is aware only of the run number, run type, and reporting status.
  *
  * Currently this enum does NOT seem to be used.
  *
@@ -35,7 +35,11 @@ public enum SessionControl implements Command {
     /** Field setRunType */
     SET_RUN_TYPE("Set the run type"),
     /** Field getRunType */
-    GET_RUN_TYPE("Get the run type");
+    GET_RUN_TYPE("Get the run type"),
+    /** Field startReporting */
+    START_REPORTING("start reporting"),
+    /** Field stopReporting */
+    STOP_REPORTING("stop reporting");
 
     /** Field args */
     private final HashMap<String, Object> args = new HashMap<String, Object>();

@@ -47,10 +47,10 @@ public enum RunControl implements Command {
     RESET("return to pre-configured state", "UNCONFIGURED"),
     /** Field exit */
     EXIT("shutdown the codaComponent", null),
-    /** Field startReporting */
-    START_REPORTING("start reporting", null),
-    /** Field stopReporting */
-    STOP_REPORTING("stop reporting", null),
+//    /** Field startReporting */
+//    START_REPORTING("start reporting", null),
+//    /** Field stopReporting */
+//    STOP_REPORTING("stop reporting", null),
     /** Field releaseSession */
     RELEASE_SESSION("release session", null);
 
