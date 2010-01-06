@@ -15,10 +15,7 @@ import org.jlab.coda.cMsg.cMsgConstants;
 import org.jlab.coda.cMsg.cMsgException;
 import org.jlab.coda.cMsg.cMsgPayloadItem;
 import org.jlab.coda.cMsg.cMsgMessage;
-import org.jlab.coda.support.codaComponent.CODAComponent;
-import org.jlab.coda.support.codaComponent.CODAState;
-import org.jlab.coda.support.codaComponent.CODATransition;
-import org.jlab.coda.support.codaComponent.RunControl;
+import org.jlab.coda.support.codaComponent.*;
 import org.jlab.coda.support.configurer.Configurer;
 import org.jlab.coda.support.configurer.DataNotFoundException;
 import org.jlab.coda.support.control.CmdExecException;
@@ -28,6 +25,7 @@ import org.jlab.coda.support.keyboardControl.ApplicationConsole;
 import org.jlab.coda.support.keyboardControl.KbdHandler;
 import org.jlab.coda.support.logger.Logger;
 import org.jlab.coda.support.messaging.CMSGPortal;
+import org.jlab.coda.support.messaging.RCConstants;
 import org.jlab.coda.support.transport.DataChannel;
 import org.jlab.coda.support.ui.DebugFrame;
 import org.jlab.coda.support.w3.CmdListener;
@@ -190,6 +188,61 @@ public class Emu implements KbdHandler, CODAComponent {
     }
 
     
+    /** Class defining thread which reports the EMU status to run control. */
+    class StatusReportingThread extends Thread {
+
+        StatusReportingThread() {
+            setDaemon(true);
+        }
+
+        public void run() {
+System.out.println("STATUS REPORTING THREAD: STARTED +++");
+
+            while (!Thread.interrupted()) {
+                if (statusReportingOn &&
+                   (CMSGPortal.getServer() != null) &&
+                   (CMSGPortal.getServer().isConnected())) {
+                    
+                    cMsgMessage msg = new cMsgMessage();
+                    msg.setSubject(name);
+                    msg.setType(RCConstants.reportStatusType);
+                    String state = MODULE_FACTORY.state().name().toLowerCase();
+                    try {
+                        msg.addPayloadItem(new cMsgPayloadItem("state", state));
+                        msg.addPayloadItem(new cMsgPayloadItem("codaClass", "CDEB"));
+                        CMSGPortal.getServer().send(msg);
+System.out.println("Sent back msg to sub = " + name + ", state = " + state);
+                    }
+                    catch (cMsgException e) {
+                        e.printStackTrace();
+                    }
+                }
+
+                try {
+                    Thread.sleep(statusReportingPeriod);
+                }
+                catch (InterruptedException e) {
+System.out.println("STATUS REPORTING THREAD: DONE xxx");
+                    return;
+                }
+            }
+System.out.println("STATUS REPORTING THREAD: DONE xxx");
+
+        }
+
+    };
+
+
+    /** Thread which reports the EMU status to run control. */
+    private StatusReportingThread statusReportingThread;
+
+    /** Time in milliseconds of the period of the reportingStatusThread. */
+    private int statusReportingPeriod = 2000;
+
+    /** If true, the status reporting thread is actively reporting status to run control. */
+    private volatile boolean statusReportingOn = true;
+
+
     /**
      * Constructor
      * The constructor is only called once and the created object is stored in INSTANCE.
@@ -245,6 +298,10 @@ public class Emu implements KbdHandler, CODAComponent {
 
         // This object has a self-starting thread
         statusMonitor.start();
+
+        // Start up status reporting thread (which needs cmsg to send msgs)
+        statusReportingThread = new StatusReportingThread();
+        statusReportingThread.start();
 
         // Must set the name of this EMU
         String emuName = System.getProperty("name");
@@ -418,30 +475,17 @@ System.out.println("ERROR in setting value in local config !!!");
                         }
                         oldState = state;
                     }
-
-                    if (cmd != null) {
-// Once transition is made or cmd executed, response required
-                        // put this is a loop (need to response to send status command from run control
-                        cMsgMessage msg = new cMsgMessage();
-                        msg.setSubject(name);
-                        msg.setType("rc/report/status");
-                        String retString = cmd.success().name().toLowerCase();
-                        try {
-                            msg.addPayloadItem(new cMsgPayloadItem("state", retString));
-                            msg.addPayloadItem(new cMsgPayloadItem("codaClass", "CDEB"));
-                            CMSGPortal.getServer().send(msg);
-System.out.println("Sent back msg to sub = " + name + ", type = rc/report/status, state = " + retString);
-                        }
-                        catch (cMsgException e) {
-                            e.printStackTrace();
-                        }
-                    }
-
                 }
+
             } catch (InterruptedException e) {
                 break;
             }
+
         } while (!Thread.interrupted());
+
+        // if this thread is ending, stop reporting status thread too
+        statusReportingThread.interrupt();
+
         Logger.info("Status monitor thread exit now");
     }
 
@@ -522,6 +566,21 @@ System.out.println("Sent back msg to sub = " + name + ", type = rc/report/status
      * @see org.jlab.coda.emu.EmuModule#execute(Command)
      */
     synchronized void execute(Command cmd) {
+System.out.println("EXECUTING cmd = " + cmd.name());
+
+        // Some commands are for the EMU itself and not all the EMU subcomponents, so return immediately
+        if (cmd.equals(SessionControl.START_REPORTING)) {
+            statusReportingOn = true;
+            // we are done so clean the cmd (necessary since this command object is static & is reused)
+            cmd.clearArgs();
+            return;
+        }
+        else if (cmd.equals(SessionControl.STOP_REPORTING)) {
+            statusReportingOn = false;
+            cmd.clearArgs();
+            return;
+        }
+
 
         // When we are told to CONFIGURE, the EMU handles this even though
         // this command is still passed on down to the modules. Read or
