@@ -11,8 +11,8 @@
 
 package org.jlab.coda.emu.support.ui;
 
-import org.jlab.coda.support.control.Command;
-import org.jlab.coda.support.control.CommandAcceptor;
+import org.jlab.coda.emu.support.control.Command;
+import org.jlab.coda.emu.support.control.CommandAcceptor;
 
 import javax.swing.*;
 import java.awt.*;

@@ -1,13 +1,13 @@
 package modules;
 
-import org.jlab.coda.support.control.State;
-import org.jlab.coda.support.control.Command;
-import org.jlab.coda.support.codaComponent.CODAState;
-import org.jlab.coda.support.codaComponent.CODATransition;
-import org.jlab.coda.support.transport.DataChannel;
-import org.jlab.coda.support.configurer.Configurer;
-import org.jlab.coda.support.configurer.DataNotFoundException;
-import org.jlab.coda.support.logger.Logger;
+import org.jlab.coda.emu.support.control.State;
+import org.jlab.coda.emu.support.control.Command;
+import org.jlab.coda.emu.support.codaComponent.CODAState;
+import org.jlab.coda.emu.support.codaComponent.CODATransition;
+import org.jlab.coda.emu.support.transport.DataChannel;
+import org.jlab.coda.emu.support.configurer.Configurer;
+import org.jlab.coda.emu.support.configurer.DataNotFoundException;
+import org.jlab.coda.emu.support.logger.Logger;
 import org.jlab.coda.emu.Emu;
 import org.jlab.coda.emu.EmuModule;
 import org.jlab.coda.jevio.*;

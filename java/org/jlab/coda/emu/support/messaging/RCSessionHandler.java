@@ -13,8 +13,8 @@ package org.jlab.coda.emu.support.messaging;
 
 import org.jlab.coda.cMsg.cMsgCallbackInterface;
 import org.jlab.coda.cMsg.cMsgMessage;
-import org.jlab.coda.support.codaComponent.SessionControl;
-import org.jlab.coda.support.control.Command;
+import org.jlab.coda.emu.support.codaComponent.SessionControl;
+import org.jlab.coda.emu.support.control.Command;
 
 import java.util.Set;
 

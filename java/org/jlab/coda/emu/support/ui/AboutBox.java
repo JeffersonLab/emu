@@ -28,7 +28,7 @@ public class AboutBox extends JFrame {
     private void initComponents() {
         // JFormDesigner - CODAComponent initialization - DO NOT MODIFY  //GEN-BEGIN:initComponents
         // Generated using JFormDesigner non-commercial license
-        ResourceBundle bundle = ResourceBundle.getBundle("org.jlab.coda.support.ui.rsrc.strings");
+        ResourceBundle bundle = ResourceBundle.getBundle("org.jlab.coda.emu.support.ui.rsrc.strings");
         label1 = new JLabel();
         label2 = new JLabel();
         label3 = new JLabel();

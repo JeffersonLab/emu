@@ -11,7 +11,7 @@
 
 package org.jlab.coda.emu.support.codaComponent;
 
-import org.jlab.coda.support.control.CommandAcceptor;
+import org.jlab.coda.emu.support.control.CommandAcceptor;
 import org.w3c.dom.Document;
 
 /**

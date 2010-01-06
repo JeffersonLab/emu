@@ -11,7 +11,7 @@
 
 package org.jlab.coda.emu.support.codaComponent;
 
-import org.jlab.coda.support.control.State;
+import org.jlab.coda.emu.support.control.State;
 import java.util.EnumSet;
 import java.util.Vector;
 
@@ -101,7 +101,7 @@ public enum CODAState implements State {
     /**
      * Get the description of this state.
      * @return description of this state
-     * @see org.jlab.coda.support.control.State#getDescription()
+     * @see org.jlab.coda.emu.support.control.State#getDescription()
      */
     public String getDescription() {
         return description;

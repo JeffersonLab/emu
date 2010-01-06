@@ -12,8 +12,8 @@
 package org.jlab.coda.emu.support.transport;
 
 import org.jlab.coda.emu.Emu;
-import org.jlab.coda.support.control.CmdExecException;
-import org.jlab.coda.support.logger.Logger;
+import org.jlab.coda.emu.support.control.CmdExecException;
+import org.jlab.coda.emu.support.logger.Logger;
 import org.jlab.coda.jevio.EvioBank;
 import org.jlab.coda.jevio.ByteParser;
 
@@ -126,7 +126,7 @@ public class DataChannelImplCmsgSock implements DataChannel {
 
     }
 
-    /** @see org.jlab.coda.support.transport.DataChannel#getName() */
+    /** @see org.jlab.coda.emu.support.transport.DataChannel#getName() */
     public String getName() {
         return name;
     }

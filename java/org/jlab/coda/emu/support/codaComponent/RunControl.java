@@ -11,8 +11,8 @@
 
 package org.jlab.coda.emu.support.codaComponent;
 
-import org.jlab.coda.support.control.Command;
-import org.jlab.coda.support.control.State;
+import org.jlab.coda.emu.support.control.Command;
+import org.jlab.coda.emu.support.control.State;
 
 import java.util.EnumSet;
 import java.util.HashMap;
@@ -75,7 +75,7 @@ public enum RunControl implements Command {
         this.success = success;
     }
 
-    /** @see org.jlab.coda.support.control.Command#description() */
+    /** @see org.jlab.coda.emu.support.control.Command#description() */
     public String description() {
         return description;
     }
@@ -116,7 +116,7 @@ public enum RunControl implements Command {
         args.put(tag, value);
     }
 
-    /** @see org.jlab.coda.support.control.Command#hasArgs() */
+    /** @see org.jlab.coda.emu.support.control.Command#hasArgs() */
     public boolean hasArgs() {
         return !args.isEmpty();
     }
@@ -126,7 +126,7 @@ public enum RunControl implements Command {
         args.clear();
     }
 
-    /** @see org.jlab.coda.support.control.Command#success() */
+    /** @see org.jlab.coda.emu.support.control.Command#success() */
     public State success() {
         if (success != null) {
             return CODAState.valueOf(success);

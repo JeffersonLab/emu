@@ -18,14 +18,14 @@ package org.jlab.coda.emu.support.ui;
 import org.jdesktop.layout.GroupLayout;
 import org.jdesktop.layout.LayoutStyle;
 import org.jlab.coda.emu.Emu;
-import org.jlab.coda.support.codaComponent.CODATransition;
-import org.jlab.coda.support.codaComponent.RunControl;
-import org.jlab.coda.support.codaComponent.SessionControl;
-import org.jlab.coda.support.configurer.Configurer;
-import org.jlab.coda.support.configurer.DataNode;
-import org.jlab.coda.support.logger.Logger;
-import org.jlab.coda.support.logger.QueueAppender;
-import org.jlab.coda.support.ui.log.SwingLogConsoleDialog;
+import org.jlab.coda.emu.support.codaComponent.CODATransition;
+import org.jlab.coda.emu.support.codaComponent.RunControl;
+import org.jlab.coda.emu.support.codaComponent.SessionControl;
+import org.jlab.coda.emu.support.configurer.Configurer;
+import org.jlab.coda.emu.support.configurer.DataNode;
+import org.jlab.coda.emu.support.logger.Logger;
+import org.jlab.coda.emu.support.logger.QueueAppender;
+import org.jlab.coda.emu.support.ui.log.SwingLogConsoleDialog;
 import org.w3c.dom.Document;
 import org.w3c.dom.Node;
 
@@ -128,7 +128,7 @@ public class DebugFrame extends JFrame {
     private void initComponents() {
         // JFormDesigner - CODAComponent initialization - DO NOT MODIFY  //GEN-BEGIN:initComponents
         // Generated using JFormDesigner non-commercial license
-        ResourceBundle bundle = ResourceBundle.getBundle("org.jlab.coda.support.ui.rsrc.strings");
+        ResourceBundle bundle = ResourceBundle.getBundle("org.jlab.coda.emu.support.ui.rsrc.strings");
         menuBar = new JMenuBar();
         fileMenu = new JMenu();
         quitMenuItem = new JMenuItem();

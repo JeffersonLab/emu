@@ -1,6 +1,6 @@
 package org.jlab.coda.emu.support.transport;
 
-import org.jlab.coda.support.logger.Logger;
+import org.jlab.coda.emu.support.logger.Logger;
 import org.jlab.coda.jevio.EvioBank;
 
 import java.util.concurrent.BlockingQueue;

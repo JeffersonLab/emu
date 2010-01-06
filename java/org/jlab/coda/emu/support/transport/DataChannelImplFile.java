@@ -1,8 +1,8 @@
 package org.jlab.coda.emu.support.transport;
 
 import org.jlab.coda.emu.Emu;
-import org.jlab.coda.support.codaComponent.CODAState;
-import org.jlab.coda.support.logger.Logger;
+import org.jlab.coda.emu.support.codaComponent.CODAState;
+import org.jlab.coda.emu.support.logger.Logger;
 import org.jlab.coda.jevio.EvioBank;
 import org.jlab.coda.jevio.EvioFile;
 import org.jlab.coda.jevio.EventWriter;
@@ -50,7 +50,7 @@ public class DataChannelImplFile implements DataChannel {
      * @param dataTransport of type DataTransport
      * @param input         true if this is an input
      *
-     * @throws org.jlab.coda.support.transport.DataTransportException
+     * @throws org.jlab.coda.emu.support.transport.DataTransportException
      *          - unable to create fifo buffer.
      */
     DataChannelImplFile(String name, DataTransportImplFile dataTransport, boolean input) throws DataTransportException {

@@ -11,8 +11,8 @@
 
 package org.jlab.coda.emu.support.codaComponent;
 
-import org.jlab.coda.support.control.Command;
-import org.jlab.coda.support.control.State;
+import org.jlab.coda.emu.support.control.Command;
+import org.jlab.coda.emu.support.control.State;
 
 import java.util.EnumSet;
 import java.util.HashMap;
@@ -101,7 +101,7 @@ public enum CODATransition implements Command {
 
     /**
      * Get the description of this transition.
-     * @see org.jlab.coda.support.control.Command#description()
+     * @see org.jlab.coda.emu.support.control.Command#description()
      */
     public String description() {
         return description;
@@ -109,7 +109,7 @@ public enum CODATransition implements Command {
 
     /**
      * Is this transition enabled?
-     * @see org.jlab.coda.support.control.Command#isEnabled()
+     * @see org.jlab.coda.emu.support.control.Command#isEnabled()
      */
     public boolean isEnabled() {
 

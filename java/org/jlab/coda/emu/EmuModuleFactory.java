@@ -10,19 +10,19 @@
  */
 package org.jlab.coda.emu;
 
-import org.jlab.coda.support.codaComponent.CODAState;
-import org.jlab.coda.support.codaComponent.CODATransition;
-import org.jlab.coda.support.codaComponent.RunControl;
-import org.jlab.coda.support.codaComponent.StatedObject;
-import org.jlab.coda.support.configurer.Configurer;
-import org.jlab.coda.support.configurer.DataNotFoundException;
-import org.jlab.coda.support.control.CmdExecException;
-import org.jlab.coda.support.control.Command;
-import org.jlab.coda.support.control.State;
-import org.jlab.coda.support.logger.Logger;
-import org.jlab.coda.support.transport.DataChannel;
-import org.jlab.coda.support.transport.DataTransport;
-import org.jlab.coda.support.transport.DataTransportFactory;
+import org.jlab.coda.emu.support.codaComponent.CODAState;
+import org.jlab.coda.emu.support.codaComponent.CODATransition;
+import org.jlab.coda.emu.support.codaComponent.RunControl;
+import org.jlab.coda.emu.support.codaComponent.StatedObject;
+import org.jlab.coda.emu.support.configurer.Configurer;
+import org.jlab.coda.emu.support.configurer.DataNotFoundException;
+import org.jlab.coda.emu.support.control.CmdExecException;
+import org.jlab.coda.emu.support.control.Command;
+import org.jlab.coda.emu.support.control.State;
+import org.jlab.coda.emu.support.logger.Logger;
+import org.jlab.coda.emu.support.transport.DataChannel;
+import org.jlab.coda.emu.support.transport.DataTransport;
+import org.jlab.coda.emu.support.transport.DataTransportFactory;
 import org.w3c.dom.NamedNodeMap;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;

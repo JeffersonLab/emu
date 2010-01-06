@@ -14,7 +14,7 @@ package org.jlab.coda.emu.support.transport;
 import org.jlab.coda.jevio.EvioBank;
 import org.jlab.coda.jevio.ByteParser;
 import org.jlab.coda.jevio.EvioException;
-import org.jlab.coda.support.logger.Logger;
+import org.jlab.coda.emu.support.logger.Logger;
 import org.jlab.coda.cMsg.*;
 import org.jlab.coda.emu.Emu;
 

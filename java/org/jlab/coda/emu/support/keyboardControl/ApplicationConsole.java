@@ -15,8 +15,8 @@
 package org.jlab.coda.emu.support.keyboardControl;
 
 import org.jlab.coda.emu.Emu;
-import org.jlab.coda.support.logger.Logger;
-import org.jlab.coda.support.logger.PrintAppender;
+import org.jlab.coda.emu.support.logger.Logger;
+import org.jlab.coda.emu.support.logger.PrintAppender;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -205,7 +205,7 @@ public class ApplicationConsole implements KbdHandler, Runnable {
     /*
     * (non-Javadoc)
     *
-    * @see org.jlab.coda.support.kbd.KbdHandler#keyHandler(char,
+    * @see org.jlab.coda.emu.support.kbd.KbdHandler#keyHandler(char,
     *      java.lang.Object)
     */
     public boolean keyHandler(String s, PrintWriter out, Object argument) {
@@ -220,7 +220,7 @@ public class ApplicationConsole implements KbdHandler, Runnable {
     /*
     * (non-Javadoc)
     *
-    * @see org.jlab.coda.support.kbd.KbdHandler#printHelp(char)
+    * @see org.jlab.coda.emu.support.kbd.KbdHandler#printHelp(char)
     */
     public void printHelp(PrintWriter out) {
         out.println("KeyboardControl");

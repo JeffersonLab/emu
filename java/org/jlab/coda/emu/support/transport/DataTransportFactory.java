@@ -13,16 +13,16 @@ package org.jlab.coda.emu.support.transport;
 
 import org.jlab.coda.emu.Emu;
 import org.jlab.coda.emu.EmuClassLoader;
-import org.jlab.coda.support.codaComponent.CODAState;
-import org.jlab.coda.support.codaComponent.CODATransition;
-import org.jlab.coda.support.codaComponent.RunControl;
-import org.jlab.coda.support.codaComponent.StatedObject;
-import org.jlab.coda.support.configurer.Configurer;
-import org.jlab.coda.support.configurer.DataNotFoundException;
-import org.jlab.coda.support.control.CmdExecException;
-import org.jlab.coda.support.control.Command;
-import org.jlab.coda.support.control.State;
-import org.jlab.coda.support.logger.Logger;
+import org.jlab.coda.emu.support.codaComponent.CODAState;
+import org.jlab.coda.emu.support.codaComponent.CODATransition;
+import org.jlab.coda.emu.support.codaComponent.RunControl;
+import org.jlab.coda.emu.support.codaComponent.StatedObject;
+import org.jlab.coda.emu.support.configurer.Configurer;
+import org.jlab.coda.emu.support.configurer.DataNotFoundException;
+import org.jlab.coda.emu.support.control.CmdExecException;
+import org.jlab.coda.emu.support.control.Command;
+import org.jlab.coda.emu.support.control.State;
+import org.jlab.coda.emu.support.logger.Logger;
 import org.w3c.dom.NamedNodeMap;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
@@ -106,7 +106,7 @@ public class DataTransportFactory implements StatedObject {
      *
      * @param cmd of type Command
      *
-     * @throws org.jlab.coda.support.control.CmdExecException
+     * @throws org.jlab.coda.emu.support.control.CmdExecException
      *          if command is invalid or fails
      * @see org.jlab.coda.emu.EmuModule#execute(Command)
      */
@@ -159,7 +159,7 @@ public class DataTransportFactory implements StatedObject {
                         // from the name passed from the configuration.
                         String transportClass = attrib.get("class");
                         if (transportClass == null) throw new DataNotFoundException("transport class attribute missing in config");
-                        String implName = "org.jlab.coda.support.transport.DataTransportImpl" + transportClass;
+                        String implName = "org.jlab.coda.emu.support.transport.DataTransportImpl" + transportClass;
 
                         try {
                             Class c = DataTransportFactory.class.getClassLoader().loadClass(implName);
@@ -239,7 +239,7 @@ Logger.info("  DataTransportFactory.execute DOWN : loaded class = " + c);
      *
      * @param cmd of type Command
      *
-     * @throws org.jlab.coda.support.control.CmdExecException
+     * @throws org.jlab.coda.emu.support.control.CmdExecException
      *          if command is invalid or fails
      * @see org.jlab.coda.emu.EmuModule#execute(Command)
      */
@@ -322,8 +322,8 @@ Logger.info("  DataTransportFactory.execute DOWN : loaded class = " + c);
                         // from the name passed from the configuration.
                         String transportClass = attrib.get("class");
                         if (transportClass == null) throw new DataNotFoundException("transport class attribute missing in config");
-                        String transportImplName = "org.jlab.coda.support.transport.DataTransportImpl" + transportClass;
-                        String channelImplName = "org.jlab.coda.support.transport.DataChannelImpl" + transportClass;
+                        String transportImplName = "org.jlab.coda.emu.support.transport.DataTransportImpl" + transportClass;
+                        String channelImplName = "org.jlab.coda.emu.support.transport.DataChannelImpl" + transportClass;
 
                         try {
                             ecl.setClassesToLoad(new String[] {transportImplName,channelImplName});

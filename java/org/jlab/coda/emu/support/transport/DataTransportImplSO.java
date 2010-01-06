@@ -12,12 +12,12 @@
 package org.jlab.coda.emu.support.transport;
 
 import org.jlab.coda.emu.Emu;
-import org.jlab.coda.support.codaComponent.CODAState;
-import org.jlab.coda.support.codaComponent.CODATransition;
-import org.jlab.coda.support.codaComponent.RunControl;
-import org.jlab.coda.support.configurer.DataNotFoundException;
-import org.jlab.coda.support.control.Command;
-import org.jlab.coda.support.control.State;
+import org.jlab.coda.emu.support.codaComponent.CODAState;
+import org.jlab.coda.emu.support.codaComponent.CODATransition;
+import org.jlab.coda.emu.support.codaComponent.RunControl;
+import org.jlab.coda.emu.support.configurer.DataNotFoundException;
+import org.jlab.coda.emu.support.control.Command;
+import org.jlab.coda.emu.support.control.State;
 import org.jlab.coda.jevio.EvioBank;
 
 import java.io.DataInputStream;

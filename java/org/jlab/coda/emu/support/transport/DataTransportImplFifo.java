@@ -1,7 +1,7 @@
 package org.jlab.coda.emu.support.transport;
 
-import org.jlab.coda.support.configurer.DataNotFoundException;
-import org.jlab.coda.support.control.Command;
+import org.jlab.coda.emu.support.configurer.DataNotFoundException;
+import org.jlab.coda.emu.support.control.Command;
 
 import java.util.Map;
 

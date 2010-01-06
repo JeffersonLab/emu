@@ -1,4 +1,4 @@
-package org.jlab.coda.test;
+package org.jlab.coda.emu.test;
 
 import org.jlab.coda.cMsg.*;
 import org.jlab.coda.jevio.EvioBank;

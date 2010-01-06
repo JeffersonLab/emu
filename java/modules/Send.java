@@ -12,12 +12,12 @@
 package modules;
 
 import org.jlab.coda.emu.EmuModule;
-import org.jlab.coda.support.codaComponent.CODAState;
-import org.jlab.coda.support.codaComponent.CODATransition;
-import org.jlab.coda.support.control.Command;
-import org.jlab.coda.support.control.State;
-import org.jlab.coda.support.logger.Logger;
-import org.jlab.coda.support.transport.DataChannel;
+import org.jlab.coda.emu.support.codaComponent.CODAState;
+import org.jlab.coda.emu.support.codaComponent.CODATransition;
+import org.jlab.coda.emu.support.control.Command;
+import org.jlab.coda.emu.support.control.State;
+import org.jlab.coda.emu.support.logger.Logger;
+import org.jlab.coda.emu.support.transport.DataChannel;
 
 import java.util.ArrayList;
 

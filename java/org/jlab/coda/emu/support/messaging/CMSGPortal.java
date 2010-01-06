@@ -16,10 +16,10 @@ import org.jlab.coda.cMsg.cMsgException;
 import org.jlab.coda.cMsg.cMsgMessage;
 import org.jlab.coda.cMsg.cMsgPayloadItem;
 import org.jlab.coda.emu.Emu;
-import org.jlab.coda.support.codaComponent.CODAComponent;
-import org.jlab.coda.support.logger.Logger;
-import org.jlab.coda.support.logger.LoggerAppender;
-import org.jlab.coda.support.logger.LoggingEvent;
+import org.jlab.coda.emu.support.codaComponent.CODAComponent;
+import org.jlab.coda.emu.support.logger.Logger;
+import org.jlab.coda.emu.support.logger.LoggerAppender;
+import org.jlab.coda.emu.support.logger.LoggingEvent;
 
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;

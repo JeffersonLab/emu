@@ -11,7 +11,7 @@
 
 package org.jlab.coda.emu.support.configurer;
 
-import org.jlab.coda.support.logger.Logger;
+import org.jlab.coda.emu.support.logger.Logger;
 import org.w3c.dom.*;
 import org.w3c.dom.bootstrap.DOMImplementationRegistry;
 import org.w3c.dom.ls.*;

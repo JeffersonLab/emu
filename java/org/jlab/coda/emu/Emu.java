@@ -15,20 +15,20 @@ import org.jlab.coda.cMsg.cMsgConstants;
 import org.jlab.coda.cMsg.cMsgException;
 import org.jlab.coda.cMsg.cMsgPayloadItem;
 import org.jlab.coda.cMsg.cMsgMessage;
-import org.jlab.coda.support.codaComponent.*;
-import org.jlab.coda.support.configurer.Configurer;
-import org.jlab.coda.support.configurer.DataNotFoundException;
-import org.jlab.coda.support.control.CmdExecException;
-import org.jlab.coda.support.control.Command;
-import org.jlab.coda.support.control.State;
-import org.jlab.coda.support.keyboardControl.ApplicationConsole;
-import org.jlab.coda.support.keyboardControl.KbdHandler;
-import org.jlab.coda.support.logger.Logger;
-import org.jlab.coda.support.messaging.CMSGPortal;
-import org.jlab.coda.support.messaging.RCConstants;
-import org.jlab.coda.support.transport.DataChannel;
-import org.jlab.coda.support.ui.DebugFrame;
-import org.jlab.coda.support.w3.CmdListener;
+import org.jlab.coda.emu.support.codaComponent.*;
+import org.jlab.coda.emu.support.configurer.Configurer;
+import org.jlab.coda.emu.support.configurer.DataNotFoundException;
+import org.jlab.coda.emu.support.control.CmdExecException;
+import org.jlab.coda.emu.support.control.Command;
+import org.jlab.coda.emu.support.control.State;
+import org.jlab.coda.emu.support.keyboardControl.ApplicationConsole;
+import org.jlab.coda.emu.support.keyboardControl.KbdHandler;
+import org.jlab.coda.emu.support.logger.Logger;
+import org.jlab.coda.emu.support.messaging.CMSGPortal;
+import org.jlab.coda.emu.support.messaging.RCConstants;
+import org.jlab.coda.emu.support.transport.DataChannel;
+import org.jlab.coda.emu.support.ui.DebugFrame;
+import org.jlab.coda.emu.support.w3.CmdListener;
 import org.w3c.dom.Document;
 import org.w3c.dom.Node;
 
@@ -413,7 +413,7 @@ System.out.println("Done parsing the file -> " + configFile);
     /**
      * This method monitors the mailbox for incoming commands and monitors the state of the emu
      * (actually the state of the MODULE_FACTORY) to detect any error conditions.
-     * @see org.jlab.coda.support.codaComponent.CODAComponent#run()
+     * @see org.jlab.coda.emu.support.codaComponent.CODAComponent#run()
      */
     public void run() {
         Logger.info("CODAComponent state monitor thread started");
@@ -498,7 +498,7 @@ System.out.println("ERROR in setting value in local config !!!");
      *
      * @return boolean
      *
-     * @see org.jlab.coda.support.keyboardControl.KbdHandler#keyHandler(String,java.io.PrintWriter,Object)
+     * @see org.jlab.coda.emu.support.keyboardControl.KbdHandler#keyHandler(String,java.io.PrintWriter,Object)
      */
     public boolean keyHandler(String command, PrintWriter out, Object argument) {
         try {
@@ -518,7 +518,7 @@ System.out.println("ERROR in setting value in local config !!!");
     /*
     * (non-Javadoc)
     *
-    * @see org.jlab.coda.support.kbd.KbdHandler#printHelp(char)
+    * @see org.jlab.coda.emu.support.kbd.KbdHandler#printHelp(char)
     */
     public void printHelp(PrintWriter out) {
         out.println("CODAComponent");
@@ -792,7 +792,7 @@ System.out.println("EXECUTING cmd = " + cmd.name());
      *
      * @param config the new config string.
      *
-     * @see org.jlab.coda.support.codaComponent.CODAComponent#setConfig(String)
+     * @see org.jlab.coda.emu.support.codaComponent.CODAComponent#setConfig(String)
      */
     public void setConfig(String config) {
         this.config = config;
@@ -803,7 +803,7 @@ System.out.println("EXECUTING cmd = " + cmd.name());
      *
      * @param runNumber the new runNumber.
      *
-     * @see org.jlab.coda.support.codaComponent.CODAComponent#setRunNumber(int)
+     * @see org.jlab.coda.emu.support.codaComponent.CODAComponent#setRunNumber(int)
      */
     public void setRunNumber(int runNumber) {
         this.runNumber = runNumber;
@@ -814,7 +814,7 @@ System.out.println("EXECUTING cmd = " + cmd.name());
      *
      * @param runType the new runType.
      *
-     * @see org.jlab.coda.support.codaComponent.CODAComponent#setRunType(int)
+     * @see org.jlab.coda.emu.support.codaComponent.CODAComponent#setRunType(int)
      */
     public void setRunType(int runType) {
         this.runType = runType;
@@ -825,7 +825,7 @@ System.out.println("EXECUTING cmd = " + cmd.name());
      *
      * @param codaid the new codaid.
      *
-     * @see org.jlab.coda.support.codaComponent.CODAComponent#setCodaid(int)
+     * @see org.jlab.coda.emu.support.codaComponent.CODAComponent#setCodaid(int)
      */
     public void setCodaid(int codaid) {
         this.codaid = codaid;

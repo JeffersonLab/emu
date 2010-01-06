@@ -1,11 +1,11 @@
-package org.jlab.coda.test;
+package org.jlab.coda.emu.test;
 
 import org.jlab.coda.cMsg.cMsgException;
 import org.jlab.coda.cMsg.cMsg;
 import org.jlab.coda.cMsg.cMsgMessage;
 import org.jlab.coda.cMsg.cMsgConstants;
 import org.jlab.coda.jevio.*;
-import org.jlab.coda.support.data.Evio;
+import org.jlab.coda.emu.support.data.Evio;
 
 import javax.xml.stream.XMLStreamWriter;
 import javax.xml.stream.XMLOutputFactory;

@@ -12,8 +12,8 @@
 package org.jlab.coda.emu.support.w3;
 
 import org.jlab.coda.emu.Emu;
-import org.jlab.coda.support.keyboardControl.ApplicationConsole;
-import org.jlab.coda.support.logger.Logger;
+import org.jlab.coda.emu.support.keyboardControl.ApplicationConsole;
+import org.jlab.coda.emu.support.logger.Logger;
 
 import java.io.BufferedReader;
 import java.io.IOException;

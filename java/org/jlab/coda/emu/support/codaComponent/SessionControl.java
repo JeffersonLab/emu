@@ -11,8 +11,8 @@
 
 package org.jlab.coda.emu.support.codaComponent;
 
-import org.jlab.coda.support.control.Command;
-import org.jlab.coda.support.control.State;
+import org.jlab.coda.emu.support.control.Command;
+import org.jlab.coda.emu.support.control.State;
 
 import java.util.EnumSet;
 import java.util.HashMap;
@@ -98,7 +98,7 @@ public enum SessionControl implements Command {
         args.put(tag, value);
     }
 
-    /** @see org.jlab.coda.support.control.Command#hasArgs() */
+    /** @see org.jlab.coda.emu.support.control.Command#hasArgs() */
     public boolean hasArgs() {
         return !args.isEmpty();
     }

@@ -10,11 +10,11 @@
  *
  */
 
-package org.jlab.coda.test;
+package org.jlab.coda.emu.test;
 
 import org.jlab.coda.cMsg.*;
 import org.jlab.coda.jevio.*;
-import org.jlab.coda.support.data.Evio;
+import org.jlab.coda.emu.support.data.Evio;
 
 import java.util.concurrent.TimeoutException;
 import java.net.Socket;
