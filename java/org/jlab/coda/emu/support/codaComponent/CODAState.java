@@ -25,55 +25,67 @@ import java.util.Vector;
  *                 *****************
  *                 * State Machine *
  *                 *****************
- * ____________________________________________________
+ * _________________________________________________________________
  *                 |                 |
  *    transition   |      STATE      |  transition
- * ________________|_________________|__________________
+ * ________________|_________________|______________________________
  *
  *
- *                  <- UNCONFIGURED
- *                 |
- *     configure   |
- *                 |
- *                 '-> CONFIGURED
- *                  <-
- *                 |
- *     download    |
- *                 |
- *                 '-> DOWNLOADED <-,<----------,
- *                  <-              ^           ^
- *                 |                |           |
- *     prestart    |                |   end     |
- *                 |                |           |
- *                 '-> PRESTARTED ->            |  end
- *                  <-            <-            |
- *                 |                ^           |
- *        go       |                |  pause    |
- *                 |                |           |
- *                 '->  ACTIVE  --->'---------->'
+ *                  <- UNCONFIGURED <-----------------------,
+ *                 |                                        |
+ *     configure   |                                        |
+ *                 |                                        |
+ *                 '-> CONFIGURED ->----------------------->|
+ *                  <-                                      ^
+ *                 |                                        |
+ *     download    |                                        |
+ *                 |                                        |
+ *                 '-> DOWNLOADED ->----------------------->|
+ *                  <-            <-,<----------,           ^
+ *                 |                ^           ^           |
+ *                 |                |           |           |
+ *     prestart    |                | end       | end       | reset
+ *                 |                |           |           |
+ *                 '-> PRESTARTED -> -----------|---------->|
+ *                  <-            <-,           |           ^
+ *                 |                ^           |           |
+ *        go       |                | pause     |           |
+ *                 |                |           |           |
+ *                 '->  ACTIVE  --->'---------->'---------->'
  *
- * ____________________________________________________
+ * __________________________________________________________________
  *
- *  NOTE: DOWNLOADED can always do a download
+ *  NOTE: DOWNLOADED can always do a download,
+ *        RESET goes from any state to UNCONFIGURED
  *
  * </pre></code>
  *
  * @author heyes
+ * @author timmer
  */
 public enum CODAState implements State {
 
     /** UNCONFIGURED state. */
-    UNCONFIGURED("codaComponent is not configured", EnumSet.of(CODATransition.CONFIGURE)),
+    UNCONFIGURED("codaComponent is not configured", EnumSet.of(CODATransition.CONFIGURE,
+                                                               CODATransition.RESET)),
     /** CONFIGURED state. */
-    CONFIGURED("configuration is loaded", EnumSet.of(CODATransition.DOWNLOAD)),
+    CONFIGURED("configuration is loaded", EnumSet.of(CODATransition.DOWNLOAD,
+                                                     CODATransition.RESET)),
     /** DOWNLOADED state (same as ENDED). */
-    DOWNLOADED("external modules loaded", EnumSet.of(CODATransition.DOWNLOAD, CODATransition.PRESTART)),
+    DOWNLOADED("external modules loaded", EnumSet.of(CODATransition.DOWNLOAD,
+                                                     CODATransition.PRESTART,
+                                                     CODATransition.RESET)),
     /** PRESTARTED state (same as PAUSED). */
-    PRESTARTED("modules initialized and ready to go", EnumSet.of(CODATransition.GO, CODATransition.END)),
+    PRESTARTED("modules initialized and ready to go", EnumSet.of(CODATransition.GO,
+                                                                 CODATransition.END,
+                                                                 CODATransition.RESET)),
     /** ACTIVE state. */
-    ACTIVE("taking data", EnumSet.of(CODATransition.PAUSE, CODATransition.END)),
+    ACTIVE("taking data", EnumSet.of(CODATransition.PAUSE,
+                                     CODATransition.END,
+                                     CODATransition.RESET)),
     /** ERROR state. */
     ERROR("an error has occured", EnumSet.noneOf(CODATransition.class));
+
 
     /** Description of this state. */
     private final String description;
@@ -84,7 +96,6 @@ public enum CODAState implements State {
     /** Set of all transitions allowed out of this state. */
     private final EnumSet allowed;
 
-    //private boolean reported = false;
 
     /**
      * Constructor.

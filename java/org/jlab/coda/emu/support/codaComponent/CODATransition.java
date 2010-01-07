@@ -13,6 +13,7 @@ package org.jlab.coda.emu.support.codaComponent;
 
 import org.jlab.coda.emu.support.control.Command;
 import org.jlab.coda.emu.support.control.State;
+import org.jlab.coda.emu.support.messaging.RCConstants;
 
 import java.util.EnumSet;
 import java.util.HashMap;
@@ -25,36 +26,38 @@ import java.util.HashMap;
  *                 *****************
  *                 * State Machine *
  *                 *****************
- * ____________________________________________________
+ * _________________________________________________________________
  *                 |                 |
  *    transition   |      STATE      |  transition
- * ________________|_________________|__________________
+ * ________________|_________________|______________________________
  *
  *
- *                  <- UNCONFIGURED
- *                 |
- *     configure   |
- *                 |
- *                 '-> CONFIGURED
- *                  <-
- *                 |
- *     download    |
- *                 |
- *                 '-> DOWNLOADED <-,<----------,
- *                  <-              ^           ^
- *                 |                |           |
- *     prestart    |                |   end     |
- *                 |                |           |
- *                 '-> PRESTARTED ->            |  end
- *                  <-            <-            |
- *                 |                ^           |
- *        go       |                |  pause    |
- *                 |                |           |
- *                 '->  ACTIVE  --->'---------->'
+ *                  <- UNCONFIGURED <-----------------------,
+ *                 |                                        |
+ *     configure   |                                        |
+ *                 |                                        |
+ *                 '-> CONFIGURED ->----------------------->|
+ *                  <-                                      ^
+ *                 |                                        |
+ *     download    |                                        |
+ *                 |                                        |
+ *                 '-> DOWNLOADED ->----------------------->|
+ *                  <-            <-,<----------,           ^
+ *                 |                ^           ^           |
+ *                 |                |           |           |
+ *     prestart    |                | end       | end       | reset
+ *                 |                |           |           |
+ *                 '-> PRESTARTED -> -----------|---------->|
+ *                  <-            <-            |           ^
+ *                 |                ^           |           |
+ *        go       |                | pause     |           |
+ *                 |                |           |           |
+ *                 '->  ACTIVE  --->'---------->'---------->'
  *
- * ____________________________________________________
+ * __________________________________________________________________
  *
- *  NOTE: DOWNLOADED can always do a download
+ *  NOTE: DOWNLOADED can always do a download,
+ *        RESET goes from any state to UNCONFIGURED
  *
  * </pre></code>
  * @author heyes
@@ -72,7 +75,9 @@ public enum CODATransition implements Command {
     /** End. */
     END("End taking data", "DOWNLOADED", false),
     /** Pause. */
-    PAUSE("Pause taking data", "PRESTARTED", false);
+    PAUSE("Pause taking data", "PRESTARTED", false),
+    /** Reset. */
+    RESET("Return to pre-configured state", "UNCONFIGURED", true);
 
     
     /** Description of the transition. */
@@ -86,12 +91,14 @@ public enum CODATransition implements Command {
 
     /** Field enabled */
     private boolean enabled = false;
+    
 
     /**
      * Constructor CODATransition creates a new CODATransition instance.
      *
      * @param description of type String
-     * @param success     of type String
+     * @param success state EMU ends up in if transition successful
+     * @param enabled true if this transition is enabled to start with
      */
     CODATransition(String description, String success, boolean enabled) {
         this.description = description;
@@ -112,7 +119,6 @@ public enum CODATransition implements Command {
      * @see org.jlab.coda.emu.support.control.Command#isEnabled()
      */
     public boolean isEnabled() {
-
         return enabled;
     }
 
