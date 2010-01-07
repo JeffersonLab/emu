@@ -357,7 +357,7 @@ public class DataTransportImplSO extends DataTransportCore implements DataTransp
             return;
         }
 
-        if (cmd.equals(RunControl.RESET)) {
+        if (cmd.equals(CODATransition.RESET)) {
 
             state = cmd.success();
             return;

@@ -113,7 +113,7 @@ Logger.debug("    DataTransportImplCmsg.execute : " + cmd);
                 }
             }
         }
-        else if ((cmd.equals(CODATransition.END)) || (cmd.equals(RunControl.RESET))) {
+        else if ((cmd.equals(CODATransition.END)) || (cmd.equals(CODATransition.RESET))) {
 
             try {
                 Logger.debug("    DataTransportImplCmsg.execute END/RESET: cmsg disconnect : " + name() + " " + myInstance);

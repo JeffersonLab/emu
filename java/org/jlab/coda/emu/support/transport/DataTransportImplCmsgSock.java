@@ -290,7 +290,7 @@ System.out.println("    DataTransportImplCmsgSock.execute : " + cmd);
             state = cmd.success();
             return;
         }
-        else if ((cmd.equals(CODATransition.END)) || (cmd.equals(RunControl.RESET))) {
+        else if ((cmd.equals(CODATransition.END)) || (cmd.equals(CODATransition.RESET))) {
             try {
                 Logger.debug("    DataTransportImplCmsgSock.execute END/RESET: cmsg unsubscribe : " + name() + " " + myInstance);
                 CMSGPortal.getServer().unsubscribe(sub);

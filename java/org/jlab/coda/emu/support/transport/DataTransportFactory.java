@@ -219,7 +219,7 @@ Logger.info("  DataTransportFactory.execute DOWN : loaded class = " + c);
             state = cmd.success();
         }
 
-        if (cmd.equals(RunControl.RESET)) {
+        if (cmd.equals(CODATransition.RESET)) {
             for (DataTransport t : transports) {
                 Logger.debug("  DataTransportFactory.execute RESET : " + t.name() + " close");
                 t.close();
@@ -382,7 +382,7 @@ Logger.info("&*&*&* Transport loaded class = " + c);
 
 
         // RESET & END transitions
-        if (cmd.equals(RunControl.RESET) || cmd.equals(CODATransition.END)) {
+        if (cmd.equals(CODATransition.RESET) || cmd.equals(CODATransition.END)) {
             for (DataTransport t : transports) {
                 t.close();
             }
