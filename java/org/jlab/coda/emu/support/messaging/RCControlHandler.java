@@ -14,6 +14,7 @@ package org.jlab.coda.emu.support.messaging;
 import org.jlab.coda.cMsg.cMsgCallbackInterface;
 import org.jlab.coda.cMsg.cMsgMessage;
 import org.jlab.coda.emu.support.codaComponent.RunControl;
+import org.jlab.coda.emu.support.codaComponent.SessionControl;
 import org.jlab.coda.emu.support.control.Command;
 
 import java.util.Set;
@@ -46,22 +47,14 @@ public class RCControlHandler extends GenericCallback implements cMsgCallbackInt
      * @param o   object given in subscription & passed in here (null in this case)
      */
     public void callback(cMsgMessage msg, Object o) {
-System.out.println("GOT run/control/" + msg.getType() + " message");
+System.out.println("GOT " + msg.getType() + " message");
 
         try {
-            String type = msg.getType();
-            String cmdS = (type.substring(type.lastIndexOf("/") + 1)).toUpperCase();
-
-            // See if message's type (after last / ) is a recognized run control command.
+            // See if message's type is a recognized session-related command.
             // Examples: reset, start, stop, getsession, setsession, etc.
-            // The string cmdS may not be an allowed enum value, in which case an
-            // IllegalArgumentException will be thrown.
-            Command cmd;
-            try {
-                cmd = RunControl.valueOf(cmdS);
-            } catch (IllegalArgumentException e) {
-                // bug bug: do we want this printed, logged, etc ???
-                System.out.println("Received an invalid run control command");
+            Command cmd = RunControl.get(msg.getType());
+            if (cmd == null) {
+System.out.println("Received an invalid run control command");
                 return;
             }
 

@@ -48,7 +48,7 @@ class RCTransitionHandler extends GenericCallback implements cMsgCallbackInterfa
      * @param o   object given in subscription & passed in here (null in this case)
      */
     public void callback(cMsgMessage msg, Object o) {
-System.out.println("GOT run/transition/" + msg.getType() + " message");
+System.out.println("GOT " + msg.getType() + " message");
         try {
             String type = msg.getType();
             String cmdS = (type.substring(type.lastIndexOf("/") + 1)).toUpperCase();
