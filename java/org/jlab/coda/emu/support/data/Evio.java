@@ -107,7 +107,7 @@ import org.jlab.coda.jevio.DataType;
  *
  *
  * @author timmer
- * @date Oct 16, 2009
+ * Oct 16, 2009
  */
 public class Evio {
 
@@ -260,7 +260,7 @@ public class Evio {
      * @param recordId    record count
      * @param numPayloadBanks number of payload banks in this record
      *
-     * @return
+     * @return Evio Data Transport Record event
      * @throws EvioException
      */
     public static EvioEvent createDataTransportRecord(int rocID,       int eventID,
