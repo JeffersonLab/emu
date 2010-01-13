@@ -46,21 +46,18 @@ public class Send implements EmuModule {
         name = pname;
     }
 
-    /**
-     * @return the name
-     *
-     * @see org.jlab.coda.emu.EmuModule#name()
-     */
-    /*
-    * (non-Javadoc)
-    *
-    * @see org.jlab.coda.emu.EmuModule#getName()
-    */
+    public Object[] getStatistics() {
+        return null;
+    }
+
+    public boolean representsEmuStatistics() {
+        return false;
+    }
+
     public String name() {
         return name;
     }
 
-    /** @return the state */
     public State state() {
         return state;
     }
@@ -73,13 +70,6 @@ public class Send implements EmuModule {
         state = s;
     }
 
-    /**
-     * Method execute ...
-     *
-     * @param cmd of type Command
-     *
-     * @see org.jlab.coda.emu.EmuModule#execute(Command)
-     */
     public void execute(Command cmd) {
 
         if (cmd.equals(CODATransition.END)) {

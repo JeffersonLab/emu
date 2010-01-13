@@ -27,7 +27,6 @@ import java.util.ArrayList;
 import java.util.Date;
 import java.util.Iterator;
 import java.util.concurrent.BlockingQueue;
-import java.nio.IntBuffer;
 
 /**
  * This class codes an object that implements the EmuModule interface and can be loaded
@@ -60,10 +59,10 @@ public class Process implements EmuModule, Runnable {
     private final Throwable last_error = null;
 
     /** Field count is a count of the number of DataBank objects written to the outputs. */
-    private int count;
+    private int eventCount;
 
-    /** Field data_count is the sum of the sizes in 32-bit words of DataBank objects written to the outputs. */
-    private long data_count;
+    /** Field wordCount is the sum of the sizes in 32-bit words of DataBank objects written to the outputs. */
+    private long wordCount;
 
     /** Field watcher */
     private Watcher watcher;
@@ -89,8 +88,8 @@ public class Process implements EmuModule, Runnable {
                     synchronized (this) {
                         while (state == CODAState.ACTIVE) {
                             sleep(200);
-                            Configurer.setValue(Emu.INSTANCE.parameters(), "status/events", Long.toString(count));
-                            Configurer.setValue(Emu.INSTANCE.parameters(), "status/data_count", Long.toString(data_count));
+                            Configurer.setValue(Emu.INSTANCE.parameters(), "status/eventCount", Long.toString(eventCount));
+                            Configurer.setValue(Emu.INSTANCE.parameters(), "status/wordCount", Long.toString(wordCount));
                         }
                     }
 
@@ -116,7 +115,15 @@ System.out.println("Process module: quitting watcher thread");
         System.out.println("**** LOADED NEW CLASS, DUDE!!! (modules.Process object) ****");
     }
 
-    /** @see org.jlab.coda.emu.EmuModule#name() */
+
+    public Object[] getStatistics() {
+        return null;
+    }
+
+    public boolean representsEmuStatistics() {
+        return false;
+    }
+
     public String name() {
         return name;
     }
@@ -178,7 +185,7 @@ System.out.println("Process: Grabbed bank off Q");
                     // second event, more traditional bank of banks
                     int tag = 5; // sourceID
                     //TODO set tag/sourceID to something that makes sense
-                    EventBuilder eventBuilder = new EventBuilder(tag, DataType.BANK, count); // args -> tag, type, num
+                    EventBuilder eventBuilder = new EventBuilder(tag, DataType.BANK, eventCount); // args -> tag, type, num
                     EvioEvent event = eventBuilder.getEvent();
 
                     // take all input banks and put them into one output bank (event)
@@ -191,8 +198,8 @@ System.out.println("Process: Added bank to built event");
                     }
                     event.setAllHeaderLengths();
 
-                    data_count += event.getHeader().getLength();
-                    count++;
+                    wordCount += event.getHeader().getLength();
+                    eventCount++;
 
                     if (hasOutputs) {
 System.out.println("Process: put bank on output Q");
@@ -209,7 +216,6 @@ System.out.println("Process: put bank on output Q");
 
     }
 
-    /** @return the state */
     public State state() {
         return state;
     }
@@ -231,7 +237,6 @@ System.out.println("Process: put bank on output Q");
         return last_error;
     }
 
-    /** {@inheritDoc} */
     public void execute(Command cmd) {
         Date theDate = new Date();
         
@@ -252,8 +257,8 @@ System.out.println("Process: put bank on output Q");
         }
 
         else if (cmd.equals(CODATransition.PRESTART)) {
-            count = 0;
-            data_count = 0;
+            eventCount = 0;
+            wordCount = 0;
 
             watcher = new Watcher();
             actionThread = new Thread(Emu.THREAD_GROUP, this, name);
@@ -302,30 +307,15 @@ System.out.println("GO in Process module");
         state = cmd.success();
     }
 
-    /**
-     * finalize is called when the module is unloaded and cleans up allocated resources.
-     *
-     * @throws Throwable
-     */
     protected void finalize() throws Throwable {
         Logger.info("Finalize " + name);
         super.finalize();
     }
 
-    /**
-     * This method allows the input_channels list to be set.
-     *
-     * @param input_channels the input_channels of this EmuModule object.
-     */
     public void setInputChannels(ArrayList<DataChannel> input_channels) {
         this.input_channels = input_channels;
     }
 
-    /**
-     * This method allows the output_channels list to be set
-     *
-     * @param output_channels the output_channels of this EmuModule object.
-     */
     public void setOutputChannels(ArrayList<DataChannel> output_channels) {
         this.output_channels = output_channels;
     }
