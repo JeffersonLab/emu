@@ -23,7 +23,7 @@ import java.util.Map;
 
 /**
  * @author timmer
- * @Date Dec 2, 2009
+ * Dec 2, 2009
  */
 public class DataTransportImplCmsg extends DataTransportCore implements DataTransport {
 

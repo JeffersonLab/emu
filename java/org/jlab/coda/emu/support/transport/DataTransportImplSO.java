@@ -329,8 +329,7 @@ public class DataTransportImplSO extends DataTransportCore implements DataTransp
      * (a singleton) execute method which is only called
      * by the EmuModuleFactory's (a singleton) execute method.
      *
-     * @param {@inheritDoc}
-     * @throws {@inheritDoc}
+     * @param cmd {@inheritDoc}
      */
     public void execute(Command cmd) {
 

@@ -31,7 +31,7 @@ import java.io.PrintWriter;
 
 /**
  * @author timmer
- * @Date Dec 2, 2009
+ * Dec 2, 2009
  */
 public class DataChannelImplCmsg implements DataChannel {
 
@@ -99,7 +99,7 @@ public class DataChannelImplCmsg implements DataChannel {
                 bbuf.clear();
                 bank.write(bbuf);
 
-                System.out.println("\nReceiving msg:\n" + bank.toString());
+//System.out.println("\nReceiving msg:\n" + bank.toString());
 
 //                StringWriter sw2 = new StringWriter(1000);
 //                XMLStreamWriter xmlWriter = XMLOutputFactory.newInstance().createXMLStreamWriter(sw2);
