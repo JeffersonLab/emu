@@ -85,12 +85,10 @@ public class Configurer implements DOMErrorHandler, LSParserFilter {
             DOMConfiguration config = domBuilder.getDomConfig();
 
             // create filter (an item of this class) and add it to the parser
-            // bug bug: why do we have 2 objects of this class being created?
-            // What's the point of making this object an LSParserFilter?
-            // All that is done below is to show every node to the filter and
-            // then accept everything. Were there some plans to filter nodes?
-            LSParserFilter filter = instance;
-            domBuilder.setFilter(filter);
+            // TODO: What's the point of making this object an LSParserFilter?
+            // TODO: All that is done below is to show every node to the filter and
+            // TODO: then accept everything. Were there some plans to filter nodes?
+            domBuilder.setFilter(instance);
 
             // set error handler in DOM parser
             config.setParameter("error-handler", errorHandler);
