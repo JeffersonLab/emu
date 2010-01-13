@@ -17,10 +17,10 @@ package org.jlab.coda.emu.support.configurer;
 public class DataNotFoundException extends Exception {
 
     /**
-     * {@inheritDoc}<p/>
      * Constructor DataNotFoundException creates a new DataNotFoundException instance.
      *
-     * @param message {@inheritDoc}<p/>
+     * @param  message the detail message (which is saved for later retrieval
+     *         by the {@link #getMessage()} method).
      */
     public DataNotFoundException(String message) {
         super(message);
@@ -28,10 +28,14 @@ public class DataNotFoundException extends Exception {
 
 
     /**
-     * {@inheritDoc}<p/>
+     * Constructor DataNotFoundException creates a new DataNotFoundException instance.
      *
-     * @param message {@inheritDoc}<p/>
-     * @param cause {@inheritDoc}<p/>
+     * @param  message the detail message (which is saved for later retrieval
+     *         by the {@link #getMessage()} method).
+     * @param  cause the cause (which is saved for later retrieval by the
+     *         {@link #getCause()} method).  (A <tt>null</tt> value is
+     *         permitted, and indicates that the cause is nonexistent or
+     *         unknown.)
      */
     public DataNotFoundException(String message, Throwable cause) {
         super(message, cause);
@@ -39,9 +43,12 @@ public class DataNotFoundException extends Exception {
 
 
     /**
-     * {@inheritDoc}<p/>
+     * Constructor DataNotFoundException creates a new DataNotFoundException instance.
      *
-     * @param cause {@inheritDoc}<p/>
+     * @param  cause the cause (which is saved for later retrieval by the
+     *         {@link #getCause()} method).  (A <tt>null</tt> value is
+     *         permitted, and indicates that the cause is nonexistent or
+     *         unknown.)
      */
     public DataNotFoundException(Throwable cause) {
         super(cause);
