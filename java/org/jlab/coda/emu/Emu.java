@@ -188,6 +188,16 @@ public class Emu implements KbdHandler, CODAComponent {
     }
 
     
+    /** Thread which reports the EMU status to run control. */
+    private Thread statusReportingThread;
+
+    /** Time in milliseconds of the period of the reportingStatusThread. */
+    private int statusReportingPeriod = 2000;
+
+    /** If true, the status reporting thread is actively reporting status to run control. */
+    private volatile boolean statusReportingOn;
+
+    
     /** Class defining thread which reports the EMU status to run control. */
     class StatusReportingThread extends Thread {
 
@@ -196,7 +206,7 @@ public class Emu implements KbdHandler, CODAComponent {
         }
 
         public void run() {
-System.out.println("STATUS REPORTING THREAD: STARTED +++");
+//System.out.println("STATUS REPORTING THREAD: STARTED +++");
 
             while (!Thread.interrupted()) {
                 if (statusReportingOn &&
@@ -205,13 +215,35 @@ System.out.println("STATUS REPORTING THREAD: STARTED +++");
                     
                     cMsgMessage msg = new cMsgMessage();
                     msg.setSubject(name);
-                    msg.setType(RCConstants.reportStatusType);
+                    msg.setType(RCConstants.reportStatus);
                     String state = MODULE_FACTORY.state().name().toLowerCase();
+
+                    // clear stats
+                    long  eventCount=0L, wordCount=0L;
+                    float eventRate=0.F, wordRate=0.F;
+
+                    // get new statistics from a single representative module
+                    EmuModule statsModule = MODULE_FACTORY.getStatisticsModule();
+                    if (statsModule != null) {
+                        Object[] stats = statsModule.getStatistics();
+                        if (stats != null) {
+                            eventCount = (Long) stats[0];
+                            wordCount  = (Long) stats[1];
+                            eventRate  = (Float)stats[2];
+                            wordRate   = (Float)stats[3];
+System.out.println("Report stats for module " + statsModule.name() + ":\ncount = " + eventCount +
+                   "\nwords = " + wordCount + "\neventRate = " + eventRate + "\nwordRate = " + wordRate);
+                        }
+                    }
+
                     try {
-                        msg.addPayloadItem(new cMsgPayloadItem("state", state));
-                        msg.addPayloadItem(new cMsgPayloadItem("codaClass", "CDEB"));
+                        msg.addPayloadItem(new cMsgPayloadItem(RCConstants.state, state));
+                        msg.addPayloadItem(new cMsgPayloadItem(RCConstants.codaClass, "CDEB"));
+                        msg.addPayloadItem(new cMsgPayloadItem(RCConstants.eventNumber, eventCount));
+                        msg.addPayloadItem(new cMsgPayloadItem(RCConstants.eventRate, eventRate));
+                        msg.addPayloadItem(new cMsgPayloadItem(RCConstants.numberOfLongs, wordCount));
+                        msg.addPayloadItem(new cMsgPayloadItem(RCConstants.dataRate, wordRate));
                         CMSGPortal.getServer().send(msg);
-System.out.println("Sent back msg to sub = " + name + ", state = " + state);
                     }
                     catch (cMsgException e) {
                         e.printStackTrace();
@@ -222,25 +254,16 @@ System.out.println("Sent back msg to sub = " + name + ", state = " + state);
                     Thread.sleep(statusReportingPeriod);
                 }
                 catch (InterruptedException e) {
-System.out.println("STATUS REPORTING THREAD: DONE xxx");
+//System.out.println("STATUS REPORTING THREAD: DONE xxx");
                     return;
                 }
             }
-System.out.println("STATUS REPORTING THREAD: DONE xxx");
+//System.out.println("STATUS REPORTING THREAD: DONE xxx");
 
         }
 
     };
 
-
-    /** Thread which reports the EMU status to run control. */
-    private StatusReportingThread statusReportingThread;
-
-    /** Time in milliseconds of the period of the reportingStatusThread. */
-    private int statusReportingPeriod = 2000;
-
-    /** If true, the status reporting thread is actively reporting status to run control. */
-    private volatile boolean statusReportingOn = true;
 
 
     /**
@@ -300,7 +323,7 @@ System.out.println("STATUS REPORTING THREAD: DONE xxx");
         statusMonitor.start();
 
         // Start up status reporting thread (which needs cmsg to send msgs)
-        statusReportingThread = new StatusReportingThread();
+        statusReportingThread = new Thread(THREAD_GROUP, new StatusReportingThread(), "Statistics reporting");
         statusReportingThread.start();
 
         // Must set the name of this EMU
@@ -653,7 +676,7 @@ System.out.println("EXECUTING cmd = " + cmd.name());
         }
 
         // if given the "reset" command, do that after the modules have reset
-        if (cmd.equals(RunControl.RESET)) {
+        if (cmd.equals(CODATransition.RESET)) {
             if ((FRAMEWORK != null) && (loadedConfig != null)) FRAMEWORK.removeDocument(loadedConfig);
             loadedConfig = null;
         }
