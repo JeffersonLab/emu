@@ -55,4 +55,31 @@ public interface EmuModule extends StatedObject {
      */
     public void setOutputChannels(ArrayList<DataChannel> output_channels);
 
+    /**
+     * Get the <b>output</b> statistics of this EmuModule object. The output statistics
+     * consists of an array of 2 longs and 2 floats in object form:<p>
+     * <ol>
+     * <li>event count<p>
+     * <li>word (32 bit int) count<p>
+     * <li>event rate (Hz)<p>
+     * <li>word rate (Hz)<p>
+     * </ol>
+     *
+     * @return array of objects containing in order: 1) event count, 2) word count,
+     *         3) event rate and, 4) word rate, or<p>
+     *         null if no statistics reported for this module.
+     */
+    public Object[] getStatistics();
+
+    /**
+     * If an EMU has more than one module, which module's statistics represent the EMU
+     * as a whole needs to be determined. This method returns true if this module's
+     * statistics may represent the EMU as a whole. This may be specified in an EMU's
+     * xml configuration file by including the attribute statistics="on" in the module
+     * definition.
+     *
+     * @return <coda>true</code> if this module's statistics represents the EMU, else <code>false</code>.
+     */
+    public boolean representsEmuStatistics();
+
 }
