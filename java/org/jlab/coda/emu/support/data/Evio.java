@@ -88,7 +88,8 @@ import org.jlab.coda.jevio.DataType;
  * |                                     |
  * |           Payload Bank              |
  * |  (from 1 ROC, multiple events of    |
- * |      ROCRaw or Physics types)       |
+ * |      ROCRaw or Physics types,       | 
+ * |      but not both)                  |
  * |_____________________________________|
  * |                                     |
  * |           Payload Bank              |
@@ -102,6 +103,7 @@ import org.jlab.coda.jevio.DataType;
  *
  *
  *      M is the number of payload banks.
+ *      N is lower 8 bits of Record ID
  * 0x0c01 is the Transport Record identifier.
  * </pre></code>
  *
