@@ -15,7 +15,6 @@ import org.jlab.coda.cMsg.*;
 import org.jlab.coda.emu.support.configurer.DataNotFoundException;
 import org.jlab.coda.emu.support.codaComponent.CODAState;
 import org.jlab.coda.emu.support.codaComponent.CODATransition;
-import org.jlab.coda.emu.support.codaComponent.RunControl;
 import org.jlab.coda.emu.support.logger.Logger;
 import org.jlab.coda.emu.support.control.Command;
 
@@ -44,7 +43,7 @@ public class DataTransportImplCmsg extends DataTransportCore implements DataTran
      * @param pname  of type String
      * @param attrib of type Map
      *
-     * @throws org.jlab.coda.emu.support.configurer.DataNotFoundException
+     * @throws DataNotFoundException
      *          when udl not given or cannot connect to cmsg server
      */
     public DataTransportImplCmsg(String pname, Map<String, String> attrib) throws DataNotFoundException {
@@ -65,14 +64,12 @@ public class DataTransportImplCmsg extends DataTransportCore implements DataTran
     }
 
 
-    /** {@inheritDoc} */
     public DataChannel createChannel(String name, Map<String,String> attributeMap, boolean isInput) throws DataTransportException {
         DataChannel c = new DataChannelImplCmsg(name, this, attributeMap, isInput);
         channels().put(name, c);
         return c;
     }
 
-    /** {@inheritDoc} */
     public void execute(Command cmd) {
 Logger.debug("    DataTransportImplCmsg.execute : " + cmd);
 
