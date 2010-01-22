@@ -163,29 +163,35 @@ System.out.println("ProcessTest module: quitting watcher thread");
      */
     public void run() {
 
-        boolean hasOutputs = !output_channels.isEmpty();
-        long t1, t2, prevEventCount, prevWordCount;
 
 System.out.println("Action Thread state " + state);
 
-        // pick first output channel for simplicity
+        // have output channels?
+        boolean hasOutputs = !output_channels.isEmpty();
+        // iterator through output channels
+        Iterator<DataChannel> outputIter = null;
+        if (hasOutputs) outputIter = output_channels.iterator();
+
+        // initialize
         DataChannel outC;
         BlockingQueue<EvioBank> out_queue = null;
-        Iterator<DataChannel> outputIter = null;
-        if (hasOutputs) {
-            outputIter = output_channels.iterator();
-            outC = outputIter.next();
-            out_queue = outC.getQueue();
-        }
-
-        // initialize variables used for instantaneous stats
-        long deltaT = 1;
-        prevEventCount = prevWordCount = 0L;
+        // variables for instantaneous stats
+        long deltaT, t1, t2, prevEventCount=0L, prevWordCount=0L;
         t1 = System.currentTimeMillis();
 
         while (state == CODAState.ACTIVE) {
 
             try {
+
+                // round-robin through all output channels
+                if (hasOutputs) {
+                    // if we reached the end of the iterator, start again at the beginning
+                    if (!outputIter.hasNext()) {
+                        outputIter = output_channels.iterator();
+                    }
+                    outC = outputIter.next();
+                    out_queue = outC.getQueue();
+                }
 
                 // Grab one data bank from each input, waiting if necessary
                 ArrayList<EvioBank> inList = new ArrayList<EvioBank>();
