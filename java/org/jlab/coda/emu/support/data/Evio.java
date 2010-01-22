@@ -3,6 +3,8 @@ package org.jlab.coda.emu.support.data;
 import org.jlab.coda.jevio.*;
 import org.jlab.coda.jevio.DataType;
 
+import java.util.Vector;
+
 /**
  * This class is used as a layer on top of evio to handle CODA3 specific details.
  * The EMU will received evio data as Data Transport Records which contain
@@ -131,7 +133,7 @@ public class Evio {
     private static final int ROC_RAW_RECORD_ID         = 0x0C02;
     /** ID number designating a Data Transport Record. */
     private static final int DATA_TRANSPORT_RECORD_ID  = 0x0C01;
-
+    
 
     /**
      * Private constructor since everything is static.
@@ -188,6 +190,80 @@ public class Evio {
     public static boolean hasRocRawError(int rocRawTag) {
         return (rocRawTag & ERROR_BIT_MASK) != 0;
     }
+
+    
+    /**
+     * Determine wether a bank is a control event or not.
+     *
+     * @param bank input bank
+     * @return <code>true</code> if arg is control event, else <code>false</code>
+     */
+    public static boolean isControlEvent(EvioBank bank) {
+
+        int tag = bank.getHeader().getTag();
+        int num = bank.getHeader().getNumber();
+        EventType eventType = EventType.getEventType(tag);
+
+        return (num == 0xCC && eventType.isControl());
+    }
+
+
+    /**
+     * Determine wether a bank is a physics event or not.
+     *
+     * @param bank input bank
+     * @return <code>true</code> if arg is physics event, else <code>false</code>
+     */
+    public static boolean isPhysicsEvent(EvioBank bank) {
+
+        int tag = bank.getHeader().getTag();
+        int num = bank.getHeader().getNumber();
+        EventType eventType = EventType.getEventType(tag);
+
+        return (num == 0xCC && eventType.isPhysics());
+    }
+
+
+    /**
+     * Determine wether a bank is a data event or not.
+     *
+     * @param bank input bank
+     * @return <code>true</code> if arg is data event, else <code>false</code>
+     */
+    public static boolean isDataEvent(EvioBank bank) {
+        // must be bank of banks
+        if (bank.getStructureType() != StructureType.BANK) {
+            return false;
+        }
+
+        // first bank inside (containing record ID) has event type
+        Vector<BaseStructure> kids = bank.getChildren();
+        if (kids.size() < 1) return false;
+
+        // this first bank must contain one 32 bit int - the record ID
+        BaseStructure firstBank = kids.firstElement();
+
+        // contained data must be (U)INT32
+        int[] intData = firstBank.getIntData();
+        if (intData == null) {
+            return false;
+        }
+        
+        // lower 8 bits of recordId must equal num of top bank
+        int recordId = intData[0];
+        int num = bank.getHeader().getNumber();
+        if ( (recordId & 0xff) != num ) {
+            // contradictory internal data
+            return false;
+        }
+
+        int tag = firstBank.getHeader().getTag();
+        EventType eventType = EventType.getEventType(tag);
+
+        return eventType.isData();
+    }
+
+
 
 
     /**
