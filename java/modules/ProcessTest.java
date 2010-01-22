@@ -10,6 +10,7 @@ import org.jlab.coda.emu.support.configurer.DataNotFoundException;
 import org.jlab.coda.emu.support.logger.Logger;
 import org.jlab.coda.emu.Emu;
 import org.jlab.coda.emu.EmuModule;
+import org.jlab.coda.jevio.EventBuilder;
 import org.jlab.coda.jevio.*;
 
 import java.util.*;
@@ -202,14 +203,38 @@ System.out.println("Action Thread state " + state);
                     inList.add(bank);
                 }
 
-                if (hasOutputs) {
-                    for (EvioBank bank : inList) {
-//System.out.println("ProcessTest: put bank on output Q");
-                        out_queue.put(bank);
 
-                        eventCountTotal++;                                  // event count
-                        wordCountTotal += bank.getHeader().getLength() + 1; // word count
+                // make one event with banks from both input events concatenated
+                int tag = 5, num = 2;
+                EventBuilder eventBuilder = new EventBuilder(tag, DataType.BANK, num); // args -> tag, type, num
+                EvioEvent event = eventBuilder.getEvent();
+
+                // take all input banks and put them into one output bank (event)
+                int cc=0;
+                for (EvioBank bank : inList) {
+                    try {
+System.out.println("Process: Added bank's children to built event, event = " + cc++);
+                        for (BaseStructure b : bank.getChildren()) {
+                            eventBuilder.addChild(event, b);
+                        }
                     }
+                    catch (EvioException e) { /* problems only if not adding banks */ }
+
+                    eventCountTotal++;                        // event count
+                    wordCountTotal += bank.getTotalBytes()/4; // word count
+                }
+                event.setAllHeaderLengths();
+
+
+                if (hasOutputs) {
+//                    for (EvioBank bank : inList) {
+////System.out.println("ProcessTest: put bank on output Q");
+//                        out_queue.put(bank);
+//
+//                        eventCountTotal++;                        // event count
+//                        wordCountTotal += bank.getTotalBytes()/4; // word count
+//                    }
+                    out_queue.put(event);
 
                     t2 = System.currentTimeMillis();
                     deltaT = t2 - t1;
