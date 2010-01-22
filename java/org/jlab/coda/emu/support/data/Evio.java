@@ -1,7 +1,6 @@
 package org.jlab.coda.emu.support.data;
 
 import org.jlab.coda.jevio.*;
-import org.jlab.coda.jevio.DataType;
 
 import java.util.Vector;
 
@@ -191,7 +190,19 @@ public class Evio {
         return (rocRawTag & ERROR_BIT_MASK) != 0;
     }
 
-    
+
+    /**
+     * Get the event type of a bank if there is one.
+     * 
+     * @param bank bank to analyze
+     * @return event type if there is one, else null
+     */
+    public static EventType getEventType(EvioBank bank) {
+        int tag = bank.getHeader().getTag();
+        return EventType.getEventType(tag);
+    }
+
+
     /**
      * Determine wether a bank is a control event or not.
      *
