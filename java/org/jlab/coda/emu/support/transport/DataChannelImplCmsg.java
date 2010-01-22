@@ -81,7 +81,7 @@ public class DataChannelImplCmsg implements DataChannel {
          *                   message.
          */
         public void callback(cMsgMessage msg, Object userObject) {
-//System.out.println("Got a message on receiving channel callback");
+System.out.println("cmsg data channel " + name + ": got message in callback");
             byte[] data = msg.getByteArray();
             if (data == null) return;
 
@@ -95,12 +95,12 @@ public class DataChannelImplCmsg implements DataChannel {
                 EvioBank bank = parser.parseEvent(data, byteOrder);
                 queue.put(bank);
 
-                ByteBuffer bbuf = ByteBuffer.allocate(1000);
-                bbuf.clear();
-                bank.write(bbuf);
-
-//System.out.println("\nReceiving msg:\n" + bank.toString());
-
+//                System.out.println("\nReceiving msg:\n" + bank.toString());
+//
+//                ByteBuffer bbuf = ByteBuffer.allocate(1000);
+//                bbuf.clear();
+//                bank.write(bbuf);
+//
 //                StringWriter sw2 = new StringWriter(1000);
 //                XMLStreamWriter xmlWriter = XMLOutputFactory.newInstance().createXMLStreamWriter(sw2);
 //                bank.toXML(xmlWriter);
@@ -108,11 +108,12 @@ public class DataChannelImplCmsg implements DataChannel {
 //                bbuf.flip();
 
 //                System.out.println("Receiving msg (bin):");
-//                sw.getBuffer().delete(0, sw.getBuffer().capacity());
+//                sw2.getBuffer().delete(0, sw2.getBuffer().capacity());
+//                PrintWriter wr = new PrintWriter(sw2);
 //                while (bbuf.hasRemaining()) {
 //                    wr.printf("%#010x\n", bbuf.getInt());
 //                }
-//                System.out.println(sw.toString() + "\n\n");
+//                System.out.println(sw2.toString() + "\n\n");
 //            }
 //            catch (XMLStreamException e) {
 //                e.printStackTrace();
@@ -167,7 +168,8 @@ public class DataChannelImplCmsg implements DataChannel {
         if (subject == null) subject = name;
         type = attributeMap.get("type");
         if (type == null) type = "data";
-
+//System.out.println("\n\nDataChannel: subject = " + subject + ", type = " + type + "\n\n");
+        
         if (input) {
             try {
                 // create subscription for receiving messages containing data
@@ -196,18 +198,15 @@ public class DataChannelImplCmsg implements DataChannel {
         }
     }
 
-    /** {@inheritDoc} */
     public String getName() {
         return name;
     }
 
-    /** {@inheritDoc} */
     public EvioBank receive() throws InterruptedException {
         return queue.take();
     }
 
-    /** {@inheritDoc} */
-     public void send(EvioBank bank) {
+    public void send(EvioBank bank) {
         //queue.add(bank);   // throws exception if capacity reached
         //queue.offer(bank); // returns false if capacity reached
         try {
@@ -322,11 +321,6 @@ public class DataChannelImplCmsg implements DataChannel {
         pause = false;
     }
 
-    /**
-     * Method getQueue returns the queue of this DataChannel object.
-     *
-     * @return the queue (type BlockingQueue&lt;EvioBank&gt;) of this DataChannel object.
-     */
     public BlockingQueue<EvioBank> getQueue() {
         return queue;
     }
