@@ -10,6 +10,8 @@ import org.jlab.coda.emu.support.transport.DataChannel;
 import org.jlab.coda.emu.support.configurer.Configurer;
 import org.jlab.coda.emu.support.configurer.DataNotFoundException;
 import org.jlab.coda.emu.support.logger.Logger;
+import org.jlab.coda.emu.support.data.Evio;
+import org.jlab.coda.emu.support.data.EventType;
 import org.jlab.coda.jevio.EvioBank;
 
 import java.util.ArrayList;
@@ -173,9 +175,12 @@ System.out.println("Action Thread state " + state);
         Iterator<DataChannel> outputIter = null;
         if (hasOutputs) outputIter = outputChannels.iterator();
 
+        //
+        EvioBank[] inputBanks = new EvioBank[inputChannels.size()];
+
         // initialize
         DataChannel outC;
-        BlockingQueue<EvioBank> out_queue = null;
+        BlockingQueue<EvioBank> outputQueue = null;
         // variables for instantaneous stats
         long deltaT, t1, t2, prevEventCount=0L, prevWordCount=0L;
         t1 = System.currentTimeMillis();
@@ -191,16 +196,16 @@ System.out.println("Action Thread state " + state);
                         outputIter = outputChannels.iterator();
                     }
                     outC = outputIter.next();
-                    out_queue = outC.getQueue();
+                    outputQueue = outC.getQueue();
                 }
 
-                ArrayList<EvioBank> DataTransportRecords = getInputRecords();
+                boolean b = getInputRecords(inputBanks, outputQueue);
 
 
                 if (hasOutputs) {
-                    for (EvioBank bank : DataTransportRecords) {
+                    for (EvioBank bank : inputBanks) {
 //System.out.println("ProcessTest: put bank on output Q");
-                        out_queue.put(bank);
+                        outputQueue.put(bank);
 
                         eventCountTotal++;                                  // event count
                         wordCountTotal += bank.getHeader().getLength() + 1; // word count
@@ -233,24 +238,55 @@ System.out.println("Action Thread state " + state);
 
     /**
      * Get input Data Transport Records - one from each input channel.
+     * Any control events read from an input channel are passed to one
+     * of the output queues.
+     *
+     * @param inputBanks array in which to place events that will be built together
+     * @param outputQueue queue on which to place any control events read
      * @return list of all Data Transport Records
      * @throws InterruptedException
      */
-    private ArrayList<EvioBank> getInputRecords() throws InterruptedException {
-        // Grab one data bank from each input, waiting if necessary
-        ArrayList<EvioBank> DataTransportRecords = new ArrayList<EvioBank>(inputChannels.size());
-        for (DataChannel c : inputChannels) {
-            // blocking operation to grab a Bank or Data Transport Record more specifically
-            EvioBank bank = c.getQueue().take();
+    private boolean getInputRecords(EvioBank[] inputBanks,
+                                    BlockingQueue<EvioBank> outputQueue)
+            throws InterruptedException {
 
-            // make sure it is a data record and not a control record or something unknown
-            //bank.
+        int counter = 0;
+        int numberOfChannels = inputChannels.size();
+
+        // grab a full set of banks
+        for (DataChannel c : inputChannels) {
+            // Blocking operation to grab a Bank.
+            // Might be a Data Transport Record, Control Event, Physics Event, or garbage.
+            EvioBank bank = c.getQueue().take();
+            inputBanks[counter++] = bank;
+        }
+
+        // Make all are data records and not a control record or something else
+        for (int i=0; i < numberOfChannels; i++) {
+            // If one is a control event, all must be identical control events,
+            // and only one gets passed to output.
+            if (Evio.isControlEvent(inputBanks[i])) {
+                // find all the event types
+                EventType[] types = new EventType[numberOfChannels];
+                for (int j=0; j < numberOfChannels; j++) {
+                    types[j] = Evio.getEventType(inputBanks[j]);
+                }
+                
+                // make sure all event types are the same
+
+
+                outputQueue.put(inputBanks[i]);
+            }
+            // if it not control or data event, pass it on to output
+            else if ( !Evio.isDataEvent(inputBanks[i]) ) {
+                outputQueue.put(inputBanks[i]);
+            }
 
 //System.out.println("ProcessTest: Grabbed bank off " + c.getName() + "  Q");
-            DataTransportRecords.add(bank);
+            //inputBanks.add(bank);
         }
         
-        return DataTransportRecords;
+        return true;
     }
 
     public State state() {
