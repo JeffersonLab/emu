@@ -65,8 +65,12 @@
             <fileset dir="external_lib">
                 <include name="*.jar"/>
             </fileset>
+            <fileset dir="java/jars">
+                <include name="*.jar"/>
+            </fileset>
             <fileset dir="${jar.dest}">
                 <include name="cMsg-3.0.jar"/>
+                <include name="jevio-1.0.jar"/>
             </fileset>
         </path>
 

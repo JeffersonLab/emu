@@ -12,8 +12,8 @@
 
 <component name="SingleEmu">
     <transports>
-        <server name="SingleEmu_SOCKET" class="Cmsg" udl="cMsg://localhost:45005/cMsg/test"/>
-        <client name="BitBucket_SOCKET" class="Cmsg" udl="cMsg://localhost:45005/cMsg/test"/>
+        <server name="SingleEmu_SOCKET" class="Cmsg" udl="cMsg://localhost/cMsg/test"/>
+        <client name="BitBucket_SOCKET" class="Cmsg" udl="cMsg://localhost/cMsg/test"/>
     </transports>
     <modules src="modules.jar" usr_src="user_modules.jar">
         <!--
@@ -22,9 +22,9 @@
             <outchannel name="F1" transp="Fifo"/>
        </InModule>
        -->
-        <CarlsModule class="ProcessTest">
-            <inchannel  name="ROC1" transp="SingleEmu_SOCKET" subject="ROCKY" type="BULLWINKLE"/>
-            <inchannel  name="ROC2" transp="SingleEmu_SOCKET" subject="ROCKY" type="BULLWINKLE"/>
+        <CarlsModule class="ProcessTest" statistics="on">
+            <inchannel  name="ROC1"      transp="SingleEmu_SOCKET" subject="ROC1" type="a"/>
+            <inchannel  name="ROC2"      transp="SingleEmu_SOCKET" subject="ROC2" type="b"/>
             <outchannel name="BitBucket" transp="SingleEmu_SOCKET" endian="little"/>
        </CarlsModule>
         <!--
