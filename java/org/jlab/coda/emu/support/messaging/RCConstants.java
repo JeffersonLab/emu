@@ -51,6 +51,8 @@ public class RCConstants {
 
     /** String used as type in message for the set state run command. */
     public static final String setState         = "run/control/setState";
+    /** String used as type in message for the get state run command. */
+    public static final String getState         = "run/control/getState";
     /** String used as type in message for the set session run command. */
     public static final String setSession       = "run/control/setSession";
     /** String used as type in message for the get session run command. */
