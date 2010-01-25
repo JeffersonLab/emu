@@ -2,6 +2,7 @@ package modules;
 
 import org.jlab.coda.emu.EmuModule;
 import org.jlab.coda.emu.Emu;
+import org.jlab.coda.emu.EmuException;
 import org.jlab.coda.emu.support.control.State;
 import org.jlab.coda.emu.support.control.Command;
 import org.jlab.coda.emu.support.codaComponent.CODAState;
@@ -199,7 +200,15 @@ System.out.println("Action Thread state " + state);
                     outputQueue = outC.getQueue();
                 }
 
-                boolean b = getInputRecords(inputBanks, outputQueue);
+                try {
+                    // may get stuck here waiting on a Q
+                    getInputRecords(inputBanks, outputQueue);
+                }
+                catch (EmuException e) {
+                    // TODO: major error getting data events to build, do something ...
+                    System.out.println("MAJOR ERROR building events");
+                    e.printStackTrace();
+                }
 
 
                 if (hasOutputs) {
@@ -244,49 +253,77 @@ System.out.println("Action Thread state " + state);
      * @param inputBanks array in which to place events that will be built together
      * @param outputQueue queue on which to place any control events read
      * @return list of all Data Transport Records
-     * @throws InterruptedException
+     * @throws EmuException for major error in event building
+     * @throws InterruptedException when interrupted while trying to get a bank from a queue
      */
-    private boolean getInputRecords(EvioBank[] inputBanks,
-                                    BlockingQueue<EvioBank> outputQueue)
-            throws InterruptedException {
+    private void getInputRecords(EvioBank[] inputBanks, BlockingQueue<EvioBank> outputQueue)
+            throws EmuException, InterruptedException {
 
         int counter = 0;
+        int controlEventCount = 0;
         int numberOfChannels = inputChannels.size();
+        EventType[] types = new EventType[numberOfChannels];
 
-        // grab a full set of banks
-        for (DataChannel c : inputChannels) {
-            // Blocking operation to grab a Bank.
-            // Might be a Data Transport Record, Control Event, Physics Event, or garbage.
-            EvioBank bank = c.getQueue().take();
-            inputBanks[counter++] = bank;
+        if (numberOfChannels != inputBanks.length) {
+            throw new EmuException("intputBanks arg has wrong dimension");
         }
 
-        // Make all are data records and not a control record or something else
-        for (int i=0; i < numberOfChannels; i++) {
+        while (true) {
+
+            // grab a full set of banks & their types
+            for (DataChannel c : inputChannels) {
+                while (true) {
+                    // Blocking operation to grab a Bank.
+                    EvioBank bank = c.getQueue().take();
+                    inputBanks[counter] = bank;
+                    types[counter] = Evio.getEventType(bank);
+
+                    // Might be a Data Transport Record, Control Event, Physics Event, or garbage.
+                    // If a control event, try to collect one from each channel.
+                    if (Evio.isControlEvent(bank)) {
+                        controlEventCount++;
+                    }
+                    // If not a data or control event, write it out with no modification on any channel
+                    else if (!Evio.isDataEvent(bank)) {
+                        outputQueue.put(bank);
+                        
+                        // try again to get a data bank
+                        continue;
+                    }
+
+                    break;
+                }
+
+                counter++;
+            }
+
             // If one is a control event, all must be identical control events,
             // and only one gets passed to output.
-            if (Evio.isControlEvent(inputBanks[i])) {
-                // find all the event types
-                EventType[] types = new EventType[numberOfChannels];
-                for (int j=0; j < numberOfChannels; j++) {
-                    types[j] = Evio.getEventType(inputBanks[j]);
+            if (controlEventCount > 0) {
+                // all event must be control events
+                if (controlEventCount != numberOfChannels) {
+                    throw new EmuException("some channels have control events and some do not");
                 }
-                
-                // make sure all event types are the same
 
+                // make sure all are the same type of control event
+                EventType eventType = types[0];
+                for (int i=1; i < types.length; i++) {
+                    if (eventType != types[i]) {
+                        throw new EmuException("different type control events on channels");
+                    }
+                }
 
-                outputQueue.put(inputBanks[i]);
+                outputQueue.put(inputBanks[0]);
+
+                // try again to grab a set of data events
+                continue;
             }
-            // if it not control or data event, pass it on to output
-            else if ( !Evio.isDataEvent(inputBanks[i]) ) {
-                outputQueue.put(inputBanks[i]);
-            }
-
-//System.out.println("ProcessTest: Grabbed bank off " + c.getName() + "  Q");
-            //inputBanks.add(bank);
+            
+            break;
         }
-        
-        return true;
+
+
+        return;
     }
 
     public State state() {
