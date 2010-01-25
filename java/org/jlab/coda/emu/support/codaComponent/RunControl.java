@@ -32,6 +32,8 @@ public enum RunControl implements Command {
 
     /** Command to set state. */
     SET_STATE("set state", null, RCConstants.setState),
+    /** Command to get state. */
+    GET_STATE("get state", null, RCConstants.getState),
     /** Command to set session. */
     SET_SESSION("set session", null, RCConstants.setSession),
     /** Command to get session. */
