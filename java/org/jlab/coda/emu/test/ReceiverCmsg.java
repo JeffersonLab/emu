@@ -188,26 +188,26 @@ public class ReceiverCmsg {
 
             count++;
 
-            try {
-                ByteOrder byteOrder = ByteOrder.BIG_ENDIAN;
-
-                if (msg.getByteArrayEndian() == cMsgConstants.endianLittle) {
-                    System.out.println("NEED TO SWAP DUDE !!!");
-                    byteOrder = ByteOrder.LITTLE_ENDIAN;
-                }
-                else {
-                    System.out.println("ENDIAN IS BIG DUDE !!!");
-                }
-
-                EvioBank bank = parser.parseEvent(data, byteOrder);
-                StringWriter sw = new StringWriter(1000);
-                XMLStreamWriter xmlWriter = XMLOutputFactory.newInstance().createXMLStreamWriter(sw);
-                bank.toXML(xmlWriter);
-                System.out.println("Receiving msg:\n" + sw.toString());
-            }
-            catch (Exception e) {
-                e.printStackTrace();
-            }
+//            try {
+//                ByteOrder byteOrder = ByteOrder.BIG_ENDIAN;
+//
+//                if (msg.getByteArrayEndian() == cMsgConstants.endianLittle) {
+////System.out.println("NEED TO SWAP DUDE !!!");
+//                    byteOrder = ByteOrder.LITTLE_ENDIAN;
+//                }
+//                else {
+////System.out.println("ENDIAN IS BIG DUDE !!!");
+//                }
+//
+//                EvioBank bank = parser.parseEvent(data, byteOrder);
+//                StringWriter sw = new StringWriter(1000);
+//                XMLStreamWriter xmlWriter = XMLOutputFactory.newInstance().createXMLStreamWriter(sw);
+//                bank.toXML(xmlWriter);
+//                System.out.println("Receiving msg:\n" + sw.toString());
+//            }
+//            catch (Exception e) {
+//                e.printStackTrace();
+//            }
         }
         
     }

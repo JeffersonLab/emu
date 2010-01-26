@@ -33,7 +33,7 @@ public class SenderCmsg {
     private String  description = "place to send data to EMU";
     private String  UDL;
 
-    private int     delay, timeout = 1000; // 1 second default timeout
+    private int     delay = 1000; // 1 second default timeout
     private boolean debug;
     private boolean stopSending;
     private cMsg coda;
@@ -75,10 +75,6 @@ public class SenderCmsg {
                 type= args[i + 1];
                 i++;
             }
-            else if (args[i].equalsIgnoreCase("-to")) {
-                timeout = Integer.parseInt(args[i + 1]);
-                i++;
-            }
             else if (args[i].equalsIgnoreCase("-delay")) {
                 delay = Integer.parseInt(args[i + 1]);
                 i++;
@@ -104,7 +100,6 @@ public class SenderCmsg {
             "        [-u <UDL>]           set UDL to connect to cMsg\n" +
             "        [-s <subject>]       set subject of data messages\n" +
             "        [-t <type>]          set type of data messages\n" +
-            "        [-to <time>]         set timeout\n" +
             "        [-delay <time>]      set time in millisec between sending of each message\n" +
             "        [-debug]             turn on printout\n" +
             "        [-h]                 print this help\n");
@@ -191,10 +186,10 @@ System.out.println("Send thread started");
             EvioEvent ev;
             ByteBuffer bbuf = ByteBuffer.allocate(1000);
             cMsgMessage msg = new cMsgMessage();
-//            msg.setSubject(subject);
+            msg.setSubject(subject);
             msg.setType(type);
 
-            long counter = 0;
+            int counter = 0;
             StringWriter sw = new StringWriter(2048);
             PrintWriter  wr = new PrintWriter(sw, true);
             long start_time = System.currentTimeMillis();
@@ -205,9 +200,9 @@ System.out.println("Send thread started");
                     // send transport records from 3 ROCs
                     rocNum = rocID;
 
-                    for (int ix = 0; ix < 3; ix++) {
+                    for (int ix = 0; ix < 2; ix++) {
                         // send event over network
-     System.out.println("Send roc record " + rocID + " over network");
+//System.out.println("Send roc record " + rocID + " over network");
                         // turn event into byte array
 //                        ev = Evio.createDataTransportRecord(rocNum, eventID,
 //                                                            dataBankTag, dataBankNum,
@@ -221,46 +216,53 @@ System.out.println("Send thread started");
 
                         // add a bank of ints
                         EvioBank bank = new EvioBank(0x22, DataType.INT32, 0); // tag, type, num
-                        int[] iarray = {1,2,3};
+                        int[] iarray = {counter++};
                         eventBuilder.appendIntData(bank, iarray);
                         eventBuilder.addChild(event, bank);
 
-                        // add a bank of segments
-                        EvioBank bank2 = new EvioBank(0x33, DataType.SEGMENT, 0);
-
-                        EvioSegment segment1 = new EvioSegment(0x34, DataType.SHORT16);
-                        short[] sarray = {4,5,6};
-                        eventBuilder.appendShortData(segment1, sarray);
-                        eventBuilder.addChild(bank2, segment1);
-                        eventBuilder.addChild(event, bank2);
-
-                        // add a bank of tag segments
-                        EvioBank bank3 = new EvioBank(0x45, DataType.TAGSEGMENT, 0);
-
-                        EvioTagSegment tagsegment1 = new EvioTagSegment(0x46, DataType.DOUBLE64);
-                        double[] darray = {7,8,9};
-                        eventBuilder.appendDoubleData(tagsegment1, darray);
-                        eventBuilder.addChild(bank3, tagsegment1);
-                        eventBuilder.addChild(event, bank3);
-
+//                        // add a bank of segments
+//                        EvioBank bank2 = new EvioBank(0x33, DataType.SEGMENT, 0);
+//
+//                        EvioSegment segment1 = new EvioSegment(0x34, DataType.SHORT16);
+//                        short[] sarray = {4,5,6};
+//                        eventBuilder.appendShortData(segment1, sarray);
+//                        eventBuilder.addChild(bank2, segment1);
+//                        eventBuilder.addChild(event, bank2);
+//
+//                        // add a bank of tag segments
+//                        EvioBank bank3 = new EvioBank(0x45, DataType.TAGSEGMENT, 0);
+//
+//                        EvioTagSegment tagsegment1 = new EvioTagSegment(0x46, DataType.DOUBLE64);
+//                        double[] darray = {7,8,9};
+//                        eventBuilder.appendDoubleData(tagsegment1, darray);
+//                        eventBuilder.addChild(bank3, tagsegment1);
+//                        eventBuilder.addChild(event, bank3);
+//
 
                         sw.getBuffer().delete(0, sw.getBuffer().capacity());
                         bbuf.clear();
                         event.write(bbuf);
                         bbuf.flip();
                         
-                        System.out.println("Sending array of length " + bbuf.limit());
+//                        System.out.println("Sending array of length " + bbuf.limit());
                         msg.setByteArrayNoCopy(bbuf.array(),0,bbuf.limit());
                         msg.setByteArrayEndian(cMsgConstants.endianBig);
-                        msg.setSubject(subject1);
-                        coda.send(msg);
-                        msg.setSubject(subject2);
+
+                        if (ix == 0) {
+                            msg.setSubject(subject1);
+                            msg.setType("a");
+                        }
+                        else {
+                            msg.setSubject(subject2);
+                            msg.setType("b");
+                        }
                         coda.send(msg);
 
-                        StringWriter sw2 = new StringWriter(1000);
-                        XMLStreamWriter xmlWriter = XMLOutputFactory.newInstance().createXMLStreamWriter(sw2);
-                        event.toXML(xmlWriter);
-                        System.out.println("\nSending msg:\n" + sw2.toString());
+//                        StringWriter sw2 = new StringWriter(1000);
+//                        XMLStreamWriter xmlWriter = XMLOutputFactory.newInstance().createXMLStreamWriter(sw2);
+//                        event.toXML(xmlWriter);
+//                        System.out.println("\nSending msg:\n" + sw2.toString());
+                        
 //                        System.out.println("Sending msg (bin):");
 //                        while (bbuf.hasRemaining()) {
 //                            wr.printf("%#010x\n", bbuf.getInt());
@@ -274,12 +276,14 @@ System.out.println("Send thread started");
                             return;
                         }
 
-                        Thread.sleep(2000);
                     }
 
-                    if (counter++ % 10 == 0) {
-                        long now = System.currentTimeMillis();
-                        wr.printf("%d  Hz\n", 10L/(now - start_time));
+                    Thread.sleep(delay);
+
+                    long now = System.currentTimeMillis();
+                    long deltaT = now - start_time;
+                    if (deltaT > 2000) {
+                        wr.printf("%d  Hz\n", 3L/deltaT);
                         System.out.println(sw.toString());
                         start_time = now;
                     }
@@ -290,9 +294,9 @@ System.out.println("Send thread started");
                 }
 
             }
-            catch (XMLStreamException e) {
-                e.printStackTrace();
-            }
+//            catch (XMLStreamException e) {
+//                e.printStackTrace();
+//            }
             catch (EvioException e) {
                 e.printStackTrace();
             }
