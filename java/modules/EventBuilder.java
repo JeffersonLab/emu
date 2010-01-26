@@ -210,6 +210,8 @@ System.out.println("Action Thread state " + state);
                     e.printStackTrace();
                 }
 
+                // here we have N banks from N rocs each with proper source ID
+                
 
                 if (hasOutputs) {
                     for (EvioBank bank : inputBanks) {
@@ -318,6 +320,9 @@ System.out.println("Action Thread state " + state);
                 // try again to grab a set of data events
                 continue;
             }
+
+            // TODO: check to see if roc (source) id matches id of q's roc
+
             
             break;
         }
