@@ -3,7 +3,7 @@ package org.jlab.coda.emu.support.data;
 import java.util.concurrent.LinkedBlockingQueue;
 
 /**
- * Class designed to keep extra data associated with blocking queue.
+ * Convenience class designed to keep extra data associated with blocking queue.
  *
  * @author: timmer
  * Date: Jan 29, 2010

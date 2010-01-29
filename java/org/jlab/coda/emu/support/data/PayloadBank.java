@@ -1,19 +1,35 @@
 package org.jlab.coda.emu.support.data;
 
 import org.jlab.coda.jevio.EvioBank;
+import org.jlab.coda.jevio.EvioEvent;
 
 /**
- * Created by IntelliJ IDEA.
- * User: timmer
+ * Convenience class designed to keep extra data associated with ROC raw bank.
+ *
+ * @author: timmer
  * Date: Jan 29, 2010
- * Time: 3:29:35 PM
- * To change this template use File | Settings | File Templates.
  */
 public class PayloadBank extends EvioBank {
 
     private int sourceId;
 
     private int recordId;
+
+    private int eventCount;
+
+    private int firstEventNumber;
+
+    private int dataBlockCount;
+
+    private boolean isSync;
+
+    private boolean isSingleMode;
+
+    private boolean hasError;
+
+    private EvioEvent parsedTriggerBank;
+
+
 
 
     public PayloadBank() {
@@ -35,4 +51,13 @@ public class PayloadBank extends EvioBank {
     public void setRecordId(int recordId) {
         this.recordId = recordId;
     }
+    
+    public boolean isSync() {
+        return isSync;
+    }
+
+    public void setSync(boolean sync) {
+        isSync = sync;
+    }
+
 }
