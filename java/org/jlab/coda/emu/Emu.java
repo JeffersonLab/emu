@@ -231,8 +231,8 @@ public class Emu implements KbdHandler, CODAComponent {
                             wordCount  = (Long) stats[1];
                             eventRate  = (Float)stats[2];
                             wordRate   = (Float)stats[3];
-System.out.println("Report stats for module " + statsModule.name() + ":\ncount = " + eventCount +
-                   "\nwords = " + wordCount + "\neventRate = " + eventRate + "\nwordRate = " + wordRate);
+System.out.println("Stats for module " + statsModule.name() + ": count = " + eventCount +
+                   ", words = " + wordCount + ", eventRate = " + eventRate + ", wordRate = " + wordRate);
                         }
                     }
 
@@ -600,6 +600,29 @@ System.out.println("EXECUTING cmd = " + cmd.name());
         }
         else if (cmd.equals(SessionControl.STOP_REPORTING)) {
             statusReportingOn = false;
+            cmd.clearArgs();
+            return;
+        }
+        // TODO: send back our state
+        else if (cmd.equals(RunControl.GET_STATE)) {
+            if ( (CMSGPortal.getServer() != null) &&
+                 (CMSGPortal.getServer().isConnected())) {
+
+                cMsgMessage msg = new cMsgMessage();
+                msg.setSubject(name);
+                // TODO: set type to proper string
+                msg.setType(RCConstants.reportStatus);
+                String state = MODULE_FACTORY.state().name().toLowerCase();
+
+                try {
+                    msg.addPayloadItem(new cMsgPayloadItem(RCConstants.state, state));
+                    CMSGPortal.getServer().send(msg);
+                }
+                catch (cMsgException e) {
+                    e.printStackTrace();
+                }
+            }
+
             cmd.clearArgs();
             return;
         }
