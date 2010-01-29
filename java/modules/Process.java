@@ -21,6 +21,7 @@ import org.jlab.coda.emu.support.control.Command;
 import org.jlab.coda.emu.support.control.State;
 import org.jlab.coda.emu.support.logger.Logger;
 import org.jlab.coda.emu.support.transport.DataChannel;
+import org.jlab.coda.jevio.EventBuilder;
 import org.jlab.coda.jevio.*;
 
 import java.util.ArrayList;
