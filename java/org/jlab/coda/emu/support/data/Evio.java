@@ -1,6 +1,7 @@
 package org.jlab.coda.emu.support.data;
 
 import org.jlab.coda.jevio.*;
+import org.jlab.coda.emu.EmuException;
 
 import java.util.Vector;
 
@@ -198,6 +199,7 @@ public class Evio {
      * @return event type if there is one, else null
      */
     public static EventType getEventType(EvioBank bank) {
+        // TODO: null arg
         int tag = bank.getHeader().getTag();
         return EventType.getEventType(tag);
     }
@@ -210,6 +212,7 @@ public class Evio {
      * @return <code>true</code> if arg is control event, else <code>false</code>
      */
     public static boolean isControlEvent(EvioBank bank) {
+        if (bank == null)  return false;
 
         int tag = bank.getHeader().getTag();
         int num = bank.getHeader().getNumber();
@@ -226,6 +229,7 @@ public class Evio {
      * @return <code>true</code> if arg is physics event, else <code>false</code>
      */
     public static boolean isPhysicsEvent(EvioBank bank) {
+        if (bank == null)  return false;
 
         int tag = bank.getHeader().getTag();
         int num = bank.getHeader().getNumber();
@@ -236,12 +240,14 @@ public class Evio {
 
 
     /**
-     * Determine wether a bank is a data event or not.
+     * Determine whether a bank is a Data Transport Record (DTR) format event or not.
      *
      * @param bank input bank
-     * @return <code>true</code> if arg is data event, else <code>false</code>
+     * @return <code>true</code> if arg is DTR format event, else <code>false</code>
      */
-    public static boolean isDataEvent(EvioBank bank) {
+    public static boolean isDtrEvent(EvioBank bank) {
+        if (bank == null)  return false;
+
         // must be bank of banks
         if (bank.getStructureType() != StructureType.BANK) {
             return false;
@@ -259,11 +265,18 @@ public class Evio {
         if (intData == null) {
             return false;
         }
-        
+
         // lower 8 bits of recordId must equal num of top bank
         int recordId = intData[0];
         int num = bank.getHeader().getNumber();
         if ( (recordId & 0xff) != num ) {
+            // contradictory internal data
+            return false;
+        }
+
+        // number of payload banks must equal num of recordId bank
+        num = firstBank.getHeader().getNumber();
+        if (num != kids.size() - 1) {
             // contradictory internal data
             return false;
         }
@@ -275,8 +288,92 @@ public class Evio {
     }
 
 
+    /**
+     * Extract payload banks (physics or ROC raw format evio banks)
+     * from a Data Transport Record (DTR) format event.
+     *
+     * @param dtrBank input bank assumed to be in Data Transport Record format
+     * @param recordIds array of all record IDs of the last DTRs to be extracted for each channel
+     * @param channelNumber index specifying channel being used
+     * @return <code>true</code> if arg is DTR format event, else <code>false</code>
+     */
+    public static EvioBank[] extractPayloadBanks(EvioBank dtrBank, int[] recordIds, int channelNumber)
+            throws EmuException {
+
+        // TODO: null arg
+
+        // DTR is a bank of banks. The first bank contains the record ID. The rest
+        // are payload banks which are either physics events or ROC raw events.
+
+        // must contain record ID bank plus at least one payload bank
+        Vector<BaseStructure> kids = dtrBank.getChildren();
+        if (kids == null || kids.size() < 2) return null;
+        int numKids = kids.size();
+
+        // number of payload banks given in header must match actual number of banks
+        BaseStructure firstBank = kids.firstElement();
+        int numPayloadBanks = firstBank.getHeader().getNumber();
+        if (numPayloadBanks != numKids - 1) return null;
+
+        // check to make sure record ID is sequential
+        int[] intData = firstBank.getIntData();
+        if (intData == null) return null;
+        int recordId = intData[0];
+        // initial recordId stored is 0, ignore that
+        if (recordIds[channelNumber] > 0  &&  recordId != recordIds[channelNumber] + 1) {
+System.out.println("record ID out of sequence !!!");
+            return null;
+        }
+        recordIds[channelNumber] = recordId;
+
+        // return all banks except the first one containing record ID
+        try {
+            EvioBank[] banks = new EvioBank[numPayloadBanks];
+            for (int i=1; i < numKids; i++) {
+                banks[i-1] = (EvioBank) kids.get(i);
+            }
+            return banks;
+        }
+        catch (ClassCastException e) {
+            // dtrBank does not contain banks and thus is not in the proper format
+        }
+        return null;
+    }
 
 
+    /**
+     * Is the source ID in the bank (a Data Transport Record) identical to the given id?
+     *
+     * @param bank Data Transport Record object
+     * @param id id of an input channel
+     * @return <code>true</code> if bank arg's source ID is the same as the id arg, else <code>false</code>
+     */
+    public static boolean idsMatch(EvioBank bank, int id) {
+        return (bank != null && bank.getHeader().getTag() == id);
+    }
+
+
+    /**
+     * Combine the trigger banks of all input DTR events into a single
+     * trigger bank which will be used in the built event.
+     *
+     * @param inputTriggerBanks array containing the trigger bank from each channel's payload bank
+     * @return trigger bank which combines all input trigger banks into one
+     * @throws EmuException for major error in event building
+     */
+    private EvioBank combineTriggerBanks(EvioBank[] inputTriggerBanks) throws EmuException {
+
+        if (inputTriggerBanks == null || inputTriggerBanks.length < 1)  return null;
+
+        // At this point, the trigger banks have NOT been parsed since we only specified
+        // parseDepth = 2 in the config file. Specifying parseDepth = 3 would do the trick
+        // but would also mean parsing part of the opaque data blocks - which we do NOT want.
+        // So ..., we parse trigger banks now.
+
+        return null;
+    }
+
+    
     /**
      * Create an Evio ROC Raw record event/bank to be placed in a Data Transport record.
      *
@@ -381,7 +478,6 @@ public class Evio {
 
         return ev;
     }
-
 
 
 }
