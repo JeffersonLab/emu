@@ -34,6 +34,14 @@ public interface DataChannel {
     public String getName();
 
     /**
+     * Get the ID number of the data channel.
+     * In CODA event building, this is used, for example, to contain the ROC
+     * id for input channels which allows consistency checks of incoming data.
+     * @return the ID number of the data channel.
+     */
+    public int getID();
+
+    /**
      * Take a bank of data off the queue.
      * @return bank of data.
      * @throws InterruptedException on wakeup without data.

@@ -56,12 +56,13 @@ public class DataChannelImplFifo implements DataChannel {
 
     }
 
-    /**
-     * {@inheritDoc}
-     * @return {@inheritDoc}
-     */
     public String getName() {
         return name;
+    }
+
+    // TODO: return something reasonable
+    public int getID() {
+        return 0;
     }
 
     /**

@@ -41,6 +41,9 @@ public class DataChannelImplCmsg implements DataChannel {
     /** Field name */
     private final String name;
 
+    /** ID of this channel (corresponds to sourceId of ROCs for CODA event building). */
+    private int id;
+
     /** Subject of either subscription or outgoing messages. */
     private String subject;
 
@@ -92,7 +95,9 @@ System.out.println("cmsg data channel " + name + ": got message in callback");
                     byteOrder = ByteOrder.LITTLE_ENDIAN;
                 }
 
-                EvioBank bank = parser.parseEvent(data, byteOrder);
+                int parseDepth = (Integer)userObject;
+
+                EvioBank bank = parser.parseEvent(data, byteOrder, parseDepth);
                 queue.put(bank);
 
 //                System.out.println("\nReceiving msg:\n" + bank.toString());
@@ -163,18 +168,40 @@ System.out.println("cmsg data channel " + name + ": got message in callback");
         queue = new ArrayBlockingQueue<EvioBank>(capacity);
 
         // Set subject & type for either subscription (incoming msgs) or for outgoing msgs.
-        // Use any defined in config file else use defaults
+        // Use any defined in config file else use defaults.
         subject = attributeMap.get("subject");
         if (subject == null) subject = name;
+
         type = attributeMap.get("type");
         if (type == null) type = "data";
 //System.out.println("\n\nDataChannel: subject = " + subject + ", type = " + type + "\n\n");
         
+        // Set id number. Use any defined in config file else use default (0)
+        id = 0;
+        String idVal = attributeMap.get("id");
+        if (idVal != null) {
+            try {
+                id = Integer.parseInt(idVal);
+            }
+            catch (NumberFormatException e) {  }
+        }
+
+        // Set parse level for incoming msgs.
+        // Use any defined in config file else use default (parse everything)
+        int parseDepth = 0;
+        String pLevel = attributeMap.get("parseDepth");
+        if (pLevel != null) {
+            try {
+                parseDepth = Integer.parseInt(pLevel);
+            }
+            catch (NumberFormatException e) {  }
+        }
+
         if (input) {
             try {
                 // create subscription for receiving messages containing data
                 ReceiveMsgCallback cb = new ReceiveMsgCallback();
-                sub = dataTransport.getCmsgConnection().subscribe(subject, type, cb, null);
+                sub = dataTransport.getCmsgConnection().subscribe(subject, type, cb, parseDepth);
             }
             catch (cMsgException e) {
                 Logger.info("      DataChannelImplCmsg.const : " + e.getMessage());
@@ -200,6 +227,10 @@ System.out.println("cmsg data channel " + name + ": got message in callback");
 
     public String getName() {
         return name;
+    }
+
+    public int getID() {
+        return id;
     }
 
     public EvioBank receive() throws InterruptedException {

@@ -126,9 +126,13 @@ public class DataChannelImplCmsgSock implements DataChannel {
 
     }
 
-    /** @see org.jlab.coda.emu.support.transport.DataChannel#getName() */
     public String getName() {
         return name;
+    }
+
+    // TODO: return something reasonable
+    public int getID() {
+        return 0;
     }
 
     /**

@@ -147,9 +147,13 @@ public class DataChannelImplFile implements DataChannel {
 
     }
 
-    /** @see DataChannel#getName() */
     public String getName() {
         return name;
+    }
+
+    // TODO: return something reasonable
+    public int getID() {
+        return 0;
     }
 
     /**
