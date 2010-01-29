@@ -30,11 +30,7 @@ public class PayloadBank extends EvioBank {
     private EvioEvent parsedTriggerBank;
 
 
-
-
-    public PayloadBank() {
-        super();
-    }
+   
 
     public int getSourceId() {
         return sourceId;
@@ -51,7 +47,31 @@ public class PayloadBank extends EvioBank {
     public void setRecordId(int recordId) {
         this.recordId = recordId;
     }
-    
+
+    public int getEventCount() {
+        return eventCount;
+    }
+
+    public void setEventCount(int eventCount) {
+        this.eventCount = eventCount;
+    }
+
+    public int getFirstEventNumber() {
+        return firstEventNumber;
+    }
+
+    public void setFirstEventNumber(int firstEventNumber) {
+        this.firstEventNumber = firstEventNumber;
+    }
+
+    public int getDataBlockCount() {
+        return dataBlockCount;
+    }
+
+    public void setDataBlockCount(int dataBlockCount) {
+        this.dataBlockCount = dataBlockCount;
+    }
+
     public boolean isSync() {
         return isSync;
     }
@@ -59,5 +79,30 @@ public class PayloadBank extends EvioBank {
     public void setSync(boolean sync) {
         isSync = sync;
     }
+
+    public boolean isSingleMode() {
+        return isSingleMode;
+    }
+
+    public void setSingleMode(boolean singleMode) {
+        isSingleMode = singleMode;
+    }
+
+    public boolean isHasError() {
+        return hasError;
+    }
+
+    public void setHasError(boolean hasError) {
+        this.hasError = hasError;
+    }
+
+    public EvioEvent getParsedTriggerBank() {
+        return parsedTriggerBank;
+    }
+
+    public void setParsedTriggerBank(EvioEvent parsedTriggerBank) {
+        this.parsedTriggerBank = parsedTriggerBank;
+    }
+
 
 }
