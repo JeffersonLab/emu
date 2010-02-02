@@ -1,7 +1,7 @@
 package org.jlab.coda.emu.support.data;
 
-import org.jlab.coda.jevio.EvioBank;
-import org.jlab.coda.jevio.EvioEvent;
+import org.jlab.coda.jevio.*;
+
 
 /**
  * Convenience class designed to keep extra data associated with ROC raw bank.
@@ -30,7 +30,18 @@ public class PayloadBank extends EvioBank {
     private EvioEvent parsedTriggerBank;
 
 
-   
+    public PayloadBank() {
+        super();
+    }
+
+    public PayloadBank(EvioBank bank) {
+        // copy over all basic, essential components of a bank
+        header    = bank.getHeader();
+        rawBytes  = bank.getRawBytes();
+        byteOrder = bank.getByteOrder();
+        children  = bank.getChildren();
+    }
+
 
     public int getSourceId() {
         return sourceId;

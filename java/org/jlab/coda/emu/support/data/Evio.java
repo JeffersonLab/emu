@@ -4,6 +4,7 @@ import org.jlab.coda.jevio.*;
 import org.jlab.coda.emu.EmuException;
 
 import java.util.Vector;
+import java.util.Arrays;
 
 /**
  * This class is used as a layer on top of evio to handle CODA3 specific details.
@@ -133,7 +134,11 @@ public class Evio {
     private static final int ROC_RAW_RECORD_ID         = 0x0C02;
     /** ID number designating a Data Transport Record. */
     private static final int DATA_TRANSPORT_RECORD_ID  = 0x0C01;
-    
+
+
+    /** Object for parsing evio data. */
+    private static ByteParser parser;
+
 
     /**
      * Private constructor since everything is static.
@@ -155,6 +160,7 @@ public class Evio {
     /**
      * Get the ROC id which is the lower 12 bits of the ROC Raw record tag.
      *
+     * @param rocRawTag tag from ROC raw format evio bank.
      * @return the ROC id of the ROC Raw record tag.
      */
     public static int getRocRawId(int rocRawTag) {
@@ -165,6 +171,7 @@ public class Evio {
      * See if the given tag from a ROC Raw record indicates the ROC is in single event mode.
      * This condition is set by the ROC and it is only read here - never set.
      *
+     * @param rocRawTag tag from ROC raw format evio bank.
      * @return <code>true</code> if the ROC is in single event mode.
      */
     public static boolean isRocRawSingleEventMode(int rocRawTag) {
@@ -175,6 +182,7 @@ public class Evio {
      * See if the given tag from a ROC Raw record indicates it is a sync event.
      * This condition is set by the ROC and it is only read here - never set.
      *
+     * @param rocRawTag tag from ROC raw format evio bank.
      * @return <code>true</code> if the ROC Raw record is a sync event.
      */
     public static boolean isRocRawSyncEvent(int rocRawTag) {
@@ -185,6 +193,7 @@ public class Evio {
      * See if the given tag from a ROC Raw record indicates the ROC has an error.
      * This condition is set by the ROC and it is only read here - never set.
      *
+     * @param rocRawTag tag from ROC raw format evio bank.
      * @return <code>true</code> if the ROC has an error.
      */
     public static boolean hasRocRawError(int rocRawTag) {
@@ -253,11 +262,12 @@ public class Evio {
             return false;
         }
 
-        // first bank inside (containing record ID) has event type
+        // First  bank - contains record ID, has event type.
+        // Second bank - must be at least one data bank.
         Vector<BaseStructure> kids = bank.getChildren();
-        if (kids.size() < 1) return false;
+        if (kids.size() < 2) return false;
 
-        // this first bank must contain one 32 bit int - the record ID
+        // first bank must contain one 32 bit int - the record ID
         BaseStructure firstBank = kids.firstElement();
 
         // contained data must be (U)INT32
@@ -289,55 +299,67 @@ public class Evio {
 
 
     /**
-     * Extract payload banks (physics or ROC raw format evio banks)
-     * from a Data Transport Record (DTR) format event.
+     * Extract payload banks (physics or ROC raw format evio banks) from a
+     * Data Transport Record (DTR) format event and place onto the specified queue.
+     * The DTR is a bank of banks with the first bank containing the record ID.
+     * The rest are payload banks which are either physics events or ROC raw events.<p>
+     *
+     * No checks done on arguments or dtrBank format as {@link #isDtrEvent} is assumed to
+     * have already been called. However, format of payload banks is checked here for
+     * the first time.<p>
      *
      * @param dtrBank input bank assumed to be in Data Transport Record format
-     * @param recordIds array of all record IDs of the last DTRs to be extracted for each channel
-     * @param channelNumber index specifying channel being used
-     * @return <code>true</code> if arg is DTR format event, else <code>false</code>
+     * @param queue queue on which to place extracted payload banks
+     * @throws EmuException if dtrBank contains no data banks or record ID is out of sequence
      */
-    public static EvioBank[] extractPayloadBanks(EvioBank dtrBank, int[] recordIds, int channelNumber)
-            throws EmuException {
+    public static void extractPayloadBanks(EvioBank dtrBank, PayloadBankQueue<PayloadBank> queue)
+                        throws EmuException {
 
-        // TODO: null arg
-
-        // DTR is a bank of banks. The first bank contains the record ID. The rest
-        // are payload banks which are either physics events or ROC raw events.
-
-        // must contain record ID bank plus at least one payload bank
+        // get sub banks
         Vector<BaseStructure> kids = dtrBank.getChildren();
-        if (kids == null || kids.size() < 2) return null;
-        int numKids = kids.size();
-
-        // number of payload banks given in header must match actual number of banks
-        BaseStructure firstBank = kids.firstElement();
-        int numPayloadBanks = firstBank.getHeader().getNumber();
-        if (numPayloadBanks != numKids - 1) return null;
 
         // check to make sure record ID is sequential
+        BaseStructure firstBank = kids.firstElement();
         int[] intData = firstBank.getIntData();
-        if (intData == null) return null;
-        int recordId = intData[0];
+        int  recordId = intData[0];
         // initial recordId stored is 0, ignore that
-        if (recordIds[channelNumber] > 0  &&  recordId != recordIds[channelNumber] + 1) {
+        if (queue.getRecordId() > 0 && recordId != queue.getRecordId() + 1) {
 System.out.println("record ID out of sequence !!!");
-            return null;
+            throw new EmuException("record ID out of sequences");
         }
-        recordIds[channelNumber] = recordId;
+        queue.setRecordId(recordId);
 
-        // return all banks except the first one containing record ID
-        try {
-            EvioBank[] banks = new EvioBank[numPayloadBanks];
-            for (int i=1; i < numKids; i++) {
-                banks[i-1] = (EvioBank) kids.get(i);
+        // store all banks except the first one containing record ID
+        int numKids  = kids.size();
+        int sourceId = dtrBank.getHeader().getTag();
+
+        int tag;
+        PayloadBank bank;
+        BaseStructureHeader header;
+
+        for (int i=1; i < numKids; i++) {
+            try {
+                bank = new PayloadBank((EvioBank) kids.get(i));
             }
-            return banks;
+            catch (ClassCastException e) {
+                // dtrBank does not contain data banks and thus is not in the proper format
+                throw new EmuException("DTR bank contains things other than banks");
+            }
+            bank.setRecordId(recordId);
+            bank.setSourceId(sourceId);
+            header = bank.getHeader();
+            tag    = header.getTag();
+            // pick this bank apart a little here
+            if (header.getDataTypeEnum() != DataType.BANK &&
+                    header.getDataTypeEnum() != DataType.ALSOBANK) {
+                throw new EmuException("ROC raw record not in proper format");
+            }
+            bank.setSync(Evio.isRocRawSyncEvent(tag));
+            bank.setHasError(Evio.hasRocRawError(tag));
+            bank.setSingleMode(Evio.isRocRawSingleEventMode(tag));
+            // Put ROC raw event on queue.
+            queue.add(bank);
         }
-        catch (ClassCastException e) {
-            // dtrBank does not contain banks and thus is not in the proper format
-        }
-        return null;
     }
 
 
@@ -354,16 +376,28 @@ System.out.println("record ID out of sequence !!!");
 
 
     /**
-     * Combine the trigger banks of all input DTR events into a single
-     * trigger bank which will be used in the built event.
+     * Combine the trigger banks of all input payload banks into a single
+     * trigger bank which will be used in the final built event.
      *
-     * @param inputTriggerBanks array containing the trigger bank from each channel's payload bank
+     * @param inputPayloadBanks array containing a bank from each channel's payload bank queue that will be
+     *                          built into one event
      * @return trigger bank which combines all input trigger banks into one
      * @throws EmuException for major error in event building
      */
-    private EvioBank combineTriggerBanks(EvioBank[] inputTriggerBanks) throws EmuException {
+    public static EvioBank combineTriggerBanks(PayloadBank[] inputPayloadBanks) throws EmuException {
 
-        if (inputTriggerBanks == null || inputTriggerBanks.length < 1)  return null;
+        // In each payload bank (of banks), the trigger bank is the first. Extract them all.
+        EvioBank[] triggerBanks = new EvioBank[inputPayloadBanks.length];
+        EvioBank trigBank;
+        for (int i=0; i < inputPayloadBanks.length; i++) {
+            trigBank = (EvioBank)inputPayloadBanks[i].getChildAt(0);
+            // only header of this bank has been parsed, so parse body and add
+            // as child/children to parent
+
+            triggerBanks[i] = parser.parseEvent(inputPayloadBanks[i].getRawBytes(),
+                                                inputPayloadBanks[i].getByteOrder());
+            parser.
+        }
 
         // At this point, the trigger banks have NOT been parsed since we only specified
         // parseDepth = 2 in the config file. Specifying parseDepth = 3 would do the trick
