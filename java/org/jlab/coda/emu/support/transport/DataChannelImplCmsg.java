@@ -11,23 +11,19 @@
 
 package org.jlab.coda.emu.support.transport;
 
-import org.jlab.coda.jevio.EvioBank;
-import org.jlab.coda.jevio.ByteParser;
-import org.jlab.coda.jevio.EvioException;
 import org.jlab.coda.emu.support.logger.Logger;
-import org.jlab.coda.cMsg.*;
+import org.jlab.coda.emu.support.data.EvioByteParser;
 import org.jlab.coda.emu.Emu;
+import org.jlab.coda.cMsg.*;
+import org.jlab.coda.jevio.EvioBank;
+import org.jlab.coda.jevio.EvioException;
 
-import javax.xml.stream.XMLStreamWriter;
-import javax.xml.stream.XMLOutputFactory;
-import javax.xml.stream.XMLStreamException;
+
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.Map;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
-import java.io.StringWriter;
-import java.io.PrintWriter;
 
 /**
  * @author timmer
@@ -60,7 +56,7 @@ public class DataChannelImplCmsg implements DataChannel {
     private boolean pause;
 
     /** Object for parsing evio data contained in incoming messages. */
-    private ByteParser parser;
+    private EvioByteParser parser;
 
     /** Byte order of output data (input data's order is specified in msg). */
     ByteOrder byteOrder;
@@ -207,7 +203,7 @@ System.out.println("cmsg data channel " + name + ": got message in callback");
                 Logger.info("      DataChannelImplCmsg.const : " + e.getMessage());
                 throw new DataTransportException(e);
             }
-            parser = new ByteParser();
+            parser = new EvioByteParser();
         }
         else {
             // set endianness of data
