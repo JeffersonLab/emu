@@ -5,6 +5,7 @@ import org.jlab.coda.emu.EmuException;
 
 import java.util.Vector;
 import java.util.Arrays;
+import java.nio.ByteBuffer;
 
 /**
  * This class is used as a layer on top of evio to handle CODA3 specific details.
@@ -137,7 +138,7 @@ public class Evio {
 
 
     /** Object for parsing evio data. */
-    private static ByteParser parser;
+    private static EvioByteParser parser;
 
 
     /**
@@ -391,12 +392,18 @@ System.out.println("record ID out of sequence !!!");
         EvioBank trigBank;
         for (int i=0; i < inputPayloadBanks.length; i++) {
             trigBank = (EvioBank)inputPayloadBanks[i].getChildAt(0);
-            // only header of this bank has been parsed, so parse body and add
-            // as child/children to parent
+            // Only header of this bank has been parsed, but we need it fully parsed.
+            // To do this we must first turn this bank into a byte array, then we can
+            // parse the bytes into an EvioEvent object.
+            ByteBuffer bbuf = ByteBuffer.allocate(1000);
+            bbuf.clear();
+            trigBank.write(bbuf);
+            bbuf.flip();
 
-            triggerBanks[i] = parser.parseEvent(inputPayloadBanks[i].getRawBytes(),
-                                                inputPayloadBanks[i].getByteOrder());
-            parser.
+
+//            triggerBanks[i] = parser.parseEvent(inputPayloadBanks[i].getRawBytes(),
+//                                                inputPayloadBanks[i].getByteOrder());
+//            parser.
         }
 
         // At this point, the trigger banks have NOT been parsed since we only specified
