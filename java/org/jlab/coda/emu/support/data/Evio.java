@@ -6,6 +6,7 @@ import org.jlab.coda.emu.EmuException;
 import java.util.Vector;
 import java.util.Arrays;
 import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 
 /**
  * This class is used as a layer on top of evio to handle CODA3 specific details.
@@ -395,6 +396,9 @@ System.out.println("record ID out of sequence !!!");
             // Only header of this bank has been parsed, but we need it fully parsed.
             // To do this we must first turn this bank into a byte array, then we can
             // parse the bytes into an EvioEvent object.
+            byte[] b = new byte[trigBank.getTotalBytes()];
+            // put in header, then raw bytes
+            //System.arraycopy(trigBank.getHeader());
             ByteBuffer bbuf = ByteBuffer.allocate(1000);
             bbuf.clear();
             trigBank.write(bbuf);
