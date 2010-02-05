@@ -194,7 +194,7 @@ public class EmuModuleFactory implements StatedObject {
 //                System.gc();
 //                System.runFinalization();
 
-                // create the transport objects & channels before the modules  // bug bug: WHY?
+                // create the transport objects & channels before the modules  // TODO: WHY?
                 TRANSPORT_FACTORY.execute(cmd);
 
                 Node n = modulesConfig.getFirstChild();

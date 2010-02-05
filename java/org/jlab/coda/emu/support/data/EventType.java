@@ -12,7 +12,8 @@ public enum EventType {
     PAUSE    (19, true),
     END      (20, true),
     PHYSICS  (0x0C00, false),  // 3072 decimal
-    DATA     (0x0C01, false);  // 3073 decimal
+    DATA     (0x0C01, false),  // 3073 decimal
+    TRIGGER  (0x0C02, false);  // 3074 decimal
 
     private int value;
     private boolean control;
@@ -60,6 +61,14 @@ public enum EventType {
      */
     public boolean isPhysics() {
         return this.equals(PHYSICS);
+    }
+
+    /**
+     * Is this a trigger bank type?
+     * @return <code>true</code> if trigger bank type, else <code>false</code>
+     */
+    public boolean isTriggerBank() {
+        return this.equals(TRIGGER);
     }
 
 }

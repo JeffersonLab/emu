@@ -4,9 +4,7 @@ import org.jlab.coda.jevio.*;
 import org.jlab.coda.emu.EmuException;
 
 import java.util.Vector;
-import java.util.Arrays;
 import java.nio.ByteBuffer;
-import java.nio.ByteOrder;
 
 /**
  * This class is used as a layer on top of evio to handle CODA3 specific details.
@@ -133,6 +131,8 @@ public class Evio {
     private static final int SINGLE_EVENT_MODE_BIT_MASK  = 0x8000;
 
     /** ID number designating a ROC Raw Record. */
+    private static final int PHYSICS_RECORD_ID         = 0x0C00;
+    /** ID number designating a ROC Raw Record. */
     private static final int ROC_RAW_RECORD_ID         = 0x0C02;
     /** ID number designating a Data Transport Record. */
     private static final int DATA_TRANSPORT_RECORD_ID  = 0x0C01;
@@ -147,6 +147,27 @@ public class Evio {
      */
     private Evio() { }
 
+    /**
+     * Create a 16-bit tag for a ROC Raw record out of a 4 status bits and 12-bit ROC id.
+     *
+     * @param sync is sync event
+     * @param error is error
+     * @param reserved reserved for future use
+     * @param singleEventMode is single event mode
+     * @param rocId  lowest 12 bits are ROC id
+     * @return a 16-bit tag for a ROC Raw record out of a 4 status bits and 12-bit ROC id
+     */
+    public static int createRocRawTag(boolean sync,     boolean error,
+                                      boolean reserved, boolean singleEventMode, int rocId) {
+        int status = 0;
+        
+        if (sync)            status |= SYNC_BIT_MASK;
+        if (error)           status |= ERROR_BIT_MASK;
+        if (reserved)        status |= RESERVED_BIT_MASK;
+        if (singleEventMode) status |= SINGLE_EVENT_MODE_BIT_MASK;
+
+        return ( status | (rocId & ROCID_BIT_MASK) );
+    }
 
     /**
      * Create a 16-bit tag for a ROC Raw record out of a 4-bit status and 12-bit ROC id.
@@ -217,7 +238,7 @@ public class Evio {
 
 
     /**
-     * Determine wether a bank is a control event or not.
+     * Determine whether a bank is a control event or not.
      *
      * @param bank input bank
      * @return <code>true</code> if arg is control event, else <code>false</code>
@@ -234,7 +255,7 @@ public class Evio {
 
 
     /**
-     * Determine wether a bank is a physics event or not.
+     * Determine whether a bank is a physics event or not.
      *
      * @param bank input bank
      * @return <code>true</code> if arg is physics event, else <code>false</code>
@@ -248,6 +269,21 @@ public class Evio {
 
         return (num == 0xCC && eventType.isPhysics());
     }
+
+
+    /**
+      * Determine whether a bank is a trigger bank or not.
+      *
+      * @param bank input bank
+      * @return <code>true</code> if arg is trigger bank, else <code>false</code>
+      */
+     public static boolean isTriggerBank(EvioBank bank) {
+         if (bank == null)  return false;
+
+         int tag = bank.getHeader().getTag();
+
+         return EventType.getEventType(tag).isTriggerBank();
+     }
 
 
     /**
@@ -301,6 +337,18 @@ public class Evio {
 
 
     /**
+     * Is the source ID in the bank (a Data Transport Record) identical to the given id?
+     *
+     * @param bank Data Transport Record object
+     * @param id id of an input channel
+     * @return <code>true</code> if bank arg's source ID is the same as the id arg, else <code>false</code>
+     */
+    public static boolean idsMatch(EvioBank bank, int id) {
+        return (bank != null && bank.getHeader().getTag() == id);
+    }
+
+
+    /**
      * Extract payload banks (physics or ROC raw format evio banks) from a
      * Data Transport Record (DTR) format event and place onto the specified queue.
      * The DTR is a bank of banks with the first bank containing the record ID.
@@ -336,86 +384,224 @@ System.out.println("record ID out of sequence !!!");
         int sourceId = dtrBank.getHeader().getTag();
 
         int tag;
-        PayloadBank bank;
+        PayloadBank payloadBank;
         BaseStructureHeader header;
 
         for (int i=1; i < numKids; i++) {
             try {
-                bank = new PayloadBank((EvioBank) kids.get(i));
+                payloadBank = new PayloadBank((EvioBank) kids.get(i));
             }
             catch (ClassCastException e) {
                 // dtrBank does not contain data banks and thus is not in the proper format
                 throw new EmuException("DTR bank contains things other than banks");
             }
-            bank.setRecordId(recordId);
-            bank.setSourceId(sourceId);
-            header = bank.getHeader();
+            payloadBank.setRecordId(recordId);
+            payloadBank.setSourceId(sourceId);
+            if (sourceId != getRocRawId(payloadBank.getHeader().getTag())) {
+                throw new EmuException("DTR bank source Id conflicts with payload bank's roc id"); // non-fatal
+            }
+            header = payloadBank.getHeader();
             tag    = header.getTag();
             // pick this bank apart a little here
             if (header.getDataTypeEnum() != DataType.BANK &&
-                    header.getDataTypeEnum() != DataType.ALSOBANK) {
+                header.getDataTypeEnum() != DataType.ALSOBANK) {
                 throw new EmuException("ROC raw record not in proper format");
             }
-            bank.setSync(Evio.isRocRawSyncEvent(tag));
-            bank.setHasError(Evio.hasRocRawError(tag));
-            bank.setSingleMode(Evio.isRocRawSingleEventMode(tag));
+            payloadBank.setSync(Evio.isRocRawSyncEvent(tag));
+            payloadBank.setHasError(Evio.hasRocRawError(tag));
+            payloadBank.setSingleMode(Evio.isRocRawSingleEventMode(tag));
             // Put ROC raw event on queue.
-            queue.add(bank);
+            queue.add(payloadBank);
         }
     }
 
 
     /**
-     * Is the source ID in the bank (a Data Transport Record) identical to the given id?
-     *
-     * @param bank Data Transport Record object
-     * @param id id of an input channel
-     * @return <code>true</code> if bank arg's source ID is the same as the id arg, else <code>false</code>
+     * For each event, compare the timestamps from all ROCs to make sure they're within
+     * the allowed difference.
+     * 
+     * @param triggerBank combined trigger bank containing timestamps to check for consistency
+     * @return <code>true</code> if timestamps are OK, else <code>false</code>
      */
-    public static boolean idsMatch(EvioBank bank, int id) {
-        return (bank != null && bank.getHeader().getTag() == id);
+    public static boolean timeStampsOk(EvioBank triggerBank) {
+        return true;
     }
 
 
     /**
      * Combine the trigger banks of all input payload banks into a single
-     * trigger bank which will be used in the final built event.
+     * trigger bank which will be used in the final built event. Any error
+     * which occurs but allows the build to continue will be noted in a status bit.
+     * Errors which stop the event building cause an exception to be thrown.
      *
      * @param inputPayloadBanks array containing a bank from each channel's payload bank queue that will be
      *                          built into one event
+     * @param ebId unique id number of event builder calling this method
+     * @param nonFatalError has there been an error which still allows for event building?
      * @return trigger bank which combines all input trigger banks into one
-     * @throws EmuException for major error in event building
+     * @throws EmuException for major error in event building which necessitates stopping the build
      */
-    public static EvioBank combineTriggerBanks(PayloadBank[] inputPayloadBanks) throws EmuException {
+    public static EvioBank combineTriggerBanks(PayloadBank[] inputPayloadBanks,
+                                               int ebId, boolean nonFatalError)
+            throws EmuException {
 
-        // In each payload bank (of banks), the trigger bank is the first. Extract them all.
-        EvioBank[] triggerBanks = new EvioBank[inputPayloadBanks.length];
+        // In each payload bank (of banks) is a trigger bank. Extract them all.
         EvioBank trigBank;
-        for (int i=0; i < inputPayloadBanks.length; i++) {
-            trigBank = (EvioBank)inputPayloadBanks[i].getChildAt(0);
-            // Only header of this bank has been parsed, but we need it fully parsed.
-            // To do this we must first turn this bank into a byte array, then we can
-            // parse the bytes into an EvioEvent object.
-            byte[] b = new byte[trigBank.getTotalBytes()];
-            // put in header, then raw bytes
-            //System.arraycopy(trigBank.getHeader());
-            ByteBuffer bbuf = ByteBuffer.allocate(1000);
-            bbuf.clear();
-            trigBank.write(bbuf);
+        int index;
+        int numPayloadBanks = inputPayloadBanks.length;
+        EvioBank[] triggerBanks = new EvioBank[numPayloadBanks];
+        int numEvents = inputPayloadBanks[0].getHeader().getNumber();
+
+        for (int i=0; i < numPayloadBanks; i++) {
+
+            // find the trigger bank (should be first one)
+            index = 0;
+            do {
+                try {
+                    trigBank = (EvioBank)inputPayloadBanks[i].getChildAt(index++);
+                    inputPayloadBanks[i].setEventCount(numEvents);
+                }
+                catch (Exception e) {
+                    throw new EmuException("No trigger bank in ROC raw record", e);
+                }
+            } while (!Evio.isTriggerBank(trigBank)); // check to see if it really is a trigger bank
+
+            // check to see if all payload banks think they have same # of events
+            if (numEvents != inputPayloadBanks[i].getHeader().getNumber()) {
+                throw new EmuException("Data blocks contain different numbers of events");
+            }
+
+            // Only the header of this trigger bank has been parsed. This is because we only specified
+            // parseDepth = 2 in the config file. Specifying parseDepth = 3 (or 0) would do the trick,
+            // but would also mean parsing part (or all) of the opaque data blocks - which we do NOT want.
+            //
+            // So, ... now we need to fully parse this trigger bank. To do this we must first turn this
+            // bank back into a ByteBufer, then we can parse the bytes into an EvioEvent object.
+
+            ByteBuffer bbuf = ByteBuffer.allocate(trigBank.getTotalBytes());
+            // set endian
+            bbuf.order(trigBank.getByteOrder());
+            // put header info into buffer
+            trigBank.getHeader().write(bbuf);
+            // put raw bytes (non-header) into buffer
+            bbuf.put(trigBank.getRawBytes());
+            // get buffer ready to read
             bbuf.flip();
 
+            try {
+                triggerBanks[i] = parser.parseEvent(bbuf);
+                inputPayloadBanks[i].setParsedTriggerBank((EvioEvent)triggerBanks[i]);
+            }
+            catch (EvioException e) {
+                throw new EmuException("Data not in evio format", e);
+            }
 
-//            triggerBanks[i] = parser.parseEvent(inputPayloadBanks[i].getRawBytes(),
-//                                                inputPayloadBanks[i].getByteOrder());
-//            parser.
+            // check if all trigger banks think they have the same number of events
+            if (numEvents != triggerBanks[i].getHeader().getNumber()) {
+                throw new EmuException("Data blocks contain different numbers of events");
+            }
+            inputPayloadBanks[i].setEventCount(numEvents);
+
+            // number of trigger bank children must = # events
+            if (triggerBanks[i].getChildCount() != numEvents) {
+                throw new EmuException("Trigger bank does not have correct number of segments");
+            }
         }
 
-        // At this point, the trigger banks have NOT been parsed since we only specified
-        // parseDepth = 2 in the config file. Specifying parseDepth = 3 would do the trick
-        // but would also mean parsing part of the opaque data blocks - which we do NOT want.
-        // So ..., we parse trigger banks now.
 
-        return null;
+        EventBuilder builder = new EventBuilder(PHYSICS_RECORD_ID, DataType.SEGMENT, numPayloadBanks+1);
+        EvioEvent combinedTrigger = builder.getEvent();
+
+
+        // 1) No sense duplicating data for each ROC/EB. Get event(trigger) types & event numbers
+        //    and put into 1 common bank with each value being a short (use least significant 16
+        //    bits of event) in the format:
+        //
+        //    MSB(31)                    LSB(0)
+        //    _________________________________
+        //    | event1 type  |  event1 number |
+        //    | event2 type  |  event2 number |
+        //    |       .      |        .       |
+        //    |       .      |        .       |
+        //    |       .      |        .       |
+        //    | eventN type  |  eventN number |
+        //    _________________________________
+        //
+        
+        EvioSegment segment;
+        EvioSegment ebSeg = new EvioSegment(ebId, DataType.USHORT16);
+        short[] evData = new short[2*numEvents];
+        
+        for (int i=0; i < numEvents; i+=2) {
+            segment     = (EvioSegment) (triggerBanks[0].getChildAt(i));
+            evData[i]   = (short) (segment.getHeader().getTag());  // event type
+            evData[i+1] = (short) (segment.getIntData()[0]);       // event number
+        }
+
+        try {
+            ebSeg.appendShortData(evData);
+            builder.addChild(combinedTrigger, ebSeg);
+        }
+        catch (EvioException e) { /* never happen */ }
+
+        // It is convenient at this point to check and see if for a given event #,
+        // across all ROCs, the event or trigger type is the same.
+        for (int i=0; i < numEvents; i++) {
+            for (int j=1; j < triggerBanks.length; j++) {
+                segment = (EvioSegment) (triggerBanks[j].getChildAt(i));
+                if (evData[2*i] != (short) (segment.getHeader().getTag())) {
+                    nonFatalError = true;
+                }
+            }
+        }
+
+
+
+        // 2) now add one segment for each ROC with ROC-specific data in it
+        int intCount, eventType = 0, dataLenFromEachSeg = 0;
+        EvioSegment newRocSeg, oldRocSeg;
+
+        for (int i=0; i < triggerBanks.length; i++) {
+            newRocSeg = new EvioSegment(triggerBanks[i].getHeader().getTag(), DataType.INT32);
+            // copy over all ints except the first which is the event Number and is stored in common
+
+            // assume, for now, that each segment in the trigger bank has the same amount of data
+            oldRocSeg = (EvioSegment)triggerBanks[i].getChildAt(0);
+            // (- 1) forget about event # that we already took care of
+            dataLenFromEachSeg = oldRocSeg.getHeader().getLength() - 1;
+            // eventTypes from roc segments must be the same
+            if (i == 0) {
+                eventType = oldRocSeg.getHeader().getTag();
+            }
+            else if (oldRocSeg.getHeader().getTag() != eventType) {
+                throw new EmuException("Event types are differ between ROCs"); // non-fatal error
+            }
+
+
+            // total amount of new data for new (ROC) segment
+            intCount = numEvents * dataLenFromEachSeg;
+            int[] newData = new int[intCount];
+
+            int[] oldData;
+            int position = 0;
+            for (int j=0; j < numEvents; j++) {
+                oldData = ((EvioSegment)triggerBanks[i].getChildAt(j)).getIntData();
+                if (oldData.length != dataLenFromEachSeg + 1) {
+                    throw new EmuException("Trigger segments contain different amounts of data");
+                }
+                System.arraycopy(oldData, 1, newData, position, dataLenFromEachSeg);
+                position += dataLenFromEachSeg;
+            }
+            
+            try {
+                newRocSeg.appendIntData(newData);
+                builder.addChild(combinedTrigger, newRocSeg);
+            }
+            catch (EvioException e) { /* never happen */ }
+        }
+
+
+        return combinedTrigger;
     }
 
     

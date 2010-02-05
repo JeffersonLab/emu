@@ -29,6 +29,9 @@ public class EventBuilder implements EmuModule, Runnable {
     /** Field name is the name of this module */
     private final String name;
 
+    /** ID number of this event builder obtained from config file. */
+    private int ebId;
+
     /** Field state is the state of the module */
     private State state = CODAState.UNCONFIGURED;
 
@@ -112,7 +115,6 @@ System.out.println("ProcessTest module: quitting watcher thread");
 
     /**
      * Constructor ProcessTest creates a new ProcessTest instance.
-     * This does nothing except set the name.
      *
      * @param name         name of module
      * @param attributeMap map containing attributes of module
@@ -120,6 +122,10 @@ System.out.println("ProcessTest module: quitting watcher thread");
     public EventBuilder(String name, Map<String,String> attributeMap) {
         this.name = name;
         this.attributeMap = attributeMap;
+        try {
+            ebId = Integer.parseInt(attributeMap.get("id"));
+        }
+        catch (NumberFormatException e) { }
 //System.out.println("**** HEY, HEY someone created one of ME (modules.ProcessTest object) ****");
         System.out.println("**** LOADED NEW CLASS, DUDE!!! (modules.ProcessTest object) ****");
     }
@@ -183,8 +189,9 @@ System.out.println("Action Thread state " + state);
         DataChannel outC;
         BlockingQueue<EvioBank> outputQueue = null;
         PayloadBank[] buildingBanks = new PayloadBank[inputChannels.size()];
-        EvioBank finalEvent  = null;
-        EvioBank triggerBank = null;
+        EvioBank finalEvent   = null;
+        EvioBank triggerBank  = null;
+        boolean nonFatalError = false;
 
         // variables for instantaneous stats
         long deltaT, t1, t2, prevEventCount=0L, prevWordCount=0L;
@@ -224,11 +231,19 @@ System.out.println("Action Thread state " + state);
 
                     // No more control events here
 
-                    // check for sync
-                    checkSync(buildingBanks);
+                    // check for identical syncs & uniqueness of ROC ids
+                    checkSyncAndRocIds(buildingBanks);
 
                     // Start by combining the trigger banks of input event into one
-                    triggerBank = Evio.combineTriggerBanks(buildingBanks);
+                    triggerBank = Evio.combineTriggerBanks(buildingBanks, ebId, nonFatalError);
+
+                    // check timestamps if requested
+                    boolean requested = false;
+                    if (requested) {
+                        if (!Evio.timeStampsOk(triggerBank)) {
+                            throw new EmuException("Timestamps show problems with data");
+                        }
+                    }
 
                     finalEvent = buildFinalEvent(triggerBank, buildingBanks);
                 }
@@ -275,23 +290,31 @@ System.out.println("Action Thread state " + state);
     /**
      * Check each payload bank - one from each input channel - to see if there are any
      * sync bits set. If all or none are sync banks, everything is OK. If only some are,
-     * throw an exception.
+     * throw an exception. Also check the ROC ids of the banks to make sure each is unique.
      *
      * @param buildingBanks array containing banks that will be built together
      * @throws EmuException if arg contains mixture of sync and non-sync banks
      */
-    private void checkSync(PayloadBank[] buildingBanks) throws EmuException {
+    private void checkSyncAndRocIds(PayloadBank[] buildingBanks) throws EmuException {
+        // TODO: do not throw exception for non-fatal problems
+
         // for each ROC raw data record check the sync bit
         int syncBankCount = 0;
-        for (PayloadBank bank : buildingBanks) {
-            if (bank.isSync()) {
+        for (int i=0; i < buildingBanks.length; i++) {
+            if (buildingBanks[i].isSync()) {
                 syncBankCount++;
+            }
+            for (int j=i+1; j < buildingBanks.length; j++) {
+                if ( buildingBanks[i].getSourceId() == buildingBanks[j].getSourceId()  ) {
+                    // duplicate roc IDs
+                    throw new EmuException("ROCs have duplicate IDs"); // non-fatal
+                }
             }
         }
 
         // if one is a sync, all must be syncs
         if (syncBankCount > 0 && syncBankCount != buildingBanks.length) {
-            throw new EmuException("some banks are sync banks and some are not");
+            throw new EmuException("some banks are sync banks and some are not"); // non-fatal
         }
     }
 
