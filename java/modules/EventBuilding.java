@@ -15,7 +15,7 @@ import org.jlab.coda.emu.support.data.Evio;
 import org.jlab.coda.emu.support.data.EventType;
 import org.jlab.coda.emu.support.data.PayloadBank;
 import org.jlab.coda.emu.support.data.PayloadBankQueue;
-import org.jlab.coda.jevio.EvioBank;
+import org.jlab.coda.jevio.*;
 
 import java.util.*;
 import java.util.concurrent.BlockingQueue;
@@ -23,14 +23,17 @@ import java.util.concurrent.BlockingQueue;
 /**
  * The event building module.
  */
-public class EventBuilder implements EmuModule, Runnable {
+public class EventBuilding implements EmuModule, Runnable {
 
 
-    /** Field name is the name of this module */
+    /** Name of this event builder. */
     private final String name;
 
     /** ID number of this event builder obtained from config file. */
     private int ebId;
+
+    /** Keep track of the number of events built in this event builder. */
+    private int ebRecordId;
 
     /** Field state is the state of the module */
     private State state = CODAState.UNCONFIGURED;
@@ -48,11 +51,15 @@ public class EventBuilder implements EmuModule, Runnable {
     /** Map containing attributes of this module given in config file. */
     private Map<String,String> attributeMap;
 
-    /** Field actionThread is a Thread object that is the main thread of this module. */
+    /** Thread object that is the main thread of this module. */
     private Thread actionThread;
 
     /** Field lastError is the last error thrown by the module */
     private final Throwable lastError = null;
+
+    /** Thread used to take Data Transport Records from input channels, dissect them,
+     *  and place resulting payload banks onto payload queues. */
+    private Thread queueFiller;
 
     // The following members are for keeping statistics
 
@@ -72,12 +79,12 @@ public class EventBuilder implements EmuModule, Runnable {
      private static final int statGatheringPeriod = 2000;
 
     /** Field watcher */
-    private Watcher watcher;
+    private Thread watcher;
 
 
     /**
-     * This class codes a thread that copies the event number and data count into the EMU status
-     * once every two hundred milliseconds this is much more efficient than updating the status
+     * This class defines a thread that copies the event number and data count into the EMU status
+     * once every two hundred milliseconds. This is much more efficient than updating the status
      * every time that the counters are incremented.
      */
     private class Watcher extends Thread {
@@ -113,19 +120,124 @@ System.out.println("ProcessTest module: quitting watcher thread");
         }
     }
 
+
+
     /**
-     * Constructor ProcessTest creates a new ProcessTest instance.
+     * This class places payload banks parsed from a Data Transport Record or DTR (taken from
+     * a channel (ROC)) onto a payload bank queue associated with that channel. Control events
+     * are also placed in these queues. However, all non-data, non-control types of events are
+     * passed directly to one of the output queues.<p>
      *
-     * @param name         name of module
+     * The idea is to place not much more than 20 payload banks on each queue at one time.
+     * This translates to roughly no more than 30MB of data across all ROCs stored in these
+     * queues (15kB/ev * 20 pbanks * 100 ev/pbank). We do NOT want to block while filling them
+     * unless there are no banks in a queue and also no DTRs in its corresponding channel.<p>
+     *
+     * If all queues are full when going through the while loop, a sleep is done to prevent chewing
+     * up too much cpu time.
+     */
+    private class Qfiller extends Thread {
+
+        public void run() {
+
+            EvioBank channelBank;
+            BlockingQueue<EvioBank> channelQ;
+            PayloadBankQueue<PayloadBank> payloadBankQ;
+            BitSet channelsTouched = new BitSet(payloadBankQueues.size());
+            // pick any output queue and use it forward events that don't get built
+            BlockingQueue<EvioBank> outputQueue = outputChannels.get(0).getQueue();
+
+            while (state == CODAState.ACTIVE) {
+
+                try {
+                    // init
+                    channelsTouched.clear();
+
+                    // Loop thru all queues from which we grab banks to be built
+                    for (int i=0;  i < payloadBankQueues.size(); i++) {
+                        payloadBankQ = payloadBankQueues.get(i);
+
+                        // To fill this payload bank Q, grabbing a DTR from the channel Q associated
+                        // with it and move its payload banks to payload bank Q.
+                        channelQ = inputChannels.get(i).getQueue();
+
+                        // Think about getting more payload banks cause we're running low ...
+                        while (payloadBankQ.size() < 20) {
+
+                            // If channel Q is empty ...
+                            if (channelQ.size() < 1) {
+                                // But payload bank Q has banks, forget about it & move on to next Q
+                                if (payloadBankQ.size() > 0) {
+                                    break;
+                                }
+
+                                // And payload bank is also empty, block waiting for the next DTR from ROC.
+                                channelBank = channelQ.take();  // blocks, throws InterruptedException
+                            }
+                            // Otherwise, just grab next DTR from channel Q.
+                            else {
+                                channelBank = channelQ.poll();  // return null if empty, should never happen
+                            }
+
+                            // this channel is being worked on
+                            channelsTouched.set(i, true);
+
+                            //----------------------------------------------------------------------
+                            // channelBank might be a DTR, Control Event, Physics Event, or garbage.
+                            //----------------------------------------------------------------------
+
+                            // Is bank is a control or DTR format event?
+                            boolean isDTR     = Evio.isDtrEvent(channelBank);
+                            boolean isControl = Evio.isControlEvent(channelBank);
+
+                            if (isDTR) {
+                                // Extract payload banks from DTR & place onto Q
+                                // may be blocked here waiting on a Q
+                                Evio.extractPayloadBanks(channelBank, payloadBankQ);
+                            }
+                            else if (isControl) {
+                                // Put control event on queue without any analysis.
+                                payloadBankQ.add(new PayloadBank(channelBank));
+                            }
+                            else {
+                                // If neither control nor DTR format event, put it on any output queue.
+                                outputQueue.put(channelBank);
+                            }
+                        }
+                    }
+
+                    // if all channels were empty with banks still in queues, or all queues full,
+                    // or some combination of the two, avoid chewing up cpu by waiting a little
+                    if (channelsTouched.isEmpty()) {
+            System.out.println("Qfiller is going to SLEEP");
+                        Thread.sleep(5);
+                    }
+
+                } catch (EmuException e) {
+                    // do something
+                } catch (InterruptedException e) {
+                    if (state == CODAState.DOWNLOADED) return;
+                }
+                
+            }
+        }
+    }
+
+
+    
+    /**
+     * Constructor ProcessTest creates a new EventBuilding instance.
+     *
+     * @param name name of module
      * @param attributeMap map containing attributes of module
      */
-    public EventBuilder(String name, Map<String,String> attributeMap) {
+    public EventBuilding(String name, Map<String,String> attributeMap) {
         this.name = name;
         this.attributeMap = attributeMap;
         try {
             ebId = Integer.parseInt(attributeMap.get("id"));
         }
-        catch (NumberFormatException e) { }
+        catch (NumberFormatException e) { /* default to 0 */ }
 //System.out.println("**** HEY, HEY someone created one of ME (modules.ProcessTest object) ****");
         System.out.println("**** LOADED NEW CLASS, DUDE!!! (modules.ProcessTest object) ****");
     }
@@ -189,8 +301,9 @@ System.out.println("Action Thread state " + state);
         DataChannel outC;
         BlockingQueue<EvioBank> outputQueue = null;
         PayloadBank[] buildingBanks = new PayloadBank[inputChannels.size()];
-        EvioBank finalEvent   = null;
-        EvioBank triggerBank  = null;
+        EvioBank bank;
+        EventBuilder builder = new EventBuilder(0, DataType.BANK, 0); // this event not used, just need a builder
+        EvioEvent physicsEvent, dtrEvent = null, combinedTrigger;
         boolean nonFatalError = false;
 
         // variables for instantaneous stats
@@ -214,38 +327,74 @@ System.out.println("Action Thread state " + state);
                 try {
 
                     do {
-                        // may get stuck here waiting on a Q
-                        fillPayloadBankQueues(outputQueue);
+                        // The payload bank queues are filled by the queueFiller thread.
 
-                        // Here we have everything we need to build:
-                        // ROC raw or physics events from all ROCs
-                        // each with proper source ID and sequential record IDs.
+                        // Here we have what we need to build:
+                        // ROC raw events from all ROCs, each with sequential record IDs.
                         // However, there are also control events on queues.
 
                         // Grab one bank from each channel
                         for (int i=0; i < payloadBankQueues.size(); i++) {
+                            // will block waiting for payload bank
                             buildingBanks[i] = payloadBankQueues.get(i).take();
+                            // Check the source ID of this bank to see if it matches
+                            // what should be coming over this channel.
+                            if (!Evio.idsMatch(buildingBanks[i], payloadBankQueues.get(i).getSourceId())) {
+                                nonFatalError = true;
+                            }
                         }
 
                     } while (tryBuildingControlEvent(buildingBanks, outputQueue));
 
-                    // No more control events here
+                    // No more control events at this point
 
                     // check for identical syncs & uniqueness of ROC ids
-                    checkSyncAndRocIds(buildingBanks);
+                    nonFatalError |= checkSyncAndRocIds(buildingBanks);
 
-                    // Start by combining the trigger banks of input event into one
-                    triggerBank = Evio.combineTriggerBanks(buildingBanks, ebId, nonFatalError);
+                    // build trigger bank
+                    combinedTrigger = new EvioEvent(Evio.PHYSICS_RECORD_ID,
+                                                    DataType.SEGMENT,
+                                                    buildingBanks.length + 1);
+                    builder.setEvent(combinedTrigger);
+
+                    // combine the trigger banks of input events into one
+                    nonFatalError |= Evio.combineTriggerBanks(buildingBanks, builder, ebId);
 
                     // check timestamps if requested
                     boolean requested = false;
                     if (requested) {
-                        if (!Evio.timeStampsOk(triggerBank)) {
-                            throw new EmuException("Timestamps show problems with data");
+                        if (!Evio.timeStampsOk(combinedTrigger)) {
+                            // Timestamps show problems with data
+                            nonFatalError = true;
+                            //throw new EmuException("Timestamps show problems with data");
                         }
                     }
 
-                    finalEvent = buildFinalEvent(triggerBank, buildingBanks);
+                    // create a physics event from payload banks and combined trigger bank
+                    int tag = Evio.createRocRawTag(buildingBanks[0].isSync(),
+                                                   buildingBanks[0].isHasError() || nonFatalError,
+                                                   buildingBanks[0].isReserved(),
+                                                   buildingBanks[0].isSingleMode(),
+                                                   ebId);
+                    physicsEvent = new EvioEvent(tag, DataType.BANK, 0xCC);
+                    builder.setEvent(physicsEvent);
+                    Evio.buildPhysicsEvent(combinedTrigger, buildingBanks, builder);
+
+                    // wrap physics event in Data Transport Record for next EB or ER
+                    dtrEvent = new EvioEvent(ebId, DataType.BANK, ebRecordId & 0xff);
+                    builder.setEvent(dtrEvent);
+
+                    try {
+                        // add bank with full recordId
+                        bank = new EvioBank(Evio.DATA_TRANSPORT_RECORD_ID, DataType.BANK, 1);
+                        bank.appendIntData(new int[] {ebRecordId});
+                        builder.addChild(dtrEvent, bank);
+                        // add physics event
+                        builder.addChild(dtrEvent, physicsEvent);
+                        // TODO: how do we set this initially????
+                        ebRecordId++;
+                    } catch (EvioException e) { /* never happen */  }
+
                 }
                 catch (EmuException e) {
                     // TODO: major error getting data events to build, do something ...
@@ -256,10 +405,10 @@ System.out.println("Action Thread state " + state);
 
                 if (hasOutputs) {
 //System.out.println("ProcessTest: put bank on output Q");
-                    outputQueue.put(finalEvent);
+                    outputQueue.put(dtrEvent);
 
-                    eventCountTotal++;                                         // event count
-                    wordCountTotal += finalEvent.getHeader().getLength() + 1;  //  word count
+                    eventCountTotal++;                                       // event count
+                    wordCountTotal += dtrEvent.getHeader().getLength() + 1;  //  word count
 
                     t2 = System.currentTimeMillis();
                     deltaT = t2 - t1;
@@ -274,7 +423,6 @@ System.out.println("Action Thread state " + state);
                         prevEventCount = eventCountTotal;
                         prevWordCount  = wordCountTotal;
                     }
-
                 }
 
                 //Thread.sleep(2);
@@ -289,14 +437,14 @@ System.out.println("Action Thread state " + state);
 
     /**
      * Check each payload bank - one from each input channel - to see if there are any
-     * sync bits set. If all or none are sync banks, everything is OK. If only some are,
-     * throw an exception. Also check the ROC ids of the banks to make sure each is unique.
+     * sync bits set. If all or none are sync banks, everything is OK.
+     * Also check the ROC ids of the banks to make sure each is unique.
      *
      * @param buildingBanks array containing banks that will be built together
-     * @throws EmuException if arg contains mixture of sync and non-sync banks
+     * @return <code>true</code> if non fatal error occurred, else <code>false</code>
      */
-    private void checkSyncAndRocIds(PayloadBank[] buildingBanks) throws EmuException {
-        // TODO: do not throw exception for non-fatal problems
+    private boolean checkSyncAndRocIds(PayloadBank[] buildingBanks) {
+        boolean nonFatalError = false;
 
         // for each ROC raw data record check the sync bit
         int syncBankCount = 0;
@@ -306,16 +454,19 @@ System.out.println("Action Thread state " + state);
             }
             for (int j=i+1; j < buildingBanks.length; j++) {
                 if ( buildingBanks[i].getSourceId() == buildingBanks[j].getSourceId()  ) {
-                    // duplicate roc IDs
-                    throw new EmuException("ROCs have duplicate IDs"); // non-fatal
+                    // ROCs have duplicate IDs
+                    nonFatalError = true;
                 }
             }
         }
 
         // if one is a sync, all must be syncs
         if (syncBankCount > 0 && syncBankCount != buildingBanks.length) {
-            throw new EmuException("some banks are sync banks and some are not"); // non-fatal
+            // some banks are sync banks and some are not
+            nonFatalError = true;
         }
+
+        return nonFatalError;
     }
 
 
@@ -381,7 +532,9 @@ System.out.println("Action Thread state " + state);
      * The idea is to place not much more than 20 payload banks on each queue. This translates
      * to roughly no more than 30MB of data across all ROCs stored in these queues (15kB/ev *
      * 20 pbanks * 100 ev/pbank). We do NOT want to block while filling them unless there are
-     * no banks in a queue and also no DTRs in its corresponding channel.
+     * no banks in a queue and also no DTRs in its corresponding channel.<p>
+     * If all queues are full when this method is called, a sleep is done to prevent chewing
+     * up too much cpu time.
      *
      * @param outputQueue queue on which to place any non-data/control events read
      * @throws EmuException for major error in event building
@@ -390,26 +543,23 @@ System.out.println("Action Thread state " + state);
     private void fillPayloadBankQueues(BlockingQueue<EvioBank> outputQueue)
             throws EmuException, InterruptedException {
 
-        if (inputChannels.size() != payloadBankQueues.size()) {
-            throw new EmuException("number of channels does not match number of queues");
-        }
-
-        int counter = -1;
-        DataChannel channel;
         EvioBank channelBank;
         BlockingQueue<EvioBank> channelQ;
-
+        PayloadBankQueue<PayloadBank> payloadBankQ;
+        BitSet queuesTouched = new BitSet(payloadBankQueues.size());
+      
         // Loop thru all queues from which we grab banks to be built
-        for (PayloadBankQueue<PayloadBank> payloadBankQ : payloadBankQueues) {
+        for (int i=0;  i < payloadBankQueues.size(); i++) {
+            payloadBankQ = payloadBankQueues.get(i);
 
             // To fill this payload bank Q, grabbing a DTR from the channel Q associated
             // with it and move its payload banks to payload bank Q.
-            channel     = inputChannels.get(++counter);
-            channelQ    = channel.getQueue();
-            channelBank = null;
+            channelQ = inputChannels.get(i).getQueue();
 
             // Think about getting more payload banks cause we're running low ...
             while (payloadBankQ.size() < 20) {
+                // this queue is being worked on
+                queuesTouched.set(i, true);
 
                 // If channel Q is empty ...
                 if (channelQ.size() < 1) {
@@ -435,11 +585,6 @@ System.out.println("Action Thread state " + state);
                 boolean isControl = Evio.isControlEvent(channelBank);
 
                 if (isDTR) {
-                    // Check it's source ID to see if it matches what should be coming over this channel.
-                    if (!Evio.idsMatch(channelBank, channel.getID())) {
-                        throw new EmuException("data transport record has wrong source ID");
-                    }
-                    
                     // Extract payload banks from DTR & place onto Q
                     Evio.extractPayloadBanks(channelBank, payloadBankQ);
                 }
@@ -453,41 +598,14 @@ System.out.println("Action Thread state " + state);
                 }
             }
         }
-    }
 
-
-
-    /**
-     * Combine the trigger banks of all input Data Transport Record events into a single
-     * trigger bank which will be used in the built event.
-     *
-     * @param inputBanks array in which to place events that will be built together
-     * @return bank combining all input trigger banks into one
-     * @throws EmuException for major error in event building
-     */
-    private EvioBank combineTriggerBanks(EvioBank[] inputBanks) throws EmuException {
-
-        // pull out all trigger banks
-        EvioBank[] triggerBanks = new EvioBank[inputBanks.length];
-        for (EvioBank dtrBank : inputBanks) {
-            //dtrBank.
+        // if queues were all full to begin with, avoid chewing up cpu by waiting a little
+        if (queuesTouched.isEmpty()) {
+System.out.println("Qfiller is going to SLEEP");
+            Thread.sleep(5);
         }
-
-        return null;
     }
 
-    /**
-     * Combine the trigger banks of all input Data Transport Record events into a single
-     * trigger bank which will be used in the built event.
-     *
-     * @param triggerBank bank containing merged trigger info
-     * @param buildingBanks array containing events that will be built together
-     * @return bank final built event
-     * @throws EmuException for major error in event building
-     */
-    private EvioBank buildFinalEvent(EvioBank triggerBank, EvioBank[] buildingBanks) throws EmuException {
-        return null;
-    }
 
 
     public State state() {
@@ -518,9 +636,12 @@ System.out.println("Action Thread state " + state);
             state = CODAState.DOWNLOADED;
 
             if (actionThread != null) actionThread.interrupt();
+            if (queueFiller  != null) queueFiller.interrupt();
+            if (watcher      != null) watcher.interrupt();
+
             actionThread = null;
-            if (watcher != null) watcher.interrupt();
-            watcher = null;
+            queueFiller  = null;
+            watcher      = null;
 
             try {
                 // set end-of-run time in local XML config / debug GUI
@@ -538,9 +659,12 @@ System.out.println("Action Thread state " + state);
             eventCountTotal = wordCountTotal = 0L;
 
             if (actionThread != null) actionThread.interrupt();
+            if (queueFiller  != null) queueFiller.interrupt();
+            if (watcher      != null) watcher.interrupt();
+
             actionThread = null;
-            if (watcher != null) watcher.interrupt();
-            watcher = null;
+            queueFiller  = null;
+            watcher      = null;
 
             if (previousState.equals(CODAState.ACTIVE)) {
                 try {
@@ -597,8 +721,10 @@ System.out.println("Action Thread state " + state);
             eventRate = wordRate = 0F;
             eventCountTotal = wordCountTotal = 0L;
 
-            watcher = new Watcher();
-            actionThread = new Thread(Emu.THREAD_GROUP, this, name);
+            // start up 3 necessary threads
+            watcher = new Thread(Emu.THREAD_GROUP, new Watcher(), name+":watcher");
+            queueFiller = new Thread(Emu.THREAD_GROUP, new Qfiller(), name+":qfiller");
+            actionThread  = new Thread(Emu.THREAD_GROUP, this, name);
 
             try {
                 // set end-of-run time in local XML config / debug GUI
@@ -621,10 +747,16 @@ System.out.println("Action Thread state " + state);
 
         else if (cmd.equals(CODATransition.GO)) {
             state = CODAState.ACTIVE;
+            
             if (watcher == null) {
-                watcher = new Watcher();
+                watcher = new Thread(Emu.THREAD_GROUP, new Watcher(), name+":watcher");
             }
             watcher.start();
+
+            if (queueFiller == null) {
+                queueFiller = new Thread(Emu.THREAD_GROUP, new Qfiller(), name+":qfiller");
+            }
+            queueFiller.start();
 
             try {
                 // set end-of-run time in local XML config / debug GUI

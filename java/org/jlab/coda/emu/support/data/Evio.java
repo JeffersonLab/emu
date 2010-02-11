@@ -131,15 +131,15 @@ public class Evio {
     private static final int SINGLE_EVENT_MODE_BIT_MASK  = 0x8000;
 
     /** ID number designating a ROC Raw Record. */
-    private static final int PHYSICS_RECORD_ID         = 0x0C00;
+    public static final int PHYSICS_RECORD_ID         = 0x0C00;
     /** ID number designating a ROC Raw Record. */
-    private static final int ROC_RAW_RECORD_ID         = 0x0C02;
+    public static final int ROC_RAW_RECORD_ID         = 0x0C02;
     /** ID number designating a Data Transport Record. */
-    private static final int DATA_TRANSPORT_RECORD_ID  = 0x0C01;
+    public static final int DATA_TRANSPORT_RECORD_ID  = 0x0C01;
 
 
     /** Object for parsing evio data. */
-    private static EvioByteParser parser;
+    private static EvioByteParser parser = new EvioByteParser();  // TODO: not good idea to have static parser
 
 
     /**
@@ -231,7 +231,8 @@ public class Evio {
      * @return event type if there is one, else null
      */
     public static EventType getEventType(EvioBank bank) {
-        // TODO: null arg
+        if (bank == null) return null;
+        
         int tag = bank.getHeader().getTag();
         return EventType.getEventType(tag);
     }
@@ -431,27 +432,30 @@ System.out.println("record ID out of sequence !!!");
     /**
      * Combine the trigger banks of all input payload banks into a single
      * trigger bank which will be used in the final built event. Any error
-     * which occurs but allows the build to continue will be noted in a status bit.
+     * which occurs but allows the build to continue will be noted in the return value.
      * Errors which stop the event building cause an exception to be thrown.
      *
      * @param inputPayloadBanks array containing a bank from each channel's payload bank queue that will be
      *                          built into one event
-     * @param ebId unique id number of event builder calling this method
-     * @param nonFatalError has there been an error which still allows for event building?
-     * @return trigger bank which combines all input trigger banks into one
+     * @param builder object used to build trigger bank
+     * @param ebId id of event builder calling this method
+     * @return <code>true</code> if non fatal error occurred, else <code>false</code>
      * @throws EmuException for major error in event building which necessitates stopping the build
      */
-    public static EvioBank combineTriggerBanks(PayloadBank[] inputPayloadBanks,
-                                               int ebId, boolean nonFatalError)
+    public static boolean combineTriggerBanks(PayloadBank[] inputPayloadBanks,
+                                               EventBuilder builder, int ebId)
             throws EmuException {
 
-        // In each payload bank (of banks) is a trigger bank. Extract them all.
-        EvioBank trigBank;
         int index;
         int numPayloadBanks = inputPayloadBanks.length;
-        EvioBank[] triggerBanks = new EvioBank[numPayloadBanks];
         int numEvents = inputPayloadBanks[0].getHeader().getNumber();
+        EvioBank trigBank;
+        EvioBank[] triggerBanks = new EvioBank[numPayloadBanks];
+        boolean nonFatalError = false;
+        // pre allocate a buffer based on a guess of its maximum size (100 ev ~= 1600 bytes)
+        ByteBuffer bbuf = ByteBuffer.allocate(2048);
 
+        // In each payload bank (of banks) is a trigger bank. Extract them all.
         for (int i=0; i < numPayloadBanks; i++) {
 
             // find the trigger bank (should be first one)
@@ -478,7 +482,12 @@ System.out.println("record ID out of sequence !!!");
             // So, ... now we need to fully parse this trigger bank. To do this we must first turn this
             // bank back into a ByteBufer, then we can parse the bytes into an EvioEvent object.
 
-            ByteBuffer bbuf = ByteBuffer.allocate(trigBank.getTotalBytes());
+            if (trigBank.getTotalBytes() > bbuf.capacity()) {
+                bbuf = ByteBuffer.allocate(trigBank.getTotalBytes() + 1024);
+            }
+            else {
+                bbuf.clear();
+            }
             // set endian
             bbuf.order(trigBank.getByteOrder());
             // put header info into buffer
@@ -508,8 +517,7 @@ System.out.println("record ID out of sequence !!!");
             }
         }
 
-
-        EventBuilder builder = new EventBuilder(PHYSICS_RECORD_ID, DataType.SEGMENT, numPayloadBanks+1);
+        // event we are trying to build
         EvioEvent combinedTrigger = builder.getEvent();
 
 
@@ -556,29 +564,21 @@ System.out.println("record ID out of sequence !!!");
         }
 
 
-
         // 2) now add one segment for each ROC with ROC-specific data in it
-        int intCount, eventType = 0, dataLenFromEachSeg = 0;
+        int intCount, dataLenFromEachSeg;
         EvioSegment newRocSeg, oldRocSeg;
 
+        // for each ROC ...
         for (int i=0; i < triggerBanks.length; i++) {
             newRocSeg = new EvioSegment(triggerBanks[i].getHeader().getTag(), DataType.INT32);
             // copy over all ints except the first which is the event Number and is stored in common
 
-            // assume, for now, that each segment in the trigger bank has the same amount of data
+            // assume, for now, that each ROC segment in the trigger bank has the same amount of data
             oldRocSeg = (EvioSegment)triggerBanks[i].getChildAt(0);
             // (- 1) forget about event # that we already took care of
             dataLenFromEachSeg = oldRocSeg.getHeader().getLength() - 1;
-            // eventTypes from roc segments must be the same
-            if (i == 0) {
-                eventType = oldRocSeg.getHeader().getTag();
-            }
-            else if (oldRocSeg.getHeader().getTag() != eventType) {
-                throw new EmuException("Event types are differ between ROCs"); // non-fatal error
-            }
 
-
-            // total amount of new data for new (ROC) segment
+            // total amount of new data for a new (ROC) segment
             intCount = numEvents * dataLenFromEachSeg;
             int[] newData = new int[intCount];
 
@@ -601,10 +601,61 @@ System.out.println("record ID out of sequence !!!");
         }
 
 
-        return combinedTrigger;
+        return nonFatalError;
     }
 
     
+
+    /**
+     * Combine the trigger banks of all input Data Transport Record events into a single
+     * trigger bank which will be used in the built event.
+     *
+     * @param triggerBank bank containing merged trigger info
+     * @param inputPayloadBanks array containing events that will be built together
+     * @param builder object used to build trigger bank
+     * @return bank final built event
+     * @throws EmuException for major error in event building
+     */
+    public static EvioBank buildPhysicsEvent(EvioBank triggerBank,
+                                             EvioBank[] inputPayloadBanks,
+                                             EventBuilder builder)
+            throws EmuException {
+
+        int childrenCount;
+        int numPayloadBanks = inputPayloadBanks.length;
+        BankHeader header;
+        EvioBank blockBank, dataBlock;
+        EvioEvent finalEvent = builder.getEvent();
+
+        try {
+            // add combined trigger bank
+            builder.addChild(finalEvent, triggerBank);
+
+            // Wrap and add data block banks (from payload banks).
+            // Use the same header to wrap data blocks as used for payload bank.
+            for (int i=0; i < numPayloadBanks; i++) {
+                header = (BankHeader)inputPayloadBanks[i].getHeader();
+                blockBank = new EvioBank(header.getTag(), header.getDataType(), header.getNumber());
+                childrenCount = inputPayloadBanks[i].getChildCount();
+                for (int j=0; j < childrenCount; j++) {
+                    dataBlock = (EvioBank)inputPayloadBanks[i].getChildAt(j);
+                    // ignore the trigger bank (should be first one)
+                    if (Evio.isTriggerBank(dataBlock)) {
+                        continue;
+                    }
+                    builder.addChild(blockBank, dataBlock);
+                }
+                builder.addChild(finalEvent, blockBank);
+            }
+        } catch (EvioException e) {
+            // never happen
+        }
+
+        return null;
+    }
+
+
+
     /**
      * Create an Evio ROC Raw record event/bank to be placed in a Data Transport record.
      *

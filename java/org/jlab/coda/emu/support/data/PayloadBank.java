@@ -27,6 +27,8 @@ public class PayloadBank extends EvioBank {
 
     private boolean hasError;
 
+    private boolean reserved;
+
     private EvioEvent parsedTriggerBank;
 
 
@@ -105,6 +107,14 @@ public class PayloadBank extends EvioBank {
 
     public void setHasError(boolean hasError) {
         this.hasError = hasError;
+    }
+
+    public boolean isReserved() {
+        return reserved;
+    }
+
+    public void setReserved(boolean reserved) {
+        this.reserved = reserved;
     }
 
     public EvioEvent getParsedTriggerBank() {

@@ -4,6 +4,7 @@ import java.util.concurrent.LinkedBlockingQueue;
 
 /**
  * Convenience class designed to keep extra data associated with blocking queue.
+ * It is threadsafe.
  *
  * @author: timmer
  * Date: Jan 29, 2010
