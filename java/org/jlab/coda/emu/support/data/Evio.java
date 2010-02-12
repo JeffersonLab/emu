@@ -250,7 +250,8 @@ public class Evio {
         int tag = bank.getHeader().getTag();
         int num = bank.getHeader().getNumber();
         EventType eventType = EventType.getEventType(tag);
-
+        if (eventType == null) return false;
+   
         return (num == 0xCC && eventType.isControl());
     }
 
@@ -267,6 +268,7 @@ public class Evio {
         int tag = bank.getHeader().getTag();
         int num = bank.getHeader().getNumber();
         EventType eventType = EventType.getEventType(tag);
+        if (eventType == null) return false;
 
         return (num == 0xCC && eventType.isPhysics());
     }
@@ -278,13 +280,15 @@ public class Evio {
       * @param bank input bank
       * @return <code>true</code> if arg is trigger bank, else <code>false</code>
       */
-     public static boolean isTriggerBank(EvioBank bank) {
-         if (bank == null)  return false;
+    public static boolean isTriggerBank(EvioBank bank) {
+        if (bank == null)  return false;
 
-         int tag = bank.getHeader().getTag();
+        int tag = bank.getHeader().getTag();
+        EventType eventType = EventType.getEventType(tag);
+        if (eventType == null) return false;
 
-         return EventType.getEventType(tag).isTriggerBank();
-     }
+        return eventType.isTriggerBank();
+    }
 
 
     /**
@@ -364,7 +368,7 @@ public class Evio {
      * @throws EmuException if dtrBank contains no data banks or record ID is out of sequence
      */
     public static void extractPayloadBanks(EvioBank dtrBank, PayloadBankQueue<PayloadBank> queue)
-                        throws EmuException {
+            throws EmuException {
 
         // get sub banks
         Vector<BaseStructure> kids = dtrBank.getChildren();
@@ -373,10 +377,13 @@ public class Evio {
         BaseStructure firstBank = kids.firstElement();
         int[] intData = firstBank.getIntData();
         int  recordId = intData[0];
+        boolean nonFatalError;
+        boolean nonFatalRecordIdError = false;
+
         // initial recordId stored is 0, ignore that
         if (queue.getRecordId() > 0 && recordId != queue.getRecordId() + 1) {
-System.out.println("record ID out of sequence !!!");
-            throw new EmuException("record ID out of sequences");
+System.out.println("record ID out of sequence, got " + recordId + " but expecting " + (queue.getRecordId() + 1));
+            nonFatalRecordIdError = true;
         }
         queue.setRecordId(recordId);
 
@@ -396,11 +403,15 @@ System.out.println("record ID out of sequence !!!");
                 // dtrBank does not contain data banks and thus is not in the proper format
                 throw new EmuException("DTR bank contains things other than banks");
             }
+
             payloadBank.setRecordId(recordId);
             payloadBank.setSourceId(sourceId);
+            nonFatalError = false;
             if (sourceId != getRocRawId(payloadBank.getHeader().getTag())) {
-                throw new EmuException("DTR bank source Id conflicts with payload bank's roc id"); // non-fatal
+System.out.println("DTR bank source Id conflicts with payload bank's roc id");
+                nonFatalError = true;
             }
+            
             header = payloadBank.getHeader();
             tag    = header.getTag();
             // pick this bank apart a little here
@@ -408,9 +419,12 @@ System.out.println("record ID out of sequence !!!");
                 header.getDataTypeEnum() != DataType.ALSOBANK) {
                 throw new EmuException("ROC raw record not in proper format");
             }
+            
             payloadBank.setSync(Evio.isRocRawSyncEvent(tag));
-            payloadBank.setHasError(Evio.hasRocRawError(tag));
+            payloadBank.setError(Evio.hasRocRawError(tag));
             payloadBank.setSingleMode(Evio.isRocRawSingleEventMode(tag));
+            payloadBank.setNonFatalBuildingError(nonFatalError || nonFatalRecordIdError);
+            
             // Put ROC raw event on queue.
             queue.add(payloadBank);
         }
@@ -660,13 +674,12 @@ System.out.println("record ID out of sequence !!!");
      * Create an Evio ROC Raw record event/bank to be placed in a Data Transport record.
      *
      * @param rocID       ROC id number
-     * @param eventID     starting event id number
+     * @param eventID     event (trigger) id number (0-15)
      * @param dataBankTag starting data bank tag
      * @param dataBankNum starting data bank num
      * @param eventNumber starting event number
      * @param numEvents   number of physics events in created record
      * @param timestamp   starting event's timestamp
-     * @param recordId    record count
      *
      * @return created ROC Raw Rrcord (EvioEvent object)
      * @throws EvioException
@@ -674,28 +687,28 @@ System.out.println("record ID out of sequence !!!");
     public static EvioEvent createRocRawRecord(int rocID,       int eventID,
                                                int dataBankTag, int dataBankNum,
                                                int eventNumber, int numEvents,
-                                               int timestamp,   int recordId) throws EvioException {
+                                               int timestamp) throws EvioException {
 
         // create a ROC Raw Data Record event/bank with numEvents physics events in it
         int status = 0;  // TODO: may want to make status a method arg
         int rocTag = createRocRawTag(status, rocID);
-        EventBuilder eventBuilder = new EventBuilder(rocTag, org.jlab.coda.jevio.DataType.BANK, recordId);
+        EventBuilder eventBuilder = new EventBuilder(rocTag, DataType.BANK, numEvents);
         EvioEvent rocRawEvent = eventBuilder.getEvent();
 
         // create the trigger bank (of segments)
         EvioBank triggerBank = new EvioBank(ROC_RAW_RECORD_ID, DataType.SEGMENT, numEvents);
         eventBuilder.addChild(rocRawEvent, triggerBank);
 
-        // generate one segment per event
-        int[] segmentData = new int[2];
         EvioSegment segment;
         for (int i = 0; i < numEvents; i++) {
             // each segment contains eventNumber & timestamp of corresponding event in data bank
             segment = new EvioSegment(eventID, DataType.UINT32);
             eventBuilder.addChild(triggerBank, segment);
+            // generate 2 segments per event
+            int[] segmentData = new int[2];
             segmentData[0] = eventNumber++;
             segmentData[1] = timestamp++;
-            eventBuilder.appendIntData(segment, segmentData);
+            eventBuilder.appendIntData(segment, segmentData); // copies reference only
         }
 
         // put some data into event -- one int per event
@@ -709,7 +722,7 @@ System.out.println("record ID out of sequence !!!");
         eventBuilder.addChild(rocRawEvent, dataBank);
         eventBuilder.appendIntData(dataBank, data);
         
-        eventBuilder.setAllHeaderLengths();
+        //eventBuilder.setAllHeaderLengths();
 
         return rocRawEvent;
     }
@@ -719,7 +732,7 @@ System.out.println("record ID out of sequence !!!");
      * Create an Evio Data Transport Record event to send to the event building EMU.
      *
      * @param rocID       ROC id number
-     * @param eventID     starting event id number
+     * @param eventID     event (trigger) id number (0-15)
      * @param dataBankTag starting data bank tag
      * @param dataBankNum starting data bank num
      * @param eventNumber starting event number
@@ -742,20 +755,23 @@ System.out.println("record ID out of sequence !!!");
 
         // add a bank with record ID in it
         EvioBank recordIdBank = new EvioBank(DATA_TRANSPORT_RECORD_ID, DataType.INT32, numPayloadBanks);
-        eventBuilder.appendIntData(recordIdBank, new int[]{recordId++});
+        eventBuilder.appendIntData(recordIdBank, new int[]{recordId});
         eventBuilder.addChild(ev, recordIdBank);
 
         // add ROC Raw Records as payload banks
         EvioEvent rocRawRecord;
         for (int i=0; i < numPayloadBanks; i++) {
             rocRawRecord = createRocRawRecord(rocID, eventID, dataBankTag, dataBankNum,
-                                              eventNumber, numEvents, timestamp, recordId);
+                                              eventNumber, numEvents, timestamp);
             eventBuilder.addChild(ev, rocRawRecord);
 
             eventNumber += numEvents;
             timestamp   += numEvents;
-            recordId++;
+
+            // each go round, change # of events in payload bank
+            numEvents++;
         }
+
         eventBuilder.setAllHeaderLengths();
 
         return ev;

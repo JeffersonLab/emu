@@ -21,13 +21,20 @@ public class PayloadBank extends EvioBank {
 
     private int dataBlockCount;
 
+    /** Is sync bank? from ROC raw data record 4-bit status. */
     private boolean isSync;
 
+    /** Is single event mode? from ROC raw data record 4-bit status. */
     private boolean isSingleMode;
 
+    /** Has error? from ROC raw data record 4-bit status. */
     private boolean hasError;
 
+    /** Reserved. from ROC raw data record 4-bit status. */
     private boolean reserved;
+
+    /** Was there an non-fatal error generated while trying to build an event? */
+    private boolean nonFatalBuildingError;
 
     private EvioEvent parsedTriggerBank;
 
@@ -101,11 +108,11 @@ public class PayloadBank extends EvioBank {
         isSingleMode = singleMode;
     }
 
-    public boolean isHasError() {
+    public boolean hasError() {
         return hasError;
     }
 
-    public void setHasError(boolean hasError) {
+    public void setError(boolean hasError) {
         this.hasError = hasError;
     }
 
@@ -115,6 +122,14 @@ public class PayloadBank extends EvioBank {
 
     public void setReserved(boolean reserved) {
         this.reserved = reserved;
+    }
+
+    public boolean hasNonFatalBuildingError() {
+        return nonFatalBuildingError;
+    }
+
+    public void setNonFatalBuildingError(boolean nonFatalBuildingError) {
+        this.nonFatalBuildingError = nonFatalBuildingError;
     }
 
     public EvioEvent getParsedTriggerBank() {

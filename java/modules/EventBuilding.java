@@ -206,10 +206,10 @@ System.out.println("ProcessTest module: quitting watcher thread");
                         }
                     }
 
-                    // if all channels were empty with banks still in queues, or all queues full,
-                    // or some combination of the two, avoid chewing up cpu by waiting a little
+                    // If all channels were empty with banks still in queues, or all queues full,
+                    // or some combination of the two, avoid chewing up cpu by waiting a little.
                     if (channelsTouched.isEmpty()) {
-            System.out.println("Qfiller is going to SLEEP");
+            //System.out.print(".");
                         Thread.sleep(5);
                     }
 
@@ -370,9 +370,14 @@ System.out.println("Action Thread state " + state);
                         }
                     }
 
+                    // check payload banks for non-fatal errors when extracting them onto the payload queues
+                    for (PayloadBank pBank : buildingBanks)  {
+                        nonFatalError |= pBank.hasNonFatalBuildingError();
+                    }
+
                     // create a physics event from payload banks and combined trigger bank
                     int tag = Evio.createRocRawTag(buildingBanks[0].isSync(),
-                                                   buildingBanks[0].isHasError() || nonFatalError,
+                                                   buildingBanks[0].hasError() || nonFatalError,
                                                    buildingBanks[0].isReserved(),
                                                    buildingBanks[0].isSingleMode(),
                                                    ebId);
@@ -381,7 +386,7 @@ System.out.println("Action Thread state " + state);
                     Evio.buildPhysicsEvent(combinedTrigger, buildingBanks, builder);
 
                     // wrap physics event in Data Transport Record for next EB or ER
-                    dtrEvent = new EvioEvent(ebId, DataType.BANK, ebRecordId & 0xff);
+                    dtrEvent = new EvioEvent(ebId, DataType.BANK, ebRecordId);
                     builder.setEvent(dtrEvent);
 
                     try {
