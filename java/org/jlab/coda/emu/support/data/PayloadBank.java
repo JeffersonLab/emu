@@ -36,7 +36,6 @@ public class PayloadBank extends EvioBank {
     /** Was there an non-fatal error generated while trying to build an event? */
     private boolean nonFatalBuildingError;
 
-    private EvioEvent parsedTriggerBank;
 
 
     public PayloadBank() {
@@ -131,14 +130,5 @@ public class PayloadBank extends EvioBank {
     public void setNonFatalBuildingError(boolean nonFatalBuildingError) {
         this.nonFatalBuildingError = nonFatalBuildingError;
     }
-
-    public EvioEvent getParsedTriggerBank() {
-        return parsedTriggerBank;
-    }
-
-    public void setParsedTriggerBank(EvioEvent parsedTriggerBank) {
-        this.parsedTriggerBank = parsedTriggerBank;
-    }
-
 
 }
