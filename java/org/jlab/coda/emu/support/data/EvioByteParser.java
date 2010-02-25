@@ -8,11 +8,10 @@ import java.nio.ByteOrder;
 import java.nio.ByteBuffer;
 
 /**
- * Created by IntelliJ IDEA.
- * User: timmer
- * Date: Feb 2, 2010
- * Time: 3:17:05 PM
- * To change this template use File | Settings | File Templates.
+ * This class wraps method not available to the general public due to the expertise
+ * needed to use them properly. These methods involve parsing evio format events but
+ * only down to a specified level of nested evio container structures (bank, segment,
+ * and tagsegment).
  */
 public class EvioByteParser extends ByteParser {
 
