@@ -23,10 +23,10 @@ import java.nio.ByteBuffer;
  */
 public class TestROCs {
 
-    private int rocCount = 3;
+    private int rocCount = 4;
 
-    private String[] subjects  = {"ROC1", "ROC2", "ROC3"};
-    private String[] types = {"a", "b", "c"};
+    private String[] subjects  = {"ROC1", "ROC2", "ROC3", "ROC4", "ROC5", "ROC6"};
+    private String[] types = {"a", "b", "c", "d", "e", "f"};
     private String   name = "ROCs";
     private String   description = "place to send data to EMU";
     private String   UDL;
@@ -140,13 +140,13 @@ System.out.println("Send thread started");
             int dataBankNum   = 222; // starting data bank num
             int eventNumber   = 1;
             int numEventsInPayloadBank = 1; // number of events in first payload bank (incremented for each additional bank)
-            int timestamp        = 1000;
+            int timestamp        = 1001;
             int startingRecordId = 1;
             int numPayloadBanks  = 2;
 
             int rocNum, recordId;
             EvioEvent ev;
-            ByteBuffer bbuf = ByteBuffer.allocate(208);
+            ByteBuffer bbuf = ByteBuffer.allocate(2048);
             cMsgMessage msg = new cMsgMessage();
 
             StringWriter sw = new StringWriter(2048);
@@ -173,15 +173,19 @@ System.out.println("Send thread started");
                                                             timestamp,   recordId,
                                                             numPayloadBanks);
 
-                        sw.getBuffer().delete(0, sw.getBuffer().capacity());
+                        //sw.getBuffer().delete(0, sw.getBuffer().capacity());
                         bbuf.clear();
                         ev.write(bbuf);
                         bbuf.flip();
 
-                        msg.setByteArrayNoCopy(bbuf.array(),0,bbuf.limit());
+                        msg.setByteArray(bbuf.array(),0,bbuf.limit());
                         msg.setByteArrayEndian(cMsgConstants.endianBig);
                         msg.setSubject(subjects[ix]);
                         msg.setType(types[ix]);
+
+//                        for (int j=0; j<bbuf.asIntBuffer().limit(); j++) {
+//                            System.out.println(bbuf.asIntBuffer().get(j));
+//                        }
 
                         coda.send(msg);
 
@@ -208,10 +212,10 @@ System.out.println("Send thread started");
                             return;
                         }
 
-                        timestamp += numEventsInPayloadBank;
-                        eventNumber += numEventsInPayloadBank;
                     }
 
+                    timestamp   += numEventsInPayloadBank;
+                    eventNumber += numEventsInPayloadBank;
                     recordId++;                    
 
                     Thread.sleep(delay);
