@@ -4,17 +4,67 @@ import org.jlab.coda.jevio.*;
 import org.jlab.coda.emu.EmuException;
 
 import java.util.Vector;
+import java.util.concurrent.BlockingQueue;
 import java.nio.ByteBuffer;
 
 /**
  * This class is used as a layer on top of evio to handle CODA3 specific details.
  * The EMU will received evio data as Data Transport Records which contain
- * ROC Raw Records both of which are in formats given below.<p>
+ * ROC Raw Records and Physics Events all of which are in formats given below.<p>
  *
  * <code><pre>
+ * ############################
+ * Data Transport Record (DTR):
+ * ############################
  *
- * ROC Raw Record:
+ * MSB(31)                          LSB(0)
+ * <---  32 bits ------------------------>
+ * _______________________________________
+ * |           Record Length             |
+ * |_____________________________________|
+ * | T |  Source ID   |  0x10  |   RID   |
+ * |_____________________________________|
+ * |                 2                   |
+ * |_____________________________________|
+ * |    0x0F00        |  0x01  |   PBs   |
+ * |_____________________________________|
+ * |        Record ID (counter)          |
+ * |_____________________________________|
+ * |                                     |
+ * |           Payload Bank              |
+ * |       (ROCRaw, Physics, or          |
+ * |        other type of event)         |
+ * |_____________________________________|
+ * |                                     |
+ * |           Payload Bank              |
+ * |_____________________________________|
+ * |                                     |
+ * |           Payload Bank              |
+ * |_____________________________________|
+ * |                                     |
+ * |           Payload Bank              |
+ * |_____________________________________|
+ *
+ *
+ *      RID = the lowest 8 bits of the Record ID.
+ *      PBs = number of payload banks
+ *   0x0F00 = the Record ID bank identifier.
+ *        T = type of event contained in payload bank:
+ *              0 = ROC Raw
+ *              1 = Physics
+ *              2 = User
+ *              3 = Sync
+ *              4 = Prestart
+ *              5 = Go
+ *              6 = Pause
+ *              7 = End
+ *
  * 
+ *
+ * ############################
+ * ROC Raw Record:
+ * ############################
+ *
  * MSB(31)                          LSB(0)
  * <---  32 bits ------------------------>
  * _______________________________________
@@ -24,25 +74,25 @@ import java.nio.ByteBuffer;
  * |_____________________________________| ------
  * |        Trigger Bank Length          |      ^
  * |_____________________________________|      |
- * |    0x0c02        |  0x20  |    M    |      |
+ * |    0x0F01        |  0x20  |    M    |      |
  * |_____________________________________|      |
  * | ID 1   |  0x01   |     ID len 1     |   Trigger Bank
  * |_____________________________________|      |
  * |           Event Number 1            |      |
  * |_____________________________________|      |
- * |         Timestamp 1 (48 bits)       |      |
+ * |           Timestamp 1 (?)           |      |
  * |_____________________________________|      |
  * |                  ...                |      |
  * |_____________________________________|      |
  * |                                     |      |
- * |       (Repeat M-1 times)            |      |
+ * |    (One segment for each event)     |      |
  * |                                     |      |
  * |_____________________________________|      |
  * | ID M   |  0x01   |     ID len M     |      |
  * |_____________________________________|      |
  * |           Event Number M            |      |
  * |_____________________________________|      |
- * |         Timestamp M (48 bits)       |      |
+ * |           Timestamp M (?)           |      |
  * |_____________________________________|      |
  * |                  ...                |      V
  * |_____________________________________| ------
@@ -55,14 +105,13 @@ import java.nio.ByteBuffer;
  * |                                     |
  * |            Data Block               |
  * |   (there will be only 1 block       |
- * |    unless user splits data into     |
- * |    pieces from multiple detectors)  |
+ * |   unless user used multiple DMAs)   |
  * |                                     |
  * |_____________________________________|
  *
  *
  *      M is the number of events.
- * 0x0c02 is the Trigger Bank identifier.
+ * 0x0F01 is the Trigger Bank identifier.
  *
  * S is the 4-bit status:
  * |_____________________________________|
@@ -73,41 +122,117 @@ import java.nio.ByteBuffer;
  *
  *
  *
- * Data Transport Record:
+ *
+ * ############################
+ * Physics Event:
+ * ############################
  *
  * MSB(31)                          LSB(0)
  * <---  32 bits ------------------------>
  * _______________________________________
- * |           Record Length             |
+ * |           Event Length              |
  * |_____________________________________|
- * |    Source ID     |  0x10  |    N    |
- * |_____________________________________|
- * |                 2                   |
- * |_____________________________________|
- * |    0x0c01        |  0x01  |    M    |
- * |_____________________________________|
- * |        Record ID (counter)          |
+ * | S |  Event Type  |  0x10  |    ?    |
+ * |_____________________________________| ------
+ * |     Built Trigger Bank Length       |      ^
+ * |_____________________________________|      |
+ * |    0x0F02        |  0x20  |   N+1   |      |
+ * |_____________________________________|     Built
+ * |        EB (Common) Segment          |   Trigger Bank
+ * |_____________________________________|      |
+ * |           ROC 1 Segment             |      |
+ * |_____________________________________|      |
+ * |                  ...                |      |
+ * |_____________________________________|      |
+ * |           ROC N Segment             |      V
+ * |_____________________________________| ------
+ * |                                     |
+ * |            Data Bank 1              |
+ * |     (wraps 1 or more data           |
+ * |         blocks for a ROC)           |
  * |_____________________________________|
  * |                                     |
- * |           Payload Bank              |
- * |  (from 1 ROC, multiple events of    |
- * |      ROCRaw or Physics types,       | 
- * |      but not both)                  |
+ * |                  ...                |
  * |_____________________________________|
  * |                                     |
- * |           Payload Bank              |
- * |_____________________________________|
+ * |            Data Bank N              |
  * |                                     |
- * |           Payload Bank              |
- * |_____________________________________|
- * |                                     |
- * |           Payload Bank              |
  * |_____________________________________|
  *
  *
- *      M is the number of payload banks.
- *      N is lower 8 bits of Record ID
- * 0x0c01 is the Transport Record identifier.
+ *      N is the number of ROCs.
+ * 0x0F02 is the Built Trigger Bank identifier.
+ *
+ *
+ *
+ * ####################################
+ * Physics Event's Built Trigger Bank:
+ * ####################################
+ *
+ * MSB(31)                          LSB(0)
+ * <---  32 bits ------------------------>
+ * _______________________________________
+ * |        Trigger Bank Length          |
+ * |_____________________________________|
+ * |    0x0F02        |  0x20  |   N+1   |
+ * |_____________________________________| --------
+ * | EB id  |  0x05   |       Len        |    ^
+ * |_____________________________________|    |
+ * |   Event Type 1   | Event Number 1   |  Common Data
+ * |_____________________________________|    |
+ * |                  ...                |    |
+ * |_____________________________________|    |
+ * |   Event Type M   | Event Number M   |    V
+ * |_____________________________________| -------
+ * |roc1 id |  0x05   |        Len       |    ^
+ * |_____________________________________|    |
+ * |             Timestamp (?)           |    |
+ * |_____________________________________|    |
+ * |              Misc. (?)              |  ROC Data
+ * |_____________________________________|    |
+ * |                                     |    |
+ * |                  ...                |    |
+ * |_____________________________________|    |
+ * |rocN id |  0x05   |        Len       |    |
+ * |_____________________________________|    |
+ * |             Timestamp (?)           |    |
+ * |_____________________________________|    |
+ * |              Misc. (?)              |    V
+ * |_____________________________________| -------
+ *
+ *
+ *      N is the number of ROCs.
+ *      M is the number of events.
+ * 0x0F02 is the Built Trigger Bank identifier.
+ *
+ *
+ *
+ * ############################
+ * Physics Event's Data Bank:
+ * ############################
+ *
+ * MSB(31)                          LSB(0)
+ * <---  32 bits ------------------------>
+ * _______________________________________
+ * |         Data Bank Length            |
+ * |_____________________________________|
+ * | S |   ROC id     |  0x10  |    M    |
+ * |_____________________________________|
+ * |                                     |
+ * |        Data Block Bank 1            |
+ * |                                     |
+ * |_____________________________________|
+ * |                                     |
+ * |                  ...                |
+ * |_____________________________________|
+ * |                                     |
+ * |           Data Bank Last            |
+ * |                                     |
+ * |_____________________________________|
+ *
+ *
+ *      M is the number of events.
+ *
  * </pre></code>
  *
  *
@@ -116,9 +241,12 @@ import java.nio.ByteBuffer;
  */
 public class Evio {
 
-    /** In ROC Raw Record, mask to get rocID from tag. */
-    private static final int ROCID_BIT_MASK  = 0x0fff;
-    /** In ROC Raw Record, mask to get 4 status bits from tag. */
+    /** In ROC Raw Record, mask to get roc ID from tag.
+     *  In Physics Event, mask to get event type from tag.
+     *  In DTR, mask to get source ID from tag. */
+    private static final int ID_BIT_MASK     = 0x0fff;
+    /** In ROC Raw Record and Physics Events, mask to get 4 status bits from tag.
+     *  In DTR, mask to get type of event contained in payload bank. */
     private static final int STATUS_BIT_MASK = 0xf000;
 
     /** In ROC Raw Record, mask to get sync-event status bit from tag. */
@@ -130,12 +258,12 @@ public class Evio {
     /** In ROC Raw Record, mask to get single-event status bit from tag. */
     private static final int SINGLE_EVENT_MODE_BIT_MASK  = 0x8000;
 
-    /** ID number designating a ROC Raw Record. */
-    public static final int PHYSICS_RECORD_ID         = 0x0C00;
-    /** ID number designating a ROC Raw Record. */
-    public static final int ROC_RAW_RECORD_ID         = 0x0C02;
-    /** ID number designating a Data Transport Record. */
-    public static final int DATA_TRANSPORT_RECORD_ID  = 0x0C01;
+    /** ID number designating a Record ID bank. */
+    public static final int RECORD_ID_BANK     = 0x0F00;
+    /** ID number designating a Trigger bank. */
+    public static final int TRIGGER_BANK       = 0x0F01;
+    /** ID number designating a Built Trigger bank. */
+    public static final int BUILT_TRIGGER_BANK = 0x0F02;
 
 
     /** Object for parsing evio data. */
@@ -148,17 +276,18 @@ public class Evio {
     private Evio() { }
 
     /**
-     * Create a 16-bit tag for a ROC Raw record out of a 4 status bits and 12-bit ROC id.
+     * Create a 16-bit, CODA-format tag for a ROC Raw Record or Physics Event
+     * out of 4 status bits and a 12-bit id.
      *
      * @param sync is sync event
      * @param error is error
      * @param reserved reserved for future use
      * @param singleEventMode is single event mode
-     * @param rocId  lowest 12 bits are ROC id
-     * @return a 16-bit tag for a ROC Raw record out of a 4 status bits and 12-bit ROC id
+     * @param id lowest 12 bits are id
+     * @return a 16-bit tag for a ROC Raw Record or Physics Event out of 4 status bits and a 12-bit id
      */
-    public static int createRocRawTag(boolean sync,     boolean error,
-                                      boolean reserved, boolean singleEventMode, int rocId) {
+    public static int createCodaTag(boolean sync,     boolean error,
+                                    boolean reserved, boolean singleEventMode, int id) {
         int status = 0;
         
         if (sync)            status |= SYNC_BIT_MASK;
@@ -166,75 +295,89 @@ public class Evio {
         if (reserved)        status |= RESERVED_BIT_MASK;
         if (singleEventMode) status |= SINGLE_EVENT_MODE_BIT_MASK;
 
-        return ( status | (rocId & ROCID_BIT_MASK) );
+        return ( status | (id & ID_BIT_MASK) );
     }
 
     /**
-     * Create a 16-bit tag for a ROC Raw record out of a 4-bit status and 12-bit ROC id.
+     * Create a 16-bit, CODA-format tag for a ROC Raw Record, Physics Event,
+     * or Data Transport Record out of 4-bit status/type and a 12-bit id.
      *
-     * @param status lowest 4 bits are status of ROC
-     * @param rocId  lowest 12 bits are ROC id
-     * @return a 16-bit tag for a ROC Raw record out of a 4-bit status and 12-bit ROC id
+     * @param status lowest 4 bits are status/type
+     * @param id     lowest 12 bits are id
+     * @return a 16-bit tag for a ROC Raw Record, Physics Event, or DTR out of 4-bit status/type and a 12-bit id
      */
-    public static int createRocRawTag(int status, int rocId) {
-        return ( ((status << 12) & STATUS_BIT_MASK) | (rocId & ROCID_BIT_MASK) );
+    public static int createCodaTag(int status, int id) {
+        return ( (status << 12) | (id & ID_BIT_MASK) );
     }
 
     /**
-     * Get the ROC id which is the lower 12 bits of the ROC Raw record tag.
+     * Get the id which is the lower 12 bits of the CODA-format tag.
      *
-     * @param rocRawTag tag from ROC raw format evio bank.
-     * @return the ROC id of the ROC Raw record tag.
+     * @param codaTag tag from evio bank.
+     * @return the id of the CODA-format tag.
      */
-    public static int getRocRawId(int rocRawTag) {
-        return ROCID_BIT_MASK & rocRawTag;
+    public static int getCodaId(int codaTag) {
+        return ID_BIT_MASK & codaTag;
     }
 
     /**
-     * See if the given tag from a ROC Raw record indicates the ROC is in single event mode.
+     * See if the given CODA-format tag indicates the ROC is in single event mode.
      * This condition is set by the ROC and it is only read here - never set.
      *
-     * @param rocRawTag tag from ROC raw format evio bank.
+     * @param codaTag tag from evio bank.
      * @return <code>true</code> if the ROC is in single event mode.
      */
-    public static boolean isRocRawSingleEventMode(int rocRawTag) {
-        return (rocRawTag & SINGLE_EVENT_MODE_BIT_MASK) != 0;
+    public static boolean isSingleEventMode(int codaTag) {
+        return (codaTag & SINGLE_EVENT_MODE_BIT_MASK) != 0;
     }
 
     /**
-     * See if the given tag from a ROC Raw record indicates it is a sync event.
+     * See if the given CODA-format tag indicates it is a sync event.
      * This condition is set by the ROC and it is only read here - never set.
      *
-     * @param rocRawTag tag from ROC raw format evio bank.
-     * @return <code>true</code> if the ROC Raw record is a sync event.
+     * @param codaTag tag from evio bank.
+     * @return <code>true</code> if is a sync event.
      */
-    public static boolean isRocRawSyncEvent(int rocRawTag) {
-        return (rocRawTag & SYNC_BIT_MASK) != 0;
+    public static boolean isSyncEvent(int codaTag) {
+        return (codaTag & SYNC_BIT_MASK) != 0;
     }
 
     /**
-     * See if the given tag from a ROC Raw record indicates the ROC has an error.
-     * This condition is set by the ROC and it is only read here - never set.
+     * See if the given CODA-format tag indicates the ROC/EB has an error.
+     * This condition is set by the ROC/EB and it is only read here - never set.
      *
-     * @param rocRawTag tag from ROC raw format evio bank.
-     * @return <code>true</code> if the ROC has an error.
+     * @param codaTag tag from evio bank.
+     * @return <code>true</code> if the ROC/EB has an error.
      */
-    public static boolean hasRocRawError(int rocRawTag) {
-        return (rocRawTag & ERROR_BIT_MASK) != 0;
+    public static boolean hasError(int codaTag) {
+        return (codaTag & ERROR_BIT_MASK) != 0;
     }
 
 
     /**
-     * Get the event type of a bank if there is one.
+     * Get the event type's numerical value in Data Transport Records or the status in
+     * other types of recordes/events which is the upper 4 bits of the CODA-format tag.
+     * .
+     *
+     * @param codaTag tag from evio bank.
+     * @return the event type or status from various records/events.
+     */
+    public static int getEventTypeOrStatus(int codaTag) {
+        return (codaTag >>> 12);
+    }
+
+    
+    /**
+     * Get the event type of a bank for Data Transport Records.
      * 
      * @param bank bank to analyze
-     * @return event type if there is one, else null
+     * @return event type for bank, null if none found
      */
     public static EventType getEventType(EvioBank bank) {
         if (bank == null) return null;
         
-        int tag = bank.getHeader().getTag();
-        return EventType.getEventType(tag);
+        int type = getEventTypeOrStatus(bank.getHeader().getTag());
+        return EventType.getEventType(type);
     }
 
 
@@ -247,9 +390,8 @@ public class Evio {
     public static boolean isControlEvent(EvioBank bank) {
         if (bank == null)  return false;
 
-        int tag = bank.getHeader().getTag();
         int num = bank.getHeader().getNumber();
-        EventType eventType = EventType.getEventType(tag);
+        EventType eventType = getEventType(bank);
         if (eventType == null) return false;
    
         return (num == 0xCC && eventType.isControl());
@@ -265,29 +407,82 @@ public class Evio {
     public static boolean isPhysicsEvent(EvioBank bank) {
         if (bank == null)  return false;
 
-        int tag = bank.getHeader().getTag();
-        int num = bank.getHeader().getNumber();
-        EventType eventType = EventType.getEventType(tag);
+        EventType eventType = getEventType(bank);
         if (eventType == null) return false;
 
-        return (num == 0xCC && eventType.isPhysics());
+        return (eventType.isPhysics());
     }
 
 
     /**
-      * Determine whether a bank is a trigger bank or not.
+      * Determine whether a bank is a ROC raw record or not.
       *
       * @param bank input bank
-      * @return <code>true</code> if arg is trigger bank, else <code>false</code>
-      */
-    public static boolean isTriggerBank(EvioBank bank) {
+      * @return <code>true</code> if arg is a ROC raw record, else <code>false</code>
+     */
+    public static boolean isRocRawRecord(EvioBank bank) {
         if (bank == null)  return false;
 
-        int tag = bank.getHeader().getTag();
-        EventType eventType = EventType.getEventType(tag);
+        EventType eventType = getEventType(bank);
         if (eventType == null) return false;
 
-        return eventType.isTriggerBank();
+        return (eventType.isROCRaw());
+    }
+
+
+    /**
+     * Determine whether a bank should be on the payload bank queue
+     * (ie is a physics event, control event, or ROC raw record).
+     *
+     * @param bank input bank
+     * @return <code>true</code> if arg is physics, control or ROC raw bank, else <code>false</code>
+     */
+    private static boolean isForPayloadQueue(EvioBank bank) {
+        if (bank == null)  return false;
+
+        int num = bank.getHeader().getNumber();
+        EventType eventType = getEventType(bank);
+        if (eventType == null) return false;
+//System.out.println("isForPayloadQueue: event type = " + eventType);
+
+        return ( eventType.isROCRaw() || (num == 0xCC && eventType.isControl()) || eventType.isPhysics() );
+    }
+
+
+    /**
+     * Determine whether a bank is a record ID bank or not.
+     *
+     * @param bank input bank
+     * @return <code>true</code> if arg is record ID bank, else <code>false</code>
+     */
+    public static boolean isRecordIdBank(EvioBank bank) {
+        if (bank == null)  return false;
+        return (bank.getHeader().getTag() == RECORD_ID_BANK);
+    }
+
+
+    /**
+     * Determine whether a bank is a trigger bank or not.
+     *
+     * @param bank input bank
+     * @return <code>true</code> if arg is trigger bank, else <code>false</code>
+     */
+    public static boolean isTriggerBank(EvioBank bank) {
+        if (bank == null)  return false;
+        return (bank.getHeader().getTag() == TRIGGER_BANK);
+    }
+
+
+    /**
+     * Determine whether a bank is a built trigger bank or not.
+     * In other words, has it been built by an event builder.
+     *
+     * @param bank input bank
+     * @return <code>true</code> if arg is a built trigger bank, else <code>false</code>
+     */
+    public static boolean isBuiltTriggerBank(EvioBank bank) {
+        if (bank == null)  return false;
+        return (bank.getHeader().getTag() == BUILT_TRIGGER_BANK);
     }
 
 
@@ -295,9 +490,9 @@ public class Evio {
      * Determine whether a bank is a Data Transport Record (DTR) format event or not.
      *
      * @param bank input bank
-     * @return <code>true</code> if arg is DTR format event, else <code>false</code>
+     * @return <code>true</code> if arg is Data Transport Record format event, else <code>false</code>
      */
-    public static boolean isDtrEvent(EvioBank bank) {
+    public static boolean isDataTransportRecord(EvioBank bank) {
         if (bank == null)  return false;
 
         // must be bank of banks
@@ -312,6 +507,10 @@ public class Evio {
 
         // first bank must contain one 32 bit int - the record ID
         BaseStructure firstBank = kids.firstElement();
+
+        // check tag
+        int tag = firstBank.getHeader().getTag();
+        if (tag != RECORD_ID_BANK) return false;
 
         // contained data must be (U)INT32
         int[] intData = firstBank.getIntData();
@@ -334,10 +533,7 @@ public class Evio {
             return false;
         }
 
-        int tag = firstBank.getHeader().getTag();
-        EventType eventType = EventType.getEventType(tag);
-
-        return eventType.isData();
+        return true;
     }
 
 
@@ -354,42 +550,54 @@ public class Evio {
 
 
     /**
-     * Extract payload banks (physics or ROC raw format evio banks) from a
+     * Extract certain payload banks (physics or ROC raw format evio banks) from a
      * Data Transport Record (DTR) format event and place onto the specified queue.
      * The DTR is a bank of banks with the first bank containing the record ID.
-     * The rest are payload banks which are either physics events or ROC raw events.<p>
+     * The rest are payload banks which are physics events, ROC raw events,
+     * run control events, or user events.<p>
+     * Events which do <b>not</b> get built and which may not come simultaneously
+     * from all ROCs (ie user events), are placed on the given output queue directly.<p>
      *
-     * No checks done on arguments or dtrBank format as {@link #isDtrEvent} is assumed to
+     * No checks done on arguments or dtrBank format as {@link #isDataTransportRecord} is assumed to
      * have already been called. However, format of payload banks is checked here for
      * the first time.<p>
      *
      * @param dtrBank input bank assumed to be in Data Transport Record format
-     * @param queue queue on which to place extracted payload banks
+     * @param payloadQueue queue on which to place extracted payload banks
+     * @param outputQueue queue on which to place banks that do not get built/analyzed (user & unknown events)
      * @throws EmuException if dtrBank contains no data banks or record ID is out of sequence
+     * @throws InterruptedException if blocked whileh putting bank on full output queue
      */
-    public static void extractPayloadBanks(EvioBank dtrBank, PayloadBankQueue<PayloadBank> queue)
-            throws EmuException {
+    public static void extractPayloadBanks(EvioBank dtrBank, PayloadBankQueue<PayloadBank> payloadQueue,
+                                           BlockingQueue<EvioBank> outputQueue)
+            throws EmuException, InterruptedException {
 
         // get sub banks
         Vector<BaseStructure> kids = dtrBank.getChildren();
 
         // check to make sure record ID is sequential
         BaseStructure firstBank = kids.firstElement();
-        int[] intData = firstBank.getIntData();
-        int  recordId = intData[0];
+        int recordId = firstBank.getIntData()[0];
         boolean nonFatalError;
         boolean nonFatalRecordIdError = false;
 
+        // check to see if DTR bank is wrapping a non-buildable, non-control event
+        if (!Evio.isForPayloadQueue(dtrBank)) {
+System.out.println("extractPayloadBanks: DTR is NOT for payload Q !!!, put on output Q !!!");
+            outputQueue.put(dtrBank);
+            return;
+        }
+
         // initial recordId stored is 0, ignore that
-        if (queue.getRecordId() > 0 && recordId != queue.getRecordId() + 1) {
-System.out.println("record ID out of sequence, got " + recordId + " but expecting " + (queue.getRecordId() + 1));
+        if (payloadQueue.getRecordId() > 0 && recordId != payloadQueue.getRecordId() + 1) {
+System.out.println("extractPayloadBanks: record ID out of sequence, got " + recordId + " but expecting " + (payloadQueue.getRecordId() + 1));
             nonFatalRecordIdError = true;
         }
-        queue.setRecordId(recordId);
+        payloadQueue.setRecordId(recordId);
 
         // store all banks except the first one containing record ID
         int numKids  = kids.size();
-        int sourceId = dtrBank.getHeader().getTag();
+        int sourceId = Evio.getCodaId(dtrBank.getHeader().getTag()); // get 12 bit id from tag
 
         int tag;
         PayloadBank payloadBank;
@@ -407,8 +615,8 @@ System.out.println("record ID out of sequence, got " + recordId + " but expectin
             payloadBank.setRecordId(recordId);
             payloadBank.setSourceId(sourceId);
             nonFatalError = false;
-            if (sourceId != getRocRawId(payloadBank.getHeader().getTag())) {
-System.out.println("DTR bank source Id conflicts with payload bank's roc id");
+            if (sourceId != getCodaId(payloadBank.getHeader().getTag())) {
+System.out.println("extractPayloadBanks: DTR bank source Id conflicts with payload bank's roc id");
                 nonFatalError = true;
             }
             
@@ -420,13 +628,13 @@ System.out.println("DTR bank source Id conflicts with payload bank's roc id");
                 throw new EmuException("ROC raw record not in proper format");
             }
             
-            payloadBank.setSync(Evio.isRocRawSyncEvent(tag));
-            payloadBank.setError(Evio.hasRocRawError(tag));
-            payloadBank.setSingleMode(Evio.isRocRawSingleEventMode(tag));
+            payloadBank.setSync(Evio.isSyncEvent(tag));
+            payloadBank.setError(Evio.hasError(tag));
+            payloadBank.setSingleMode(Evio.isSingleEventMode(tag));
             payloadBank.setNonFatalBuildingError(nonFatalError || nonFatalRecordIdError);
             
             // Put ROC raw event on queue.
-            queue.add(payloadBank);
+            payloadQueue.add(payloadBank);
         }
     }
 
@@ -477,7 +685,6 @@ System.out.println("DTR bank source Id conflicts with payload bank's roc id");
             do {
                 try {
                     trigBank = (EvioBank)inputPayloadBanks[i].getChildAt(index++);
-                    inputPayloadBanks[i].setEventCount(numEvents);
                 }
                 catch (Exception e) {
                     throw new EmuException("No trigger bank in ROC raw record", e);
@@ -513,7 +720,6 @@ System.out.println("DTR bank source Id conflicts with payload bank's roc id");
 
             try {
                 triggerBanks[i] = parser.parseEvent(bbuf);
-                inputPayloadBanks[i].setParsedTriggerBank((EvioEvent)triggerBanks[i]);
             }
             catch (EvioException e) {
                 throw new EmuException("Data not in evio format", e);
@@ -534,12 +740,11 @@ System.out.println("DTR bank source Id conflicts with payload bank's roc id");
         // event we are trying to build
         EvioEvent combinedTrigger = builder.getEvent();
 
-
         // 1) No sense duplicating data for each ROC/EB. Get event(trigger) types & event numbers
         //    and put into 1 common bank with each value being a short (use least significant 16
         //    bits of event) in the format:
         //
-        //    MSB(31)                    LSB(0)
+        //    MSB(31)                    LSB(0)    Big Endian,  higher mem  -->
         //    _________________________________
         //    | event1 type  |  event1 number |
         //    | event2 type  |  event2 number |
@@ -554,10 +759,11 @@ System.out.println("DTR bank source Id conflicts with payload bank's roc id");
         EvioSegment ebSeg = new EvioSegment(ebId, DataType.USHORT16);
         short[] evData = new short[2*numEvents];
         
-        for (int i=0; i < numEvents; i+=2) {
-            segment     = (EvioSegment) (triggerBanks[0].getChildAt(i));
-            evData[i]   = (short) (segment.getHeader().getTag());  // event type
-            evData[i+1] = (short) (segment.getIntData()[0]);       // event number
+        for (int i=0; i < numEvents; i++) {
+            segment       = (EvioSegment) (triggerBanks[0].getChildAt(i));
+            evData[2*i]   = (short) (segment.getHeader().getTag());  // event type
+            evData[2*i+1] = (short) (segment.getIntData()[0]);       // event number
+System.out.println("for event #" + i + ": ev type = " + evData[2*i] +  ", ev # = " + evData[2*i+1]);
         }
 
         try {
@@ -569,8 +775,10 @@ System.out.println("DTR bank source Id conflicts with payload bank's roc id");
         // It is convenient at this point to check and see if for a given event #,
         // across all ROCs, the event or trigger type is the same.
         for (int i=0; i < numEvents; i++) {
+System.out.println("event type ROC1 = " + evData[2*i]);
             for (int j=1; j < triggerBanks.length; j++) {
                 segment = (EvioSegment) (triggerBanks[j].getChildAt(i));
+System.out.println("event type next ROC = " + ((short) (segment.getHeader().getTag())));
                 if (evData[2*i] != (short) (segment.getHeader().getTag())) {
                     nonFatalError = true;
                 }
@@ -584,7 +792,7 @@ System.out.println("DTR bank source Id conflicts with payload bank's roc id");
 
         // for each ROC ...
         for (int i=0; i < triggerBanks.length; i++) {
-            newRocSeg = new EvioSegment(triggerBanks[i].getHeader().getTag(), DataType.INT32);
+            newRocSeg = new EvioSegment(inputPayloadBanks[i].getSourceId(), DataType.INT32);
             // copy over all ints except the first which is the event Number and is stored in common
 
             // assume, for now, that each ROC segment in the trigger bank has the same amount of data
@@ -614,6 +822,7 @@ System.out.println("DTR bank source Id conflicts with payload bank's roc id");
             catch (EvioException e) { /* never happen */ }
         }
 
+        combinedTrigger.setAllHeaderLengths();
 
         return nonFatalError;
     }
@@ -649,7 +858,7 @@ System.out.println("DTR bank source Id conflicts with payload bank's roc id");
             // Use the same header to wrap data blocks as used for payload bank.
             for (int i=0; i < numPayloadBanks; i++) {
                 header = (BankHeader)inputPayloadBanks[i].getHeader();
-                blockBank = new EvioBank(header.getTag(), header.getDataType(), header.getNumber());
+                blockBank = new EvioBank(header.getTag(), DataType.BANK, header.getNumber());
                 childrenCount = inputPayloadBanks[i].getChildCount();
                 for (int j=0; j < childrenCount; j++) {
                     dataBlock = (EvioBank)inputPayloadBanks[i].getChildAt(j);
@@ -664,6 +873,8 @@ System.out.println("DTR bank source Id conflicts with payload bank's roc id");
         } catch (EvioException e) {
             // never happen
         }
+
+        finalEvent.setAllHeaderLengths();
 
         return null;
     }
@@ -681,7 +892,7 @@ System.out.println("DTR bank source Id conflicts with payload bank's roc id");
      * @param numEvents   number of physics events in created record
      * @param timestamp   starting event's timestamp
      *
-     * @return created ROC Raw Rrcord (EvioEvent object)
+     * @return created ROC Raw Record (EvioEvent object)
      * @throws EvioException
      */
     public static EvioEvent createRocRawRecord(int rocID,       int eventID,
@@ -691,12 +902,12 @@ System.out.println("DTR bank source Id conflicts with payload bank's roc id");
 
         // create a ROC Raw Data Record event/bank with numEvents physics events in it
         int status = 0;  // TODO: may want to make status a method arg
-        int rocTag = createRocRawTag(status, rocID);
+        int rocTag = createCodaTag(status, rocID);
         EventBuilder eventBuilder = new EventBuilder(rocTag, DataType.BANK, numEvents);
         EvioEvent rocRawEvent = eventBuilder.getEvent();
 
         // create the trigger bank (of segments)
-        EvioBank triggerBank = new EvioBank(ROC_RAW_RECORD_ID, DataType.SEGMENT, numEvents);
+        EvioBank triggerBank = new EvioBank(TRIGGER_BANK, DataType.SEGMENT, numEvents);
         eventBuilder.addChild(rocRawEvent, triggerBank);
 
         EvioSegment segment;
@@ -714,15 +925,15 @@ System.out.println("DTR bank source Id conflicts with payload bank's roc id");
         // put some data into event -- one int per event
         int[] data = new int[numEvents];
         for (int i = 0; i < numEvents; i++) {
-            data[i] = 1000 + i;
+            data[i] = 10000 + i;
         }
 
         // create a single data bank (of ints) -- NOT SURE WHAT A DATA BANK LOOKS LIKE !!!
         EvioBank dataBank = new EvioBank(dataBankTag, DataType.INT32, dataBankNum);
-        eventBuilder.addChild(rocRawEvent, dataBank);
         eventBuilder.appendIntData(dataBank, data);
-        
-        //eventBuilder.setAllHeaderLengths();
+        eventBuilder.addChild(rocRawEvent, dataBank);
+
+        eventBuilder.setAllHeaderLengths();
 
         return rocRawEvent;
     }
@@ -750,11 +961,12 @@ System.out.println("DTR bank source Id conflicts with payload bank's roc id");
                                                       int timestamp,   int recordId,
                                                       int numPayloadBanks) throws EvioException {
         // create event with jevio package
-        EventBuilder eventBuilder = new EventBuilder(rocID, DataType.BANK, recordId);
+        int tag = createCodaTag(EventType.ROC_RAW.getValue(), rocID);
+        EventBuilder eventBuilder = new EventBuilder(tag, DataType.BANK, recordId);
         EvioEvent ev = eventBuilder.getEvent();
 
         // add a bank with record ID in it
-        EvioBank recordIdBank = new EvioBank(DATA_TRANSPORT_RECORD_ID, DataType.INT32, numPayloadBanks);
+        EvioBank recordIdBank = new EvioBank(RECORD_ID_BANK, DataType.INT32, numPayloadBanks);
         eventBuilder.appendIntData(recordIdBank, new int[]{recordId});
         eventBuilder.addChild(ev, recordIdBank);
 
