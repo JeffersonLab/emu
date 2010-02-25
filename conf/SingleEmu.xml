@@ -28,7 +28,7 @@
             of the class defining this module and must be loaded. id is the id number of this module
             and is used as the unique event builder id if this module is building events.
         -->
-        <CarlsModule class="ProcessTest" id="1" statistics="on">
+        <CarlsModule class="EventBuilding" id="7" statistics="on">
             <!--
                 parseDepth=2 means we can see a data transport record's banks (including payload banks)
                 and what's in the payload banks, but does not allow us to see what is inside those payload
@@ -42,6 +42,8 @@
             -->
             <inchannel  id="1" name="ROC1"      transp="SingleEmu_SOCKET" subject="ROC1" type="a" parseDepth="2"/>
             <inchannel  id="2" name="ROC2"      transp="SingleEmu_SOCKET" subject="ROC2" type="b" parseDepth="2"/>
+            <inchannel  id="3" name="ROC3"      transp="SingleEmu_SOCKET" subject="ROC3" type="c" parseDepth="2"/>
+            <inchannel  id="4" name="ROC4"      transp="SingleEmu_SOCKET" subject="ROC4" type="d" parseDepth="2"/>
             <outchannel        name="BitBucket" transp="SingleEmu_SOCKET" endian="little"/>
         </CarlsModule>
         <!--
