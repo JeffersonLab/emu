@@ -19,6 +19,7 @@ import org.jlab.coda.jevio.*;
 
 import java.util.*;
 import java.util.concurrent.BlockingQueue;
+import java.nio.ByteBuffer;
 
 /**
  * The event building module.
@@ -124,9 +125,8 @@ System.out.println("ProcessTest module: quitting watcher thread");
 
     /**
      * This class places payload banks parsed from a Data Transport Record or DTR (taken from
-     * a channel (ROC)) onto a payload bank queue associated with that channel. Control events
-     * are also placed in these queues. However, all non-data, non-control types of events are
-     * passed directly to one of the output queues.<p>
+     * a channel (ROC)) onto a payload bank queue associated with that channel. All other types
+     * of events are ignored.<p>
      *
      * The idea is to place not much more than 20 payload banks on each queue at one time.
      * This translates to roughly no more than 30MB of data across all ROCs stored in these
@@ -144,6 +144,7 @@ System.out.println("ProcessTest module: quitting watcher thread");
             BlockingQueue<EvioBank> channelQ;
             PayloadBankQueue<PayloadBank> payloadBankQ;
             BitSet channelsTouched = new BitSet(payloadBankQueues.size());
+
             // pick any output queue and use it forward events that don't get built
             BlockingQueue<EvioBank> outputQueue = outputChannels.get(0).getQueue();
 
@@ -168,6 +169,7 @@ System.out.println("ProcessTest module: quitting watcher thread");
                             if (channelQ.size() < 1) {
                                 // But payload bank Q has banks, forget about it & move on to next Q
                                 if (payloadBankQ.size() > 0) {
+//System.out.println("QFILLER: channel Q empty but payload Q has stuff so skip");
                                     break;
                                 }
 
@@ -182,34 +184,28 @@ System.out.println("ProcessTest module: quitting watcher thread");
                             // this channel is being worked on
                             channelsTouched.set(i, true);
 
-                            //----------------------------------------------------------------------
-                            // channelBank might be a DTR, Control Event, Physics Event, or garbage.
-                            //----------------------------------------------------------------------
-
-                            // Is bank is a control or DTR format event?
-                            boolean isDTR     = Evio.isDtrEvent(channelBank);
-                            boolean isControl = Evio.isControlEvent(channelBank);
-
-                            if (isDTR) {
+                            //--------------------------------------------------------------
+                            // All data should be wrapped in a Data Transport Record or DTR.
+                            // If it isn't, it's garbage and is ignored.
+                            //--------------------------------------------------------------
+                            
+                            // Is bank is in Data Transport Record format event?
+                            if ( Evio.isDataTransportRecord(channelBank) ) {
                                 // Extract payload banks from DTR & place onto Q
                                 // may be blocked here waiting on a Q
-                                Evio.extractPayloadBanks(channelBank, payloadBankQ);
+//System.out.println("QFILLER: Extracting bank from DTR on channel# " + (i+1));
+                                Evio.extractPayloadBanks(channelBank, payloadBankQ, outputQueue);
                             }
-                            else if (isControl) {
-                                // Put control event on queue without any analysis.
-                                payloadBankQ.add(new PayloadBank(channelBank));
-                            }
-                            else {
-                                // If neither control nor DTR format event, put it on any output queue.
-                                outputQueue.put(channelBank);
-                            }
+//                            else {
+//System.out.print("QFILLER: NOT A DTR on channel !!!");
+//                            }
                         }
                     }
 
                     // If all channels were empty with banks still in queues, or all queues full,
                     // or some combination of the two, avoid chewing up cpu by waiting a little.
                     if (channelsTouched.isEmpty()) {
-            //System.out.print(".");
+//System.out.print(".");
                         Thread.sleep(5);
                     }
 
@@ -288,7 +284,6 @@ System.out.println("ProcessTest module: quitting watcher thread");
      */
     public void run() {
 
-
 System.out.println("Action Thread state " + state);
 
         // have output channels?
@@ -298,13 +293,14 @@ System.out.println("Action Thread state " + state);
         if (hasOutputs) outputIter = outputChannels.iterator();
 
         // initialize
+        int dtrTag;
         DataChannel outC;
         BlockingQueue<EvioBank> outputQueue = null;
         PayloadBank[] buildingBanks = new PayloadBank[inputChannels.size()];
         EvioBank bank;
         EventBuilder builder = new EventBuilder(0, DataType.BANK, 0); // this event not used, just need a builder
         EvioEvent physicsEvent, dtrEvent = null, combinedTrigger;
-        boolean nonFatalError = false;
+        boolean nonFatalError;
 
         // variables for instantaneous stats
         long deltaT, t1, t2, prevEventCount=0L, prevWordCount=0L;
@@ -326,8 +322,10 @@ System.out.println("Action Thread state " + state);
 
                 try {
 
+                    nonFatalError = false;
+
                     do {
-                        // The payload bank queues are filled by the queueFiller thread.
+                        // The payload bank queues are filled by the QFiller thread.
 
                         // Here we have what we need to build:
                         // ROC raw events from all ROCs, each with sequential record IDs.
@@ -335,24 +333,30 @@ System.out.println("Action Thread state " + state);
 
                         // Grab one bank from each channel
                         for (int i=0; i < payloadBankQueues.size(); i++) {
+//System.out.println("Action Thread: take from payload Q# " + (i+1));
                             // will block waiting for payload bank
                             buildingBanks[i] = payloadBankQueues.get(i).take();
+//System.out.println("Action Thread: GOT from payload Q# " + (i+1));
                             // Check the source ID of this bank to see if it matches
                             // what should be coming over this channel.
                             if (!Evio.idsMatch(buildingBanks[i], payloadBankQueues.get(i).getSourceId())) {
+System.out.println("bank tag = " + buildingBanks[i].getHeader().getTag());
+System.out.println("queue source id = " + payloadBankQueues.get(i).getSourceId());
                                 nonFatalError = true;
+                                System.out.println("Action Thread #3");
                             }
                         }
 
                     } while (tryBuildingControlEvent(buildingBanks, outputQueue));
-
+if (nonFatalError) System.out.println("\nERROR 1\n");
                     // No more control events at this point
 
                     // check for identical syncs & uniqueness of ROC ids
                     nonFatalError |= checkSyncAndRocIds(buildingBanks);
 
+if (nonFatalError) System.out.println("\nERROR 2\n");
                     // build trigger bank
-                    combinedTrigger = new EvioEvent(Evio.PHYSICS_RECORD_ID,
+                    combinedTrigger = new EvioEvent(Evio.BUILT_TRIGGER_BANK,
                                                     DataType.SEGMENT,
                                                     buildingBanks.length + 1);
                     builder.setEvent(combinedTrigger);
@@ -360,6 +364,7 @@ System.out.println("Action Thread state " + state);
                     // combine the trigger banks of input events into one
                     nonFatalError |= Evio.combineTriggerBanks(buildingBanks, builder, ebId);
 
+if (nonFatalError) System.out.println("\nERROR 3\n");
                     // check timestamps if requested
                     boolean requested = false;
                     if (requested) {
@@ -375,30 +380,60 @@ System.out.println("Action Thread state " + state);
                         nonFatalError |= pBank.hasNonFatalBuildingError();
                     }
 
+if (nonFatalError) System.out.println("\nERROR 4\n");
                     // create a physics event from payload banks and combined trigger bank
-                    int tag = Evio.createRocRawTag(buildingBanks[0].isSync(),
-                                                   buildingBanks[0].hasError() || nonFatalError,
-                                                   buildingBanks[0].isReserved(),
-                                                   buildingBanks[0].isSingleMode(),
-                                                   ebId);
+                    int tag = Evio.createCodaTag(buildingBanks[0].isSync(),
+                                                 buildingBanks[0].hasError() || nonFatalError,
+                                                 buildingBanks[0].isReserved(),
+                                                 buildingBanks[0].isSingleMode(),
+                                                 ebId);
+//System.out.println("tag = " + tag + ", is sync = " + buildingBanks[0].isSync() +
+//                   ", has error = " + (buildingBanks[0].hasError() || nonFatalError) +
+//                   ", is reserved = " + buildingBanks[0].isReserved() +
+//                   ", is single mode = " + buildingBanks[0].isSingleMode());
+
                     physicsEvent = new EvioEvent(tag, DataType.BANK, 0xCC);
                     builder.setEvent(physicsEvent);
                     Evio.buildPhysicsEvent(combinedTrigger, buildingBanks, builder);
+                    physicsEvent.setAllHeaderLengths();
+
+//                    ByteBuffer bbuf = ByteBuffer.allocate(2048);
+//                    physicsEvent.write(bbuf);
+//                    bbuf.flip();
+//                    for (int j=0; j<bbuf.asIntBuffer().limit(); j++) {
+//                        System.out.println(bbuf.asIntBuffer().get(j));
+//                    }
+//                    System.out.println("\n\n\n");
 
                     // wrap physics event in Data Transport Record for next EB or ER
-                    dtrEvent = new EvioEvent(ebId, DataType.BANK, ebRecordId);
+                    dtrTag = Evio.createCodaTag(EventType.PHYSICS.getValue(), ebId);
+                    dtrEvent = new EvioEvent(dtrTag, DataType.BANK, ebRecordId);
                     builder.setEvent(dtrEvent);
 
                     try {
                         // add bank with full recordId
-                        bank = new EvioBank(Evio.DATA_TRANSPORT_RECORD_ID, DataType.BANK, 1);
+                        bank = new EvioBank(Evio.RECORD_ID_BANK, DataType.INT32, 1);
                         bank.appendIntData(new int[] {ebRecordId});
                         builder.addChild(dtrEvent, bank);
                         // add physics event
                         builder.addChild(dtrEvent, physicsEvent);
                         // TODO: how do we set this initially????
                         ebRecordId++;
-                    } catch (EvioException e) { /* never happen */  }
+                        
+                        dtrEvent.setAllHeaderLengths();
+
+                        ByteBuffer bbuf = ByteBuffer.allocate(2048);
+                        dtrEvent.write(bbuf);
+                        bbuf.flip();
+                        for (int j=0; j<bbuf.asIntBuffer().limit(); j++) {
+                            System.out.println(bbuf.asIntBuffer().get(j));
+                        }
+                        System.out.println("\n\n\n");
+                        
+                    } catch (EvioException e) {
+                        e.printStackTrace();
+                        /* never happen */
+                    }
 
                 }
                 catch (EmuException e) {
@@ -433,6 +468,7 @@ System.out.println("Action Thread state " + state);
                 //Thread.sleep(2);
 
             } catch (InterruptedException e) {
+                e.printStackTrace();
                 if (state == CODAState.DOWNLOADED) return;
             }
         }
@@ -486,7 +522,7 @@ System.out.println("Action Thread state " + state);
      * @param outputQueue queue on which to place any control events read
      * @return <code>true</code> if a proper control event was built and output, else <code>false</code>
      * @throws EmuException if events contain mixture of control/data or control types
-     * @throws InterruptedException while putting control event on output queue
+     * @throws InterruptedException if interrupted while putting control event on output queue
      */
     private boolean tryBuildingControlEvent(EvioBank[] buildingBanks, BlockingQueue<EvioBank> outputQueue)
             throws EmuException, InterruptedException {
@@ -529,89 +565,6 @@ System.out.println("Action Thread state " + state);
     }
 
     
-    /**
-     * Place payload banks parsed from a Data Transport Record or DTR (taken from a channel (ROC))
-     * onto a payload bank queue associated with that channel. Control events are also placed
-     * in these queues. However, all non-data, non-control types of events are passed directly
-     * to one of the output queues.<p>
-     * The idea is to place not much more than 20 payload banks on each queue. This translates
-     * to roughly no more than 30MB of data across all ROCs stored in these queues (15kB/ev *
-     * 20 pbanks * 100 ev/pbank). We do NOT want to block while filling them unless there are
-     * no banks in a queue and also no DTRs in its corresponding channel.<p>
-     * If all queues are full when this method is called, a sleep is done to prevent chewing
-     * up too much cpu time.
-     *
-     * @param outputQueue queue on which to place any non-data/control events read
-     * @throws EmuException for major error in event building
-     * @throws InterruptedException when interrupted while trying to get a bank from a queue
-     */
-    private void fillPayloadBankQueues(BlockingQueue<EvioBank> outputQueue)
-            throws EmuException, InterruptedException {
-
-        EvioBank channelBank;
-        BlockingQueue<EvioBank> channelQ;
-        PayloadBankQueue<PayloadBank> payloadBankQ;
-        BitSet queuesTouched = new BitSet(payloadBankQueues.size());
-      
-        // Loop thru all queues from which we grab banks to be built
-        for (int i=0;  i < payloadBankQueues.size(); i++) {
-            payloadBankQ = payloadBankQueues.get(i);
-
-            // To fill this payload bank Q, grabbing a DTR from the channel Q associated
-            // with it and move its payload banks to payload bank Q.
-            channelQ = inputChannels.get(i).getQueue();
-
-            // Think about getting more payload banks cause we're running low ...
-            while (payloadBankQ.size() < 20) {
-                // this queue is being worked on
-                queuesTouched.set(i, true);
-
-                // If channel Q is empty ...
-                if (channelQ.size() < 1) {
-                    // But payload bank Q has banks, forget about it & move on to next Q
-                    if (payloadBankQ.size() > 0) {
-                        break;
-                    }
-
-                    // And payload bank is also empty, block waiting for the next DTR from ROC.
-                    channelBank = channelQ.take();  // blocks, throws InterruptedException
-                }
-                // Otherwise, just grab next DTR from channel Q.
-                else {
-                    channelBank = channelQ.poll();  // return null if empty, should never happen
-                }
-
-                //----------------------------------------------------------------------
-                // channelBank might be a DTR, Control Event, Physics Event, or garbage.
-                //----------------------------------------------------------------------
-
-                // Is bank is a control or DTR format event?
-                boolean isDTR     = Evio.isDtrEvent(channelBank);
-                boolean isControl = Evio.isControlEvent(channelBank);
-
-                if (isDTR) {
-                    // Extract payload banks from DTR & place onto Q
-                    Evio.extractPayloadBanks(channelBank, payloadBankQ);
-                }
-                else if (isControl) {
-                    // Put control event on queue without any analysis.
-                    payloadBankQ.add(new PayloadBank(channelBank));
-                }
-                else {
-                    // If neither control nor DTR format event, put it on any output queue.
-                    outputQueue.put(channelBank);
-                }
-            }
-        }
-
-        // if queues were all full to begin with, avoid chewing up cpu by waiting a little
-        if (queuesTouched.isEmpty()) {
-System.out.println("Qfiller is going to SLEEP");
-            Thread.sleep(5);
-        }
-    }
-
-
 
     public State state() {
         return state;
