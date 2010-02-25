@@ -1,19 +1,20 @@
 package org.jlab.coda.emu.support.data;
 
 /**
- * This enum specifies values associated with evio event types used in run control components.
+ * This enum specifies values associated with evio event types used in CODA online components.
  * @author timmer
  */
 public enum EventType {
 
-    SYNC     (16, true),
-    PRESTART (17, true),
-    GO       (18, true),
-    PAUSE    (19, true),
-    END      (20, true),
-    PHYSICS  (0x0C00, false),  // 3072 decimal
-    DATA     (0x0C01, false),  // 3073 decimal
-    TRIGGER  (0x0C02, false);  // 3074 decimal
+    // events
+    ROC_RAW  (1, false),
+    PHYSICS  (2, false),
+    USER     (3, false),
+    SYNC     (4, true),
+    PRESTART (5, true),
+    GO       (6, true),
+    PAUSE    (7, true),
+    END      (8, true);
 
     private int value;
     private boolean control;
@@ -40,6 +41,14 @@ public enum EventType {
     }
 
     /**
+     * Get the integer value of this enum.
+     * @return the integer value of this enum.
+     */
+    public int getValue() {
+        return value;
+    }
+
+    /**
      * Is this a control event type?
      * @return <code>true</code> if control event type, else <code>false</code>
      */
@@ -51,8 +60,8 @@ public enum EventType {
      * Is this a data event type?
      * @return <code>true</code> if data event type, else <code>false</code>
      */
-    public boolean isData() {
-        return this.equals(DATA);
+    public boolean isROCRaw() {
+        return this.equals(ROC_RAW);
     }
 
     /**
@@ -64,11 +73,12 @@ public enum EventType {
     }
 
     /**
-     * Is this a trigger bank type?
-     * @return <code>true</code> if trigger bank type, else <code>false</code>
+     * Is this a user event type?
+     * @return <code>true</code> if user event type, else <code>false</code>
      */
-    public boolean isTriggerBank() {
-        return this.equals(TRIGGER);
+    public boolean isUser() {
+        return this.equals(USER);
     }
+
 
 }
