@@ -13,7 +13,6 @@ package org.jlab.coda.emu;
 
 import java.net.URLClassLoader;
 import java.net.URL;
-import java.lang.reflect.Field;
 
 /**
  * This class is a custom classLoader which delegates all loading to its parent (in this case, system)
@@ -32,14 +31,14 @@ import java.lang.reflect.Field;
  * Each time myClass is loaded, a new object of this type is used:<p>
  *<pre><code>
  *           EmuClassLoader emuClassloader = new EmuClassLoader();
- *           emuClassloader.setClassToLoad("myClass");
+ *           emuClassloader.setClassesToLoad("myClass");
  *           Class myObjectClass  = emuClassloader.loadClass("myClass");
  *           myInterface  object1 = (myInterface)  myObjectClass.newInstance();
  *           mySuperClass object2 = (mySuperClass) myObjectClass.newInstance();
  *
  *           // create new class loader so classes can be reloaded
  *           emuClassloader = new EmuClassLoader();
- *           emuClassloader.setClassToLoad("myClass");
+ *           emuClassloader.setClassesToLoad("myClass");
  *           myObjectClass  = emuClassloader.loadClass("myClass");
  *           object1 = (myInterface)  myObjectClass.newInstance();
  *           object2 = (mySuperClass) myObjectClass.newInstance();
