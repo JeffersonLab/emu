@@ -12,11 +12,11 @@
 package org.jlab.coda.emu.support.transport;
 
 import org.jlab.coda.emu.support.logger.Logger;
-import org.jlab.coda.emu.support.data.EvioByteParser;
 import org.jlab.coda.emu.Emu;
 import org.jlab.coda.cMsg.*;
 import org.jlab.coda.jevio.EvioBank;
 import org.jlab.coda.jevio.EvioException;
+import org.jlab.coda.jevio.ByteParser;
 
 
 import java.util.concurrent.BlockingQueue;
@@ -56,7 +56,7 @@ public class DataChannelImplCmsg implements DataChannel {
     private boolean pause;
 
     /** Object for parsing evio data contained in incoming messages. */
-    private EvioByteParser parser;
+    private ByteParser parser;
 
     /** Byte order of output data (input data's order is specified in msg). */
     ByteOrder byteOrder;
@@ -91,9 +91,7 @@ System.out.println("cmsg data channel " + name + ": got message in callback");
                     byteOrder = ByteOrder.LITTLE_ENDIAN;
                 }
 
-                int parseDepth = (Integer)userObject;
-
-                EvioBank bank = parser.parseEvent(data, byteOrder, parseDepth);
+                EvioBank bank = parser.parseEvent(data, byteOrder);
                 queue.put(bank);
 
 //                System.out.println("\nReceiving msg:\n" + bank.toString());
@@ -182,28 +180,17 @@ System.out.println("cmsg data channel " + name + ": got message in callback");
             catch (NumberFormatException e) {  }
         }
 
-        // Set parse level for incoming msgs.
-        // Use any defined in config file else use default (parse everything)
-        int parseDepth = 0;
-        String pLevel = attributeMap.get("parseDepth");
-        if (pLevel != null) {
-            try {
-                parseDepth = Integer.parseInt(pLevel);
-            }
-            catch (NumberFormatException e) {  }
-        }
-
         if (input) {
             try {
                 // create subscription for receiving messages containing data
                 ReceiveMsgCallback cb = new ReceiveMsgCallback();
-                sub = dataTransport.getCmsgConnection().subscribe(subject, type, cb, parseDepth);
+                sub = dataTransport.getCmsgConnection().subscribe(subject, type, cb, null);
             }
             catch (cMsgException e) {
                 Logger.info("      DataChannelImplCmsg.const : " + e.getMessage());
                 throw new DataTransportException(e);
             }
-            parser = new EvioByteParser();
+            parser = new ByteParser();
         }
         else {
             // set endianness of data
