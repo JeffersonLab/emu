@@ -11,6 +11,8 @@ import org.jlab.coda.jevio.*;
  */
 public class PayloadBank extends EvioBank {
 
+    private EventType type;
+
     private int sourceId;
 
     private int recordId;
@@ -25,7 +27,7 @@ public class PayloadBank extends EvioBank {
     private boolean isSync;
 
     /** Is single event mode? from ROC raw data record 4-bit status. */
-    private boolean isSingleMode;
+    private boolean isSingleEventMode;
 
     /** Has error? from ROC raw data record 4-bit status. */
     private boolean hasError;
@@ -35,7 +37,6 @@ public class PayloadBank extends EvioBank {
 
     /** Was there an non-fatal error generated while trying to build an event? */
     private boolean nonFatalBuildingError;
-
 
 
     public PayloadBank() {
@@ -50,6 +51,14 @@ public class PayloadBank extends EvioBank {
         children  = bank.getChildren();
     }
 
+
+    public EventType getType() {
+        return type;
+    }
+
+    public void setType(EventType type) {
+        this.type = type;
+    }
 
     public int getSourceId() {
         return sourceId;
@@ -99,12 +108,12 @@ public class PayloadBank extends EvioBank {
         isSync = sync;
     }
 
-    public boolean isSingleMode() {
-        return isSingleMode;
+    public boolean isSingleEventMode() {
+        return isSingleEventMode;
     }
 
-    public void setSingleMode(boolean singleMode) {
-        isSingleMode = singleMode;
+    public void setSingleEventMode(boolean singleEventMode) {
+        isSingleEventMode = singleEventMode;
     }
 
     public boolean hasError() {
