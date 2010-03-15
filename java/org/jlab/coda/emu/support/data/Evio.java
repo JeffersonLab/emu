@@ -750,7 +750,8 @@ System.out.println("extractPayloadBanks: DTR bank source Id conflicts with paylo
         catch (EvioException e) { /* never happen */ }
 
 
-        // 2) now put all ROC-specific segments into bank
+        // 2) Now put all ROC-specific segments into bank.
+        //    if we're in single event mode, there will be NO such segments.
 
         // for each event (from previous level EB) ...
         for (int i=0; i < triggerBanks.length; i++) {
