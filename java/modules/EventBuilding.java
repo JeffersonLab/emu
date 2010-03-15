@@ -126,7 +126,7 @@ System.out.println("ProcessTest module: quitting watcher thread");
     /**
      * This class places payload banks parsed from a Data Transport Record or DTR (taken from
      * a channel (ROC)) onto a payload bank queue associated with that channel. All other types
-     * of events are ignored.<p>
+     * of events are ignored. Nothing in this class depends on single event mode status.<p>
      *
      * The idea is to place not much more than 20 payload banks on each queue at one time.
      * This translates to roughly no more than 30MB of data across all ROCs stored in these
@@ -351,18 +351,48 @@ System.out.println("queue source id = " + payloadBankQueues.get(i).getSourceId()
 if (nonFatalError) System.out.println("\nERROR 1\n");
                     // No more control events at this point
 
-                    // check for identical syncs & uniqueness of ROC ids
-                    nonFatalError |= checkSyncAndRocIds(buildingBanks);
+                    // check for identical syncs, uniqueness of ROC ids,
+                    // single-event-mode, and identical (physics or ROC raw) event types
+                    nonFatalError |= checkConsistency(buildingBanks);
 
 if (nonFatalError) System.out.println("\nERROR 2\n");
-                    // build trigger bank
+
+                    // are we building with physics events or not (ROC raw records)?
+                    boolean havePhysicsEvents = buildingBanks[0].getType().isPhysics();
+
+                    // Build trigger bank, number of ROCs given by number of buildingBanks
                     combinedTrigger = new EvioEvent(Evio.BUILT_TRIGGER_BANK,
                                                     DataType.SEGMENT,
                                                     buildingBanks.length + 1);
                     builder.setEvent(combinedTrigger);
 
-                    // combine the trigger banks of input events into one
-                    nonFatalError |= Evio.combineTriggerBanks(buildingBanks, builder, ebId);
+                    // if building with Physics events ...
+                    if (havePhysicsEvents) {
+                        //-----------------------------------------------------------------------------------
+                        // The actual number of rocs + 1 will replace num in combinedTrigger definition above
+                        //-----------------------------------------------------------------------------------
+                        // If in single event mode, build trigger bank differently
+                        if (buildingBanks[0].isSingleEventMode()) {
+                            // create a trigger bank from data in Data Block banks
+                            //nonFatalError |= Evio.makeTriggerBankFromPhysics(buildingBanks, builder, ebId);
+                        }
+                        else {
+                            // combine the trigger banks of input events into one
+                            nonFatalError |= Evio.makeTriggerBankFromPhysics(buildingBanks, builder, ebId);
+                        }
+                    }
+                    // else if building with ROC raw records ...
+                    else {
+                        // if in single event mode, build trigger bank differently
+                        if (buildingBanks[0].isSingleEventMode()) {
+                            // create a trigger bank from data in Data Block banks
+                            nonFatalError |= Evio.makeTriggerBankFromSemRocRaw(buildingBanks, builder, ebId);
+                        }
+                        else {
+                            // combine the trigger banks of input events into one
+                            nonFatalError |= Evio.makeTriggerBankFromRocRaw(buildingBanks, builder, ebId);
+                        }
+                    }
 
 if (nonFatalError) System.out.println("\nERROR 3\n");
                     // check timestamps if requested
@@ -385,16 +415,21 @@ if (nonFatalError) System.out.println("\nERROR 4\n");
                     int tag = Evio.createCodaTag(buildingBanks[0].isSync(),
                                                  buildingBanks[0].hasError() || nonFatalError,
                                                  buildingBanks[0].isReserved(),
-                                                 buildingBanks[0].isSingleMode(),
+                                                 buildingBanks[0].isSingleEventMode(),
                                                  ebId);
-//System.out.println("tag = " + tag + ", is sync = " + buildingBanks[0].isSync() +
-//                   ", has error = " + (buildingBanks[0].hasError() || nonFatalError) +
-//                   ", is reserved = " + buildingBanks[0].isReserved() +
-//                   ", is single mode = " + buildingBanks[0].isSingleMode());
+System.out.println("tag = " + tag + ", is sync = " + buildingBanks[0].isSync() +
+                   ", has error = " + (buildingBanks[0].hasError() || nonFatalError) +
+                   ", is reserved = " + buildingBanks[0].isReserved() +
+                   ", is single mode = " + buildingBanks[0].isSingleEventMode());
 
                     physicsEvent = new EvioEvent(tag, DataType.BANK, 0xCC);
                     builder.setEvent(physicsEvent);
-                    Evio.buildPhysicsEvent(combinedTrigger, buildingBanks, builder);
+                    if (havePhysicsEvents) {
+                        Evio.buildPhysicsEventWithPhysics(combinedTrigger, buildingBanks, builder);
+                    }
+                    else {
+                        Evio.buildPhysicsEventWithRocRaw(combinedTrigger, buildingBanks, builder);
+                    }
                     physicsEvent.setAllHeaderLengths();
 
 //                    ByteBuffer bbuf = ByteBuffer.allocate(2048);
@@ -422,13 +457,13 @@ if (nonFatalError) System.out.println("\nERROR 4\n");
                         
                         dtrEvent.setAllHeaderLengths();
 
-                        ByteBuffer bbuf = ByteBuffer.allocate(2048);
-                        dtrEvent.write(bbuf);
-                        bbuf.flip();
-                        for (int j=0; j<bbuf.asIntBuffer().limit(); j++) {
-                            System.out.println(bbuf.asIntBuffer().get(j));
-                        }
-                        System.out.println("\n\n\n");
+//                        ByteBuffer bbuf = ByteBuffer.allocate(2048);
+//                        dtrEvent.write(bbuf);
+//                        bbuf.flip();
+//                        for (int j=0; j<bbuf.asIntBuffer().limit(); j++) {
+//                            System.out.println(bbuf.asIntBuffer().get(j));
+//                        }
+//                        System.out.println("\n\n\n");
                         
                     } catch (EvioException e) {
                         e.printStackTrace();
@@ -477,22 +512,45 @@ if (nonFatalError) System.out.println("\nERROR 4\n");
 
 
     /**
-     * Check each payload bank - one from each input channel - to see if there are any
-     * sync bits set. If all or none are sync banks, everything is OK.
-     * Also check the ROC ids of the banks to make sure each is unique.
+     * Check each payload bank - one from each input channel - for a number of issues:<p>
+     * <ol>
+     * <li>if there are any sync bits set, all must be sync banks
+     * <li>the ROC ids of the banks must be unique
+     * <li>if any banks are in single-event-mode, all need to be in that mode
+     * <li>at this point all banks are either physics events or ROC raw record, but must be identical types
+     * </ol>
      *
      * @param buildingBanks array containing banks that will be built together
      * @return <code>true</code> if non fatal error occurred, else <code>false</code>
+     * @throws EmuException if some events are in single event mode and others are not, or
+     *                      if some physics and others ROC raw event types
      */
-    private boolean checkSyncAndRocIds(PayloadBank[] buildingBanks) {
+    private boolean checkConsistency(PayloadBank[] buildingBanks) throws EmuException {
         boolean nonFatalError = false;
 
         // for each ROC raw data record check the sync bit
         int syncBankCount = 0;
+
+        // for each ROC raw data record check the single-event-mode bit
+        int singleEventModeBankCount = 0;
+
+        // By the time this method is run, all input banks are either physics or ROC raw.
+        // Just make sure they're all identical.
+        int physicsEventCount = 0;
+
         for (int i=0; i < buildingBanks.length; i++) {
             if (buildingBanks[i].isSync()) {
                 syncBankCount++;
             }
+
+            if (buildingBanks[i].isSingleEventMode()) {
+                singleEventModeBankCount++;
+            }
+
+            if (buildingBanks[i].getType().isPhysics()) {
+                physicsEventCount++;
+            }
+
             for (int j=i+1; j < buildingBanks.length; j++) {
                 if ( buildingBanks[i].getSourceId() == buildingBanks[j].getSourceId()  ) {
                     // ROCs have duplicate IDs
@@ -505,6 +563,18 @@ if (nonFatalError) System.out.println("\nERROR 4\n");
         if (syncBankCount > 0 && syncBankCount != buildingBanks.length) {
             // some banks are sync banks and some are not
             nonFatalError = true;
+        }
+
+        // if one is a single-event-mode, all must be
+        if (singleEventModeBankCount > 0 && singleEventModeBankCount != buildingBanks.length) {
+            // some banks are single-event-mode and some are not, so we cannot build at this point
+            throw new EmuException("not all events are in single event mode");
+        }
+
+        // all must be physics or all must be ROC raw
+        if (physicsEventCount > 0 && physicsEventCount != buildingBanks.length) {
+            // some banks are physics and some ROC raw
+            throw new EmuException("not all events are physics or not all are ROC raw");
         }
 
         return nonFatalError;
@@ -524,33 +594,35 @@ if (nonFatalError) System.out.println("\nERROR 4\n");
      * @throws EmuException if events contain mixture of control/data or control types
      * @throws InterruptedException if interrupted while putting control event on output queue
      */
-    private boolean tryBuildingControlEvent(EvioBank[] buildingBanks, BlockingQueue<EvioBank> outputQueue)
+    private boolean tryBuildingControlEvent(PayloadBank[] buildingBanks, BlockingQueue<EvioBank> outputQueue)
             throws EmuException, InterruptedException {
 
         int counter = 0;
         int controlEventCount = 0;
         int numberOfBanks = buildingBanks.length;
+        EventType eventType;
         EventType[] types = new EventType[numberOfBanks];
 
         // count control events
-        for (EvioBank bank : buildingBanks) {
-            // Might be a DTR or Control Event
-            if (Evio.isControlEvent(bank)) {
+        for (PayloadBank bank : buildingBanks) {
+            // Might be a ROC Raw, Physics, or Control Event
+            eventType = bank.getType();
+            if (eventType.isControl()) {
                 controlEventCount++;
             }
-            types[counter++] = Evio.getEventType(bank);
+            types[counter++] = eventType;
         }
 
         // If one is a control event, all must be identical control events,
         // and only one gets passed to output.
         if (controlEventCount > 0) {
-            // all event must be control events
+            // all events must be control events
             if (controlEventCount != numberOfBanks) {
                 throw new EmuException("some channels have control events and some do not");
             }
 
             // make sure all are the same type of control event
-            EventType eventType = types[0];
+            eventType = types[0];
             for (int i=1; i < types.length; i++) {
                 if (eventType != types[i]) {
                     throw new EmuException("different type control events on each channel");

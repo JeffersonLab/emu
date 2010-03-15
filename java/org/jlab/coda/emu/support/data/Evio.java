@@ -267,7 +267,7 @@ public class Evio {
 
 
     /** Object for parsing evio data. */
-    private static EvioByteParser parser = new EvioByteParser();  // TODO: not good idea to have static parser
+    private static ByteParser parser = new ByteParser();  // TODO: not good idea to have static parser
 
 
     /**
@@ -356,8 +356,7 @@ public class Evio {
 
     /**
      * Get the event type's numerical value in Data Transport Records or the status in
-     * other types of recordes/events which is the upper 4 bits of the CODA-format tag.
-     * .
+     * other types of records/events which is the upper 4 bits of the CODA-format tag.
      *
      * @param codaTag tag from evio bank.
      * @return the event type or status from various records/events.
@@ -382,10 +381,10 @@ public class Evio {
 
 
     /**
-     * Determine whether a bank is a control event or not.
+     * Determine whether a Data Transport Record format bank contains control event(s) or not.
      *
-     * @param bank input bank
-     * @return <code>true</code> if arg is control event, else <code>false</code>
+     * @param bank input Data Transport Record format bank
+     * @return <code>true</code> if arg contains control event(s), else <code>false</code>
      */
     public static boolean isControlEvent(EvioBank bank) {
         if (bank == null)  return false;
@@ -399,10 +398,10 @@ public class Evio {
 
 
     /**
-     * Determine whether a bank is a physics event or not.
+     * Determine whether a Data Transport Record format bank contains physics event(s) or not.
      *
-     * @param bank input bank
-     * @return <code>true</code> if arg is physics event, else <code>false</code>
+     * @param bank input Data Transport Record format bank
+     * @return <code>true</code> if arg contains physics event(s), else <code>false</code>
      */
     public static boolean isPhysicsEvent(EvioBank bank) {
         if (bank == null)  return false;
@@ -415,10 +414,10 @@ public class Evio {
 
 
     /**
-      * Determine whether a bank is a ROC raw record or not.
-      *
-      * @param bank input bank
-      * @return <code>true</code> if arg is a ROC raw record, else <code>false</code>
+     * Determine whether a Data Transport Record format bank contains ROC raw record(s) or not.
+     *
+     * @param bank input Data Transport Record format bank
+     * @return <code>true</code> if arg contains ROC raw record(s), else <code>false</code>
      */
     public static boolean isRocRawRecord(EvioBank bank) {
         if (bank == null)  return false;
@@ -431,8 +430,8 @@ public class Evio {
 
 
     /**
-     * Determine whether a bank should be on the payload bank queue
-     * (ie is a physics event, control event, or ROC raw record).
+     * Determine whether a Data Transport Record format bank contains banks which should be
+     * on the payload bank queue (ie is a physics event, control event, or ROC raw record).
      *
      * @param bank input bank
      * @return <code>true</code> if arg is physics, control or ROC raw bank, else <code>false</code>
@@ -545,7 +544,7 @@ public class Evio {
      * @return <code>true</code> if bank arg's source ID is the same as the id arg, else <code>false</code>
      */
     public static boolean idsMatch(EvioBank bank, int id) {
-        return (bank != null && bank.getHeader().getTag() == id);
+        return (bank != null && getCodaId(bank.getHeader().getTag()) == id);
     }
 
 
@@ -581,9 +580,11 @@ public class Evio {
         boolean nonFatalError;
         boolean nonFatalRecordIdError = false;
 
-        // check to see if DTR bank is wrapping a non-buildable, non-control event
-        if (!Evio.isForPayloadQueue(dtrBank)) {
-System.out.println("extractPayloadBanks: DTR is NOT for payload Q !!!, put on output Q !!!");
+        // See what type of event DTR bank is wrapping.
+        // Only interested in physics, roc raw, and control events.
+        EventType eventType = getEventType(dtrBank);
+        if ( !(eventType.isROCRaw() || eventType.isControl() || eventType.isPhysics()) ) {
+            System.out.println("extractPayloadBanks: DTR is NOT for payload Q !!!, put on output Q !!!");
             outputQueue.put(dtrBank);
             return;
         }
@@ -612,6 +613,7 @@ System.out.println("extractPayloadBanks: record ID out of sequence, got " + reco
                 throw new EmuException("DTR bank contains things other than banks");
             }
 
+            payloadBank.setType(eventType);
             payloadBank.setRecordId(recordId);
             payloadBank.setSourceId(sourceId);
             nonFatalError = false;
@@ -630,7 +632,7 @@ System.out.println("extractPayloadBanks: DTR bank source Id conflicts with paylo
             
             payloadBank.setSync(Evio.isSyncEvent(tag));
             payloadBank.setError(Evio.hasError(tag));
-            payloadBank.setSingleMode(Evio.isSingleEventMode(tag));
+            payloadBank.setSingleEventMode(Evio.isSingleEventMode(tag));
             payloadBank.setNonFatalBuildingError(nonFatalError || nonFatalRecordIdError);
             
             // Put ROC raw event on queue.
@@ -652,20 +654,136 @@ System.out.println("extractPayloadBanks: DTR bank source Id conflicts with paylo
 
 
     /**
-     * Combine the trigger banks of all input payload banks into a single
-     * trigger bank which will be used in the final built event. Any error
-     * which occurs but allows the build to continue will be noted in the return value.
+     * Combine the trigger banks of all input payload banks of Physics event format (from previous
+     * event builder) into a single trigger bank which will be used in the final built event.
+     * Any error which occurs but allows the build to continue will be noted in the return value.
      * Errors which stop the event building cause an exception to be thrown.
      *
-     * @param inputPayloadBanks array containing a bank from each channel's payload bank queue that will be
-     *                          built into one event
+     * @param inputPayloadBanks array containing a bank (Physics event) from each channel's
+     *                          payload bank queue that will be built into one event
      * @param builder object used to build trigger bank
      * @param ebId id of event builder calling this method
      * @return <code>true</code> if non fatal error occurred, else <code>false</code>
      * @throws EmuException for major error in event building which necessitates stopping the build
      */
-    public static boolean combineTriggerBanks(PayloadBank[] inputPayloadBanks,
-                                               EventBuilder builder, int ebId)
+    public static boolean makeTriggerBankFromPhysics(PayloadBank[] inputPayloadBanks,
+                                                     EventBuilder builder, int ebId)
+            throws EmuException {
+
+        int index;
+        int rocCount;
+        int totalRocCount = 0;
+        int numPayloadBanks = inputPayloadBanks.length;
+        EvioBank[] triggerBanks = new EvioBank[numPayloadBanks];
+        boolean nonFatalError = false;
+
+        // In each payload bank (of banks) is a built trigger bank. Extract them all.
+        for (int i=0; i < numPayloadBanks; i++) {
+
+            // find the built trigger bank (should be first one)
+            index = 0;
+            do {
+                try {
+                    triggerBanks[i] = (EvioBank)inputPayloadBanks[i].getChildAt(index++);
+                }
+                catch (Exception e) {
+                    throw new EmuException("No built trigger bank in physics event", e);
+                }
+            } while (!Evio.isBuiltTriggerBank(triggerBanks[i])); // check to see if it really is a built trigger bank
+
+            // right now we don't know how many events are contained in each bank
+
+            // number of trigger bank children must = # rocs + 1
+            rocCount = triggerBanks[i].getHeader().getNumber() - 1;
+            if (triggerBanks[i].getChildCount() != rocCount + 1) {
+                throw new EmuException("Trigger bank does not have correct number of segments (" +
+                        (rocCount + 1) + "), it has " + triggerBanks[i].getChildCount());
+            }
+
+            // track total number of rocs
+            totalRocCount += rocCount;
+        }
+
+        // 1) The first segment in each built trigger bank contains common data
+        //    in the format given below. Merging built banks should NOT
+        //    change anything in the bank. However, all merging built trigger
+        //    banks must have identical contents (which will be checked). The
+        //    only change necessary is to update the EB id info in the header.
+        //
+        //    MSB(31)                    LSB(0)    Big Endian,  higher mem  -->
+        //    _________________________________
+        //    | event1 type  |  event1 number |
+        //    | event2 type  |  event2 number |
+        //    |       .      |        .       |
+        //    |       .      |        .       |
+        //    |       .      |        .       |
+        //    | eventN type  |  eventN number |
+        //    _________________________________
+        //
+
+        // check consistency of common data across events
+        short[] commonData, firstCommonData;
+        EvioSegment ebSeg = (EvioSegment)triggerBanks[0].getChildAt(0);
+        firstCommonData = ebSeg.getShortData();
+
+        for (int i=1; i < numPayloadBanks; i++) {
+            commonData = ((EvioSegment)triggerBanks[i].getChildAt(0)).getShortData();
+            if (firstCommonData.length != commonData.length) {
+                throw new EmuException("Trying to merge records with different numbers of events");
+            }
+            for (int j=0; j < firstCommonData.length; j++) {
+                if (firstCommonData[j] != commonData[j]) {
+                    throw new EmuException("Trying to merge records with different event types or numbers");
+                }
+            }
+        }
+
+        // Bank we are trying to build. Need to update the num which = (# rocs + 1)
+        EvioEvent combinedTrigger = builder.getEvent();
+        combinedTrigger.getHeader().setNumber(totalRocCount + 1);
+
+        // create common data segment, actually just grab first one and change id
+        ebSeg.getHeader().setTag(ebId);
+        try {
+            builder.addChild(combinedTrigger, ebSeg);
+        }
+        catch (EvioException e) { /* never happen */ }
+
+
+        // 2) now put all ROC-specific segments into bank
+
+        // for each event (from previous level EB) ...
+        for (int i=0; i < triggerBanks.length; i++) {
+            // copy over each roc segment in trigger bank to combined trigger bank
+            for (int j=1; j < triggerBanks[i].getChildCount(); j++) {
+                EvioSegment rocSeg = (EvioSegment)triggerBanks[i].getChildAt(j);
+                try { builder.addChild(combinedTrigger, rocSeg); }
+                catch (EvioException e) { /* never happen */ }
+            }
+        }
+
+        combinedTrigger.setAllHeaderLengths();
+
+        return nonFatalError;
+    }
+
+    
+
+    /**
+     * Combine the trigger banks of all input payload banks of ROC raw format into a single
+     * trigger bank which will be used in the final built event. Any error
+     * which occurs but allows the build to continue will be noted in the return value.
+     * Errors which stop the event building cause an exception to be thrown.
+     *
+     * @param inputPayloadBanks array containing a bank (ROC Raw) from each channel's
+     *                          payload bank queue that will be built into one event
+     * @param builder object used to build trigger bank
+     * @param ebId id of event builder calling this method
+     * @return <code>true</code> if non fatal error occurred, else <code>false</code>
+     * @throws EmuException for major error in event building which necessitates stopping the build
+     */
+    public static boolean makeTriggerBankFromRocRaw(PayloadBank[] inputPayloadBanks,
+                                                    EventBuilder builder, int ebId)
             throws EmuException {
 
         int index;
@@ -737,7 +855,7 @@ System.out.println("extractPayloadBanks: DTR bank source Id conflicts with paylo
             }
         }
 
-        // event we are trying to build
+        // bank we are trying to build
         EvioEvent combinedTrigger = builder.getEvent();
 
         // 1) No sense duplicating data for each ROC/EB. Get event(trigger) types & event numbers
@@ -754,11 +872,9 @@ System.out.println("extractPayloadBanks: DTR bank source Id conflicts with paylo
         //    | eventN type  |  eventN number |
         //    _________________________________
         //
-        
+
         EvioSegment segment;
-        EvioSegment ebSeg = new EvioSegment(ebId, DataType.USHORT16);
         short[] evData = new short[2*numEvents];
-        
         for (int i=0; i < numEvents; i++) {
             segment       = (EvioSegment) (triggerBanks[0].getChildAt(i));
             evData[2*i]   = (short) (segment.getHeader().getTag());  // event type
@@ -766,20 +882,24 @@ System.out.println("extractPayloadBanks: DTR bank source Id conflicts with paylo
 System.out.println("for event #" + i + ": ev type = " + evData[2*i] +  ", ev # = " + evData[2*i+1]);
         }
 
+        EvioSegment ebSeg = new EvioSegment(ebId, DataType.USHORT16);
         try {
             ebSeg.appendShortData(evData);
             builder.addChild(combinedTrigger, ebSeg);
         }
         catch (EvioException e) { /* never happen */ }
 
-        // It is convenient at this point to check and see if for a given event #,
-        // across all ROCs, the event or trigger type is the same.
+        // It is convenient at this point to check and see if for a given place,
+        // across all ROCs, the event number & type is the same.
         for (int i=0; i < numEvents; i++) {
 System.out.println("event type ROC1 = " + evData[2*i]);
             for (int j=1; j < triggerBanks.length; j++) {
                 segment = (EvioSegment) (triggerBanks[j].getChildAt(i));
 System.out.println("event type next ROC = " + ((short) (segment.getHeader().getTag())));
                 if (evData[2*i] != (short) (segment.getHeader().getTag())) {
+                    nonFatalError = true;
+                }
+                if (evData[2*i+1] != (short) (segment.getIntData()[0])) {
                     nonFatalError = true;
                 }
             }
@@ -814,7 +934,7 @@ System.out.println("event type next ROC = " + ((short) (segment.getHeader().getT
                 System.arraycopy(oldData, 1, newData, position, dataLenFromEachSeg);
                 position += dataLenFromEachSeg;
             }
-            
+
             try {
                 newRocSeg.appendIntData(newData);
                 builder.addChild(combinedTrigger, newRocSeg);
@@ -827,22 +947,145 @@ System.out.println("event type next ROC = " + ((short) (segment.getHeader().getT
         return nonFatalError;
     }
 
-    
+
 
     /**
-     * Combine the trigger banks of all input Data Transport Record events into a single
-     * trigger bank which will be used in the built event.
+     * Create a trigger bank from all input payload banks of ROC raw format (which are in
+     * single event mode and therefore have no trigger bank) which will be used in the final
+     * built event. Any error which occurs but allows the build to continue will be noted in
+     * the return value. Errors which stop the event building cause an exception to be thrown.
+     *
+     * @param inputPayloadBanks array containing a bank (ROC Raw) from each channel's
+     *                          payload bank queue that will be built into one event
+     * @param builder object used to build trigger bank
+     * @param ebId id of event builder calling this method
+     * @return <code>true</code> if non fatal error occurred, else <code>false</code>
+     * @throws EmuException for major error in event building which necessitates stopping the build
+     */
+    public static boolean makeTriggerBankFromSemRocRaw(PayloadBank[] inputPayloadBanks,
+                                                       EventBuilder builder, int ebId)
+            throws EmuException {
+
+        int numPayloadBanks = inputPayloadBanks.length;
+        boolean nonFatalError = false;
+
+        for (int i=0; i < numPayloadBanks; i++) {
+            // check to see if all payload banks think they have 1 event
+            if (inputPayloadBanks[i].getHeader().getNumber() != 1) {
+                throw new EmuException("Data blocks contain different numbers of events");
+            }
+
+            inputPayloadBanks[i].setEventCount(1);
+        }
+
+        // event we are trying to build
+        EvioEvent combinedTrigger = builder.getEvent();
+
+        // 1) No sense duplicating data for each ROC/EB. Get event(trigger) types & event numbers
+        //    and put into 1 common bank with each value being a short (use least significant 16
+        //    bits of event) in the format:
+        //
+        //    MSB(31)                    LSB(0)    Big Endian,  higher mem  -->
+        //    _________________________________
+        //    | event1 type  |  event1 number |
+        //    _________________________________
+        //
+
+        // In each payload bank (of banks) there is no trigger bank.
+        // Extract needed info from Data Block banks (pick first in list).
+        EvioBank blockBank = (EvioBank)inputPayloadBanks[0].getChildAt(0);
+        short[] evData = new short[2];
+        evData[0] = (short) (blockBank.getHeader().getNumber());  // event type
+        evData[1] = (short) (blockBank.getIntData()[0]);          // event number
+
+
+        EvioSegment ebSeg = new EvioSegment(ebId, DataType.USHORT16);
+        try {
+            ebSeg.appendShortData(evData);
+            builder.addChild(combinedTrigger, ebSeg);
+        }
+        catch (EvioException e) { /* never happen */ }
+
+        // It is convenient at this point to check and see if
+        // across all ROCs, the event number & type are the same.
+        // We are not checking info from additional Data Block banks
+        // if more than one from a ROC.
+System.out.println("event type ROC1 = " + evData[0]);
+        for (int j=1; j < numPayloadBanks; j++) {
+            blockBank = (EvioBank) (inputPayloadBanks[j].getChildAt(0));
+System.out.println("event type next ROC = " + ((short) (blockBank.getHeader().getNumber())));
+            if (evData[0] != (short) (blockBank.getHeader().getNumber())) {
+                nonFatalError = true;
+            }
+            if (evData[1] != (short) (blockBank.getIntData()[0])) {
+                nonFatalError = true;
+            }
+        }
+
+        // no segments to add for each ROC since we have no ROC-specific data
+
+        combinedTrigger.setAllHeaderLengths();
+
+        return nonFatalError;
+    }
+
+
+
+    /**
+     * Build a single physics event with the given trigger bank and the given array of Physics events.
      *
      * @param triggerBank bank containing merged trigger info
-     * @param inputPayloadBanks array containing events that will be built together
+     * @param inputPayloadBanks array containing Physics events that will be built together
      * @param builder object used to build trigger bank
      * @return bank final built event
-     * @throws EmuException for major error in event building
      */
-    public static EvioBank buildPhysicsEvent(EvioBank triggerBank,
-                                             EvioBank[] inputPayloadBanks,
-                                             EventBuilder builder)
-            throws EmuException {
+    public static EvioBank buildPhysicsEventWithPhysics(EvioBank triggerBank,
+                                                        EvioBank[] inputPayloadBanks,
+                                                        EventBuilder builder) {
+
+        int childrenCount;
+        int numPayloadBanks = inputPayloadBanks.length;
+        EvioBank  dataBlock;
+        EvioEvent finalEvent = builder.getEvent();
+
+        try {
+            // add combined trigger bank
+            builder.addChild(finalEvent, triggerBank);
+
+            // add all data banks (from payload banks) which are already wrapped properly
+            for (int i=0; i < numPayloadBanks; i++) {
+                childrenCount = inputPayloadBanks[i].getChildCount();
+                for (int j=0; j < childrenCount; j++) {
+                    dataBlock = (EvioBank)inputPayloadBanks[i].getChildAt(j);
+                    // ignore the built trigger bank (should be first one)
+                    if (Evio.isBuiltTriggerBank(dataBlock)) {
+                        continue;
+                    }
+                    builder.addChild(finalEvent, dataBlock);
+                }
+            }
+        } catch (EvioException e) {
+            // never happen
+        }
+
+        finalEvent.setAllHeaderLengths();
+
+        return null;
+    }
+
+
+
+    /**
+     * Build a single physics event with the given trigger bank and the given array of ROC raw records.
+     *
+     * @param triggerBank bank containing merged trigger info
+     * @param inputPayloadBanks array containing ROC raw records that will be built together
+     * @param builder object used to build trigger bank
+     * @return bank final built event
+     */
+    public static EvioBank buildPhysicsEventWithRocRaw(EvioBank triggerBank,
+                                                       EvioBank[] inputPayloadBanks,
+                                                       EventBuilder builder) {
 
         int childrenCount;
         int numPayloadBanks = inputPayloadBanks.length;
@@ -879,6 +1122,50 @@ System.out.println("event type next ROC = " + ((short) (segment.getHeader().getT
         return null;
     }
 
+
+
+    /**
+     * Create an Evio ROC Raw record event/bank in single event mode to be placed in a Data Transport record.
+     *
+     * @param rocID       ROC id number
+     * @param eventID     event (trigger) id number (0-15)
+     * @param dataBankTag starting data bank tag
+     * @param dataBankNum starting data bank num
+     * @param eventNumber starting event number
+     * @param timestamp   starting event's timestamp
+     *
+     * @return created ROC Raw Record (EvioEvent object)
+     * @throws EvioException
+     */
+    public static EvioEvent createSingleEventModeRocRecord(int rocID,       int eventID,
+                                                           int dataBankTag, int dataBankNum,
+                                                           int eventNumber, int timestamp)
+            throws EvioException {
+        // single event mode means 1 event
+        int numEvents = 1;
+
+        // create a ROC Raw Data Record event/bank with numEvents physics events in it
+        int rocTag = createCodaTag(false, false, false, true, rocID);
+        EventBuilder eventBuilder = new EventBuilder(rocTag, DataType.BANK, numEvents);
+        EvioEvent rocRawEvent = eventBuilder.getEvent();
+
+        // put some data into event -- 2 ints per event. First is event #.
+        int[] data = new int[2];
+        data[0] = eventNumber;
+        data[1] = 10000;
+
+        // create a single data block bank (of ints)
+        int eventType  = 33;
+        int detectorID = 666;
+        int detTag = createCodaTag(false, false, false, true, detectorID);
+        EvioBank dataBank = new EvioBank(detTag, DataType.INT32, eventType);
+        eventBuilder.appendIntData(dataBank, data);
+        eventBuilder.addChild(rocRawEvent, dataBank);
+
+        eventBuilder.setAllHeaderLengths();
+
+        return rocRawEvent;
+    }
 
 
     /**
@@ -940,9 +1227,105 @@ System.out.println("event type next ROC = " + ((short) (segment.getHeader().getT
 
 
     /**
+     * Create an Evio Physics event/bank to be placed in a Data Transport record.
+     *
+     * @param ebID        EB id number
+     * @param eventID     event (trigger) type/id number (0-15)
+     * @param eventNumber starting event number
+     * @param numEvents   number of physics events in created record
+     * @param timestamp   starting event's timestamp
+     * @param numRocs     number of ROCs
+     * @param status      4 bits of status of EB & ROCs
+     * @param startingRocId ROC ids start at this number
+     *
+     * @return created ROC Raw Record (EvioEvent object)
+     * @throws EvioException
+     */
+    public static EvioEvent createPhysicsEvent(int ebID,        int eventID,
+                                               int eventNumber, int numEvents,
+                                               int timestamp,   int numRocs,
+                                               int status,      int startingRocId) throws EvioException {
+
+        // create a Physics event/bank with numEvents physics events in it from multiple ROCs
+        int ebTag = createCodaTag(status, ebID);
+        EventBuilder eventBuilder = new EventBuilder(ebTag, DataType.BANK, 0xCC);
+        EvioEvent physicsEvent = eventBuilder.getEvent();
+
+        //--------------------------------------
+        // create the trigger bank (of segments)
+        //--------------------------------------
+
+        EvioBank triggerBank = new EvioBank(BUILT_TRIGGER_BANK, DataType.SEGMENT, numRocs+1);
+        eventBuilder.addChild(physicsEvent, triggerBank);
+
+        // first the common data segment
+        EvioSegment segment;
+        segment = new EvioSegment(ebID, DataType.USHORT16);
+        // define common data
+        int eventNum = eventNumber;
+        short[] commonData = new short[2*numEvents];
+        for (int i = 0; i < 2*numEvents; i+=2) {
+            commonData[i]   = (short)eventID;
+            commonData[i+1] = (short)eventNum++;
+        }
+        eventBuilder.appendShortData(segment, commonData); // copies reference only
+        eventBuilder.addChild(triggerBank, segment);
+
+        // now the ROC-specific segments, each with only timestamp info
+        int rocId = startingRocId;
+        // each segment contains 1 timestamp for each event in data bank
+        int[] segmentData = new int[numEvents];
+        for (int i=0; i < numEvents; i++) {
+            segmentData[i] = timestamp + i;
+        }
+
+        for (int i=0; i < numRocs; i++) {
+            segment = new EvioSegment(rocId++, DataType.UINT32);
+            eventBuilder.appendIntData(segment, segmentData);
+            eventBuilder.addChild(triggerBank, segment);
+        }
+
+
+        //----------------------------------------------------
+        // create the data banks for ROCs and to physics event
+        //----------------------------------------------------
+
+        // now create one data bank per ROC, each of which has a single data block bank
+        int rocTag, blockTag, detectorId=444;
+        EvioBank dataBank, dataBlockBank;
+        rocId = startingRocId;
+
+        for (int i=0; i < numRocs; i++) {
+            // a data block bank contains starting event number & one int of data for each event
+            blockTag = createCodaTag(0, detectorId);
+            dataBlockBank = new EvioBank(blockTag, DataType.UINT32, numEvents);// if SEM, num = event Type
+            int[] bankData = new int[numEvents+1];
+            bankData[0] = eventNumber;
+            for (int j=1; j < numEvents+1; j++) {
+                bankData[j] = timestamp + j - 1;
+            }
+            eventBuilder.appendIntData(dataBlockBank, bankData);
+
+            // wrap block bank in data bank
+            rocTag = createCodaTag(status, rocId++);
+            dataBank = new EvioBank(rocTag, DataType.BANK, numEvents);
+
+            // add block bank to data bank
+            eventBuilder.addChild(dataBank, dataBlockBank);
+            // add data bank to physics event
+            eventBuilder.addChild(physicsEvent, dataBank);
+        }
+
+        eventBuilder.setAllHeaderLengths();
+
+        return physicsEvent;
+    }
+
+
+    /**
      * Create an Evio Data Transport Record event to send to the event building EMU.
      *
-     * @param rocID       ROC id number
+     * @param rocEbId     ROC or EB id number, depending on value of "fromEB"
      * @param eventID     event (trigger) id number (0-15)
      * @param dataBankTag starting data bank tag
      * @param dataBankNum starting data bank num
@@ -951,17 +1334,22 @@ System.out.println("event type next ROC = " + ((short) (segment.getHeader().getT
      * @param timestamp   starting event's timestamp
      * @param recordId    record count
      * @param numPayloadBanks number of payload banks in this record
+     * @param singleEventMode true if creating events in single event mode
      *
      * @return Evio Data Transport Record event
      * @throws EvioException
      */
-    public static EvioEvent createDataTransportRecord(int rocID,       int eventID,
+    public static EvioEvent createDataTransportRecord(int rocEbId,     int eventID,
                                                       int dataBankTag, int dataBankNum,
                                                       int eventNumber, int numEvents,
                                                       int timestamp,   int recordId,
-                                                      int numPayloadBanks) throws EvioException {
+                                                      int numPayloadBanks,
+                                                      boolean singleEventMode)
+            throws EvioException {
+
         // create event with jevio package
-        int tag = createCodaTag(EventType.ROC_RAW.getValue(), rocID);
+        EventType type = EventType.ROC_RAW;
+        int tag = createCodaTag(type.getValue(), rocEbId);
         EventBuilder eventBuilder = new EventBuilder(tag, DataType.BANK, recordId);
         EvioEvent ev = eventBuilder.getEvent();
 
@@ -970,20 +1358,84 @@ System.out.println("event type next ROC = " + ((short) (segment.getHeader().getT
         eventBuilder.appendIntData(recordIdBank, new int[]{recordId});
         eventBuilder.addChild(ev, recordIdBank);
 
+        if (singleEventMode) {
+            numEvents = 1;
+        }
+
         // add ROC Raw Records as payload banks
-        EvioEvent rocRawRecord;
+        EvioEvent event = null;
         for (int i=0; i < numPayloadBanks; i++) {
-            rocRawRecord = createRocRawRecord(rocID, eventID, dataBankTag, dataBankNum,
-                                              eventNumber, numEvents, timestamp);
-            eventBuilder.addChild(ev, rocRawRecord);
+
+            if (singleEventMode) {
+                event = createSingleEventModeRocRecord(rocEbId, eventID, dataBankTag, dataBankNum,
+                                                       eventNumber, timestamp);
+            }
+            else {
+                event = createRocRawRecord(rocEbId, eventID, dataBankTag, dataBankNum,
+                                           eventNumber, numEvents, timestamp);
+            }
+            eventBuilder.addChild(ev, event);
 
             eventNumber += numEvents;
             timestamp   += numEvents;
-
-            // each go round, change # of events in payload bank
-            numEvents++;
         }
 
+        eventBuilder.setAllHeaderLengths();
+
+        return ev;
+    }
+
+
+    /**
+     * Create an Evio Data Transport Record event to send to the event building EMU from an
+     * event building EMU.
+     *
+     * @param ebId          EB id number
+     * @param eventID       event (trigger) id number (0-15)
+     * @param numRocs       number of ROCs to simulate
+     * @param startingRocId starting ROC id number
+     * @param eventNumber   starting event number
+     * @param numEvents     number of physics events in created record
+     * @param timestamp     starting event's timestamp
+     * @param recordId      record count
+     * @param status        4 bits of status of EB & ROCs
+     * @param singleEventMode true if creating events in single event mode
+     *
+     * @return Evio Data Transport Record event
+     * @throws EvioException
+     */
+    public static EvioEvent createDataTransportRecordFromEB(int ebId,        int eventID,
+                                                            int numRocs,     int startingRocId,
+                                                            int eventNumber, int numEvents,
+                                                            int timestamp,   int recordId,
+                                                            int status,
+                                                            boolean singleEventMode)
+            throws EvioException {
+
+        // create event with jevio package
+        EventType type = EventType.PHYSICS;
+        int tag = createCodaTag(type.getValue(), ebId);
+        EventBuilder eventBuilder = new EventBuilder(tag, DataType.BANK, recordId);
+        EvioEvent ev = eventBuilder.getEvent();
+
+        // add a bank with record ID in it
+        EvioBank recordIdBank = new EvioBank(RECORD_ID_BANK, DataType.INT32, 1);
+        eventBuilder.appendIntData(recordIdBank, new int[]{recordId});
+        eventBuilder.addChild(ev, recordIdBank);
+
+        if (singleEventMode) {
+            numEvents = 1;
+        }
+
+        // add 1 physics event as payload bank
+        EvioEvent event;
+
+        event = createPhysicsEvent(ebId,        eventID,
+                                   eventNumber, numEvents,
+                                   timestamp,   numRocs,
+                                   status,      startingRocId);
+
+        eventBuilder.addChild(ev, event);
         eventBuilder.setAllHeaderLengths();
 
         return ev;
