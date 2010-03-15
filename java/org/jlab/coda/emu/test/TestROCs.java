@@ -143,6 +143,11 @@ System.out.println("Send thread started");
             int timestamp        = 1001;
             int startingRecordId = 1;
             int numPayloadBanks  = 2;
+            boolean isSingleEventMode = true;
+
+            if (isSingleEventMode) {
+                numEventsInPayloadBank = 1;    
+            }
 
             int rocNum, recordId;
             EvioEvent ev;
@@ -171,7 +176,7 @@ System.out.println("Send thread started");
                                                             dataBankTag, dataBankNum,
                                                             eventNumber, numEventsInPayloadBank,
                                                             timestamp,   recordId,
-                                                            numPayloadBanks);
+                                                            numPayloadBanks, isSingleEventMode);
 
                         //sw.getBuffer().delete(0, sw.getBuffer().capacity());
                         bbuf.clear();
@@ -214,9 +219,9 @@ System.out.println("Send thread started");
 
                     }
 
-                    timestamp   += numEventsInPayloadBank;
-                    eventNumber += numEventsInPayloadBank;
-                    recordId++;                    
+                    timestamp   += numEventsInPayloadBank*numPayloadBanks;
+                    eventNumber += numEventsInPayloadBank*numPayloadBanks;
+                    recordId++;
 
                     Thread.sleep(delay);
 
