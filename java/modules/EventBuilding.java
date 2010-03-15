@@ -371,15 +371,8 @@ if (nonFatalError) System.out.println("\nERROR 2\n");
                         //-----------------------------------------------------------------------------------
                         // The actual number of rocs + 1 will replace num in combinedTrigger definition above
                         //-----------------------------------------------------------------------------------
-                        // If in single event mode, build trigger bank differently
-                        if (buildingBanks[0].isSingleEventMode()) {
-                            // create a trigger bank from data in Data Block banks
-                            //nonFatalError |= Evio.makeTriggerBankFromPhysics(buildingBanks, builder, ebId);
-                        }
-                        else {
-                            // combine the trigger banks of input events into one
-                            nonFatalError |= Evio.makeTriggerBankFromPhysics(buildingBanks, builder, ebId);
-                        }
+                        // combine the trigger banks of input events into one (same if single event mode)
+                        nonFatalError |= Evio.makeTriggerBankFromPhysics(buildingBanks, builder, ebId);
                     }
                     // else if building with ROC raw records ...
                     else {
