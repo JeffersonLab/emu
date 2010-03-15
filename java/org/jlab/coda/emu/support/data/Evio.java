@@ -789,11 +789,8 @@ System.out.println("extractPayloadBanks: DTR bank source Id conflicts with paylo
         int index;
         int numPayloadBanks = inputPayloadBanks.length;
         int numEvents = inputPayloadBanks[0].getHeader().getNumber();
-        EvioBank trigBank;
         EvioBank[] triggerBanks = new EvioBank[numPayloadBanks];
         boolean nonFatalError = false;
-        // pre allocate a buffer based on a guess of its maximum size (100 ev ~= 1600 bytes)
-        ByteBuffer bbuf = ByteBuffer.allocate(2048);
 
         // In each payload bank (of banks) is a trigger bank. Extract them all.
         for (int i=0; i < numPayloadBanks; i++) {
@@ -802,45 +799,16 @@ System.out.println("extractPayloadBanks: DTR bank source Id conflicts with paylo
             index = 0;
             do {
                 try {
-                    trigBank = (EvioBank)inputPayloadBanks[i].getChildAt(index++);
+                    triggerBanks[i] = (EvioBank)inputPayloadBanks[i].getChildAt(index++);
                 }
                 catch (Exception e) {
                     throw new EmuException("No trigger bank in ROC raw record", e);
                 }
-            } while (!Evio.isTriggerBank(trigBank)); // check to see if it really is a trigger bank
+            } while (!Evio.isTriggerBank(triggerBanks[i])); // check to see if it really is a trigger bank
 
             // check to see if all payload banks think they have same # of events
             if (numEvents != inputPayloadBanks[i].getHeader().getNumber()) {
                 throw new EmuException("Data blocks contain different numbers of events");
-            }
-
-            // Only the header of this trigger bank has been parsed. This is because we only specified
-            // parseDepth = 2 in the config file. Specifying parseDepth = 3 (or 0) would do the trick,
-            // but would also mean parsing part (or all) of the opaque data blocks - which we do NOT want.
-            //
-            // So, ... now we need to fully parse this trigger bank. To do this we must first turn this
-            // bank back into a ByteBufer, then we can parse the bytes into an EvioEvent object.
-
-            if (trigBank.getTotalBytes() > bbuf.capacity()) {
-                bbuf = ByteBuffer.allocate(trigBank.getTotalBytes() + 1024);
-            }
-            else {
-                bbuf.clear();
-            }
-            // set endian
-            bbuf.order(trigBank.getByteOrder());
-            // put header info into buffer
-            trigBank.getHeader().write(bbuf);
-            // put raw bytes (non-header) into buffer
-            bbuf.put(trigBank.getRawBytes());
-            // get buffer ready to read
-            bbuf.flip();
-
-            try {
-                triggerBanks[i] = parser.parseEvent(bbuf);
-            }
-            catch (EvioException e) {
-                throw new EmuException("Data not in evio format", e);
             }
 
             // check if all trigger banks think they have the same number of events
@@ -879,7 +847,7 @@ System.out.println("extractPayloadBanks: DTR bank source Id conflicts with paylo
             segment       = (EvioSegment) (triggerBanks[0].getChildAt(i));
             evData[2*i]   = (short) (segment.getHeader().getTag());  // event type
             evData[2*i+1] = (short) (segment.getIntData()[0]);       // event number
-System.out.println("for event #" + i + ": ev type = " + evData[2*i] +  ", ev # = " + evData[2*i+1]);
+//System.out.println("for event #" + i + ": ev type = " + evData[2*i] +  ", ev # = " + evData[2*i+1]);
         }
 
         EvioSegment ebSeg = new EvioSegment(ebId, DataType.USHORT16);
@@ -892,10 +860,10 @@ System.out.println("for event #" + i + ": ev type = " + evData[2*i] +  ", ev # =
         // It is convenient at this point to check and see if for a given place,
         // across all ROCs, the event number & type is the same.
         for (int i=0; i < numEvents; i++) {
-System.out.println("event type ROC1 = " + evData[2*i]);
+//System.out.println("event type ROC1 = " + evData[2*i]);
             for (int j=1; j < triggerBanks.length; j++) {
                 segment = (EvioSegment) (triggerBanks[j].getChildAt(i));
-System.out.println("event type next ROC = " + ((short) (segment.getHeader().getTag())));
+//System.out.println("event type next ROC = " + ((short) (segment.getHeader().getTag())));
                 if (evData[2*i] != (short) (segment.getHeader().getTag())) {
                     nonFatalError = true;
                 }
