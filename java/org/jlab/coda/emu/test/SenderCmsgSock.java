@@ -208,7 +208,7 @@ System.out.println("Send thread started");
                     ev = Evio.createDataTransportRecord(rocID, eventID,
                                                         dataBankTag, dataBankNum,
                                                         eventNumber, numEventsInPayloadBank,
-                                                        timestamp, recordId, numPayloadBanks);
+                                                        timestamp, recordId, numPayloadBanks, false);
 
                     ev.write(bbuf);
                     out.write(bbuf.array());
