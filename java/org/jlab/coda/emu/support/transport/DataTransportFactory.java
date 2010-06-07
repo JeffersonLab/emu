@@ -133,7 +133,7 @@ public class DataTransportFactory implements StatedObject {
                     Node n = l.item(ix);
 
                     if (n.getNodeType() == Node.ELEMENT_NODE) {
-                        // type is "server" (send data to) or "client" (send data from)
+                        // type is "server" (send data to) or "client" (get data from)
                         String transportType = n.getNodeName();
 
                         // store all attributes in a hashmap
