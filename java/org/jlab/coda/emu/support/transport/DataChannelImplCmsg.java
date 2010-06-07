@@ -289,6 +289,7 @@ System.out.println("cmsg data channel " + name + ": got message in callback");
 
                     // put data into cmsg message
                     msg.setByteArrayNoCopy(buffer.array());
+                    // TODO: set byte array length ?
                     msg.setByteArrayEndian(byteOrder == ByteOrder.BIG_ENDIAN ? cMsgConstants.endianBig :
                                                                                cMsgConstants.endianLittle);
 
