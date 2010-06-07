@@ -32,7 +32,7 @@ import java.nio.ByteOrder;
 public class DataChannelImplEt implements DataChannel {
 
     /** Field transport */
-    private final DataTransportImplCmsg dataTransport;
+    private final DataTransportImplEt dataTransport;
 
     /** Field name */
     private final String name;
@@ -144,7 +144,7 @@ System.out.println("cmsg data channel " + name + ": got message in callback");
      *
      * @throws org.jlab.coda.emu.support.transport.DataTransportException - unable to create buffers or socket.
      */
-    DataChannelImplEt(String name, DataTransportImplCmsg dataTransport,
+    DataChannelImplEt(String name, DataTransportImplEt dataTransport,
                         Map<String, String> attributeMap, boolean input)
             throws DataTransportException {
 

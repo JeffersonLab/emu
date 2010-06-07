@@ -14,6 +14,7 @@ package org.jlab.coda.emu.support.transport;
 import org.jlab.coda.et.*;
 import org.jlab.coda.et.exception.EtException;
 import org.jlab.coda.et.exception.EtTooManyException;
+import org.jlab.coda.et.exception.EtExistsException;
 import org.jlab.coda.emu.support.configurer.DataNotFoundException;
 import org.jlab.coda.emu.support.codaComponent.CODAState;
 import org.jlab.coda.emu.support.codaComponent.CODATransition;
@@ -21,6 +22,8 @@ import org.jlab.coda.emu.support.logger.Logger;
 import org.jlab.coda.emu.support.control.Command;
 
 import java.util.Map;
+import java.util.Collection;
+import java.util.Arrays;
 import java.io.IOException;
 
 /**
@@ -30,19 +33,26 @@ import java.io.IOException;
 public class DataTransportImplEt extends DataTransportCore implements DataTransport {
 
     /** Connection to ET system. */
-    private SystemUse etSystem;
+    private EtSystem etSystem;
 
-    private Station station;
+    private EtStation station;
 
-    private SystemOpenConfig openConfig;
+    private EtSystemOpenConfig openConfig;
 
-    private StationConfig stationConfig;
+    private EtStationConfig stationConfig;
+
+    private String stationName;
+
+    private int stationPosition;
+
+    private EtAttachment attachment;
+
 
     /**
      * Get the ET connection object.
      * @return the ET connection object.
      */
-    public org.jlab.coda.et.SystemUse getEtConnection() {
+    public EtSystem getEtConnection() {
         return etSystem;
     }
 
@@ -52,34 +62,163 @@ public class DataTransportImplEt extends DataTransportCore implements DataTransp
      * @param pname  of type String
      * @param attrib of type Map
      *
-     * @throws org.jlab.coda.emu.support.configurer.DataNotFoundException
-     *          when udl not given or cannot connect to cmsg server
+     * @throws DataNotFoundException
+     *         when udl not given or cannot connect to cmsg server
      */
     public DataTransportImplEt(String pname, Map<String, String> attrib) throws DataNotFoundException {
         // pname is the "name" entry in the attrib map
         super(pname, attrib);
 
+        //---------------------------------
         // Which ET sytem do we connect to?
+        //---------------------------------
+
         String etName = attrib.get("etName");
-        if (etName == null) throw new DataNotFoundException("Cannot find udl");
+        if (etName == null) throw new DataNotFoundException("Cannot find ET system name");
+
+        // How do we connect to it? By default, assume it's anywhere and we need to broadcast.
+        int method = EtConstants.broadcast;
+        String methodString = attrib.get("method");
+        if (methodString.equalsIgnoreCase("cast")) {
+            method = EtConstants.broadAndMulticast;
+        }
+        else if (methodString.equalsIgnoreCase("bcast")) {
+            method = EtConstants.broadcast;
+        }
+        else if (methodString.equalsIgnoreCase("mcast")) {
+            method = EtConstants.multicast;
+        }
+        else if (methodString.equalsIgnoreCase("direct")) {
+            method = EtConstants.direct;
+        }
+
+        // Where do we look for it?
+        String host = attrib.get("host");
+        if (host == null) {
+            host = EtConstants.hostAnywhere;
+        }
+        else if (host.equalsIgnoreCase("local")) {
+            host = EtConstants.hostLocal;
+        }
+        else if (host.equalsIgnoreCase("anywhere")) {
+            host = EtConstants.hostAnywhere;
+        }
+        else if (host.equalsIgnoreCase("remote")) {
+            host = EtConstants.hostRemote;
+        }
+
+        // broadcasting or direct connection port
+        int port = EtConstants.broadcastPort;
+        String portString = attrib.get("port");
+        if (portString != null) {
+            try {
+                port = Integer.parseInt(portString);
+            }
+            catch (NumberFormatException e) {}
+        }
+
+        // multicasting port & addr
+        int mport = 0;
+        String maddr;
+        String[] mAddrs = null;
+
+        if (method == EtConstants.broadAndMulticast ||
+            method == EtConstants.multicast) {
+
+            mport = EtConstants.multicastPort;
+            portString = attrib.get("mPort");
+            if (portString != null) {
+                try {
+                    mport = Integer.parseInt(portString);
+                }
+                catch (NumberFormatException e) {}
+            }
+
+            maddr = attrib.get("mAddr");
+            if (maddr == null) {
+                maddr = EtConstants.multicastAddr;
+            }
+            mAddrs = new String[] {maddr};
+        }
+
+        // Do we wait for a connection?
+        int wait = 0;
+        String waitString = attrib.get("wait");
+        if (waitString != null) {
+            try {
+                wait = Integer.parseInt(waitString);
+            }
+            catch (NumberFormatException e) {}
+        }
+
+
+        //------------------------------------------------
+        // Which station do we create or attach to?
+        //------------------------------------------------
+        stationName = attrib.get("statName");
+        if (stationName == null) throw new DataNotFoundException("Cannot find station name");
+
+        // Where do we put the station?
+        stationPosition = 1;
+        String positionString = attrib.get("statPos");
+        if (positionString != null) {
+            try {
+                stationPosition = Integer.parseInt(positionString);
+            }
+            catch (NumberFormatException e) {}
+        }
 
         // create ET connection object (does create connection NOW)
         try {
-            SystemOpenConfig config = new SystemOpenConfig(etName, Constants.hostAnywhere);
-            // configuration of a new station
-            stationConfig = new StationConfig();
-            //statConfig.setFlowMode(Constants.stationParallel);
-            //statConfig.setCue(100);
+            // configuration of a new connection
+            openConfig = new  EtSystemOpenConfig(etName, host, Arrays.asList(mAddrs),
+                                                 false, method, port, port, mport,
+                                                 EtConstants.multicastTTL,
+                                                 EtConstants.policyError);
+            openConfig.setWaitTime(wait);
+        }
+        catch (EtException e) {
+            //e.printStackTrace();
+            throw new DataNotFoundException("Bad station parameters in config file", e);
+        }
 
-            // create station
-            Station station = etSystem.createStation(stationConfig, statName, position, pposition);
-        } catch (EtException e) {
+
+        // configuration of a new station
+        stationConfig = new EtStationConfig();
+        try {
+            stationConfig.setUserMode(EtConstants.stationUserSingle);
+        }
+        catch (EtException e) { /* never happen */}
+
+        // create ET system object
+        etSystem = new EtSystem(openConfig, EtConstants.debugNone);
+
+        // create station
+        try {
+            station = etSystem.createStation(stationConfig, stationName, stationPosition);
+        }
+        catch (IOException e) {
             e.printStackTrace();
-//        } catch (IOException e) {
-//            e.printStackTrace();
-//        } catch (EtTooManyException e) {
-//            e.printStackTrace();
-//        }
+        }
+        catch (EtException e) {
+            e.printStackTrace();
+        }
+        catch (EtExistsException e) {
+            try {
+                station = etSystem.stationNameToObject(stationName);
+            }
+            catch (IOException e1) {
+                e1.printStackTrace();
+            }
+            catch (EtException e1) {
+                e1.printStackTrace();
+            }
+        }
+        catch (EtTooManyException e) {
+            e.printStackTrace();
+        }
+
+
     }
 
 
@@ -90,23 +229,27 @@ public class DataTransportImplEt extends DataTransportCore implements DataTransp
     }
 
     public void execute(Command cmd) {
-Logger.debug("    DataTransportImplCmsg.execute : " + cmd);
+Logger.debug("    DataTransportImplEt.execute : " + cmd);
 
         if (cmd.equals(CODATransition.PRESTART)) {
 
             try {
-                Logger.debug("    DataTransportImplCmsg.execute PRESTART: cmsg connect : " + name() + " " + myInstance);
+                Logger.debug("    DataTransportImplEt.execute PRESTART: ET open : " + name() + " " + myInstance);
+
+                // open ET system
+                etSystem.open();
+
+                // create station if it does not already exists
                 try {
-                    etSystem = new SystemUse(openConfig, Constants.debugNone);
-                    etSystem.attach(station);
-                } catch (EtException e) {
-                    e.printStackTrace();
-                } catch (IOException e) {
-                    e.printStackTrace();
-                } catch (EtTooManyException e) {
-                    e.printStackTrace();
+                    station = etSystem.createStation(stationConfig, stationName, stationPosition);
+                }
+                catch (EtExistsException e) {
+                    station = etSystem.stationNameToObject(stationName);
                 }
 
+                // attach to station
+                attachment = etSystem.attach(station);
+                
             } catch (Exception e) {
                 CODAState.ERROR.getCauses().add(e);
                 state = CODAState.ERROR;
@@ -117,36 +260,26 @@ Logger.debug("    DataTransportImplCmsg.execute : " + cmd);
             return;
         }
         else if (cmd.equals(CODATransition.GO)) {
-            cmsgConnection.start(); // allow message flow to callbacks
-
             if (!channels().isEmpty()) {
                 synchronized (channels()) {
                     for (DataChannel c : channels().values()) {
-                        ((DataChannelImplCmsg)c).resumeOutputHelper();
+                        ((DataChannelImplEt)c).resumeOutputHelper();
                     }
                 }
             }
         }
         else if (cmd.equals(CODATransition.PAUSE)) {
-            cmsgConnection.stop(); // stop message flow to callbacks
-
             if (!channels().isEmpty()) {
                 synchronized (channels()) {
                     for (DataChannel c : channels().values()) {
-                        ((DataChannelImplCmsg)c).pauseOutputHelper();
+                        ((DataChannelImplEt)c).pauseOutputHelper();
                     }
                 }
             }
         }
         else if ((cmd.equals(CODATransition.END)) || (cmd.equals(CODATransition.RESET))) {
-
-            try {
-                Logger.debug("    DataTransportImplCmsg.execute END/RESET: cmsg disconnect : " + name() + " " + myInstance);
-                cmsgConnection.disconnect();
-
-            } catch (Exception e) {
-                // ignore
-            }
+            Logger.debug("    DataTransportImplEt.execute END/RESET: ET disconnect : " + name() + " " + myInstance);
+            etSystem.close();
             state = cmd.success();
             return;
         }
