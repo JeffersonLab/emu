@@ -35,35 +35,29 @@ public class DataTransportImplEt extends DataTransportCore implements DataTransp
     /** Connection to ET system. */
     private EtSystem etSystem;
 
-    private EtStation station;
-
     private EtSystemOpenConfig openConfig;
-
-    private EtStationConfig stationConfig;
-
-    private String stationName;
-
-    private int stationPosition;
-
-    private EtAttachment attachment;
 
 
     /**
-     * Get the ET connection object.
-     * @return the ET connection object.
+     * Get the ET sytem object.
+     * @return the ET system object.
      */
-    public EtSystem getEtConnection() {
+    public EtSystem getEtSystem() {
         return etSystem;
     }
+
+    public EtSystemOpenConfig getOpenConfig() {
+        return openConfig;
+    }
+
 
     /**
      * Constructor.
      *
-     * @param pname  of type String
-     * @param attrib of type Map
+     * @param pname  name of transport
+     * @param attrib transport's attribute map from config file
      *
-     * @throws DataNotFoundException
-     *         when udl not given or cannot connect to cmsg server
+     * @throws DataNotFoundException when cannot configure an ET system
      */
     public DataTransportImplEt(String pname, Map<String, String> attrib) throws DataNotFoundException {
         // pname is the "name" entry in the attrib map
@@ -74,7 +68,10 @@ public class DataTransportImplEt extends DataTransportCore implements DataTransp
         //---------------------------------
 
         String etName = attrib.get("etName");
-        if (etName == null) throw new DataNotFoundException("Cannot find ET system name");
+        if (etName == null) {
+            // default name is EMU name in /tmp directory
+            etName = "/tmp/" +  System.getProperty("name");
+        }
 
         // How do we connect to it? By default, assume it's anywhere and we need to broadcast.
         int method = EtConstants.broadcast;
@@ -141,6 +138,10 @@ public class DataTransportImplEt extends DataTransportCore implements DataTransp
             mAddrs = new String[] {maddr};
         }
 
+        //---------------------------------
+        // misc parameters
+        //---------------------------------
+
         // Do we wait for a connection?
         int wait = 0;
         String waitString = attrib.get("wait");
@@ -153,22 +154,8 @@ public class DataTransportImplEt extends DataTransportCore implements DataTransp
 
 
         //------------------------------------------------
-        // Which station do we create or attach to?
+        // Configure ET system
         //------------------------------------------------
-        stationName = attrib.get("statName");
-        if (stationName == null) throw new DataNotFoundException("Cannot find station name");
-
-        // Where do we put the station?
-        stationPosition = 1;
-        String positionString = attrib.get("statPos");
-        if (positionString != null) {
-            try {
-                stationPosition = Integer.parseInt(positionString);
-            }
-            catch (NumberFormatException e) {}
-        }
-
-        // create ET connection object (does create connection NOW)
         try {
             // configuration of a new connection
             openConfig = new  EtSystemOpenConfig(etName, host, Arrays.asList(mAddrs),
@@ -183,42 +170,8 @@ public class DataTransportImplEt extends DataTransportCore implements DataTransp
         }
 
 
-        // configuration of a new station
-        stationConfig = new EtStationConfig();
-        try {
-            stationConfig.setUserMode(EtConstants.stationUserSingle);
-        }
-        catch (EtException e) { /* never happen */}
-
         // create ET system object
         etSystem = new EtSystem(openConfig, EtConstants.debugNone);
-
-        // create station
-        try {
-            station = etSystem.createStation(stationConfig, stationName, stationPosition);
-        }
-        catch (IOException e) {
-            e.printStackTrace();
-        }
-        catch (EtException e) {
-            e.printStackTrace();
-        }
-        catch (EtExistsException e) {
-            try {
-                station = etSystem.stationNameToObject(stationName);
-            }
-            catch (IOException e1) {
-                e1.printStackTrace();
-            }
-            catch (EtException e1) {
-                e1.printStackTrace();
-            }
-        }
-        catch (EtTooManyException e) {
-            e.printStackTrace();
-        }
-
-
     }
 
 
@@ -239,17 +192,8 @@ Logger.debug("    DataTransportImplEt.execute : " + cmd);
                 // open ET system
                 etSystem.open();
 
-                // create station if it does not already exists
-                try {
-                    station = etSystem.createStation(stationConfig, stationName, stationPosition);
-                }
-                catch (EtExistsException e) {
-                    station = etSystem.stationNameToObject(stationName);
-                }
+                // have input channels create stations & make attachments
 
-                // attach to station
-                attachment = etSystem.attach(station);
-                
             } catch (Exception e) {
                 CODAState.ERROR.getCauses().add(e);
                 state = CODAState.ERROR;
@@ -269,6 +213,8 @@ Logger.debug("    DataTransportImplEt.execute : " + cmd);
             }
         }
         else if (cmd.equals(CODATransition.PAUSE)) {
+            // have input channels stop reading events
+
             if (!channels().isEmpty()) {
                 synchronized (channels()) {
                     for (DataChannel c : channels().values()) {
@@ -279,6 +225,8 @@ Logger.debug("    DataTransportImplEt.execute : " + cmd);
         }
         else if ((cmd.equals(CODATransition.END)) || (cmd.equals(CODATransition.RESET))) {
             Logger.debug("    DataTransportImplEt.execute END/RESET: ET disconnect : " + name() + " " + myInstance);
+            // have input channels detach & delete stations?
+
             etSystem.close();
             state = cmd.success();
             return;

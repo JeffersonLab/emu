@@ -13,17 +13,29 @@ package org.jlab.coda.emu.support.transport;
 
 import org.jlab.coda.emu.support.logger.Logger;
 import org.jlab.coda.emu.Emu;
-import org.jlab.coda.cMsg.*;
+import org.jlab.coda.et.*;
+import org.jlab.coda.et.enums.Mode;
+import org.jlab.coda.et.enums.Modify;
+import org.jlab.coda.et.system.SystemCreate;
+import org.jlab.coda.et.system.StationLocal;
+import org.jlab.coda.et.exception.EtExistsException;
+import org.jlab.coda.et.exception.EtException;
+import org.jlab.coda.et.exception.EtTooManyException;
 import org.jlab.coda.jevio.EvioBank;
 import org.jlab.coda.jevio.EvioException;
 import org.jlab.coda.jevio.ByteParser;
+import org.jlab.coda.cMsg.cMsgSubscriptionHandle;
+import org.jlab.coda.cMsg.cMsgCallbackAdapter;
+import org.jlab.coda.cMsg.cMsgException;
 
 
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.Map;
+import java.util.Arrays;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.io.IOException;
 
 /**
  * @author timmer
@@ -40,11 +52,19 @@ public class DataChannelImplEt implements DataChannel {
     /** ID of this channel (corresponds to sourceId of ROCs for CODA event building). */
     private int id;
 
-    /** Subject of either subscription or outgoing messages. */
-    private String subject;
+    private int evSize; // bytes
 
-    /** Type of either subscription or outgoing messages. */
-    private String type;
+    private int chunk;
+
+    private EtSystem etSystem;
+
+    private EtStation station;
+
+    private EtAttachment attachment;
+
+    private EtStationConfig stationConfig;
+
+    private EtEvent[] events;
 
     /** Field queue - filled buffer queue */
     private final BlockingQueue<EvioBank> queue;
@@ -61,114 +81,41 @@ public class DataChannelImplEt implements DataChannel {
     /** Byte order of output data (input data's order is specified in msg). */
     ByteOrder byteOrder;
 
-    /** cMsg subscription for receiving messages with data. */
-    private cMsgSubscriptionHandle sub;
-
     /** Map of config file attributes. */
     Map<String, String> attributeMap;
 
-    /**
-     * This class defines the callback to be run when a message matching the subscription arrives.
-     */
-    class ReceiveMsgCallback extends cMsgCallbackAdapter {
-        /**
-         * Callback method definition.
-         *
-         * @param msg message received from domain server
-         * @param userObject object passed as an argument which was set when the
-         *                   client orginally subscribed to a subject and type of
-         *                   message.
-         */
-        public void callback(cMsgMessage msg, Object userObject) {
-System.out.println("cmsg data channel " + name + ": got message in callback");
-            byte[] data = msg.getByteArray();
-            if (data == null) return;
-
-            try {
-                ByteOrder byteOrder = ByteOrder.BIG_ENDIAN;
-
-                if (msg.getByteArrayEndian() == cMsgConstants.endianLittle) {
-                    byteOrder = ByteOrder.LITTLE_ENDIAN;
-                }
-
-                EvioBank bank = parser.parseEvent(data, byteOrder);
-                queue.put(bank);
-
-//                System.out.println("\nReceiving msg:\n" + bank.toString());
-//
-//                ByteBuffer bbuf = ByteBuffer.allocate(1000);
-//                bbuf.clear();
-//                bank.write(bbuf);
-//
-//                StringWriter sw2 = new StringWriter(1000);
-//                XMLStreamWriter xmlWriter = XMLOutputFactory.newInstance().createXMLStreamWriter(sw2);
-//                bank.toXML(xmlWriter);
-//                System.out.println("Receiving msg:\n" + sw2.toString());
-//                bbuf.flip();
-
-//                System.out.println("Receiving msg (bin):");
-//                sw2.getBuffer().delete(0, sw2.getBuffer().capacity());
-//                PrintWriter wr = new PrintWriter(sw2);
-//                while (bbuf.hasRemaining()) {
-//                    wr.printf("%#010x\n", bbuf.getInt());
-//                }
-//                System.out.println(sw2.toString() + "\n\n");
-//            }
-//            catch (XMLStreamException e) {
-//                e.printStackTrace();
-            }
-            catch (EvioException e) {
-                e.printStackTrace();
-            }
-            catch (InterruptedException e) {
-                e.printStackTrace();
-            }
 
 
-        }
-
-        // Define "getMaximumCueSize" to set max number of unprocessed messages kept locally
-        // before things "back up" (potentially slowing or stopping senders of messages of
-        // this subject and type). Default = 1000.
-    }
 
     /**
-     * Constructor to create a new DataChannelImplCmsg instance.
-     * Used only by {@link org.jlab.coda.emu.support.transport.DataTransportImplCmsg#createChannel} which is
-     * only used during PRESTART in the EmuModuleFactory.
+     * Constructor to create a new DataChannelImplEt instance.
+     * Used only by {@link DataTransportImplEt#createChannel} which is
+     * only used during PRESTART in {@link org.jlab.coda.emu.EmuModuleFactory}.
      *
-     * @param name          the name of this channel
-     * @param dataTransport the DataTransport object that this channel belongs to
-     * @param attributeMap  the hashmap of config file attributes for this channel
-     * @param input         true if this is an input data channel, otherwise false
+     * @param name       the name of this channel
+     * @param transport  the DataTransport object that this channel belongs to
+     * @param attrib     the hashmap of config file attributes for this channel
+     * @param input      true if this is an input data channel, otherwise false
      *
      * @throws org.jlab.coda.emu.support.transport.DataTransportException - unable to create buffers or socket.
      */
-    DataChannelImplEt(String name, DataTransportImplEt dataTransport,
-                        Map<String, String> attributeMap, boolean input)
+    DataChannelImplEt(String name, DataTransportImplEt transport,
+                      Map<String, String> attrib, boolean input)
             throws DataTransportException {
 
-        this.dataTransport = dataTransport;
-        this.attributeMap  = attributeMap;
         this.name = name;
+        this.attributeMap  = attrib;
+        this.dataTransport = transport;
 
         // set queue capacity
-        int capacity = 40;
+        int capacity = 100;    // 100 buffers * 100 events/buf * 150 bytes/Roc/ev =  1.5Mb/Roc
         try {
             capacity = dataTransport.getIntAttr("capacity");
         } catch (Exception e) {
-            Logger.info("      DataChannelImplCmsg.const : " +  e.getMessage() + ", default to " + capacity + " records.");
+            Logger.info("      DataChannelImplEt.const : " +  e.getMessage() + ", default to " + capacity + " records.");
         }
         queue = new ArrayBlockingQueue<EvioBank>(capacity);
 
-        // Set subject & type for either subscription (incoming msgs) or for outgoing msgs.
-        // Use any defined in config file else use defaults.
-        subject = attributeMap.get("subject");
-        if (subject == null) subject = name;
-
-        type = attributeMap.get("type");
-        if (type == null) type = "data";
-//System.out.println("\n\nDataChannel: subject = " + subject + ", type = " + type + "\n\n");
 
         // Set id number. Use any defined in config file else use default (0)
         id = 0;
@@ -180,19 +127,89 @@ System.out.println("cmsg data channel " + name + ": got message in callback");
             catch (NumberFormatException e) {  }
         }
 
-        if (input) {
+        // get ET system objects & info
+        etSystem = dataTransport.getEtSystem();
+
+        // How may buffers do we grab at a time?
+        chunk = 100;
+        String attribString = attributeMap.get("chunk");
+        if (attribString != null) {
             try {
-                // create subscription for receiving messages containing data
-                ReceiveMsgCallback cb = new ReceiveMsgCallback();
-                sub = dataTransport.getCmsgConnection().subscribe(subject, type, cb, null);
+                chunk = Integer.parseInt(attribString);
+                if (chunk < 1) chunk = 100;
             }
-            catch (cMsgException e) {
-                Logger.info("      DataChannelImplCmsg.const : " + e.getMessage());
-                throw new DataTransportException(e);
-            }
-            parser = new ByteParser();
+            catch (NumberFormatException e) {}
         }
+
+        // For output events, how big are they going to be (in bytes)?
+        evSize = 20000;
+        attribString = attributeMap.get("size");
+        if (attribString != null) {
+            try {
+                evSize = Integer.parseInt(attribString);
+                if (evSize < 1) evSize = 20000;
+            }
+            catch (NumberFormatException e) {}
+        }
+
+        // if INPUT channel
+        if (input) {
+            parser = new ByteParser();
+
+            try {
+                // configuration of a new station
+                stationConfig = new EtStationConfig();
+                try {
+                    stationConfig.setUserMode(EtConstants.stationUserSingle);
+                }
+                catch (EtException e) { /* never happen */}
+
+                // Create filter for station so only events from a particular ROC
+                // (id as defined in config file) make it in.
+                // Station filter is the built-in selection function.
+                int[] selects = new int[EtConstants.stationSelectInts];
+                Arrays.fill(selects, -1);
+                selects[0] = id;
+                stationConfig.setSelect(selects);
+                stationConfig.setSelectMode(EtConstants.stationSelectMatch);
+
+                // create station if it does not already exist
+                String stationName = "station"+id;
+                try {
+                    station = etSystem.createStation(stationConfig, stationName);
+                }
+                catch (EtExistsException e) {
+                    station = etSystem.stationNameToObject(stationName);
+                }
+
+                // attach to station
+                attachment = etSystem.attach(station);
+
+                startInputHelper();
+            }
+            catch (Exception e) {
+                //e.printStackTrace();
+                throw new DataTransportException("cannot create/attach to ET station", e);
+            }
+
+            // start up input thread, but in paused state
+            pause = true;
+            startInputHelper();
+         }
+        // if OUTPUT channel
         else {
+
+            try {
+                // get GRAND_CENTRAL station object
+                station = etSystem.stationNameToObject("GRAND_CENTRAL");
+
+                // attach to grandcentral station
+                attachment = etSystem.attach(station);
+            }
+            catch (Exception e) {
+                throw new DataTransportException("cannot attach to Grandcentral station", e);
+            }
+
             // set endianness of data
             byteOrder = ByteOrder.BIG_ENDIAN;
             try {
@@ -201,11 +218,13 @@ System.out.println("cmsg data channel " + name + ": got message in callback");
                     byteOrder = ByteOrder.LITTLE_ENDIAN;
                 }
             } catch (Exception e) {
-                Logger.info("      DataChannelImplCmsg.const : no output data endianness specifed, default to big.");
+                Logger.info("      DataChannelImplEt.const : no output data endianness specifed, default to big.");
             }
 
+            // start up input thread, but in paused state
+            pause = true;
             startOutputHelper();
-        }
+       }
     }
 
     public String getName() {
@@ -221,89 +240,146 @@ System.out.println("cmsg data channel " + name + ": got message in callback");
     }
 
     public void send(EvioBank bank) {
-        //queue.add(bank);   // throws exception if capacity reached
-        //queue.offer(bank); // returns false if capacity reached
         try {
-            queue.put(bank); // blocks if capacity reached
+            queue.put(bank);   // blocks if capacity reached
+            //queue.add(bank);   // throws exception if capacity reached
+            //queue.offer(bank); // returns false if capacity reached
         }
-        catch (InterruptedException e) {
-            // ignore
-        }
+        catch (InterruptedException e) {/* ignore */}
     }
 
     /**
      * {@inheritDoc}
-     * Close this channel by unsubscribing from cmsg server and ending the data sending thread.
+     * Close this channel by closing ET system and ending the data sending thread.
      */
     public void close() {
-        Logger.warn("      DataChannelImplCmsg.close : " + name + " - closing this channel");
+        Logger.warn("      DataChannelImplEt.close : " + name + " - closing this channel");
         if (dataThread != null) dataThread.interrupt();
         try {
-            if (sub != null) {
-                dataTransport.getCmsgConnection().unsubscribe(sub);
-            }
-        } catch (cMsgException e) {
-            // ignore
+            etSystem.detach(attachment);
+            etSystem.removeStation(station);
         }
+        catch (Exception e) {/* ignore */}
         queue.clear();
     }
 
 
     /**
      * <pre>
-     * Class <b>DataOutputHelper</b>
+     * Class <b>DataInputHelper</b>
      * </pre>
      * Handles sending data.
      */
-    private class DataOutputHelper implements Runnable {
+    private class DataInputHelper implements Runnable {
 
         /** Method run ... */
         public void run() {
-            try {
-                int size;
-                EvioBank bank;
-                cMsgMessage msg = new cMsgMessage();
-                msg.setSubject(subject);
-                msg.setType(type);
-                ByteBuffer buffer = ByteBuffer.allocate(1000); // allocateDirect does(may) NOT have backing array
-                // by default ByteBuffer is big endian
-                buffer.order(byteOrder);
 
-                while ( dataTransport.getCmsgConnection().isConnected() ) {
+            try {
+                while ( etSystem.alive() ) {
 
                     if (pause) {
-//Logger.warn("      DataChannelImplCmsg.DataOutputHelper : " + name + " - PAUSED");
+Logger.warn("      DataChannelImplEt.DataInputHelper : " + name + " - PAUSED");
                         Thread.sleep(5);
                         continue;
                     }
 
-                    bank = queue.take();  // blocks
+                    // read in event in chunks
+                    events = etSystem.getEvents(attachment, Mode.SLEEP, Modify.NOTHING, 0, chunk);
 
-                    size = bank.getTotalBytes();
-                    if (buffer.capacity() < size) {
-                        buffer = ByteBuffer.allocateDirect(size + 1000);
-                        buffer.order(byteOrder);
+                    // parse events
+                    ByteBuffer buf;
+                    for (EtEvent ev : events) {
+                        buf = ev.getDataBuffer();
+
+                        if (ev.needToSwap()) {
+                            buf.order(ByteOrder.LITTLE_ENDIAN);
+                        }
+
+                        EvioBank bank = parser.parseEvent(buf);
+                        // put evio bank on queue
+                        queue.put(bank);
                     }
-                    buffer.clear();
-                    bank.write(buffer);
 
-                    // put data into cmsg message
-                    msg.setByteArrayNoCopy(buffer.array());
-                    msg.setByteArrayEndian(byteOrder == ByteOrder.BIG_ENDIAN ? cMsgConstants.endianBig :
-                                                                               cMsgConstants.endianLittle);
-
-                    // send it
-                    dataTransport.getCmsgConnection().send(msg);
+                    // put events back in ET system
+                    etSystem.putEvents(attachment, events);
                 }
 
-                Logger.warn("      DataChannelImplCmsg.DataOutputHelper : " + name + " - disconnected from cmsg server");
-
             } catch (InterruptedException e) {
-                Logger.warn("      DataChannelImplCmsg.DataOutputHelper : interrupted, exiting");
+                Logger.warn("      DataChannelImplEt.DataInputHelper : interrupted, exiting");
             } catch (Exception e) {
                 e.printStackTrace();
-                Logger.warn("      DataChannelImplCmsg.DataOutputHelper : exit " + e.getMessage());
+                Logger.warn("      DataChannelImplEt.DataInputHelper : exit " + e.getMessage());
             }
+        }
+
+    }
+
+
+    /**
+     * Start the startInputHelper thread which takes ET events, parses each, puts the events back
+     * into the ET system, and puts the parsed evio banks onto the queue.
+     */
+    public void startInputHelper() {
+        dataThread = new Thread(Emu.THREAD_GROUP, new DataInputHelper(), getName() + " data in");
+        dataThread.start();
+    }
+
+
+    private class DataOutputHelper implements Runnable {
+
+        /** Method run ... */
+        public void run() {
+
+            try {
+                int bankSize;
+                EvioBank bank;
+                ByteBuffer buffer;
+
+                while ( etSystem.alive() ) {
+
+                    if (pause) {
+Logger.warn("      DataChannelImplEt.DataOutputHelper : " + name + " - PAUSED");
+                        Thread.sleep(5);
+                        continue;
+                    }
+
+                    // read in new event in chunks
+                    events = etSystem.newEvents(attachment, Mode.SLEEP, 0, chunk, evSize);
+
+                    for (int i=0; i < events.length; i++) {
+                        // grab a bank and put it into an ET event buffer
+                        bank     = queue.take();  // blocks
+                        bankSize = bank.getTotalBytes();
+                        buffer   = events[i].getDataBuffer();
+
+                        // if not enough room in et event to hold bank ...
+                        if (buffer.capacity() < bankSize) {
+Logger.warn("      DataChannelImplEt.DataOutputHelper : et event too small to contain built event");
+                            // This new event is not large enough, so dump it and replace it
+                            // with a larger one. Performance will be terrible but it'll work.
+                            etSystem.dumpEvents(attachment, new EtEvent[] {events[i]});
+                            EtEvent[] evts = etSystem.newEvents(attachment, Mode.SLEEP, 0, 1, bankSize);
+                            events[i] = evts[0];
+                        }
+
+                        // write bank into et event
+                        buffer.clear();
+                        bank.write(buffer);
+                        events[i].setByteOrder(bank.getByteOrder());
+                    }
+
+                    // put events back in ET system
+                    etSystem.putEvents(attachment, events);
+                }
+
+            } catch (InterruptedException e) {
+                Logger.warn("      DataChannelImplEt.DataOutputHelper : interrupted, exiting");
+            } catch (Exception e) {
+                e.printStackTrace();
+                Logger.warn("      DataChannelImplEt.DataOutputHelper : exit " + e.getMessage());
+            }
+
         }
 
     }
