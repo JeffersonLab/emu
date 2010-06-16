@@ -25,6 +25,10 @@ public class DataChannelImplFifo implements DataChannel {
     /** Field full - filled buffer queue */
     private final BlockingQueue<EvioBank> queue;
 
+    /** Is this channel an input (true) or output (false) channel? */
+    boolean input;
+
+
     /**
      * Constructor DataChannelImplFifo creates a new DataChannelImplFifo instance.
      *
@@ -38,6 +42,8 @@ public class DataChannelImplFifo implements DataChannel {
     DataChannelImplFifo(String name, DataTransportImplFifo dataTransport, boolean input) throws DataTransportException {
 
         this.name = name;
+        this.input = input;
+
         int capacity = 40;
         try {
             capacity = dataTransport.getIntAttr("capacity");
@@ -63,6 +69,10 @@ public class DataChannelImplFifo implements DataChannel {
     // TODO: return something reasonable
     public int getID() {
         return 0;
+    }
+
+    public boolean isInput() {
+        return input;
     }
 
     /**

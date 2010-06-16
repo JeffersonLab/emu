@@ -61,6 +61,10 @@ public class DataChannelImplCmsgSock implements DataChannel {
     /** Byte order of either input or output stream. */
     ByteOrder byteOrder;
 
+    /** Is this channel an input (true) or output (false) channel? */
+    boolean input;
+
+
     /**
      * Constructor to create a new DataChannelImplCmsg instance.
      * Used only by {@link DataTransportImplCmsgSock#createChannel} which is
@@ -78,6 +82,7 @@ public class DataChannelImplCmsgSock implements DataChannel {
             throws DataTransportException {
 
         this.dataTransport = dataTransport;
+        this.input = input;
         this.name = name;
 
         // set queue capacity
@@ -133,6 +138,10 @@ public class DataChannelImplCmsgSock implements DataChannel {
     // TODO: return something reasonable
     public int getID() {
         return 0;
+    }
+
+    public boolean isInput() {
+        return input;
     }
 
     /**

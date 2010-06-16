@@ -42,6 +42,13 @@ public interface DataChannel {
     public int getID();
 
     /**
+     * Get whether this channel is an input channel (returns true),
+     * or it is an output channel (returns false).
+     * @return <code>true</code> if input channel, else <code>false</code>
+     */
+    public boolean isInput();
+
+    /**
      * Take a bank of data off the queue.
      * @return bank of data.
      * @throws InterruptedException on wakeup without data.

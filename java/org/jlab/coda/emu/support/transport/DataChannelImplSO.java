@@ -50,6 +50,10 @@ public class DataChannelImplSO implements DataChannel {
     /** Byte order of either input or output stream. */
     ByteOrder byteOrder;
 
+    /** Is this channel an input (true) or output (false) channel? */
+    boolean input;
+
+
     /**
      * Constructor DataChannelImplSO creates a new DataChannelImplSO instance.
      *
@@ -64,6 +68,7 @@ public class DataChannelImplSO implements DataChannel {
                       Map <String, String> attributeMap, boolean input) {
 
         this.name = name;
+        this.input = input;
         this.transport = transport;
 
         // set queue capacity
@@ -101,6 +106,10 @@ public class DataChannelImplSO implements DataChannel {
     // TODO: return something reasonable
     public int getID() {
         return 0;
+    }
+
+    public boolean isInput() {
+        return input;
     }
 
     /**

@@ -43,6 +43,10 @@ public class DataChannelImplFile implements DataChannel {
     /** Object to write evio file. */
     private EventWriter evioFileWriter;
 
+    /** Is this channel an input (true) or output (false) channel? */
+    boolean input;
+
+
     /**
      * Constructor DataChannelImplFifo creates a new DataChannelImplFifo instance.
      *
@@ -56,7 +60,9 @@ public class DataChannelImplFile implements DataChannel {
     DataChannelImplFile(String name, DataTransportImplFile dataTransport, boolean input) throws DataTransportException {
 
         this.dataTransport = dataTransport;
+        this.input = input;
         this.name = name;
+
         String fileName = "dataFile.coda";
         try {
             fileName = dataTransport.getAttr("filename");
@@ -154,6 +160,10 @@ public class DataChannelImplFile implements DataChannel {
     // TODO: return something reasonable
     public int getID() {
         return 0;
+    }
+
+    public boolean isInput() {
+        return input;
     }
 
     /**

@@ -67,6 +67,10 @@ public class DataChannelImplCmsg implements DataChannel {
     /** Map of config file attributes. */
     Map<String, String> attributeMap;
 
+    /** Is this channel an input (true) or output (false) channel? */
+    boolean input;
+
+
     /**
      * This class defines the callback to be run when a message matching the subscription arrives.
      */
@@ -150,6 +154,7 @@ System.out.println("cmsg data channel " + name + ": got message in callback");
 
         this.dataTransport = dataTransport;
         this.attributeMap  = attributeMap;
+        this.input = input;
         this.name = name;
 
         // set queue capacity
@@ -214,6 +219,10 @@ System.out.println("cmsg data channel " + name + ": got message in callback");
 
     public int getID() {
         return id;
+    }
+
+    public boolean isInput() {
+        return input;
     }
 
     public EvioBank receive() throws InterruptedException {

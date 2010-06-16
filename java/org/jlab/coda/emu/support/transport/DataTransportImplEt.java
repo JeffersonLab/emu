@@ -24,6 +24,7 @@ import org.jlab.coda.emu.support.control.Command;
 import java.util.Map;
 import java.util.Collection;
 import java.util.Arrays;
+import java.util.List;
 import java.io.IOException;
 
 /**
@@ -32,19 +33,9 @@ import java.io.IOException;
  */
 public class DataTransportImplEt extends DataTransportCore implements DataTransport {
 
-    /** Connection to ET system. */
-    private EtSystem etSystem;
 
     private EtSystemOpenConfig openConfig;
 
-
-    /**
-     * Get the ET sytem object.
-     * @return the ET system object.
-     */
-    public EtSystem getEtSystem() {
-        return etSystem;
-    }
 
     public EtSystemOpenConfig getOpenConfig() {
         return openConfig;
@@ -115,9 +106,10 @@ public class DataTransportImplEt extends DataTransportCore implements DataTransp
         }
 
         // multicasting port & addr
-        int mport = 0;
+        int mport = EtConstants.multicastPort;
         String maddr;
         String[] mAddrs = null;
+        Collection<String> mAddrList = null;
 
         if (method == EtConstants.broadAndMulticast ||
             method == EtConstants.multicast) {
@@ -136,6 +128,7 @@ public class DataTransportImplEt extends DataTransportCore implements DataTransp
                 maddr = EtConstants.multicastAddr;
             }
             mAddrs = new String[] {maddr};
+            mAddrList = Arrays.asList(mAddrs);
         }
 
         //---------------------------------
@@ -158,7 +151,7 @@ public class DataTransportImplEt extends DataTransportCore implements DataTransp
         //------------------------------------------------
         try {
             // configuration of a new connection
-            openConfig = new  EtSystemOpenConfig(etName, host, Arrays.asList(mAddrs),
+            openConfig = new  EtSystemOpenConfig(etName, host, mAddrList,
                                                  false, method, port, port, mport,
                                                  EtConstants.multicastTTL,
                                                  EtConstants.policyError);
@@ -168,31 +161,25 @@ public class DataTransportImplEt extends DataTransportCore implements DataTransp
             //e.printStackTrace();
             throw new DataNotFoundException("Bad station parameters in config file", e);
         }
-
-
-        // create ET system object
-        etSystem = new EtSystem(openConfig, EtConstants.debugNone);
     }
 
 
     public DataChannel createChannel(String name, Map<String,String> attributeMap, boolean isInput) throws DataTransportException {
         DataChannel c = new DataChannelImplEt(name, this, attributeMap, isInput);
         channels().put(name, c);
+System.out.println("Created channel " + name + ", channels size = " + channels().size());
         return c;
     }
 
     public void execute(Command cmd) {
 Logger.debug("    DataTransportImplEt.execute : " + cmd);
 
+        DataChannelImplEt etChannel;
+
         if (cmd.equals(CODATransition.PRESTART)) {
 
             try {
                 Logger.debug("    DataTransportImplEt.execute PRESTART: ET open : " + name() + " " + myInstance);
-
-                // open ET system
-                etSystem.open();
-
-                // have input channels create stations & make attachments
 
             } catch (Exception e) {
                 CODAState.ERROR.getCauses().add(e);
@@ -207,7 +194,7 @@ Logger.debug("    DataTransportImplEt.execute : " + cmd);
             if (!channels().isEmpty()) {
                 synchronized (channels()) {
                     for (DataChannel c : channels().values()) {
-                        ((DataChannelImplEt)c).resumeOutputHelper();
+                        ((DataChannelImplEt)c).resumeHelper();
                     }
                 }
             }
@@ -218,7 +205,7 @@ Logger.debug("    DataTransportImplEt.execute : " + cmd);
             if (!channels().isEmpty()) {
                 synchronized (channels()) {
                     for (DataChannel c : channels().values()) {
-                        ((DataChannelImplEt)c).pauseOutputHelper();
+                        ((DataChannelImplEt)c).pauseHelper();
                     }
                 }
             }
@@ -227,7 +214,15 @@ Logger.debug("    DataTransportImplEt.execute : " + cmd);
             Logger.debug("    DataTransportImplEt.execute END/RESET: ET disconnect : " + name() + " " + myInstance);
             // have input channels detach & delete stations?
 
-            etSystem.close();
+            // have input channels open ET systems
+            if (!channels().isEmpty()) {
+System.out.println("CLOSING ET channels");
+                synchronized (channels()) {
+                    for (DataChannel c : channels().values()) {
+                        c.close();
+                    }
+                }
+            }
             state = cmd.success();
             return;
         }
