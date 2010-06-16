@@ -28,7 +28,7 @@
             of the class defining this module and must be loaded. id is the id number of this module
             and is used as the unique event builder id if this module is building events.
         -->
-        <CarlsModule class="ProcessTest" id="7" statistics="on">
+        <CarlsModule class="EventBuilding" id="7" statistics="on">
             <!--
                 The "id" attribute is the rocId or sourceId and allows this module to check incoming events
                 to make sure they have the correct id specified.
