@@ -1,9 +1,5 @@
 package org.jlab.coda.emu.test;
 
-import org.jlab.coda.cMsg.cMsg;
-import org.jlab.coda.cMsg.cMsgException;
-import org.jlab.coda.cMsg.cMsgMessage;
-import org.jlab.coda.cMsg.cMsgConstants;
 import org.jlab.coda.jevio.*;
 import org.jlab.coda.et.*;
 import org.jlab.coda.et.enums.Mode;
@@ -24,19 +20,13 @@ import java.util.Arrays;
  */
 public class SenderEt {
 
-    private String  subject  = "ROC1";
-    private String  subject1 = "ROC1";
-    private String  subject2 = "ROC2";
-    private String  type = "data";
     private String  name = "ROC1";
     private String  channelName = "SingleEmu_SOCKET"; // channelName is subject
-    private String  description = "place to send data to EMU";
-    private String  etName;
+    private String  etName = "/tmp/emuIn";
 
     private int     delay = 1000; // 1 second default timeout
     private boolean debug;
     private boolean stopSending;
-    private cMsg coda;
 
     // create ET system object with verbose debugging output
     private EtSystem sys;
@@ -71,15 +61,6 @@ public class SenderEt {
             }
             else if (args[i].equalsIgnoreCase("-f")) {
                 etName= args[i + 1];
-                i++;
-            }
-            // s - stands for sender
-            else if (args[i].equalsIgnoreCase("-s")) {
-                subject = args[i + 1];
-                i++;
-            }
-            else if (args[i].equalsIgnoreCase("-t")) {
-                type= args[i + 1];
                 i++;
             }
             else if (args[i].equalsIgnoreCase("-delay")) {
@@ -119,7 +100,7 @@ public class SenderEt {
             SenderEt sender = new SenderEt(args);
             sender.run();
         }
-        catch (cMsgException e) {
+        catch (Exception e) {
             e.printStackTrace();
             System.exit(-1);
         }
@@ -322,10 +303,10 @@ System.out.println("Send thread started");
     /**
      * This method is executed as a thread.
      */
-    public void run() throws cMsgException {
+    public void run() {
 
         if (debug) {
-            System.out.println("Running SenderCmsg as EMU's ROC1,2,3\n");
+            System.out.println("Running SenderEt as EMU's ROC1,2,3\n");
         }
 
         try {
@@ -334,6 +315,8 @@ System.out.println("Send thread started");
 
             // create ET system object with verbose debugging output
             sys = new EtSystem(config, EtConstants.debugInfo);
+
+            sys.open();
 
             // get GRAND_CENTRAL station object
             gc = sys.stationNameToObject("GRAND_CENTRAL");
