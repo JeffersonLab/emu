@@ -1,0 +1,52 @@
+<?xml version="1.0"?>
+<!--
+  ~ Copyright (c) 2010, Jefferson Science Associates
+  ~
+  ~ Thomas Jefferson National Accelerator Facility
+  ~ Data Acquisition Group
+  ~
+  ~ 12000, Jefferson Ave, Newport News, VA 23606
+  ~ Phone : (757)-269-7100
+  ~
+  -->
+
+<component name="SingleEmu">
+    <transports>
+        <server name="EmuInputET"  class="Et" etName="/tmp/emuIn"  host="local" method="direct" port="12347"/>
+        <client name="EmuOutputET" class="Et" etName="/tmp/emuOut" host="local" method="direct" port="12349"/>
+    </transports>
+    <modules src="modules.jar" usr_src="user_modules.jar">
+        <!--
+        <InModule class="ProcessTest">
+            <inchannel  name="ROC1" transp="EmuInputET"/>
+            <outchannel name="F1" transp="Fifo"/>
+        </InModule>
+        -->
+        <!--
+            statistics=on means that if there are multiple modules defined, this module's statistics
+            may be reported to runcontrol as being representative of everything. class is the name
+            of the class defining this module and must be loaded. id is the id number of this module
+            and is used as the unique event builder id if this module is building events.
+        -->
+        <CarlsModule class="ProcessTest" id="7" statistics="on">
+            <!--
+                The "id" attribute is the rocId or sourceId and allows this module to check incoming events
+                to make sure they have the correct id specified.
+                The "subject" & "type" attributes override the default subscriptions to receive msg over cmsg.
+                The default is subject = name, type="*".
+                endian specifies the endianness of the bytes going over the output channel.
+            -->
+            <inchannel  id="1" name="ROC1"      transp="EmuInputET" />
+            <inchannel  id="2" name="ROC2"      transp="EmuInputET" />
+            <inchannel  id="3" name="ROC3"      transp="EmuInputET" />
+            <outchannel        name="BitBucket" transp="EmuOutputET" size="2048" endian="little"/>
+        </CarlsModule>
+        <!--
+        <OutModule class="ProcessTest">
+            <inchannel  name="F2" transp="Fifo"/>
+            <outchannel name="BitBucket" transp="EmuOutputET" endian="little"/>
+        </OutModule>
+        -->
+    </modules>
+</component>
+
