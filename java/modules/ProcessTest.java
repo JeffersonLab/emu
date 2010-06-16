@@ -307,7 +307,7 @@ System.out.println("Process: Added bank's children to built event, event = " + c
 
             eventRate = wordRate = 0F;
             eventCountTotal = wordCountTotal = 0L;
-   
+
             if (actionThread != null) actionThread.interrupt();
             actionThread = null;
             if (watcher != null) watcher.interrupt();
@@ -342,17 +342,15 @@ System.out.println("Process: Added bank's children to built event, event = " + c
             }
         }
 
-        // currently NOT used
-//        else if (cmd.equals(CODATransition.PAUSE)) {
-//            state = CODAState.PRESTARTED;
-//            actionThread.interrupt();
-//            watcher.interrupt();
-//            watcher = new Watcher();
-//            actionThread = new Thread(Emu.THREAD_GROUP, this, name);
-//        }
+        else if (cmd.equals(CODATransition.PAUSE)) {
+            state = CODAState.PRESTARTED;
+            actionThread.interrupt();
+            watcher.interrupt();
+            watcher = new Watcher();
+            actionThread = new Thread(Emu.THREAD_GROUP, this, name);
+        }
 
         else if (cmd.equals(CODATransition.GO)) {
-System.out.println("GO in ProcessTest module");
             state = CODAState.ACTIVE;
             if (watcher == null) {
                 watcher = new Watcher();
