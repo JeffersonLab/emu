@@ -699,6 +699,23 @@ System.out.println("tag = " + tag + ", is sync = " + buildingBanks[0].isSync() +
             }
         }
 
+        else if (cmd.equals(CODATransition.PAUSE)) {
+            state = CODAState.PRESTARTED;
+            actionThread.interrupt();
+            watcher.interrupt();
+            watcher = new Watcher();
+            actionThread = new Thread(Emu.THREAD_GROUP, this, name);
+
+            if (actionThread != null) actionThread.interrupt();
+            if (queueFiller  != null) queueFiller.interrupt();
+            if (watcher      != null) watcher.interrupt();
+
+            // start up 3 necessary threads
+            watcher = new Thread(Emu.THREAD_GROUP, new Watcher(), name+":watcher");
+            queueFiller = new Thread(Emu.THREAD_GROUP, new Qfiller(), name+":qfiller");
+            actionThread  = new Thread(Emu.THREAD_GROUP, this, name);
+        }
+
         else if (cmd.equals(CODATransition.PRESTART)) {
             // make sure each input channel is associated with a unique rocId
             for (int i=0; i < inputChannels.size(); i++) {
