@@ -211,18 +211,7 @@ Logger.debug("    DataTransportImplEt.execute : " + cmd);
             }
         }
         else if ((cmd.equals(CODATransition.END)) || (cmd.equals(CODATransition.RESET))) {
-            Logger.debug("    DataTransportImplEt.execute END/RESET: ET disconnect : " + name() + " " + myInstance);
-            // have input channels detach & delete stations?
-
-            // have input channels open ET systems
-            if (!channels().isEmpty()) {
-System.out.println("CLOSING ET channels");
-                synchronized (channels()) {
-                    for (DataChannel c : channels().values()) {
-                        c.close();
-                    }
-                }
-            }
+            // TransportFactory already calls close on each channel for these transitions
             state = cmd.success();
             return;
         }
