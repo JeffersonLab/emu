@@ -11,6 +11,7 @@ import java.io.BufferedReader;
 import java.io.InputStreamReader;
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 
 /**
  * Created by IntelliJ IDEA.
@@ -162,7 +163,7 @@ public class ReceiverEt {
             // array of events
             EtEvent[] mevs;
 
-            int num, chunk = 1, count = 0;
+            int num, chunk = 100, count = 0;
             long t1, t2, totalT = 0, totalCount = 0;
             double rate, avgRate;
 
@@ -180,20 +181,26 @@ public class ReceiverEt {
                         if (count == 0) t1 = System.currentTimeMillis();
 
                         // example of reading & printing event data
-                        if (true) {
+//                        if (true) {
 
-                            for (EtEvent mev : mevs) {
+//                            for (EtEvent mev : mevs) {
                                 // get event's data buffer
-                                ByteBuffer buf = mev.getDataBuffer();
+//                                ByteBuffer buf = mev.getDataBuffer();
+//System.out.println("event's data buffer is " + buf.order() + ", limit = " + buf.limit() +
+//", capacity = " + buf.capacity());
+//System.out.println("swap = " + mev.needToSwap());
+//                                if (mev.needToSwap()) {
+//                                    buf.order(ByteOrder.LITTLE_ENDIAN);
+//                                }
                                 // buf.limit() is set to the length of the actual data (not buffer capacity)
-                                ByteParser parser = new ByteParser();
-                                try {
-                                    EvioEvent ev = parser.parseEvent(buf);
-                                    System.out.println("Event = \n"+ev.toXML());
-                                }
-                                catch (EvioException e) {
-                                    System.out.println("Event NOT in evio foramt");
-                                }
+//                                ByteParser parser = new ByteParser();
+//                                try {
+//                                    EvioEvent ev = parser.parseEvent(buf);
+//                                    System.out.println("Event = \n"+ev.toXML());
+//                                }
+//                                catch (EvioException e) {
+//                                    System.out.println("Event NOT in evio foramt");
+//                                }
 
     //                            System.out.println("buffer cap = " + buf.capacity() + ", lim = " + buf.limit() +
     //                            ", pos = " + buf.position());
@@ -213,9 +220,9 @@ public class ReceiverEt {
     //                            }
     //
     //                            System.out.println("pri = " + mev.getPriority());
-                            }
-                        }
-
+//                            }
+//                        }
+//
                         // put events back into ET system
                         sys.putEvents(att, mevs);
                         //sys.dumpEvents(att, mevs);

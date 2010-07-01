@@ -9,6 +9,7 @@ import org.jlab.coda.emu.support.data.Evio;
 
 import java.io.*;
 import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.util.Arrays;
 
 /**
@@ -24,7 +25,7 @@ public class SenderEt {
     private String  channelName = "SingleEmu_SOCKET"; // channelName is subject
     private String  etName = "/tmp/emuIn";
 
-    private int     delay = 1000; // 1 second default timeout
+    private int     delay = 0; // 1 second default timeout
     private boolean debug;
     private boolean stopSending;
 
@@ -174,110 +175,66 @@ System.out.println("Send thread started");
             int[] control = new int[EtConstants.stationSelectInts];
             Arrays.fill(control, -1);
 
+            int index, chunk = 300;
             int counter = 0;
-            StringWriter sw = new StringWriter(2048);
-            PrintWriter wr = new PrintWriter(sw, true);
             long start_time = System.currentTimeMillis();
 
             try {
 
                 while (true) {
-                    // send transport records from 3 ROCs
-                    rocNum = rocID;
-
-                    EtEvent[] evs = sys.newEvents(att, Mode.SLEEP, 0, 3, 1024);
-                    if (evs.length < 3) {
+                    EtEvent[] evs = sys.newEvents(att, Mode.SLEEP, 0, chunk, 1024);
+                    if (evs.length < chunk) {
                         sys.dumpEvents(att, evs);
                         try { Thread.sleep(100); }
                         catch (InterruptedException e) { }
                         continue;
                     }
 
-                    for (int ix = 0; ix < 3; ix++) {
-                        // send event over network
-//System.out.println("Send roc record " + rocID + " over network");
-                        // turn event into byte array
-                        ev = Evio.createDataTransportRecord(rocNum, eventID,
-                                                            dataBankTag, dataBankNum,
-                                                            eventNumber, numEventsInPayloadBank,
-                                                            timestamp, recordId, numPayloadBanks,
-                                                            false);
+                    for (int j = 0; j < chunk; j += 3) {
+                        // send transport records from 3 ROCs
+                        rocNum = rocID;
 
-//
-//                        // traditional bank of banks
-//                        EventBuilder eventBuilder = new EventBuilder(0x1234, DataType.BANK, 1);
-//                        EvioEvent event = eventBuilder.getEvent();
-//
-//                        // add a bank of ints
-//                        EvioBank bank = new EvioBank(0x22, DataType.INT32, 0); // tag, type, num
-//                        int[] iarray = {counter++};
-//                        eventBuilder.appendIntData(bank, iarray);
-//                        eventBuilder.addChild(event, bank);
+                        for (int i = 0; i < 3; i++) {
+                            // turn event into byte array
+                            ev = Evio.createDataTransportRecord(rocNum, eventID,
+                                                                dataBankTag, dataBankNum,
+                                                                eventNumber, numEventsInPayloadBank,
+                                                                timestamp, recordId, numPayloadBanks,
+                                                                false);
+                            index = j+i;
+                            bbuf = evs[index].getDataBuffer();
+                            evs[index].setLength(bbuf.limit());
+                            control[0] = rocNum;
+                            evs[index].setControl(control);
+                            ev.write(bbuf);
 
-//                        // add a bank of segments
-//                        EvioBank bank2 = new EvioBank(0x33, DataType.SEGMENT, 0);
-//
-//                        EvioSegment segment1 = new EvioSegment(0x34, DataType.SHORT16);
-//                        short[] sarray = {4,5,6};
-//                        eventBuilder.appendShortData(segment1, sarray);
-//                        eventBuilder.addChild(bank2, segment1);
-//                        eventBuilder.addChild(event, bank2);
-//
-//                        // add a bank of tag segments
-//                        EvioBank bank3 = new EvioBank(0x45, DataType.TAGSEGMENT, 0);
-//
-//                        EvioTagSegment tagsegment1 = new EvioTagSegment(0x46, DataType.DOUBLE64);
-//                        double[] darray = {7,8,9};
-//                        eventBuilder.appendDoubleData(tagsegment1, darray);
-//                        eventBuilder.addChild(bank3, tagsegment1);
-//                        eventBuilder.addChild(event, bank3);
-//
-//                        sw.getBuffer().delete(0, sw.getBuffer().capacity());
+                             //send from next roc
+                            rocNum++;
 
-                        bbuf = evs[ix].getDataBuffer();
-                        evs[ix].setLength(bbuf.limit());
-                        control[0] = rocNum;
-                        evs[ix].setControl(control);
-                        ev.write(bbuf);
-
-//                        StringWriter sw2 = new StringWriter(1000);
-//                        XMLStreamWriter xmlWriter = XMLOutputFactory.newInstance().createXMLStreamWriter(sw2);
-//                        event.toXML(xmlWriter);
-//                        System.out.println("\nSending msg:\n" + sw2.toString());
-
-//                        System.out.println("Sending msg (bin):");
-//                        while (bbuf.hasRemaining()) {
-//                            wr.printf("%#010x\n", bbuf.getInt());
-//                        }
-//                        System.out.println(sw.toString() + "\n\n");
-
-                        // send from next roc
-                        rocNum++;
-
-                        if (stopSending) {
-                            return;
+                            if (stopSending) {
+                                return;
+                            }
                         }
-
+                        recordId++;
+                        eventID++;
+                        timestamp   += numEventsInPayloadBank;
+                        eventNumber += numEventsInPayloadBank;
                     }
 
                     sys.putEvents(att, evs);
 
-                    counter += 3;
+                    counter += evs.length;
 
                     Thread.sleep(delay);
 
                     long now = System.currentTimeMillis();
                     long deltaT = now - start_time;
                     if (deltaT > 2000) {
-                        wr.printf("%d  Hz\n", counter/deltaT);
-                        System.out.println(sw.toString());
+                        String s = String.format("%d  Hz", counter*1000/deltaT);
+                        System.out.println(s);
                         start_time = now;
                         counter = 0;
                     }
-
-                    eventID++;
-                    timestamp   += numEventsInPayloadBank;
-                    eventNumber += numEventsInPayloadBank;
                 }
 
             }
