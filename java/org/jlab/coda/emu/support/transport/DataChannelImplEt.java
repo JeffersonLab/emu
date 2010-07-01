@@ -105,7 +105,7 @@ public class DataChannelImplEt implements DataChannel {
         this.input = input;
         this.attributeMap  = attrib;
         this.dataTransport = transport;
-Logger.info("\n      DataChannelImplEt.const : creating channel " + name);
+Logger.info("      DataChannelImplEt.const : creating channel " + name);
 
         // set queue capacity
         int capacity = 100;    // 100 buffers * 100 events/buf * 150 bytes/Roc/ev =  1.5Mb/Roc
@@ -273,7 +273,7 @@ Logger.info("      DataChannelImplEt.const : attached to grandCentral");
      * Close this channel by closing ET system and ending the data sending thread.
      */
     public void close() {
-        Logger.warn("      DataChannelImplEt.close : " + name + " - closing this channel");
+        Logger.warn("      DataChannelImplEt.close : " + name + " - closing this channel (close ET system)");
         if (dataThread != null) dataThread.interrupt();
         try {
             etSystem.detach(attachment);
@@ -308,7 +308,6 @@ Logger.warn("      DataChannelImplEt.DataInputHelper : " + name + " - PAUSED");
                     }
 
                     // read in event in chunks
-Logger.warn("      DataChannelImplEt.DataInputHelper : " + name + " read in events");
                     try {
                         events = etSystem.getEvents(attachment, Mode.TIMED, Modify.NOTHING, etWaitTime, chunk);
                     }
@@ -319,7 +318,6 @@ Logger.warn("      DataChannelImplEt.DataInputHelper : " + name + " read in even
 Logger.warn("      DataChannelImplEt.DataInputHelper : " + name + " read TIMEOUT");
                         continue;
                     }
-Logger.warn("      DataChannelImplEt.DataInputHelper : " + name + " DONE reading in events");
 
                     // parse events
                     ByteBuffer buf;
@@ -327,6 +325,7 @@ Logger.warn("      DataChannelImplEt.DataInputHelper : " + name + " DONE reading
                         buf = ev.getDataBuffer();
 
                         if (ev.needToSwap()) {
+System.out.println("\n\n      DataChannelImplEt.DataInputHelper : " + name + " SETTING byte order to LITTLE endian\n");
                             buf.order(ByteOrder.LITTLE_ENDIAN);
                         }
 
@@ -336,7 +335,6 @@ Logger.warn("      DataChannelImplEt.DataInputHelper : " + name + " DONE reading
                     }
 
                     // put events back in ET system
-Logger.warn("      DataChannelImplEt.DataInputHelper : " + name + " put back in events");
                     etSystem.putEvents(attachment, events);
                 }
 
@@ -372,7 +370,6 @@ Logger.warn("      DataChannelImplEt.DataOutputHelper : " + name + " - PAUSED");
                     }
 
                     // read in new event in chunks
-Logger.warn("      DataChannelImplEt.DataOutputHelper : " + name + " read in new events");
                     events = etSystem.newEvents(attachment, Mode.SLEEP, 0, chunk, evSize);
 
                     for (int i=0; i < events.length; i++) {
@@ -395,6 +392,7 @@ Logger.warn("      DataChannelImplEt.DataOutputHelper : " + name + " et event to
                         buffer.clear();
                         bank.write(buffer);
                         events[i].setByteOrder(bank.getByteOrder());
+                        events[i].setLength(buffer.position());
                     }
 
                     // put events back in ET system
