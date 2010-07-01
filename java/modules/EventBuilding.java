@@ -20,6 +20,7 @@ import org.jlab.coda.jevio.*;
 import java.util.*;
 import java.util.concurrent.BlockingQueue;
 import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 
 /**
  * The event building module.
@@ -204,10 +205,10 @@ System.out.println("ProcessTest module: quitting watcher thread");
 
                     // If all channels were empty with banks still in queues, or all queues full,
                     // or some combination of the two, avoid chewing up cpu by waiting a little.
-                    if (channelsTouched.isEmpty()) {
+//                    if (channelsTouched.isEmpty()) {
 //System.out.print(".");
-                        Thread.sleep(5);
-                    }
+//                        Thread.sleep(5);
+//                    }
 
                 } catch (EmuException e) {
                     // do something
@@ -333,17 +334,21 @@ System.out.println("Action Thread state " + state);
 
                         // Grab one bank from each channel
                         for (int i=0; i < payloadBankQueues.size(); i++) {
-//System.out.println("Action Thread: take from payload Q# " + (i+1));
                             // will block waiting for payload bank
                             buildingBanks[i] = payloadBankQueues.get(i).take();
-//System.out.println("Action Thread: GOT from payload Q# " + (i+1));
+
+                            // Check endianness
+                            if (buildingBanks[i].getByteOrder() != ByteOrder.BIG_ENDIAN) {
+                                // TODO: major error, do something
+                                System.out.println("All events sent to EMU must be BIG endian");
+                            }
+
                             // Check the source ID of this bank to see if it matches
                             // what should be coming over this channel.
                             if (!Evio.idsMatch(buildingBanks[i], payloadBankQueues.get(i).getSourceId())) {
-System.out.println("bank tag = " + buildingBanks[i].getHeader().getTag());
-System.out.println("queue source id = " + payloadBankQueues.get(i).getSourceId());
+if (nonFatalError) System.out.println("bank tag = " + buildingBanks[i].getHeader().getTag());
+if (nonFatalError) System.out.println("queue source id = " + payloadBankQueues.get(i).getSourceId());
                                 nonFatalError = true;
-                                System.out.println("Action Thread #3");
                             }
                         }
 
@@ -410,10 +415,10 @@ if (nonFatalError) System.out.println("\nERROR 4\n");
                                                  buildingBanks[0].isReserved(),
                                                  buildingBanks[0].isSingleEventMode(),
                                                  ebId);
-System.out.println("tag = " + tag + ", is sync = " + buildingBanks[0].isSync() +
-                   ", has error = " + (buildingBanks[0].hasError() || nonFatalError) +
-                   ", is reserved = " + buildingBanks[0].isReserved() +
-                   ", is single mode = " + buildingBanks[0].isSingleEventMode());
+//System.out.println("tag = " + tag + ", is sync = " + buildingBanks[0].isSync() +
+//                   ", has error = " + (buildingBanks[0].hasError() || nonFatalError) +
+//                   ", is reserved = " + buildingBanks[0].isReserved() +
+//                   ", is single mode = " + buildingBanks[0].isSingleEventMode());
 
                     physicsEvent = new EvioEvent(tag, DataType.BANK, 0xCC);
                     builder.setEvent(physicsEvent);
@@ -450,18 +455,7 @@ System.out.println("tag = " + tag + ", is sync = " + buildingBanks[0].isSync() +
                         
                         dtrEvent.setAllHeaderLengths();
 
-//                        ByteBuffer bbuf = ByteBuffer.allocate(2048);
-//                        dtrEvent.write(bbuf);
-//                        bbuf.flip();
-//                        for (int j=0; j<bbuf.asIntBuffer().limit(); j++) {
-//                            System.out.println(bbuf.asIntBuffer().get(j));
-//                        }
-//                        System.out.println("\n\n\n");
-                        
-                    } catch (EvioException e) {
-                        e.printStackTrace();
-                        /* never happen */
-                    }
+                    } catch (EvioException e) {/* never happen */}
 
                 }
                 catch (EmuException e) {
@@ -472,7 +466,6 @@ System.out.println("tag = " + tag + ", is sync = " + buildingBanks[0].isSync() +
 
 
                 if (hasOutputs) {
-//System.out.println("ProcessTest: put bank on output Q");
                     outputQueue.put(dtrEvent);
 
                     eventCountTotal++;                                       // event count
@@ -492,8 +485,6 @@ System.out.println("tag = " + tag + ", is sync = " + buildingBanks[0].isSync() +
                         prevWordCount  = wordCountTotal;
                     }
                 }
-
-                //Thread.sleep(2);
 
             } catch (InterruptedException e) {
                 e.printStackTrace();
