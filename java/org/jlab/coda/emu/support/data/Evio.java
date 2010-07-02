@@ -636,7 +636,7 @@ System.out.println("extractPayloadBanks: DTR bank source Id conflicts with paylo
             payloadBank.setNonFatalBuildingError(nonFatalError || nonFatalRecordIdError);
             
             // Put ROC raw event on queue.
-            payloadQueue.add(payloadBank);
+            payloadQueue.put(payloadBank);
         }
     }
 
@@ -726,6 +726,12 @@ System.out.println("extractPayloadBanks: DTR bank source Id conflicts with paylo
         EvioSegment ebSeg = (EvioSegment)triggerBanks[0].getChildAt(0);
         firstCommonData = ebSeg.getShortData();
 
+        // as a quick aside, send back info on first event # (which the building thread needs)
+        int numEvents = firstCommonData.length/2;
+        int firstEventNumber = (int)firstCommonData[1]; // only lowest 16 bits
+        inputPayloadBanks[0].setFirstEventNumber(firstEventNumber);
+        inputPayloadBanks[0].setEventCount(numEvents);
+
         for (int i=1; i < numPayloadBanks; i++) {
             commonData = ((EvioSegment)triggerBanks[i].getChildAt(0)).getShortData();
             if (firstCommonData.length != commonData.length) {
@@ -736,6 +742,8 @@ System.out.println("extractPayloadBanks: DTR bank source Id conflicts with paylo
                     throw new EmuException("Trying to merge records with different event types or numbers");
                 }
             }
+            inputPayloadBanks[i].setEventCount(numEvents);
+            inputPayloadBanks[i].setFirstEventNumber(firstEventNumber);
         }
 
         // Bank we are trying to build. Need to update the num which = (# rocs + 1)
@@ -787,9 +795,10 @@ System.out.println("extractPayloadBanks: DTR bank source Id conflicts with paylo
                                                     EventBuilder builder, int ebId)
             throws EmuException {
 
-        int index;
+        int index, firstEventNumber = -1;
         int numPayloadBanks = inputPayloadBanks.length;
         int numEvents = inputPayloadBanks[0].getHeader().getNumber();
+        EvioSegment segment;
         EvioBank[] triggerBanks = new EvioBank[numPayloadBanks];
         boolean nonFatalError = false;
 
@@ -822,6 +831,20 @@ System.out.println("extractPayloadBanks: DTR bank source Id conflicts with paylo
             if (triggerBanks[i].getChildCount() != numEvents) {
                 throw new EmuException("Trigger bank does not have correct number of segments");
             }
+
+            // all trigger banks must start with the same event #
+            segment = (EvioSegment) (triggerBanks[i].getChildAt(0));
+            if (firstEventNumber < 0) {
+                firstEventNumber = segment.getIntData()[0];
+            }
+            else if (segment.getIntData()[0] != firstEventNumber) {
+                throw new EmuException("Trigger bank does start with the correct event number");
+            }
+            inputPayloadBanks[i].setFirstEventNumber(firstEventNumber);
+
+            if (triggerBanks[i].getChildCount() != numEvents) {
+                throw new EmuException("Trigger bank does not have correct number of segments");
+            }
         }
 
         // bank we are trying to build
@@ -842,7 +865,6 @@ System.out.println("extractPayloadBanks: DTR bank source Id conflicts with paylo
         //    _________________________________
         //
 
-        EvioSegment segment;
         short[] evData = new short[2*numEvents];
         for (int i=0; i < numEvents; i++) {
             segment       = (EvioSegment) (triggerBanks[0].getChildAt(i));
@@ -866,9 +888,11 @@ System.out.println("extractPayloadBanks: DTR bank source Id conflicts with paylo
                 segment = (EvioSegment) (triggerBanks[j].getChildAt(i));
 //System.out.println("event type next ROC = " + ((short) (segment.getHeader().getTag())));
                 if (evData[2*i] != (short) (segment.getHeader().getTag())) {
+System.out.println("makeTriggerBankFromRocRaw: event type differs across ROCs");
                     nonFatalError = true;
                 }
                 if (evData[2*i+1] != (short) (segment.getIntData()[0])) {
+System.out.println("makeTriggerBankFromRocRaw: event number differs across ROCs");
                     nonFatalError = true;
                 }
             }
@@ -980,6 +1004,7 @@ System.out.println("extractPayloadBanks: DTR bank source Id conflicts with paylo
         // We are not checking info from additional Data Block banks
         // if more than one from a ROC.
 System.out.println("event type ROC1 = " + evData[0]);
+        inputPayloadBanks[0].setFirstEventNumber((int)evData[1]);
         for (int j=1; j < numPayloadBanks; j++) {
             blockBank = (EvioBank) (inputPayloadBanks[j].getChildAt(0));
 System.out.println("event type next ROC = " + ((short) (blockBank.getHeader().getNumber())));
@@ -989,6 +1014,7 @@ System.out.println("event type next ROC = " + ((short) (blockBank.getHeader().ge
             if (evData[1] != (short) (blockBank.getIntData()[0])) {
                 nonFatalError = true;
             }
+            inputPayloadBanks[j].setFirstEventNumber((int)evData[1]);
         }
 
         // no segments to add for each ROC since we have no ROC-specific data
