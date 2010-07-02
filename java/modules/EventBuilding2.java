@@ -283,15 +283,6 @@ System.out.println("ProcessTest module: quitting watcher thread");
 
                 try {
 
-                    // round-robin through all output channels
-                    if (hasOutputs) {
-                        // if we reached the end of the iterator, start again at the beginning
-                        if (!outputIter.hasNext()) {
-                            outputIter = outputChannels.iterator();
-                        }
-                        outC = outputIter.next();
-                        outputQueue = outC.getQueue();
-                    }
 
                     try {
 
