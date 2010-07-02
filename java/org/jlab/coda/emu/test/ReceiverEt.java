@@ -163,7 +163,7 @@ public class ReceiverEt {
             // array of events
             EtEvent[] mevs;
 
-            int num, chunk = 100, count = 0;
+            int num, chunk = 300, count = 0;
             long t1, t2, totalT = 0, totalCount = 0;
             double rate, avgRate;
 
