@@ -185,8 +185,6 @@ System.out.println("Send thread started");
                     EtEvent[] evs = sys.newEvents(att, Mode.SLEEP, 0, chunk, 1024);
                     if (evs.length < chunk) {
                         sys.dumpEvents(att, evs);
-                        try { Thread.sleep(100); }
-                        catch (InterruptedException e) { }
                         continue;
                     }
 
