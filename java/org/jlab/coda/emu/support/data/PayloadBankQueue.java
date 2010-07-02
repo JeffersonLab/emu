@@ -9,7 +9,7 @@ import java.util.concurrent.LinkedBlockingQueue;
  * @author: timmer
  * Date: Jan 29, 2010
  */
-public class PayloadBankQueue<E> extends LinkedBlockingQueue<E> {
+public class PayloadBankQueue<PayloadBank> extends LinkedBlockingQueue<PayloadBank> {
 
     private int sourceId;
     
@@ -20,7 +20,12 @@ public class PayloadBankQueue<E> extends LinkedBlockingQueue<E> {
         super();
     }
 
-    
+
+    public PayloadBankQueue(int capacity) {
+        super(capacity);
+    }
+
+
     public int getSourceId() {
         return sourceId;
     }
