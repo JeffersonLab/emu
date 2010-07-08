@@ -6,6 +6,8 @@ import org.jlab.coda.et.enums.Mode;
 import org.jlab.coda.et.exception.EtException;
 import org.jlab.coda.et.exception.EtTooManyException;
 import org.jlab.coda.emu.support.data.Evio;
+import org.jlab.coda.emu.support.data.EventType;
+import org.jlab.coda.emu.support.data.PayloadBank;
 
 import java.io.*;
 import java.nio.ByteBuffer;
@@ -179,6 +181,29 @@ System.out.println("Send thread started");
             int counter = 0;
             long start_time = System.currentTimeMillis();
 
+
+            EvioBank bank;
+            EventBuilder builder = new EventBuilder(0, DataType.BANK, 0); // this event not used, just need a builder
+
+            // create user event to be inserted to test EMU building algorithm
+            int dtrTag = Evio.createCodaTag(EventType.USER.getValue(), 1);  // Tag(user value, source id)
+            EvioEvent dtrEvent = new PayloadBank(dtrTag, DataType.BANK, 1);
+            builder.setEvent(dtrEvent);
+
+            try {
+                // add bank with full recordId
+                bank = new EvioBank(Evio.RECORD_ID_BANK, DataType.INT32, 1);
+                bank.appendIntData(new int[] {1});
+                builder.addChild(dtrEvent, bank);
+                bank = new EvioBank(123, DataType.INT32, 456);
+                bank.appendIntData(new int[] {123});
+                builder.addChild(dtrEvent, bank);
+                dtrEvent.setAllHeaderLengths();  // TODO: necessary?
+
+            } catch (EvioException e) {/* never happen */}
+
+           int loops = 0;
+
             try {
 
                 while (true) {
@@ -186,6 +211,17 @@ System.out.println("Send thread started");
                     if (evs.length < chunk) {
                         sys.dumpEvents(att, evs);
                         continue;
+                    }
+
+                    if (loops++ % 1000 == 0) {
+                        EtEvent[] userEvs = sys.newEvents(att, Mode.SLEEP, 0, 1, 1024);
+                        bbuf = userEvs[0].getDataBuffer();
+                        userEvs[0].setLength(bbuf.limit());
+                        control[0] = 1;
+                        userEvs[0].setControl(control);
+                        dtrEvent.write(bbuf);
+System.out.println("Putting user event in");
+                        sys.putEvents(att, userEvs);
                     }
 
                     for (int j = 0; j < chunk; j += 3) {
