@@ -19,6 +19,7 @@ import org.jlab.coda.et.enums.Modify;
 import org.jlab.coda.et.exception.*;
 import org.jlab.coda.jevio.EvioBank;
 import org.jlab.coda.jevio.ByteParser;
+import org.jlab.coda.jevio.EvioException;
 
 
 import java.util.concurrent.BlockingQueue;
@@ -296,6 +297,7 @@ Logger.info("      DataChannelImplEt.const : attached to grandCentral");
 
         /** Method run ... */
         public void run() {
+            EvioBank bank;
 
             try {
                 while ( etSystem.alive() ) {
@@ -329,9 +331,16 @@ System.out.println("\n\n      DataChannelImplEt.DataInputHelper : " + name + " S
                             buf.order(ByteOrder.LITTLE_ENDIAN);
                         }
 
-                        EvioBank bank = parser.parseEvent(buf);
-                        // put evio bank on queue
-                        queue.put(bank);
+                        try {
+                            bank = parser.parseEvent(buf);
+                            // put evio bank on queue if it parses
+                            queue.put(bank);
+                        }
+                        catch (EvioException e) {
+                            // if ET event data NOT in evio format, skip over it
+                            Logger.error("      DataChannelImplEt.DataInputHelper : " + name +
+                                         " ET event data is NOT evio format, skip");
+                        }
                     }
 
                     // put events back in ET system
