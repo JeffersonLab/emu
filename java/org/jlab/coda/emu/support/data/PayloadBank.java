@@ -9,7 +9,7 @@ import org.jlab.coda.jevio.*;
  * @author: timmer
  * Date: Jan 29, 2010
  */
-public class PayloadBank extends EvioBank {
+public class PayloadBank extends EvioEvent {
 
     private EventType type;
 
@@ -51,6 +51,27 @@ public class PayloadBank extends EvioBank {
         children  = bank.getChildren();
     }
 
+    /**
+     * This is a general constructor to use for an EvioEvent.
+     *
+     * @param tag the tag for the event header (which is just a bank header).
+     * @param dataType the (enum) data type for the content of the bank.
+     * @param num sometimes, but not necessarily, an ordinal enumeration.
+     */
+    public PayloadBank(int tag, DataType dataType, int num) {
+        super(new BankHeader(tag, dataType, num));
+    }
+
+    /**
+     * This is a general constructor to use for an EvioEvent.
+     *
+     * @param tag the tag for the event header (which is just a bank header).
+     * @param dataType the (int) data type for the content of the bank.
+     * @param num sometimes, but not necessarily, an ordinal enumeration.
+     */
+    public PayloadBank(int tag, int dataType, int num) {
+        super(new BankHeader(tag, dataType, num));
+    }
 
     public EventType getType() {
         return type;
