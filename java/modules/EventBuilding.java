@@ -195,7 +195,7 @@ System.out.println("ProcessTest module: quitting watcher thread");
                                 // Extract payload banks from DTR & place onto Q
                                 // may be blocked here waiting on a Q
 //System.out.println("QFILLER: Extracting bank from DTR on channel# " + (i+1));
-                                Evio.extractPayloadBanks(channelBank, payloadBankQ, outputQueue);
+                                Evio.extractPayloadBanks(channelBank, payloadBankQ);
                             }
 //                            else {
 //System.out.print("QFILLER: NOT A DTR on channel !!!");
