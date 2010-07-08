@@ -2,6 +2,7 @@ package org.jlab.coda.emu.support.data;
 
 import org.jlab.coda.jevio.*;
 import org.jlab.coda.emu.EmuException;
+import org.jlab.coda.emu.support.logger.Logger;
 
 import java.util.Vector;
 import java.util.concurrent.BlockingQueue;
@@ -502,18 +503,25 @@ public class Evio {
         // First  bank - contains record ID, has event type.
         // Second bank - must be at least one data bank.
         Vector<BaseStructure> kids = bank.getChildren();
-        if (kids.size() < 2) return false;
+        if (kids.size() < 2) {
+            System.out.println("isDTR 1");
+            return false;
+        }
 
         // first bank must contain one 32 bit int - the record ID
         BaseStructure firstBank = kids.firstElement();
 
         // check tag
         int tag = firstBank.getHeader().getTag();
-        if (tag != RECORD_ID_BANK) return false;
+        if (tag != RECORD_ID_BANK) {
+            System.out.println("isDTR 2");
+            return false;
+        }
 
         // contained data must be (U)INT32
         int[] intData = firstBank.getIntData();
         if (intData == null) {
+            System.out.println("isDTR 3");
             return false;
         }
 
@@ -522,6 +530,7 @@ public class Evio {
         int num = bank.getHeader().getNumber();
         if ( (recordId & 0xff) != num ) {
             // contradictory internal data
+            System.out.println("isDTR 4");
             return false;
         }
 
@@ -529,6 +538,7 @@ public class Evio {
         num = firstBank.getHeader().getNumber();
         if (num != kids.size() - 1) {
             // contradictory internal data
+            System.out.println("isDTR 5");
             return false;
         }
 
@@ -549,13 +559,12 @@ public class Evio {
 
 
     /**
-     * Extract certain payload banks (physics or ROC raw format evio banks) from a
-     * Data Transport Record (DTR) format event and place onto the specified queue.
+     * Extract certain payload banks (physics, ROC raw, control, or user format evio banks)
+     * from a Data Transport Record (DTR) format event and place onto the specified queue.
+     * <b>All other banks are thrown away.</b><p>
      * The DTR is a bank of banks with the first bank containing the record ID.
      * The rest are payload banks which are physics events, ROC raw events,
      * run control events, or user events.<p>
-     * Events which do <b>not</b> get built and which may not come simultaneously
-     * from all ROCs (ie user events), are placed on the given output queue directly.<p>
      *
      * No checks done on arguments or dtrBank format as {@link #isDataTransportRecord} is assumed to
      * have already been called. However, format of payload banks is checked here for
@@ -563,12 +572,10 @@ public class Evio {
      *
      * @param dtrBank input bank assumed to be in Data Transport Record format
      * @param payloadQueue queue on which to place extracted payload banks
-     * @param outputQueue queue on which to place banks that do not get built/analyzed (user & unknown events)
      * @throws EmuException if dtrBank contains no data banks or record ID is out of sequence
      * @throws InterruptedException if blocked whileh putting bank on full output queue
      */
-    public static void extractPayloadBanks(EvioBank dtrBank, PayloadBankQueue<PayloadBank> payloadQueue,
-                                           BlockingQueue<EvioBank> outputQueue)
+    public static void extractPayloadBanks(EvioBank dtrBank, PayloadBankQueue<PayloadBank> payloadQueue)
             throws EmuException, InterruptedException {
 
         // get sub banks
@@ -581,20 +588,26 @@ public class Evio {
         boolean nonFatalRecordIdError = false;
 
         // See what type of event DTR bank is wrapping.
-        // Only interested in physics, roc raw, and control events.
+        // Only interested in known types such as physics, roc raw, control, and user events.
         EventType eventType = getEventType(dtrBank);
-        if ( !(eventType.isROCRaw() || eventType.isControl() || eventType.isPhysics()) ) {
-            System.out.println("extractPayloadBanks: DTR is NOT for payload Q !!!, put on output Q !!!");
-            outputQueue.put(dtrBank);
+        if (eventType == null) {
+Logger.error("extractPayloadBanks: unknown type, dump payload bank");
             return;
         }
-
-        // initial recordId stored is 0, ignore that
-        if (payloadQueue.getRecordId() > 0 && recordId != payloadQueue.getRecordId() + 1) {
-System.out.println("extractPayloadBanks: record ID out of sequence, got " + recordId + " but expecting " + (payloadQueue.getRecordId() + 1));
-            nonFatalRecordIdError = true;
+        else if (eventType == EventType.USER) {
+            System.out.println("extractPayloadBanks: FOUND USER event !!!");
         }
-        payloadQueue.setRecordId(recordId);
+
+        // Initial recordId stored is 0, ignore that.
+        // The recordId for user events is meaningless, just ignore it.
+        if (eventType != EventType.USER &&
+            payloadQueue.getRecordId() > 0 &&
+            recordId != payloadQueue.getRecordId() + 1) {
+System.out.print("extractPayloadBanks: record ID out of sequence, got " + recordId + " but expecting " + (payloadQueue.getRecordId() + 1));
+            System.out.println(", type = " + eventType);
+            nonFatalRecordIdError = true;
+            payloadQueue.setRecordId(recordId);
+        }
 
         // store all banks except the first one containing record ID
         int numKids  = kids.size();
@@ -616,26 +629,34 @@ System.out.println("extractPayloadBanks: record ID out of sequence, got " + reco
             payloadBank.setType(eventType);
             payloadBank.setRecordId(recordId);
             payloadBank.setSourceId(sourceId);
+
+            // so far so good
             nonFatalError = false;
-            if (sourceId != getCodaId(payloadBank.getHeader().getTag())) {
+
+            // dig out extra info for ROC raw and physics events
+            if (eventType == EventType.ROC_RAW || eventType == EventType.PHYSICS) {
+                header = payloadBank.getHeader();
+                tag    = header.getTag();
+
+                if (sourceId != getCodaId(tag)) {
 System.out.println("extractPayloadBanks: DTR bank source Id conflicts with payload bank's roc id");
-                nonFatalError = true;
+                    nonFatalError = true;
+                }
+
+                // pick this bank apart a little here
+                if (header.getDataTypeEnum() != DataType.BANK &&
+                    header.getDataTypeEnum() != DataType.ALSOBANK) {
+                    throw new EmuException("ROC raw / physics record not in proper format");
+                }
+
+                payloadBank.setSync(Evio.isSyncEvent(tag));
+                payloadBank.setError(Evio.hasError(tag));
+                payloadBank.setSingleEventMode(Evio.isSingleEventMode(tag));
             }
-            
-            header = payloadBank.getHeader();
-            tag    = header.getTag();
-            // pick this bank apart a little here
-            if (header.getDataTypeEnum() != DataType.BANK &&
-                header.getDataTypeEnum() != DataType.ALSOBANK) {
-                throw new EmuException("ROC raw record not in proper format");
-            }
-            
-            payloadBank.setSync(Evio.isSyncEvent(tag));
-            payloadBank.setError(Evio.hasError(tag));
-            payloadBank.setSingleEventMode(Evio.isSingleEventMode(tag));
+
             payloadBank.setNonFatalBuildingError(nonFatalError || nonFatalRecordIdError);
             
-            // Put ROC raw event on queue.
+            // Put bank on queue.
             payloadQueue.put(payloadBank);
         }
     }
@@ -728,8 +749,8 @@ System.out.println("extractPayloadBanks: DTR bank source Id conflicts with paylo
 
         // as a quick aside, send back info on first event # (which the building thread needs)
         int numEvents = firstCommonData.length/2;
-        int firstEventNumber = (int)firstCommonData[1]; // only lowest 16 bits
-        inputPayloadBanks[0].setFirstEventNumber(firstEventNumber);
+//        int firstEventNumber = 0x0000ffff & firstCommonData[1]; // only lowest 16 bits
+//        inputPayloadBanks[0].setFirstEventNumber(firstEventNumber);
         inputPayloadBanks[0].setEventCount(numEvents);
 
         for (int i=1; i < numPayloadBanks; i++) {
@@ -743,7 +764,7 @@ System.out.println("extractPayloadBanks: DTR bank source Id conflicts with paylo
                 }
             }
             inputPayloadBanks[i].setEventCount(numEvents);
-            inputPayloadBanks[i].setFirstEventNumber(firstEventNumber);
+//            inputPayloadBanks[i].setFirstEventNumber(firstEventNumber);
         }
 
         // Bank we are trying to build. Need to update the num which = (# rocs + 1)
@@ -795,7 +816,7 @@ System.out.println("extractPayloadBanks: DTR bank source Id conflicts with paylo
                                                     EventBuilder builder, int ebId)
             throws EmuException {
 
-        int index, firstEventNumber = -1;
+        int index;//, firstEventNumber = -1;
         int numPayloadBanks = inputPayloadBanks.length;
         int numEvents = inputPayloadBanks[0].getHeader().getNumber();
         EvioSegment segment;
@@ -833,14 +854,14 @@ System.out.println("extractPayloadBanks: DTR bank source Id conflicts with paylo
             }
 
             // all trigger banks must start with the same event #
-            segment = (EvioSegment) (triggerBanks[i].getChildAt(0));
-            if (firstEventNumber < 0) {
-                firstEventNumber = segment.getIntData()[0];
-            }
-            else if (segment.getIntData()[0] != firstEventNumber) {
-                throw new EmuException("Trigger bank does start with the correct event number");
-            }
-            inputPayloadBanks[i].setFirstEventNumber(firstEventNumber);
+//            segment = (EvioSegment) (triggerBanks[i].getChildAt(0));
+//            if (firstEventNumber < 0) {
+//                firstEventNumber = segment.getIntData()[0];
+//            }
+//            else if (segment.getIntData()[0] != firstEventNumber) {
+//                throw new EmuException("Trigger bank does start with the correct event number");
+//            }
+ //           inputPayloadBanks[i].setFirstEventNumber(firstEventNumber);
 
             if (triggerBanks[i].getChildCount() != numEvents) {
                 throw new EmuException("Trigger bank does not have correct number of segments");
@@ -960,6 +981,7 @@ System.out.println("makeTriggerBankFromRocRaw: event number differs across ROCs"
             throws EmuException {
 
         int numPayloadBanks = inputPayloadBanks.length;
+        int firstEventNumber;
         boolean nonFatalError = false;
 
         for (int i=0; i < numPayloadBanks; i++) {
@@ -989,7 +1011,8 @@ System.out.println("makeTriggerBankFromRocRaw: event number differs across ROCs"
         EvioBank blockBank = (EvioBank)inputPayloadBanks[0].getChildAt(0);
         short[] evData = new short[2];
         evData[0] = (short) (blockBank.getHeader().getNumber());  // event type
-        evData[1] = (short) (blockBank.getIntData()[0]);          // event number
+        firstEventNumber = blockBank.getIntData()[0];
+        evData[1] = (short) firstEventNumber;          // event number
 
 
         EvioSegment ebSeg = new EvioSegment(ebId, DataType.USHORT16);
@@ -1004,17 +1027,17 @@ System.out.println("makeTriggerBankFromRocRaw: event number differs across ROCs"
         // We are not checking info from additional Data Block banks
         // if more than one from a ROC.
 System.out.println("event type ROC1 = " + evData[0]);
-        inputPayloadBanks[0].setFirstEventNumber((int)evData[1]);
+//        inputPayloadBanks[0].setFirstEventNumber(firstEventNumber);
         for (int j=1; j < numPayloadBanks; j++) {
             blockBank = (EvioBank) (inputPayloadBanks[j].getChildAt(0));
 System.out.println("event type next ROC = " + ((short) (blockBank.getHeader().getNumber())));
             if (evData[0] != (short) (blockBank.getHeader().getNumber())) {
                 nonFatalError = true;
             }
-            if (evData[1] != (short) (blockBank.getIntData()[0])) {
+            if (firstEventNumber != blockBank.getIntData()[0]) {
                 nonFatalError = true;
             }
-            inputPayloadBanks[j].setFirstEventNumber((int)evData[1]);
+//            inputPayloadBanks[j].setFirstEventNumber(firstEventNumber);
         }
 
         // no segments to add for each ROC since we have no ROC-specific data
