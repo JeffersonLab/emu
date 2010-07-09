@@ -204,6 +204,7 @@ System.out.println("QfillerNew: got non-DTR bank, discard");
             EvioBank bank;
             EventBuilder builder = new EventBuilder(0, DataType.BANK, 0); // this event not used, just need a builder
             EventType eventType;
+            int counter = 0;
 
             while (state == CODAState.ACTIVE) {
 
@@ -230,6 +231,7 @@ System.out.println("QfillerNew: got non-DTR bank, discard");
                             while (state == CODAState.ACTIVE) {
 
                                 if ((Integer)(banks[index].getAttachment()) == outputOrder) {
+// System.out.print("\nGood, banks[" + index + "] = " + outputOrder + "\n");
                                     // wrap event-to-be-sent in Data Transport Record for next EB or ER
                                     dtrTag = Evio.createCodaTag(EventType.PHYSICS.getValue(), ebId);
                                     dtrEvent = new PayloadBank(dtrTag, DataType.BANK, ebRecordId);
@@ -261,8 +263,15 @@ System.out.println("QfillerNew: got non-DTR bank, discard");
                                     banks[index] = threads[index].outputQueue.take();
                                     outputOrder = (outputOrder + 1) % Integer.MAX_VALUE;
                                 }
+//                                else {
+//                                    for (int i=0; i < banks.length; i++) {
+//                                        System.out.print(" banks[" + i + "] = " + (Integer)(banks[i].getAttachment()));
+//                                    }
+//                                    System.out.println("");
+//                                    if (counter++ > 10) System.exit(-1);
 
-                                index = (index + 1) % size;
+                                    index = (index + 1) % size;
+//                                }
                             }
                         }
                     }
@@ -349,7 +358,6 @@ System.out.println("QfillerNew: got non-DTR bank, discard");
     class BuildingThread extends Thread {
 
         BlockingQueue<PayloadBank> outputQueue = new ArrayBlockingQueue<PayloadBank>(1000);
-        int counter=0;
 
         public BuildingThread(ThreadGroup group, Runnable target, String name) {
             super(group, target, name);
@@ -361,6 +369,8 @@ System.out.println("QfillerNew: got non-DTR bank, discard");
 
         public void run() {
 
+            LinkedList<PayloadBank> userEventList = new LinkedList<PayloadBank>();
+
             // have output channels?
             boolean hasOutputs = !outputChannels.isEmpty();
 
@@ -370,8 +380,9 @@ System.out.println("QfillerNew: got non-DTR bank, discard");
             EventBuilder builder = new EventBuilder(0, DataType.BANK, 0); // this event not used, just need a builder
             PayloadBank physicsEvent;
             EvioEvent combinedTrigger;
+            boolean gotUserEvent;
             boolean nonFatalError;
-            boolean gotControlEvents=false;
+            boolean gotControlEvents;
 
             // variables for instantaneous stats
             long deltaT, t1, t2, prevEventCount=0L, prevWordCount=0L;
@@ -390,29 +401,57 @@ System.out.println("QfillerNew: got non-DTR bank, discard");
                         // ROC raw events from all ROCs, each with sequential record IDs.
                         // However, there are also control events on queues.
 
+                        Arrays.fill(buildingBanks, null);
+
                         try {
                             getLock.lock();
-                            // Grab one bank from each channel
-                            for (int i=0; i < payloadBankQueues.size(); i++) {
-                                // will block waiting for payload bank
-                                buildingBanks[i] = payloadBankQueues.get(i).take();
-                                // Check immediately if it is a user event.
-                                // If it is, dump it into the output Q and get another.
-                                while (buildingBanks[i].getType() == EventType.USER) {
-                                    if (hasOutputs) {
-                                        myInputOrder = inputOrder++ % Integer.MAX_VALUE;
-System.out.println("BuldingThread: Got user event, order = " + myInputOrder);
-                                        buildingBanks[i].setAttachment(myInputOrder); // store its output order
-                                        outputQueue.put(buildingBanks[i]);  // blocks, BAD...
+
+                            // Grab one non-user bank from each channel.
+                            // This algorithm retains the proper order of
+                            // any user events.
+                            do {
+                                gotUserEvent = false;
+
+                                for (int i=0; i < payloadBankQueues.size(); i++) {
+                                    // will block waiting for payload bank
+//System.out.println("BuldingThread: gotUEvent = " + gotUserEvent);
+                                    if (buildingBanks[i] == null) {
+//System.out.println("BuldingThread: try getting from q = " + i);
+                                        buildingBanks[i] = payloadBankQueues.get(i).take();
                                     }
-                                    buildingBanks[i] = payloadBankQueues.get(i).take();
+
+                                    // Check immediately if it is a user event.
+                                    // If it is, stick it in a list and get another.
+                                    if (buildingBanks[i].getType() == EventType.USER) {
+                                        myInputOrder = inputOrder++ % Integer.MAX_VALUE;
+//System.out.println("BuldingThread: Got user event, order = " + myInputOrder);
+                                         // store its output order
+                                        buildingBanks[i].setAttachment(myInputOrder);
+                                        // stick it in a list
+                                        userEventList.add(buildingBanks[i]);
+                                        // try for another
+                                        buildingBanks[i] = null;
+                                        gotUserEvent = true;
+                                    }
                                 }
 
-                            }
+                            // if we got a user event go around again until we get a non-user event in that slot
+                            } while (gotUserEvent);
+
                             myInputOrder = inputOrder++ % Integer.MAX_VALUE;
                         }
                         finally {
                             getLock.unlock();
+                        }
+//System.out.println("BuldingThread: out");
+
+                        // If we got any user events, stick those on the Q first.
+                        // Source may be any of the inputs.
+                        if (userEventList.size() > 0) {
+                            for (PayloadBank pbank : userEventList) {
+                                outputQueue.put(pbank);
+                            }
+                            userEventList.clear();
                         }
 
                         for (int i=0; i < payloadBankQueues.size(); i++) {
