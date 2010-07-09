@@ -7,21 +7,15 @@ package org.jlab.coda.emu.support.data;
 public enum EventType {
 
     // events
-    ROC_RAW  (1, false),
-    PHYSICS  (2, false),
-    USER     (3, false),
-    SYNC     (4, true),
-    PRESTART (5, true),
-    GO       (6, true),
-    PAUSE    (7, true),
-    END      (8, true);
+    ROC_RAW  (1),
+    PHYSICS  (2),
+    CONTROL  (3),
+    USER     (4);
 
     private int value;
-    private boolean control;
 
-    private EventType(int value, boolean control) {
+    private EventType(int value) {
         this.value   = value;
-        this.control = control;
     }
 
     /**
@@ -53,7 +47,7 @@ public enum EventType {
      * @return <code>true</code> if control event type, else <code>false</code>
      */
     public boolean isControl() {
-        return control;
+        return this.equals(CONTROL);
     }
 
     /**
