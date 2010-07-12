@@ -28,7 +28,7 @@
             of the class defining this module and must be loaded. id is the id number of this module
             and is used as the unique event builder id if this module is building events.
         -->
-        <CarlsModule class="EventBuilding3" id="7" statistics="on">
+        <CarlsModule class="EventBuilding3" id="7" threads="3" statistics="on">
             <!--
                 The "id" attribute is the rocId or sourceId and allows this module to check incoming events
                 to make sure they have the correct id specified.
@@ -39,7 +39,7 @@
             <inchannel  id="1" name="ROC1"      transp="EmuInputET"  size="2048" />
             <inchannel  id="2" name="ROC2"      transp="EmuInputET"  size="2048" />
             <inchannel  id="3" name="ROC3"      transp="EmuInputET"  size="2048" />
-            <outchannel        name="BitBucket" transp="EmuOutputET" size="8192" chunk="300"/>
+            <outchannel        name="BitBucket" transp="EmuOutputET" size="8192" chunk="300" capacity="600"/>
         </CarlsModule>
         <!--
         <OutModule class="ProcessTest">
