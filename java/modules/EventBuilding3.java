@@ -53,6 +53,8 @@ public class EventBuilding3 implements EmuModule, Runnable {
     private LinkedList<PayloadBankQueue<PayloadBank>> payloadBankQueues =
             new LinkedList<PayloadBankQueue<PayloadBank>>();
 
+    private int buildingThreadCount;
+
     /** Container for queues used to hold payload banks taken from Data Transport Records. */
     private LinkedList<BuildingThread> buildingThreadQueue = new LinkedList<BuildingThread>();
 
@@ -99,10 +101,11 @@ public class EventBuilding3 implements EmuModule, Runnable {
     /** Field watcher */
     private Thread watcher;
 
+    private boolean paused;
 
     /**
      * This class defines a thread that copies the event number and data count into the EMU status
-     * once every two hundred milliseconds. This is much more efficient than updating the status
+     * once every 1/2 second. This is much more efficient than updating the status
      * every time that the counters are incremented.
      */
     private class Watcher extends Thread {
@@ -145,23 +148,22 @@ System.out.println("ProcessTest module: quitting watcher thread");
      * a channel (ROC)) onto a payload bank queue associated with that channel. All other types
      * of events are ignored. Nothing in this class depends on single event mode status.<p>
      */
-    private class QfillerNew extends Thread {
+    private class Qfiller extends Thread {
 
         BlockingQueue<EvioBank> channelQ;
         PayloadBankQueue<PayloadBank> payloadBankQ;
 
-        public QfillerNew(PayloadBankQueue<PayloadBank> payloadBankQ, BlockingQueue<EvioBank> channelQ) {
+        public Qfiller(PayloadBankQueue<PayloadBank> payloadBankQ, BlockingQueue<EvioBank> channelQ) {
             this.channelQ = channelQ;
             this.payloadBankQ = payloadBankQ;
         }
 
         public void run() {
-//            int loopy=0;
             EvioBank channelBank;
 
-            while (state == CODAState.ACTIVE) {
+            while (state == CODAState.ACTIVE || paused) {
                 try {
-                    while (state == CODAState.ACTIVE) {
+                    while (state == CODAState.ACTIVE || paused) {
                         // block waiting for the next DTR from ROC.
                         channelBank = channelQ.take();  // blocks, throws InterruptedException
 
@@ -170,15 +172,11 @@ System.out.println("ProcessTest module: quitting watcher thread");
                             // Extract payload banks from DTR & place onto Q.
                             // May be blocked here waiting on a Q.
                             Evio.extractPayloadBanks(channelBank, payloadBankQ);
+//if (payloadBankQ.size() > 998) System.out.println("payQ " + Thread.currentThread().getName() + " = " + payloadBankQ.size());
                         }
                         else {
-System.out.println("QfillerNew: got non-DTR bank, discard");
-
+System.out.println("Qfiller: got non-DTR bank, discard");
                         }
-//                        if (loopy++ > 100) {
-//                            Thread.yield();
-//                            loopy = 0;
-//                        }
                     }
 
                 } catch (EmuException e) {
@@ -213,7 +211,7 @@ System.out.println("QfillerNew: got non-DTR bank, discard");
 
                 try {
 
-                    while (state == CODAState.ACTIVE) {
+                    while (state == CODAState.ACTIVE || paused) {
 
                         if (hasOutputs) {
 
@@ -228,7 +226,7 @@ System.out.println("QfillerNew: got non-DTR bank, discard");
                             }
                             index = 0;
 
-                            while (state == CODAState.ACTIVE) {
+                            while (state == CODAState.ACTIVE || paused) {
 
                                 if ((Integer)(banks[index].getAttachment()) == outputOrder) {
 // System.out.print("\nGood, banks[" + index + "] = " + outputOrder + "\n");
@@ -254,6 +252,8 @@ System.out.println("QfillerNew: got non-DTR bank, discard");
 
                                     eventType = banks[index].getType();
                                     if (eventType.isROCRaw() || eventType.isPhysics()) {
+//System.out.println("out Chan " + Thread.currentThread().getName() + " = " +
+//   outputChannels.get(outputOrder % outputChannels.size()).getQueue().size());
                                         outputChannels.get(outputOrder % outputChannels.size()).getQueue().put(banks[index]);
                                     }
                                     else {
@@ -268,7 +268,7 @@ System.out.println("QfillerNew: got non-DTR bank, discard");
 //                                        System.out.print(" banks[" + i + "] = " + (Integer)(banks[i].getAttachment()));
 //                                    }
 //                                    System.out.println("");
-//                                    if (counter++ > 10) System.exit(-1);
+//                                    if (counter++ > 300) System.exit(-1);
 
                                     index = (index + 1) % size;
 //                                }
@@ -297,8 +297,17 @@ System.out.println("QfillerNew: got non-DTR bank, discard");
             ebId = Integer.parseInt(attributeMap.get("id"));
         }
         catch (NumberFormatException e) { /* default to 0 */ }
-//System.out.println("**** HEY, HEY someone created one of ME (modules.ProcessTest object) ****");
-        System.out.println("**** LOADED NEW CLASS, DUDE!!! (modules.ProcessTest object) ****");
+
+        // default to 3 event building threads
+        buildingThreadCount = 3;
+        try {
+            buildingThreadCount = Integer.parseInt(attributeMap.get("threads"));
+System.out.println("\nSetting #### of threads to " + buildingThreadCount + "\n");
+        }
+        catch (NumberFormatException e) { /* default to 0 */ }
+
+// System.out.println("**** HEY, HEY someone created one of ME (modules.ProcessTest object) ****");
+// System.out.println("**** LOADED NEW CLASS, DUDE!!! (modules.ProcessTest object) ****");
     }
 
     public String name() {
@@ -369,26 +378,23 @@ System.out.println("QfillerNew: got non-DTR bank, discard");
 
         public void run() {
 
-            LinkedList<PayloadBank> userEventList = new LinkedList<PayloadBank>();
-
-            // have output channels?
-            boolean hasOutputs = !outputChannels.isEmpty();
 
             // initialize
             int myInputOrder=-1;
-            PayloadBank[] buildingBanks = new PayloadBank[inputChannels.size()];
-            EventBuilder builder = new EventBuilder(0, DataType.BANK, 0); // this event not used, just need a builder
-            PayloadBank physicsEvent;
-            EvioEvent combinedTrigger;
             boolean gotUserEvent;
             boolean nonFatalError;
             boolean gotControlEvents;
+            EvioEvent combinedTrigger;
+            PayloadBank physicsEvent;
+            PayloadBank[] buildingBanks = new PayloadBank[inputChannels.size()];
+            EventBuilder builder = new EventBuilder(0, DataType.BANK, 0); // this event not used, just need a builder
+            LinkedList<PayloadBank> userEventList = new LinkedList<PayloadBank>();
 
             // variables for instantaneous stats
             long deltaT, t1, t2, prevEventCount=0L, prevWordCount=0L;
             t1 = System.currentTimeMillis();
 
-            while (state == CODAState.ACTIVE) {
+            while (state == CODAState.ACTIVE || paused) {
 
                 try {
 
@@ -562,7 +568,6 @@ System.out.println("QfillerNew: got non-DTR bank, discard");
                             physicsEvent.setAllHeaderLengths();
                             physicsEvent.setAttachment(myInputOrder); // store its output order
                             physicsEvent.setType(EventType.PHYSICS);
- //System.out.println("BuldingThread: 3.5");
 
 //                    ByteBuffer bbuf = ByteBuffer.allocate(2048);
 //                    physicsEvent.write(bbuf);
@@ -575,6 +580,7 @@ System.out.println("QfillerNew: got non-DTR bank, discard");
                             // Stick it on the local output Q (for this building thread).
                             // That way we don't waste time trying to coordinate between
                             // building threads right here - leave that to the QCollector thread.
+if (outputQueue.size() > 998) System.out.println("outQ " + Thread.currentThread().getName() + " = " + outputQueue.size());
                             outputQueue.put(physicsEvent);
                         } // if we had no control events
 
@@ -606,7 +612,8 @@ System.out.println("QfillerNew: got non-DTR bank, discard");
                     
 
                 } catch (InterruptedException e) {
-                    e.printStackTrace();
+                    //e.printStackTrace();
+System.out.println("INTERRUPTED thread " + Thread.currentThread().getName());
                     if (state == CODAState.DOWNLOADED) return;
                 }
             }
@@ -769,23 +776,28 @@ System.out.println("QfillerNew: got non-DTR bank, discard");
         if (cmd.equals(CODATransition.END)) {
             state = CODAState.DOWNLOADED;
 
-//            if (actionThread != null) actionThread.interrupt();
-            for (Thread thd : buildingThreadQueue) {
-                thd.interrupt();
-            }
-            if (qCollector   != null) qCollector.interrupt();
-            if (watcher      != null) watcher.interrupt();
-            if (qFillers     != null) {
+            // The order in which these thread are shutdown does(should) not matter.
+            // Rocs should already have been shutdown, followed by the ET transport objects,
+            // followed by this module.
+            if (watcher  != null) watcher.interrupt();
+            if (qFillers != null) {
                 for (Thread qf : qFillers) {
                     qf.interrupt();
                 }
             }
+            for (Thread thd : buildingThreadQueue) {
+                thd.interrupt();
+            }
+            if (qCollector != null) qCollector.interrupt();
 
+            watcher    = null;
+            qFillers   = null;
+            qCollector = null;
             buildingThreadQueue.clear();
-//            actionThread = null;
-            qCollector   = null;
-            qFillers     = null;
-            watcher      = null;
+
+            inputOrder = 0;
+            outputOrder = 0;
+            paused = false;
 
             try {
                 // set end-of-run time in local XML config / debug GUI
@@ -802,23 +814,25 @@ System.out.println("QfillerNew: got non-DTR bank, discard");
             eventRate = wordRate = 0F;
             eventCountTotal = wordCountTotal = 0L;
 
-            for (Thread thd : buildingThreadQueue) {
-                thd.interrupt();
-            }
-//            if (actionThread != null) actionThread.interrupt();
-            if (qCollector   != null) qCollector.interrupt();
-            if (watcher      != null) watcher.interrupt();
-            if (qFillers     != null) {
+            if (watcher  != null) watcher.interrupt();
+            if (qFillers != null) {
                 for (Thread qf : qFillers) {
                     qf.interrupt();
                 }
             }
+            for (Thread thd : buildingThreadQueue) {
+                thd.interrupt();
+            }
+            if (qCollector != null) qCollector.interrupt();
 
-//            actionThread = null;
+            watcher    = null;
+            qFillers   = null;
+            qCollector = null;
             buildingThreadQueue.clear();
-            qCollector   = null;
-            qFillers     = null;
-            watcher      = null;
+
+            inputOrder = 0;
+            outputOrder = 0;
+            paused = false;
 
             if (previousState.equals(CODAState.ACTIVE)) {
                 try {
@@ -878,26 +892,20 @@ System.out.println("QfillerNew: got non-DTR bank, discard");
             eventRate = wordRate = 0F;
             eventCountTotal = wordCountTotal = 0L;
 
-            // start up necessary threads
+            // create threads objects (but don't start them yet)
             watcher = new Thread(Emu.THREAD_GROUP, new Watcher(), name+":watcher");
+            for (int i=0; i < buildingThreadCount; i++) {
+                BuildingThread thd1 = new BuildingThread(Emu.THREAD_GROUP, new BuildingThread(), name+":builder"+i);
+                buildingThreadQueue.add(thd1);
+            }
+            qCollector = new Thread(Emu.THREAD_GROUP, new QCollector(), name+":qcollector");
             qFillers = new Thread[qCount];
             for (int i=0; i < qCount; i++) {
                 qFillers[i] = new Thread(Emu.THREAD_GROUP,
-                                         new QfillerNew(payloadBankQueues.get(i),
+                                         new Qfiller(payloadBankQueues.get(i),
                                                         inputChannels.get(i).getQueue()),
                                          name+":qfiller"+i);
             }
-//            actionThread  = new Thread(Emu.THREAD_GROUP, this, name);  // TODO: does this really work? or does it end right away?!!
-            BuildingThread thd1 = new BuildingThread(Emu.THREAD_GROUP, new BuildingThread(), "builder1");
-            BuildingThread thd2 = new BuildingThread(Emu.THREAD_GROUP, new BuildingThread(), "builder2");
-            BuildingThread thd3 = new BuildingThread(Emu.THREAD_GROUP, new BuildingThread(), "builder3");
-//            BuildingThread thd4 = new BuildingThread(Emu.THREAD_GROUP, new BuildingThread(), "builder4");
-            buildingThreadQueue.add(thd1);
-            buildingThreadQueue.add(thd2);
-            buildingThreadQueue.add(thd3);
-//            buildingThreadQueue.add(thd4);
-
-            qCollector = new Thread(Emu.THREAD_GROUP, new QCollector(), name+":qcollector");
 
             try {
                 // set end-of-run time in local XML config / debug GUI
@@ -910,28 +918,73 @@ System.out.println("QfillerNew: got non-DTR bank, discard");
         }
 
         // currently NOT used
-//        else if (cmd.equals(CODATransition.PAUSE)) { }
+        else if (cmd.equals(CODATransition.PAUSE)) {
+            System.out.println("EB: GOT PAUSE, DO NOTHING");
+            paused = true;
+        }
 
         else if (cmd.equals(CODATransition.GO)) {
+            if (state == CODAState.ACTIVE) {
+                System.out.println("WE musta hit go after PAUSE");
+            }
+
             state = CODAState.ACTIVE;
 
+            // start up all threads
             if (watcher == null) {
                 watcher = new Thread(Emu.THREAD_GROUP, new Watcher(), name+":watcher");
             }
-            if (!watcher.isAlive()) watcher.start();
+            if (watcher.getState() == Thread.State.NEW) {
+                System.out.println("starting watcher thread");
+                watcher.start();
+            }
+
+            if (buildingThreadQueue.size() < 1) {
+                for (int i=0; i < buildingThreadCount; i++) {
+                    BuildingThread thd1 = new BuildingThread(Emu.THREAD_GROUP, new BuildingThread(), name+":builder"+i);
+                    buildingThreadQueue.add(thd1);
+                }
+            }
+            else {
+                System.out.println("EB: building thread Q is not empty, size = " + buildingThreadQueue.size());
+            }
+            int j=0;
+            for (BuildingThread thd : buildingThreadQueue) {
+                System.out.println("EB: building thread " + thd.getName() + " isAlive = " + thd.isAlive());
+                if (thd.getState() == Thread.State.NEW) {
+                    System.out.println("Start building thread " + (++j));
+                    thd.start();
+                }
+            }
+
+            if (qCollector == null) {
+                qCollector = new Thread(Emu.THREAD_GROUP, new QCollector(), name+":qcollector");
+            }
+            else {
+                System.out.println("EB: qCollector is not null");
+            }
+            if (qCollector.getState() == Thread.State.NEW) {
+                System.out.println("EB: qCollector is not alive, so start qCollector thread");
+                qCollector.start();
+            }
 
             if (qFillers == null) {
                 qFillers = new Thread[payloadBankQueues.size()];
                 for (int i=0; i < payloadBankQueues.size(); i++) {
                     qFillers[i] = new Thread(Emu.THREAD_GROUP,
-                                             new QfillerNew(payloadBankQueues.get(i),
+                                             new Qfiller(payloadBankQueues.get(i),
                                                             inputChannels.get(i).getQueue()),
                                              name+":qfiller"+i);
                 }
             }
             for (int i=0; i < payloadBankQueues.size(); i++) {
-                if (!qFillers[i].isAlive()) qFillers[i].start();
+                if (qFillers[i].getState() == Thread.State.NEW) {
+                    System.out.println("Start qfiller thread " + i);
+                    qFillers[i].start();
+                }
             }
+
+            paused = false;
 
             try {
                 // set end-of-run time in local XML config / debug GUI
@@ -941,31 +994,6 @@ System.out.println("QfillerNew: got non-DTR bank, discard");
                 state = CODAState.ERROR;
                 return;
             }
-
-//            if (actionThread == null) {
-//                actionThread = new Thread(Emu.THREAD_GROUP, this, name);
-//            }
-//            if (!actionThread.isAlive()) actionThread.start();
-
-            if (buildingThreadQueue.size() < 1) {
-                BuildingThread thd1 = new BuildingThread(Emu.THREAD_GROUP, new BuildingThread(), "builder1");
-                BuildingThread thd2 = new BuildingThread(Emu.THREAD_GROUP, new BuildingThread(), "builder2");
-                BuildingThread thd3 = new BuildingThread(Emu.THREAD_GROUP, new BuildingThread(), "builder3");
-//                BuildingThread thd4 = new BuildingThread(Emu.THREAD_GROUP, new BuildingThread(), "builder4");
-                buildingThreadQueue.add(thd1);
-                buildingThreadQueue.add(thd2);
-                buildingThreadQueue.add(thd3);
-//                buildingThreadQueue.add(thd4);
-            }
-            for (BuildingThread thd : buildingThreadQueue) {
-                if (!thd.isAlive()) thd.start();
-            }
-
-            if (qCollector == null) {
-                qCollector = new Thread(Emu.THREAD_GROUP, new QCollector(), name+":qcollector");
-            }
-            if (!qCollector.isAlive()) qCollector.start();
-
         }
 
         state = cmd.success();
