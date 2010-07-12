@@ -174,8 +174,6 @@ System.out.println("Created channel " + name + ", channels size = " + channels()
     public void execute(Command cmd) {
 Logger.debug("    DataTransportImplEt.execute : " + cmd);
 
-        DataChannelImplEt etChannel;
-
         if (cmd.equals(CODATransition.PRESTART)) {
 
             try {
