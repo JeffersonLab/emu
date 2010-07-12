@@ -28,7 +28,6 @@ import java.util.Map;
 import java.util.Arrays;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
-import java.io.IOException;
 
 /**
  * @author timmer
@@ -298,6 +297,7 @@ Logger.info("      DataChannelImplEt.const : attached to grandCentral");
         /** Method run ... */
         public void run() {
             EvioBank bank;
+//Logger.info("      DataChannelImplEt.DataInputHelper : " + name + " - STARTED");
 
             try {
                 while ( etSystem.alive() ) {
@@ -317,7 +317,7 @@ Logger.warn("      DataChannelImplEt.DataInputHelper : " + name + " - PAUSED");
                         if (Thread.currentThread().isInterrupted()) {
                             return;
                         }
-Logger.warn("      DataChannelImplEt.DataInputHelper : " + name + " read TIMEOUT");
+//Logger.warn("      DataChannelImplEt.DataInputHelper : " + name + " read TIMEOUT");
                         continue;
                     }
 
