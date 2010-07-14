@@ -13,8 +13,6 @@ package org.jlab.coda.emu.support.transport;
 
 import org.jlab.coda.et.*;
 import org.jlab.coda.et.exception.EtException;
-import org.jlab.coda.et.exception.EtTooManyException;
-import org.jlab.coda.et.exception.EtExistsException;
 import org.jlab.coda.emu.support.configurer.DataNotFoundException;
 import org.jlab.coda.emu.support.codaComponent.CODAState;
 import org.jlab.coda.emu.support.codaComponent.CODATransition;
@@ -24,8 +22,6 @@ import org.jlab.coda.emu.support.control.Command;
 import java.util.Map;
 import java.util.Collection;
 import java.util.Arrays;
-import java.util.List;
-import java.io.IOException;
 
 /**
  * @author timmer
