@@ -10,7 +10,7 @@
   ~
   -->
 
-<component name="SingleEmu">
+<component name="EMU1">
     <transports>
         <server name="EmuInputET"  class="Et" etName="/tmp/emuIn"  host="local" method="direct" port="12347"/>
         <client name="EmuOutputET" class="Et" etName="/tmp/emuOut" host="local" method="direct" port="12349"/>
