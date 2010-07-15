@@ -102,34 +102,38 @@ System.out.println("\n CMSGPortal using UDL = " + UDL + "\n");
             // make sure we have a viable connection to the cMsg server.
             while (!monitorThread.isInterrupted()) {
 
-                if (server == null || !server.isConnected()) try {
-                    // create connection to cMsg server
-System.out.println("CMSGPortal creating cMsg object using UDL = " + UDL + "\n");
-                    server = new cMsg(UDL, comp.name(), "EMU called " + comp.name());
-                    server.connect();
-                    // allow receipt of messages
-                    server.start();
-                    // install callback for download, prestart, go, etc
-System.out.println("CMSGPortal subscribe to sub = *, type = " + RCConstants.transitionCommandType);
-                    server.subscribe("*", RCConstants.transitionCommandType, new RCTransitionHandler(self), null);
-                    // install callback for reset, configure, start, stop, getsession, setsession, etc
-System.out.println("CMSGPortal subscribe to sub = *, type = " + RCConstants.runCommandType);
-                    server.subscribe("*", RCConstants.runCommandType, new RCControlHandler(self), null);
-                    // install callback for set/get run number, set/get run type
-System.out.println("CMSGPortal subscribe to sub = *, type = " + RCConstants.sessionCommandType);
-                    server.subscribe("*", RCConstants.sessionCommandType, new RCSessionHandler(self), null);
+                if (server == null || !server.isConnected()) {
+                    try {
+                        // create connection to cMsg server
+    System.out.println("CMSGPortal creating cMsg object using UDL = " + UDL + "\n");
+                        server = new cMsg(UDL, comp.name(), "EMU called " + comp.name());
+                        System.out.println("CMSGPortal created cMsg object");
+                        server.connect();
+                        System.out.println("CMSGPortal CONNECTED");
+                        // allow receipt of messages
+                        server.start();
+                        // install callback for download, prestart, go, etc
+    System.out.println("CMSGPortal subscribe to sub = *, type = " + RCConstants.transitionCommandType);
+                        server.subscribe("*", RCConstants.transitionCommandType, new RCTransitionHandler(self), null);
+                        // install callback for reset, configure, start, stop, getsession, setsession, etc
+    System.out.println("CMSGPortal subscribe to sub = *, type = " + RCConstants.runCommandType);
+                        server.subscribe("*", RCConstants.runCommandType, new RCControlHandler(self), null);
+                        // install callback for set/get run number, set/get run type
+    System.out.println("CMSGPortal subscribe to sub = *, type = " + RCConstants.sessionCommandType);
+                        server.subscribe("*", RCConstants.sessionCommandType, new RCSessionHandler(self), null);
 
-                    Logger.info("cMSg server connected");
+                        Logger.info("cMSg server connected");
 
-                } catch (cMsgException e) {
-                    Logger.warn("cMSg server down, retry in 5 seconds");
-                    if (server != null) {
-                        try {
-                            if (server.isConnected()) server.disconnect();
-                        } catch (cMsgException e1) {
-                            // ignore
+                    } catch (cMsgException e) {
+                        Logger.warn("cMSg server down, retry in 5 seconds");
+                        if (server != null) {
+                            try {
+                                if (server.isConnected()) server.disconnect();
+                            } catch (cMsgException e1) {
+                                // ignore
+                            }
+                            server = null;
                         }
-                        server = null;
                     }
                 }
 
