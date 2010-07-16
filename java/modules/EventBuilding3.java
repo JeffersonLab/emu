@@ -106,9 +106,10 @@ public class EventBuilding3 implements EmuModule, Runnable {
     /**
      * This class defines a thread that copies the event number and data count into the EMU status
      * once every 1/2 second. This is much more efficient than updating the status
-     * every time that the counters are incremented.
+     * every time that the counters are incremented. Not currently used. Can't remember why
+     * we needed to write values into xml doc.
      */
-    private class Watcher extends Thread {
+    private class WatcherOld extends Thread {
         /**
          * Method run is the action loop of the thread. It executes while the module is in the
          * state ACTIVE or PRESTARTED. It is exited on end of run or reset.
@@ -135,6 +136,52 @@ public class EventBuilding3 implements EmuModule, Runnable {
                     Logger.info("ProcessTest thread " + name() + " interrupted");
                 } catch (DataNotFoundException e) {
                     e.printStackTrace();
+                }
+            }
+System.out.println("ProcessTest module: quitting watcher thread");
+        }
+    }
+
+
+    /**
+     * This class defines a thread that makes instantaneous rate calculations
+     * once every few seconds. Rates are sent to runcontrol.
+     */
+    private class Watcher extends Thread {
+        /**
+         * Method run is the action loop of the thread. It executes while the module is in the
+         * state ACTIVE or PRESTARTED. It is exited on end of run or reset.
+         * It is started by the GO transition.
+         */
+        public void run() {
+
+            // variables for instantaneous stats
+            long deltaT, t1, t2, prevEventCount=0L, prevWordCount=0L;
+
+            while ((state == CODAState.ACTIVE) || paused) {
+                try {
+                    // In the paused state only wake every two seconds.
+                    sleep(2000);
+
+                    t1 = System.currentTimeMillis();
+
+                    while (state == CODAState.ACTIVE) {
+                        sleep(statGatheringPeriod);
+
+                        t2 = System.currentTimeMillis();
+                        deltaT = t2 - t1;
+
+                        // calculate rates
+                        eventRate = (eventCountTotal - prevEventCount)*1000F/deltaT;
+                        wordRate  = (wordCountTotal  - prevWordCount)*1000F/deltaT;
+
+                        t1 = t2;
+                        prevEventCount = eventCountTotal;
+                        prevWordCount  = wordCountTotal;
+                    }
+
+                } catch (InterruptedException e) {
+                    Logger.info("ProcessTest thread " + name() + " interrupted");
                 }
             }
 System.out.println("ProcessTest module: quitting watcher thread");
@@ -251,10 +298,13 @@ System.out.println("Qfiller: got non-DTR bank, discard");
 
 
                                     eventType = banks[index].getType();
-                                    if (eventType.isROCRaw() || eventType.isPhysics()) {
+                                    if (eventType.isPhysics()) {
 //System.out.println("out Chan " + Thread.currentThread().getName() + " = " +
 //   outputChannels.get(outputOrder % outputChannels.size()).getQueue().size());
                                         outputChannels.get(outputOrder % outputChannels.size()).getQueue().put(banks[index]);
+                                        // stats
+                                        eventCountTotal += banks[index].getEventCount();              // event count
+                                        wordCountTotal  += banks[index].getHeader().getLength() + 1;  //  word count
                                     }
                                     else {
                                         // usr or control events are not part of the round-robin output
@@ -378,9 +428,9 @@ System.out.println("\nSetting #### of threads to " + buildingThreadCount + "\n")
 
         public void run() {
 
-
             // initialize
             int myInputOrder=-1;
+            int totalNumberEvents;
             boolean gotUserEvent;
             boolean nonFatalError;
             boolean gotControlEvents;
@@ -390,9 +440,6 @@ System.out.println("\nSetting #### of threads to " + buildingThreadCount + "\n")
             EventBuilder builder = new EventBuilder(0, DataType.BANK, 0); // this event not used, just need a builder
             LinkedList<PayloadBank> userEventList = new LinkedList<PayloadBank>();
 
-            // variables for instantaneous stats
-            long deltaT, t1, t2, prevEventCount=0L, prevWordCount=0L;
-            t1 = System.currentTimeMillis();
 
             while (state == CODAState.ACTIVE || paused) {
 
@@ -420,9 +467,7 @@ System.out.println("\nSetting #### of threads to " + buildingThreadCount + "\n")
 
                                 for (int i=0; i < payloadBankQueues.size(); i++) {
                                     // will block waiting for payload bank
-//System.out.println("BuldingThread: gotUEvent = " + gotUserEvent);
                                     if (buildingBanks[i] == null) {
-//System.out.println("BuldingThread: try getting from q = " + i);
                                         buildingBanks[i] = payloadBankQueues.get(i).take();
                                     }
 
@@ -522,8 +567,9 @@ System.out.println("\nSetting #### of threads to " + buildingThreadCount + "\n")
                                 }
                             }
 
-                            // at this point we found (and cleverly stored) the first event number & total # of events
-//                            totalNumberEvents = buildingBanks[0].getEventCount();
+                            // at this point we found (and cleverly stored)
+                            // the first event number & total # of events
+                            totalNumberEvents = buildingBanks[0].getEventCount();
                             // lowest 16 bits only if from physics event
 //                            firstEventNumber  = buildingBanks[0].getFirstEventNumber();
 
@@ -568,6 +614,7 @@ System.out.println("\nSetting #### of threads to " + buildingThreadCount + "\n")
                             physicsEvent.setAllHeaderLengths();
                             physicsEvent.setAttachment(myInputOrder); // store its output order
                             physicsEvent.setType(EventType.PHYSICS);
+                            physicsEvent.setEventCount(totalNumberEvents);
 
 //                    ByteBuffer bbuf = ByteBuffer.allocate(2048);
 //                    physicsEvent.write(bbuf);
@@ -591,25 +638,6 @@ if (outputQueue.size() > 998) System.out.println("outQ " + Thread.currentThread(
                         e.printStackTrace();
                     }
 
-
-                    // TODO: not all threads have to calculate the rate
-//                    eventCountTotal++;                                       // event count
-//                    wordCountTotal += dtrEvent.getHeader().getLength() + 1;  //  word count
-//
-//                    t2 = System.currentTimeMillis();
-//                    deltaT = t2 - t1;
-//
-//                    // calculate rates again if time period exceeded
-//                    if (deltaT >= statGatheringPeriod) {
-//                        synchronized (this) {
-//                            eventRate = (eventCountTotal - prevEventCount)*1000F/deltaT;
-//                            wordRate  = (wordCountTotal  - prevWordCount)*1000F/deltaT;
-//                        }
-//                        t1 = t2;
-//                        prevEventCount = eventCountTotal;
-//                        prevWordCount  = wordCountTotal;
-//                    }
-                    
 
                 } catch (InterruptedException e) {
                     //e.printStackTrace();
@@ -809,7 +837,7 @@ System.out.println("INTERRUPTED thread " + Thread.currentThread().getName());
 
         else if (cmd.equals(CODATransition.RESET)) {
             State previousState = state;
-            state = CODAState.UNCONFIGURED;
+            state = CODAState.CONFIGURED;
 
             eventRate = wordRate = 0F;
             eventCountTotal = wordCountTotal = 0L;
