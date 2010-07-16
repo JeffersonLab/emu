@@ -700,8 +700,8 @@ System.out.println("EXECUTING cmd = " + cmd.name());
 
         // if given the "reset" command, do that after the modules have reset
         if (cmd.equals(CODATransition.RESET)) {
-            if ((FRAMEWORK != null) && (loadedConfig != null)) FRAMEWORK.removeDocument(loadedConfig);
-            loadedConfig = null;
+//            if ((FRAMEWORK != null) && (loadedConfig != null)) FRAMEWORK.removeDocument(loadedConfig);
+//            loadedConfig = null;
         }
         // if given the "exit" command, do that after the modules have exited
         else if (cmd.equals(RunControl.EXIT)) {
