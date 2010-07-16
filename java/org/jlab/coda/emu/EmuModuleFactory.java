@@ -344,9 +344,11 @@ System.out.println("Put (" + a.getNodeName() + "," + a.getNodeValue() + ") into 
         // RESET command
         if (cmd.equals(CODATransition.RESET)) {
             Logger.info("EmuModuleFactory.execute : RESET");
-            modules.clear();
-            state = CODAState.UNCONFIGURED;
+            state = CODAState.CONFIGURED;
             CODAState.ERROR.getCauses().clear();
+            return;
+//            modules.clear();
+//            state = CODAState.UNCONFIGURED;
         }
 
         if (cmd.success() != null && state != CODAState.ERROR) state = cmd.success();
