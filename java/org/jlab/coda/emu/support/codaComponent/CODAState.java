@@ -30,7 +30,8 @@ import java.util.Vector;
  *    transition   |      STATE      |  transition
  * ________________|_________________|______________________________
  *
- *
+ *                       ERROR
+ * 
  *                  <- UNCONFIGURED <-----------------------,
  *                 |                                        |
  *     configure   |                                        |
@@ -56,7 +57,7 @@ import java.util.Vector;
  * __________________________________________________________________
  *
  *  NOTE: DOWNLOADED can always do a download,
- *        RESET goes from any state to UNCONFIGURED
+ *        RESET goes from any state to CONFIGURED
  *
  * </pre></code>
  *
@@ -66,10 +67,11 @@ import java.util.Vector;
 public enum CODAState implements State {
 
     /** UNCONFIGURED state. */
-    UNCONFIGURED("codaComponent is not configured", EnumSet.of(CODATransition.CONFIGURE,
-                                                               CODATransition.RESET)),
+    UNCONFIGURED("codaComponent is not configured", EnumSet.of(CODATransition.CONFIGURE)),
+    
     /** CONFIGURED state. */
-    CONFIGURED("configuration is loaded", EnumSet.of(CODATransition.DOWNLOAD,
+    CONFIGURED("configuration is loaded", EnumSet.of(CODATransition.CONFIGURE,
+                                                     CODATransition.DOWNLOAD,
                                                      CODATransition.RESET)),
     /** DOWNLOADED state (same as ENDED). */
     DOWNLOADED("external modules loaded", EnumSet.of(CODATransition.DOWNLOAD,

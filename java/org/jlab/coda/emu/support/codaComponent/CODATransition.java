@@ -32,10 +32,10 @@ import java.util.HashMap;
  * ________________|_________________|______________________________
  *
  *
- *                  <- UNCONFIGURED <-----------------------,
- *                 |                                        |
- *     configure   |                                        |
- *                 |                                        |
+ *                  <- UNCONFIGURED
+ *                 |
+ *     configure   |
+ *                 |               <------------------------,
  *                 '-> CONFIGURED ->----------------------->|
  *                  <-                                      ^
  *                 |                                        |
@@ -77,7 +77,7 @@ public enum CODATransition implements Command {
     /** Pause. */
     PAUSE("Pause taking data", "PRESTARTED", false),
     /** Reset. */
-    RESET("Return to pre-configured state", "UNCONFIGURED", true);
+    RESET("Return to configured state", "CONFIGURED", true);
 
     
     /** Description of the transition. */
