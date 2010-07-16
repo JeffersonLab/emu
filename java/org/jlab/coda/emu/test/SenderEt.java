@@ -556,11 +556,11 @@ System.out.println("Send thread started");
                         if (ignore < 1) {
                             totalC += counter;
                             totalT += deltaT;
-                            s = String.format("%d Hz, avg %d Hz", counter*1000/deltaT, totalC*1000/totalT);
+                            s = String.format("%d Hz, avg %d Hz", counter*1000/3/deltaT, totalC*1000/3/totalT);
                         }
                         // don't count the first few rates (slow) as part of the average
                         else {
-                            s = String.format("%d Hz", counter*1000/deltaT);
+                            s = String.format("%d Hz", counter*1000/3/deltaT);
                             ignore--;
                         }
                         System.out.println(s);
