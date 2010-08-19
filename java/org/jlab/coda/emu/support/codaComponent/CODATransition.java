@@ -57,6 +57,7 @@ import java.util.HashMap;
  * __________________________________________________________________
  *
  *  NOTE: DOWNLOADED can always do a download,
+ *        CONFIGURED can always do a configure, &
  *        RESET goes from any state to CONFIGURED
  *
  * </pre></code>

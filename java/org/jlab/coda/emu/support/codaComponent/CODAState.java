@@ -30,12 +30,11 @@ import java.util.Vector;
  *    transition   |      STATE      |  transition
  * ________________|_________________|______________________________
  *
- *                       ERROR
- * 
- *                  <- UNCONFIGURED <-----------------------,
- *                 |                                        |
- *     configure   |                                        |
- *                 |                                        |
+ *
+ *                  <- UNCONFIGURED
+ *                 |
+ *     configure   |
+ *                 |               <------------------------,
  *                 '-> CONFIGURED ->----------------------->|
  *                  <-                                      ^
  *                 |                                        |
@@ -48,7 +47,7 @@ import java.util.Vector;
  *     prestart    |                | end       | end       | reset
  *                 |                |           |           |
  *                 '-> PRESTARTED -> -----------|---------->|
- *                  <-            <-,           |           ^
+ *                  <-            <-            |           ^
  *                 |                ^           |           |
  *        go       |                | pause     |           |
  *                 |                |           |           |
@@ -57,6 +56,7 @@ import java.util.Vector;
  * __________________________________________________________________
  *
  *  NOTE: DOWNLOADED can always do a download,
+ *        CONFIGURED can always do a configure, &
  *        RESET goes from any state to CONFIGURED
  *
  * </pre></code>
