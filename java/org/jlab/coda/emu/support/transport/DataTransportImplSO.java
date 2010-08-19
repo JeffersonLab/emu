@@ -70,20 +70,6 @@ public class DataTransportImplSO extends DataTransportCore implements DataTransp
         super(pname, attrib);
     }
 
-    /** {@inheritDoc} */
-    public void close() {
-        connected = false;
-        // close remaining channels.
-        if (!channels.isEmpty()) {
-            synchronized (channels) {
-                for (DataChannel c : channels.values()) {
-                    c.close();
-                }
-                channels.clear();
-            }
-        }
-    }
-
     /**
      * <pre>
      * Class <b>MulticastHelper </b>
