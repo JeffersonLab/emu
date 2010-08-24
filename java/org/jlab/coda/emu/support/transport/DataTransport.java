@@ -125,4 +125,7 @@ public interface DataTransport extends StatedObject {
 
     /** Close this DataTransport object and all its channels. */
     public void close();
+
+    /** Close this DataTransport object's channels. */
+    public void closeChannels();
 }

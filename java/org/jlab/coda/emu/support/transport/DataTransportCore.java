@@ -205,12 +205,18 @@ public class DataTransportCore {
         this.connected = connected;
     }
 
-    /** Close this DataTransport object and all its channels.  */
+    /** Close this DataTransport object and all its channels. */
     public void close() {
+        closeChannels();
+    }
+
+    /** Close this DataTransport object's channels.  */
+    public void closeChannels() {
         setConnected(false);
-        // close remaining channels.
+
         Logger.debug("close transport " + name());
 
+        // close channels.
         if (!channels().isEmpty()) {
             synchronized (channels()) {
                 for (DataChannel c : channels().values()) {
