@@ -125,6 +125,14 @@ public class DataTransportFactory implements StatedObject {
 
                 NodeList l = m.getChildNodes();
 
+                // If doing a download from the downloaded state,
+                // close the existing transport objects first
+                // (this step is normally done from RESET).
+                for (DataTransport t : transports) {
+                    Logger.debug("  DataTransportFactory.execute DOWNLOAD : " + t.name() + " close");
+                    t.close();
+                }
+
                 // remove all current data transport objects
                 transports.removeAllElements();
 
@@ -214,14 +222,17 @@ Logger.info("  DataTransportFactory.execute DOWN : loaded class = " + c);
         if (cmd.equals(CODATransition.END)) {
             for (DataTransport t : transports) {
                 Logger.debug("  DataTransportFactory.execute END : " + t.name() + " close");
-                t.close();
+                // close only the channels as transport object survives
+                t.closeChannels();
             }
             state = cmd.success();
         }
 
+        // close transport objects for RESET transition
         if (cmd.equals(CODATransition.RESET)) {
             for (DataTransport t : transports) {
                 Logger.debug("  DataTransportFactory.execute RESET : " + t.name() + " close");
+                // close the whole transport object as it will disappear
                 t.close();
             }
             transports.clear();
