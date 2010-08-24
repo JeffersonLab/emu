@@ -44,23 +44,33 @@ public class DataChannelImplEt implements DataChannel {
     /** ID of this channel (corresponds to sourceId of ROCs for CODA event building). */
     private int id;
 
-    private int evSize; // bytes
+    /** Size of events in bytes we ask the ET system for. */
+    private int evSize;
 
+    /** Number of events to ask for in an array. */
     private int chunk;
 
+    /** ET system connected to. */
     private EtSystem etSystem;
 
+    /** ET station attached to. */
     private EtStation station;
 
+    /** Name of ET station attached to. */
     private String stationName;
 
+    /** Attachment to ET staton. */
     private EtAttachment attachment;
 
+    /** Configuration of ET station being created and attached to. */
     private EtStationConfig stationConfig;
 
+    /** Array of events obtained from ET system. */
     private EtEvent[] events;
 
-    private int etWaitTime = 2000000; // microseconds
+    /** Time in microseconds to wait for the ET system to deliver requested events
+     *  before throwing an EtTimeoutException. */
+    private int etWaitTime = 2000000;
 
     /** Field queue - filled buffer queue */
     private final BlockingQueue<EvioBank> queue;
