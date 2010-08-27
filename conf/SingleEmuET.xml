@@ -12,8 +12,38 @@
 
 <component name="EMU1">
     <transports>
+        <!--
+            "name" is the name of the transport.
+            "class" is the suffix of the java class defining this transport object.
+
+            for ET system transport objects ...
+            
+                "etName" is the name of the ET system to create and/or open.
+                "create" , if true, will create the specified ET system if it does not already exist
+                           and destroy it if it was created and this EMU quits.
+                "port"  is the ET system's TCP server port.
+                "mPort" is the ET system's multicast port.
+                "bPort" is the ET system's broadcast or UDP port.
+                "wait"  is the number of seconds to wait for the ET system to appear before timing out.
+
+                if not creating the ET system ...
+
+                  "host" is the name of the ET system's host computer or "local", "remote", or "anywhere" if unknown.
+                  "method" is the type of connection to the ET system, "direct", "cast", "bcast", or "mcast".
+
+                else if creating the ET system ...
+
+                  "groups" is the number of same-sized groups to separate the events into (for multiple producers).
+                  "eventNum" is the number of events.
+                  "eventSize" is the size of each event in bytes.
+        -->
+        <!--
+        to connect to an existing system, one might try ...
         <server name="EmuInputET"  class="Et" etName="/tmp/emuIn"  host="local" method="direct" port="12347"/>
-        <client name="EmuOutputET" class="Et" etName="/tmp/emuOut" host="local" method="direct" port="12349"/>
+        -->
+        <server name="EmuInputET"  class="Et" etName="/tmp/emuIn" create="true"
+                port="12347" groups="4" eventNum="16000" eventSize="2048" wait="10" />
+        <client name="EmuOutputET" class="Et" etName="/tmp/emuOut" host="local" method="direct" port="12349" wait="10"/>
     </transports>
     <modules src="modules.jar" usr_src="user_modules.jar">
         <!--
