@@ -37,7 +37,7 @@ public class EventBuilding3 implements EmuModule, Runnable {
     /** ID number of this event builder obtained from config file. */
     private int ebId;
 
-    /** Keep track of the number of events built in this event builder. */
+    /** Keep track of the number of events built in this event builder. */   // TODO: long not int?
     private int ebRecordId;
 
     /** Field state is the state of the module */
@@ -60,9 +60,6 @@ public class EventBuilding3 implements EmuModule, Runnable {
 
     /** Map containing attributes of this module given in config file. */
     private Map<String,String> attributeMap;
-
-    /** Thread object that is the main thread of this module. */
-    private Thread actionThread;
 
     /** Field lastError is the last error thrown by the module */
     private final Throwable lastError = null;
@@ -149,8 +146,8 @@ System.out.println("ProcessTest module: quitting watcher thread");
      */
     private class Watcher extends Thread {
         /**
-         * Method run is the action loop of the thread. It executes while the module is in the
-         * state ACTIVE or PRESTARTED. It is exited on end of run or reset.
+         * Method run is the action loop of the thread. It's created while the module is in the
+         * ACTIVE or PRESTARTED state. It is exited on end of run or reset.
          * It is started by the GO transition.
          */
         public void run() {
@@ -191,16 +188,17 @@ System.out.println("ProcessTest module: quitting watcher thread");
 
 
     /**
-     * This class places payload banks parsed from a Data Transport Record or DTR (taken from
-     * a channel (ROC)) onto a payload bank queue associated with that channel. All other types
-     * of events are ignored. Nothing in this class depends on single event mode status.<p>
+     * This class takes Data Transport Records or DTRs (from a channel (ROC)) from a queue,
+     * extracts payload banks from those DTRs, and places the resulting banks in a payload
+     * bank queue associated with that channel. All other types of events are ignored.
+     * Nothing in this class depends on single event mode status.<p>
      */
     private class Qfiller extends Thread {
 
         BlockingQueue<EvioBank> channelQ;
         PayloadBankQueue<PayloadBank> payloadBankQ;
 
-        public Qfiller(PayloadBankQueue<PayloadBank> payloadBankQ, BlockingQueue<EvioBank> channelQ) {
+        Qfiller(PayloadBankQueue<PayloadBank> payloadBankQ, BlockingQueue<EvioBank> channelQ) {
             this.channelQ = channelQ;
             this.payloadBankQ = payloadBankQ;
         }
@@ -418,11 +416,11 @@ System.out.println("\nSetting #### of threads to " + buildingThreadCount + "\n")
 
         BlockingQueue<PayloadBank> outputQueue = new ArrayBlockingQueue<PayloadBank>(1000);
 
-        public BuildingThread(ThreadGroup group, Runnable target, String name) {
+        BuildingThread(ThreadGroup group, Runnable target, String name) {
             super(group, target, name);
         }
 
-        public BuildingThread() {
+        BuildingThread() {
             super();
         }
 
