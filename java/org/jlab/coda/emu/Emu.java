@@ -124,7 +124,7 @@ public class Emu implements KbdHandler, CODAComponent {
     private final String codaClass = "EMU";
 
     /** Field runNumber, the run number. */
-    private int runNumber;
+    private volatile int runNumber;
     /** Field runType, the numeric code representing the run type. */
     private int runType;
     /** Field codaid, a unique numeric identifier for this Emu. */
@@ -600,6 +600,19 @@ System.out.println("EXECUTING cmd = " + cmd.name());
         }
         else if (cmd.equals(SessionControl.STOP_REPORTING)) {
             statusReportingOn = false;
+            cmd.clearArgs();
+            return;
+        }
+        // runcontrol tells us our run number
+        else if (cmd.equals(SessionControl.SET_RUN_NUMBER)) {
+            // get the new run number and store it
+            try {
+                cMsgPayloadItem item = (cMsgPayloadItem) cmd.getArg("runNumber");
+                if (item != null) setRunNumber(item.getInt());
+            }
+            catch (cMsgException e) {
+                e.printStackTrace();
+            }
             cmd.clearArgs();
             return;
         }
