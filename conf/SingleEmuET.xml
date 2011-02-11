@@ -60,7 +60,7 @@
             "id" is the id number of this module and is used as the unique event builder id if
                  this module is building events.
         -->
-        <CarlsModule class="EventBuilding3" id="7" threads="3" statistics="on">
+        <CarlsModule class="EventBuilding" id="7" threads="3" statistics="on">
             <!--
                 "name" is the name of the channel.
                 "transp" is the name of the transport type defined above.
