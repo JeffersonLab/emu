@@ -5,8 +5,6 @@ import org.jlab.coda.emu.EmuException;
 import org.jlab.coda.emu.support.logger.Logger;
 
 import java.util.Vector;
-import java.util.concurrent.BlockingQueue;
-import java.nio.ByteBuffer;
 
 /**
  * This class is used as a layer on top of evio to handle CODA3 specific details.
@@ -175,15 +173,21 @@ import java.nio.ByteBuffer;
  * _______________________________________
  * |        Trigger Bank Length          |
  * |_____________________________________|
- * |    0x0F02        |  0x20  |   N+1   |
+ * |    0x0F02        |  0x20  |   N+2   |
  * |_____________________________________| --------
- * | EB id  |  0x05   |       Len        |    ^
+ * | EB id  |   0xa   |        4         |    ^
  * |_____________________________________|    |
- * |   Event Type 1   | Event Number 1   |  Common Data
+ * |________ First Event Number _________|    |
+ * |_____________________________________|    |
+ * |____________ Run Number _____________|    |
+ * |_____________________________________|    |
+ * | EB id  |  0x05   |       Len        |    |
+ * |_____________________________________|    |
+ * |   Event Type 1   |  Event Type 2    |  Common Data
  * |_____________________________________|    |
  * |                  ...                |    |
  * |_____________________________________|    |
- * |   Event Type M   | Event Number M   |    V
+ * |  Event Type M-1  |  Event Type M    |    V
  * |_____________________________________| -------
  * |roc1 id |  0x05   |        Len       |    ^
  * |_____________________________________|    |
@@ -504,7 +508,7 @@ public class Evio {
         // Second bank - must be at least one data bank.
         Vector<BaseStructure> kids = bank.getChildren();
         if (kids.size() < 2) {
-            System.out.println("isDTR 1");
+System.out.println("isDataTransportRecord: is not DTR 1");
             return false;
         }
 
@@ -514,14 +518,14 @@ public class Evio {
         // check tag
         int tag = firstBank.getHeader().getTag();
         if (tag != RECORD_ID_BANK) {
-            System.out.println("isDTR 2");
+System.out.println("isDataTransportRecord: is not DTR 2");
             return false;
         }
 
         // contained data must be (U)INT32
         int[] intData = firstBank.getIntData();
         if (intData == null) {
-            System.out.println("isDTR 3");
+System.out.println("isDataTransportRecord: is not DTR 3");
             return false;
         }
 
@@ -530,7 +534,7 @@ public class Evio {
         int num = bank.getHeader().getNumber();
         if ( (recordId & 0xff) != num ) {
             // contradictory internal data
-            System.out.println("isDTR 4");
+System.out.println("isDataTransportRecord: is not DTR 4");
             return false;
         }
 
@@ -538,7 +542,7 @@ public class Evio {
         num = firstBank.getHeader().getNumber();
         if (num != kids.size() - 1) {
             // contradictory internal data
-            System.out.println("isDTR 5");
+System.out.println("isDataTransportRecord: is not DTR 5");
             return false;
         }
 
@@ -670,6 +674,7 @@ System.out.println("extractPayloadBanks: DTR bank source Id conflicts with paylo
      * @return <code>true</code> if timestamps are OK, else <code>false</code>
      */
     public static boolean timeStampsOk(EvioBank triggerBank) {
+        // TODO: implement this
         return true;
     }
 
@@ -691,10 +696,15 @@ System.out.println("extractPayloadBanks: DTR bank source Id conflicts with paylo
                                                      EventBuilder builder, int ebId)
             throws EmuException {
 
+        if (builder == null || inputPayloadBanks == null || inputPayloadBanks.length < 1) {
+            throw new EmuException("arguments are null or zero-length");
+        }
+
         int index;
         int rocCount;
         int totalRocCount = 0;
         int numPayloadBanks = inputPayloadBanks.length;
+        int numEvents = inputPayloadBanks[0].getHeader().getNumber();
         EvioBank[] triggerBanks = new EvioBank[numPayloadBanks];
         boolean nonFatalError = false;
 
@@ -714,80 +724,106 @@ System.out.println("extractPayloadBanks: DTR bank source Id conflicts with paylo
 
             // right now we don't know how many events are contained in each bank
 
-            // number of trigger bank children must = # rocs + 1
-            rocCount = triggerBanks[i].getHeader().getNumber() - 1;
-            if (triggerBanks[i].getChildCount() != rocCount + 1) {
+            // number of trigger bank children must = # rocs + 2
+            rocCount = triggerBanks[i].getHeader().getNumber() - 2;
+            if (triggerBanks[i].getChildCount() != rocCount + 2) {
                 throw new EmuException("Trigger bank does not have correct number of segments (" +
-                        (rocCount + 1) + "), it has " + triggerBanks[i].getChildCount());
+                        (rocCount + 2) + "), it has " + triggerBanks[i].getChildCount());
             }
 
             // track total number of rocs
             totalRocCount += rocCount;
         }
 
+        //    Merging built banks should NOT change anything in the 2 common data banks.
+        //    However, all merging built trigger banks must have identical contents in
+        //    these banks (which will be checked). The only change necessary is to update
+        //    the EB id info in the header of each.
+        //
+        //
         // 1) The first segment in each built trigger bank contains common data
-        //    in the format given below. Merging built banks should NOT
-        //    change anything in the bank. However, all merging built trigger
-        //    banks must have identical contents (which will be checked). The
-        //    only change necessary is to update the EB id info in the header.
+        //    in the format given below. This is a segment of unsigned 64 bit
+        //    integers containing the first event number followed by the run number.
+        //
+        //    MSB(31)                          LSB(0)    Big Endian,  higher mem  -->
+        //    _______________________________________
+        //    | first event number (high 32 bits)   |
+        //    | first event number (low  32 bits)   |
+        //    |       run   number (high 32 bits)   |
+        //    |       run   number (low  32 bits)   |
+        //    _______________________________________
+        //
+        //
+        // 2) The second segment in each built trigger bank contains common data
+        //    in the format given below. This is a segment of unsigned 16 bit
+        //    integers containing the event type of each event.
         //
         //    MSB(31)                    LSB(0)    Big Endian,  higher mem  -->
-        //    _________________________________
-        //    | event1 type  |  event1 number |
-        //    | event2 type  |  event2 number |
-        //    |       .      |        .       |
-        //    |       .      |        .       |
-        //    |       .      |        .       |
-        //    | eventN type  |  eventN number |
-        //    _________________________________
+        //    __________________________________
+        //    |  event1 type  |  event2 type   |
+        //    |        .      |        .       |
+        //    |        .      |        .       |
+        //    | eventN-1 type |  eventN type   |
+        //    __________________________________
         //
 
         // check consistency of common data across events
-        short[] commonData, firstCommonData;
-        EvioSegment ebSeg = (EvioSegment)triggerBanks[0].getChildAt(0);
-        firstCommonData = ebSeg.getShortData();
-
-        // as a quick aside, send back info on first event # (which the building thread needs)
-        int numEvents = firstCommonData.length/2;
-//        int firstEventNumber = 0x0000ffff & firstCommonData[1]; // only lowest 16 bits
-//        inputPayloadBanks[0].setFirstEventNumber(firstEventNumber);
-        inputPayloadBanks[0].setEventCount(numEvents);
+        long[]  commonLong,  longCommonData;
+        short[] commonShort, shortCommonData;
+        EvioSegment ebSeg1 = (EvioSegment)triggerBanks[0].getChildAt(0);
+        EvioSegment ebSeg2 = (EvioSegment)triggerBanks[0].getChildAt(1);
+        longCommonData  = ebSeg1.getLongData();
+        shortCommonData = ebSeg2.getShortData();
 
         for (int i=1; i < numPayloadBanks; i++) {
-            commonData = ((EvioSegment)triggerBanks[i].getChildAt(0)).getShortData();
-            if (firstCommonData.length != commonData.length) {
+            // short stuff
+            commonShort = ((EvioSegment)triggerBanks[i].getChildAt(1)).getShortData();
+            if (shortCommonData.length != commonShort.length) {
                 throw new EmuException("Trying to merge records with different numbers of events");
             }
-            for (int j=0; j < firstCommonData.length; j++) {
-                if (firstCommonData[j] != commonData[j]) {
-                    throw new EmuException("Trying to merge records with different event types or numbers");
+            for (int j=0; j < shortCommonData.length; j++) {
+                if (shortCommonData[j] != commonShort[j]) {
+                    throw new EmuException("Trying to merge records with different event types");
                 }
             }
+
+            // long stuff
+            commonLong = ((EvioSegment)triggerBanks[i].getChildAt(0)).getLongData();
+            if (longCommonData.length != commonLong.length) {
+                throw new EmuException("Trying to merge records with different amount of common data");
+            }
+            for (int j=0; j < longCommonData.length; j++) {
+                if (longCommonData[j] != commonLong[j]) {
+                    throw new EmuException("Trying to merge records with different event or run numbers");
+                }
+            }
+
+            // store stuff
             inputPayloadBanks[i].setEventCount(numEvents);
-//            inputPayloadBanks[i].setFirstEventNumber(firstEventNumber);
         }
 
-        // Bank we are trying to build. Need to update the num which = (# rocs + 1)
+        // Bank we are trying to build. Need to update the num which = (# rocs + 2)
         EvioEvent combinedTrigger = builder.getEvent();
-        combinedTrigger.getHeader().setNumber(totalRocCount + 1);
+        combinedTrigger.getHeader().setNumber(totalRocCount + 2);
 
-        // create common data segment, actually just grab first one and change id
-        ebSeg.getHeader().setTag(ebId);
+        // 1) create common data segments, actually just grab first one and change id
+        ebSeg1.getHeader().setTag(ebId);
+        ebSeg2.getHeader().setTag(ebId);
         try {
-            builder.addChild(combinedTrigger, ebSeg);
+            builder.addChild(combinedTrigger, ebSeg1);
+            builder.addChild(combinedTrigger, ebSeg2);
         }
         catch (EvioException e) { /* never happen */ }
 
 
         // 2) Now put all ROC-specific segments into bank.
-        //    if we're in single event mode, there will be NO such segments.
+        //    If we're in single event mode, there will be NO such segments.
 
-        // for each event (from previous level EB) ...
-        for (int i=0; i < triggerBanks.length; i++) {
+        // for each trigger bank (from previous level EBs) ...
+        for (EvioBank trBank : triggerBanks) {
             // copy over each roc segment in trigger bank to combined trigger bank
-            for (int j=1; j < triggerBanks[i].getChildCount(); j++) {
-                EvioSegment rocSeg = (EvioSegment)triggerBanks[i].getChildAt(j);
-                try { builder.addChild(combinedTrigger, rocSeg); }
+            for (int j=2; j < trBank.getChildCount(); j++) {
+                try { builder.addChild(combinedTrigger, (EvioSegment)trBank.getChildAt(j)); }
                 catch (EvioException e) { /* never happen */ }
             }
         }
@@ -809,14 +845,21 @@ System.out.println("extractPayloadBanks: DTR bank source Id conflicts with paylo
      *                          payload bank queue that will be built into one event
      * @param builder object used to build trigger bank
      * @param ebId id of event builder calling this method
+     * @param firstEventNumber event number to place in trigger bank
+     * @param runNumber run number to place in trigger bank
      * @return <code>true</code> if non fatal error occurred, else <code>false</code>
      * @throws EmuException for major error in event building which necessitates stopping the build
      */
     public static boolean makeTriggerBankFromRocRaw(PayloadBank[] inputPayloadBanks,
-                                                    EventBuilder builder, int ebId)
+                                                    EventBuilder builder, int ebId,
+                                                    long firstEventNumber, long runNumber)
             throws EmuException {
 
-        int index;//, firstEventNumber = -1;
+        if (builder == null || inputPayloadBanks == null || inputPayloadBanks.length < 1) {
+            throw new EmuException("arguments are null or zero-length");
+        }
+
+        int index;
         int numPayloadBanks = inputPayloadBanks.length;
         int numEvents = inputPayloadBanks[0].getHeader().getNumber();
         EvioSegment segment;
@@ -852,49 +895,61 @@ System.out.println("extractPayloadBanks: DTR bank source Id conflicts with paylo
             if (triggerBanks[i].getChildCount() != numEvents) {
                 throw new EmuException("Trigger bank does not have correct number of segments");
             }
-
-            // all trigger banks must start with the same event #
-//            segment = (EvioSegment) (triggerBanks[i].getChildAt(0));
-//            if (firstEventNumber < 0) {
-//                firstEventNumber = segment.getIntData()[0];
-//            }
-//            else if (segment.getIntData()[0] != firstEventNumber) {
-//                throw new EmuException("Trigger bank does start with the correct event number");
-//            }
- //           inputPayloadBanks[i].setFirstEventNumber(firstEventNumber);
-
-            if (triggerBanks[i].getChildCount() != numEvents) {
-                throw new EmuException("Trigger bank does not have correct number of segments");
-            }
         }
 
         // bank we are trying to build
         EvioEvent combinedTrigger = builder.getEvent();
 
-        // 1) No sense duplicating data for each ROC/EB. Get event(trigger) types & event numbers
-        //    and put into 1 common bank with each value being a short (use least significant 16
-        //    bits of event) in the format:
+        //    No sense duplicating data for each ROC/EB.
+        //    Get event(trigger) types, first event number,
+        //    and run number, and put into 2 common segments as follows:
+        //
+        // 1) The first segment in each built trigger bank contains common data
+        //    in the format given below. This is a segment of unsigned 64 bit
+        //    integers containing the first event number followed by the run number.
+        //
+        //    MSB(31)                          LSB(0)    Big Endian,  higher mem  -->
+        //    _______________________________________
+        //    | first event number (high 32 bits)   |
+        //    | first event number (low  32 bits)   |
+        //    |       run   number (high 32 bits)   |
+        //    |       run   number (low  32 bits)   |
+        //    _______________________________________
+        //
+        //
+        // 2) The second segment in each built trigger bank contains common data
+        //    in the format given below. This is a segment of unsigned 16 bit
+        //    integers containing the event type of each event.
         //
         //    MSB(31)                    LSB(0)    Big Endian,  higher mem  -->
-        //    _________________________________
-        //    | event1 type  |  event1 number |
-        //    | event2 type  |  event2 number |
-        //    |       .      |        .       |
-        //    |       .      |        .       |
-        //    |       .      |        .       |
-        //    | eventN type  |  eventN number |
-        //    _________________________________
+        //    __________________________________
+        //    |  event1 type  |  event2 type   |
+        //    |        .      |        .       |
+        //    |        .      |        .       |
+        //    | eventM-1 type |  eventM type   |
+        //    __________________________________
         //
 
-        short[] evData = new short[2*numEvents];
+        // 1)
+        long[] longData = new long[2];
+        longData[0] = firstEventNumber;
+        longData[1] = runNumber;
+
+        EvioSegment ebSeg = new EvioSegment(ebId, DataType.ULONG64);
+        try {
+            ebSeg.appendLongData(longData);
+            builder.addChild(combinedTrigger, ebSeg);
+        }
+        catch (EvioException e) { /* never happen */ }
+
+        // 2)
+        short[] evData = new short[numEvents];
         for (int i=0; i < numEvents; i++) {
-            segment       = (EvioSegment) (triggerBanks[0].getChildAt(i));
-            evData[2*i]   = (short) (segment.getHeader().getTag());  // event type
-            evData[2*i+1] = (short) (segment.getIntData()[0]);       // event number
-//System.out.println("for event #" + i + ": ev type = " + evData[2*i] +  ", ev # = " + evData[2*i+1]);
+            segment   = (EvioSegment) (triggerBanks[0].getChildAt(i));
+            evData[i] = (short) (segment.getHeader().getTag());  // event type
         }
 
-        EvioSegment ebSeg = new EvioSegment(ebId, DataType.USHORT16);
+        ebSeg = new EvioSegment(ebId, DataType.USHORT16);
         try {
             ebSeg.appendShortData(evData);
             builder.addChild(combinedTrigger, ebSeg);
@@ -903,24 +958,24 @@ System.out.println("extractPayloadBanks: DTR bank source Id conflicts with paylo
 
         // It is convenient at this point to check and see if for a given place,
         // across all ROCs, the event number & type is the same.
+        int firstEvNum = (int) firstEventNumber;
         for (int i=0; i < numEvents; i++) {
 //System.out.println("event type ROC1 = " + evData[2*i]);
             for (int j=1; j < triggerBanks.length; j++) {
                 segment = (EvioSegment) (triggerBanks[j].getChildAt(i));
 //System.out.println("event type next ROC = " + ((short) (segment.getHeader().getTag())));
-                if (evData[2*i] != (short) (segment.getHeader().getTag())) {
+                if (evData[i] != (short) (segment.getHeader().getTag())) {
 System.out.println("makeTriggerBankFromRocRaw: event type differs across ROCs");
                     nonFatalError = true;
                 }
-                if (evData[2*i+1] != (short) (segment.getIntData()[0])) {
+                if (firstEvNum + i != segment.getIntData()[0]) {
 System.out.println("makeTriggerBankFromRocRaw: event number differs across ROCs");
                     nonFatalError = true;
                 }
             }
         }
 
-
-        // 2) now add one segment for each ROC with ROC-specific data in it
+        // now add one segment for each ROC with ROC-specific data in it
         int intCount, dataLenFromEachSeg;
         EvioSegment newRocSeg, oldRocSeg;
 
@@ -973,15 +1028,17 @@ System.out.println("makeTriggerBankFromRocRaw: event number differs across ROCs"
      *                          payload bank queue that will be built into one event
      * @param builder object used to build trigger bank
      * @param ebId id of event builder calling this method
+     * @param firstEventNumber event number to place in trigger bank
+     * @param runNumber run number to place in trigger bank
      * @return <code>true</code> if non fatal error occurred, else <code>false</code>
      * @throws EmuException for major error in event building which necessitates stopping the build
      */
     public static boolean makeTriggerBankFromSemRocRaw(PayloadBank[] inputPayloadBanks,
-                                                       EventBuilder builder, int ebId)
+                                                       EventBuilder builder, int ebId,
+                                                       long firstEventNumber, long runNumber)
             throws EmuException {
 
         int numPayloadBanks = inputPayloadBanks.length;
-        int firstEventNumber;
         boolean nonFatalError = false;
 
         for (int i=0; i < numPayloadBanks; i++) {
@@ -996,26 +1053,53 @@ System.out.println("makeTriggerBankFromRocRaw: event number differs across ROCs"
         // event we are trying to build
         EvioEvent combinedTrigger = builder.getEvent();
 
-        // 1) No sense duplicating data for each ROC/EB. Get event(trigger) types & event numbers
-        //    and put into 1 common bank with each value being a short (use least significant 16
-        //    bits of event) in the format:
+        //    No sense duplicating data for each ROC/EB.
+        //    Get event(trigger) type, event number,
+        //    and run number, and put into 2 common segments as follows:
+        //
+        // 1) The first segment in each built trigger bank contains common data
+        //    in the format given below. This is a segment of unsigned 64 bit
+        //    integers containing the first event number followed by the run number.
+        //
+        //    MSB(31)                          LSB(0)    Big Endian,  higher mem  -->
+        //    _______________________________________
+        //    |       event number (high 32 bits)   |
+        //    |       event number (low  32 bits)   |
+        //    |       run   number (high 32 bits)   |
+        //    |       run   number (low  32 bits)   |
+        //    _______________________________________
+        //
+        //
+        // 2) The second segment in each built trigger bank contains common data
+        //    in the format given below. This is a segment of unsigned 16 bit
+        //    integers containing the event type of each event.
         //
         //    MSB(31)                    LSB(0)    Big Endian,  higher mem  -->
-        //    _________________________________
-        //    | event1 type  |  event1 number |
+        //    __________________________________
+        //    | event1 type  |    (nothing)    |
         //    _________________________________
         //
 
+        // 1)
+        long[] longData = new long[2];
+        longData[0] = firstEventNumber;
+        longData[1] = runNumber;
+
+        EvioSegment ebSeg = new EvioSegment(ebId, DataType.ULONG64);
+        try {
+            ebSeg.appendLongData(longData);
+            builder.addChild(combinedTrigger, ebSeg);
+        }
+        catch (EvioException e) { /* never happen */ }
+
+        // 2)
         // In each payload bank (of banks) there is no trigger bank.
         // Extract needed info from Data Block banks (pick first in list).
         EvioBank blockBank = (EvioBank)inputPayloadBanks[0].getChildAt(0);
-        short[] evData = new short[2];
+        short[] evData = new short[1];
         evData[0] = (short) (blockBank.getHeader().getNumber());  // event type
-        firstEventNumber = blockBank.getIntData()[0];
-        evData[1] = (short) firstEventNumber;          // event number
 
-
-        EvioSegment ebSeg = new EvioSegment(ebId, DataType.USHORT16);
+        ebSeg = new EvioSegment(ebId, DataType.USHORT16);
         try {
             ebSeg.appendShortData(evData);
             builder.addChild(combinedTrigger, ebSeg);
@@ -1027,17 +1111,15 @@ System.out.println("makeTriggerBankFromRocRaw: event number differs across ROCs"
         // We are not checking info from additional Data Block banks
         // if more than one from a ROC.
 System.out.println("event type ROC1 = " + evData[0]);
-//        inputPayloadBanks[0].setFirstEventNumber(firstEventNumber);
         for (int j=1; j < numPayloadBanks; j++) {
             blockBank = (EvioBank) (inputPayloadBanks[j].getChildAt(0));
 System.out.println("event type next ROC = " + ((short) (blockBank.getHeader().getNumber())));
             if (evData[0] != (short) (blockBank.getHeader().getNumber())) {
                 nonFatalError = true;
             }
-            if (firstEventNumber != blockBank.getIntData()[0]) {
+            if ((int)firstEventNumber != blockBank.getIntData()[0]) {
                 nonFatalError = true;
             }
-//            inputPayloadBanks[j].setFirstEventNumber(firstEventNumber);
         }
 
         // no segments to add for each ROC since we have no ROC-specific data

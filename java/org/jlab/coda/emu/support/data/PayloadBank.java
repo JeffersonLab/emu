@@ -19,7 +19,7 @@ public class PayloadBank extends EvioEvent {
 
     private int eventCount;
 
-    private int firstEventNumber;
+    private long firstEventNumber;
 
     private int dataBlockCount;
 
@@ -105,11 +105,11 @@ public class PayloadBank extends EvioEvent {
         this.eventCount = eventCount;
     }
 
-    public int getFirstEventNumber() {
+    public long getFirstEventNumber() {
         return firstEventNumber;
     }
 
-    public void setFirstEventNumber(int firstEventNumber) {
+    public void setFirstEventNumber(long firstEventNumber) {
         this.firstEventNumber = firstEventNumber;
     }
 
