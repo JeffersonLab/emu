@@ -392,7 +392,7 @@ System.out.println("Put (" + a.getNodeName() + "," + a.getNodeValue() + ") into 
         // Load the class
         Class c = classloader.loadClass(moduleClassName);
 
-        // constructor required to have a single string as arg
+        // constructor required to have a string and a map as args
         Class[] parameterTypes = {String.class, Map.class};
         Constructor co = c.getConstructor(parameterTypes);
 
