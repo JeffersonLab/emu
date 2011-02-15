@@ -18,8 +18,10 @@ import org.jlab.coda.et.enums.Mode;
 import org.jlab.coda.et.enums.Modify;
 import org.jlab.coda.et.exception.*;
 import org.jlab.coda.jevio.EvioBank;
-import org.jlab.coda.jevio.ByteParser;
+import org.jlab.coda.jevio.EventParser;
+import org.jlab.coda.jevio.EvioReader;
 import org.jlab.coda.jevio.EvioException;
+import org.jlab.coda.jevio.EvioReader;
 
 
 import java.util.concurrent.BlockingQueue;
@@ -82,7 +84,7 @@ public class DataChannelImplEt implements DataChannel {
     private boolean pause;
 
     /** Object for parsing evio data contained in incoming messages. */
-    private ByteParser parser;
+    private EvioReader parser;
 
     /** Byte order of output data (input data's order is specified in msg). */
     ByteOrder byteOrder;
@@ -170,7 +172,6 @@ Logger.info("      DataChannelImplEt.const : ev size = " + evSize);
 
         // if INPUT channel
         if (input) {
-            parser = new ByteParser();
 
             try {
                 // configuration of a new station
@@ -342,7 +343,8 @@ System.out.println("\n\n      DataChannelImplEt.DataInputHelper : " + name + " S
                         }
 
                         try {
-                            bank = parser.parseEvent(buf);
+                            parser = new EvioReader(buf);
+                            bank = parser.parseNextEvent();
                             // put evio bank on queue if it parses
                             queue.put(bank);
                         }

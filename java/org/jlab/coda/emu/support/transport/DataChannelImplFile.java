@@ -4,7 +4,8 @@ import org.jlab.coda.emu.Emu;
 import org.jlab.coda.emu.support.codaComponent.CODAState;
 import org.jlab.coda.emu.support.logger.Logger;
 import org.jlab.coda.jevio.EvioBank;
-import org.jlab.coda.jevio.EvioFile;
+import org.jlab.coda.jevio.EvioException;
+import org.jlab.coda.jevio.EvioReader;
 import org.jlab.coda.jevio.EventWriter;
 
 import java.io.*;
@@ -38,7 +39,7 @@ public class DataChannelImplFile implements DataChannel {
     private File file;
 
     /** Evio data file. */
-    private EvioFile evioFile;
+    private EvioReader evioFile;
 
     /** Object to write evio file. */
     private EventWriter evioFileWriter;
@@ -75,7 +76,7 @@ public class DataChannelImplFile implements DataChannel {
 
         try {
             if (input) {
-                evioFile = new EvioFile(fileName);
+                evioFile = new EvioReader(fileName);
                 dataThread = new Thread(Emu.THREAD_GROUP, new DataInputHelper(), getName() + " data input");
             } else {
                 evioFileWriter = new EventWriter(fileName);
@@ -147,8 +148,9 @@ public class DataChannelImplFile implements DataChannel {
                 CODAState.ERROR.getCauses().add(e);
                 dataTransport.state = CODAState.ERROR;
             }
-            evioFileWriter.close();
 
+            try { evioFileWriter.close(); }
+            catch (Exception e) {}
         }
 
     }

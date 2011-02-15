@@ -16,9 +16,11 @@ import org.jlab.coda.emu.Emu;
 import org.jlab.coda.cMsg.*;
 import org.jlab.coda.jevio.EvioBank;
 import org.jlab.coda.jevio.EvioException;
-import org.jlab.coda.jevio.ByteParser;
+import org.jlab.coda.jevio.EventParser;
+import org.jlab.coda.jevio.EvioReader;
 
 
+import java.io.IOException;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.Map;
@@ -56,7 +58,7 @@ public class DataChannelImplCmsg implements DataChannel {
     private boolean pause;
 
     /** Object for parsing evio data contained in incoming messages. */
-    private ByteParser parser;
+    private EvioReader parser;
 
     /** Byte order of output data (input data's order is specified in msg). */
     ByteOrder byteOrder;
@@ -85,6 +87,7 @@ public class DataChannelImplCmsg implements DataChannel {
          */
         public void callback(cMsgMessage msg, Object userObject) {
 System.out.println("cmsg data channel " + name + ": got message in callback");
+            ByteBuffer buffer;
             byte[] data = msg.getByteArray();
             if (data == null) return;
 
@@ -95,7 +98,9 @@ System.out.println("cmsg data channel " + name + ": got message in callback");
                     byteOrder = ByteOrder.LITTLE_ENDIAN;
                 }
 
-                EvioBank bank = parser.parseEvent(data, byteOrder);
+                buffer = ByteBuffer.wrap(data).order(byteOrder);
+                parser = new EvioReader(buffer);
+                EvioBank bank = parser.parseNextEvent();
                 queue.put(bank);
 
 //                System.out.println("\nReceiving msg:\n" + bank.toString());
@@ -120,6 +125,9 @@ System.out.println("cmsg data channel " + name + ": got message in callback");
 //            }
 //            catch (XMLStreamException e) {
 //                e.printStackTrace();
+            }
+            catch (IOException e) {
+                e.printStackTrace();
             }
             catch (EvioException e) {
                 e.printStackTrace();
@@ -195,7 +203,6 @@ System.out.println("cmsg data channel " + name + ": got message in callback");
                 Logger.info("      DataChannelImplCmsg.const : " + e.getMessage());
                 throw new DataTransportException(e);
             }
-            parser = new ByteParser();
         }
         else {
             // set endianness of data

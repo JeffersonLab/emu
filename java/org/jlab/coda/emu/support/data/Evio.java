@@ -272,7 +272,7 @@ public class Evio {
 
 
     /** Object for parsing evio data. */
-    private static ByteParser parser = new ByteParser();  // TODO: not good idea to have static parser
+    private static EventParser parser = new EventParser();  // TODO: not good idea to have static parser
 
 
     /**
@@ -1425,7 +1425,7 @@ System.out.println("event type next ROC = " + ((short) (blockBank.getHeader().ge
     /**
      * Create an Evio Data Transport Record event to send to the event building EMU.
      *
-     * @param rocEbId     ROC or EB id number, depending on value of "fromEB"
+     * @param rocId       ROC id number
      * @param eventID     event (trigger) id number (0-15)
      * @param dataBankTag starting data bank tag
      * @param dataBankNum starting data bank num
@@ -1439,7 +1439,7 @@ System.out.println("event type next ROC = " + ((short) (blockBank.getHeader().ge
      * @return Evio Data Transport Record event
      * @throws EvioException
      */
-    public static EvioEvent createDataTransportRecord(int rocEbId,     int eventID,
+    public static EvioEvent createDataTransportRecord(int rocId,       int eventID,
                                                       int dataBankTag, int dataBankNum,
                                                       int eventNumber, int numEvents,
                                                       int timestamp,   int recordId,
@@ -1449,14 +1449,14 @@ System.out.println("event type next ROC = " + ((short) (blockBank.getHeader().ge
 
         // create event with jevio package
         EventType type = EventType.ROC_RAW;
-        int tag = createCodaTag(type.getValue(), rocEbId);
+        int tag = createCodaTag(type.getValue(), rocId);
         EventBuilder eventBuilder = new EventBuilder(tag, DataType.BANK, recordId);
-        EvioEvent ev = eventBuilder.getEvent();
+        EvioEvent dtrEvent = eventBuilder.getEvent();
 
         // add a bank with record ID in it
         EvioBank recordIdBank = new EvioBank(RECORD_ID_BANK, DataType.INT32, numPayloadBanks);
         eventBuilder.appendIntData(recordIdBank, new int[]{recordId});
-        eventBuilder.addChild(ev, recordIdBank);
+        eventBuilder.addChild(dtrEvent, recordIdBank);
 
         if (singleEventMode) {
             numEvents = 1;
@@ -1467,22 +1467,23 @@ System.out.println("event type next ROC = " + ((short) (blockBank.getHeader().ge
         for (int i=0; i < numPayloadBanks; i++) {
 
             if (singleEventMode) {
-                event = createSingleEventModeRocRecord(rocEbId, eventID, dataBankTag, dataBankNum,
+                event = createSingleEventModeRocRecord(rocId, eventID, dataBankTag, dataBankNum,
                                                        eventNumber, timestamp);
             }
             else {
-                event = createRocRawRecord(rocEbId, eventID, dataBankTag, dataBankNum,
+                event = createRocRawRecord(rocId, eventID, dataBankTag, dataBankNum,
                                            eventNumber, numEvents, timestamp);
             }
-            eventBuilder.addChild(ev, event);
+            eventBuilder.addChild(dtrEvent, event);
 
             eventNumber += numEvents;
             timestamp   += numEvents;
         }
 
-        eventBuilder.setAllHeaderLengths();
+        // already done with addChild
+        //eventBuilder.setAllHeaderLengths();
 
-        return ev;
+        return dtrEvent;
     }
 
 

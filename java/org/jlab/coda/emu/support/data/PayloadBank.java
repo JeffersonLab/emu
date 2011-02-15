@@ -62,17 +62,6 @@ public class PayloadBank extends EvioEvent {
         super(new BankHeader(tag, dataType, num));
     }
 
-    /**
-     * This is a general constructor to use for an EvioEvent.
-     *
-     * @param tag the tag for the event header (which is just a bank header).
-     * @param dataType the (int) data type for the content of the bank.
-     * @param num sometimes, but not necessarily, an ordinal enumeration.
-     */
-    public PayloadBank(int tag, int dataType, int num) {
-        super(new BankHeader(tag, dataType, num));
-    }
-
     public EventType getType() {
         return type;
     }
