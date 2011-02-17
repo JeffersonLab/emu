@@ -661,6 +661,7 @@ System.out.println("extractPayloadBanks: DTR bank source Id conflicts with paylo
             payloadBank.setNonFatalBuildingError(nonFatalError || nonFatalRecordIdError);
             
             // Put bank on queue.
+//System.out.println("  QFiller: putting bank on payload bank Q");
             payloadQueue.put(payloadBank);
         }
     }
@@ -970,6 +971,7 @@ System.out.println("makeTriggerBankFromRocRaw: event type differs across ROCs");
                 }
                 if (firstEvNum + i != segment.getIntData()[0]) {
 System.out.println("makeTriggerBankFromRocRaw: event number differs across ROCs");
+System.out.println("                           " + (firstEvNum+i) + " != " + (segment.getIntData()[0]));
                     nonFatalError = true;
                 }
             }
@@ -1110,10 +1112,10 @@ System.out.println("makeTriggerBankFromRocRaw: event number differs across ROCs"
         // across all ROCs, the event number & type are the same.
         // We are not checking info from additional Data Block banks
         // if more than one from a ROC.
-System.out.println("event type ROC1 = " + evData[0]);
+//System.out.println("event type ROC1 = " + evData[0]);
         for (int j=1; j < numPayloadBanks; j++) {
             blockBank = (EvioBank) (inputPayloadBanks[j].getChildAt(0));
-System.out.println("event type next ROC = " + ((short) (blockBank.getHeader().getNumber())));
+//System.out.println("event type next ROC = " + ((short) (blockBank.getHeader().getNumber())));
             if (evData[0] != (short) (blockBank.getHeader().getNumber())) {
                 nonFatalError = true;
             }
@@ -1228,17 +1230,16 @@ System.out.println("event type next ROC = " + ((short) (blockBank.getHeader().ge
      * Create an Evio ROC Raw record event/bank in single event mode to be placed in a Data Transport record.
      *
      * @param rocID       ROC id number
-     * @param eventID     event (trigger) id number (0-15)
+     * @param triggerType trigger type id number (0-15)
      * @param dataBankTag starting data bank tag
-     * @param dataBankNum starting data bank num
      * @param eventNumber starting event number
      * @param timestamp   starting event's timestamp
      *
      * @return created ROC Raw Record (EvioEvent object)
      * @throws EvioException
      */
-    public static EvioEvent createSingleEventModeRocRecord(int rocID,       int eventID,
-                                                           int dataBankTag, int dataBankNum,
+    public static EvioEvent createSingleEventModeRocRecord(int rocID,       int triggerType,
+                                                           int dataBankTag,
                                                            int eventNumber, int timestamp)
             throws EvioException {
         // single event mode means 1 event
@@ -1272,9 +1273,8 @@ System.out.println("event type next ROC = " + ((short) (blockBank.getHeader().ge
      * Create an Evio ROC Raw record event/bank to be placed in a Data Transport record.
      *
      * @param rocID       ROC id number
-     * @param eventID     event (trigger) id number (0-15)
+     * @param triggerType trigger type id number (0-15)
      * @param dataBankTag starting data bank tag
-     * @param dataBankNum starting data bank num
      * @param eventNumber starting event number
      * @param numEvents   number of physics events in created record
      * @param timestamp   starting event's timestamp
@@ -1282,12 +1282,13 @@ System.out.println("event type next ROC = " + ((short) (blockBank.getHeader().ge
      * @return created ROC Raw Record (EvioEvent object)
      * @throws EvioException
      */
-    public static EvioEvent createRocRawRecord(int rocID,       int eventID,
-                                               int dataBankTag, int dataBankNum,
+    public static EvioEvent createRocRawRecord(int rocID,       int triggerType,
+                                               int dataBankTag,
                                                int eventNumber, int numEvents,
                                                int timestamp) throws EvioException {
 
         // create a ROC Raw Data Record event/bank with numEvents physics events in it
+        int firstEvNum = eventNumber;
         int status = 0;  // TODO: may want to make status a method arg
         int rocTag = createCodaTag(status, rocID);
         EventBuilder eventBuilder = new EventBuilder(rocTag, DataType.BANK, numEvents);
@@ -1300,7 +1301,7 @@ System.out.println("event type next ROC = " + ((short) (blockBank.getHeader().ge
         EvioSegment segment;
         for (int i = 0; i < numEvents; i++) {
             // each segment contains eventNumber & timestamp of corresponding event in data bank
-            segment = new EvioSegment(eventID, DataType.UINT32);
+            segment = new EvioSegment(triggerType, DataType.UINT32);
             eventBuilder.addChild(triggerBank, segment);
             // generate 2 segments per event
             int[] segmentData = new int[2];
@@ -1310,13 +1311,14 @@ System.out.println("event type next ROC = " + ((short) (blockBank.getHeader().ge
         }
 
         // put some data into event -- one int per event
-        int[] data = new int[numEvents];
-        for (int i = 0; i < numEvents; i++) {
+        int[] data = new int[numEvents+1];
+        data[0] = firstEvNum;
+        for (int i = 1; i < numEvents; i++) {
             data[i] = 10000 + i;
         }
 
         // create a single data bank (of ints) -- NOT SURE WHAT A DATA BANK LOOKS LIKE !!!
-        EvioBank dataBank = new EvioBank(dataBankTag, DataType.INT32, dataBankNum);
+        EvioBank dataBank = new EvioBank(dataBankTag, DataType.INT32, numEvents);
         eventBuilder.appendIntData(dataBank, data);
         eventBuilder.addChild(rocRawEvent, dataBank);
 
@@ -1426,9 +1428,8 @@ System.out.println("event type next ROC = " + ((short) (blockBank.getHeader().ge
      * Create an Evio Data Transport Record event to send to the event building EMU.
      *
      * @param rocId       ROC id number
-     * @param eventID     event (trigger) id number (0-15)
+     * @param triggerType trigger type id number (0-15)
      * @param dataBankTag starting data bank tag
-     * @param dataBankNum starting data bank num
      * @param eventNumber starting event number
      * @param numEvents   number of physics events in created record
      * @param timestamp   starting event's timestamp
@@ -1439,8 +1440,8 @@ System.out.println("event type next ROC = " + ((short) (blockBank.getHeader().ge
      * @return Evio Data Transport Record event
      * @throws EvioException
      */
-    public static EvioEvent createDataTransportRecord(int rocId,       int eventID,
-                                                      int dataBankTag, int dataBankNum,
+    public static EvioEvent createDataTransportRecord(int rocId,       int triggerType,
+                                                      int dataBankTag,
                                                       int eventNumber, int numEvents,
                                                       int timestamp,   int recordId,
                                                       int numPayloadBanks,
@@ -1463,15 +1464,15 @@ System.out.println("event type next ROC = " + ((short) (blockBank.getHeader().ge
         }
 
         // add ROC Raw Records as payload banks
-        EvioEvent event = null;
+        EvioEvent event;
         for (int i=0; i < numPayloadBanks; i++) {
 
             if (singleEventMode) {
-                event = createSingleEventModeRocRecord(rocId, eventID, dataBankTag, dataBankNum,
+                event = createSingleEventModeRocRecord(rocId, triggerType, dataBankTag,
                                                        eventNumber, timestamp);
             }
             else {
-                event = createRocRawRecord(rocId, eventID, dataBankTag, dataBankNum,
+                event = createRocRawRecord(rocId, triggerType, dataBankTag,
                                            eventNumber, numEvents, timestamp);
             }
             eventBuilder.addChild(dtrEvent, event);
