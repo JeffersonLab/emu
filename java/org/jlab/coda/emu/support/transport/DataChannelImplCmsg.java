@@ -14,13 +14,15 @@ package org.jlab.coda.emu.support.transport;
 import org.jlab.coda.emu.support.logger.Logger;
 import org.jlab.coda.emu.Emu;
 import org.jlab.coda.cMsg.*;
-import org.jlab.coda.jevio.EvioBank;
-import org.jlab.coda.jevio.EvioException;
-import org.jlab.coda.jevio.EventParser;
-import org.jlab.coda.jevio.EvioReader;
+import org.jlab.coda.jevio.*;
 
 
+import javax.xml.stream.XMLOutputFactory;
+import javax.xml.stream.XMLStreamException;
+import javax.xml.stream.XMLStreamWriter;
 import java.io.IOException;
+import java.io.PrintWriter;
+import java.io.StringWriter;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.Map;
@@ -86,10 +88,13 @@ public class DataChannelImplCmsg implements DataChannel {
          *                   message.
          */
         public void callback(cMsgMessage msg, Object userObject) {
-System.out.println("cmsg data channel " + name + ": got message in callback");
+//System.out.println("cmsg data channel " + name + ": got message in callback");
             ByteBuffer buffer;
             byte[] data = msg.getByteArray();
-            if (data == null) return;
+            if (data == null) {
+                System.out.println("cmsg data channel " + name + ": ain't got no data!!!");
+                return;
+            }
 
             try {
                 ByteOrder byteOrder = ByteOrder.BIG_ENDIAN;
@@ -101,7 +106,9 @@ System.out.println("cmsg data channel " + name + ": got message in callback");
                 buffer = ByteBuffer.wrap(data).order(byteOrder);
                 parser = new EvioReader(buffer);
                 EvioBank bank = parser.parseNextEvent();
+//System.out.println("cmsg data channel ("+ name +"): got bank over cmsg, try putting into channel Q");
                 queue.put(bank);
+//System.out.println("cmsg data channel: put into channel Q");
 
 //                System.out.println("\nReceiving msg:\n" + bank.toString());
 //
@@ -114,7 +121,7 @@ System.out.println("cmsg data channel " + name + ": got message in callback");
 //                bank.toXML(xmlWriter);
 //                System.out.println("Receiving msg:\n" + sw2.toString());
 //                bbuf.flip();
-
+//
 //                System.out.println("Receiving msg (bin):");
 //                sw2.getBuffer().delete(0, sw2.getBuffer().capacity());
 //                PrintWriter wr = new PrintWriter(sw2);
@@ -181,7 +188,7 @@ System.out.println("cmsg data channel " + name + ": got message in callback");
 
         type = attributeMap.get("type");
         if (type == null) type = "data";
-//System.out.println("\n\nDataChannel: subject = " + subject + ", type = " + type + "\n\n");
+System.out.println("\n\nDataChannel: subscribe to subject = " + subject + ", type = " + type + "\n\n");
         
         // Set id number. Use any defined in config file else use default (0)
         id = 0;
@@ -247,6 +254,29 @@ System.out.println("cmsg data channel " + name + ": got message in callback");
         }
     }
 
+
+    /**
+     * Method to print out the bank for diagnostic purposes.
+     * @param bank bank to print out
+     * @param bankName name of bank for printout
+     */
+    private void printBank(EvioBank bank, String bankName) {
+        try {
+            StringWriter sw2 = new StringWriter(1000);
+            XMLStreamWriter xmlWriter = XMLOutputFactory.newInstance().createXMLStreamWriter(sw2);
+            bank.toXML(xmlWriter);
+            if (bankName == null) {
+                System.out.println("bank:\n" + sw2.toString());
+            }
+            else {
+                System.out.println("bank " + bankName + ":\n" + sw2.toString());
+            }
+        }
+        catch (XMLStreamException e) {
+            e.printStackTrace();
+        }
+    }
+
     /**
      * {@inheritDoc}
      * Close this channel by unsubscribing from cmsg server and ending the data sending thread.
@@ -273,7 +303,7 @@ System.out.println("cmsg data channel " + name + ": got message in callback");
      */
     private class DataOutputHelper implements Runnable {
 
-        /** Method run ... */
+
         public void run() {
             try {
                 int size;
@@ -281,9 +311,13 @@ System.out.println("cmsg data channel " + name + ": got message in callback");
                 cMsgMessage msg = new cMsgMessage();
                 msg.setSubject(subject);
                 msg.setType(type);
-                ByteBuffer buffer = ByteBuffer.allocate(1000); // allocateDirect does(may) NOT have backing array
+                // TODO: set the proper size of the buffer later ...
+                ByteBuffer buffer = ByteBuffer.allocate(2048); // allocateDirect does(may) NOT have backing array
                 // by default ByteBuffer is big endian
                 buffer.order(byteOrder);
+                EventWriter evWriter = null;
+                StringWriter sw = new StringWriter(2048);
+                PrintWriter wr = new PrintWriter(sw, true);
 
                 while ( dataTransport.getCmsgConnection().isConnected() ) {
 
@@ -297,19 +331,24 @@ System.out.println("cmsg data channel " + name + ": got message in callback");
 
                     size = bank.getTotalBytes();
                     if (buffer.capacity() < size) {
-                        buffer = ByteBuffer.allocateDirect(size + 1000);
+//Logger.warn("      DataChannelImplCmsg.DataOutputHelper : increasing buffer size to " + (size + 1000));
+                        buffer = ByteBuffer.allocate(size + 1000);
                         buffer.order(byteOrder);
                     }
                     buffer.clear();
-                    bank.write(buffer);
+
+                    try {
+                        evWriter = new EventWriter(buffer, 128000, 10, null, null);
+                    }
+                    catch (EvioException e) {e.printStackTrace();/* never happen */}
+                    evWriter.writeEvent(bank);
+                    evWriter.close();
+                    buffer.flip();
 
                     // put data into cmsg message
-                    msg.setByteArrayNoCopy(buffer.array());
-                    // TODO: set byte array length ?
+                    msg.setByteArrayNoCopy(buffer.array(), 0, buffer.limit());
                     msg.setByteArrayEndian(byteOrder == ByteOrder.BIG_ENDIAN ? cMsgConstants.endianBig :
                                                                                cMsgConstants.endianLittle);
-
-                    // send it
                     dataTransport.getCmsgConnection().send(msg);
                 }
 
