@@ -1,0 +1,34 @@
+<?xml version="1.0"?>
+<!--
+  ~ Copyright (c) 2011, Jefferson Science Associates
+  ~
+  ~ Thomas Jefferson National Accelerator Facility
+  ~ Data Acquisition Group
+  ~
+  ~ 12000, Jefferson Ave, Newport News, VA 23606
+  ~ Phone : (757)-269-7100
+  ~
+  -->
+
+<component name="Roc1">
+    <transports>
+        <server name="cmsg" class="Cmsg" udl="cMsg://localhost/cMsg/test"/>
+    </transports>
+    <modules src="modules.jar" usr_src="user_modules.jar">
+        <!--
+            statistics=on means that if there are multiple modules defined, this module's statistics
+            may be reported to runcontrol as being representative of everything. class is the name
+            of the class defining this module and must be loaded.
+            id is the id number of this module and is used as the unique ROC id.
+        -->
+        <RocModule class="RocSimulation" id="1" statistics="on">
+            <!--
+                The "subject" & "type" attributes override the default subscriptions to send msgs over cmsg.
+                The default is subject = name, type="data".
+                endian specifies the endianness of the bytes going over the output channel.
+            -->
+            <outchannel name="Emu1" transp="cmsg" subject="ROC1" type="a"/>
+        </RocModule>
+    </modules>
+</component>
+
