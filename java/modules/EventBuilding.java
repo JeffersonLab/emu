@@ -1,3 +1,14 @@
+/*
+ * Copyright (c) 2010, Jefferson Science Associates
+ *
+ * Thomas Jefferson National Accelerator Facility
+ * Data Acquisition Group
+ *
+ * 12000, Jefferson Ave, Newport News, VA 23606
+ * Phone : (757)-269-7100
+ *
+ */
+
 package modules;
 
 import org.jlab.coda.emu.Emu;
@@ -17,6 +28,11 @@ import org.jlab.coda.emu.support.logger.Logger;
 import org.jlab.coda.emu.support.transport.DataChannel;
 import org.jlab.coda.jevio.*;
 
+import javax.xml.stream.XMLOutputFactory;
+import javax.xml.stream.XMLStreamException;
+import javax.xml.stream.XMLStreamWriter;
+import java.io.StringWriter;
+import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.*;
 import java.util.concurrent.ArrayBlockingQueue;
@@ -195,7 +211,7 @@ public class EventBuilding implements EmuModule, Runnable {
         buildingThreadCount = 3;
         try {
             buildingThreadCount = Integer.parseInt(attributeMap.get("threads"));
-System.out.println("\nSetting #### of threads to " + buildingThreadCount + "\n");
+//System.out.println("\nSetting #### of threads to " + buildingThreadCount + "\n");
         }
         catch (NumberFormatException e) { /* default to 0 */ }
 
@@ -283,7 +299,7 @@ System.out.println("\nSetting #### of threads to " + buildingThreadCount + "\n")
                     e.printStackTrace();
                 }
             }
-System.out.println("ProcessTest module: quitting watcher thread");
+//System.out.println("EventBuilding module: quitting watcher thread");
         }
     }
 
@@ -329,7 +345,7 @@ System.out.println("ProcessTest module: quitting watcher thread");
                     Logger.info("ProcessTest thread " + name() + " interrupted");
                 }
             }
-System.out.println("ProcessTest module: quitting watcher thread");
+//System.out.println("EventBuilding module: quitting watcher thread");
         }
     }
 
@@ -358,7 +374,9 @@ System.out.println("ProcessTest module: quitting watcher thread");
                 try {
                     while (state == CODAState.ACTIVE || paused) {
                         // block waiting for the next DTR from ROC.
+//System.out.println("  QFiller thd: try taking bank from channel Q ... ");
                         channelBank = channelQ.take();  // blocks, throws InterruptedException
+//System.out.println("  QFiller thd: got one");
 
                         // Is bank is in Data Transport Record format? If not, ignore it.
                         if ( Evio.isDataTransportRecord(channelBank) ) {
@@ -442,7 +460,17 @@ System.out.println("Qfiller: got non-DTR bank, discard");
 
                                     } catch (EvioException e) {/* never happen */}
 
-
+//                        try {
+//                            StringWriter sw2 = new StringWriter(1000);
+//                            XMLStreamWriter xmlWriter = XMLOutputFactory.newInstance().createXMLStreamWriter(sw2);
+//                            dtrEvent.toXML(xmlWriter);
+//                            System.out.println("\noutgoing dtr event:\n" + sw2.toString());
+//
+//                        }
+//                        catch (XMLStreamException e) {
+//                            e.printStackTrace();
+//                        }
+//
                                     eventType = banks[index].getType();
                                     if (eventType.isPhysics()) {
 //System.out.println("out Chan " + Thread.currentThread().getName() + " = " +
@@ -554,7 +582,9 @@ System.out.println("Qfiller: got non-DTR bank, discard");
                                 // Loop until we get event which is NOT a user event
                                 while (true) {
                                     // will BLOCK here waiting for payload bank if none available
+//System.out.println("    BuldingThread("+ name +"): try taking bank from payload bank Q #" +i);
                                     buildingBanks[i] = payloadBankQueues.get(i).take();
+//System.out.println("    BuldingThread("+ name +"): GOT bank from Q #" + i);
 
                                     eventType = buildingBanks[i].getType();
 
@@ -562,7 +592,7 @@ System.out.println("Qfiller: got non-DTR bank, discard");
                                     // If it is, stick it in a list and get another.
                                     if (eventType.isUser()) {
                                         myInputOrder = inputOrder++ % Integer.MAX_VALUE;
-//System.out.println("BuldingThread: Got user event, order = " + myInputOrder);
+System.out.println("BuldingThread: Got user event, order = " + myInputOrder);
                                         // Store its output order
                                         buildingBanks[i].setAttachment(myInputOrder);
                                         // Stick it in a list
@@ -586,11 +616,12 @@ System.out.println("Qfiller: got non-DTR bank, discard");
 
                             // record its input order so that it can be used to order the output
                             myInputOrder = inputOrder++ % Integer.MAX_VALUE;
+System.out.println("BuldingThread: input order = " + myInputOrder);
                         }
                         finally {
                             getLock.unlock();
                         }
-//System.out.println("BuldingThread: out");
+//System.out.println("BuldingThread: got something from each input");
 
                         // If we have any user events, stick those on the Q first.
                         // Source may be any of the inputs.
@@ -622,6 +653,7 @@ if (nonFatalError) System.out.println("\nERROR 1\n");
 
                         // All or none must be control events, else throw exception.
                         haveControlEvents = gotValidControlEvents(buildingBanks);
+//System.out.println("BuldingThread: haveControlEvents = " + haveControlEvents);
 
                         // If they are all control events, just store
                         // their input order and put 1 on output Q.
@@ -654,6 +686,7 @@ if (nonFatalError) System.out.println("\nERROR 2\n");
                             // The actual number of rocs + 2 will replace num in combinedTrigger definition above
                             //-----------------------------------------------------------------------------------
                             // combine the trigger banks of input events into one (same if single event mode)
+System.out.println("BuldingThread: create trigger bank from built banks");
                             nonFatalError |= Evio.makeTriggerBankFromPhysics(buildingBanks, builder, ebId);
                         }
                         // else if building with ROC raw records ...
@@ -661,17 +694,30 @@ if (nonFatalError) System.out.println("\nERROR 2\n");
                             // if in single event mode, build trigger bank differently
                             if (buildingBanks[0].isSingleEventMode()) {
                                 // create a trigger bank from data in Data Block banks
+System.out.println("BuldingThread: create trigger bank in SEM");
                                 nonFatalError |= Evio.makeTriggerBankFromSemRocRaw(buildingBanks, builder,
                                                                                    ebId, firstEventNumber, runNumber);
                             }
                             else {
                                 // combine the trigger banks of input events into one
+System.out.println("BuldingThread: create trigger bank");
                                 nonFatalError |= Evio.makeTriggerBankFromRocRaw(buildingBanks, builder,
                                                                                 ebId, firstEventNumber, runNumber);
                             }
                         }
 
 if (nonFatalError) System.out.println("\nERROR 3\n");
+                        // print out trigger bank
+//                        try {
+//                            StringWriter sw2 = new StringWriter(1000);
+//                            XMLStreamWriter xmlWriter = XMLOutputFactory.newInstance().createXMLStreamWriter(sw2);
+//                            combinedTrigger.toXML(xmlWriter);
+//                            System.out.println("\ncombined trigger bank:\n" + sw2.toString());
+//
+//                        }
+//                        catch (XMLStreamException e) {
+//                            e.printStackTrace();
+//                        }
 
                         // check timestamps if requested
                         boolean requested = false;
@@ -699,14 +745,16 @@ if (nonFatalError) System.out.println("\nERROR 4\n");
 //System.out.println("tag = " + tag + ", is sync = " + buildingBanks[0].isSync() +
 //                   ", has error = " + (buildingBanks[0].hasError() || nonFatalError) +
 //                   ", is reserved = " + buildingBanks[0].isReserved() +
-//                   ", is single mode = " + buildingBanks[0].isSingleEventMode());/
+//                   ", is single mode = " + buildingBanks[0].isSingleEventMode());
 
                         physicsEvent = new PayloadBank(tag, DataType.BANK, totalNumberEvents);
                         builder.setEvent(physicsEvent);
                         if (havePhysicsEvents) {
+System.out.println("BuldingThread: build physics event with physics banks");
                             Evio.buildPhysicsEventWithPhysics(combinedTrigger, buildingBanks, builder);
                         }
                         else {
+System.out.println("BuldingThread: build physics event with ROC raw banks");
                             Evio.buildPhysicsEventWithRocRaw(combinedTrigger, buildingBanks, builder);
                         }
                         physicsEvent.setAllHeaderLengths();
@@ -715,6 +763,16 @@ if (nonFatalError) System.out.println("\nERROR 4\n");
                         physicsEvent.setEventCount(totalNumberEvents);
                         physicsEvent.setFirstEventNumber(firstEventNumber);
 
+//                        try {
+//                            StringWriter sw2 = new StringWriter(1000);
+//                            XMLStreamWriter xmlWriter = XMLOutputFactory.newInstance().createXMLStreamWriter(sw2);
+//                            physicsEvent.toXML(xmlWriter);
+//                            System.out.println("\nphysics event:\n" + sw2.toString());
+//
+//                        }
+//                        catch (XMLStreamException e) {
+//                            e.printStackTrace();
+//                        }
 //                    ByteBuffer bbuf = ByteBuffer.allocate(2048);
 //                    physicsEvent.write(bbuf);
 //                    bbuf.flip();
@@ -742,6 +800,7 @@ System.out.println("INTERRUPTED thread " + Thread.currentThread().getName());
                         if (state == CODAState.DOWNLOADED) return;
                     }
             }
+            System.out.println("Building thread is ending !!!");
 
         }
 
