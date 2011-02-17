@@ -40,7 +40,7 @@
             <inchannel  id="2" name="ROC2"      transp="SingleEmu_SOCKET" subject="ROC2" type="b"/>
             <inchannel  id="3" name="ROC3"      transp="SingleEmu_SOCKET" subject="ROC3" type="c"/>
             <inchannel  id="4" name="ROC4"      transp="SingleEmu_SOCKET" subject="ROC4" type="d"/>
-            <outchannel        name="BitBucket" transp="SingleEmu_SOCKET" endian="little"/>
+            <outchannel        name="BitBucket" transp="BitBucket_SOCKET" endian="big"/>
         </CarlsModule>
         <!--
         <OutModule class="ProcessTest">
