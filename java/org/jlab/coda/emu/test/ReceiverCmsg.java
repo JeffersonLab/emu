@@ -3,7 +3,7 @@ package org.jlab.coda.emu.test;
 import org.jlab.coda.cMsg.*;
 import org.jlab.coda.jevio.EvioBank;
 import org.jlab.coda.jevio.EvioException;
-import org.jlab.coda.jevio.ByteParser;
+import org.jlab.coda.jevio.EventParser;
 
 import javax.xml.stream.XMLStreamWriter;
 import javax.xml.stream.XMLOutputFactory;
@@ -31,13 +31,13 @@ public class ReceiverCmsg {
 
     private cMsg coda;
     private cMsgSubscriptionHandle sub;
-    ByteParser parser;
+    EventParser parser;
 
 
     /** Constructor. */
     ReceiverCmsg(String[] args) throws cMsgException {
         decodeCommandLine(args);
-        parser = new ByteParser();
+        parser = new EventParser();
     }
 
 

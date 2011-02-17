@@ -3,9 +3,10 @@ package org.jlab.coda.emu.test;
 import org.jlab.coda.et.*;
 import org.jlab.coda.et.enums.Mode;
 import org.jlab.coda.et.exception.*;
-import org.jlab.coda.jevio.ByteParser;
+import org.jlab.coda.jevio.EventParser;
 import org.jlab.coda.jevio.EvioEvent;
 import org.jlab.coda.jevio.EvioException;
+import org.jlab.coda.jevio.EvioReader;
 
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
@@ -181,48 +182,48 @@ public class ReceiverEt {
                         if (count == 0) t1 = System.currentTimeMillis();
 
                         // example of reading & printing event data
-//                        if (true) {
+                        if (true) {
 
-//                            for (EtEvent mev : mevs) {
+                            for (EtEvent mev : mevs) {
                                 // get event's data buffer
-//                                ByteBuffer buf = mev.getDataBuffer();
-//System.out.println("event's data buffer is " + buf.order() + ", limit = " + buf.limit() +
-//", capacity = " + buf.capacity());
-//System.out.println("swap = " + mev.needToSwap());
-//                                if (mev.needToSwap()) {
-//                                    buf.order(ByteOrder.LITTLE_ENDIAN);
-//                                }
+                                ByteBuffer buf = mev.getDataBuffer();
+System.out.println("event's data buffer is " + buf.order() + ", limit = " + buf.limit() +
+", capacity = " + buf.capacity());
+System.out.println("swap = " + mev.needToSwap());
+                                if (mev.needToSwap()) {
+                                    buf.order(ByteOrder.LITTLE_ENDIAN);
+                                }
                                 // buf.limit() is set to the length of the actual data (not buffer capacity)
-//                                ByteParser parser = new ByteParser();
-//                                try {
-//                                    EvioEvent ev = parser.parseEvent(buf);
-//                                    System.out.println("Event = \n"+ev.toXML());
-//                                }
-//                                catch (EvioException e) {
-//                                    System.out.println("Event NOT in evio foramt");
-//                                }
+                                EvioReader parser = new EvioReader(buf);
+                                try {
+                                    EvioEvent ev = parser.parseNextEvent();
+                                    System.out.println("Event = \n"+ev.toXML());
+                                }
+                                catch (EvioException e) {
+                                    System.out.println("Event NOT in evio foramt");
+                                }
 
-    //                            System.out.println("buffer cap = " + buf.capacity() + ", lim = " + buf.limit() +
-    //                            ", pos = " + buf.position());
-    //                            num = mev.getDataBuffer().getInt(0);
-    //                            System.out.println("data byte order = " + mev.getByteOrder());
+System.out.println("buffer cap = " + buf.capacity() + ", lim = " + buf.limit() +
+                   ", pos = " + buf.position());
+                                num = mev.getDataBuffer().getInt(0);
+System.out.println("data byte order = " + mev.getByteOrder());
 
-    //                            if (mev.needToSwap()) {
-    //                                System.out.println("    data swap = " + Integer.reverseBytes(num));
-    //                            }
-    //                            else {
-    //                                System.out.println("    data = " + num);
-    //                            }
+                                if (mev.needToSwap()) {
+                                    System.out.println("    data swap = " + Integer.reverseBytes(num));
+                                }
+                                else {
+                                    System.out.println("    data = " + num);
+                                }
 
-    //                            int[] con = mev.getControl();
-    //                            for (int j : con) {
-    //                                System.out.print(j + " ");
-    //                            }
-    //
-    //                            System.out.println("pri = " + mev.getPriority());
-//                            }
-//                        }
-//
+                                int[] con = mev.getControl();
+                                for (int j : con) {
+                                    System.out.print(j + " ");
+                                }
+
+System.out.println("pri = " + mev.getPriority());
+                            }
+                        }
+
                         // put events back into ET system
                         sys.putEvents(att, mevs);
                         //sys.dumpEvents(att, mevs);

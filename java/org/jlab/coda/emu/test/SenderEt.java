@@ -330,7 +330,7 @@ public class SenderEt {
                     for (int j = 0; j < chunk; j++) {
                         // turn event into byte array
                         ev = Evio.createDataTransportRecord(rocNum, eventID,
-                                                            dataBankTag, dataBankNum,
+                                                            dataBankTag,
                                                             eventNumber, numEventsInPayloadBank,
                                                             timestamp, recordId, numPayloadBanks,
                                                             false);
@@ -519,7 +519,7 @@ System.out.println("Send thread started");
                         for (int i = 0; i < 3; i++) {
                             // turn event into byte array
                             ev = Evio.createDataTransportRecord(rocNum, eventID,
-                                                                dataBankTag, dataBankNum,
+                                                                dataBankTag,
                                                                 eventNumber, numEventsInPayloadBank,
                                                                 timestamp, recordId, numPayloadBanks,
                                                                 false);
