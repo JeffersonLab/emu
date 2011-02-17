@@ -10,10 +10,7 @@ import org.jlab.coda.emu.support.data.Evio;
 import javax.xml.stream.XMLOutputFactory;
 import javax.xml.stream.XMLStreamWriter;
 import javax.xml.stream.XMLStreamException;
-import java.io.BufferedReader;
-import java.io.InputStreamReader;
-import java.io.StringWriter;
-import java.io.PrintWriter;
+import java.io.*;
 import java.nio.ByteBuffer;
 
 /**
@@ -31,7 +28,7 @@ public class TestROCs {
     private String   description = "place to send data to EMU";
     private String   UDL;
 
-    private int     delay = 1000; // 1 second default timeout
+    private int     delay = 2000; // 1 second default timeout
     private boolean debug;
     private boolean stopSending;
     private cMsg coda;
@@ -128,22 +125,22 @@ public class TestROCs {
 
 
     class sendDataThread extends Thread {
+        EventWriter evWriter = null;
 
         public void run() {
 
-System.out.println("Send thread started");
+//System.out.println("Send thread started");
 
             // in the arg order:
             int startingRocID = 1;
             int eventID       = 15;
             int dataBankTag   = 111; // starting data bank tag
-            int dataBankNum   = 222; // starting data bank num
             int eventNumber   = 1;
             int numEventsInPayloadBank = 1; // number of events in first payload bank (incremented for each additional bank)
             int timestamp        = 1001;
             int startingRecordId = 1;
             int numPayloadBanks  = 2;
-            boolean isSingleEventMode = true;
+            boolean isSingleEventMode = false;
 
             if (isSingleEventMode) {
                 numEventsInPayloadBank = 1;    
@@ -173,14 +170,23 @@ System.out.println("Send thread started");
 //System.out.println("Send roc record " + startingRocID + " over network");
                         // turn event into byte array
                         ev = Evio.createDataTransportRecord(rocNum,      eventID,
-                                                            dataBankTag, dataBankNum,
+                                                            dataBankTag,
                                                             eventNumber, numEventsInPayloadBank,
                                                             timestamp,   recordId,
                                                             numPayloadBanks, isSingleEventMode);
 
-                        //sw.getBuffer().delete(0, sw.getBuffer().capacity());
                         bbuf.clear();
-                        ev.write(bbuf);
+                        try {
+                            evWriter = new EventWriter(bbuf, 128000, 10, null, null);
+                            evWriter.writeEvent(ev);
+                            evWriter.close();
+                        }
+                        catch (EvioException e) {
+                            /* never happen */
+                        }
+                        catch (IOException e) {
+                            e.printStackTrace();
+                        }
                         bbuf.flip();
 
                         msg.setByteArray(bbuf.array(),0,bbuf.limit());
@@ -194,21 +200,21 @@ System.out.println("Send thread started");
 
                         coda.send(msg);
 
-//                        try {
-//                            StringWriter sw2 = new StringWriter(1000);
-//                            XMLStreamWriter xmlWriter = XMLOutputFactory.newInstance().createXMLStreamWriter(sw2);
-//                            ev.toXML(xmlWriter);
-//                            System.out.println("\nSending msg:\n" + sw2.toString());
-//
+                        try {
+                            StringWriter sw2 = new StringWriter(1000);
+                            XMLStreamWriter xmlWriter = XMLOutputFactory.newInstance().createXMLStreamWriter(sw2);
+                            ev.toXML(xmlWriter);
+                            System.out.println("\nSending msg:\n" + sw2.toString());
+
 //                            System.out.println("Sending msg (bin):");
 //                            while (bbuf.hasRemaining()) {
 //                                wr.printf("%#010x\n", bbuf.getInt());
 //                            }
 //                            System.out.println(sw.toString() + "\n\n");
-//                        }
-//                        catch (XMLStreamException e) {
-//                            e.printStackTrace();
-//                        }
+                        }
+                        catch (XMLStreamException e) {
+                            e.printStackTrace();
+                        }
 
                         // send from next roc
                         rocNum++;
