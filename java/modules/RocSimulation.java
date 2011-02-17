@@ -63,13 +63,29 @@ public class RocSimulation implements EmuModule, Runnable {
     private final Throwable lastError = null;
 
 
+    private boolean paused;
+    private String subject;
+    private String type;
+
+    private int delay = 2000; // 2 second default timeout
+    private int triggerType = 15;
+    private boolean isSingleEventMode = false;
+
+    private int numEventsInPayloadBank = 1; // number of events in first payload bank (incremented for each additional bank)
+
+    private int numPayloadBanks = 2;
+
+    // TODO: should construct this from detector ID & 4 status bits
+    private int dataBankTag = 111; // starting data bank tag
+
+
     // The following members are for keeping statistics
 
 
     /** The number of the event to be assigned to that which is built next. */
     private long eventNumber;
 
-    /** The number of the event that this Event Builder last completely built. */
+    /** The number of the last event that this Event Builder completely built. */
     private long lastEventNumberBuilt;
 
     /** Total number of DataBank objects written to the outputs. */
@@ -89,25 +105,6 @@ public class RocSimulation implements EmuModule, Runnable {
 
     /** Field watcher */
     private Thread watcher;
-
-    private boolean paused;
-
-
-
-    private String subject;
-    private String type;
-
-    private int delay = 2000; // 2 second default timeout
-    private int triggerType = 15;
-    private boolean isSingleEventMode = false;
-
-    private int numEventsInPayloadBank = 1; // number of events in first payload bank (incremented for each additional bank)
-
-    private int numPayloadBanks = 2;
-
-    // TODO: should construct this from detector ID & 4 status bits
-    private int dataBankTag = 111; // starting data bank tag
-
 
 
     /**
