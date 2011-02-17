@@ -38,14 +38,14 @@ import java.util.*;
 public class RocSimulation implements EmuModule, Runnable {
 
 
-    /** Name of this event builder. */
+    /** Name of this ROC. */
     private final String name;
 
-    /** ID number of this Roc obtained from config file. */
+    /** ID number of this ROC obtained from config file. */
     private int rocId;
-
-    /** Keep track of the number of records built in this Roc. Reset at prestart. */
-    private volatile int rocRecordId;
+                // TODO: need to be volatile??
+    /** Keep track of the number of records built in this ROC. Reset at prestart. */
+    private int rocRecordId;
 
     /** State of the module. */
     private State state = CODAState.UNCONFIGURED;
@@ -59,24 +59,30 @@ public class RocSimulation implements EmuModule, Runnable {
     /** Map containing attributes of this module given in config file. */
     private Map<String,String> attributeMap;
 
-    /** Field lastError is the last error thrown by the module */
+    /** Last error thrown by the module */  // TODO: redo error throwing stuff?
     private final Throwable lastError = null;
 
-
+    /** User hit pause button if <code>true</code>. */
     private boolean paused;
-    private String subject;
-    private String type;
 
-    private int delay = 2000; // 2 second default timeout
-    private int triggerType = 15;
-    private boolean isSingleEventMode = false;
+    /** Delay, in milliseconds, between creating each data transport record. */
+    private int delay;
 
-    private int numEventsInPayloadBank = 1; // number of events in first payload bank (incremented for each additional bank)
+    /** Type of trigger sent from trigger supervisor. */
+    private int triggerType;
 
+    /** Is this ROC in single event mode? */
+    private boolean isSingleEventMode;
+
+    /** Number of events in each ROC raw record. */
+    private int eventBlockSize;
+
+    /** Number of payload banks in each data transport record. */
     private int numPayloadBanks = 2;
 
-    // TODO: should construct this from detector ID & 4 status bits
-    private int dataBankTag = 111; // starting data bank tag
+    // TODO: should construct tag from detector ID & 4 status bits
+    /** The id of the detector which produced the data in block banks of the ROC raw records. */
+    private int detectorId;
 
 
     // The following members are for keeping statistics
@@ -103,7 +109,7 @@ public class RocSimulation implements EmuModule, Runnable {
     /** Targeted time period in milliseconds over which instantaneous rates will be calculated. */
     private static final int statGatheringPeriod = 2000;
 
-    /** Field watcher */
+    /** Thread to update statistics. */
     private Thread watcher;
 
 
@@ -114,16 +120,74 @@ public class RocSimulation implements EmuModule, Runnable {
      * @param attributeMap map containing attributes of module
      */
     public RocSimulation(String name, Map<String, String> attributeMap) {
+        String s;
         this.name = name;
         this.attributeMap = attributeMap;
-        try {
-            rocId = Integer.parseInt(attributeMap.get("id"));
+
+        try { rocId = Integer.parseInt(attributeMap.get("id")); }
+        catch (NumberFormatException e) { /* defaults to 0 */ }
+
+        delay = 2000;
+        try { delay = Integer.parseInt(attributeMap.get("delay")); }
+        catch (NumberFormatException e) { /* defaults to 2000 */ }
+        if (delay < 0) delay = 0;
+
+        triggerType = 15;
+        try { triggerType = Integer.parseInt(attributeMap.get("triggerType")); }
+        catch (NumberFormatException e) { /* defaults to 15 */ }
+        if (triggerType <  0) triggerType = 0;
+        if (triggerType > 15) triggerType = 15;
+
+        detectorId = 111;
+        try { detectorId = Integer.parseInt(attributeMap.get("detectorId")); }
+        catch (NumberFormatException e) { /* defaults to 111 */ }
+        if (detectorId < 0) detectorId = 0;
+
+        eventBlockSize = 1;
+        try { eventBlockSize = Integer.parseInt(attributeMap.get("blockSize")); }
+        catch (NumberFormatException e) { /* defaults to 1 */ }
+        if (eventBlockSize <   1) eventBlockSize = 1;
+        if (eventBlockSize > 255) eventBlockSize = 255;
+
+        numPayloadBanks = 1;
+        try { numPayloadBanks = Integer.parseInt(attributeMap.get("numRecords")); }
+        catch (NumberFormatException e) { /* defaults to 1 */ }
+        if (numPayloadBanks <   1) numPayloadBanks = 1;
+        if (numPayloadBanks > 255) numPayloadBanks = 255;
+
+        s = attributeMap.get("SEMode");
+        if (s != null) {
+            if (s.equalsIgnoreCase("on") || s.equalsIgnoreCase("true")) {
+                isSingleEventMode = true;
+            }
         }
-        catch (NumberFormatException e) { /* default to 0 */ }
     }
+
 
     public String name() {
         return name;
+    }
+
+
+    public State state() {
+        return state;
+    }
+
+    /**
+     * Set the state of this object.
+     * @param s the state of this Cobject
+     */
+    public void setState(State s) {
+        state = s;
+    }
+
+    /**
+     * Method getError returns the error of this ProcessTest object.
+     *
+     * @return the error (type Throwable) of this ProcessTest object.
+     */
+    public Throwable getError() {
+        return lastError;
     }
 
     synchronized public Object[] getStatistics() {
@@ -146,22 +210,15 @@ public class RocSimulation implements EmuModule, Runnable {
         return stats;
     }
 
+
     public boolean representsEmuStatistics() {
         String stats = attributeMap.get("statistics");
         return (stats != null && stats.equalsIgnoreCase("on"));
     }
 
+
     /** Method run is the action loop of the main thread of the module. */
     public void run() {
-//        EventGeneratingThread builder1 = new EventGeneratingThread();
-//        EventGeneratingThread builder2 = new EventGeneratingThread();
-//        EventGeneratingThread builder3 = new EventGeneratingThread();
-//        buildingThreadQueue.add(builder1);
-//        buildingThreadQueue.add(builder2);
-//        buildingThreadQueue.add(builder3);
-//        builder1.start();
-//        builder2.start();
-//        builder3.start();
     }
 
 
@@ -233,7 +290,7 @@ System.out.println("ProcessTest module: quitting watcher thread");
         public void run() {
 
             if (isSingleEventMode) {
-                numEventsInPayloadBank = 1;
+                eventBlockSize = 1;
             }
 
             EvioEvent ev;
@@ -251,8 +308,8 @@ System.out.println("ProcessTest module: quitting watcher thread");
                 try {
                     // turn event into byte array
                     ev = Evio.createDataTransportRecord(rocId, triggerType,
-                                                        dataBankTag, (int)eventNumber,
-                                                        numEventsInPayloadBank,
+                                                        detectorId, (int)eventNumber,
+                                                        eventBlockSize,
                                                         timestamp,   rocRecordId,
                                                         numPayloadBanks, isSingleEventMode);
 
@@ -300,7 +357,7 @@ System.out.println("ProcessTest module: quitting watcher thread");
                     outputChannels.get(0).getQueue().put(ev);
 
                     // stats
-                    numEvents = numEventsInPayloadBank*numPayloadBanks;
+                    numEvents = eventBlockSize *numPayloadBanks;
                     rocRecordId++;
                     timestamp       += numEvents;
                     eventNumber     += numEvents;
@@ -325,27 +382,6 @@ System.out.println("Roc data creation thread is ending !!!");
 
     }
 
-
-    public State state() {
-        return state;
-    }
-
-    /**
-     * Set the state of this object.
-     * @param s the state of this Cobject
-     */
-    public void setState(State s) {
-        state = s;
-    }
-
-    /**
-     * Method getError returns the error of this ProcessTest object.
-     *
-     * @return the error (type Throwable) of this ProcessTest object.
-     */
-    public Throwable getError() {
-        return lastError;
-    }
 
     public void execute(Command cmd) {
         Date theDate = new Date();
