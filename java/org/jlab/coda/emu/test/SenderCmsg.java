@@ -326,6 +326,7 @@ System.out.println("Send thread started");
         // cMSGPortal defaults to using UDL = "cMsg:cMsg://localhost/cMsg/test".
         if (UDL == null) UDL = System.getProperty("cmsgUDL");
         if (UDL == null) UDL = "cMsg://localhost/cMsg/test";
+System.out.println("Using udl = " + UDL);
 
         // connect to cMsg server
         coda = new cMsg(UDL, name, description);
