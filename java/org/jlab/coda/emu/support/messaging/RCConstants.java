@@ -26,6 +26,10 @@ public class RCConstants {
     public static final String runCommandType        = "run/control/*";
     /** String used as type in subscription that receives session commands. */
     public static final String sessionCommandType    = "session/control/*";
+    /** String used as type in subscription that receives session, set option commands. */
+    public static final String setOptionType         = "session/setoption/*";
+    /** String used as type in subscription that receives info commands. */
+    public static final String infoCommandType       = "coda/info/*";
 
     // Types in messages sent
 
@@ -69,6 +73,17 @@ public class RCConstants {
     public static final String reset            = "run/control/reset";
     /** String used as type in message for the exit run command. */
     public static final String exit             = "run/control/exit";
+
+    // Types in messages received in coda/info/* callback
+
+    /** String used as type in message for the get state info command. */
+    public static final String rcGetState       = "coda/info/getState";
+    /** String used as type in message for the get status info command. */
+    public static final String rcGetStatus      = "coda/info/getStatus";
+    /** String used as type in message for the get object type info command. */
+    public static final String rcGetObjectType  = "coda/info/getObjectType";
+    /** String used as type in message for the get coda class info command. */
+    public static final String rcGetCodaClass   = "coda/info/getCodaClass";
 
     // Payload names in reportStatus (above) message
     
