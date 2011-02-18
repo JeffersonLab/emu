@@ -43,12 +43,12 @@ public class RocSimulation implements EmuModule, Runnable {
 
     /** ID number of this ROC obtained from config file. */
     private int rocId;
-                // TODO: need to be volatile??
+
     /** Keep track of the number of records built in this ROC. Reset at prestart. */
-    private int rocRecordId;
+    private volatile int rocRecordId;
 
     /** State of the module. */
-    private State state = CODAState.UNCONFIGURED;
+    private volatile State state = CODAState.UNCONFIGURED;
 
     /** OutputChannels is an ArrayList of DataChannel objects that are outputs. */
     private ArrayList<DataChannel> outputChannels = new ArrayList<DataChannel>();
@@ -80,7 +80,6 @@ public class RocSimulation implements EmuModule, Runnable {
     /** Number of payload banks in each data transport record. */
     private int numPayloadBanks = 2;
 
-    // TODO: should construct tag from detector ID & 4 status bits
     /** The id of the detector which produced the data in block banks of the ROC raw records. */
     private int detectorId;
 
@@ -91,8 +90,8 @@ public class RocSimulation implements EmuModule, Runnable {
     /** The number of the event to be assigned to that which is built next. */
     private long eventNumber;
 
-    /** The number of the last event that this Event Builder completely built. */
-    private long lastEventNumberBuilt;
+    /** The number of the last event that this ROC created. */
+    private long lastEventNumberCreated;
 
     /** Total number of DataBank objects written to the outputs. */
     private long eventCountTotal;
@@ -160,6 +159,10 @@ public class RocSimulation implements EmuModule, Runnable {
             if (s.equalsIgnoreCase("on") || s.equalsIgnoreCase("true")) {
                 isSingleEventMode = true;
             }
+        }
+
+        if (isSingleEventMode) {
+            eventBlockSize = 1;
         }
     }
 
@@ -289,12 +292,8 @@ System.out.println("ProcessTest module: quitting watcher thread");
 
         public void run() {
 
-            if (isSingleEventMode) {
-                eventBlockSize = 1;
-            }
-
             EvioEvent ev;
-            int timestamp=0, numEvents;
+            int timestamp=0, status=0, numEvents;
             ByteBuffer bbuf = ByteBuffer.allocate(2048);
 
             StringWriter sw = new StringWriter(2048);
@@ -308,9 +307,9 @@ System.out.println("ProcessTest module: quitting watcher thread");
                 try {
                     // turn event into byte array
                     ev = Evio.createDataTransportRecord(rocId, triggerType,
-                                                        detectorId, (int)eventNumber,
-                                                        eventBlockSize,
-                                                        timestamp,   rocRecordId,
+                                                        detectorId, status,
+                                                        (int)eventNumber, eventBlockSize,
+                                                        timestamp, rocRecordId,
                                                         numPayloadBanks, isSingleEventMode);
 
                     bbuf.clear();
@@ -349,7 +348,7 @@ System.out.println("ProcessTest module: quitting watcher thread");
                     long deltaT = now - start_time;
                     if (deltaT > 2000) {
                         wr.printf("%d  Hz\n", 3L/deltaT);
-                        System.out.println(sw.toString());
+System.out.println(sw.toString());
                         start_time = now;
                     }
 
@@ -363,7 +362,7 @@ System.out.println("ProcessTest module: quitting watcher thread");
                     eventNumber     += numEvents;
                     eventCountTotal += numEvents;
                     wordCountTotal  += ev.getHeader().getLength() + 1;
-                    lastEventNumberBuilt = eventNumber - 1;
+                    lastEventNumberCreated = eventNumber - 1;
                 }
                 catch (EvioException e) {
 System.out.println("MAJOR ERROR generating events");
@@ -389,17 +388,17 @@ System.out.println("Roc data creation thread is ending !!!");
         if (cmd.equals(CODATransition.END)) {
             state = CODAState.DOWNLOADED;
 
-            // The order in which these thread are shutdown does(should) not matter.
-            // Rocs should already have been shutdown, followed by the ET transport objects,
-            // followed by this module.
-            if (watcher  != null) watcher.interrupt();
-            eventGeneratingThread.interrupt();
-            eventGeneratingThread = null;
+            // The order in which these threads are shutdown does(should) not matter.
+            // Transport objects should already have been shutdown followed by this module.
+            if (watcher != null) watcher.interrupt();
             watcher = null;
+            if (eventGeneratingThread != null) eventGeneratingThread.interrupt();
+            eventGeneratingThread = null;
+
             paused = false;
 
+            // set end-of-run time in local XML config / debug GUI
             try {
-                // set end-of-run time in local XML config / debug GUI
                 Configurer.setValue(Emu.INSTANCE.parameters(), "status/run_end_time", theDate.toString());
             } catch (DataNotFoundException e) {
                 e.printStackTrace();
@@ -413,15 +412,16 @@ System.out.println("Roc data creation thread is ending !!!");
             eventRate = wordRate = 0F;
             eventCountTotal = wordCountTotal = 0L;
 
-            if (watcher  != null) watcher.interrupt();
-            eventGeneratingThread.interrupt();
-            eventGeneratingThread = null;
+            if (watcher != null) watcher.interrupt();
             watcher = null;
+            if (eventGeneratingThread != null) eventGeneratingThread.interrupt();
+            eventGeneratingThread = null;
+
             paused = false;
 
             if (previousState.equals(CODAState.ACTIVE)) {
+                // set end-of-run time in local XML config / debug GUI
                 try {
-                    // set end-of-run time in local XML config / debug GUI
                     Configurer.setValue(Emu.INSTANCE.parameters(), "status/run_end_time", theDate.toString());
                 } catch (DataNotFoundException e) {
                     e.printStackTrace();
@@ -438,7 +438,7 @@ System.out.println("Roc data creation thread is ending !!!");
             eventCountTotal = wordCountTotal = 0L;
             rocRecordId = 0;
             eventNumber = 1L;
-            lastEventNumberBuilt = 0L;
+            lastEventNumberCreated = 0L;
 
             // create threads objects (but don't start them yet)
             watcher = new Thread(Emu.THREAD_GROUP, new Watcher(), name+":watcher");
@@ -446,8 +446,8 @@ System.out.println("Roc data creation thread is ending !!!");
                                                                    new EventGeneratingThread(),
                                                                    name+":generator");
 
+            // set end-of-run time in local XML config / debug GUI
             try {
-                // set end-of-run time in local XML config / debug GUI
                 Configurer.setValue(Emu.INSTANCE.parameters(), "status/run_start_time", "--prestart--");
             } catch (DataNotFoundException e) {
                 CODAState.ERROR.getCauses().add(e);
@@ -458,13 +458,13 @@ System.out.println("Roc data creation thread is ending !!!");
 
         // currently NOT used
         else if (cmd.equals(CODATransition.PAUSE)) {
-            System.out.println("ROC: GOT PAUSE, DO NOTHING");
+System.out.println("ROC: GOT PAUSE, DO NOTHING");
             paused = true;
         }
 
         else if (cmd.equals(CODATransition.GO)) {
             if (state == CODAState.ACTIVE) {
-                System.out.println("WE musta hit go after PAUSE");
+System.out.println("WE musta hit go after PAUSE");
             }
 
             state = CODAState.ACTIVE;
@@ -473,8 +473,9 @@ System.out.println("Roc data creation thread is ending !!!");
             if (watcher == null) {
                 watcher = new Thread(Emu.THREAD_GROUP, new Watcher(), name+":watcher");
             }
+
             if (watcher.getState() == Thread.State.NEW) {
-                System.out.println("starting watcher thread");
+System.out.println("starting watcher thread");
                 watcher.start();
             }
 
@@ -483,18 +484,18 @@ System.out.println("Roc data creation thread is ending !!!");
                                                                   new EventGeneratingThread(),
                                                                   name+":generator");
             }
-            int j=0;
-System.out.println("ROC: event generating thread " + eventGeneratingThread.getName() + " isAlive = " +
-                           eventGeneratingThread.isAlive());
+
+//System.out.println("ROC: event generating thread " + eventGeneratingThread.getName() + " isAlive = " +
+//                    eventGeneratingThread.isAlive());
             if (eventGeneratingThread.getState() == Thread.State.NEW) {
-                System.out.println("starting event generating thread");
+System.out.println("starting event generating thread");
                 eventGeneratingThread.start();
             }
 
             paused = false;
 
+            // set end-of-run time in local XML config / debug GUI
             try {
-                // set end-of-run time in local XML config / debug GUI
                 Configurer.setValue(Emu.INSTANCE.parameters(), "status/run_start_time", theDate.toString());
             } catch (DataNotFoundException e) {
                 CODAState.ERROR.getCauses().add(e);

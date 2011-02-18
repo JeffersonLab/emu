@@ -123,7 +123,7 @@ public class EventBuilding implements EmuModule, Runnable {
     private volatile int ebRecordId;
 
     /** State of the module. */
-    private State state = CODAState.UNCONFIGURED;
+    private volatile State state = CODAState.UNCONFIGURED;
 
     /** InputChannels is an ArrayList of DataChannel objects that are inputs. */
     private ArrayList<DataChannel> inputChannels = new ArrayList<DataChannel>();
@@ -144,21 +144,28 @@ public class EventBuilding implements EmuModule, Runnable {
     /** Map containing attributes of this module given in config file. */
     private Map<String,String> attributeMap;
 
-    /** Field lastError is the last error thrown by the module */
+    /** Last error thrown by the module. */
     private final Throwable lastError = null;
 
     /** Threads used to take Data Transport Records from input channels, dissect them,
      *  and place resulting payload banks onto payload queues. */
     private Thread qFillers[];
 
+    /** Thread used to collect built events from the buildingThreads, wrap them in a
+     * Data Transport Record, and place them in order in an output channel. */
     private Thread qCollector;
 
     /** Lock to ensure that a BuldingThread grabs the same positioned event from each Q.  */
     private ReentrantLock getLock = new ReentrantLock();
 
-
+    /** Order in which a buildingThread pulled banks off the payload bank Qs. */
     private int inputOrder;
+
+    /** Next inputOrder due to be placed on the output channel. */
     private int outputOrder;
+
+    /** User hit pause button if <code>true</code>. */
+    private boolean paused;
 
 
     // The following members are for keeping statistics
@@ -187,10 +194,9 @@ public class EventBuilding implements EmuModule, Runnable {
     /** Targeted time period in milliseconds over which instantaneous rates will be calculated. */
     private static final int statGatheringPeriod = 2000;
 
-    /** Field watcher */
+    /** Thread to update statistics. */
     private Thread watcher;
 
-    private boolean paused;
 
 
     /**
@@ -413,7 +419,7 @@ System.out.println("Qfiller: got non-DTR bank, discard");
             EvioBank bank;
             EventBuilder builder = new EventBuilder(0, DataType.BANK, 0); // this event not used, just need a builder
             EventType eventType;
-            int counter = 0;
+            //int counter = 0;
 
             while (state == CODAState.ACTIVE) {
 
