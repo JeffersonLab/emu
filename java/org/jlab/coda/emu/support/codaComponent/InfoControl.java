@@ -32,7 +32,13 @@ public enum InfoControl implements Command {
     /** Command to get the object type. */
     GET_OBJECT_TYPE("Get the object type", RCConstants.rcGetObjectType),
     /** Command to get the coda class. */
-    GET_CODA_CLASS("Get the coda class", RCConstants.rcGetCodaClass);
+    GET_CODA_CLASS("Get the coda class", RCConstants.rcGetCodaClass),
+    /** Command to get run number .*/
+    GET_RUN_NUMBER("Get the run number", RCConstants.rcGetRunNumber),
+    /** Command to get run type. */
+    GET_RUN_TYPE("Get the run type", RCConstants.rcGetRunType),
+    /** Command to get run type. */
+    GET_SESSION("Get the session", RCConstants.rcGetSession);
 
     /** Map of arguments contained in the message from run control (in payload). */
     private final HashMap<String, Object> args = new HashMap<String, Object>();
