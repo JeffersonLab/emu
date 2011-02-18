@@ -1230,23 +1230,21 @@ System.out.println("                           " + (firstEvNum+i) + " != " + (se
      * Create an Evio ROC Raw record event/bank in single event mode to be placed in a Data Transport record.
      *
      * @param rocID       ROC id number
-     * @param triggerType trigger type id number (0-15)
-     * @param dataBankTag starting data bank tag
+     * @param detectorId  id of detector producing data in data block bank
+     * @param status      4-bit status associated with data
      * @param eventNumber starting event number
-     * @param timestamp   starting event's timestamp
      *
      * @return created ROC Raw Record (EvioEvent object)
      * @throws EvioException
      */
-    public static EvioEvent createSingleEventModeRocRecord(int rocID,       int triggerType,
-                                                           int dataBankTag,
-                                                           int eventNumber, int timestamp)
+    public static EvioEvent createSingleEventModeRocRecord(int rocID,  int detectorId,
+                                                           int status, int eventNumber)
             throws EvioException {
         // single event mode means 1 event
         int numEvents = 1;
 
         // create a ROC Raw Data Record event/bank with numEvents physics events in it
-        int rocTag = createCodaTag(false, false, false, true, rocID);
+        int rocTag = createCodaTag(status, rocID);
         EventBuilder eventBuilder = new EventBuilder(rocTag, DataType.BANK, numEvents);
         EvioEvent rocRawEvent = eventBuilder.getEvent();
 
@@ -1256,10 +1254,9 @@ System.out.println("                           " + (firstEvNum+i) + " != " + (se
         data[1] = 10000;
 
         // create a single data block bank (of ints)
-        int eventType  = 33;
-        int detectorID = 666;
-        int detTag = createCodaTag(false, false, false, true, detectorID);
-        EvioBank dataBank = new EvioBank(detTag, DataType.INT32, eventType);
+        int eventType = 33;
+        int dataTag = createCodaTag(status, detectorId);
+        EvioBank dataBank = new EvioBank(dataTag, DataType.INT32, eventType);
         eventBuilder.appendIntData(dataBank, data);
         eventBuilder.addChild(rocRawEvent, dataBank);
 
@@ -1274,7 +1271,8 @@ System.out.println("                           " + (firstEvNum+i) + " != " + (se
      *
      * @param rocID       ROC id number
      * @param triggerType trigger type id number (0-15)
-     * @param dataBankTag starting data bank tag
+     * @param detectorId  id of detector producing data in data block bank
+     * @param status      4-bit status associated with data
      * @param eventNumber starting event number
      * @param numEvents   number of physics events in created record
      * @param timestamp   starting event's timestamp
@@ -1283,13 +1281,12 @@ System.out.println("                           " + (firstEvNum+i) + " != " + (se
      * @throws EvioException
      */
     public static EvioEvent createRocRawRecord(int rocID,       int triggerType,
-                                               int dataBankTag,
+                                               int detectorId,  int status,
                                                int eventNumber, int numEvents,
                                                int timestamp) throws EvioException {
 
         // create a ROC Raw Data Record event/bank with numEvents physics events in it
         int firstEvNum = eventNumber;
-        int status = 0;  // TODO: may want to make status a method arg
         int rocTag = createCodaTag(status, rocID);
         EventBuilder eventBuilder = new EventBuilder(rocTag, DataType.BANK, numEvents);
         EvioEvent rocRawEvent = eventBuilder.getEvent();
@@ -1318,7 +1315,8 @@ System.out.println("                           " + (firstEvNum+i) + " != " + (se
         }
 
         // create a single data bank (of ints) -- NOT SURE WHAT A DATA BANK LOOKS LIKE !!!
-        EvioBank dataBank = new EvioBank(dataBankTag, DataType.INT32, numEvents);
+        int dataTag = createCodaTag(status, detectorId);
+        EvioBank dataBank = new EvioBank(dataTag, DataType.INT32, numEvents);
         eventBuilder.appendIntData(dataBank, data);
         eventBuilder.addChild(rocRawEvent, dataBank);
 
@@ -1429,7 +1427,8 @@ System.out.println("                           " + (firstEvNum+i) + " != " + (se
      *
      * @param rocId       ROC id number
      * @param triggerType trigger type id number (0-15)
-     * @param dataBankTag starting data bank tag
+     * @param detectorId  id of detector producing data in data block bank
+     * @param status      4-bit status associated with data
      * @param eventNumber starting event number
      * @param numEvents   number of physics events in created record
      * @param timestamp   starting event's timestamp
@@ -1441,7 +1440,7 @@ System.out.println("                           " + (firstEvNum+i) + " != " + (se
      * @throws EvioException
      */
     public static EvioEvent createDataTransportRecord(int rocId,       int triggerType,
-                                                      int dataBankTag,
+                                                      int detectorId,  int status,
                                                       int eventNumber, int numEvents,
                                                       int timestamp,   int recordId,
                                                       int numPayloadBanks,
@@ -1468,11 +1467,11 @@ System.out.println("                           " + (firstEvNum+i) + " != " + (se
         for (int i=0; i < numPayloadBanks; i++) {
 
             if (singleEventMode) {
-                event = createSingleEventModeRocRecord(rocId, triggerType, dataBankTag,
-                                                       eventNumber, timestamp);
+                event = createSingleEventModeRocRecord(rocId, detectorId,
+                                                       status, eventNumber);
             }
             else {
-                event = createRocRawRecord(rocId, triggerType, dataBankTag,
+                event = createRocRawRecord(rocId, triggerType, detectorId, status,
                                            eventNumber, numEvents, timestamp);
             }
             eventBuilder.addChild(dtrEvent, event);
