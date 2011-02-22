@@ -254,9 +254,9 @@ public class SenderEt {
 //            }
 
             // in the arg order:
+            int status  = 0;
             int eventID = 10000;
-            int dataBankTag = 666; // starting data bank tag
-            int dataBankNum = 777; // starting data bank num
+            int detectorId = 666; // id of detector that took the data
             int eventNumber = 1;
             int numEventsInPayloadBank = 1; // number of physics events in payload bank
             int timestamp = 1000;
@@ -330,7 +330,7 @@ public class SenderEt {
                     for (int j = 0; j < chunk; j++) {
                         // turn event into byte array
                         ev = Evio.createDataTransportRecord(rocNum, eventID,
-                                                            dataBankTag,
+                                                            detectorId, status,
                                                             eventNumber, numEventsInPayloadBank,
                                                             timestamp, recordId, numPayloadBanks,
                                                             false);
@@ -446,10 +446,10 @@ public class SenderEt {
 System.out.println("Send thread started");
 
             // in the arg order:
-            int rocID = 1;
+            int status  = 0;
             int eventID = 10000;
-            int dataBankTag = 666; // starting data bank tag
-            int dataBankNum = 777; // starting data bank num
+            int detectorId = 666; // id of detector that took the data
+            int rocID = 1;
             int eventNumber = 1;
             int numEventsInPayloadBank = 1; // number of physics events in payload bank
             int timestamp = 1000;
@@ -519,7 +519,7 @@ System.out.println("Send thread started");
                         for (int i = 0; i < 3; i++) {
                             // turn event into byte array
                             ev = Evio.createDataTransportRecord(rocNum, eventID,
-                                                                dataBankTag,
+                                                                detectorId, status,
                                                                 eventNumber, numEventsInPayloadBank,
                                                                 timestamp, recordId, numPayloadBanks,
                                                                 false);

@@ -132,6 +132,7 @@ public class TestROCs {
 //System.out.println("Send thread started");
 
             // in the arg order:
+            int status        = 0;
             int startingRocID = 1;
             int eventID       = 15;
             int dataBankTag   = 111; // starting data bank tag
@@ -170,7 +171,7 @@ public class TestROCs {
 //System.out.println("Send roc record " + startingRocID + " over network");
                         // turn event into byte array
                         ev = Evio.createDataTransportRecord(rocNum,      eventID,
-                                                            dataBankTag,
+                                                            dataBankTag, status,
                                                             eventNumber, numEventsInPayloadBank,
                                                             timestamp,   recordId,
                                                             numPayloadBanks, isSingleEventMode);
