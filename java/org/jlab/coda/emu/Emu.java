@@ -376,10 +376,12 @@ System.out.println("Done parsing the file -> " + configFile);
         }
 
         // Get the UDL for connection to the cMsg server. If none given,
-        // cMSGPortal defaults to using UDL = "cMsg:cMsg://localhost/cMsg/test".
+        // cMSGPortal defaults to using UDL = "cMsg:rc://multicast/<expid>"
+        // expid can be found, else uses UDL = "cMsg:cMsg://localhost/cMsg/test".
         cmsgUDL = System.getProperty("cmsgUDL");
 
-        // Get the singleton object responsible for communication with cMsg server
+        // Get the singleton object responsible for communication with
+        // runcontrol through a cMsg server.
         cmsgPortal = CMSGPortal.getCMSGPortal(this);
 
         String tmp = System.getProperty("expid");
@@ -616,7 +618,51 @@ System.out.println("EXECUTING cmd = " + cmd.name());
             cmd.clearArgs();
             return;
         }
-        // TODO: send back our state
+        // send back our state
+        else if (cmd.equals(InfoControl.GET_STATE)) {
+            if ( (CMSGPortal.getServer() != null) &&
+                 (CMSGPortal.getServer().isConnected())) {
+
+                cMsgMessage msg = new cMsgMessage();
+                msg.setSubject(name);
+                msg.setType(RCConstants.rcGetStateResponse);
+                String state = MODULE_FACTORY.state().name().toLowerCase();
+                msg.setText(state);  //TODO:correct ??
+
+                try {
+                    CMSGPortal.getServer().send(msg);
+                }
+                catch (cMsgException e) {
+                    e.printStackTrace();
+                }
+            }
+
+            cmd.clearArgs();
+            return;
+        }
+        // send back our state
+        else if (cmd.equals(InfoControl.GET_CODA_CLASS)) {
+            if ( (CMSGPortal.getServer() != null) &&
+                 (CMSGPortal.getServer().isConnected())) {
+
+                cMsgMessage msg = new cMsgMessage();
+                msg.setSubject(name);
+                msg.setType(RCConstants.rcGetCodaClassResponse);
+                String state = MODULE_FACTORY.state().name().toLowerCase();
+                msg.setText(getCodaClass());  //TODO: this is not set anywhere!!
+
+                try {
+                    CMSGPortal.getServer().send(msg);
+                }
+                catch (cMsgException e) {
+                    e.printStackTrace();
+                }
+            }
+
+            cmd.clearArgs();
+            return;
+        }
+        // send back our state    // TODO: is this obsolete??
         else if (cmd.equals(RunControl.GET_STATE)) {
             if ( (CMSGPortal.getServer() != null) &&
                  (CMSGPortal.getServer().isConnected())) {
