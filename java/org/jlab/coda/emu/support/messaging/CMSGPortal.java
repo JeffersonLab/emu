@@ -67,10 +67,20 @@ public class CMSGPortal implements LoggerAppender {
         // UDL for connection to cMsg server was originally specified
         // with -DcmsgUDL=xxx flag to interpreter when running EMU.
         String udl = c.getCmsgUDL();
-        // default test UDL
-        String TEST_UDL = "cMsg:cMsg://localhost/cMsg/test";
-        if (udl != null) UDL = udl;
-        else UDL = TEST_UDL;
+
+        // construct default UDL if necessary
+        if (udl == null) {
+            String expid = System.getenv("EXPID");
+            if (expid != null)  {
+                udl = "cMsg:rc://multicast/" + expid;
+            }
+            else {
+                udl = "cMsg:cMsg://localhost/cMsg/test";
+            }
+        }
+
+        UDL = udl;
+
 System.out.println("\n CMSGPortal using UDL = " + UDL + "\n");
         Logger.addAppender(this);
 
@@ -121,6 +131,12 @@ System.out.println("\n CMSGPortal using UDL = " + UDL + "\n");
                         // install callback for set/get run number, set/get run type
     System.out.println("CMSGPortal subscribe to sub = *, type = " + RCConstants.sessionCommandType);
                         server.subscribe("*", RCConstants.sessionCommandType, new RCSessionHandler(self), null);
+                        // install callback for getting state, status, codaClass, & objectType
+    System.out.println("CMSGPortal subscribe to sub = *, type = " + RCConstants.infoCommandType);
+                        server.subscribe("*", RCConstants.infoCommandType, new RCInfoHandler(self), null);
+                        // for future use
+    System.out.println("CMSGPortal subscribe to sub = *, type = " + RCConstants.setOptionType);
+                        server.subscribe("*", RCConstants.setOptionType, new RCOptionHandler(self), null);
 
                         Logger.info("cMSg server connected");
 
