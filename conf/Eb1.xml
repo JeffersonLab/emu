@@ -12,6 +12,9 @@
 
 <component name="Eb1">
     <transports>
+        <!--
+            name = name of cmsg client used in transport object to connect to cmsg server.
+        -->
         <server name="cmsg1" class="Cmsg" udl="cMsg://localhost/cMsg/test"/>
         <client name="cmsg2" class="Cmsg" udl="cMsg://localhost/cMsg/test"/>
     </transports>

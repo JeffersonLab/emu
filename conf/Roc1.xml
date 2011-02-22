@@ -12,16 +12,26 @@
 
 <component name="Roc1">
     <transports>
+        <!--
+            name = name of cmsg client used in transport object to connect to cmsg server.
+        -->
         <server name="cmsg" class="Cmsg" udl="cMsg://localhost/cMsg/test"/>
     </transports>
     <modules src="modules.jar" usr_src="user_modules.jar">
         <!--
-            statistics=on means that if there are multiple modules defined, this module's statistics
-            may be reported to runcontrol as being representative of everything. class is the name
-            of the class defining this module and must be loaded.
-            id is the id number of this module and is used as the unique ROC id.
-        -->
-        <RocModule class="RocSimulation" id="1" statistics="on">
+            statistics="on" means that if there are multiple modules defined, this module's statistics
+                 may be reported to runcontrol as being representative of everything.
+            class is the name of the class defining this module and must be loaded.
+            id="0" sets the id number of this module - the unique ROC id.
+            SEMode="off" turns off single event mode
+            delay="2000" sets the delay in milliseconds between creating each data transport record
+            triggerType="15" sets the trigger type - can only be 4 bits (0-15)
+            blockSize="1" sets number of events per ROC raw record (255 max)
+            numRecords="1" sets number of ROC raw records per data transport record (255 max)
+            detectorId="111" sets the detector id in data block bank
+            NOTE: the values listed are the defaults
+            -->
+        <RocModule class="RocSimulation" id="1" delay="2500" >
             <!--
                 The "subject" & "type" attributes override the default subscriptions to send msgs over cmsg.
                 The default is subject = name, type="data".

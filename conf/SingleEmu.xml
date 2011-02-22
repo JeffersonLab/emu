@@ -12,6 +12,9 @@
 
 <component name="SingleEmu">
     <transports>
+        <!--
+            name = name of cmsg client used in transport object to connect to cmsg server.
+        -->
         <server name="SingleEmu_SOCKET" class="Cmsg" udl="cMsg://localhost/cMsg/test"/>
         <client name="BitBucket_SOCKET" class="Cmsg" udl="cMsg://localhost/cMsg/test"/>
     </transports>
