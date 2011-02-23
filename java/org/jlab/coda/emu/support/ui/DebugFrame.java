@@ -39,15 +39,15 @@ import java.util.ResourceBundle;
 public class DebugFrame extends JFrame {
     private int documentCount = 0;
 
-    public DebugFrame() {
+    public DebugFrame(Emu emu) {
         initComponents();
-        setTitle(Emu.INSTANCE.name());
+        setTitle(emu.name());
         QueueAppender logQueueAppender = new QueueAppender(1024);
         Logger.addAppender(logQueueAppender);
         logPanel.monitor(logQueueAppender);
-        smartToolbar.configure(Emu.INSTANCE, CODATransition.class);
-        smartToolbar1.configure(Emu.INSTANCE, RunControl.class);
-        smartToolbar2.configure(Emu.INSTANCE, SessionControl.class);
+        smartToolbar.configure(emu, CODATransition.class);
+        smartToolbar1.configure(emu, RunControl.class);
+        smartToolbar2.configure(emu, SessionControl.class);
         splitPane1.setDividerLocation(.75);
 
         setVisible(true);

@@ -15,7 +15,6 @@ import org.jlab.coda.emu.Emu;
 import org.jlab.coda.emu.EmuClassLoader;
 import org.jlab.coda.emu.support.codaComponent.CODAState;
 import org.jlab.coda.emu.support.codaComponent.CODATransition;
-import org.jlab.coda.emu.support.codaComponent.RunControl;
 import org.jlab.coda.emu.support.codaComponent.StatedObject;
 import org.jlab.coda.emu.support.configurer.Configurer;
 import org.jlab.coda.emu.support.configurer.DataNotFoundException;
@@ -46,13 +45,19 @@ import java.io.File;
 public class DataTransportFactory implements StatedObject {
 
     /** Vector containing all DataTransport objects. */
-    private static final Vector<DataTransport> transports = new Vector<DataTransport>();
+    private final Vector<DataTransport> transports = new Vector<DataTransport>();
 
     /** Name of this object. */
     private final String name = "Transport factory";
 
     /** Field state */
     private State state = CODAState.UNCONFIGURED;
+
+    private Emu emu;
+
+    public DataTransportFactory(Emu emu) {
+        this.emu = emu;
+    }
 
     /**
      * This method finds the DataTransport object corresponding to the given name.
@@ -61,7 +66,7 @@ public class DataTransportFactory implements StatedObject {
      * @return DataTransport object corresponding to given name
      * @throws DataNotFoundException when no transport object of that name can be found
      */
-    public static DataTransport findNamedTransport(String name) throws DataNotFoundException {
+    public DataTransport findNamedTransport(String name) throws DataNotFoundException {
         DataTransport t;
 
         if (transports.isEmpty()) throw new DataNotFoundException("Data Transport not found, transports vector is empty");
@@ -119,7 +124,7 @@ public class DataTransportFactory implements StatedObject {
         if (cmd.equals(CODATransition.DOWNLOAD)) {
 
             try {
-                Node m = Configurer.getNode(Emu.INSTANCE.configuration(), "component/transports");
+                Node m = Configurer.getNode(emu.configuration(), "component/transports");
 //System.out.println("component/transports node = " + m);
                 if (!m.hasChildNodes()) throw new DataNotFoundException("transport section present in config but no transports");
 
@@ -263,7 +268,7 @@ Logger.info("  DataTransportFactory.execute DOWN : loaded class = " + c);
         if (cmd.equals(CODATransition.DOWNLOAD)) {
 
             try {
-                Node m = Configurer.getNode(Emu.INSTANCE.configuration(), "component/transports");
+                Node m = Configurer.getNode(emu.configuration(), "component/transports");
 //System.out.println("component/transports node = " + m);
                 if (!m.hasChildNodes()) throw new DataNotFoundException("transport section present in config but no transports");
 

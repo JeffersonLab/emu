@@ -27,6 +27,7 @@ import org.jlab.coda.jevio.*;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.Iterator;
+import java.util.Map;
 import java.util.concurrent.BlockingQueue;
 
 /**
@@ -56,6 +57,9 @@ public class Process implements EmuModule, Runnable {
     /** Field actionThread is a Thread object that is the main thread of this module. */
     private Thread actionThread;
 
+    /** Map containing attributes of this module given in config file. */
+    private Map<String,String> attributeMap;
+
     /** Field last_error is the last error thrown by the module */
     private final Throwable last_error = null;
 
@@ -67,6 +71,9 @@ public class Process implements EmuModule, Runnable {
 
     /** Field watcher */
     private Watcher watcher;
+
+    private Emu emu;
+
 
     /**
      * This class codes a thread that copies the event number and data count into the EMU status
@@ -89,8 +96,8 @@ public class Process implements EmuModule, Runnable {
                     synchronized (this) {
                         while (state == CODAState.ACTIVE) {
                             sleep(200);
-                            Configurer.setValue(Emu.INSTANCE.parameters(), "status/eventCount", Long.toString(eventCount));
-                            Configurer.setValue(Emu.INSTANCE.parameters(), "status/wordCount", Long.toString(wordCount));
+                            Configurer.setValue(emu.parameters(), "status/eventCount", Long.toString(eventCount));
+                            Configurer.setValue(emu.parameters(), "status/wordCount", Long.toString(wordCount));
                         }
                     }
 
@@ -110,8 +117,10 @@ System.out.println("Process module: quitting watcher thread");
      *
      * @param name of type String
      */
-    public Process(String name) {
+    public Process(String name, Map<String,String> attributeMap, Emu emu) {
+        this.emu = emu;
         this.name = name;
+        this.attributeMap = attributeMap;
 //System.out.println("**** HEY, HEY someone created one of ME (modules.Process object) ****");
         System.out.println("**** LOADED NEW CLASS, DUDE!!! (modules.Process object) ****");
     }
@@ -251,7 +260,7 @@ System.out.println("Process: put bank on output Q");
 
             try {
                 // set end-of-run time in local XML config
-                Configurer.setValue(Emu.INSTANCE.parameters(), "status/run_end_time", theDate.toString());
+                Configurer.setValue(emu.parameters(), "status/run_end_time", theDate.toString());
             } catch (DataNotFoundException e) {
                 e.printStackTrace();
             }
@@ -262,10 +271,10 @@ System.out.println("Process: put bank on output Q");
             wordCount = 0;
 
             watcher = new Watcher();
-            actionThread = new Thread(Emu.THREAD_GROUP, this, name);
+            actionThread = new Thread(emu.THREAD_GROUP, this, name);
 
             try {
-                Configurer.setValue(Emu.INSTANCE.parameters(), "status/run_start_time", "--prestart--");
+                Configurer.setValue(emu.parameters(), "status/run_start_time", "--prestart--");
             } catch (DataNotFoundException e) {
                 CODAState.ERROR.getCauses().add(e);
                 state = CODAState.ERROR;
@@ -291,7 +300,7 @@ System.out.println("GO in Process module");
             watcher.start();
 
             try {
-                Configurer.setValue(Emu.INSTANCE.parameters(), "status/run_start_time", theDate.toString());
+                Configurer.setValue(emu.parameters(), "status/run_start_time", theDate.toString());
             } catch (DataNotFoundException e) {
                 CODAState.ERROR.getCauses().add(e);
                 state = CODAState.ERROR;
@@ -300,7 +309,7 @@ System.out.println("GO in Process module");
             
             // TODO: cannot restart an interrupted thread !!! bug bug
             if (actionThread == null) {
-                actionThread = new Thread(Emu.THREAD_GROUP, this, name);
+                actionThread = new Thread(emu.THREAD_GROUP, this, name);
             }
             actionThread.start();
         }

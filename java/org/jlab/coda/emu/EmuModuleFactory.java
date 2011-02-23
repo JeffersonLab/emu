@@ -54,7 +54,7 @@ public class EmuModuleFactory implements StatedObject {
      * {@link #state()}, {@link #findModule(String)}, and {@link #getStatisticsModule()})
      * and therefore need to be synchronized.
      */
-    private static final Vector<EmuModule> modules = new Vector<EmuModule>(10);
+    private final Vector<EmuModule> modules = new Vector<EmuModule>(10);
 
     /** Field classloader */
     private EmuClassLoader classloader;
@@ -63,9 +63,16 @@ public class EmuModuleFactory implements StatedObject {
     private State state = CODAState.UNCONFIGURED;
 
     /** Field TRANSPORT_FACTORY - singleton */
-    private final static DataTransportFactory TRANSPORT_FACTORY = new DataTransportFactory();
+    private final DataTransportFactory TRANSPORT_FACTORY;
 
-    
+    /** Emu that created this module factory object. */
+    private Emu emu;
+
+    EmuModuleFactory(Emu emu) {
+        this.emu = emu;
+        TRANSPORT_FACTORY = new DataTransportFactory(emu);
+    }
+
     /**
      * Get the module from which we gather statistics. Used to report statistics to
      * run control.
@@ -114,7 +121,7 @@ public class EmuModuleFactory implements StatedObject {
                 URL[] locations;
 
                 // get the config info again since it may have changed
-                Node modulesConfig = Configurer.getNode(Emu.INSTANCE.configuration(), "component/modules");
+                Node modulesConfig = Configurer.getNode(emu.configuration(), "component/modules");
 
                 // check for config problems
                 if (modulesConfig == null) {
@@ -237,7 +244,7 @@ System.out.println("Put (" + a.getNodeName() + "," + a.getNodeValue() + ") into 
 
             // now pass it on to the modules
             try {
-                Node modulesConfig = Configurer.getNode(Emu.INSTANCE.configuration(), "component/modules");
+                Node modulesConfig = Configurer.getNode(emu.configuration(), "component/modules");
                 Node moduleNode = modulesConfig.getFirstChild();
                 // for each module in the list of modules ...
                 do {
@@ -285,7 +292,7 @@ System.out.println("Put (" + a.getNodeName() + "," + a.getNodeValue() + ") into 
                                 String channelTransName = channelTranspNode.getNodeValue();
 //System.out.println("EmuModuleFactory.execute PRE : module " + module.name() + " channel " + channelName + " transp " + channelTransName);
                                 // look up transport object from name
-                                DataTransport trans = DataTransportFactory.findNamedTransport(channelTransName);
+                                DataTransport trans = TRANSPORT_FACTORY.findNamedTransport(channelTransName);
 
                                 // store all attributes in a hashmap to pass to channel
                                 Map<String, String> attributeMap = new HashMap<String, String>();
@@ -298,13 +305,13 @@ System.out.println("Put (" + a.getNodeName() + "," + a.getNodeValue() + ") into 
                                 // if it's an input channel ...
                                 if (channelNode.getNodeName().equalsIgnoreCase("inchannel")) {
                                     // create channel
-                                    DataChannel channel = trans.createChannel(channelName, attributeMap, true);
+                                    DataChannel channel = trans.createChannel(channelName, attributeMap, true, emu);
                                     // add to list
                                     in.add(channel);
                                 }
                                 // if it's an output channel ...
                                 else if (channelNode.getNodeName().equalsIgnoreCase("outchannel")) {
-                                    DataChannel channel = trans.createChannel(channelName, attributeMap, false);
+                                    DataChannel channel = trans.createChannel(channelName, attributeMap, false, emu);
                                     out.add(channel);
                                 }
                                 else {
@@ -420,7 +427,7 @@ System.out.println("Put (" + a.getNodeName() + "," + a.getNodeValue() + ") into 
      * @param name of type String
      * @return EmuModule
      */
-    public static EmuModule findModule(String name) {
+    public EmuModule findModule(String name) {
         synchronized(modules) {
             for (EmuModule module : modules) {
                 if (module.name().equals(name)) {

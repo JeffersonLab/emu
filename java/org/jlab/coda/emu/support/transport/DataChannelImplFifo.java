@@ -1,5 +1,6 @@
 package org.jlab.coda.emu.support.transport;
 
+import org.jlab.coda.emu.Emu;
 import org.jlab.coda.emu.support.logger.Logger;
 import org.jlab.coda.jevio.EvioBank;
 
@@ -39,7 +40,8 @@ public class DataChannelImplFifo implements DataChannel {
      * @throws DataTransportException - unable to create fifo buffer.
      */
     @SuppressWarnings({"UnusedParameters"})
-    DataChannelImplFifo(String name, DataTransportImplFifo dataTransport, boolean input) throws DataTransportException {
+    DataChannelImplFifo(String name, DataTransportImplFifo dataTransport,
+                        boolean input, Emu emu) throws DataTransportException {
 
         this.name = name;
         this.input = input;

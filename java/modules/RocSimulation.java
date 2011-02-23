@@ -111,6 +111,8 @@ public class RocSimulation implements EmuModule, Runnable {
     /** Thread to update statistics. */
     private Thread watcher;
 
+    private Emu emu;
+
 
     /**
      * Constructor ProcessTest creates a new EventBuilding instance.
@@ -118,8 +120,9 @@ public class RocSimulation implements EmuModule, Runnable {
      * @param name name of module
      * @param attributeMap map containing attributes of module
      */
-    public RocSimulation(String name, Map<String, String> attributeMap) {
+    public RocSimulation(String name, Map<String, String> attributeMap, Emu emu) {
         String s;
+        this.emu = emu;
         this.name = name;
         this.attributeMap = attributeMap;
 
@@ -399,7 +402,7 @@ System.out.println("Roc data creation thread is ending !!!");
 
             // set end-of-run time in local XML config / debug GUI
             try {
-                Configurer.setValue(Emu.INSTANCE.parameters(), "status/run_end_time", theDate.toString());
+                Configurer.setValue(emu.parameters(), "status/run_end_time", theDate.toString());
             } catch (DataNotFoundException e) {
                 e.printStackTrace();
             }
@@ -422,7 +425,7 @@ System.out.println("Roc data creation thread is ending !!!");
             if (previousState.equals(CODAState.ACTIVE)) {
                 // set end-of-run time in local XML config / debug GUI
                 try {
-                    Configurer.setValue(Emu.INSTANCE.parameters(), "status/run_end_time", theDate.toString());
+                    Configurer.setValue(emu.parameters(), "status/run_end_time", theDate.toString());
                 } catch (DataNotFoundException e) {
                     e.printStackTrace();
                 }
@@ -441,14 +444,14 @@ System.out.println("Roc data creation thread is ending !!!");
             lastEventNumberCreated = 0L;
 
             // create threads objects (but don't start them yet)
-            watcher = new Thread(Emu.THREAD_GROUP, new Watcher(), name+":watcher");
-            eventGeneratingThread = new EventGeneratingThread(Emu.THREAD_GROUP,
+            watcher = new Thread(emu.THREAD_GROUP, new Watcher(), name+":watcher");
+            eventGeneratingThread = new EventGeneratingThread(emu.THREAD_GROUP,
                                                                    new EventGeneratingThread(),
                                                                    name+":generator");
 
             // set end-of-run time in local XML config / debug GUI
             try {
-                Configurer.setValue(Emu.INSTANCE.parameters(), "status/run_start_time", "--prestart--");
+                Configurer.setValue(emu.parameters(), "status/run_start_time", "--prestart--");
             } catch (DataNotFoundException e) {
                 CODAState.ERROR.getCauses().add(e);
                 state = CODAState.ERROR;
@@ -471,7 +474,7 @@ System.out.println("WE musta hit go after PAUSE");
 
             // start up all threads
             if (watcher == null) {
-                watcher = new Thread(Emu.THREAD_GROUP, new Watcher(), name+":watcher");
+                watcher = new Thread(emu.THREAD_GROUP, new Watcher(), name+":watcher");
             }
 
             if (watcher.getState() == Thread.State.NEW) {
@@ -480,7 +483,7 @@ System.out.println("starting watcher thread");
             }
 
             if (eventGeneratingThread == null) {
-                eventGeneratingThread = new EventGeneratingThread(Emu.THREAD_GROUP,
+                eventGeneratingThread = new EventGeneratingThread(emu.THREAD_GROUP,
                                                                   new EventGeneratingThread(),
                                                                   name+":generator");
             }
@@ -496,7 +499,7 @@ System.out.println("starting event generating thread");
 
             // set end-of-run time in local XML config / debug GUI
             try {
-                Configurer.setValue(Emu.INSTANCE.parameters(), "status/run_start_time", theDate.toString());
+                Configurer.setValue(emu.parameters(), "status/run_start_time", theDate.toString());
             } catch (DataNotFoundException e) {
                 CODAState.ERROR.getCauses().add(e);
                 state = CODAState.ERROR;

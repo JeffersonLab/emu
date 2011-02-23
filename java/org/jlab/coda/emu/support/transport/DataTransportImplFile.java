@@ -1,5 +1,6 @@
 package org.jlab.coda.emu.support.transport;
 
+import org.jlab.coda.emu.Emu;
 import org.jlab.coda.emu.support.configurer.DataNotFoundException;
 import org.jlab.coda.emu.support.control.Command;
 
@@ -24,10 +25,11 @@ public class DataTransportImplFile extends DataTransportCore implements DataTran
     }
 
     /** {@inheritDoc} */
-    public DataChannel createChannel(String name, Map<String,String> attributeMap, boolean isInput)
+    public DataChannel createChannel(String name, Map<String,String> attributeMap,
+                                     boolean isInput, Emu emu)
             throws DataTransportException {
         System.out.println("create channel " + name);
-        DataChannel c = new DataChannelImplFile(name() + ":" + name, this, isInput);
+        DataChannel c = new DataChannelImplFile(name() + ":" + name, this, isInput, emu);
         channels().put(c.getName(), c);
         System.out.println("put channel " + c.getName());
         System.out.println("channels " + channels() + " " + this);

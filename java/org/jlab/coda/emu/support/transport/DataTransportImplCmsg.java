@@ -12,6 +12,7 @@
 package org.jlab.coda.emu.support.transport;
 
 import org.jlab.coda.cMsg.*;
+import org.jlab.coda.emu.Emu;
 import org.jlab.coda.emu.support.configurer.DataNotFoundException;
 import org.jlab.coda.emu.support.codaComponent.CODAState;
 import org.jlab.coda.emu.support.codaComponent.CODATransition;
@@ -64,8 +65,8 @@ public class DataTransportImplCmsg extends DataTransportCore implements DataTran
     }
 
 
-    public DataChannel createChannel(String name, Map<String,String> attributeMap, boolean isInput) throws DataTransportException {
-        DataChannel c = new DataChannelImplCmsg(name, this, attributeMap, isInput);
+    public DataChannel createChannel(String name, Map<String,String> attributeMap, boolean isInput, Emu emu) throws DataTransportException {
+        DataChannel c = new DataChannelImplCmsg(name, this, attributeMap, isInput, emu);
         channels().put(name, c);
         return c;
     }

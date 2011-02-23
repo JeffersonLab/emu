@@ -197,6 +197,7 @@ public class EventBuilding implements EmuModule, Runnable {
     /** Thread to update statistics. */
     private Thread watcher;
 
+    private Emu emu;
 
 
     /**
@@ -205,7 +206,8 @@ public class EventBuilding implements EmuModule, Runnable {
      * @param name name of module
      * @param attributeMap map containing attributes of module
      */
-    public EventBuilding(String name, Map<String, String> attributeMap) {
+    public EventBuilding(String name, Map<String, String> attributeMap, Emu emu) {
+        this.emu = emu;
         this.name = name;
         this.attributeMap = attributeMap;
         try {
@@ -292,8 +294,8 @@ public class EventBuilding implements EmuModule, Runnable {
                     synchronized (this) {
                         while (state == CODAState.ACTIVE) {
                             sleep(500);
-                            Configurer.setValue(Emu.INSTANCE.parameters(), "status/eventCount", Long.toString(eventCountTotal));
-                            Configurer.setValue(Emu.INSTANCE.parameters(), "status/wordCount", Long.toString(wordCountTotal));
+                            Configurer.setValue(emu.parameters(), "status/eventCount", Long.toString(eventCountTotal));
+                            Configurer.setValue(emu.parameters(), "status/wordCount", Long.toString(wordCountTotal));
 //                            Configurer.newValue(Emu.INSTANCE.parameters(), "status/wordCount",
 //                                                "CarlsModule", Long.toString(wordCountTotal));
                         }
@@ -991,7 +993,7 @@ System.out.println("INTERRUPTED thread " + Thread.currentThread().getName());
 
             try {
                 // set end-of-run time in local XML config / debug GUI
-                Configurer.setValue(Emu.INSTANCE.parameters(), "status/run_end_time", theDate.toString());
+                Configurer.setValue(emu.parameters(), "status/run_end_time", theDate.toString());
             } catch (DataNotFoundException e) {
                 e.printStackTrace();
             }
@@ -1027,7 +1029,7 @@ System.out.println("INTERRUPTED thread " + Thread.currentThread().getName());
             if (previousState.equals(CODAState.ACTIVE)) {
                 try {
                     // set end-of-run time in local XML config / debug GUI
-                    Configurer.setValue(Emu.INSTANCE.parameters(), "status/run_end_time", theDate.toString());
+                    Configurer.setValue(emu.parameters(), "status/run_end_time", theDate.toString());
                 } catch (DataNotFoundException e) {
                     e.printStackTrace();
                 }
@@ -1082,21 +1084,21 @@ System.out.println("INTERRUPTED thread " + Thread.currentThread().getName());
             // Reset some variables
             eventRate = wordRate = 0F;
             eventCountTotal = wordCountTotal = 0L;
-            runNumber = Emu.INSTANCE.getRunNumber();
+            runNumber = emu.getRunNumber();
             ebRecordId = 0;
             eventNumber = 1L;
             lastEventNumberBuilt = 0L;
 
             // create threads objects (but don't start them yet)
-            watcher = new Thread(Emu.THREAD_GROUP, new Watcher(), name+":watcher");
+            watcher = new Thread(emu.THREAD_GROUP, new Watcher(), name+":watcher");
             for (int i=0; i < buildingThreadCount; i++) {
-                BuildingThread thd1 = new BuildingThread(Emu.THREAD_GROUP, new BuildingThread(), name+":builder"+i);
+                BuildingThread thd1 = new BuildingThread(emu.THREAD_GROUP, new BuildingThread(), name+":builder"+i);
                 buildingThreadQueue.add(thd1);
             }
-            qCollector = new Thread(Emu.THREAD_GROUP, new QCollector(), name+":qcollector");
+            qCollector = new Thread(emu.THREAD_GROUP, new QCollector(), name+":qcollector");
             qFillers = new Thread[qCount];
             for (int i=0; i < qCount; i++) {
-                qFillers[i] = new Thread(Emu.THREAD_GROUP,
+                qFillers[i] = new Thread(emu.THREAD_GROUP,
                                          new Qfiller(payloadBankQueues.get(i),
                                                         inputChannels.get(i).getQueue()),
                                          name+":qfiller"+i);
@@ -1104,7 +1106,7 @@ System.out.println("INTERRUPTED thread " + Thread.currentThread().getName());
 
             try {
                 // set end-of-run time in local XML config / debug GUI
-                Configurer.setValue(Emu.INSTANCE.parameters(), "status/run_start_time", "--prestart--");
+                Configurer.setValue(emu.parameters(), "status/run_start_time", "--prestart--");
             } catch (DataNotFoundException e) {
                 CODAState.ERROR.getCauses().add(e);
                 state = CODAState.ERROR;
@@ -1127,7 +1129,7 @@ System.out.println("INTERRUPTED thread " + Thread.currentThread().getName());
 
             // start up all threads
             if (watcher == null) {
-                watcher = new Thread(Emu.THREAD_GROUP, new Watcher(), name+":watcher");
+                watcher = new Thread(emu.THREAD_GROUP, new Watcher(), name+":watcher");
             }
             if (watcher.getState() == Thread.State.NEW) {
                 System.out.println("starting watcher thread");
@@ -1136,7 +1138,7 @@ System.out.println("INTERRUPTED thread " + Thread.currentThread().getName());
 
             if (buildingThreadQueue.size() < 1) {
                 for (int i=0; i < buildingThreadCount; i++) {
-                    BuildingThread thd1 = new BuildingThread(Emu.THREAD_GROUP, new BuildingThread(), name+":builder"+i);
+                    BuildingThread thd1 = new BuildingThread(emu.THREAD_GROUP, new BuildingThread(), name+":builder"+i);
                     buildingThreadQueue.add(thd1);
                 }
             }
@@ -1153,7 +1155,7 @@ System.out.println("INTERRUPTED thread " + Thread.currentThread().getName());
             }
 
             if (qCollector == null) {
-                qCollector = new Thread(Emu.THREAD_GROUP, new QCollector(), name+":qcollector");
+                qCollector = new Thread(emu.THREAD_GROUP, new QCollector(), name+":qcollector");
             }
             else {
                 System.out.println("EB: qCollector is not null");
@@ -1166,7 +1168,7 @@ System.out.println("INTERRUPTED thread " + Thread.currentThread().getName());
             if (qFillers == null) {
                 qFillers = new Thread[payloadBankQueues.size()];
                 for (int i=0; i < payloadBankQueues.size(); i++) {
-                    qFillers[i] = new Thread(Emu.THREAD_GROUP,
+                    qFillers[i] = new Thread(emu.THREAD_GROUP,
                                              new Qfiller(payloadBankQueues.get(i),
                                                             inputChannels.get(i).getQueue()),
                                              name+":qfiller"+i);
@@ -1183,7 +1185,7 @@ System.out.println("INTERRUPTED thread " + Thread.currentThread().getName());
 
             try {
                 // set end-of-run time in local XML config / debug GUI
-                Configurer.setValue(Emu.INSTANCE.parameters(), "status/run_start_time", theDate.toString());
+                Configurer.setValue(emu.parameters(), "status/run_start_time", theDate.toString());
             } catch (DataNotFoundException e) {
                 CODAState.ERROR.getCauses().add(e);
                 state = CODAState.ERROR;

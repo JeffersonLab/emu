@@ -21,8 +21,6 @@ import org.jlab.coda.emu.support.configurer.DataNotFoundException;
 import org.jlab.coda.emu.support.control.CmdExecException;
 import org.jlab.coda.emu.support.control.Command;
 import org.jlab.coda.emu.support.control.State;
-import org.jlab.coda.emu.support.keyboardControl.ApplicationConsole;
-import org.jlab.coda.emu.support.keyboardControl.KbdHandler;
 import org.jlab.coda.emu.support.logger.Logger;
 import org.jlab.coda.emu.support.messaging.CMSGPortal;
 import org.jlab.coda.emu.support.messaging.RCConstants;
@@ -51,30 +49,28 @@ import java.util.concurrent.TimeUnit;
  * This class is a singleton which means that only one EMU per JVM is
  * allowed by design.
  */
-public class Emu implements KbdHandler, CODAComponent {
+public class Emu implements CODAComponent {
 
-    /** Field INSTANCE, there is only one instance of the Emu class and it is stored in INSTANCE. */
-    public static CODAComponent INSTANCE;
 
     /**
      * Field FRAMEWORK, the Emu can display a window containing debug information, a message log
      * and toolbars that allow commands to be issued without Run Control. This is implemented by
      * the DebugFrame class. If the DebugFrame is displayed it's instance is stored in FRAMEWORK.
      */
-    private static DebugFrame FRAMEWORK;
+    private DebugFrame FRAMEWORK;
 
     /**
      * Field THREAD_GROUP, the Emu attempts to start all of it's threads in one thread group.
      * the thread group is stored in THREAD_GROUP.
      */
-    public static ThreadGroup THREAD_GROUP;
+    public ThreadGroup THREAD_GROUP;
 
     /**
      * Field MODULE_FACTORY, most of the data manipulation in the Emu is done by plug-in modules.
      * The modules are specified in an XML configuration file and managed by an object of the
      * EmuModuleFactory class. The single instance of EmuModuleFactory is stored in MODULE_FACTORY.
      */
-    private final static EmuModuleFactory MODULE_FACTORY = new EmuModuleFactory();
+    private final EmuModuleFactory MODULE_FACTORY;
 
     /** Field name is the name of the Emu, initially "unconfigured" */
     private String name = "unconfigured";
@@ -210,8 +206,8 @@ public class Emu implements KbdHandler, CODAComponent {
 
             while (!Thread.interrupted()) {
                 if (statusReportingOn &&
-                   (CMSGPortal.getServer() != null) &&
-                   (CMSGPortal.getServer().isConnected())) {
+                   (cmsgPortal.getServer() != null) &&
+                   (cmsgPortal.getServer().isConnected())) {
                     
                     cMsgMessage msg = new cMsgMessage();
                     msg.setSubject(name);
@@ -243,7 +239,7 @@ System.out.println("Stats for module " + statsModule.name() + ": count = " + eve
                         msg.addPayloadItem(new cMsgPayloadItem(RCConstants.eventRate, eventRate));
                         msg.addPayloadItem(new cMsgPayloadItem(RCConstants.numberOfLongs, wordCount));
                         msg.addPayloadItem(new cMsgPayloadItem(RCConstants.dataRate, wordRate));
-                        CMSGPortal.getServer().send(msg);
+                        cmsgPortal.getServer().send(msg);
                     }
                     catch (cMsgException e) {
                         e.printStackTrace();
@@ -282,19 +278,19 @@ System.out.println("Stats for module " + statsModule.name() + ": count = " + eve
      * By the end of the constructor several threads have been started and the static
      * method main will not exit while they are running.
      */
-    protected Emu() {
-        // singleton reference
-        INSTANCE = this;
+    public Emu() {
 
         // set the name of this EMU temporarily (sets GUI title & thread group name)
         setName("EMUComponent");
 
         THREAD_GROUP = new ThreadGroup(name);
 
-        // Put this singleton (which is a CODAComponent and therefore Runnable)
+        // Put this (which is a CODAComponent and therefore Runnable)
         // into a thread group and keep track of this object's thread. This
         // thread is started when statusMonitor.start() is called (below).
-        statusMonitor = new Thread(THREAD_GROUP, INSTANCE, "State monitor");
+        statusMonitor = new Thread(THREAD_GROUP, this, "State monitor");
+
+        MODULE_FACTORY = new EmuModuleFactory(this);
 
         ///////////////////////////////////////////////////////////////
         // Properties are set with -D option to java interpreter (java)
@@ -302,18 +298,9 @@ System.out.println("Stats for module " + statsModule.name() + ": count = " + eve
 
         // Start up a GUI to control the EMU
         if (System.getProperty("DebugUI") != null) {
-            FRAMEWORK = new DebugFrame();
+            FRAMEWORK = new DebugFrame(this);
         }
 
-        // Add keyboard control over EMU
-        if (System.getProperty("KBDControl") != null) {
-            // add this EMU object to the list of keyboard handlers
-            ApplicationConsole.add(INSTANCE);
-            // start monitor threads for all of the keyboard handlers
-            ApplicationConsole.monitorSysin();
-            //
-            listener = new CmdListener();
-        }
 
         Logger.info("CODAComponent constructor called.");
 
@@ -382,7 +369,7 @@ System.out.println("Done parsing the file -> " + configFile);
 
         // Get the singleton object responsible for communication with
         // runcontrol through a cMsg server.
-        cmsgPortal = CMSGPortal.getCMSGPortal(this);
+        cmsgPortal = new CMSGPortal(this);
 
         String tmp = System.getProperty("expid");
         if (tmp != null) expid = tmp;
@@ -514,31 +501,6 @@ System.out.println("ERROR in setting value in local config !!!");
         Logger.info("Status monitor thread exit now");
     }
 
-    /**
-     * Method the Emu class implements the KbdHandler interface which allows the emu to
-     * respond to text commands.
-     *
-     * @param command of type String is the incoming command
-     * @param out     of type PrintWriter
-     *
-     * @return boolean
-     *
-     * @see org.jlab.coda.emu.support.keyboardControl.KbdHandler#keyHandler(String,java.io.PrintWriter,Object)
-     */
-    public boolean keyHandler(String command, PrintWriter out, Object argument) {
-        try {
-            CODATransition cmd = CODATransition.valueOf(command.toUpperCase());
-            this.postCommand(cmd);
-        } catch (InterruptedException e) {
-            e.printStackTrace();
-        } catch (IllegalArgumentException e) {
-            // Ignore, Command.valueOf generates this
-            // exception if the command is not found.
-            return false;
-        }
-
-        return true;
-    }
 
     /*
     * (non-Javadoc)
@@ -564,7 +526,7 @@ System.out.println("ERROR in setting value in local config !!!");
     }
 
     /** @return the debug gui */
-    public static DebugFrame getFramework() {
+    public DebugFrame getFramework() {
         return FRAMEWORK;
     }
 
@@ -620,8 +582,8 @@ System.out.println("EXECUTING cmd = " + cmd.name());
         }
         // send back our state
         else if (cmd.equals(InfoControl.GET_STATE)) {
-            if ( (CMSGPortal.getServer() != null) &&
-                 (CMSGPortal.getServer().isConnected())) {
+            if ( (cmsgPortal.getServer() != null) &&
+                 (cmsgPortal.getServer().isConnected())) {
 
                 cMsgMessage msg = new cMsgMessage();
                 msg.setSubject(name);
@@ -630,7 +592,7 @@ System.out.println("EXECUTING cmd = " + cmd.name());
                 msg.setText(state);  //TODO:correct ??
 
                 try {
-                    CMSGPortal.getServer().send(msg);
+                    cmsgPortal.getServer().send(msg);
                 }
                 catch (cMsgException e) {
                     e.printStackTrace();
@@ -642,8 +604,8 @@ System.out.println("EXECUTING cmd = " + cmd.name());
         }
         // send back our state
         else if (cmd.equals(InfoControl.GET_CODA_CLASS)) {
-            if ( (CMSGPortal.getServer() != null) &&
-                 (CMSGPortal.getServer().isConnected())) {
+            if ( (cmsgPortal.getServer() != null) &&
+                 (cmsgPortal.getServer().isConnected())) {
 
                 cMsgMessage msg = new cMsgMessage();
                 msg.setSubject(name);
@@ -652,7 +614,7 @@ System.out.println("EXECUTING cmd = " + cmd.name());
                 msg.setText(getCodaClass());  //TODO: this is not set anywhere!!
 
                 try {
-                    CMSGPortal.getServer().send(msg);
+                    cmsgPortal.getServer().send(msg);
                 }
                 catch (cMsgException e) {
                     e.printStackTrace();
@@ -664,8 +626,8 @@ System.out.println("EXECUTING cmd = " + cmd.name());
         }
         // send back our state    // TODO: is this obsolete??
         else if (cmd.equals(RunControl.GET_STATE)) {
-            if ( (CMSGPortal.getServer() != null) &&
-                 (CMSGPortal.getServer().isConnected())) {
+            if ( (cmsgPortal.getServer() != null) &&
+                 (cmsgPortal.getServer().isConnected())) {
 
                 cMsgMessage msg = new cMsgMessage();
                 msg.setSubject(name);
@@ -675,7 +637,7 @@ System.out.println("EXECUTING cmd = " + cmd.name());
 
                 try {
                     msg.addPayloadItem(new cMsgPayloadItem(RCConstants.state, state));
-                    CMSGPortal.getServer().send(msg);
+                    cmsgPortal.getServer().send(msg);
                 }
                 catch (cMsgException e) {
                     e.printStackTrace();
@@ -775,7 +737,6 @@ System.out.println("EXECUTING cmd = " + cmd.name());
     /** Does what it says. */
     void quit() {
 
-        ApplicationConsole.closeAll();
 
         if (listener != null) listener.close();
 

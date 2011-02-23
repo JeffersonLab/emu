@@ -14,6 +14,7 @@ package org.jlab.coda.emu.support.transport;
 import org.jlab.coda.et.*;
 import org.jlab.coda.et.system.SystemConfig;
 import org.jlab.coda.et.exception.EtException;
+import org.jlab.coda.emu.Emu;
 import org.jlab.coda.emu.support.configurer.DataNotFoundException;
 import org.jlab.coda.emu.support.codaComponent.CODAState;
 import org.jlab.coda.emu.support.codaComponent.CODATransition;
@@ -297,8 +298,9 @@ System.out.println("Kill the ET system " + openConfig.getEtName());
     }
 
 
-    public DataChannel createChannel(String name, Map<String,String> attributeMap, boolean isInput) throws DataTransportException {
-        DataChannel c = new DataChannelImplEt(name, this, attributeMap, isInput);
+    public DataChannel createChannel(String name, Map<String,String> attributeMap,
+                                     boolean isInput, Emu emu) throws DataTransportException {
+        DataChannel c = new DataChannelImplEt(name, this, attributeMap, isInput, emu);
         channels().put(name, c);
 System.out.println("Created channel " + name + ", channels size = " + channels().size());
         return c;

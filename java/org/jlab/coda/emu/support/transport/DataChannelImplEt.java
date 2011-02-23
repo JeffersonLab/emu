@@ -18,10 +18,8 @@ import org.jlab.coda.et.enums.Mode;
 import org.jlab.coda.et.enums.Modify;
 import org.jlab.coda.et.exception.*;
 import org.jlab.coda.jevio.EvioBank;
-import org.jlab.coda.jevio.EventParser;
 import org.jlab.coda.jevio.EvioReader;
 import org.jlab.coda.jevio.EvioException;
-import org.jlab.coda.jevio.EvioReader;
 
 
 import java.util.concurrent.BlockingQueue;
@@ -95,6 +93,8 @@ public class DataChannelImplEt implements DataChannel {
     /** Is this channel an input (true) or output (false) channel? */
     boolean input;
 
+    private Emu emu;
+
 
 
     /**
@@ -102,20 +102,23 @@ public class DataChannelImplEt implements DataChannel {
      * Used only by {@link DataTransportImplEt#createChannel} which is
      * only used during PRESTART in {@link org.jlab.coda.emu.EmuModuleFactory}.
      *
-     * @param name       the name of this channel
-     * @param transport  the DataTransport object that this channel belongs to
-     * @param attrib     the hashmap of config file attributes for this channel
-     * @param input      true if this is an input data channel, otherwise false
+     * @param name        the name of this channel
+     * @param transport   the DataTransport object that this channel belongs to
+     * @param attrib      the hashmap of config file attributes for this channel
+     * @param input       true if this is an input data channel, otherwise false
+     * @param emu         emu this channel belongs to
      *
-     * @throws org.jlab.coda.emu.support.transport.DataTransportException - unable to create buffers or socket.
+     * @throws DataTransportException - unable to create buffers or socket.
      */
     DataChannelImplEt(String name, DataTransportImplEt transport,
-                      Map<String, String> attrib, boolean input)
+                      Map<String, String> attrib, boolean input,
+                      Emu emu)
             throws DataTransportException {
 
+        this.emu = emu;
         this.name = name;
         this.input = input;
-        this.attributeMap  = attrib;
+        this.attributeMap = attrib;
         this.dataTransport = transport;
 Logger.info("      DataChannelImplEt.const : creating channel " + name);
 
@@ -441,10 +444,10 @@ Logger.warn("      DataChannelImplEt.DataOutputHelper : " + name + " et event to
      */
     public void startHelper() {
         if (input) {
-            dataThread = new Thread(Emu.THREAD_GROUP, new DataInputHelper(), getName() + " data in");
+            dataThread = new Thread(emu.THREAD_GROUP, new DataInputHelper(), getName() + " data in");
         }
         else {
-            dataThread = new Thread(Emu.THREAD_GROUP, new DataOutputHelper(), getName() + " data out");
+            dataThread = new Thread(emu.THREAD_GROUP, new DataOutputHelper(), getName() + " data out");
         }
         dataThread.start();
     }

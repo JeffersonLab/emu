@@ -65,6 +65,7 @@ public class ProcessTest implements EmuModule, Runnable {
     /** Field watcher */
     private Watcher watcher;
 
+    private Emu emu;
 
     /**
      * This class codes a thread that copies the event number and data count into the EMU status
@@ -87,8 +88,8 @@ public class ProcessTest implements EmuModule, Runnable {
                     synchronized (this) {
                         while (state == CODAState.ACTIVE) {
                             sleep(500);
-                            Configurer.setValue(Emu.INSTANCE.parameters(), "status/eventCount", Long.toString(eventCountTotal));
-                            Configurer.setValue(Emu.INSTANCE.parameters(), "status/wordCount", Long.toString(wordCountTotal));
+                            Configurer.setValue(emu.parameters(), "status/eventCount", Long.toString(eventCountTotal));
+                            Configurer.setValue(emu.parameters(), "status/wordCount", Long.toString(wordCountTotal));
 //                            Configurer.newValue(Emu.INSTANCE.parameters(), "status/wordCount",
 //                                                "CarlsModule", Long.toString(wordCountTotal));
                         }
@@ -111,7 +112,8 @@ System.out.println("ProcessTest module: quitting watcher thread");
      * @param name         name of module
      * @param attributeMap map containing attributes of module
      */
-    public ProcessTest(String name, Map<String,String> attributeMap) {
+    public ProcessTest(String name, Map<String,String> attributeMap, Emu emu) {
+        this.emu = emu;
         this.name = name;
         this.attributeMap = attributeMap;
 //System.out.println("**** HEY, HEY someone created one of ME (modules.ProcessTest object) ****");
@@ -295,7 +297,7 @@ System.out.println("Process: Added bank's children to built event, event = " + c
 
             try {
                 // set end-of-run time in local XML config / debug GUI
-                Configurer.setValue(Emu.INSTANCE.parameters(), "status/run_end_time", theDate.toString());
+                Configurer.setValue(emu.parameters(), "status/run_end_time", theDate.toString());
             } catch (DataNotFoundException e) {
                 e.printStackTrace();
             }
@@ -316,7 +318,7 @@ System.out.println("Process: Added bank's children to built event, event = " + c
             if (previousState.equals(CODAState.ACTIVE)) {
                 try {
                     // set end-of-run time in local XML config / debug GUI
-                    Configurer.setValue(Emu.INSTANCE.parameters(), "status/run_end_time", theDate.toString());
+                    Configurer.setValue(emu.parameters(), "status/run_end_time", theDate.toString());
                 } catch (DataNotFoundException e) {
                     e.printStackTrace();
                 }
@@ -330,11 +332,11 @@ System.out.println("Process: Added bank's children to built event, event = " + c
             eventCountTotal = wordCountTotal = 0L;
 
             watcher = new Watcher();
-            actionThread = new Thread(Emu.THREAD_GROUP, this, name);
+            actionThread = new Thread(emu.THREAD_GROUP, this, name);
 
             try {
                 // set end-of-run time in local XML config / debug GUI
-                Configurer.setValue(Emu.INSTANCE.parameters(), "status/run_start_time", "--prestart--");
+                Configurer.setValue(emu.parameters(), "status/run_start_time", "--prestart--");
             } catch (DataNotFoundException e) {
                 CODAState.ERROR.getCauses().add(e);
                 state = CODAState.ERROR;
@@ -347,7 +349,7 @@ System.out.println("Process: Added bank's children to built event, event = " + c
             actionThread.interrupt();
             watcher.interrupt();
             watcher = new Watcher();
-            actionThread = new Thread(Emu.THREAD_GROUP, this, name);
+            actionThread = new Thread(emu.THREAD_GROUP, this, name);
         }
 
         else if (cmd.equals(CODATransition.GO)) {
@@ -359,7 +361,7 @@ System.out.println("Process: Added bank's children to built event, event = " + c
 
             try {
                 // set end-of-run time in local XML config / debug GUI
-                Configurer.setValue(Emu.INSTANCE.parameters(), "status/run_start_time", theDate.toString());
+                Configurer.setValue(emu.parameters(), "status/run_start_time", theDate.toString());
             } catch (DataNotFoundException e) {
                 CODAState.ERROR.getCauses().add(e);
                 state = CODAState.ERROR;
@@ -367,7 +369,7 @@ System.out.println("Process: Added bank's children to built event, event = " + c
             }
 
             if (actionThread == null) {
-                actionThread = new Thread(Emu.THREAD_GROUP, this, name);
+                actionThread = new Thread(emu.THREAD_GROUP, this, name);
             }
             actionThread.start();
         }

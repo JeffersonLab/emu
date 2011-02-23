@@ -26,13 +26,13 @@ import java.text.SimpleDateFormat;
 import java.util.Date;
 
 /**
- * This class (a singleton) creates a connection to a cMsg server for the
+ * This class creates a connection to a cMsg server for the
  * purposes of receiving run control commands and logging cmlog messages.
  */
 public class CMSGPortal implements LoggerAppender {
 
     /** cMsg connection object. */
-    private static cMsg server;
+    private cMsg server;
 
     /** UDL to connectiont to cMsg system. */
     private final String UDL;
@@ -43,30 +43,17 @@ public class CMSGPortal implements LoggerAppender {
     /** Thread which creates and maintains a healthy cMsg connection. */
     private final Thread monitorThread;
 
-    /** A reference to the singleton object of this class. */
-    private static CMSGPortal self;
-
-
-    /**
-     * Get and/or create this singleton object.
-     * @param c reference to EMU object (singleton too)
-     * @return reference to this singleton object
-     */
-    public static CMSGPortal getCMSGPortal(CODAComponent c) {
-        if (self == null) self = new CMSGPortal(c);
-        return self;
-    }
 
 
     /**
      * Constructor.
-     * @param c reference to EMU object (singleton too)
+     * @param emu reference to EMU object
      */
-    private CMSGPortal(CODAComponent c) {
-        comp = c;
+    public CMSGPortal(Emu emu) {
+        comp = emu;
         // UDL for connection to cMsg server was originally specified
         // with -DcmsgUDL=xxx flag to interpreter when running EMU.
-        String udl = c.getCmsgUDL();
+        String udl = emu.getCmsgUDL();
 
         // construct default UDL if necessary
         if (udl == null) {
@@ -85,7 +72,7 @@ System.out.println("\n CMSGPortal using UDL = " + UDL + "\n");
         Logger.addAppender(this);
 
         // start a thread to maintain a connection to the cMsg server
-        monitorThread = new Thread(Emu.THREAD_GROUP, new ServerMonitor(), "cMSg Server Monitor");
+        monitorThread = new Thread(emu.THREAD_GROUP, new ServerMonitor(), "cMSg Server Monitor");
         monitorThread.start();
     }
 
@@ -124,19 +111,19 @@ System.out.println("\n CMSGPortal using UDL = " + UDL + "\n");
                         server.start();
                         // install callback for download, prestart, go, etc
     System.out.println("CMSGPortal subscribe to sub = *, type = " + RCConstants.transitionCommandType);
-                        server.subscribe("*", RCConstants.transitionCommandType, new RCTransitionHandler(self), null);
+                        server.subscribe("*", RCConstants.transitionCommandType, new RCTransitionHandler(CMSGPortal.this), null);
                         // install callback for reset, configure, start, stop, getsession, setsession, etc
     System.out.println("CMSGPortal subscribe to sub = *, type = " + RCConstants.runCommandType);
-                        server.subscribe("*", RCConstants.runCommandType, new RCControlHandler(self), null);
+                        server.subscribe("*", RCConstants.runCommandType, new RCControlHandler(CMSGPortal.this), null);
                         // install callback for set/get run number, set/get run type
     System.out.println("CMSGPortal subscribe to sub = *, type = " + RCConstants.sessionCommandType);
-                        server.subscribe("*", RCConstants.sessionCommandType, new RCSessionHandler(self), null);
+                        server.subscribe("*", RCConstants.sessionCommandType, new RCSessionHandler(CMSGPortal.this), null);
                         // install callback for getting state, status, codaClass, & objectType
     System.out.println("CMSGPortal subscribe to sub = *, type = " + RCConstants.infoCommandType);
-                        server.subscribe("*", RCConstants.infoCommandType, new RCInfoHandler(self), null);
+                        server.subscribe("*", RCConstants.infoCommandType, new RCInfoHandler(CMSGPortal.this), null);
                         // for future use
     System.out.println("CMSGPortal subscribe to sub = *, type = " + RCConstants.setOptionType);
-                        server.subscribe("*", RCConstants.setOptionType, new RCOptionHandler(self), null);
+                        server.subscribe("*", RCConstants.setOptionType, new RCOptionHandler(CMSGPortal.this), null);
 
                         Logger.info("cMSg server connected");
 
@@ -191,7 +178,7 @@ System.out.println("\n CMSGPortal using UDL = " + UDL + "\n");
      * Get a reference to the cMsg connection object.
      * @return cMsg connection object
      */
-    public static cMsg getServer() {
+    public cMsg getServer() {
         return server;
     }
 

@@ -74,6 +74,8 @@ public class DataChannelImplCmsg implements DataChannel {
     /** Is this channel an input (true) or output (false) channel? */
     boolean input;
 
+    private Emu emu;
+
 
     /**
      * This class defines the callback to be run when a message matching the subscription arrives.
@@ -160,17 +162,20 @@ public class DataChannelImplCmsg implements DataChannel {
      * @param dataTransport the DataTransport object that this channel belongs to
      * @param attributeMap  the hashmap of config file attributes for this channel
      * @param input         true if this is an input data channel, otherwise false
+     * @param emu           emu this channel belongs to
      *
      * @throws DataTransportException - unable to create buffers or socket.
      */
     DataChannelImplCmsg(String name, DataTransportImplCmsg dataTransport,
-                        Map<String, String> attributeMap, boolean input)
+                        Map<String, String> attributeMap, boolean input,
+                        Emu emu)
             throws DataTransportException {
 
         this.dataTransport = dataTransport;
         this.attributeMap  = attributeMap;
         this.input = input;
         this.name = name;
+        this.emu = emu;
 
         // set queue capacity
         int capacity = 40;
@@ -369,7 +374,7 @@ System.out.println("\n\nDataChannel: subscribe to subject = " + subject + ", typ
      * the queue, puts it in a message, and sends it.
      */
     public void startOutputHelper() {
-        dataThread = new Thread(Emu.THREAD_GROUP, new DataOutputHelper(), getName() + " data out");
+        dataThread = new Thread(emu.THREAD_GROUP, new DataOutputHelper(), getName() + " data out");
         dataThread.start();
     }
 

@@ -58,7 +58,8 @@ public class DataChannelImplFile implements DataChannel {
      * @throws org.jlab.coda.emu.support.transport.DataTransportException
      *          - unable to create fifo buffer.
      */
-    DataChannelImplFile(String name, DataTransportImplFile dataTransport, boolean input) throws DataTransportException {
+    DataChannelImplFile(String name, DataTransportImplFile dataTransport,
+                        boolean input, Emu emu) throws DataTransportException {
 
         this.dataTransport = dataTransport;
         this.input = input;
@@ -77,10 +78,10 @@ public class DataChannelImplFile implements DataChannel {
         try {
             if (input) {
                 evioFile = new EvioReader(fileName);
-                dataThread = new Thread(Emu.THREAD_GROUP, new DataInputHelper(), getName() + " data input");
+                dataThread = new Thread(emu.THREAD_GROUP, new DataInputHelper(), getName() + " data input");
             } else {
                 evioFileWriter = new EventWriter(fileName);
-                dataThread = new Thread(Emu.THREAD_GROUP, new DataOutputHelper(), getName() + " data out");
+                dataThread = new Thread(emu.THREAD_GROUP, new DataOutputHelper(), getName() + " data out");
             }
             dataThread.start();
         } catch (Exception e) {

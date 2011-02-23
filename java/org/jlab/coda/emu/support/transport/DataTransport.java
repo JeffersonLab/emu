@@ -11,6 +11,7 @@
 
 package org.jlab.coda.emu.support.transport;
 
+import org.jlab.coda.emu.Emu;
 import org.jlab.coda.emu.support.configurer.DataNotFoundException;
 import org.jlab.coda.emu.support.control.CmdExecException;
 import org.jlab.coda.emu.support.control.Command;
@@ -89,7 +90,8 @@ public interface DataTransport extends StatedObject {
      * @return DataChannel object
      * @throws DataTransportException if transport problem
      */
-    public DataChannel createChannel(String name, Map<String, String> attributeMap, boolean isInput)
+    public DataChannel createChannel(String name, Map<String, String> attributeMap,
+                                     boolean isInput, Emu emu)
             throws DataTransportException;
 
     /**
