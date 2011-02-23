@@ -22,6 +22,9 @@ import java.util.HashMap;
  */
 public enum CODAClass {
 
+    /** Event management unit. */
+    EMU("event management unit", 0),
+
     /** Read controller. */
     ROC("read out controller", 1),
 
