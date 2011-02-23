@@ -271,7 +271,7 @@ System.out.println("Process: put bank on output Q");
             wordCount = 0;
 
             watcher = new Watcher();
-            actionThread = new Thread(emu.THREAD_GROUP, this, name);
+            actionThread = new Thread(emu.getThreadGroup(), this, name);
 
             try {
                 Configurer.setValue(emu.parameters(), "status/run_start_time", "--prestart--");
@@ -309,7 +309,7 @@ System.out.println("GO in Process module");
             
             // TODO: cannot restart an interrupted thread !!! bug bug
             if (actionThread == null) {
-                actionThread = new Thread(emu.THREAD_GROUP, this, name);
+                actionThread = new Thread(emu.getThreadGroup(), this, name);
             }
             actionThread.start();
         }

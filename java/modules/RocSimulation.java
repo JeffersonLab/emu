@@ -13,6 +13,7 @@ package modules;
 
 import org.jlab.coda.emu.Emu;
 import org.jlab.coda.emu.EmuModule;
+import org.jlab.coda.emu.support.codaComponent.CODAClass;
 import org.jlab.coda.emu.support.codaComponent.CODAState;
 import org.jlab.coda.emu.support.codaComponent.CODATransition;
 import org.jlab.coda.emu.support.configurer.Configurer;
@@ -167,6 +168,9 @@ public class RocSimulation implements EmuModule, Runnable {
         if (isSingleEventMode) {
             eventBlockSize = 1;
         }
+
+        // the module sets the type of CODA class it is.
+        emu.setCodaClass(CODAClass.ROC);
     }
 
 
@@ -444,8 +448,8 @@ System.out.println("Roc data creation thread is ending !!!");
             lastEventNumberCreated = 0L;
 
             // create threads objects (but don't start them yet)
-            watcher = new Thread(emu.THREAD_GROUP, new Watcher(), name+":watcher");
-            eventGeneratingThread = new EventGeneratingThread(emu.THREAD_GROUP,
+            watcher = new Thread(emu.getThreadGroup(), new Watcher(), name+":watcher");
+            eventGeneratingThread = new EventGeneratingThread(emu.getThreadGroup(),
                                                                    new EventGeneratingThread(),
                                                                    name+":generator");
 
@@ -474,7 +478,7 @@ System.out.println("WE musta hit go after PAUSE");
 
             // start up all threads
             if (watcher == null) {
-                watcher = new Thread(emu.THREAD_GROUP, new Watcher(), name+":watcher");
+                watcher = new Thread(emu.getThreadGroup(), new Watcher(), name+":watcher");
             }
 
             if (watcher.getState() == Thread.State.NEW) {
@@ -483,7 +487,7 @@ System.out.println("starting watcher thread");
             }
 
             if (eventGeneratingThread == null) {
-                eventGeneratingThread = new EventGeneratingThread(emu.THREAD_GROUP,
+                eventGeneratingThread = new EventGeneratingThread(emu.getThreadGroup(),
                                                                   new EventGeneratingThread(),
                                                                   name+":generator");
             }

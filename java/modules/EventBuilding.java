@@ -14,6 +14,7 @@ package modules;
 import org.jlab.coda.emu.Emu;
 import org.jlab.coda.emu.EmuException;
 import org.jlab.coda.emu.EmuModule;
+import org.jlab.coda.emu.support.codaComponent.CODAClass;
 import org.jlab.coda.emu.support.codaComponent.CODAState;
 import org.jlab.coda.emu.support.codaComponent.CODATransition;
 import org.jlab.coda.emu.support.configurer.Configurer;
@@ -28,11 +29,6 @@ import org.jlab.coda.emu.support.logger.Logger;
 import org.jlab.coda.emu.support.transport.DataChannel;
 import org.jlab.coda.jevio.*;
 
-import javax.xml.stream.XMLOutputFactory;
-import javax.xml.stream.XMLStreamException;
-import javax.xml.stream.XMLStreamWriter;
-import java.io.StringWriter;
-import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.*;
 import java.util.concurrent.ArrayBlockingQueue;
@@ -222,6 +218,9 @@ public class EventBuilding implements EmuModule, Runnable {
 //System.out.println("\nSetting #### of threads to " + buildingThreadCount + "\n");
         }
         catch (NumberFormatException e) { /* default to 0 */ }
+
+        // the module sets the type of CODA class it is.
+        emu.setCodaClass(CODAClass.EB);
 
 // System.out.println("**** HEY, HEY someone created one of ME (modules.ProcessTest object) ****");
 // System.out.println("**** LOADED NEW CLASS, DUDE!!! (modules.ProcessTest object) ****");
@@ -1090,15 +1089,15 @@ System.out.println("INTERRUPTED thread " + Thread.currentThread().getName());
             lastEventNumberBuilt = 0L;
 
             // create threads objects (but don't start them yet)
-            watcher = new Thread(emu.THREAD_GROUP, new Watcher(), name+":watcher");
+            watcher = new Thread(emu.getThreadGroup(), new Watcher(), name+":watcher");
             for (int i=0; i < buildingThreadCount; i++) {
-                BuildingThread thd1 = new BuildingThread(emu.THREAD_GROUP, new BuildingThread(), name+":builder"+i);
+                BuildingThread thd1 = new BuildingThread(emu.getThreadGroup(), new BuildingThread(), name+":builder"+i);
                 buildingThreadQueue.add(thd1);
             }
-            qCollector = new Thread(emu.THREAD_GROUP, new QCollector(), name+":qcollector");
+            qCollector = new Thread(emu.getThreadGroup(), new QCollector(), name+":qcollector");
             qFillers = new Thread[qCount];
             for (int i=0; i < qCount; i++) {
-                qFillers[i] = new Thread(emu.THREAD_GROUP,
+                qFillers[i] = new Thread(emu.getThreadGroup(),
                                          new Qfiller(payloadBankQueues.get(i),
                                                         inputChannels.get(i).getQueue()),
                                          name+":qfiller"+i);
@@ -1129,7 +1128,7 @@ System.out.println("INTERRUPTED thread " + Thread.currentThread().getName());
 
             // start up all threads
             if (watcher == null) {
-                watcher = new Thread(emu.THREAD_GROUP, new Watcher(), name+":watcher");
+                watcher = new Thread(emu.getThreadGroup(), new Watcher(), name+":watcher");
             }
             if (watcher.getState() == Thread.State.NEW) {
                 System.out.println("starting watcher thread");
@@ -1138,7 +1137,7 @@ System.out.println("INTERRUPTED thread " + Thread.currentThread().getName());
 
             if (buildingThreadQueue.size() < 1) {
                 for (int i=0; i < buildingThreadCount; i++) {
-                    BuildingThread thd1 = new BuildingThread(emu.THREAD_GROUP, new BuildingThread(), name+":builder"+i);
+                    BuildingThread thd1 = new BuildingThread(emu.getThreadGroup(), new BuildingThread(), name+":builder"+i);
                     buildingThreadQueue.add(thd1);
                 }
             }
@@ -1155,7 +1154,7 @@ System.out.println("INTERRUPTED thread " + Thread.currentThread().getName());
             }
 
             if (qCollector == null) {
-                qCollector = new Thread(emu.THREAD_GROUP, new QCollector(), name+":qcollector");
+                qCollector = new Thread(emu.getThreadGroup(), new QCollector(), name+":qcollector");
             }
             else {
                 System.out.println("EB: qCollector is not null");
@@ -1168,7 +1167,7 @@ System.out.println("INTERRUPTED thread " + Thread.currentThread().getName());
             if (qFillers == null) {
                 qFillers = new Thread[payloadBankQueues.size()];
                 for (int i=0; i < payloadBankQueues.size(); i++) {
-                    qFillers[i] = new Thread(emu.THREAD_GROUP,
+                    qFillers[i] = new Thread(emu.getThreadGroup(),
                                              new Qfiller(payloadBankQueues.get(i),
                                                             inputChannels.get(i).getQueue()),
                                              name+":qfiller"+i);

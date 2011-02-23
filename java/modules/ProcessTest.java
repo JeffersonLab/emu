@@ -332,7 +332,7 @@ System.out.println("Process: Added bank's children to built event, event = " + c
             eventCountTotal = wordCountTotal = 0L;
 
             watcher = new Watcher();
-            actionThread = new Thread(emu.THREAD_GROUP, this, name);
+            actionThread = new Thread(emu.getThreadGroup(), this, name);
 
             try {
                 // set end-of-run time in local XML config / debug GUI
@@ -349,7 +349,7 @@ System.out.println("Process: Added bank's children to built event, event = " + c
             actionThread.interrupt();
             watcher.interrupt();
             watcher = new Watcher();
-            actionThread = new Thread(emu.THREAD_GROUP, this, name);
+            actionThread = new Thread(emu.getThreadGroup(), this, name);
         }
 
         else if (cmd.equals(CODATransition.GO)) {
@@ -369,7 +369,7 @@ System.out.println("Process: Added bank's children to built event, event = " + c
             }
 
             if (actionThread == null) {
-                actionThread = new Thread(emu.THREAD_GROUP, this, name);
+                actionThread = new Thread(emu.getThreadGroup(), this, name);
             }
             actionThread.start();
         }
