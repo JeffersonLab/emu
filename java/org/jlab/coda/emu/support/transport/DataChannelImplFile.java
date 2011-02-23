@@ -4,7 +4,6 @@ import org.jlab.coda.emu.Emu;
 import org.jlab.coda.emu.support.codaComponent.CODAState;
 import org.jlab.coda.emu.support.logger.Logger;
 import org.jlab.coda.jevio.EvioBank;
-import org.jlab.coda.jevio.EvioException;
 import org.jlab.coda.jevio.EvioReader;
 import org.jlab.coda.jevio.EventWriter;
 
@@ -78,10 +77,10 @@ public class DataChannelImplFile implements DataChannel {
         try {
             if (input) {
                 evioFile = new EvioReader(fileName);
-                dataThread = new Thread(emu.THREAD_GROUP, new DataInputHelper(), getName() + " data input");
+                dataThread = new Thread(emu.getThreadGroup(), new DataInputHelper(), getName() + " data input");
             } else {
                 evioFileWriter = new EventWriter(fileName);
-                dataThread = new Thread(emu.THREAD_GROUP, new DataOutputHelper(), getName() + " data out");
+                dataThread = new Thread(emu.getThreadGroup(), new DataOutputHelper(), getName() + " data out");
             }
             dataThread.start();
         } catch (Exception e) {

@@ -444,10 +444,10 @@ Logger.warn("      DataChannelImplEt.DataOutputHelper : " + name + " et event to
      */
     public void startHelper() {
         if (input) {
-            dataThread = new Thread(emu.THREAD_GROUP, new DataInputHelper(), getName() + " data in");
+            dataThread = new Thread(emu.getThreadGroup(), new DataInputHelper(), getName() + " data in");
         }
         else {
-            dataThread = new Thread(emu.THREAD_GROUP, new DataOutputHelper(), getName() + " data out");
+            dataThread = new Thread(emu.getThreadGroup(), new DataOutputHelper(), getName() + " data out");
         }
         dataThread.start();
     }

@@ -374,7 +374,7 @@ System.out.println("\n\nDataChannel: subscribe to subject = " + subject + ", typ
      * the queue, puts it in a message, and sends it.
      */
     public void startOutputHelper() {
-        dataThread = new Thread(emu.THREAD_GROUP, new DataOutputHelper(), getName() + " data out");
+        dataThread = new Thread(emu.getThreadGroup(), new DataOutputHelper(), getName() + " data out");
         dataThread.start();
     }
 
