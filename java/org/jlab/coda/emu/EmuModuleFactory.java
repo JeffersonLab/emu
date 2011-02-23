@@ -400,11 +400,11 @@ System.out.println("Put (" + a.getNodeName() + "," + a.getNodeValue() + ") into 
         Class c = classloader.loadClass(moduleClassName);
 
         // constructor required to have a string and a map as args
-        Class[] parameterTypes = {String.class, Map.class};
+        Class[] parameterTypes = {String.class, Map.class, Emu.class};
         Constructor co = c.getConstructor(parameterTypes);
 
         // create an instance
-        Object[] args = {name, attributeMap};
+        Object[] args = {name, attributeMap, emu};
         EmuModule thing = (EmuModule) co.newInstance(args);
 
         modules.add(thing);
