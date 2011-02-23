@@ -72,7 +72,7 @@ System.out.println("\n CMSGPortal using UDL = " + UDL + "\n");
         Logger.addAppender(this);
 
         // start a thread to maintain a connection to the cMsg server
-        monitorThread = new Thread(emu.THREAD_GROUP, new ServerMonitor(), "cMSg Server Monitor");
+        monitorThread = new Thread(emu.getThreadGroup(), new ServerMonitor(), "cMSg Server Monitor");
         monitorThread.start();
     }
 
