@@ -7,7 +7,7 @@
   </void> 
   <void method="setProperty"> 
    <string>i18n.bundlePackage</string> 
-   <string>org.jlab.coda.emu.support.ui.rsrc</string> 
+   <string>org.jlab.coda.support.ui.rsrc</string> 
   </void> 
   <void method="setProperty"> 
    <string>i18n.bundleName</string> 
@@ -122,7 +122,7 @@
          <string>icon</string> 
          <object class="com.jformdesigner.model.SwingIcon"> 
           <int>0</int> 
-          <string>/org/jlab/coda/emu/support/ui/rsrc/emu.png</string> 
+          <string>/org/jlab/coda/support/ui/rsrc/emu.png</string> 
          </object> 
         </void> 
         <void property="name"> 

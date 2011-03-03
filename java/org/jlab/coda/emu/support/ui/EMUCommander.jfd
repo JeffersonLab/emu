@@ -7,7 +7,7 @@
   </void> 
   <void method="setProperty"> 
    <string>i18n.bundlePackage</string> 
-   <string>org.jlab.coda.emu.support.ui.rsrc</string> 
+   <string>org.jlab.coda.support.ui.rsrc</string> 
   </void> 
   <void method="setProperty"> 
    <string>i18n.bundleName</string> 
@@ -41,7 +41,7 @@
       </void> 
       <void method="add"> 
        <object class="com.jformdesigner.model.FormContainer"> 
-        <string>org.jlab.coda.emu.support.ui.SmartToolbar</string> 
+        <string>org.jlab.coda.support.ui.SmartToolbar</string> 
         <object class="com.jformdesigner.model.FormLayoutManager"> 
          <class>javax.swing.JToolBar</class> 
         </object> 
@@ -62,7 +62,7 @@
       </void> 
       <void method="add"> 
        <object class="com.jformdesigner.model.FormContainer"> 
-        <string>org.jlab.coda.emu.support.ui.SmartToolbar</string> 
+        <string>org.jlab.coda.support.ui.SmartToolbar</string> 
         <object class="com.jformdesigner.model.FormLayoutManager"> 
          <class>javax.swing.JToolBar</class> 
         </object> 
@@ -77,7 +77,7 @@
       </void> 
       <void method="add"> 
        <object class="com.jformdesigner.model.FormContainer"> 
-        <string>org.jlab.coda.emu.support.ui.SmartToolbar</string> 
+        <string>org.jlab.coda.support.ui.SmartToolbar</string> 
         <object class="com.jformdesigner.model.FormLayoutManager"> 
          <class>javax.swing.JToolBar</class> 
         </object> 
@@ -101,7 +101,7 @@
         </void> 
         <void method="add"> 
          <object class="com.jformdesigner.model.FormComponent"> 
-          <string>org.jlab.coda.emu.support.ui.log.SwingLogConsoleDialog</string> 
+          <string>org.jlab.coda.support.ui.log.SwingLogConsoleDialog</string> 
           <void property="name"> 
            <string>swingLogConsoleDialog1</string> 
           </void> 
