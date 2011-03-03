@@ -87,6 +87,7 @@ public class Emu implements CODAComponent {
      * start and what data channels to open.
      */
     private Document loadedConfig;
+    private String configFileName;
 
     /**
      * Field localConfig is an XML document loaded when the configure command is executed.
@@ -514,6 +515,112 @@ System.out.println("Stats for module " + statsModule.name() + ": count = " + eve
      * By the end of the constructor several threads have been started and the static
      * method main will not exit while they are running.
      */
+    public Emu(String name, String configFileName, Document loadedConfig,
+               String cmsgUDL, boolean debugUI) throws EmuException {
+
+        // set the name of this EMU
+        if (name == null) {
+            throw new EmuException("Emu name not defined");
+        }
+        this.name = name;
+        this.configFileName = configFileName;
+        this.loadedConfig = loadedConfig;
+        this.cmsgUDL = cmsgUDL;  // may be null
+
+        // Define thread group so all threads can be handled together
+        threadGroup = new ThreadGroup(name);
+
+        // Create object which manages all modules
+        moduleFactory = new EmuModuleFactory(this);
+
+        // Start up a GUI to control the EMU
+        if (debugUI) {
+            debugGUI = new DebugFrame(this);
+        }
+
+        // Define place to put incoming commands
+        mailbox = new LinkedBlockingQueue<Command>();
+
+        // Put this (which is a CODAComponent and therefore Runnable)
+        // into a thread group and keep track of this object's thread.
+        // This thread is started when statusMonitor.start() is called.
+        statusMonitor = new Thread(threadGroup, this, "State monitor");
+        statusMonitor.start();
+
+        // Start up status reporting thread (which needs cmsg to send msgs)
+        statusReportingThread = new Thread(threadGroup, new StatusReportingThread(), "Statistics reporting");
+        statusReportingThread.start();
+
+        // Check to see if LOCAL (static) config file given on command line
+        String localConfigFile = System.getProperty("lconfig");
+        if (localConfigFile == null) {
+            // Must define the INSTALL_DIR env var in order to find config files
+            installDir = System.getenv("INSTALL_DIR");
+            if (installDir == null) {
+                Logger.error("CODAComponent exit - INSTALL_DIR is not set");
+                System.exit(-1);
+            }
+            localConfigFile = installDir + File.separator + "emu/conf" + File.separator + "local.xml";
+        }
+
+        // Parse LOCAL XML-format config file and store
+        try {
+            localConfig = Configurer.parseFile(localConfigFile);
+        } catch (DataNotFoundException e) {
+            e.printStackTrace();
+            Logger.error("CODAComponent exit - " + localConfigFile + " not found");
+            System.exit(-1);
+        }
+
+        // Put LOCAL config info into GUI
+        if (debugGUI != null) {
+            debugGUI.addDocument(localConfig);
+        } else {
+            Node node = localConfig.getFirstChild();
+            // Puts node & children (actually their associated DataNodes) into GUI
+            // and returns DataNode associated with node.
+            Configurer.treeToPanel(node,0);  // TODO: ignoring returned DataNode object
+        }
+
+        // Create object responsible for communication w/ runcontrol through cMsg server.
+        cmsgPortal = new CMSGPortal(this);
+
+        // Need the following info for this object's getter methods
+        String tmp = System.getProperty("expid");
+        if (tmp != null) expid = tmp;
+
+        tmp = System.getProperty("session");
+        if (tmp != null) session = tmp;
+
+        // Get the user name which is added to the payload of logging messages
+        tmp = System.getProperty("user.name");
+        if (tmp != null) userName = tmp;
+
+        // Get the local hostname which is added to the payload of logging messages
+        try {
+            InetAddress localMachine = java.net.InetAddress.getLocalHost();
+            hostName = localMachine.getHostName();
+        } catch (java.net.UnknownHostException uhe) {
+            // Ignore this.
+        }
+
+        if (debugGUI != null) debugGUI.getToolBar().update();
+    }
+
+    /**
+     * Constructor.
+     * A thread is started to monitor the state field.
+     * Java system properties are read and if required a debug GUI is started.
+     * <p/>
+     * The emu is named from the "name" property.
+     * <p/>
+     * The emu loads local.xml which contains a specification of status parameters.
+     * <p/>
+     * The emu starts up a connecton to the cMsg server.
+     * <p/>
+     * By the end of the constructor several threads have been started and the static
+     * method main will not exit while they are running.
+     */
     public Emu() {
 
         // Must set the name of this EMU
@@ -554,20 +661,38 @@ System.out.println("Stats for module " + statsModule.name() + ": count = " + eve
         statusReportingThread.start();
 
         // Check to see if LOCAL (static) config file given on command line
-        String configFile = System.getProperty("lconfig");
-        if (configFile == null) {
+        String localConfigFile = System.getProperty("lconfig");
+        if (localConfigFile == null) {
             // Must define the INSTALL_DIR env var in order to find config files
             installDir = System.getenv("INSTALL_DIR");
             if (installDir == null) {
                 Logger.error("CODAComponent exit - INSTALL_DIR is not set");
                 System.exit(-1);
             }
-            configFile = installDir + File.separator + "conf" + File.separator + "local.xml";
+            localConfigFile = installDir + File.separator + "emu/conf" + File.separator + "local.xml";
         }
 
-        // Parse LOCAL XML-format config file and store
+        // Parse a LOCAL XML configuration file and turn it into a Document object.
         try {
-            localConfig = Configurer.parseFile(configFile);
+            localConfig = Configurer.parseFile(localConfigFile);
+            Configurer.removeEmptyTextNodes(localConfig.getDocumentElement());
+        } catch (DataNotFoundException e) {
+            e.printStackTrace();
+            Logger.error("CODAComponent exit - " + localConfigFile + " not found");
+            System.exit(-1);
+        }
+
+        // Check to see if regular config file given on command line
+        String configFile = System.getProperty("config");
+        if (configFile == null) {
+            configFile = installDir + File.separator + "emu/conf" + File.separator + name + ".xml";
+        }
+
+        // Parse an XML configuration file and turn it into a Document object.
+        try {
+            loadedConfig = Configurer.parseFile(configFile);
+            Configurer.removeEmptyTextNodes(loadedConfig.getDocumentElement());
+        // parsing XML error
         } catch (DataNotFoundException e) {
             e.printStackTrace();
             Logger.error("CODAComponent exit - " + configFile + " not found");
@@ -811,12 +936,6 @@ System.out.println("EXECUTING cmd = " + cmd.name());
         // re-read the config file and update debug GUI.
         if (cmd.equals(CODATransition.CONFIGURE)) {
 
-            // First find our config file (not local config) defined
-            // on the command line, using a default if none given.
-            String configF = System.getProperty("config");
-            if (configF == null) {
-                configF = installDir + File.separator + "conf" + File.separator + name + ".xml";
-            }
             // save a reference to any previously used config
             Document oldConfig = loadedConfig;
 
@@ -833,14 +952,9 @@ System.out.println("EXECUTING cmd = " + cmd.name());
                     } else {
                         throw new DataNotFoundException("cMsg: configuration argument for configure is not a string");
                     }
-                } else {
-                    // Parse a file containing an XML configuration
-                    // and turn it into a Document object.
-                    loadedConfig = Configurer.parseFile(configF);
+
+                    Configurer.removeEmptyTextNodes(loadedConfig.getDocumentElement());
                 }
-
-                Configurer.removeEmptyTextNodes(loadedConfig.getDocumentElement());
-
             // parsing XML error
             } catch (DataNotFoundException e) {
                 Logger.error("Configure FAILED", e.getMessage());

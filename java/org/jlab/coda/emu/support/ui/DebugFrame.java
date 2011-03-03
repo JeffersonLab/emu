@@ -25,6 +25,7 @@ import org.jlab.coda.emu.support.configurer.Configurer;
 import org.jlab.coda.emu.support.configurer.DataNode;
 import org.jlab.coda.emu.support.logger.Logger;
 import org.jlab.coda.emu.support.logger.QueueAppender;
+import org.jlab.coda.emu.support.ui.SmartToolbar;
 import org.jlab.coda.emu.support.ui.log.SwingLogConsoleDialog;
 import org.w3c.dom.Document;
 import org.w3c.dom.Node;
@@ -92,6 +93,7 @@ public class DebugFrame extends JFrame {
     public void removeDocument(Document doc) {
         documentCount--;
         JInternalFrame p = (JInternalFrame) doc.getUserData("DisplayPanel");
+        if (p == null) return;
         desktopPane.remove(p);
         desktopPane.validate();
         desktopPane.repaint();
@@ -280,25 +282,15 @@ public class DebugFrame extends JFrame {
             contentPaneLayout.createParallelGroup()
                 .add(GroupLayout.TRAILING, contentPaneLayout.createSequentialGroup()
                     .addContainerGap()
-                    .add(contentPaneLayout.createParallelGroup(GroupLayout.TRAILING)
-                        .add(GroupLayout.LEADING, splitPane1, GroupLayout.DEFAULT_SIZE, 706, Short.MAX_VALUE)
-                        .add(GroupLayout.LEADING, smartToolbar1, GroupLayout.DEFAULT_SIZE, 706, Short.MAX_VALUE)
-                        .add(GroupLayout.LEADING, smartToolbar, GroupLayout.DEFAULT_SIZE, 706, Short.MAX_VALUE)
-                        .add(GroupLayout.LEADING, smartToolbar2, GroupLayout.DEFAULT_SIZE, 706, Short.MAX_VALUE))
-                    .addContainerGap())
+                    .add(smartToolbar, GroupLayout.DEFAULT_SIZE, 90, Short.MAX_VALUE)
+                    .add(365, 365, 365))
         );
         contentPaneLayout.setVerticalGroup(
             contentPaneLayout.createParallelGroup()
                 .add(contentPaneLayout.createSequentialGroup()
                     .addContainerGap()
                     .add(smartToolbar, GroupLayout.PREFERRED_SIZE, GroupLayout.DEFAULT_SIZE, GroupLayout.PREFERRED_SIZE)
-                    .addPreferredGap(LayoutStyle.RELATED)
-                    .add(smartToolbar1, GroupLayout.PREFERRED_SIZE, GroupLayout.DEFAULT_SIZE, GroupLayout.PREFERRED_SIZE)
-                    .addPreferredGap(LayoutStyle.RELATED)
-                    .add(smartToolbar2, GroupLayout.PREFERRED_SIZE, GroupLayout.DEFAULT_SIZE, GroupLayout.PREFERRED_SIZE)
-                    .addPreferredGap(LayoutStyle.RELATED)
-                    .add(splitPane1, GroupLayout.DEFAULT_SIZE, 719, Short.MAX_VALUE)
-                    .addContainerGap())
+                    .addContainerGap(80, Short.MAX_VALUE))
         );
         pack();
         setLocationRelativeTo(getOwner());

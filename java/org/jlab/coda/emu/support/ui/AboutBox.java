@@ -58,7 +58,7 @@ public class AboutBox extends JFrame {
             new Insets(0, 0, 0, 0), 0, 0));
 
         //---- label3 ----
-        label3.setIcon(new ImageIcon(getClass().getResource("/org/jlab/coda/support/ui/rsrc/emu.png")));
+        label3.setIcon(new ImageIcon(getClass().getResource("/org/jlab/coda/emu/support/ui/rsrc/emu.png")));
         contentPane.add(label3, new GridBagConstraints(0, 2, 1, 1, 0.0, 0.0,
             GridBagConstraints.CENTER, GridBagConstraints.VERTICAL,
             new Insets(0, 0, 0, 0), 0, 0));
