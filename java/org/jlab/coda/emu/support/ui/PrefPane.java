@@ -149,7 +149,7 @@ public class PrefPane extends JDialog {
         final Spacer spacer2 = new Spacer();
         panel3.add(spacer2, new GridConstraints(3, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_VERTICAL, 1, GridConstraints.SIZEPOLICY_WANT_GROW, null, null, null, 0, false));
         errorLoggingCheckBox = new JCheckBox();
-        this.$$$loadButtonText$$$(errorLoggingCheckBox, ResourceBundle.getBundle("org/jlab/coda/support/ui/rsrc/strings").getString("EnableLogLabel"));
+        this.$$$loadButtonText$$$(errorLoggingCheckBox, ResourceBundle.getBundle("org/jlab/coda/emu/support/ui/rsrc/strings").getString("EnableLogLabel"));
         panel3.add(errorLoggingCheckBox, new GridConstraints(1, 0, 1, 1, GridConstraints.ANCHOR_WEST, GridConstraints.FILL_NONE, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
         debugLoggingCheckBox = new JCheckBox();
         debugLoggingCheckBox.setText("Enable Debug");
