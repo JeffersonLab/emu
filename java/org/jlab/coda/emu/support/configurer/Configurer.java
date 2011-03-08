@@ -59,8 +59,8 @@ public class Configurer implements DOMErrorHandler, LSParserFilter {
     /** Object for serializing (writing) a DOM document out into XML. */
     private static LSSerializer domWriter;
 
-    /** Field configureMode */
-    protected static int configureMode = 0;
+    private static Logger logger;
+
 
     static {
         try {
@@ -106,6 +106,11 @@ public class Configurer implements DOMErrorHandler, LSParserFilter {
         } catch (Exception e) {
             //System.out.println("Exception initializing class Configurer : " + e.getMessage());
         }
+    }
+
+
+    synchronized public static void setLogger(Logger logger) {
+        Configurer.logger = logger;
     }
 
 
@@ -190,19 +195,30 @@ public class Configurer implements DOMErrorHandler, LSParserFilter {
 
     
     /**
-     * Method to handle errors.
+     * Method to handle errors. Only place logger is used.
+     * Called when parsing data and error occurs.
      *
      * @param error error of type DOMError
      * @return boolean
      */
-    public boolean handleError(DOMError error) {
+    synchronized public boolean handleError(DOMError error) {
         short severity = error.getSeverity();
         if (severity == DOMError.SEVERITY_ERROR) {
-            Logger.error("[dom3-error]: " + error.getMessage());
+            if (logger != null) {
+                logger.error("[dom3-error]: " + error.getMessage());
+            }
+            else {
+                System.out.println("[dom3-error]: " + error.getMessage());
+            }
         }
 
         if (severity == DOMError.SEVERITY_WARNING) {
-            Logger.error("[dom3-warning]: " + error.getMessage());
+            if (logger != null) {
+                logger.error("[dom3-warning]: " + error.getMessage());
+            }
+            else {
+                System.out.println("[dom3-warning]: " + error.getMessage());
+            }
         }
         return true;
 
