@@ -112,11 +112,13 @@ public class RocSimulation implements EmuModule, Runnable {
     /** Thread to update statistics. */
     private Thread watcher;
 
+    private Logger logger;
+
     private Emu emu;
 
 
     /**
-     * Constructor ProcessTest creates a new EventBuilding instance.
+     * Constructor RocSimulation creates a simulated ROC instance.
      *
      * @param name name of module
      * @param attributeMap map containing attributes of module
@@ -126,6 +128,7 @@ public class RocSimulation implements EmuModule, Runnable {
         this.emu = emu;
         this.name = name;
         this.attributeMap = attributeMap;
+        logger = emu.getLogger();
 
         try { rocId = Integer.parseInt(attributeMap.get("id")); }
         catch (NumberFormatException e) { /* defaults to 0 */ }
@@ -270,7 +273,7 @@ public class RocSimulation implements EmuModule, Runnable {
                     }
 
                 } catch (InterruptedException e) {
-                    Logger.info("ProcessTest thread " + name() + " interrupted");
+                    logger.info("ProcessTest thread " + name() + " interrupted");
                 }
             }
 System.out.println("ProcessTest module: quitting watcher thread");
@@ -515,7 +518,6 @@ System.out.println("starting event generating thread");
     }
 
     protected void finalize() throws Throwable {
-        Logger.info("Finalize " + name);
         super.finalize();
     }
 

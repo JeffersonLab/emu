@@ -72,12 +72,14 @@ public class Process implements EmuModule, Runnable {
     /** Field watcher */
     private Watcher watcher;
 
+    private Logger logger;
+
     private Emu emu;
 
 
     /**
      * This class codes a thread that copies the event number and data count into the EMU status
-     * once every two hundred milliseconds this is much more efficient than updating the status
+     * once every two hundred milliseclogger.onds this is much more efficient than updating the status
      * every time that the counters are incremented.
      */
     private class Watcher extends Thread {
@@ -102,7 +104,7 @@ public class Process implements EmuModule, Runnable {
                     }
 
                 } catch (InterruptedException e) {
-                    Logger.info("Process thread " + name() + " interrupted");
+                    logger.info("Process thread " + name() + " interrupted");
                 } catch (DataNotFoundException e) {
                     e.printStackTrace();
                 }
@@ -121,6 +123,8 @@ System.out.println("Process module: quitting watcher thread");
         this.emu = emu;
         this.name = name;
         this.attributeMap = attributeMap;
+        logger = emu.getLogger();
+
 //System.out.println("**** HEY, HEY someone created one of ME (modules.Process object) ****");
         System.out.println("**** LOADED NEW CLASS, DUDE!!! (modules.Process object) ****");
     }
@@ -318,7 +322,7 @@ System.out.println("GO in Process module");
     }
 
     protected void finalize() throws Throwable {
-        Logger.info("Finalize " + name);
+        logger.info("Finalize " + name);
         super.finalize();
     }
 

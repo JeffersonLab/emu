@@ -65,6 +65,8 @@ public class ProcessTest implements EmuModule, Runnable {
     /** Field watcher */
     private Watcher watcher;
 
+    private Logger logger;
+
     private Emu emu;
 
     /**
@@ -96,7 +98,7 @@ public class ProcessTest implements EmuModule, Runnable {
                     }
 
                 } catch (InterruptedException e) {
-                    Logger.info("ProcessTest thread " + name() + " interrupted");
+                    logger.info("ProcessTest thread " + name() + " interrupted");
                 } catch (DataNotFoundException e) {
                     e.printStackTrace();
                 }
@@ -111,11 +113,14 @@ System.out.println("ProcessTest module: quitting watcher thread");
      *
      * @param name         name of module
      * @param attributeMap map containing attributes of module
+     * @param emu EMU object
      */
     public ProcessTest(String name, Map<String,String> attributeMap, Emu emu) {
         this.emu = emu;
         this.name = name;
         this.attributeMap = attributeMap;
+        logger = emu.getLogger();
+
 //System.out.println("**** HEY, HEY someone created one of ME (modules.ProcessTest object) ****");
         System.out.println("**** LOADED NEW CLASS, DUDE!!! (modules.ProcessTest object) ****");
     }
@@ -378,7 +383,7 @@ System.out.println("Process: Added bank's children to built event, event = " + c
     }
 
     protected void finalize() throws Throwable {
-        Logger.info("Finalize " + name);
+        logger.info("Finalize " + name);
         super.finalize();
     }
 

@@ -193,6 +193,8 @@ public class EventBuilding implements EmuModule, Runnable {
     /** Thread to update statistics. */
     private Thread watcher;
 
+    private Logger logger;
+
     private Emu emu;
 
 
@@ -206,6 +208,7 @@ public class EventBuilding implements EmuModule, Runnable {
         this.emu = emu;
         this.name = name;
         this.attributeMap = attributeMap;
+        logger.info("Finalize " + name);
         try {
             ebId = Integer.parseInt(attributeMap.get("id"));
         }
@@ -295,13 +298,13 @@ public class EventBuilding implements EmuModule, Runnable {
                             sleep(500);
                             Configurer.setValue(emu.parameters(), "status/eventCount", Long.toString(eventCountTotal));
                             Configurer.setValue(emu.parameters(), "status/wordCount", Long.toString(wordCountTotal));
-//                            Configurer.newValue(Emu.INSTANCE.parameters(), "status/wordCount",
+//                            Configurer.newValue(emu.parameters(), "status/wordCount",
 //                                                "CarlsModule", Long.toString(wordCountTotal));
                         }
                     }
 
                 } catch (InterruptedException e) {
-                    Logger.info("ProcessTest thread " + name() + " interrupted");
+                    logger.info("ProcessTest thread " + name() + " interrupted");
                 } catch (DataNotFoundException e) {
                     e.printStackTrace();
                 }
@@ -349,7 +352,7 @@ public class EventBuilding implements EmuModule, Runnable {
                     }
 
                 } catch (InterruptedException e) {
-                    Logger.info("ProcessTest thread " + name() + " interrupted");
+                    logger.info("ProcessTest thread " + name() + " interrupted");
                 }
             }
 //System.out.println("EventBuilding module: quitting watcher thread");
@@ -1196,7 +1199,7 @@ System.out.println("INTERRUPTED thread " + Thread.currentThread().getName());
     }
 
     protected void finalize() throws Throwable {
-        Logger.info("Finalize " + name);
+        logger.info("Finalize " + name);
         super.finalize();
     }
 

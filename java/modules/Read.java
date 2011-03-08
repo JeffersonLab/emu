@@ -11,6 +11,7 @@
 
 package modules;
 
+import org.jlab.coda.emu.Emu;
 import org.jlab.coda.emu.EmuModule;
 import org.jlab.coda.emu.support.codaComponent.CODAState;
 import org.jlab.coda.emu.support.codaComponent.CODATransition;
@@ -20,6 +21,7 @@ import org.jlab.coda.emu.support.logger.Logger;
 import org.jlab.coda.emu.support.transport.DataChannel;
 
 import java.util.ArrayList;
+import java.util.Map;
 
 /**
  * <pre>
@@ -37,13 +39,20 @@ public class Read implements EmuModule {
     /** Field name */
     private String name = null;
 
+    private Emu    emu;
+    private Logger logger;
+
     /**
      * Constructor Read creates a new Read instance.
      *
-     * @param pname of type String
+     * @param name         name of module
+     * @param attributeMap map containing attributes of module
+     * @param emu          EMU object
      */
-    public Read(String pname) {
-        name = pname;
+    public Read(String name, Map<String,String> attributeMap, Emu emu) {
+        this.name = name;
+        this.emu = emu;
+        logger = emu.getLogger();
     }
 
     public Object[] getStatistics() {
@@ -81,7 +90,7 @@ public class Read implements EmuModule {
     }
 
     protected void finalize() throws Throwable {
-        Logger.info("Finalize " + name);
+        logger.info("Finalize " + name);
         super.finalize();
     }
 
