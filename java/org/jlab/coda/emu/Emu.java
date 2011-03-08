@@ -98,6 +98,8 @@ public class Emu implements CODAComponent {
     /** Field cmsgPortal, a CMSGPortal object encapsulates the cMsg API. */
     private final CMSGPortal cmsgPortal;
 
+    private final Logger logger;
+
     /** Field cmsgUDL, the UDL of the cMsg server */
     private String cmsgUDL;
 
@@ -210,9 +212,9 @@ public class Emu implements CODAComponent {
      */
     public void list() {
         if (moduleFactory.state() != CODAState.UNCONFIGURED) {
-            Logger.info("Dump of configuration", Configurer.serialize(loadedConfig));
+            logger.info("Dump of configuration", Configurer.serialize(loadedConfig));
         }
-        else Logger.warn("cannot list configuration, not configured");
+        else logger.warn("cannot list configuration, not configured");
     }
 
     /**
@@ -266,6 +268,10 @@ public class Emu implements CODAComponent {
 
     public ThreadGroup getThreadGroup() {
         return threadGroup;
+    }
+
+    public Logger getLogger() {
+        return logger;
     }
 
     /**
@@ -526,6 +532,8 @@ System.out.println("Stats for module " + statsModule.name() + ": count = " + eve
         this.configFileName = configFileName;
         this.loadedConfig = loadedConfig;
         this.cmsgUDL = cmsgUDL;  // may be null
+        logger = new Logger();
+        Configurer.setLogger(logger);
 
         // Define thread group so all threads can be handled together
         threadGroup = new ThreadGroup(name);
@@ -557,7 +565,7 @@ System.out.println("Stats for module " + statsModule.name() + ": count = " + eve
             // Must define the INSTALL_DIR env var in order to find config files
             installDir = System.getenv("INSTALL_DIR");
             if (installDir == null) {
-                Logger.error("CODAComponent exit - INSTALL_DIR is not set");
+                logger.error("CODAComponent exit - INSTALL_DIR is not set");
                 System.exit(-1);
             }
             localConfigFile = installDir + File.separator + "emu/conf" + File.separator + "local.xml";
@@ -568,7 +576,7 @@ System.out.println("Stats for module " + statsModule.name() + ": count = " + eve
             localConfig = Configurer.parseFile(localConfigFile);
         } catch (DataNotFoundException e) {
             e.printStackTrace();
-            Logger.error("CODAComponent exit - " + localConfigFile + " not found");
+            logger.error("CODAComponent exit - " + localConfigFile + " not found");
             System.exit(-1);
         }
 
@@ -623,15 +631,18 @@ System.out.println("Stats for module " + statsModule.name() + ": count = " + eve
      */
     public Emu() {
 
+        logger = new Logger();
+        Configurer.setLogger(logger);
+
         // Must set the name of this EMU
         String emuName = System.getProperty("name");
         if (emuName == null) {
-            Logger.error("CODAComponent exit - name not defined");
+            logger.error("CODAComponent exit - name not defined");
             System.exit(-1);
         }
         setName(emuName);
 
-        Logger.info("CODAComponent constructor called.");
+        logger.info("CODAComponent constructor called.");
 
         // Define thread group so all threads can be handled together
         threadGroup = new ThreadGroup(name);
@@ -666,7 +677,7 @@ System.out.println("Stats for module " + statsModule.name() + ": count = " + eve
             // Must define the INSTALL_DIR env var in order to find config files
             installDir = System.getenv("INSTALL_DIR");
             if (installDir == null) {
-                Logger.error("CODAComponent exit - INSTALL_DIR is not set");
+                logger.error("CODAComponent exit - INSTALL_DIR is not set");
                 System.exit(-1);
             }
             localConfigFile = installDir + File.separator + "emu/conf" + File.separator + "local.xml";
@@ -678,7 +689,7 @@ System.out.println("Stats for module " + statsModule.name() + ": count = " + eve
             Configurer.removeEmptyTextNodes(localConfig.getDocumentElement());
         } catch (DataNotFoundException e) {
             e.printStackTrace();
-            Logger.error("CODAComponent exit - " + localConfigFile + " not found");
+            logger.error("CODAComponent exit - " + localConfigFile + " not found");
             System.exit(-1);
         }
 
@@ -695,7 +706,7 @@ System.out.println("Stats for module " + statsModule.name() + ": count = " + eve
         // parsing XML error
         } catch (DataNotFoundException e) {
             e.printStackTrace();
-            Logger.error("CODAComponent exit - " + configFile + " not found");
+            logger.error("CODAComponent exit - " + configFile + " not found");
             System.exit(-1);
         }
 
@@ -753,7 +764,7 @@ System.out.println("Stats for module " + statsModule.name() + ": count = " + eve
      * @see org.jlab.coda.emu.support.codaComponent.CODAComponent#run()
      */
     public void run() {
-        Logger.info("CODAComponent state monitor thread started");
+        logger.info("CODAComponent state monitor thread started");
         State oldState = null;
         State state;
         // Thread.currentThread().getThreadGroup().list();
@@ -771,7 +782,7 @@ System.out.println("Stats for module " + statsModule.name() + ": count = " + eve
                         } catch (IllegalArgumentException e) {
                             e.printStackTrace();
                             // This just means that the command was not supported
-                            Logger.info("command " + cmd + " not supported by " + this.name());
+                            logger.info("command " + cmd + " not supported by " + this.name());
                         }
                     }
                     // If modules are not loaded then our state is either unconfigured, configured
@@ -791,7 +802,7 @@ System.out.println("Stats for module " + statsModule.name() + ": count = " + eve
                             debugGUI.getToolBar().update();
                         }
                         
-                        Logger.info("State Change to : " + state.toString());
+                        logger.info("State Change to : " + state.toString());
 
                         try {
                             //Configurer.setValue(localConfig, "component/status/state", state.toString());
@@ -799,13 +810,13 @@ System.out.println("Stats for module " + statsModule.name() + ": count = " + eve
                         } catch (DataNotFoundException e) {
                             // This is almost impossible but catch anyway
 System.out.println("ERROR in setting value in local config !!!");
-                            Logger.error("CODAComponent thread failed to set state");
+                            logger.error("CODAComponent thread failed to set state");
                         }
 
                         if (state == CODAState.ERROR) {
                             Vector<Throwable> causes = CODAState.ERROR.getCauses();
                             for (Throwable cause : causes) {
-                                Logger.error(cause.getMessage());
+                                logger.error(cause.getMessage());
                             }
 
                             causes.clear();
@@ -823,7 +834,7 @@ System.out.println("ERROR in setting value in local config !!!");
         // if this thread is ending, stop reporting status thread too
         statusReportingThread.interrupt();
 
-        Logger.info("Status monitor thread exit now");
+        logger.info("Status monitor thread exit now");
     }
 
 
@@ -957,13 +968,13 @@ System.out.println("EXECUTING cmd = " + cmd.name());
                 }
             // parsing XML error
             } catch (DataNotFoundException e) {
-                Logger.error("Configure FAILED", e.getMessage());
+                logger.error("Configure FAILED", e.getMessage());
                 CODAState.ERROR.getCauses().add(e);
                 moduleFactory.ERROR();
                 return;
             // "config" payload item has no string (should never happen)
             } catch (cMsgException e) {
-                Logger.error("Configure FAILED", e.getMessage());
+                logger.error("Configure FAILED", e.getMessage());
                 CODAState.ERROR.getCauses().add(e);
                 moduleFactory.ERROR();
                 return;
@@ -984,7 +995,7 @@ System.out.println("EXECUTING cmd = " + cmd.name());
         // except to set its state to "CODAState.CONFIGURED".
         try {
             moduleFactory.execute(cmd);
-            Logger.info("command " + cmd + " executed, state " + cmd.success());
+            logger.info("command " + cmd + " executed, state " + cmd.success());
         } catch (CmdExecException e) {
             CODAState.ERROR.getCauses().add(e);
             moduleFactory.ERROR();
