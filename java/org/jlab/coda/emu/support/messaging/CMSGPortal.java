@@ -34,7 +34,7 @@ public class CMSGPortal implements LoggerAppender {
     /** cMsg connection object. */
     private cMsg server;
 
-    /** UDL to connectiont to cMsg system. */
+    /** UDL to connection to cMsg system. */
     private final String UDL;
 
     /** Store a reference to the EMU here (which is the only object that uses this CMSGPortal object). */
@@ -43,6 +43,7 @@ public class CMSGPortal implements LoggerAppender {
     /** Thread which creates and maintains a healthy cMsg connection. */
     private final Thread monitorThread;
 
+    private Logger logger;
 
 
     /**
@@ -69,7 +70,8 @@ public class CMSGPortal implements LoggerAppender {
         UDL = udl;
 
 System.out.println("\n CMSGPortal using UDL = " + UDL + "\n");
-        Logger.addAppender(this);
+        logger = emu.getLogger();
+        logger.addAppender(this);
 
         // start a thread to maintain a connection to the cMsg server
         monitorThread = new Thread(emu.getThreadGroup(), new ServerMonitor(), "cMSg Server Monitor");
@@ -125,10 +127,10 @@ System.out.println("\n CMSGPortal using UDL = " + UDL + "\n");
     System.out.println("CMSGPortal subscribe to sub = *, type = " + RCConstants.setOptionType);
                         server.subscribe("*", RCConstants.setOptionType, new RCOptionHandler(CMSGPortal.this), null);
 
-                        Logger.info("cMSg server connected");
+                        logger.info("cMSg server connected");
 
                     } catch (cMsgException e) {
-                        Logger.warn("cMSg server down, retry in 5 seconds");
+                        logger.warn("cMSg server down, retry in 5 seconds");
                         if (server != null) {
                             try {
                                 if (server.isConnected()) server.disconnect();
@@ -157,7 +159,7 @@ System.out.println("\n CMSGPortal using UDL = " + UDL + "\n");
             }
 
             server = null;
-            Logger.warn("cMSg server monitor thread exit");
+            logger.warn("cMSg server monitor thread exit");
         }
     }
 
@@ -168,7 +170,7 @@ System.out.println("\n CMSGPortal using UDL = " + UDL + "\n");
      * @throws cMsgException
      */
     public void shutdown() throws cMsgException {
-        Logger.removeAppender(this);
+        logger.removeAppender(this);
 
         monitorThread.interrupt();
     }
