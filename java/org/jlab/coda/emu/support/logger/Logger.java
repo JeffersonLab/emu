@@ -24,30 +24,31 @@ import java.util.Vector;
 public class Logger {
 
     /** Field FQCN */
-    private static final String FQCN = Logger.class.getName();
+    private final String FQCN = Logger.class.getName();
 
     /** Field fqcnSet */
-    private static final Set<String> fqcnSet = new HashSet<String>();
+    private final Set<String> fqcnSet = new HashSet<String>();
 
     /** Field logFunctionsSet */
-    private static final Set<String> logFunctionsSet = new HashSet<String>();
+    private final Set<String> logFunctionsSet = new HashSet<String>();
 
     /** Field java13 */
-    private static boolean java13 = false;
+    private boolean java13 = false;
 
     /** Field loggerAppenders */
-    private static final List<LoggerAppender> loggerAppenders = new Vector<LoggerAppender>();
+    private final List<LoggerAppender> loggerAppenders = new Vector<LoggerAppender>();
 
     /** Field enable_debug */
-    private static boolean enable_debug = true;
+    private boolean enable_debug = true;
 
     /** Field enable_error */
-    private static boolean enable_error = true;
+    private boolean enable_error = true;
 
-    static {
+
+    public Logger () {
         fqcnSet.add(FQCN);
         // Message class can be moved to different sub project, See call to addLogOrigin
-        // Also Message calss can be refactored by ProGuard
+        // Also Message class can be refactored by ProGuard
 
         addAppender(new StdOutAppender());
 
@@ -61,12 +62,12 @@ public class Logger {
     }
 
     /** Method toggleDebug ... */
-    public static void toggleDebug() {
+    public void toggleDebug() {
         enable_debug = !enable_debug;
     }
 
     /** Method toggleError ... */
-    public static void toggleError() {
+    public void toggleError() {
         enable_error = !enable_error;
     }
 
@@ -75,7 +76,7 @@ public class Logger {
      *
      * @return the debugEnabled (type boolean) of this Logger object.
      */
-    public static boolean isDebugEnabled() {
+    public boolean isDebugEnabled() {
         return enable_debug;
     }
 
@@ -84,7 +85,7 @@ public class Logger {
      *
      * @return the errorEnabled (type boolean) of this Logger object.
      */
-    public static boolean isErrorEnabled() {
+    public boolean isErrorEnabled() {
         return enable_error;
     }
 
@@ -95,7 +96,7 @@ public class Logger {
      * @return StackTraceElement
      */
     @SuppressWarnings({"ThrowableInstanceNeverThrown"})
-    private static StackTraceElement getLocation(int level) {
+    private StackTraceElement getLocation(int level) {
 
         if (java13 || (level < LoggingEvent.BUG)) {
             return null;
@@ -141,7 +142,7 @@ public class Logger {
      * @param message   of type String
      * @param throwable of type Throwable
      */
-    private static void write(int level, String message, Throwable throwable) {
+    private void write(int level, String message, Throwable throwable) {
         callAppenders(new LoggingEvent(level, message, getLocation(level), throwable));
     }
 
@@ -153,7 +154,7 @@ public class Logger {
      * @param throwable of type Throwable
      * @param data      of type Object
      */
-    private static void write(int level, String message, Throwable throwable, Object data) {
+    private void write(int level, String message, Throwable throwable, Object data) {
         callAppenders(new LoggingEvent(level, message, getLocation(level), throwable, data));
     }
 
@@ -162,7 +163,7 @@ public class Logger {
      *
      * @param message of type String
      */
-    public static void debug(String message) {
+    public void debug(String message) {
         if (isDebugEnabled()) {
             write(LoggingEvent.DEBUG, message, null);
         }
@@ -174,7 +175,7 @@ public class Logger {
      * @param message of type String
      * @param t       of type Throwable
      */
-    public static void debug(String message, Throwable t) {
+    public void debug(String message, Throwable t) {
         if (isDebugEnabled()) {
             write(LoggingEvent.DEBUG, message, t);
         }
@@ -185,7 +186,7 @@ public class Logger {
      *
      * @param t of type Throwable
      */
-    public static void debug(Throwable t) {
+    public void debug(Throwable t) {
         if (isDebugEnabled()) {
             write(LoggingEvent.DEBUG, "error", t);
         }
@@ -197,7 +198,7 @@ public class Logger {
      * @param message of type String
      * @param v       of type String
      */
-    public static void debug(String message, String v) {
+    public void debug(String message, String v) {
         if (isDebugEnabled()) {
             write(LoggingEvent.DEBUG, message, null, v);
         }
@@ -209,7 +210,7 @@ public class Logger {
      * @param message of type String
      * @param o       of type Object
      */
-    public static void debug(String message, Object o) {
+    public void debug(String message, Object o) {
         if (isDebugEnabled()) {
             write(LoggingEvent.DEBUG, message, null, new LoggerDataWrapper(o));
         }
@@ -222,7 +223,7 @@ public class Logger {
      * @param v1      of type String
      * @param v2      of type String
      */
-    public static void debug(String message, String v1, String v2) {
+    public void debug(String message, String v1, String v2) {
         if (isDebugEnabled()) {
             write(LoggingEvent.DEBUG, message, null, new LoggerDataWrapper(v1, v2));
         }
@@ -234,7 +235,7 @@ public class Logger {
      * @param message of type String
      * @param v       of type long
      */
-    public static void debug(String message, long v) {
+    public void debug(String message, long v) {
         if (isDebugEnabled()) {
             write(LoggingEvent.DEBUG, message, null, new LoggerDataWrapper(v));
         }
@@ -247,7 +248,7 @@ public class Logger {
      * @param v1      of type long
      * @param v2      of type long
      */
-    public static void debug(String message, long v1, long v2) {
+    public void debug(String message, long v1, long v2) {
         if (isDebugEnabled()) {
             write(LoggingEvent.DEBUG, message, null, new LoggerDataWrapper(v1, v2));
         }
@@ -259,7 +260,7 @@ public class Logger {
      * @param message of type String
      * @param v       of type boolean
      */
-    public static void debug(String message, boolean v) {
+    public void debug(String message, boolean v) {
         if (isDebugEnabled()) {
             write(LoggingEvent.DEBUG, message, null, new LoggerDataWrapper(v));
         }
@@ -271,7 +272,7 @@ public class Logger {
      * @param message of type String
      * @param obj     of type Object
      */
-    public static void debugClassLoader(String message, Object obj) {
+    public void debugClassLoader(String message, Object obj) {
         if (obj == null) {
             write(LoggingEvent.DEBUG, message + " no class, no object", null, null);
             return;
@@ -302,7 +303,7 @@ public class Logger {
      *
      * @param message of type String
      */
-    public static void info(String message) {
+    public void info(String message) {
         if (isErrorEnabled()) {
             write(LoggingEvent.INFO, message, null);
         }
@@ -314,7 +315,7 @@ public class Logger {
      * @param message of type String
      * @param data    of type String
      */
-    public static void info(String message, String data) {
+    public void info(String message, String data) {
         if (isErrorEnabled()) {
             write(LoggingEvent.INFO, message, null, data);
         }
@@ -325,7 +326,7 @@ public class Logger {
      *
      * @param message of type String
      */
-    public static void warn(String message) {
+    public void warn(String message) {
         if (isErrorEnabled()) {
             write(LoggingEvent.WARN, message, null);
         }
@@ -336,7 +337,7 @@ public class Logger {
      *
      * @param message of type String
      */
-    public static void error(String message) {
+    public void error(String message) {
         if (isErrorEnabled()) {
             write(LoggingEvent.ERROR, message, null);
         }
@@ -348,7 +349,7 @@ public class Logger {
      * @param message of type String
      * @param v       of type long
      */
-    public static void error(String message, long v) {
+    public void error(String message, long v) {
         if (isErrorEnabled()) {
             write(LoggingEvent.ERROR, message, null, new LoggerDataWrapper(v));
         }
@@ -360,7 +361,7 @@ public class Logger {
      * @param message of type String
      * @param v       of type String
      */
-    public static void error(String message, String v) {
+    public void error(String message, String v) {
         if (isErrorEnabled()) {
             write(LoggingEvent.ERROR, message, null, v);
         }
@@ -373,7 +374,7 @@ public class Logger {
      * @param v       of type String
      * @param t       of type Throwable
      */
-    public static void error(String message, String v, Throwable t) {
+    public void error(String message, String v, Throwable t) {
         if (isErrorEnabled()) {
             write(LoggingEvent.ERROR, message, t, v);
         }
@@ -384,7 +385,7 @@ public class Logger {
      *
      * @param t of type Throwable
      */
-    public static void error(Throwable t) {
+    public void error(Throwable t) {
         if (isErrorEnabled()) {
             write(LoggingEvent.ERROR, t.toString(), t);
         }
@@ -396,7 +397,7 @@ public class Logger {
      * @param message of type String
      * @param t       of type Throwable
      */
-    public static void error(String message, Throwable t) {
+    public void error(String message, Throwable t) {
         if (isErrorEnabled()) {
             write(LoggingEvent.ERROR, message + " " + t.toString(), t);
         }
@@ -407,7 +408,7 @@ public class Logger {
      *
      * @param event of type LoggingEvent
      */
-    private static void callAppenders(LoggingEvent event) {
+    private void callAppenders(LoggingEvent event) {
         for (LoggerAppender a : loggerAppenders) {
             a.append(event);
         }
@@ -418,7 +419,7 @@ public class Logger {
      *
      * @param origin Class
      */
-    public static void addLogOrigin(Class origin) {
+    public void addLogOrigin(Class origin) {
         fqcnSet.add(origin.getName());
     }
 
@@ -427,7 +428,7 @@ public class Logger {
      *
      * @param newAppender of type LoggerAppender
      */
-    public static void addAppender(LoggerAppender newAppender) {
+    public void addAppender(LoggerAppender newAppender) {
         loggerAppenders.add(newAppender);
     }
 
@@ -436,7 +437,7 @@ public class Logger {
      *
      * @param appender of type LoggerAppender
      */
-    public static void removeAppender(LoggerAppender appender) {
+    public void removeAppender(LoggerAppender appender) {
         loggerAppenders.remove(appender);
     }
 }
