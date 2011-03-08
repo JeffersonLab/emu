@@ -271,10 +271,6 @@ public class Evio {
     public static final int BUILT_TRIGGER_BANK = 0x0F02;
 
 
-    /** Object for parsing evio data. */
-    private static EventParser parser = new EventParser();  // TODO: not good idea to have static parser
-
-
     /**
      * Private constructor since everything is static.
      */
@@ -595,7 +591,7 @@ System.out.println("isDataTransportRecord: is not DTR 5");
         // Only interested in known types such as physics, roc raw, control, and user events.
         EventType eventType = getEventType(dtrBank);
         if (eventType == null) {
-Logger.error("extractPayloadBanks: unknown type, dump payload bank");
+System.out.print("extractPayloadBanks: unknown type, dump payload bank");
             return;
         }
         else if (eventType == EventType.USER) {
