@@ -162,7 +162,7 @@ public class EmuFactory {
             System.out.println("Found names:");
             for (String s : strs) {
                 if (names.contains(s)) {
-                    Logger.error("EMUFactory exit - all component names must be unique, \"" + s + "\" is not");
+                    System.out.println("EMUFactory exit - all component names must be unique, \"" + s + "\" is not");
                     System.exit(-1);
                 }
                 names.add(s);
@@ -202,7 +202,7 @@ public class EmuFactory {
             for (String s : strs) {
                 // TODO: file comparison can be more complicated
                 if (configFileNames.contains(s)) {
-                    Logger.error("EMUFactory exit - all files names must be unique, \"" + s + "\" is not");
+                    System.out.println("EMUFactory exit - all files names must be unique, \"" + s + "\" is not");
                     System.exit(-1);
                 }
                 configFileNames.add(s);
@@ -212,7 +212,7 @@ public class EmuFactory {
         else {
             // If no component names & no config file names are given, give up.
             if (cmdLineNames == null) {
-                Logger.error("EMUFactory exit - no names or config files given");
+                System.out.println("EMUFactory exit - no names or config files given");
                 System.exit(-1);
             }
 
@@ -221,7 +221,7 @@ public class EmuFactory {
             // environmental variable must be defined in order to find them.
             String installDir = System.getenv("INSTALL_DIR");
             if (installDir == null) {
-                Logger.error("EMUFactory exit - INSTALL_DIR is not set");
+                System.out.println("EMUFactory exit - INSTALL_DIR is not set");
                 System.exit(-1);
             }
 
@@ -248,7 +248,8 @@ System.out.println("- " + fileName);
                     Configurer.removeEmptyTextNodes(document.getDocumentElement());
                 } catch (DataNotFoundException e) {
                     // parsing XML error
-                    Logger.error("EMUFactory exit - parsing config file FAILED", e.getMessage());
+                    System.out.println("EMUFactory exit - parsing config file " + fileName +
+                                       " FAILED: " + e.getMessage());
                     System.exit(-1);
                 }
             }
@@ -270,7 +271,8 @@ System.out.println("Found component " + nameAttr.getNodeValue());
                     componentNames.add(nameAttr.getNodeValue());
                 } catch (DataNotFoundException e) {
                     // parsing XML error
-                    Logger.error("EMUFactory exit - parsing config file FAILED", e.getMessage());
+                    System.out.println("EMUFactory exit - cannot find \"component\" attribute in config file: " +
+                                       e.getMessage());
                     System.exit(-1);
                 }
             }
@@ -279,7 +281,7 @@ System.out.println("Found component " + nameAttr.getNodeValue());
             if (names.size() > 0) {
                 if (componentNames.size() != names.size() ||
                    !componentNames.containsAll(names)) {
-                    Logger.error("EMUFactory exit - component name must match names in config files exactly");
+                    System.out.println("EMUFactory exit - component name must match names in config files exactly");
                     System.exit(-1);
                 }
             }
