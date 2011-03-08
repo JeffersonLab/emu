@@ -74,6 +74,8 @@ public class DataChannelImplCmsg implements DataChannel {
     /** Is this channel an input (true) or output (false) channel? */
     boolean input;
 
+    private Logger logger;
+
     private Emu emu;
 
 
@@ -176,13 +178,14 @@ public class DataChannelImplCmsg implements DataChannel {
         this.input = input;
         this.name = name;
         this.emu = emu;
+        logger = emu.getLogger();
 
         // set queue capacity
         int capacity = 40;
         try {
             capacity = dataTransport.getIntAttr("capacity");
         } catch (Exception e) {
-            Logger.info("      DataChannelImplCmsg.const : " +  e.getMessage() + ", default to " + capacity + " records.");
+            logger.info("      DataChannelImplCmsg.const : " +  e.getMessage() + ", default to " + capacity + " records.");
         }
         queue = new ArrayBlockingQueue<EvioBank>(capacity);
 
@@ -212,7 +215,7 @@ System.out.println("\n\nDataChannel: subscribe to subject = " + subject + ", typ
                 sub = dataTransport.getCmsgConnection().subscribe(subject, type, cb, null);
             }
             catch (cMsgException e) {
-                Logger.info("      DataChannelImplCmsg.const : " + e.getMessage());
+                logger.info("      DataChannelImplCmsg.const : " + e.getMessage());
                 throw new DataTransportException(e);
             }
         }
@@ -225,7 +228,7 @@ System.out.println("\n\nDataChannel: subscribe to subject = " + subject + ", typ
                     byteOrder = ByteOrder.LITTLE_ENDIAN;
                 }
             } catch (Exception e) {
-                Logger.info("      DataChannelImplCmsg.const : no output data endianness specifed, default to big.");
+                logger.info("      DataChannelImplCmsg.const : no output data endianness specifed, default to big.");
             }
 
             startOutputHelper();
@@ -287,7 +290,7 @@ System.out.println("\n\nDataChannel: subscribe to subject = " + subject + ", typ
      * Close this channel by unsubscribing from cmsg server and ending the data sending thread.
      */
     public void close() {
-        Logger.warn("      DataChannelImplCmsg.close : " + name + " - closing this channel");
+        logger.warn("      DataChannelImplCmsg.close : " + name + " - closing this channel");
         if (dataThread != null) dataThread.interrupt();
         try {
             if (sub != null) {
@@ -327,7 +330,7 @@ System.out.println("\n\nDataChannel: subscribe to subject = " + subject + ", typ
                 while ( dataTransport.getCmsgConnection().isConnected() ) {
 
                     if (pause) {
-//Logger.warn("      DataChannelImplCmsg.DataOutputHelper : " + name + " - PAUSED");
+//logger.warn("      DataChannelImplCmsg.DataOutputHelper : " + name + " - PAUSED");
                         Thread.sleep(5);
                         continue;
                     }
@@ -336,7 +339,7 @@ System.out.println("\n\nDataChannel: subscribe to subject = " + subject + ", typ
 
                     size = bank.getTotalBytes();
                     if (buffer.capacity() < size) {
-//Logger.warn("      DataChannelImplCmsg.DataOutputHelper : increasing buffer size to " + (size + 1000));
+//logger.warn("      DataChannelImplCmsg.DataOutputHelper : increasing buffer size to " + (size + 1000));
                         buffer = ByteBuffer.allocate(size + 1000);
                         buffer.order(byteOrder);
                     }
@@ -357,13 +360,13 @@ System.out.println("\n\nDataChannel: subscribe to subject = " + subject + ", typ
                     dataTransport.getCmsgConnection().send(msg);
                 }
 
-                Logger.warn("      DataChannelImplCmsg.DataOutputHelper : " + name + " - disconnected from cmsg server");
+                logger.warn("      DataChannelImplCmsg.DataOutputHelper : " + name + " - disconnected from cmsg server");
 
             } catch (InterruptedException e) {
-                Logger.warn("      DataChannelImplCmsg.DataOutputHelper : interrupted, exiting");
+                logger.warn("      DataChannelImplCmsg.DataOutputHelper : interrupted, exiting");
             } catch (Exception e) {
                 e.printStackTrace();
-                Logger.warn("      DataChannelImplCmsg.DataOutputHelper : exit " + e.getMessage());
+                logger.warn("      DataChannelImplCmsg.DataOutputHelper : exit " + e.getMessage());
             }
         }
 

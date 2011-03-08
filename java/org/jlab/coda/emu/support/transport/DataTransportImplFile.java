@@ -3,6 +3,7 @@ package org.jlab.coda.emu.support.transport;
 import org.jlab.coda.emu.Emu;
 import org.jlab.coda.emu.support.configurer.DataNotFoundException;
 import org.jlab.coda.emu.support.control.Command;
+import org.jlab.coda.emu.support.logger.Logger;
 
 import java.util.Map;
 
@@ -15,8 +16,8 @@ import java.util.Map;
  */
 public class DataTransportImplFile extends DataTransportCore implements DataTransport {
 
-    public DataTransportImplFile(String pname, Map<String, String> attrib) throws DataNotFoundException {
-        super(pname, attrib);
+    public DataTransportImplFile(String pname, Map<String, String> attrib, Logger logger) throws DataNotFoundException {
+        super(pname, attrib, logger);
     }
 
     /** {@inheritDoc} */

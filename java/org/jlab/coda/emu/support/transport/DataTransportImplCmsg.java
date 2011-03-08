@@ -30,6 +30,8 @@ public class DataTransportImplCmsg extends DataTransportCore implements DataTran
     /** Connection to cmsg server. */
     private cMsg cmsgConnection;
 
+    private Logger logger;
+
     /**
      * Get the cmsg connection object.
      * @return the cmsg connection object.
@@ -47,9 +49,10 @@ public class DataTransportImplCmsg extends DataTransportCore implements DataTran
      * @throws DataNotFoundException
      *          when udl not given or cannot connect to cmsg server
      */
-    public DataTransportImplCmsg(String pname, Map<String, String> attrib) throws DataNotFoundException {
+    public DataTransportImplCmsg(String pname, Map<String, String> attrib, Logger logger) throws DataNotFoundException {
         // pname is the "name" entry in the attrib map
-        super(pname, attrib);
+        super(pname, attrib, logger);
+        this.logger = logger;
 
         // Which udl do we connect to?
         String udl = attrib.get("udl");
@@ -72,12 +75,12 @@ public class DataTransportImplCmsg extends DataTransportCore implements DataTran
     }
 
     public void execute(Command cmd) {
-Logger.debug("    DataTransportImplCmsg.execute : " + cmd);
+logger.debug("    DataTransportImplCmsg.execute : " + cmd);
 
         if (cmd.equals(CODATransition.PRESTART)) {
 
             try {
-                Logger.debug("    DataTransportImplCmsg.execute PRESTART: cmsg connect : " + name() + " " + myInstance);
+                logger.debug("    DataTransportImplCmsg.execute PRESTART: cmsg connect : " + name() + " " + myInstance);
                 cmsgConnection.connect();
 
             } catch (cMsgException e) {
@@ -114,7 +117,7 @@ Logger.debug("    DataTransportImplCmsg.execute : " + cmd);
         else if ((cmd.equals(CODATransition.END)) || (cmd.equals(CODATransition.RESET))) {
 
             try {
-                Logger.debug("    DataTransportImplCmsg.execute END/RESET: cmsg disconnect : " + name() + " " + myInstance);
+                logger.debug("    DataTransportImplCmsg.execute END/RESET: cmsg disconnect : " + name() + " " + myInstance);
                 cmsgConnection.disconnect();
 
             } catch (Exception e) {

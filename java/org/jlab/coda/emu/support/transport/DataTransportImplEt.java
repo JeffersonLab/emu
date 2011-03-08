@@ -48,6 +48,8 @@ public class DataTransportImplEt extends DataTransportCore implements DataTransp
     /** Running ET system process if any. */
     private Process processET;
 
+    private Logger logger;
+
     /**
      * Get whether the ET system should be created by the EMU if it does not exist.
      * @return whether the ET system should be created by the EMU if it does not exist
@@ -83,11 +85,12 @@ public class DataTransportImplEt extends DataTransportCore implements DataTransp
      *
      * @throws DataNotFoundException when cannot configure an ET system
      */
-    public DataTransportImplEt(String pname, Map<String, String> attrib)
+    public DataTransportImplEt(String pname, Map<String, String> attrib, Logger logger)
             throws DataNotFoundException {
 
         // pname is the "name" entry in the attrib map
-        super(pname, attrib);
+        super(pname, attrib, logger);
+        this.logger = logger;
 
         String etName = attrib.get("etName");
         if (etName == null) {
@@ -307,7 +310,7 @@ System.out.println("Created channel " + name + ", channels size = " + channels()
     }
 
     public void execute(Command cmd) {
-Logger.debug("    DataTransportImplEt.execute : " + cmd);
+logger.debug("    DataTransportImplEt.execute : " + cmd);
 
         if (cmd.equals(CODATransition.DOWNLOAD)) {
             createdET = false;
@@ -374,7 +377,7 @@ System.out.println("Cannot open ET system " + openConfig.getEtName() + ", none t
                     // error if incompatible ET system exists
                     if (incompatibleET) {
 System.out.println("Incompatible ET system, " + openConfig.getEtName());
-                        Logger.debug("    DataTransportImplEt.execute DOWNLOAD: imcompatible ET system exists : " + name() + " " + myInstance);
+                        logger.debug("    DataTransportImplEt.execute DOWNLOAD: imcompatible ET system exists : " + name() + " " + myInstance);
                         state = CODAState.ERROR;
                         return;
                     }
@@ -406,7 +409,7 @@ System.out.println("Create ET system, " + openConfig.getEtName() + " with cmd \n
         else if (cmd.equals(CODATransition.PRESTART)) {
 
             try {
-                Logger.debug("    DataTransportImplEt.execute PRESTART: ET open : " + name() + " " + myInstance);
+                logger.debug("    DataTransportImplEt.execute PRESTART: ET open : " + name() + " " + myInstance);
 
             } catch (Exception e) {
                 CODAState.ERROR.getCauses().add(e);

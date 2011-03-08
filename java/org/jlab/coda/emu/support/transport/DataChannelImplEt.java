@@ -93,6 +93,8 @@ public class DataChannelImplEt implements DataChannel {
     /** Is this channel an input (true) or output (false) channel? */
     boolean input;
 
+    private Logger logger;
+
     private Emu emu;
 
 
@@ -120,14 +122,15 @@ public class DataChannelImplEt implements DataChannel {
         this.input = input;
         this.attributeMap = attrib;
         this.dataTransport = transport;
-Logger.info("      DataChannelImplEt.const : creating channel " + name);
+        logger = emu.getLogger();
+logger.info("      DataChannelImplEt.const : creating channel " + name);
 
         // set queue capacity
         int capacity = 100;    // 100 buffers * 100 events/buf * 150 bytes/Roc/ev =  1.5Mb/Roc
         try {
             capacity = dataTransport.getIntAttr("capacity");
         } catch (Exception e) {
-            Logger.info("      DataChannelImplEt.const : " +  e.getMessage() + ", default to " + capacity + " records.");
+            logger.info("      DataChannelImplEt.const : " +  e.getMessage() + ", default to " + capacity + " records.");
         }
         queue = new ArrayBlockingQueue<EvioBank>(capacity);
 
@@ -141,7 +144,7 @@ Logger.info("      DataChannelImplEt.const : creating channel " + name);
             }
             catch (NumberFormatException e) {  }
         }
-Logger.info("      DataChannelImplEt.const : id = " + id);
+logger.info("      DataChannelImplEt.const : id = " + id);
 
 
         // create ET system object & info
@@ -157,7 +160,7 @@ Logger.info("      DataChannelImplEt.const : id = " + id);
             }
             catch (NumberFormatException e) {}
         }
-Logger.info("      DataChannelImplEt.const : chunk = " + chunk);
+logger.info("      DataChannelImplEt.const : chunk = " + chunk);
 
 
         // For output events, how big are they going to be (in bytes)?
@@ -170,7 +173,7 @@ Logger.info("      DataChannelImplEt.const : chunk = " + chunk);
             }
             catch (NumberFormatException e) {}
         }
-Logger.info("      DataChannelImplEt.const : ev size = " + evSize);
+logger.info("      DataChannelImplEt.const : ev size = " + evSize);
 
 
         // if INPUT channel
@@ -212,14 +215,14 @@ Logger.info("      DataChannelImplEt.const : ev size = " + evSize);
                     byteOrder = ByteOrder.LITTLE_ENDIAN;
                 }
             } catch (Exception e) {
-                Logger.info("      DataChannelImplEt.const : no output data endianness specifed, default to big.");
+                logger.info("      DataChannelImplEt.const : no output data endianness specifed, default to big.");
             }
        }
 
         // start up thread to help with input or output
         openEtSystem();
         startHelper();
-        Logger.info("      DataChannelImplEt.const : constructor END");
+        logger.info("      DataChannelImplEt.const : constructor END");
     }
 
     public String getName() {
@@ -249,11 +252,11 @@ Logger.info("      DataChannelImplEt.const : ev size = " + evSize);
                 catch (EtExistsException e) {
                     station = etSystem.stationNameToObject(stationName);
                 }
-Logger.info("      DataChannelImplEt.const : created or found station = " + stationName);
+logger.info("      DataChannelImplEt.const : created or found station = " + stationName);
 
                 // attach to station
                 attachment = etSystem.attach(station);
-Logger.info("      DataChannelImplEt.const : attached to station " + stationName);
+logger.info("      DataChannelImplEt.const : attached to station " + stationName);
             }
             else {
                 // get GRAND_CENTRAL station object
@@ -261,7 +264,7 @@ Logger.info("      DataChannelImplEt.const : attached to station " + stationName
 
                 // attach to grandcentral station
                 attachment = etSystem.attach(station);
-Logger.info("      DataChannelImplEt.const : attached to grandCentral");
+logger.info("      DataChannelImplEt.const : attached to grandCentral");
             }
         }
         catch (Exception e) {
@@ -287,7 +290,7 @@ Logger.info("      DataChannelImplEt.const : attached to grandCentral");
      * Close this channel by closing ET system and ending the data sending thread.
      */
     public void close() {
-        Logger.warn("      DataChannelImplEt.close : " + name + " - closing this channel (close ET system)");
+        logger.warn("      DataChannelImplEt.close : " + name + " - closing this channel (close ET system)");
         if (dataThread != null) dataThread.interrupt();
         try {
             etSystem.detach(attachment);
@@ -311,14 +314,14 @@ Logger.info("      DataChannelImplEt.const : attached to grandCentral");
         /** Method run ... */
         public void run() {
             EvioBank bank;
-//Logger.info("      DataChannelImplEt.DataInputHelper : " + name + " - STARTED");
+//logger.info("      DataChannelImplEt.DataInputHelper : " + name + " - STARTED");
 
             try {
                 while ( etSystem.alive() ) {
 
                     if (pause) {
                         if (printCounter++ % 400 == 0)
-Logger.warn("      DataChannelImplEt.DataInputHelper : " + name + " - PAUSED");
+logger.warn("      DataChannelImplEt.DataInputHelper : " + name + " - PAUSED");
                         Thread.sleep(5);
                         continue;
                     }
@@ -331,7 +334,7 @@ Logger.warn("      DataChannelImplEt.DataInputHelper : " + name + " - PAUSED");
                         if (Thread.currentThread().isInterrupted()) {
                             return;
                         }
-//Logger.warn("      DataChannelImplEt.DataInputHelper : " + name + " read TIMEOUT");
+//logger.warn("      DataChannelImplEt.DataInputHelper : " + name + " read TIMEOUT");
                         continue;
                     }
 
@@ -353,7 +356,7 @@ System.out.println("\n\n      DataChannelImplEt.DataInputHelper : " + name + " S
                         }
                         catch (EvioException e) {
                             // if ET event data NOT in evio format, skip over it
-                            Logger.error("      DataChannelImplEt.DataInputHelper : " + name +
+                            logger.error("      DataChannelImplEt.DataInputHelper : " + name +
                                          " ET event data is NOT evio format, skip");
                         }
                     }
@@ -363,10 +366,10 @@ System.out.println("\n\n      DataChannelImplEt.DataInputHelper : " + name + " S
                 }
 
             } catch (InterruptedException e) {
-                Logger.warn("      DataChannelImplEt.DataInputHelper : " + name + "  interrupted, exiting");
+                logger.warn("      DataChannelImplEt.DataInputHelper : " + name + "  interrupted, exiting");
             } catch (Exception e) {
                 e.printStackTrace();
-                Logger.warn("      DataChannelImplEt.DataInputHelper : " + name + " exit " + e.getMessage());
+                logger.warn("      DataChannelImplEt.DataInputHelper : " + name + " exit " + e.getMessage());
             }
         }
 
@@ -388,7 +391,7 @@ System.out.println("\n\n      DataChannelImplEt.DataInputHelper : " + name + " S
 
                     if (pause) {
                         if (printCounter++ % 400 == 0)
-Logger.warn("      DataChannelImplEt.DataOutputHelper : " + name + " - PAUSED");
+logger.warn("      DataChannelImplEt.DataOutputHelper : " + name + " - PAUSED");
                         Thread.sleep(5);
                         continue;
                     }
@@ -404,7 +407,7 @@ Logger.warn("      DataChannelImplEt.DataOutputHelper : " + name + " - PAUSED");
 
                         // if not enough room in et event to hold bank ...
                         if (buffer.capacity() < bankSize) {
-Logger.warn("      DataChannelImplEt.DataOutputHelper : " + name + " et event too small to contain built event");
+logger.warn("      DataChannelImplEt.DataOutputHelper : " + name + " et event too small to contain built event");
                             // This new event is not large enough, so dump it and replace it
                             // with a larger one. Performance will be terrible but it'll work.
                             etSystem.dumpEvents(attachment, new EtEvent[] {events[i]});
@@ -424,10 +427,10 @@ Logger.warn("      DataChannelImplEt.DataOutputHelper : " + name + " et event to
                 }
 
             } catch (InterruptedException e) {
-                Logger.warn("      DataChannelImplEt.DataOutputHelper : interrupted, exiting");
+                logger.warn("      DataChannelImplEt.DataOutputHelper : interrupted, exiting");
             } catch (Exception e) {
                 e.printStackTrace();
-                Logger.warn("      DataChannelImplEt.DataOutputHelper : exit " + e.getMessage());
+                logger.warn("      DataChannelImplEt.DataOutputHelper : exit " + e.getMessage());
             }
 
         }

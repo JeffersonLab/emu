@@ -46,6 +46,8 @@ public class DataChannelImplFile implements DataChannel {
     /** Is this channel an input (true) or output (false) channel? */
     boolean input;
 
+    private Logger logger;
+
 
     /**
      * Constructor DataChannelImplFifo creates a new DataChannelImplFifo instance.
@@ -63,12 +65,13 @@ public class DataChannelImplFile implements DataChannel {
         this.dataTransport = dataTransport;
         this.input = input;
         this.name = name;
+        logger = emu.getLogger();
 
         String fileName = "dataFile.coda";
         try {
             fileName = dataTransport.getAttr("filename");
         } catch (Exception e) {
-            Logger.info(e.getMessage() + " default to file name" + fileName);
+            logger.info(e.getMessage() + " default to file name" + fileName);
         }
 
         int capacity = 40;
@@ -104,7 +107,7 @@ public class DataChannelImplFile implements DataChannel {
         /** Method run ... */
         public void run() {
             try {
-                Logger.info("Data Input helper for File");
+                logger.info("Data Input helper for File");
                 while (!dataThread.isInterrupted()) {
                     EvioBank bank = evioFile.parseNextEvent();
                     if (bank == null) {
@@ -112,10 +115,10 @@ public class DataChannelImplFile implements DataChannel {
                     }
                     queue.put(bank);
                 }
-                Logger.warn(name + " - File closed");
+                logger.warn(name + " - File closed");
             } catch (Exception e) {
-                Logger.warn("DataInputHelper exit " + e.getMessage());
-                Logger.warn(name + " - File closed");
+                logger.warn("DataInputHelper exit " + e.getMessage());
+                logger.warn(name + " - File closed");
                 CODAState.ERROR.getCauses().add(e);
                 dataTransport.state = CODAState.ERROR;
             }
@@ -137,14 +140,14 @@ public class DataChannelImplFile implements DataChannel {
         public void run() {
             try {
                 EvioBank bank;
-                Logger.info("Data Output helper for File");
+                logger.info("Data Output helper for File");
                 while (!dataThread.isInterrupted()) {
                     bank = queue.take();
                     evioFileWriter.writeEvent(bank);
                 }
-                Logger.warn(name + " - data file closed");
+                logger.warn(name + " - data file closed");
             } catch (Exception e) {
-                Logger.warn("DataOutputHelper exit " + e.getMessage());
+                logger.warn("DataOutputHelper exit " + e.getMessage());
                 CODAState.ERROR.getCauses().add(e);
                 dataTransport.state = CODAState.ERROR;
             }

@@ -53,10 +53,13 @@ public class DataTransportFactory implements StatedObject {
     /** Field state */
     private State state = CODAState.UNCONFIGURED;
 
+    private Logger logger;
+
     private Emu emu;
 
     public DataTransportFactory(Emu emu) {
         this.emu = emu;
+        logger = emu.getLogger();
     }
 
     /**
@@ -117,7 +120,7 @@ public class DataTransportFactory implements StatedObject {
      */
     @SuppressWarnings({"ConstantConditions", "ThrowableInstanceNeverThrown"})
     public void execute(Command cmd) throws CmdExecException {
-        Logger.info("  DataTransportFactory.execute : " + cmd);
+        logger.info("  DataTransportFactory.execute : " + cmd);
 
         // DOWNLOAD loads transport implementation classes, creates objects from them and
         // stores them along with a transport fifo implementation object.
@@ -134,7 +137,7 @@ public class DataTransportFactory implements StatedObject {
                 // close the existing transport objects first
                 // (this step is normally done from RESET).
                 for (DataTransport t : transports) {
-                    Logger.debug("  DataTransportFactory.execute DOWNLOAD : " + t.name() + " close");
+                    logger.debug("  DataTransportFactory.execute DOWNLOAD : " + t.name() + " close");
                     t.close();
                 }
 
@@ -166,7 +169,7 @@ public class DataTransportFactory implements StatedObject {
                         // get the name used to access transport
                         String transportName = attrib.get("name");
                         if (transportName == null) throw new DataNotFoundException("transport name attribute missing in config");
-                        Logger.info("  DataTransportFactory.execute DOWN : creating " + transportName);
+                        logger.info("  DataTransportFactory.execute DOWN : creating " + transportName);
 
                         // Generate a name for the implementation of this transport
                         // from the name passed from the configuration.
@@ -176,17 +179,17 @@ public class DataTransportFactory implements StatedObject {
 
                         try {
                             Class c = DataTransportFactory.class.getClassLoader().loadClass(implName);
-Logger.info("  DataTransportFactory.execute DOWN : loaded class = " + c);
+logger.info("  DataTransportFactory.execute DOWN : loaded class = " + c);
 
                             // 2 constructor args
-                            Class[] parameterTypes = {String.class, Map.class};
+                            Class[] parameterTypes = {String.class, Map.class, Logger.class};
                             Constructor co = c.getConstructor(parameterTypes);
 
                             // create an instance & store reference
-                            Object[] args = {transportName, attrib};
+                            Object[] args = {transportName, attrib, logger};
                             transports.add((DataTransport) co.newInstance(args));
 
-                            Logger.info("  DataTransportFactory.execute DOWN : created " + transportName + " of protocol " + transportClass);
+                            logger.info("  DataTransportFactory.execute DOWN : created " + transportName + " of protocol " + transportClass);
 
                         } catch (Exception e) {
                             state = CODAState.ERROR;
@@ -208,7 +211,7 @@ Logger.info("  DataTransportFactory.execute DOWN : loaded class = " + c);
                 HashMap<String, String> attrs = new HashMap<String, String>();
                 attrs.put("class", "Fifo");
                 attrs.put("server", "false");
-                transports.add(new DataTransportImplFifo("Fifo", attrs));
+                transports.add(new DataTransportImplFifo("Fifo", attrs, logger));
             } catch (DataNotFoundException e) {
                 state = CODAState.ERROR;
                 CODAState.ERROR.getCauses().add(e);
@@ -219,14 +222,14 @@ Logger.info("  DataTransportFactory.execute DOWN : loaded class = " + c);
 
         // Pass all commands down to all transport objects: DOWNLOAD, PRESTART, GO, PAUSE, RESET, END
         for (DataTransport transport : transports) {
-            Logger.debug("  DataTransportFactory.execute : pass " + cmd + " down to " + transport.name());
+            logger.debug("  DataTransportFactory.execute : pass " + cmd + " down to " + transport.name());
             transport.execute(cmd);
         }
 
         // close channels for END transition
         if (cmd.equals(CODATransition.END)) {
             for (DataTransport t : transports) {
-                Logger.debug("  DataTransportFactory.execute END : " + t.name() + " close");
+                logger.debug("  DataTransportFactory.execute END : " + t.name() + " close");
                 // close only the channels as transport object survives
                 t.closeChannels();
             }
@@ -236,7 +239,7 @@ Logger.info("  DataTransportFactory.execute DOWN : loaded class = " + c);
         // close transport objects for RESET transition
         if (cmd.equals(CODATransition.RESET)) {
             for (DataTransport t : transports) {
-                Logger.debug("  DataTransportFactory.execute RESET : " + t.name() + " close");
+                logger.debug("  DataTransportFactory.execute RESET : " + t.name() + " close");
                 // close the whole transport object as it will disappear
                 t.close();
             }
@@ -261,7 +264,7 @@ Logger.info("  DataTransportFactory.execute DOWN : loaded class = " + c);
      */
     @SuppressWarnings({"ConstantConditions", "ThrowableInstanceNeverThrown"})
     public void execute_EmuLoader(Command cmd) throws CmdExecException {
-        Logger.info("DataTransportFactory.execute : " + cmd);
+        logger.info("DataTransportFactory.execute : " + cmd);
 
         // DOWNLOAD loads transport implementation classes, creates objects from them and
         // stores them along with a transport fifo implementation object.
@@ -332,7 +335,7 @@ Logger.info("  DataTransportFactory.execute DOWN : loaded class = " + c);
                         // get the name used to access transport
                         String transportName = attrib.get("name");
                         if (transportName == null) throw new DataNotFoundException("transport name attribute missing in config");
-                        Logger.info("DataTransportFactory creating : " + transportName);
+                        logger.info("DataTransportFactory creating : " + transportName);
 
                         // Generate a name for the implementation of this transport
                         // from the name passed from the configuration.
@@ -347,7 +350,7 @@ Logger.info("  DataTransportFactory.execute DOWN : loaded class = " + c);
                             // load the corresponding channel class.
                             Class c = ecl.loadClass(transportImplName);
                             ecl.loadClass(channelImplName);
-Logger.info("&*&*&* Transport loaded class = " + c);
+logger.info("&*&*&* Transport loaded class = " + c);
 
                             // 2 constructor args
                             Class[] parameterTypes = {String.class, Map.class};
@@ -358,7 +361,7 @@ Logger.info("&*&*&* Transport loaded class = " + c);
                             transports.add((DataTransport) co.newInstance(args));
                             ecl.setClassesToLoad(null);
 
-                            Logger.info("DataTransportFactory created : " + transportName + " class " + transportClass);
+                            logger.info("DataTransportFactory created : " + transportName + " class " + transportClass);
 
                         } catch (Exception e) {
                             state = CODAState.ERROR;
@@ -380,7 +383,7 @@ Logger.info("&*&*&* Transport loaded class = " + c);
                 HashMap<String, String> attrs = new HashMap<String, String>();
                 attrs.put("class", "Fifo");
                 attrs.put("server", "false");
-                transports.add(new DataTransportImplFifo("Fifo", attrs));
+                transports.add(new DataTransportImplFifo("Fifo", attrs, logger));
             } catch (DataNotFoundException e) {
                 state = CODAState.ERROR;
                 CODAState.ERROR.getCauses().add(e);
@@ -392,7 +395,7 @@ Logger.info("&*&*&* Transport loaded class = " + c);
 
         // Pass all commands down to all transport objects
         for (DataTransport transport : transports) {
-            Logger.debug("Transport : " + transport.name() + " execute " + cmd);
+            logger.debug("Transport : " + transport.name() + " execute " + cmd);
             transport.execute(cmd);
         }
 

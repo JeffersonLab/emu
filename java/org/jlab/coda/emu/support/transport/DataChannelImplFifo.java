@@ -29,6 +29,8 @@ public class DataChannelImplFifo implements DataChannel {
     /** Is this channel an input (true) or output (false) channel? */
     boolean input;
 
+    private Logger logger;
+
 
     /**
      * Constructor DataChannelImplFifo creates a new DataChannelImplFifo instance.
@@ -45,19 +47,20 @@ public class DataChannelImplFifo implements DataChannel {
 
         this.name = name;
         this.input = input;
+        logger = emu.getLogger();
 
         int capacity = 40;
         try {
             capacity = dataTransport.getIntAttr("capacity");
         } catch (Exception e) {
-            Logger.info(e.getMessage() + " default to " + capacity + " records.");
+            logger.info(e.getMessage() + " default to " + capacity + " records.");
         }
 
         int size = 20000;
         try {
             size = dataTransport.getIntAttr("size");
         } catch (Exception e) {
-            Logger.info(e.getMessage() + " default to " + size + " byte records.");
+            logger.info(e.getMessage() + " default to " + size + " byte records.");
         }
 
         queue = new ArrayBlockingQueue<EvioBank>(capacity);
