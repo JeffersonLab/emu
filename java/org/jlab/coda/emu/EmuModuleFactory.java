@@ -65,11 +65,14 @@ public class EmuModuleFactory implements StatedObject {
     /** Field TRANSPORT_FACTORY - singleton */
     private final DataTransportFactory TRANSPORT_FACTORY;
 
+    private Logger logger;
+
     /** Emu that created this module factory object. */
     private Emu emu;
 
     EmuModuleFactory(Emu emu) {
         this.emu = emu;
+        logger = emu.getLogger();
         TRANSPORT_FACTORY = new DataTransportFactory(emu);
     }
 
@@ -104,7 +107,7 @@ public class EmuModuleFactory implements StatedObject {
     @SuppressWarnings({"ConstantConditions"})
     public void execute(Command cmd) throws CmdExecException {
 
-        Logger.info("EmuModuleFactory.execute : " + cmd);
+        logger.info("EmuModuleFactory.execute : " + cmd);
 
         // CONFIGURE command does not involve components and is handled directly by the EMU ...
         if (state != CODAState.ERROR && cmd.equals(CODATransition.CONFIGURE)) {
@@ -149,15 +152,15 @@ public class EmuModuleFactory implements StatedObject {
 
                 // if NO user source, look only in standard location for standard modules
                 if (usrSrcAttr == null) {
-                    Logger.info("Loading modules from " + src);
+                    logger.info("Loading modules from " + src);
                     locations = new URL[] {(new File(src)).toURI().toURL()};
                 }
                 // if user has source, look for that file as well as for standard modules
                 else {
                     String usrSrc = usrSrcAttr.getNodeValue();
 
-                    Logger.info("Load system modules from " + src);
-                    Logger.info("Load user modules from " + usrSrc);
+                    logger.info("Load system modules from " + src);
+                    logger.info("Load user modules from " + usrSrc);
 
                     locations = new URL[] {(new File(src)).toURI().toURL(),
                                            (new File(usrSrc)).toURI().toURL()};
@@ -220,7 +223,7 @@ System.out.println("Put (" + a.getNodeName() + "," + a.getNodeValue() + ") into 
                         }
 
                         String moduleClassName = "modules." + typeAttr.getNodeValue();
-                        Logger.info("EmuModuleFactory.execute DOWN : load module " + moduleClassName);
+                        logger.info("EmuModuleFactory.execute DOWN : load module " + moduleClassName);
 
                         // the name of the module is the first arg (node name)
                         loadModule(n.getNodeName(), moduleClassName, attributeMap);
@@ -327,7 +330,7 @@ System.out.println("Put (" + a.getNodeName() + "," + a.getNodeValue() + ") into 
                 } while ((moduleNode = moduleNode.getNextSibling()) != null);  // while another module exists ...
 
             } catch (Exception e) {
-                Logger.error("EmuModuleFactory.execute() : threw " + e.getMessage());
+                logger.error("EmuModuleFactory.execute() : threw " + e.getMessage());
                 e.printStackTrace();
                 CODAState.ERROR.getCauses().add(e);
                 state = CODAState.ERROR;
@@ -350,7 +353,7 @@ System.out.println("Put (" + a.getNodeName() + "," + a.getNodeValue() + ") into 
         
         // RESET command
         if (cmd.equals(CODATransition.RESET)) {
-            Logger.info("EmuModuleFactory.execute : RESET");
+            logger.info("EmuModuleFactory.execute : RESET");
             state = CODAState.CONFIGURED;
             CODAState.ERROR.getCauses().clear();
             return;
@@ -388,7 +391,7 @@ System.out.println("Put (" + a.getNodeName() + "," + a.getNodeValue() + ") into 
                                                                          NoSuchMethodException,
                                                                          IllegalArgumentException,
                                                                          InvocationTargetException {
-        Logger.info("EmuModuleFactory loads module - " + moduleClassName +
+        logger.info("EmuModuleFactory loads module - " + moduleClassName +
                      " to create a module of name " + name);
 //System.out.println("classpath = " + System.getProperty("java.class.path"));
 
@@ -450,7 +453,7 @@ System.out.println("Put (" + a.getNodeName() + "," + a.getNodeValue() + ") into 
     public State state() {
 
         if (state == CODAState.ERROR) {
-            //Logger.error("EmuModuleFactory : state() returning CODAState.ERROR");
+            //logger.error("EmuModuleFactory : state() returning CODAState.ERROR");
             return state;
         }
 
