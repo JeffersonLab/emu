@@ -39,9 +39,16 @@ public class SwingLogConsoleDialog extends JTextPane implements LoggerAppender {
     /** Field caret */
     private LogTextCaret caret;
 
+    private Logger logger;
+
     QueueAppender logQueueAppender;
 
     Thread monitorThread;
+
+    public void setLogger(Logger logger) {
+        this.logger = logger;
+    }
+
 
     protected class MonitorRunnable implements Runnable {
         public void run() {
@@ -94,7 +101,18 @@ public class SwingLogConsoleDialog extends JTextPane implements LoggerAppender {
 
     public void close() {
         monitorThread.interrupt();
-        Logger.removeAppender(logQueueAppender);
+        logger.removeAppender(logQueueAppender);
+    }
+
+    public void clear() {
+        Document d = getDocument();
+        try {
+            d.remove(0,d.getLength());
+        }
+        catch (BadLocationException e) {
+            e.printStackTrace();
+        }
+
     }
 
     /**
