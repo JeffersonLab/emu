@@ -38,12 +38,14 @@ import java.util.ResourceBundle;
 /** @author unknown */
 public class DebugFrame extends JFrame {
     private int documentCount = 0;
+    private Logger logger;
 
     public DebugFrame(Emu emu) {
         initComponents();
         setTitle(emu.name());
         QueueAppender logQueueAppender = new QueueAppender(1024);
-        Logger.addAppender(logQueueAppender);
+        logger = emu.getLogger();
+        logger.addAppender(logQueueAppender);
         logPanel.monitor(logQueueAppender);
         smartToolbar.configure(emu, CODATransition.class);
         smartToolbar1.configure(emu, RunControl.class);
@@ -90,8 +92,9 @@ public class DebugFrame extends JFrame {
      * @param doc of type Document
      */
     public void removeDocument(Document doc) {
-        documentCount--;
         JInternalFrame p = (JInternalFrame) doc.getUserData("DisplayPanel");
+        if (p == null) return;
+        documentCount--;
         desktopPane.remove(p);
         desktopPane.validate();
         desktopPane.repaint();
@@ -104,11 +107,6 @@ public class DebugFrame extends JFrame {
      */
     public SmartToolbar getToolBar() {
         return smartToolbar;
-    }
-
-    private void prefsItemActionPerformed(ActionEvent e) {
-        PrefPane theBox = new PrefPane();
-        theBox.setVisible(true);
     }
 
     private void helpActionPerformed(ActionEvent e) {
@@ -125,6 +123,43 @@ public class DebugFrame extends JFrame {
         System.exit(0);
     }
 
+    private void errorLoggingCheckBoxActionPerformed(ActionEvent e) {
+        boolean selected = ((JCheckBox)e.getSource()).getModel().isSelected();
+        if (selected) {
+            if (!logger.isErrorEnabled()) {
+                logger.toggleError();
+                logger.info("Enable error logging");
+            }
+        }
+        else {
+            if (logger.isErrorEnabled()) {
+                logger.info("Disable error logging");
+                logger.toggleError();
+            }
+        }
+    }
+
+    private void debugLoggingCheckBoxActionPerformed(ActionEvent e) {
+        boolean selected = ((JCheckBox)e.getSource()).getModel().isSelected();
+        if (selected) {
+            if (!logger.isDebugEnabled()) {
+                logger.toggleDebug();
+                logger.info("Enable debug logging");
+            }
+        }
+        else {
+            if (logger.isDebugEnabled()) {
+                logger.info("Disable debug logging");
+                logger.toggleDebug();
+            }
+        }
+    }
+
+    private void clearMenuItemActionPerformed(ActionEvent e) {
+        // TODO add your code here
+        logPanel.clear();
+    }
+
     private void initComponents() {
         // JFormDesigner - CODAComponent initialization - DO NOT MODIFY  //GEN-BEGIN:initComponents
         // Generated using JFormDesigner non-commercial license
@@ -137,9 +172,10 @@ public class DebugFrame extends JFrame {
         copyMenuItem = new JMenuItem();
         pasteMenuItem = new JMenuItem();
         undoMenuItem = new JMenuItem();
-        prefsItem = new JMenuItem();
         logMenu = new JMenu();
         clearMenuItem = new JMenuItem();
+        errorLoggingCheckBox = new JCheckBox();
+        debugLoggingCheckBox = new JCheckBox();
         helpMenu = new JMenu();
         help = new JMenuItem();
         aboutMenuItem = new JMenuItem();
@@ -151,9 +187,10 @@ public class DebugFrame extends JFrame {
         desktopPane = new MDIDesktopPane();
         logScrollPane = new JScrollPane();
         logPanel = new SwingLogConsoleDialog();
+        logPanel.setLogger(logger);
 
         //======== this ========
-        setTitle(bundle.getString("this.title"));
+        setTitle(bundle.getString("debugFrame.title"));
         Container contentPane = getContentPane();
 
         //======== menuBar ========
@@ -177,6 +214,7 @@ public class DebugFrame extends JFrame {
             //======== editMenu ========
             {
                 editMenu.setText(bundle.getString("editMenu.text"));
+                editMenu.setPreferredSize(new Dimension(37, 19));
 
                 //---- cutMenuItem ----
                 cutMenuItem.setText(bundle.getString("cutMenuItem.text"));
@@ -193,16 +231,6 @@ public class DebugFrame extends JFrame {
                 //---- undoMenuItem ----
                 undoMenuItem.setText(bundle.getString("undoMenuItem.text"));
                 editMenu.add(undoMenuItem);
-                editMenu.addSeparator();
-
-                //---- prefsItem ----
-                prefsItem.setText(bundle.getString("prefsItem.text"));
-                prefsItem.addActionListener(new ActionListener() {
-                    public void actionPerformed(ActionEvent e) {
-                        prefsItemActionPerformed(e);
-                    }
-                });
-                editMenu.add(prefsItem);
             }
             menuBar.add(editMenu);
 
@@ -212,7 +240,38 @@ public class DebugFrame extends JFrame {
 
                 //---- clearMenuItem ----
                 clearMenuItem.setText(bundle.getString("clearMenuItem.text"));
+                clearMenuItem.addActionListener(new ActionListener() {
+                    public void actionPerformed(ActionEvent e) {
+                        clearMenuItemActionPerformed(e);
+                    }
+                });
                 logMenu.add(clearMenuItem);
+
+                //---- errorLoggingCheckBox ----
+                errorLoggingCheckBox.setText(bundle.getString("errorLoggingCheckBox.text"));
+                errorLoggingCheckBox.setPreferredSize(new Dimension(57, 23));
+                errorLoggingCheckBox.setMaximumSize(new Dimension(32767, 32767));
+                errorLoggingCheckBox.setMinimumSize(new Dimension(1, 1));
+                errorLoggingCheckBox.setSelected(true);
+                errorLoggingCheckBox.addActionListener(new ActionListener() {
+                    public void actionPerformed(ActionEvent e) {
+                        errorLoggingCheckBoxActionPerformed(e);
+                    }
+                });
+                logMenu.add(errorLoggingCheckBox);
+
+                //---- debugLoggingCheckBox ----
+                debugLoggingCheckBox.setText(bundle.getString("debugLoggingCheckBox.text"));
+                debugLoggingCheckBox.setPreferredSize(new Dimension(57, 23));
+                debugLoggingCheckBox.setMaximumSize(new Dimension(32767, 32767));
+                debugLoggingCheckBox.setMinimumSize(new Dimension(1, 1));
+                debugLoggingCheckBox.setSelected(true);
+                debugLoggingCheckBox.addActionListener(new ActionListener() {
+                    public void actionPerformed(ActionEvent e) {
+                        debugLoggingCheckBoxActionPerformed(e);
+                    }
+                });
+                logMenu.add(debugLoggingCheckBox);
             }
             menuBar.add(logMenu);
 
@@ -281,10 +340,10 @@ public class DebugFrame extends JFrame {
                 .add(GroupLayout.TRAILING, contentPaneLayout.createSequentialGroup()
                     .addContainerGap()
                     .add(contentPaneLayout.createParallelGroup(GroupLayout.TRAILING)
-                        .add(GroupLayout.LEADING, splitPane1, GroupLayout.DEFAULT_SIZE, 706, Short.MAX_VALUE)
-                        .add(GroupLayout.LEADING, smartToolbar1, GroupLayout.DEFAULT_SIZE, 706, Short.MAX_VALUE)
-                        .add(GroupLayout.LEADING, smartToolbar, GroupLayout.DEFAULT_SIZE, 706, Short.MAX_VALUE)
-                        .add(GroupLayout.LEADING, smartToolbar2, GroupLayout.DEFAULT_SIZE, 706, Short.MAX_VALUE))
+                        .add(GroupLayout.LEADING, splitPane1, GroupLayout.DEFAULT_SIZE, 694, Short.MAX_VALUE)
+                        .add(GroupLayout.LEADING, smartToolbar1, GroupLayout.DEFAULT_SIZE, 694, Short.MAX_VALUE)
+                        .add(GroupLayout.LEADING, smartToolbar, GroupLayout.DEFAULT_SIZE, 694, Short.MAX_VALUE)
+                        .add(GroupLayout.LEADING, smartToolbar2, GroupLayout.DEFAULT_SIZE, 694, Short.MAX_VALUE))
                     .addContainerGap())
         );
         contentPaneLayout.setVerticalGroup(
@@ -297,7 +356,7 @@ public class DebugFrame extends JFrame {
                     .addPreferredGap(LayoutStyle.RELATED)
                     .add(smartToolbar2, GroupLayout.PREFERRED_SIZE, GroupLayout.DEFAULT_SIZE, GroupLayout.PREFERRED_SIZE)
                     .addPreferredGap(LayoutStyle.RELATED)
-                    .add(splitPane1, GroupLayout.DEFAULT_SIZE, 719, Short.MAX_VALUE)
+                    .add(splitPane1, GroupLayout.DEFAULT_SIZE, 703, Short.MAX_VALUE)
                     .addContainerGap())
         );
         pack();
@@ -315,9 +374,10 @@ public class DebugFrame extends JFrame {
     private JMenuItem copyMenuItem;
     private JMenuItem pasteMenuItem;
     private JMenuItem undoMenuItem;
-    private JMenuItem prefsItem;
     private JMenu logMenu;
     private JMenuItem clearMenuItem;
+    private JCheckBox errorLoggingCheckBox;
+    private JCheckBox debugLoggingCheckBox;
     private JMenu helpMenu;
     private JMenuItem help;
     private JMenuItem aboutMenuItem;

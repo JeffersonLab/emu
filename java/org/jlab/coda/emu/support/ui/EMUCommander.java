@@ -18,6 +18,7 @@ package org.jlab.coda.emu.support.ui;
 import org.jdesktop.layout.GroupLayout;
 import org.jdesktop.layout.LayoutStyle;
 import org.jlab.coda.cMsg.*;
+import org.jlab.coda.emu.Emu;
 import org.jlab.coda.emu.support.codaComponent.CODAState;
 import org.jlab.coda.emu.support.codaComponent.CODATransition;
 import org.jlab.coda.emu.support.codaComponent.RunControl;
@@ -52,6 +53,8 @@ public class EMUCommander extends JFrame {
     /** UDL for cMsg connection. */
     String UDL;
     boolean verbose = true;
+
+    private Logger logger;
 
     private static String normalFormat = "%18s  %24s    %9d    %-18s  %-18s    %s";
     private static String normalHeader = "%18s  %24s    %9s    %-18s  %-18s    %s";
@@ -165,7 +168,8 @@ System.out.println("CMSGPortal.append error " + e.getMessage());
         pack();
         setVisible(true);
         QueueAppender logQueueAppender = new QueueAppender(1024);
-        Logger.addAppender(logQueueAppender);
+      //  logger = new Logger();
+        logger.addAppender(logQueueAppender);
         logPanel.monitor(logQueueAppender);
 
         smartToolbar.configure(new CommandHandler("run/transition/"), CODATransition.class);
@@ -190,7 +194,7 @@ System.out.println("CMSGPortal.append error " + e.getMessage());
             e.printStackTrace();
             System.exit(-1);
         }
-        //Logger.addAppender(this);
+        //logger.addAppender(this);
         // enable receipt of messages and delivery to callback
         server.start();
 
@@ -219,11 +223,6 @@ System.out.println("CMSGPortal.append error " + e.getMessage());
         System.exit(0);
     }
 
-    private void prefsItemActionPerformed(ActionEvent e) {
-        PrefPane theBox = new PrefPane();
-        theBox.setVisible(true);
-    }
-
     private void helpActionPerformed(ActionEvent e) {
         HelpBox theBox = new HelpBox(this);
         theBox.setVisible(true);
@@ -232,6 +231,38 @@ System.out.println("CMSGPortal.append error " + e.getMessage());
     private void aboutMenuItemActionPerformed(ActionEvent e) {
         AboutBox theBox = new AboutBox();
         theBox.setVisible(true);
+    }
+
+    private void errorLoggingCheckBoxActionPerformed(ActionEvent e) {
+        boolean selected = ((JCheckBox)e.getSource()).getModel().isSelected();
+        if (selected) {
+            if (!logger.isErrorEnabled()) {
+                logger.toggleError();
+                logger.info("Enable error logging");
+            }
+        }
+        else {
+            if (logger.isErrorEnabled()) {
+                logger.info("Disable error logging");
+                logger.toggleError();
+            }
+        }
+    }
+
+    private void debugLoggingCheckBoxActionPerformed(ActionEvent e) {
+        boolean selected = ((JCheckBox)e.getSource()).getModel().isSelected();
+        if (selected) {
+            if (!logger.isDebugEnabled()) {
+                logger.toggleDebug();
+                logger.info("Enable debug logging");
+            }
+        }
+        else {
+            if (logger.isDebugEnabled()) {
+                logger.info("Disable debug logging");
+                logger.toggleDebug();
+            }
+        }
     }
 
     private void initComponents() {
@@ -246,9 +277,10 @@ System.out.println("CMSGPortal.append error " + e.getMessage());
         copyMenuItem = new JMenuItem();
         pasteMenuItem = new JMenuItem();
         undoMenuItem = new JMenuItem();
-        prefsItem = new JMenuItem();
         logMenu = new JMenu();
         clearMenuItem = new JMenuItem();
+        errorLoggingCheckBox = new JCheckBox();
+        debugLoggingCheckBox = new JCheckBox();
         helpMenu = new JMenu();
         help = new JMenuItem();
         aboutMenuItem = new JMenuItem();
@@ -257,9 +289,10 @@ System.out.println("CMSGPortal.append error " + e.getMessage());
         smartToolbar2 = new SmartToolbar();
         logScrollPane = new JScrollPane();
         logPanel = new SwingLogConsoleDialog();
+        logPanel.setLogger(logger);
 
         //======== this ========
-        setTitle(bundle.getString("this.title"));
+        setTitle(bundle.getString("emuCommander.title"));
         Container contentPane = getContentPane();
 
         //======== menuBar ========
@@ -299,16 +332,6 @@ System.out.println("CMSGPortal.append error " + e.getMessage());
                 //---- undoMenuItem ----
                 undoMenuItem.setText(bundle.getString("undoMenuItem.text"));
                 editMenu.add(undoMenuItem);
-                editMenu.addSeparator();
-
-                //---- prefsItem ----
-                prefsItem.setText(bundle.getString("prefsItem.text"));
-                prefsItem.addActionListener(new ActionListener() {
-                    public void actionPerformed(ActionEvent e) {
-                        prefsItemActionPerformed(e);
-                    }
-                });
-                editMenu.add(prefsItem);
             }
             menuBar.add(editMenu);
 
@@ -319,6 +342,32 @@ System.out.println("CMSGPortal.append error " + e.getMessage());
                 //---- clearMenuItem ----
                 clearMenuItem.setText(bundle.getString("clearMenuItem.text"));
                 logMenu.add(clearMenuItem);
+
+                //---- errorLoggingCheckBox ----
+                errorLoggingCheckBox.setText(bundle.getString("errorLoggingCheckBox.text"));
+                errorLoggingCheckBox.setPreferredSize(new Dimension(57, 19));
+                errorLoggingCheckBox.setMaximumSize(new Dimension(32767, 32767));
+                errorLoggingCheckBox.setMinimumSize(new Dimension(1, 1));
+                errorLoggingCheckBox.setSelected(true);
+                errorLoggingCheckBox.addActionListener(new ActionListener() {
+                    public void actionPerformed(ActionEvent e) {
+                        errorLoggingCheckBoxActionPerformed(e);
+                    }
+                });
+                logMenu.add(errorLoggingCheckBox);
+
+                //---- debugLoggingCheckBox ----
+                debugLoggingCheckBox.setText(bundle.getString("debugLoggingCheckBox.text"));
+                debugLoggingCheckBox.setMaximumSize(new Dimension(32767, 32767));
+                debugLoggingCheckBox.setMinimumSize(new Dimension(1, 1));
+                debugLoggingCheckBox.setPreferredSize(new Dimension(57, 19));
+                debugLoggingCheckBox.setSelected(true);
+                debugLoggingCheckBox.addActionListener(new ActionListener() {
+                    public void actionPerformed(ActionEvent e) {
+                        debugLoggingCheckBoxActionPerformed(e);
+                    }
+                });
+                logMenu.add(debugLoggingCheckBox);
             }
             menuBar.add(logMenu);
 
@@ -370,8 +419,29 @@ System.out.println("CMSGPortal.append error " + e.getMessage());
 
         GroupLayout contentPaneLayout = new GroupLayout(contentPane);
         contentPane.setLayout(contentPaneLayout);
-        contentPaneLayout.setHorizontalGroup(contentPaneLayout.createParallelGroup().add(GroupLayout.TRAILING, contentPaneLayout.createSequentialGroup().addContainerGap().add(contentPaneLayout.createParallelGroup(GroupLayout.TRAILING).add(GroupLayout.LEADING, smartToolbar2, GroupLayout.DEFAULT_SIZE, 704, Short.MAX_VALUE).add(GroupLayout.LEADING, smartToolbar1, GroupLayout.DEFAULT_SIZE, 704, Short.MAX_VALUE).add(GroupLayout.LEADING, smartToolbar, GroupLayout.DEFAULT_SIZE, 704, Short.MAX_VALUE).add(GroupLayout.LEADING, logScrollPane, GroupLayout.DEFAULT_SIZE, 704, Short.MAX_VALUE)).addContainerGap()));
-        contentPaneLayout.setVerticalGroup(contentPaneLayout.createParallelGroup().add(contentPaneLayout.createSequentialGroup().add(smartToolbar, GroupLayout.PREFERRED_SIZE, GroupLayout.DEFAULT_SIZE, GroupLayout.PREFERRED_SIZE).addPreferredGap(LayoutStyle.UNRELATED).add(smartToolbar1, GroupLayout.PREFERRED_SIZE, GroupLayout.DEFAULT_SIZE, GroupLayout.PREFERRED_SIZE).addPreferredGap(LayoutStyle.UNRELATED).add(smartToolbar2, GroupLayout.PREFERRED_SIZE, GroupLayout.DEFAULT_SIZE, GroupLayout.PREFERRED_SIZE).addPreferredGap(LayoutStyle.UNRELATED).add(logScrollPane, GroupLayout.DEFAULT_SIZE, 703, Short.MAX_VALUE).addContainerGap()));
+        contentPaneLayout.setHorizontalGroup(
+            contentPaneLayout.createParallelGroup()
+                .add(GroupLayout.TRAILING, contentPaneLayout.createSequentialGroup()
+                    .addContainerGap()
+                    .add(contentPaneLayout.createParallelGroup(GroupLayout.TRAILING)
+                        .add(GroupLayout.LEADING, smartToolbar2, GroupLayout.DEFAULT_SIZE, 694, Short.MAX_VALUE)
+                        .add(GroupLayout.LEADING, smartToolbar1, GroupLayout.DEFAULT_SIZE, 694, Short.MAX_VALUE)
+                        .add(GroupLayout.LEADING, smartToolbar, GroupLayout.DEFAULT_SIZE, 694, Short.MAX_VALUE)
+                        .add(GroupLayout.LEADING, logScrollPane, GroupLayout.DEFAULT_SIZE, 694, Short.MAX_VALUE))
+                    .addContainerGap())
+        );
+        contentPaneLayout.setVerticalGroup(
+            contentPaneLayout.createParallelGroup()
+                .add(contentPaneLayout.createSequentialGroup()
+                    .add(smartToolbar, GroupLayout.PREFERRED_SIZE, GroupLayout.DEFAULT_SIZE, GroupLayout.PREFERRED_SIZE)
+                    .addPreferredGap(LayoutStyle.UNRELATED)
+                    .add(smartToolbar1, GroupLayout.PREFERRED_SIZE, GroupLayout.DEFAULT_SIZE, GroupLayout.PREFERRED_SIZE)
+                    .addPreferredGap(LayoutStyle.UNRELATED)
+                    .add(smartToolbar2, GroupLayout.PREFERRED_SIZE, GroupLayout.DEFAULT_SIZE, GroupLayout.PREFERRED_SIZE)
+                    .addPreferredGap(LayoutStyle.UNRELATED)
+                    .add(logScrollPane, GroupLayout.DEFAULT_SIZE, 697, Short.MAX_VALUE)
+                    .addContainerGap())
+        );
         pack();
         setLocationRelativeTo(getOwner());
         // JFormDesigner - End of codaComponent initialization  //GEN-END:initComponents
@@ -387,9 +457,10 @@ System.out.println("CMSGPortal.append error " + e.getMessage());
     private JMenuItem copyMenuItem;
     private JMenuItem pasteMenuItem;
     private JMenuItem undoMenuItem;
-    private JMenuItem prefsItem;
     private JMenu logMenu;
     private JMenuItem clearMenuItem;
+    private JCheckBox errorLoggingCheckBox;
+    private JCheckBox debugLoggingCheckBox;
     private JMenu helpMenu;
     private JMenuItem help;
     private JMenuItem aboutMenuItem;
@@ -409,16 +480,16 @@ System.out.println("CMSGPortal.append error " + e.getMessage());
             }
             switch (msg.getUserInt()) {
                 case LoggingEvent.DEBUG:
-                    Logger.debug(msg.getText());
+                    logger.debug(msg.getText());
                     break;
                 case LoggingEvent.ERROR:
-                    Logger.error(msg.getText());
+                    logger.error(msg.getText());
                     break;
                 case LoggingEvent.INFO:
-                    Logger.info(msg.getText());
+                    logger.info(msg.getText());
                     break;
                 case LoggingEvent.WARN:
-                    Logger.warn(msg.getText());
+                    logger.warn(msg.getText());
                     break;
             }
 

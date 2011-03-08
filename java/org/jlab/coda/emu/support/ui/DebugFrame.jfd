@@ -25,18 +25,18 @@
        <class>org.jdesktop.layout.GroupLayout</class> 
        <void method="setProperty"> 
         <string>$horizontalGroup</string> 
-        <string>par l {seq t {space :::p, par t {comp splitPane1::l::706:x, comp smartToolbar1::l::706:x, comp smartToolbar::l::706:x, comp smartToolbar2::l::706:x}, space :::p}}</string> 
+        <string>par l {seq t {space :::p, par t {comp splitPane1::l::694:x, comp smartToolbar1::l::694:x, comp smartToolbar::l::694:x, comp smartToolbar2::l::694:x}, space :::p}}</string> 
        </void> 
        <void method="setProperty"> 
         <string>$verticalGroup</string> 
-        <string>par l {seq {space :::p, comp smartToolbar:::p::p, space :::p, comp smartToolbar1:::p::p, space :::p, comp smartToolbar2:::p::p, space :::p, comp splitPane1::::719:x, space :::p}}</string> 
+        <string>par l {seq {space :::p, comp smartToolbar:::p::p, space :::p, comp smartToolbar1:::p::p, space :::p, comp smartToolbar2:::p::p, space :::p, comp splitPane1::::703:x, space :::p}}</string> 
        </void> 
       </object> 
       <void method="setProperty"> 
        <string>title</string> 
        <object class="com.jformdesigner.model.FormMessage"> 
         <null/> 
-        <string>this.title</string> 
+        <string>debugFrame.title</string> 
        </object> 
       </void> 
       <void method="add"> 
@@ -152,6 +152,10 @@
               <string>JavaCodeGenerator.variableName</string> 
               <string>logPanel</string> 
              </void> 
+             <void method="setProperty"> 
+              <string>JavaCodeGenerator.postCreateCode</string> 
+              <string>${field}.setLogger(logger);</string> 
+             </void> 
             </void> 
            </object> 
           </void> 
@@ -239,6 +243,13 @@
            <object class="com.jformdesigner.model.FormMessage"> 
             <null/> 
             <string>editMenu.text</string> 
+           </object> 
+          </void> 
+          <void method="setProperty"> 
+           <string>preferredSize</string> 
+           <object class="java.awt.Dimension"> 
+            <int>37</int> 
+            <int>19</int> 
            </object> 
           </void> 
           <void method="auxiliary"> 
@@ -334,37 +345,6 @@
             </void> 
            </object> 
           </void> 
-          <void method="add"> 
-           <object class="com.jformdesigner.model.FormComponent"> 
-            <string>javax.swing.JPopupMenu$Separator</string> 
-            <void property="name"> 
-             <string>separator1</string> 
-            </void> 
-           </object> 
-          </void> 
-          <void method="add"> 
-           <object class="com.jformdesigner.model.FormComponent"> 
-            <string>javax.swing.JMenuItem</string> 
-            <void method="setProperty"> 
-             <string>text</string> 
-             <object class="com.jformdesigner.model.FormMessage"> 
-              <null/> 
-              <string>prefsItem.text</string> 
-             </object> 
-            </void> 
-            <void property="name"> 
-             <string>prefsItem</string> 
-            </void> 
-            <void method="addEvent"> 
-             <object class="com.jformdesigner.model.FormEvent"> 
-              <string>java.awt.event.ActionListener</string> 
-              <string>actionPerformed</string> 
-              <string>prefsItemActionPerformed</string> 
-              <boolean>true</boolean> 
-             </object> 
-            </void> 
-           </object> 
-          </void> 
          </object> 
         </void> 
         <void method="add"> 
@@ -401,6 +381,110 @@
             </void> 
             <void property="name"> 
              <string>clearMenuItem</string> 
+            </void> 
+            <void method="addEvent"> 
+             <object class="com.jformdesigner.model.FormEvent"> 
+              <string>java.awt.event.ActionListener</string> 
+              <string>actionPerformed</string> 
+              <string>clearMenuItemActionPerformed</string> 
+              <boolean>true</boolean> 
+             </object> 
+            </void> 
+           </object> 
+          </void> 
+          <void method="add"> 
+           <object class="com.jformdesigner.model.FormComponent"> 
+            <string>javax.swing.JCheckBox</string> 
+            <void method="setProperty"> 
+             <string>text</string> 
+             <object class="com.jformdesigner.model.FormMessage"> 
+              <null/> 
+              <string>errorLoggingCheckBox.text</string> 
+             </object> 
+            </void> 
+            <void method="setProperty"> 
+             <string>preferredSize</string> 
+             <object class="java.awt.Dimension"> 
+              <int>57</int> 
+              <int>23</int> 
+             </object> 
+            </void> 
+            <void method="setProperty"> 
+             <string>maximumSize</string> 
+             <object class="java.awt.Dimension"> 
+              <int>32767</int> 
+              <int>32767</int> 
+             </object> 
+            </void> 
+            <void method="setProperty"> 
+             <string>minimumSize</string> 
+             <object class="java.awt.Dimension"> 
+              <int>1</int> 
+              <int>1</int> 
+             </object> 
+            </void> 
+            <void method="setProperty"> 
+             <string>selected</string> 
+             <boolean>true</boolean> 
+            </void> 
+            <void property="name"> 
+             <string>errorLoggingCheckBox</string> 
+            </void> 
+            <void method="addEvent"> 
+             <object class="com.jformdesigner.model.FormEvent"> 
+              <string>java.awt.event.ActionListener</string> 
+              <string>actionPerformed</string> 
+              <string>errorLoggingCheckBoxActionPerformed</string> 
+              <boolean>true</boolean> 
+             </object> 
+            </void> 
+           </object> 
+          </void> 
+          <void method="add"> 
+           <object class="com.jformdesigner.model.FormComponent"> 
+            <string>javax.swing.JCheckBox</string> 
+            <void method="setProperty"> 
+             <string>text</string> 
+             <object class="com.jformdesigner.model.FormMessage"> 
+              <null/> 
+              <string>debugLoggingCheckBox.text</string> 
+             </object> 
+            </void> 
+            <void method="setProperty"> 
+             <string>preferredSize</string> 
+             <object class="java.awt.Dimension"> 
+              <int>57</int> 
+              <int>23</int> 
+             </object> 
+            </void> 
+            <void method="setProperty"> 
+             <string>maximumSize</string> 
+             <object class="java.awt.Dimension"> 
+              <int>32767</int> 
+              <int>32767</int> 
+             </object> 
+            </void> 
+            <void method="setProperty"> 
+             <string>minimumSize</string> 
+             <object class="java.awt.Dimension"> 
+              <int>1</int> 
+              <int>1</int> 
+             </object> 
+            </void> 
+            <void method="setProperty"> 
+             <string>selected</string> 
+             <boolean>true</boolean> 
+            </void> 
+            <void property="name"> 
+             <string>debugLoggingCheckBox</string> 
+            </void> 
+            <void method="addEvent"> 
+             <object class="com.jformdesigner.model.FormEvent"> 
+              <string>java.awt.event.ActionListener</string> 
+              <string>actionPerformed</string> 
+              <string>debugLoggingCheckBoxActionPerformed</string> 
+              <boolean>true</boolean> 
+             </object> 
             </void> 
            </object> 
           </void> 
