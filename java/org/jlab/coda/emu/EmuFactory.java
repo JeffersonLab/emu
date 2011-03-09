@@ -62,7 +62,6 @@ public class EmuFactory {
      * @param args command line arguments
      */
     private static void decodeCommandLine(String[] args) {
-
         // loop over all args
         for (String arg : args) {
             if (arg.equalsIgnoreCase("-h")) {
@@ -107,7 +106,7 @@ public class EmuFactory {
             INSTANCE.createEmus();
         }
         catch (EmuException e) {
-            e.printStackTrace();  //To change body of catch statement use File | Settings | File Templates.
+            e.printStackTrace();
         }
     }
 
