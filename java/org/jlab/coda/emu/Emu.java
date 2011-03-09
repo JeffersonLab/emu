@@ -396,8 +396,8 @@ System.out.println("Stats for module " + statsModule.name() + ": count = " + eve
 
     /**
      * Constructor.
-     * This class is not executable. To create and run an Emu, use the EmuFactory class.<p/>
-     * A thread is started to monitor the state field.
+     * This class is not executable. To create and run an Emu, use the {@link EmuFactory} class.<p/>
+     * A thread is started to monitor the state.
      * The emu loads local.xml which contains a specification of status parameters.
      * The emu starts up a connection to the cMsg server.
      * By the end of the constructor several threads have been started.
@@ -412,15 +412,16 @@ System.out.println("Stats for module " + statsModule.name() + ": count = " + eve
     public Emu(String name, String configFileName, Document loadedConfig,
                String cmsgUDL, boolean debugUI) throws EmuException {
 
-        // set the name of this EMU
         if (name == null) {
             throw new EmuException("Emu name not defined");
         }
+
         this.name = name;
         this.cmsgUDL = cmsgUDL;  // may be null
         this.loadedConfig = loadedConfig;
         this.configFileName = configFileName;
 
+        // Set the name of this EMU
         setName(name);
 
         // Each emu has its own logger
@@ -513,7 +514,7 @@ System.out.println("Stats for module " + statsModule.name() + ": count = " + eve
     /**
      * This method monitors the mailbox for incoming commands and monitors the state of the emu
      * (actually the state of the moduleFactory) to detect any error conditions.
-     * @see org.jlab.coda.emu.support.codaComponent.CODAComponent#run()
+     * @see CODAComponent#run()
      */
     public void run() {
         logger.info("CODAComponent state monitor thread started");
@@ -594,8 +595,7 @@ System.out.println("ERROR in setting value in local config !!!");
      * Method execute takes a Command object and attempts to execute it.
      *
      * @param cmd of type Command
-     *
-     * @see org.jlab.coda.emu.EmuModule#execute(Command)
+     * @see EmuModule#execute(Command)
      */
     synchronized void execute(Command cmd) {
 System.out.println("EXECUTING cmd = " + cmd.name());
