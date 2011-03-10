@@ -26,10 +26,10 @@ public class DataTransportImplFifo extends DataTransportCore implements DataTran
     }
 
     /** {@inheritDoc} */
-    public DataChannel createChannel(String name, Map<String,String> attributeMap,
-                                     boolean isInput, Emu emu)
+    synchronized public DataChannel createChannel(String name, Map<String,String> attributeMap,
+                                                  boolean isInput, Emu emu)
             throws DataTransportException {
-System.out.println("    DataTransportImplFifo.createChannel : create channel " + name);
+//System.out.println("    DataTransportImplFifo.createChannel : create channel " + name);
         String channelName = name() + ":" + name;
         // see if channel (queue) has already been created
         DataChannel c = channels().get(channelName);
@@ -38,7 +38,7 @@ System.out.println("    DataTransportImplFifo.createChannel : create channel " +
             c = new DataChannelImplFifo(channelName, this, isInput, emu);
             channels().put(channelName, c);
         }
-System.out.println("    DataTransportImplFifo.createChannel : put channel " + c.getName());
+//System.out.println("    DataTransportImplFifo.createChannel : put channel " + c.getName());
         return c;
     }
 
