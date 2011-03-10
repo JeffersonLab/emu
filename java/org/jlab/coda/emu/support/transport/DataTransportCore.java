@@ -107,7 +107,9 @@ public class DataTransportCore {
         server = Boolean.valueOf(serverS);
         myInstance = instanceCount++;
 
-        logger.debug("INSTANCE " + pname + " of class " + this.getClass() + " : " + myInstance);
+        if (logger != null) {
+            logger.debug("INSTANCE " + pname + " of class " + this.getClass() + " : " + myInstance);
+        }
     }
 
     /**
@@ -218,7 +220,9 @@ public class DataTransportCore {
     public void closeChannels() {
         setConnected(false);
 
-        logger.debug("close transport " + name());
+        if (logger != null) {
+            logger.debug("close transport " + name());
+        }
 
         // close channels.
         if (!channels().isEmpty()) {
