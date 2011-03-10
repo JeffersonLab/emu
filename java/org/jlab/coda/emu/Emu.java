@@ -143,9 +143,7 @@ public class Emu implements CODAComponent {
         System.exit(0);
     }
 
-    /**
-     * This method sends the loaded XML configuration to the logger.
-     */
+    /** This method sends the loaded XML configuration to the logger. */
     public void list() {
         if (moduleFactory.state() != CODAState.UNCONFIGURED) {
             logger.info("Dump of configuration", Configurer.serialize(loadedConfig));
@@ -329,7 +327,13 @@ public class Emu implements CODAComponent {
     /** Class defining thread which reports the EMU status to run control. */
     class StatusReportingThread extends Thread {
 
+        cMsgMessage reportMsg;
+
         StatusReportingThread() {
+            reportMsg = new cMsgMessage();
+            reportMsg.setSubject(name);
+            reportMsg.setType(RCConstants.reportStatus);
+
             setDaemon(true);
         }
 
@@ -341,9 +345,6 @@ public class Emu implements CODAComponent {
                    (cmsgPortal.getServer() != null) &&
                    (cmsgPortal.getServer().isConnected())) {
                     
-                    cMsgMessage msg = new cMsgMessage();
-                    msg.setSubject(name);
-                    msg.setType(RCConstants.reportStatus);
                     String state = moduleFactory.state().name().toLowerCase();
 
                     // clear stats
@@ -365,13 +366,16 @@ System.out.println("Stats for module " + statsModule.name() + ": count = " + eve
                     }
 
                     try {
-                        msg.addPayloadItem(new cMsgPayloadItem(RCConstants.state, state));
-                        msg.addPayloadItem(new cMsgPayloadItem(RCConstants.codaClass, "CDEB"));
-                        msg.addPayloadItem(new cMsgPayloadItem(RCConstants.eventNumber, eventCount));
-                        msg.addPayloadItem(new cMsgPayloadItem(RCConstants.eventRate, eventRate));
-                        msg.addPayloadItem(new cMsgPayloadItem(RCConstants.numberOfLongs, wordCount));
-                        msg.addPayloadItem(new cMsgPayloadItem(RCConstants.dataRate, wordRate));
-                        cmsgPortal.getServer().send(msg);
+                        // over write any previously defined payload items
+                        reportMsg.addPayloadItem(new cMsgPayloadItem(RCConstants.state, state));
+                        reportMsg.addPayloadItem(new cMsgPayloadItem(RCConstants.codaClass, "CDEB"));
+                        reportMsg.addPayloadItem(new cMsgPayloadItem(RCConstants.eventNumber, eventCount));
+                        reportMsg.addPayloadItem(new cMsgPayloadItem(RCConstants.eventRate, eventRate));
+                        reportMsg.addPayloadItem(new cMsgPayloadItem(RCConstants.numberOfLongs, wordCount));
+                        reportMsg.addPayloadItem(new cMsgPayloadItem(RCConstants.dataRate, wordRate));
+
+                        // send msg
+                        cmsgPortal.getServer().send(reportMsg);
                     }
                     catch (cMsgException e) {
                         e.printStackTrace();
