@@ -41,6 +41,7 @@ import java.io.File;
  * can create, store and control DataTransport objects.
  * 
  * @author heyes
+ * @author timmer
  */
 public class DataTransportFactory implements StatedObject {
 
@@ -57,6 +58,31 @@ public class DataTransportFactory implements StatedObject {
 
     private Emu emu;
 
+
+    /**
+     * The Fifo transport object is special and is handled separately
+     * from the other transports.
+     * It is static so all Emus in this JVM can see it. That, in turn,
+     * allows all Emus in one JVM to talk to each other through fifos.
+     */
+    private static DataTransport fifoTransport;
+
+    // Create 1 fifo data transport to allow communication between Emus seamlessly.
+    static {
+        try {
+            HashMap<String, String> attrs = new HashMap<String, String>();
+            attrs.put("class", "Fifo");
+            attrs.put("server", "false");
+            fifoTransport = new DataTransportImplFifo("Fifo", attrs, null);
+        }
+        catch (DataNotFoundException e) {/* never happen */ }
+    }
+
+
+    /**
+     * Constructor.
+     * @param emu Emu object which created this data transport factory.
+     */
     public DataTransportFactory(Emu emu) {
         this.emu = emu;
         logger = emu.getLogger();
@@ -72,12 +98,19 @@ public class DataTransportFactory implements StatedObject {
     public DataTransport findNamedTransport(String name) throws DataNotFoundException {
         DataTransport t;
 
-        if (transports.isEmpty()) throw new DataNotFoundException("Data Transport not found, transports vector is empty");
-
-        for (DataTransport transport : transports) {
-            t = transport;
-            if (t.name().equals(name)) return t;
+        // first look in non-fifo transports
+        if (!transports.isEmpty()) {
+            for (DataTransport transport : transports) {
+                t = transport;
+                if (t.name().equals(name)) return t;
+            }
         }
+
+        // now look at fifo transport
+        if (fifoTransport.name().equals(name)) {
+            return fifoTransport;
+        }
+
         throw new DataNotFoundException("Data Transport not found");
     }
 
@@ -128,8 +161,21 @@ public class DataTransportFactory implements StatedObject {
 
             try {
                 Node m = Configurer.getNode(emu.configuration(), "component/transports");
-//System.out.println("component/transports node = " + m);
-                if (!m.hasChildNodes()) throw new DataNotFoundException("transport section present in config but no transports");
+                if (!m.hasChildNodes()) {
+                    logger.warn("transport section present in config but no transports");
+
+                    // If doing a download from the downloaded state,
+                    // close the existing transport objects first
+                    // (this step is normally done from RESET).
+                    for (DataTransport t : transports) {
+                        logger.debug("  DataTransportFactory.execute DOWNLOAD : " + t.name() + " close");
+                        t.close();
+                    }
+
+                    // remove all current (non-fifo) data transport objects
+                    transports.removeAllElements();
+                    return;
+                }
 
                 NodeList l = m.getChildNodes();
 
@@ -177,6 +223,13 @@ public class DataTransportFactory implements StatedObject {
                         if (transportClass == null) throw new DataNotFoundException("transport class attribute missing in config");
                         String implName = "org.jlab.coda.emu.support.transport.DataTransportImpl" + transportClass;
 
+                        // Fifos are created internally, not by an Emu
+                        if (transportClass.equals("Fifo")) {
+logger.warn("  DataTransportFactory.execute DOWN : Emu does not need to specify FIFOs in transport section of config");
+                            state = cmd.success();
+                            continue;
+                        }
+
                         try {
                             Class c = DataTransportFactory.class.getClassLoader().loadClass(implName);
 logger.info("  DataTransportFactory.execute DOWN : loaded class = " + c);
@@ -201,21 +254,13 @@ logger.info("  DataTransportFactory.execute DOWN : loaded class = " + c);
                 } // for each child node
             }
             catch (DataNotFoundException e) {
-                state = CODAState.ERROR;
-                CODAState.ERROR.getCauses().add(e);
-                throw new CmdExecException("transport section missing/incomplete from config", e);
-            }
+                // If we're here, the transport section is missing from the config file.
+                // This is permissible if and only if Fifo is the only transport used.
 
-            // create a fifo data transport to allow communication between modules seemlessly
-            try {
-                HashMap<String, String> attrs = new HashMap<String, String>();
-                attrs.put("class", "Fifo");
-                attrs.put("server", "false");
-                transports.add(new DataTransportImplFifo("Fifo", attrs, logger));
-            } catch (DataNotFoundException e) {
-                state = CODAState.ERROR;
-                CODAState.ERROR.getCauses().add(e);
-                throw new CmdExecException(e);
+                // state = CODAState.ERROR;
+                // CODAState.ERROR.getCauses().add(e);
+                // throw new CmdExecException("transport section missing/incomplete from config", e);
+logger.warn("  DataTransportFactory.execute DOWN : transport section missing/incomplete from config");
             }
 
         }  // end of DOWNLOAD
@@ -251,8 +296,8 @@ logger.info("  DataTransportFactory.execute DOWN : loaded class = " + c);
 
 
     /**
-     * This method is only called by the EmuModuleFactory's (a singleton used by Emu)
-     * execute method. This is not used since I (timmer) could never get it to work
+     * This method is only called by the EmuModuleFactory's execute method.
+     * This is not used since I (timmer) could never get it to work
      * quite right. It attempts to reload classes dynamically but somehow fails in
      * loading internal classes correctly.
      *
