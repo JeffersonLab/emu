@@ -38,6 +38,9 @@ import java.util.concurrent.TimeUnit;
  * This is the main class of the EMU (Event Management Unit) program.
  * It implements the CODAComponent interface which allows communication
  * with Run Control and implements a state machine.
+ *
+ * @athor heyes
+ * @author timer
  */
 public class Emu implements CODAComponent {
 
@@ -48,13 +51,13 @@ public class Emu implements CODAComponent {
      */
     private DebugFrame debugGUI;
 
-    /** The Emu attempts to start all of it's threads in one thread group. */
+    /** The Emu starts all of it's threads in one thread group. */
     private final ThreadGroup threadGroup;
 
     /**
      * Most of the data manipulation in the Emu is done by plug-in modules.
-     * The modules are specified in an XML configuration file and managed by an object of the
-     * EmuModuleFactory class.
+     * The modules are specified in an XML configuration file and managed
+     * by an object of the EmuModuleFactory class.
      */
     private final EmuModuleFactory moduleFactory;
 
@@ -86,7 +89,7 @@ public class Emu implements CODAComponent {
      */
     private Document localConfig;
 
-    /** A CMSGPortal object encapsulates the cMsg API. */
+    /** A CMSGPortal object encapsulates all cMsg communication with Run Control. */
     private final CMSGPortal cmsgPortal;
 
     /** The UDL of the cMsg server. */
@@ -107,7 +110,7 @@ public class Emu implements CODAComponent {
     /** The name of the user account the Emu is running under. */
     private String userName;
 
-    /** The name of the current configuration, passed via the configure command. */
+    /** The name of the current configuration, passed via the configure command. */ // TODO: what is this again?
     private String config = "unconfigured";
 
     /**
@@ -314,17 +317,17 @@ public class Emu implements CODAComponent {
     //              status reporting stuff
     //-----------------------------------------------------
 
-    /** Thread which reports the EMU status to run control. */
+    /** Thread which reports the EMU status to Run Control. */
     private Thread statusReportingThread;
 
     /** Time in milliseconds of the period of the reportingStatusThread. */
     private int statusReportingPeriod = 2000;
 
-    /** If true, the status reporting thread is actively reporting status to run control. */
+    /** If true, the status reporting thread is actively reporting status to Run Control. */
     private volatile boolean statusReportingOn;
 
     
-    /** Class defining thread which reports the EMU status to run control. */
+    /** Class defining thread which reports the EMU status to Run Control. */
     class StatusReportingThread extends Thread {
 
         cMsgMessage reportMsg;
@@ -338,7 +341,7 @@ public class Emu implements CODAComponent {
         }
 
         public void run() {
-//System.out.println("STATUS REPORTING THREAD: STARTED +++");
+System.out.println("STATUS REPORTING THREAD: STARTED +++");
 
             while (!Thread.interrupted()) {
                 if (statusReportingOn &&
@@ -369,13 +372,16 @@ System.out.println("Stats for module " + statsModule.name() + ": count = " + eve
                         // over write any previously defined payload items
                         reportMsg.addPayloadItem(new cMsgPayloadItem(RCConstants.state, state));
                         reportMsg.addPayloadItem(new cMsgPayloadItem(RCConstants.codaClass, "CDEB"));
-                        reportMsg.addPayloadItem(new cMsgPayloadItem(RCConstants.eventNumber, eventCount));
+                        reportMsg.addPayloadItem(new cMsgPayloadItem(RCConstants.eventNumber, (int)eventCount));
                         reportMsg.addPayloadItem(new cMsgPayloadItem(RCConstants.eventRate, eventRate));
                         reportMsg.addPayloadItem(new cMsgPayloadItem(RCConstants.numberOfLongs, wordCount));
                         reportMsg.addPayloadItem(new cMsgPayloadItem(RCConstants.dataRate, wordRate));
 
                         // send msg
-                        cmsgPortal.getServer().send(reportMsg);
+                        if (cmsgPortal != null && cmsgPortal.getServer() != null) {
+System.out.println("Send STATUS REPORTING Msg");
+                            cmsgPortal.getServer().send(reportMsg);
+                        }
                     }
                     catch (cMsgException e) {
                         e.printStackTrace();
@@ -386,11 +392,11 @@ System.out.println("Stats for module " + statsModule.name() + ": count = " + eve
                     Thread.sleep(statusReportingPeriod);
                 }
                 catch (InterruptedException e) {
-//System.out.println("STATUS REPORTING THREAD: DONE xxx");
+System.out.println("STATUS REPORTING THREAD: DONE xxx");
                     return;
                 }
             }
-//System.out.println("STATUS REPORTING THREAD: DONE xxx");
+System.out.println("STATUS REPORTING THREAD: DONE xxx");
 
         }
 
@@ -540,10 +546,11 @@ System.out.println("Stats for module " + statsModule.name() + ": count = " + eve
                             e.printStackTrace();
                             // This just means that the command was not supported
                             logger.info("command " + cmd + " not supported by " + this.name());
+                            continue;
                         }
                     }
-                    // If modules are not loaded then our state is either unconfigured, configured
-                    // or error.
+                    // If modules are not loaded then our state is either
+                    // unconfigured, configured, or error.
 
                     state = moduleFactory.state();
 
@@ -596,7 +603,7 @@ System.out.println("ERROR in setting value in local config !!!");
 
 
     /**
-     * Method execute takes a Command object and attempts to execute it.
+     * This method takes a Command object and attempts to execute it.
      *
      * @param cmd of type Command
      * @see EmuModule#execute(Command)
@@ -604,11 +611,12 @@ System.out.println("ERROR in setting value in local config !!!");
     synchronized void execute(Command cmd) {
 System.out.println("EXECUTING cmd = " + cmd.name());
 
-        // Some commands are for the EMU itself and not all the EMU subcomponents, so return immediately
         if (cmd.equals(SessionControl.START_REPORTING)) {
             statusReportingOn = true;
             // we are done so clean the cmd (necessary since this command object is static & is reused)
             cmd.clearArgs();
+            // Some commands are for the EMU itself and not all
+            // the EMU subcomponents, so return immediately.
             return;
         }
         else if (cmd.equals(SessionControl.STOP_REPORTING)) {
@@ -616,7 +624,7 @@ System.out.println("EXECUTING cmd = " + cmd.name());
             cmd.clearArgs();
             return;
         }
-        // runcontrol tells us our run number
+        // Run Control tells us our run number
         else if (cmd.equals(SessionControl.SET_RUN_NUMBER)) {
             // get the new run number and store it
             try {
@@ -629,19 +637,24 @@ System.out.println("EXECUTING cmd = " + cmd.name());
             cmd.clearArgs();
             return;
         }
-        // send back our state
+        // Send back our state
         else if (cmd.equals(InfoControl.GET_STATE)) {
+System.out.println("     Info else if for GET_STATE:");
             if ( (cmsgPortal.getServer() != null) &&
                  (cmsgPortal.getServer().isConnected())) {
+System.out.println("       cmsg portal is valid");
 
                 cMsgMessage msg = new cMsgMessage();
                 msg.setSubject(name);
                 msg.setType(RCConstants.rcGetStateResponse);
                 String state = moduleFactory.state().name().toLowerCase();
+System.out.println("       send text field = " + state);
                 msg.setText(state);  //TODO:correct ??
 
                 try {
+System.out.print("       will send cmsg msg ... ");
                     cmsgPortal.getServer().send(msg);
+System.out.println("       sent cmsg msg");
                 }
                 catch (cMsgException e) {
                     e.printStackTrace();
@@ -651,7 +664,7 @@ System.out.println("EXECUTING cmd = " + cmd.name());
             cmd.clearArgs();
             return;
         }
-        // send back our state
+        // Send back our CODA class
         else if (cmd.equals(InfoControl.GET_CODA_CLASS)) {
             if ( (cmsgPortal.getServer() != null) &&
                  (cmsgPortal.getServer().isConnected())) {
@@ -659,8 +672,7 @@ System.out.println("EXECUTING cmd = " + cmd.name());
                 cMsgMessage msg = new cMsgMessage();
                 msg.setSubject(name);
                 msg.setType(RCConstants.rcGetCodaClassResponse);
-                String state = moduleFactory.state().name().toLowerCase();
-                msg.setText(getCodaClass());  //TODO: this is not set anywhere!!
+                msg.setText(getCodaClass());  // CODA class set in module constructors
 
                 try {
                     cmsgPortal.getServer().send(msg);
@@ -673,7 +685,28 @@ System.out.println("EXECUTING cmd = " + cmd.name());
             cmd.clearArgs();
             return;
         }
-        // send back our state    // TODO: is this obsolete??
+        // Send back our object type
+        else if (cmd.equals(InfoControl.GET_OBJECT_TYPE)) {
+            if ( (cmsgPortal.getServer() != null) &&
+                 (cmsgPortal.getServer().isConnected())) {
+
+                cMsgMessage msg = new cMsgMessage();
+                msg.setSubject(name);
+                msg.setType(RCConstants.rcGetObjectType);
+                msg.setText("coda3");  // TODO : object type set Where??
+
+                try {
+                    cmsgPortal.getServer().send(msg);
+                }
+                catch (cMsgException e) {
+                    e.printStackTrace();
+                }
+            }
+
+            cmd.clearArgs();
+            return;
+        }
+        // Send back our state    // TODO: is this obsolete??
         else if (cmd.equals(RunControl.GET_STATE)) {
             if ( (cmsgPortal.getServer() != null) &&
                  (cmsgPortal.getServer().isConnected())) {
@@ -723,19 +756,21 @@ System.out.println("EXECUTING cmd = " + cmd.name());
 
                     Configurer.removeEmptyTextNodes(loadedConfig.getDocumentElement());
                 }
-            // parsing XML error
             }
+            // parsing XML error
             catch (DataNotFoundException e) {
                 logger.error("Configure FAILED", e.getMessage());
                 CODAState.ERROR.getCauses().add(e);
                 moduleFactory.ERROR();
+                cmd.clearArgs();
                 return;
-            // "config" payload item has no string (should never happen)
             }
+            // "config" payload item has no string (should never happen)
             catch (cMsgException e) {
                 logger.error("Configure FAILED", e.getMessage());
                 CODAState.ERROR.getCauses().add(e);
                 moduleFactory.ERROR();
+                cmd.clearArgs();
                 return;
             }
             finally {
@@ -743,7 +778,7 @@ System.out.println("EXECUTING cmd = " + cmd.name());
             }
             
 //System.out.println("Here in execute");
-            // update (or add to) GUI, window with nonlocal config info (static info)
+            // update (or add to) GUI, window with non-local config info (static info)
             if (debugGUI != null) {
                 if (oldConfig != null) debugGUI.removeDocument(oldConfig);
                 debugGUI.addDocument(loadedConfig);
@@ -751,8 +786,6 @@ System.out.println("EXECUTING cmd = " + cmd.name());
         }
 
         // All commands are passed down to the modules here.
-        // The MODULE_FACTORY is created as a "static" singleton
-        // created upon the loading of this (EMU) class.
         // Note: the "RunControl.CONFIGURE" command does nothing in the MODULE_FACTORY
         // except to set its state to "CODAState.CONFIGURED".
         try {
@@ -763,17 +796,16 @@ System.out.println("EXECUTING cmd = " + cmd.name());
             moduleFactory.ERROR();
         }
 
-        // if given the "reset" command, do that after the modules have reset
+        // If given the "reset" command, do that after the modules have reset.
+        // Go back to "configured" state
         if (cmd.equals(CODATransition.RESET)) {
-//            if ((FRAMEWORK != null) && (loadedConfig != null)) FRAMEWORK.removeDocument(loadedConfig);
-//            loadedConfig = null;
         }
-        // if given the "exit" command, do that after the modules have exited
+        // If given the "exit" command, do that after the modules have exited
         else if (cmd.equals(RunControl.EXIT)) {
             quit();
         }
 
-        // we are done so clean the cmd (necessary since this command object is static & is reused)
+        // We are done so clean the cmd (necessary since this command object is static & is reused)
         cmd.clearArgs();
 
     }
