@@ -12,7 +12,6 @@ package org.jlab.coda.emu;
 
 import org.jlab.coda.emu.support.codaComponent.CODAState;
 import org.jlab.coda.emu.support.codaComponent.CODATransition;
-import org.jlab.coda.emu.support.codaComponent.RunControl;
 import org.jlab.coda.emu.support.codaComponent.StatedObject;
 import org.jlab.coda.emu.support.configurer.Configurer;
 import org.jlab.coda.emu.support.configurer.DataNotFoundException;
@@ -35,14 +34,15 @@ import java.util.*;
 
 /**
  * <pre>
- * Class <b>EmuModuleFactory </b>
+ * Class <b>EmuModuleFactory</b>
  * This class is able to load and create EmuModules and monitor their state
- * (hence the name EmuModuleFactory). Only one of these objects exists and
- * is created by the Emu class.
+ * (hence the name EmuModuleFactory). Only one of these objects exists in and
+ * was created by an Emu object.
  * </pre>
+ * Created on Sep 17, 2008
  *
  * @author heyes
- *         Created on Sep 17, 2008
+ * @author timmer
  */
 public class EmuModuleFactory implements StatedObject {
 
@@ -56,29 +56,35 @@ public class EmuModuleFactory implements StatedObject {
      */
     private final Vector<EmuModule> modules = new Vector<EmuModule>(10);
 
-    /** Field classloader */
-    private EmuClassLoader classloader;
+    /** This object is used to dynamically load modules (actually their classes). */
+    private EmuClassLoader classLoader;
 
-    /** Field state */
+    /** State of the emu. */
     private State state = CODAState.UNCONFIGURED;
 
-    /** Field TRANSPORT_FACTORY - singleton */
-    private final DataTransportFactory TRANSPORT_FACTORY;
+    /** Object which creates and manages transport (data movement) objects. */
+    private final DataTransportFactory transportFactory;
 
-    private Logger logger;
+    /** Emu that created this EmuModuleFactory object. */
+    private final Emu emu;
 
-    /** Emu that created this module factory object. */
-    private Emu emu;
+    /** Logger of errors and debugs associated with this emu. */
+    private final Logger logger;
 
+
+    /**
+     * Constructor.
+     * @param emu Emu that is creating this EmuModuleFactory object.
+     */
     EmuModuleFactory(Emu emu) {
         this.emu = emu;
         logger = emu.getLogger();
-        TRANSPORT_FACTORY = new DataTransportFactory(emu);
+        transportFactory = new DataTransportFactory(emu);
     }
 
     /**
-     * Get the module from which we gather statistics. Used to report statistics to
-     * run control.
+     * Get the module from which we gather statistics.
+     * Used to report statistics to Run Control.
      *
      * @return the module from which statistics are gathered.
      */
@@ -86,14 +92,14 @@ public class EmuModuleFactory implements StatedObject {
         synchronized(modules) {
             if (modules.size() < 1) return null;
 
-            // return first module that says its statistics represents EMU statistics
+            // Return first module that says its statistics represents EMU statistics
             for (EmuModule module : modules) {
                 if (module.representsEmuStatistics()) {
                     return module;
                 }
             }
 
-            // if no modules claim to speak for EMU, choose last module in config file
+            // If no modules claim to speak for EMU, choose last module in config file
             return modules.lastElement();
         }
     }
@@ -120,42 +126,44 @@ public class EmuModuleFactory implements StatedObject {
         if (cmd.equals(CODATransition.DOWNLOAD)) {
 
             try {
-                // there are no modules loaded so we need to load some
+                // There are no modules loaded so we need to load some
                 URL[] locations;
 
-                // get the config info again since it may have changed
+                // Get the config info again since it may have changed
                 Node modulesConfig = Configurer.getNode(emu.configuration(), "component/modules");
 
-                // check for config problems
+                // Check for config problems
                 if (modulesConfig == null) {
-                    // only happens if  Emu.INSTANCE.configuration() is null
+                    // Only happens if  Emu.INSTANCE.configuration() is null
                     throw new DataNotFoundException("config never loaded");
                 }
 
+                // Need modules to create an emu
                 if (!modulesConfig.hasChildNodes()) {
-                    throw new DataNotFoundException("modules section present in config but no modules");
+                    throw new DataNotFoundException("modules section present in config, but no modules");
                 }
 
-                // get attributes of the top ("component/modules") node -> names of needed jar files
+                // Get attributes of top ("component/modules") node, like names of needed jar files
                 NamedNodeMap nm = modulesConfig.getAttributes();
-                // get name of jar file containing source for standard, CODA-supplied modules
+                // Get name of jar file containing source for standard, CODA-supplied modules
                 Node srcAttr    = nm.getNamedItem("src");
-                // get name of jar file (including full path) containing user's modules' source
+                // Get name of jar file (including full path) containing user's modules' source
                 Node usrSrcAttr = nm.getNamedItem("usr_src");
 
                 // Set name of file containing standard modules, default = modules.jar
                 String src = "modules.jar";
                 if (srcAttr != null) src = srcAttr.getNodeValue();
 
-                // change file name into full path by looking in dir $INSTALL_DIR/lib/
+                // Change file name into full path by looking in dir $INSTALL_DIR/lib/
+                // TODO: should only have to get INSTALL_DIR once !!!  Look into this.
                 src = System.getenv("INSTALL_DIR") + "/lib/" + src;
 
-                // if NO user source, look only in standard location for standard modules
+                // If NO user source, look only in standard location for standard modules
                 if (usrSrcAttr == null) {
                     logger.info("Loading modules from " + src);
                     locations = new URL[] {(new File(src)).toURI().toURL()};
                 }
-                // if user has source, look for that file as well as for standard modules
+                // If user has source, look for that file as well as for standard modules
                 else {
                     String usrSrc = usrSrcAttr.getNodeValue();
 
@@ -166,11 +174,11 @@ public class EmuModuleFactory implements StatedObject {
                                            (new File(usrSrc)).toURI().toURL()};
                 }
 
-                // Load "untrusted" java code from URLs - each of which
-                // represents a directory or JAR file to search.
-                classloader = new EmuClassLoader(locations);
+                // Create object for loading "untrusted" java code from URLs -
+                // each of which represents a directory or JAR file to search.
+                classLoader = new EmuClassLoader(locations);
 
-                // remove all existing modules from collection
+                // Remove all existing modules from collection
                 modules.clear();
 
                 //------------------------------------------------------------------------------
@@ -203,8 +211,8 @@ public class EmuModuleFactory implements StatedObject {
 //                System.gc();
 //                System.runFinalization();
 
-                // create the transport objects & channels before the modules  // TODO: WHY?
-                TRANSPORT_FACTORY.execute(cmd);
+                // Create the transport objects & channels before the modules  // TODO: WHY?
+                transportFactory.execute(cmd);
 
                 Node n = modulesConfig.getFirstChild();
                 do {
@@ -225,7 +233,8 @@ System.out.println("Put (" + a.getNodeName() + "," + a.getNodeValue() + ") into 
                         String moduleClassName = "modules." + typeAttr.getNodeValue();
                         logger.info("EmuModuleFactory.execute DOWN : load module " + moduleClassName);
 
-                        // the name of the module is the first arg (node name)
+                        // Use classLoader to load module. The name of
+                        // the module is the first arg (node name).
                         loadModule(n.getNodeName(), moduleClassName, attributeMap);
                     }
 
@@ -242,62 +251,62 @@ System.out.println("Put (" + a.getNodeName() + "," + a.getNodeValue() + ") into 
         // PRESTART command does run-specific initialization ...
         else if (cmd.equals(CODATransition.PRESTART)) {
 
-            // pass prestart to transport objects first
-            TRANSPORT_FACTORY.execute(cmd);
+            // Pass prestart to transport objects first
+            transportFactory.execute(cmd);
 
-            // now pass it on to the modules
+            // Create transportation channels for all modules
             try {
                 Node modulesConfig = Configurer.getNode(emu.configuration(), "component/modules");
                 Node moduleNode = modulesConfig.getFirstChild();
-                // for each module in the list of modules ...
+                // For each module in the list of modules ...
                 do {
-                    // modules section present in config (no modules if no children)
+                    // Modules section present in config (no modules if no children)
                     if ((moduleNode.getNodeType() == Node.ELEMENT_NODE) && moduleNode.hasChildNodes()) {
-                        // find module object associated with this config node
+                        // Find module object associated with this config node
                         EmuModule module = findModule(moduleNode.getNodeName());
                         if (module != null) {
                             ArrayList<DataChannel> in  = new ArrayList<DataChannel>();
                             ArrayList<DataChannel> out = new ArrayList<DataChannel>();
                             
-                            // for each channel in (children of) the module ...
+                            // For each channel in (children of) the module ...
                             NodeList childList = moduleNode.getChildNodes();
                             for (int ix = 0; ix < childList.getLength(); ix++) {
                                 Node channelNode = childList.item(ix);
                                 if (channelNode.getNodeType() != Node.ELEMENT_NODE) continue;
 
 //System.out.println("EmuModuleFactory.execute PRE : looking at channel node = " + channelNode.getNodeName());
-                                // get attributes of channel node
+                                // Get attributes of channel node
                                 NamedNodeMap nnm = channelNode.getAttributes();
                                 if (nnm == null) {
 //System.out.println("EmuModuleFactory.execute PRE : junk in config file (no attributes), skip " + channelNode.getNodeName());
                                     continue;
                                 }
 
-                                // get "name" attribute node from map
+                                // Get "name" attribute node from map
                                 Node channelNameNode = nnm.getNamedItem("name");
 
-                                // if none (junk in config file) go to next channel
+                                // If none (junk in config file) go to next channel
                                 if (channelNameNode == null) {
 //System.out.println("EmuModuleFactory.execute PRE : junk in config file (no name attr), skip " + channelNode.getNodeName());
                                     continue;
                                 }
 //System.out.println("EmuModuleFactory.execute PRE : channel node of attribute \"name\" = " + channelNameNode.getNodeName());
-                                // get name of this channel
+                                // Get name of this channel
                                 String channelName = channelNameNode.getNodeValue();
 //System.out.println("EmuModuleFactory.execute PRE : found channel of name " + channelName);
-                                // get "transp" attribute node from map
+                                // Get "transp" attribute node from map
                                 Node channelTranspNode = nnm.getNamedItem("transp");
                                 if (channelTranspNode == null) {
 //System.out.println("EmuModuleFactory.execute PRE : junk in config file (no transp attr), skip " + channelNode.getNodeName());
                                     continue;
                                 }
-                                // get name of transport
+                                // Get name of transport
                                 String channelTransName = channelTranspNode.getNodeValue();
 //System.out.println("EmuModuleFactory.execute PRE : module " + module.name() + " channel " + channelName + " transp " + channelTransName);
-                                // look up transport object from name
-                                DataTransport trans = TRANSPORT_FACTORY.findNamedTransport(channelTransName);
+                                // Look up transport object from name
+                                DataTransport trans = transportFactory.findNamedTransport(channelTransName);
 
-                                // store all attributes in a hashmap to pass to channel
+                                // Store all attributes in a hashmap to pass to channel
                                 Map<String, String> attributeMap = new HashMap<String, String>();
                                 for (int jx = 0; jx < nnm.getLength(); jx++) {
                                     Node a = nnm.item(jx);
@@ -305,14 +314,14 @@ System.out.println("Put (" + a.getNodeName() + "," + a.getNodeValue() + ") into 
                                     attributeMap.put(a.getNodeName(), a.getNodeValue());
                                 }
 
-                                // if it's an input channel ...
+                                // If it's an input channel ...
                                 if (channelNode.getNodeName().equalsIgnoreCase("inchannel")) {
                                     // create channel
                                     DataChannel channel = trans.createChannel(channelName, attributeMap, true, emu);
                                     // add to list
                                     in.add(channel);
                                 }
-                                // if it's an output channel ...
+                                // If it's an output channel ...
                                 else if (channelNode.getNodeName().equalsIgnoreCase("outchannel")) {
                                     DataChannel channel = trans.createChannel(channelName, attributeMap, false, emu);
                                     out.add(channel);
@@ -322,7 +331,7 @@ System.out.println("Put (" + a.getNodeName() + "," + a.getNodeValue() + ") into 
                                 }
                             }
                             
-                            // add input and output channel lists to module
+                            // Add input and output channel lists to module
                             module.setInputChannels(in);
                             module.setOutputChannels(out);
                         }
@@ -338,11 +347,11 @@ System.out.println("Put (" + a.getNodeName() + "," + a.getNodeValue() + ") into 
             }
         }
 
-        // Others commands are passed down to transport layer
+        // Other commands are passed down to transport layer
         // since the GO, END, PAUSE, RESUME commands are concerned
         // only with the flow of data.
         else {
-            TRANSPORT_FACTORY.execute(cmd);
+            transportFactory.execute(cmd);
         }
 
         // Pass all commands down to all the modules. "modules" is only
@@ -357,8 +366,6 @@ System.out.println("Put (" + a.getNodeName() + "," + a.getNodeValue() + ") into 
             state = CODAState.CONFIGURED;
             CODAState.ERROR.getCauses().clear();
             return;
-//            modules.clear();
-//            state = CODAState.UNCONFIGURED;
         }
 
         if (cmd.success() != null && state != CODAState.ERROR) state = cmd.success();
@@ -366,14 +373,14 @@ System.out.println("Put (" + a.getNodeName() + "," + a.getNodeValue() + ") into 
     }
 
     /**
-     * Method LoadModule load the class for a module "moduleName" and create and
-     * create an instance with name "name".
+     * This method loads the class for a module "moduleName" and
+     * creates an instance with name "name".
      *
      * @param name            name of module
      * @param moduleClassName name of java class defining module
      * @param attributeMap    map containing attributes of module
      *
-     * @return EmuModule
+     * @return the created module object
      * 
      * @throws InstantiationException    when
      * @throws IllegalAccessException    when
@@ -395,18 +402,18 @@ System.out.println("Put (" + a.getNodeName() + "," + a.getNodeValue() + ") into 
                      " to create a module of name " + name);
 //System.out.println("classpath = " + System.getProperty("java.class.path"));
 
-        // Tell the custom classloader to ONLY load the named class
-        // and relegate all other loading to the system classloader.
-        classloader.setClassesToLoad(new String[] {moduleClassName});
+        // Tell the custom class-loader to ONLY load the named class
+        // and relegate all other loading to the system class-loader.
+        classLoader.setClassesToLoad(new String[] {moduleClassName});
 
         // Load the class
-        Class c = classloader.loadClass(moduleClassName);
+        Class c = classLoader.loadClass(moduleClassName);
 
-        // constructor required to have a string and a map as args
+        // Constructor required to have a string, a map, and an emu as args
         Class[] parameterTypes = {String.class, Map.class, Emu.class};
         Constructor co = c.getConstructor(parameterTypes);
 
-        // create an instance
+        // Create an instance
         Object[] args = {name, attributeMap, emu};
         EmuModule thing = (EmuModule) co.newInstance(args);
 
@@ -425,10 +432,10 @@ System.out.println("Put (" + a.getNodeName() + "," + a.getNodeValue() + ") into 
 
 
     /**
-     * Method findModule given it's name locate a module.
+     * This method locates a module given it's name.
      *
-     * @param name of type String
-     * @return EmuModule
+     * @param name of module
+     * @return EmuModule object
      */
     public EmuModule findModule(String name) {
         synchronized(modules) {
@@ -443,17 +450,16 @@ System.out.println("Put (" + a.getNodeName() + "," + a.getNodeValue() + ") into 
 
 
     /**
-     * Method state checks that all of the modules created by the
+     * This method checks that all of the modules created by this
      * factory "agree" on the state and returns that state or the
      * ERROR state.
      *
-     * @return the state
+     * @return the state of the emu
      * @see EmuModule#state()
      */
     public State state() {
 
         if (state == CODAState.ERROR) {
-            //logger.error("EmuModuleFactory : state() returning CODAState.ERROR");
             return state;
         }
 
@@ -467,7 +473,7 @@ System.out.println("Put (" + a.getNodeName() + "," + a.getNodeValue() + ") into 
             }
         }
 
-        if (TRANSPORT_FACTORY.state() == CODAState.ERROR) {
+        if (transportFactory.state() == CODAState.ERROR) {
             state = CODAState.ERROR;
         }
 
@@ -476,7 +482,7 @@ System.out.println("Put (" + a.getNodeName() + "," + a.getNodeValue() + ") into 
 
 
     /**
-     * Method check returns the state of each module in a vector.
+     * This method returns the state of each module in a vector.
      *
      * @return vector of State objects - each one the state of a module
      */
@@ -492,7 +498,7 @@ System.out.println("Put (" + a.getNodeName() + "," + a.getNodeValue() + ") into 
         return sv;
     }
 
-
+    /** This method sets the emu state to ERROR. */
     public void ERROR() {
         state = CODAState.ERROR;
     }
