@@ -1,9 +1,11 @@
 package modules;
 
 import org.jlab.coda.emu.support.control.State;
-import org.jlab.coda.emu.support.control.Command;
+import org.jlab.coda.emu.support.control.RcCommand;
 import org.jlab.coda.emu.support.codaComponent.CODAState;
 import org.jlab.coda.emu.support.codaComponent.CODATransition;
+import org.jlab.coda.emu.support.codaComponent.EmuCommand;
+import static org.jlab.coda.emu.support.codaComponent.EmuCommand.*;
 import org.jlab.coda.emu.support.transport.DataChannel;
 import org.jlab.coda.emu.support.configurer.Configurer;
 import org.jlab.coda.emu.support.configurer.DataNotFoundException;
@@ -289,10 +291,12 @@ System.out.println("Process: Added bank's children to built event, event = " + c
         return last_error;
     }
 
-    public void execute(Command cmd) {
+    public void execute(RcCommand cmd) {
         Date theDate = new Date();
 
-        if (cmd.equals(CODATransition.END)) {
+        EmuCommand emuCmd = cmd.getEmuCommand();
+
+        if (emuCmd == END) {
             state = CODAState.DOWNLOADED;
 
             if (actionThread != null) actionThread.interrupt();
@@ -308,7 +312,7 @@ System.out.println("Process: Added bank's children to built event, event = " + c
             }
         }
 
-        else if (cmd.equals(CODATransition.RESET)) {
+        else if (emuCmd == RESET) {
             State previousState = state;
             state = CODAState.UNCONFIGURED;
 
@@ -330,7 +334,7 @@ System.out.println("Process: Added bank's children to built event, event = " + c
             }
         }
 
-        else if (cmd.equals(CODATransition.PRESTART)) {
+        else if (emuCmd == PRESTART) {
             state = CODAState.PRESTARTED;
 
             eventRate = wordRate = 0F;
@@ -349,7 +353,7 @@ System.out.println("Process: Added bank's children to built event, event = " + c
             }
         }
 
-        else if (cmd.equals(CODATransition.PAUSE)) {
+        else if (emuCmd == PAUSE) {
             state = CODAState.PRESTARTED;
             actionThread.interrupt();
             watcher.interrupt();
@@ -357,7 +361,7 @@ System.out.println("Process: Added bank's children to built event, event = " + c
             actionThread = new Thread(emu.getThreadGroup(), this, name);
         }
 
-        else if (cmd.equals(CODATransition.GO)) {
+        else if (emuCmd == GO) {
             state = CODAState.ACTIVE;
             if (watcher == null) {
                 watcher = new Watcher();

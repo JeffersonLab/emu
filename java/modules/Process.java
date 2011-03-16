@@ -15,9 +15,11 @@ import org.jlab.coda.emu.Emu;
 import org.jlab.coda.emu.EmuModule;
 import org.jlab.coda.emu.support.codaComponent.CODAState;
 import org.jlab.coda.emu.support.codaComponent.CODATransition;
+import org.jlab.coda.emu.support.codaComponent.EmuCommand;
+import static org.jlab.coda.emu.support.codaComponent.EmuCommand.*;
 import org.jlab.coda.emu.support.configurer.Configurer;
 import org.jlab.coda.emu.support.configurer.DataNotFoundException;
-import org.jlab.coda.emu.support.control.Command;
+import org.jlab.coda.emu.support.control.RcCommand;
 import org.jlab.coda.emu.support.control.State;
 import org.jlab.coda.emu.support.logger.Logger;
 import org.jlab.coda.emu.support.transport.DataChannel;
@@ -251,10 +253,12 @@ System.out.println("Process: put bank on output Q");
         return last_error;
     }
 
-    public void execute(Command cmd) {
+    public void execute(RcCommand cmd) {
         Date theDate = new Date();
+
+        EmuCommand emuCmd = cmd.getEmuCommand();
         
-        if (cmd.equals(CODATransition.END)) {
+        if (emuCmd == END) {
             state = CODAState.DOWNLOADED;
 
             if (actionThread != null) actionThread.interrupt();
@@ -270,7 +274,7 @@ System.out.println("Process: put bank on output Q");
             }
         }
 
-        else if (cmd.equals(CODATransition.PRESTART)) {
+        else if (emuCmd == PRESTART) {
             eventCount = 0;
             wordCount = 0;
 
@@ -286,7 +290,7 @@ System.out.println("Process: put bank on output Q");
             }
         }
 
-        else if (cmd.equals(CODATransition.PAUSE)) {
+        else if (emuCmd == PAUSE) {
             state = CODAState.PRESTARTED;
             actionThread.interrupt();
             watcher.interrupt();
@@ -294,7 +298,7 @@ System.out.println("Process: put bank on output Q");
             watcher = null;
         }
 
-        else if (cmd.equals(CODATransition.GO)) {
+        else if (emuCmd == GO) {
 System.out.println("GO in Process module");
             State old_state = state;
             state = CODAState.ACTIVE;

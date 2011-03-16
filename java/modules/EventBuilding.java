@@ -16,10 +16,12 @@ import org.jlab.coda.emu.EmuException;
 import org.jlab.coda.emu.EmuModule;
 import org.jlab.coda.emu.support.codaComponent.CODAClass;
 import org.jlab.coda.emu.support.codaComponent.CODAState;
-import org.jlab.coda.emu.support.codaComponent.CODATransition;
+import static org.jlab.coda.emu.support.codaComponent.EmuCommand.*;
+
+import org.jlab.coda.emu.support.codaComponent.EmuCommand;
 import org.jlab.coda.emu.support.configurer.Configurer;
 import org.jlab.coda.emu.support.configurer.DataNotFoundException;
-import org.jlab.coda.emu.support.control.Command;
+import org.jlab.coda.emu.support.control.RcCommand;
 import org.jlab.coda.emu.support.control.State;
 import org.jlab.coda.emu.support.data.EventType;
 import org.jlab.coda.emu.support.data.Evio;
@@ -208,7 +210,9 @@ public class EventBuilding implements EmuModule, Runnable {
         this.emu = emu;
         this.name = name;
         this.attributeMap = attributeMap;
-        logger.info("Finalize " + name);
+
+        logger = emu.getLogger();
+
         try {
             ebId = Integer.parseInt(attributeMap.get("id"));
         }
@@ -964,10 +968,12 @@ System.out.println("INTERRUPTED thread " + Thread.currentThread().getName());
         return lastError;
     }
 
-    public void execute(Command cmd) {
+    public void execute(RcCommand cmd) {
         Date theDate = new Date();
 
-        if (cmd.equals(CODATransition.END)) {
+        EmuCommand emuCmd = cmd.getEmuCommand();
+
+        if (emuCmd == END) {
             state = CODAState.DOWNLOADED;
 
             // The order in which these thread are shutdown does(should) not matter.
@@ -1001,7 +1007,7 @@ System.out.println("INTERRUPTED thread " + Thread.currentThread().getName());
             }
         }
 
-        else if (cmd.equals(CODATransition.RESET)) {
+        else if (emuCmd == RESET) {
             State previousState = state;
             state = CODAState.CONFIGURED;
 
@@ -1038,7 +1044,7 @@ System.out.println("INTERRUPTED thread " + Thread.currentThread().getName());
             }
         }
 
-        else if (cmd.equals(CODATransition.PRESTART)) {
+        else if (emuCmd == PRESTART) {
             // make sure each input channel is associated with a unique rocId
             for (int i=0; i < inputChannels.size(); i++) {
                 for (int j=i+1; j < inputChannels.size(); j++) {
@@ -1117,12 +1123,12 @@ System.out.println("INTERRUPTED thread " + Thread.currentThread().getName());
         }
 
         // currently NOT used
-        else if (cmd.equals(CODATransition.PAUSE)) {
+        else if (emuCmd == PAUSE) {
             System.out.println("EB: GOT PAUSE, DO NOTHING");
             paused = true;
         }
 
-        else if (cmd.equals(CODATransition.GO)) {
+        else if (emuCmd == GO) {
             if (state == CODAState.ACTIVE) {
                 System.out.println("WE musta hit go after PAUSE");
             }

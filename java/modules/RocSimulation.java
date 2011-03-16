@@ -15,10 +15,11 @@ import org.jlab.coda.emu.Emu;
 import org.jlab.coda.emu.EmuModule;
 import org.jlab.coda.emu.support.codaComponent.CODAClass;
 import org.jlab.coda.emu.support.codaComponent.CODAState;
-import org.jlab.coda.emu.support.codaComponent.CODATransition;
+import org.jlab.coda.emu.support.codaComponent.EmuCommand;
+import static org.jlab.coda.emu.support.codaComponent.EmuCommand.*;
 import org.jlab.coda.emu.support.configurer.Configurer;
 import org.jlab.coda.emu.support.configurer.DataNotFoundException;
-import org.jlab.coda.emu.support.control.Command;
+import org.jlab.coda.emu.support.control.RcCommand;
 import org.jlab.coda.emu.support.control.State;
 import org.jlab.coda.emu.support.data.Evio;
 import org.jlab.coda.emu.support.logger.Logger;
@@ -392,10 +393,12 @@ System.out.println("Roc data creation thread is ending !!!");
     }
 
 
-    public void execute(Command cmd) {
+    public void execute(RcCommand cmd) {
         Date theDate = new Date();
 
-        if (cmd.equals(CODATransition.END)) {
+        EmuCommand emuCmd = cmd.getEmuCommand();
+
+        if (emuCmd == END) {
             state = CODAState.DOWNLOADED;
 
             // The order in which these threads are shutdown does(should) not matter.
@@ -415,7 +418,7 @@ System.out.println("Roc data creation thread is ending !!!");
             }
         }
 
-        else if (cmd.equals(CODATransition.RESET)) {
+        else if (emuCmd == RESET) {
             State previousState = state;
             state = CODAState.CONFIGURED;
 
@@ -439,7 +442,7 @@ System.out.println("Roc data creation thread is ending !!!");
             }
         }
 
-        else if (cmd.equals(CODATransition.PRESTART)) {
+        else if (emuCmd == PRESTART) {
 
             state = CODAState.PRESTARTED;
 
@@ -467,12 +470,12 @@ System.out.println("Roc data creation thread is ending !!!");
         }
 
         // currently NOT used
-        else if (cmd.equals(CODATransition.PAUSE)) {
+        else if (emuCmd == PAUSE) {
 System.out.println("ROC: GOT PAUSE, DO NOTHING");
             paused = true;
         }
 
-        else if (cmd.equals(CODATransition.GO)) {
+        else if (emuCmd == GO) {
             if (state == CODAState.ACTIVE) {
 System.out.println("WE musta hit go after PAUSE");
             }
