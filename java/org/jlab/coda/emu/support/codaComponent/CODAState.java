@@ -100,7 +100,6 @@ public enum CODAState implements State {
     /** Map of CODAState name to an enum. */
     private final static HashMap<String, CODAState> commandTypeToEnumMap = new HashMap<String, CODAState>();
 
-
     // Fill static hashmap after all enum objects created.
     static {
         for (CODAState item : CODAState.values()) {
@@ -125,33 +124,26 @@ public enum CODAState implements State {
      * @param allowed     set of transitions allowed out of this state
      */
     CODAState(String description, EnumSet<CODATransition> allowed) {
-System.out.println("CODAState creating " + name());
         this.description = description;
         this.allowed = allowed;
     }
 
     /**
-     * Get the description of this state.
-     * @return description of this state
-     * @see org.jlab.coda.emu.support.control.State#getDescription()
+     * {@inheritDoc}
      */
     public String getDescription() {
         return description;
     }
 
     /**
-     * Get the vector containing the causes of any exceptions
-     * of an attempted transition from this state.
-     * @return vector(type Vector<Throwable>) of causes of any execeptions
-     *         of an attempted transition from this state.
+     * {@inheritDoc}
      */
     public Vector<Throwable> getCauses() {
         return causes;
     }
 
     /**
-     * Get the set of transitions allowed out of this state.
-     * @return set of transitions allowed out of this state
+     * {@inheritDoc}
      */
     public EnumSet<CODATransition> allowed() {
         return allowed;

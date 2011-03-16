@@ -12,7 +12,6 @@
 package org.jlab.coda.emu.support.codaComponent;
 
 import org.jlab.coda.emu.support.control.State;
-import static org.jlab.coda.emu.support.codaComponent.CODAState.*;
 
 
 /**
@@ -63,19 +62,19 @@ import static org.jlab.coda.emu.support.codaComponent.CODAState.*;
  */
 public enum CODATransition {
 
-    /** Field configure */
+    /** Configure transition. */
     CONFIGURE("Load the configuration", "CONFIGURED"),
-    /** Download. */
+    /** Download transition. */
     DOWNLOAD("Apply the configuration and load", "DOWNLOADED"),
-    /** Prestart. */
+    /** Prestart transition. */
     PRESTART("Prepare to start", "PRESTARTED"),
-    /** Go. */
+    /** Go transition. */
     GO("Start taking data", "ACTIVE"),
-    /** End. */
+    /** End transition. */
     END("End taking data", "DOWNLOADED"),
-    /** Pause. */
+    /** Pause transition. */
     PAUSE("Pause taking data", "PRESTARTED"),
-    /** Reset. */
+    /** Reset transition. */
     RESET("Return to configured state", "CONFIGURED");
 
     
@@ -95,14 +94,12 @@ public enum CODATransition {
      * @param successState state EMU ends up in if transition successful
      */
     CODATransition(String description, String successState) {
-System.out.println("CODATransition creating " + name());
         this.description = description;
         this.successState = successState;
     }
 
     /**
      * Get the description of this transition.
-     * @see org.jlab.coda.emu.support.control.Command#description()
      */
     public String description() {
         return description;
@@ -113,7 +110,6 @@ System.out.println("CODATransition creating " + name());
      * @return State (CODAState enum object) upon success of this transition
      */
     public State success() {
-System.out.println("CODATransition,success(): " + successState);
         return CODAState.get(successState);
     }
 }
