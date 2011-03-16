@@ -13,7 +13,7 @@ package org.jlab.coda.emu.support.codaComponent;
 
 import org.jlab.coda.emu.support.control.Command;
 import org.jlab.coda.emu.support.control.State;
-import org.jlab.coda.emu.support.messaging.RCConstants;
+import static org.jlab.coda.emu.support.messaging.RCConstants.*;
 
 import java.util.EnumSet;
 import java.util.HashMap;
@@ -28,18 +28,30 @@ import java.util.HashMap;
  */
 public enum SessionControl implements Command {
 
-    /** Command to set run number. */
-    SET_RUN_NUMBER("Set the run number", RCConstants.setRunNumber),
-    /** Command to get run number .*/
-    GET_RUN_NUMBER("Get the run number", RCConstants.getRunNumber),
-    /** Command to set run type. */
-    SET_RUN_TYPE("Set the run type", RCConstants.setRunType),
-    /** Command to get run type. */
-    GET_RUN_TYPE("Get the run type", RCConstants.getRunType),
+    /** Command to set state. */
+    SET_STATE("Set state", setState),
+    /** Command to set session. */
+    SET_SESSION("Set session", setSession),
+    /** Command to get session. */
+    GET_SESSION("Get session", getSession),
+    /** Command to release session. */
+    RELEASE_SESSION("Release session", releaseSession),
     /** Command to set start reporting. */
-    START_REPORTING("start reporting", RCConstants.startReporting),
+    START_REPORTING("Start reporting", startReporting),
     /** Command to set stop reporting. */
-    STOP_REPORTING("stop reporting", RCConstants.stopReporting);
+    STOP_REPORTING("Stop reporting", stopReporting),
+    /** Command to set interval. */
+    SET_INTERVAL("Set interval", setInterval),
+    /** Command to start. */
+    START("Start", start),
+    /** Command to stop. */
+    STOP("Stop", stop),
+    /** Command to exit. */
+    EXIT("Shutdown coda component", exit),
+    /** Configure */
+    CONFIGURE("Load configuration", configure),
+    /** Reset. */
+    RESET("Return to configured state", reset);
 
     /** Map of arguments contained in the message from run control (in payload). */
     private final HashMap<String, Object> args = new HashMap<String, Object>();

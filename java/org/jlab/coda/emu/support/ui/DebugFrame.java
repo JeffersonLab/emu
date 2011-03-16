@@ -35,7 +35,10 @@ import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.util.ResourceBundle;
 
-/** @author unknown */
+/**
+ * @author heyes
+ * @author timmer
+ */
 public class DebugFrame extends JFrame {
     private int documentCount = 0;
     private Logger logger;
@@ -47,9 +50,10 @@ public class DebugFrame extends JFrame {
         logger = emu.getLogger();
         logger.addAppender(logQueueAppender);
         logPanel.monitor(logQueueAppender);
-        smartToolbar.configure(emu, CODATransition.class);
-        smartToolbar1.configure(emu, RunControl.class);
-        smartToolbar2.configure(emu, SessionControl.class);
+        smartToolbar.configure(emu, 0);
+        smartToolbar1.configure(emu, 1);
+        smartToolbar2.configure(emu, 2);
+        smartToolbar3.configure(emu, 3);
         splitPane1.setDividerLocation(.75);
 
         setVisible(true);
@@ -188,6 +192,7 @@ public class DebugFrame extends JFrame {
         logScrollPane = new JScrollPane();
         logPanel = new SwingLogConsoleDialog();
         logPanel.setLogger(logger);
+        smartToolbar3 = new SmartToolbar();
 
         //======== this ========
         setTitle(bundle.getString("debugFrame.title"));
@@ -333,17 +338,23 @@ public class DebugFrame extends JFrame {
             splitPane1.setBottomComponent(logScrollPane);
         }
 
+        //======== smartToolbar3 ========
+        {
+            smartToolbar3.setFloatable(false);
+        }
+
         GroupLayout contentPaneLayout = new GroupLayout(contentPane);
         contentPane.setLayout(contentPaneLayout);
         contentPaneLayout.setHorizontalGroup(
             contentPaneLayout.createParallelGroup()
-                .add(GroupLayout.TRAILING, contentPaneLayout.createSequentialGroup()
+                .add(contentPaneLayout.createSequentialGroup()
                     .addContainerGap()
-                    .add(contentPaneLayout.createParallelGroup(GroupLayout.TRAILING)
-                        .add(GroupLayout.LEADING, splitPane1, GroupLayout.DEFAULT_SIZE, 694, Short.MAX_VALUE)
-                        .add(GroupLayout.LEADING, smartToolbar1, GroupLayout.DEFAULT_SIZE, 694, Short.MAX_VALUE)
-                        .add(GroupLayout.LEADING, smartToolbar, GroupLayout.DEFAULT_SIZE, 694, Short.MAX_VALUE)
-                        .add(GroupLayout.LEADING, smartToolbar2, GroupLayout.DEFAULT_SIZE, 694, Short.MAX_VALUE))
+                    .add(contentPaneLayout.createParallelGroup()
+                        .add(splitPane1, GroupLayout.DEFAULT_SIZE, 694, Short.MAX_VALUE)
+                        .add(smartToolbar1, GroupLayout.DEFAULT_SIZE, 694, Short.MAX_VALUE)
+                        .add(smartToolbar, GroupLayout.DEFAULT_SIZE, 694, Short.MAX_VALUE)
+                        .add(smartToolbar2, GroupLayout.DEFAULT_SIZE, 694, Short.MAX_VALUE)
+                        .add(smartToolbar3, GroupLayout.DEFAULT_SIZE, 694, Short.MAX_VALUE))
                     .addContainerGap())
         );
         contentPaneLayout.setVerticalGroup(
@@ -356,7 +367,9 @@ public class DebugFrame extends JFrame {
                     .addPreferredGap(LayoutStyle.RELATED)
                     .add(smartToolbar2, GroupLayout.PREFERRED_SIZE, GroupLayout.DEFAULT_SIZE, GroupLayout.PREFERRED_SIZE)
                     .addPreferredGap(LayoutStyle.RELATED)
-                    .add(splitPane1, GroupLayout.DEFAULT_SIZE, 703, Short.MAX_VALUE)
+                    .add(smartToolbar3, GroupLayout.PREFERRED_SIZE, GroupLayout.DEFAULT_SIZE, GroupLayout.PREFERRED_SIZE)
+                    .addPreferredGap(LayoutStyle.RELATED)
+                    .add(splitPane1, GroupLayout.DEFAULT_SIZE, 666, Short.MAX_VALUE)
                     .addContainerGap())
         );
         pack();
@@ -389,5 +402,6 @@ public class DebugFrame extends JFrame {
     private MDIDesktopPane desktopPane;
     private JScrollPane logScrollPane;
     private SwingLogConsoleDialog logPanel;
+    private SmartToolbar smartToolbar3;
     // JFormDesigner - End of variables declaration  //GEN-END:variables
 }

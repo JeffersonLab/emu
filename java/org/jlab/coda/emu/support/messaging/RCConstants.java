@@ -49,62 +49,86 @@ public class RCConstants {
     // Types in messages sent
 
     /** String used as type of status message periodically sent to rcServer. */
-    public static final String reportStatus     = "rc/report/status";
+    public static final String reportStatus = "rc/report/status";
 
     // Types in messages received in session/control/* callback
 
-    /** String used as type in message for the start-reporting session command. */
+    /** String used as type in message for the set-state command. */
+    public static final String setState         = sessionCommand + "setState";
+    /** String used as type in message for the set-session command. */
+    public static final String setSession       = sessionCommand + "setSession";
+    /** String used as type in message for the get-session command. */
+    public static final String getSession       = sessionCommand + "getSession";
+    /** String used as type in message for the release-session command. */
+    public static final String releaseSession   = sessionCommand + "releaseSession";
+    /** String used as type in message for the start-reporting command. */
     public static final String startReporting   = sessionCommand + "startReporting";
-    /** String used as type in message for the stop-reporting session command. */
+    /** String used as type in message for the stop-reporting command. */
     public static final String stopReporting    = sessionCommand + "stopReporting";
-    /** String used as type in message for the get-run-type session command. */
-    public static final String getRunType       = sessionCommand + "getRunType";
-    /** String used as type in message for the set-run-type session command. */
-    public static final String setRunType       = sessionCommand + "setRunType";
-    /** String used as type in message for the get-run-number session command. */
-    public static final String getRunNumber     = sessionCommand + "getRunNumber";
-    /** String used as type in message for the set-run-number session command. */
-    public static final String setRunNumber     = sessionCommand + "setRunNumber";
+    /** String used as type in message for the set-interval command. */
+    public static final String setInterval      = sessionCommand + "setInterval";
+    /** String used as type in message for the start command. */
+    public static final String start            = sessionCommand + "start";
+    /** String used as type in message for the stop command. */
+    public static final String stop             = sessionCommand + "stop";
+    /** String used as type in message for the exit command. */
+    public static final String exit             = sessionCommand + "exit";
+    /** String used as type in message for the configure command. */
+    public static final String configure        = sessionCommand + "configure";
+    /** String used as type in message for the reset command. */
+    public static final String reset            = sessionCommand + "reset";
+
+    // Types in messages received in run/transition/* callback.
+    // The 2 command immediately above (configure & reset) should
+    // really be below in the transition section. But they ain't.
+
+    /** String used as type in message for the get-run-number command. */
+    public static final String download = transitionCommand + "download";
+    /** String used as type in message for the set-run-number command. */
+    public static final String prestart = transitionCommand + "prestart";
+    /** String used as type in message for the get-run-type command. */
+    public static final String go       = transitionCommand + "go";
+    /** String used as type in message for the set-run-type command. */
+    public static final String end       = transitionCommand + "end";
+    /** String used as type in message for the set-run-type command. */
+    public static final String pause     = transitionCommand + "pause";
+    /** String used as type in message for the set-run-type command. */
+    public static final String resume    = transitionCommand + "resume";
 
     // Types in messages received in run/control/* callback
 
-    /** String used as type in message for the set state run command. */
-    public static final String setState         = runCommand + "setState";
-    /** String used as type in message for the get state run command. */
-    public static final String getState         = runCommand + "getState";
-    /** String used as type in message for the set session run command. */
-    public static final String setSession       = runCommand + "setSession";
-    /** String used as type in message for the get session run command. */
-    public static final String getSession       = runCommand + "getSession";
-    /** String used as type in message for the release session run command. */
-    public static final String releaseSession   = runCommand + "releaseSession";
-    /** String used as type in message for the set interval run command. */
-    public static final String setInterval      = runCommand + "setInterval";
-    /** String used as type in message for the start run command. */
-    public static final String start            = runCommand + "start";
-    /** String used as type in message for the stop run command. */
-    public static final String stop             = runCommand + "stop";
-    /** String used as type in message for the reset run command. */
-    public static final String reset            = runCommand + "reset";
-    /** String used as type in message for the exit run command. */
-    public static final String exit             = runCommand + "exit";
+    /** String used as type in message for the get-run-number command. */
+    public static final String getRunNumber     = runCommand + "getRunNumber";
+    /** String used as type in message for the set-run-number command. */
+    public static final String setRunNumber     = runCommand + "setRunNumber";
+    /** String used as type in message for the get-run-type command. */
+    public static final String getRunType       = runCommand + "getRunType";
+    /** String used as type in message for the set-run-type command. */
+    public static final String setRunType       = runCommand + "setRunType";
 
     // Types in messages received in coda/info/* callback
 
-    /** String used as type in message for the get-state info command. */
-    public static final String rcGetState       = infoCommand + "getState";
-    /** String used as type in message for the get-status info command. */
-    public static final String rcGetStatus      = infoCommand + "getStatus";
-    /** String used as type in message for the get-object-type info command. */
-    public static final String rcGetObjectType  = infoCommand + "getObjectType";
-    /** String used as type in message for the get-coda-class info command. */
-    public static final String rcGetCodaClass   = infoCommand + "getCodaClass";
-    /** String used as type in message for the get-session info command. */
-    public static final String rcGetSession     = infoCommand + "getSession";
-    /** String used as type in message for the get-run-type info command. */
-    public static final String rcGetRunType     = infoCommand + "getRunType";
-    /** String used as type in message for the get-run-number info command. */
-    public static final String rcGetRunNumber   = infoCommand + "getRunNumber";
+    /** String used as type in message for the get-state command. */
+    public static final String getState      = infoCommand + "getState";
+    /** String used as type in message for the get-status command. */
+    public static final String getStatus     = infoCommand + "getStatus";
+    /** String used as type in message for the get-object-type command. */
+    public static final String getObjectType = infoCommand + "getObjectType";
+    /** String used as type in message for the get-coda-class command. */
+    public static final String getCodaClass  = infoCommand + "getCodaClass";
+
+    // Types in messages received in session/setOption/* callback
+
+    /** String used as type in message for the set-file-path command. */
+    public static final String setFilePath   = setOption + "filePath";
+    /** String used as type in message for the set-file-prefix command. */
+    public static final String setFilePrefix = setOption + "filePrefix";
+    /** String used as type in message for the set-xml-file command. */
+    public static final String setXmlFile    = setOption + "xmlFile";
+    /** String used as type in message for the get-xml-string command. */
+    public static final String setXmlString  = setOption + "xmlString";
+
+    // response strings for coda/info/* commands
 
     /** String used as type in response message for the get-state info command. */
     public static final String rcGetStateResponse       = rcResponseCommand + "getState";
@@ -114,12 +138,7 @@ public class RCConstants {
     public static final String rcGetObjectTypeResponse  = rcResponseCommand + "getObjectType";
     /** String used as type in response message for the get-coda-class info command. */
     public static final String rcGetCodaClassResponse   = rcResponseCommand + "getCodaClass";
-    /** String used as type in response message for the get-session info command. */
-    public static final String rcGetSessionResponse     = rcResponseCommand + "getSession";
-    /** String used as type in response message for the get-run-type info command. */
-    public static final String rcGetRunTypeResponse     = rcResponseCommand + "getRunType";
-    /** String used as type in response message for the get-run-number info command. */
-    public static final String rcGetRunNumberResponse   = rcResponseCommand + "getRunNumber";
+
 
     // Payload names in reportStatus (above) message
     

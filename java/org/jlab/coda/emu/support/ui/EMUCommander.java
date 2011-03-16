@@ -26,6 +26,7 @@ import org.jlab.coda.emu.support.codaComponent.SessionControl;
 import org.jlab.coda.emu.support.configurer.Configurer;
 import org.jlab.coda.emu.support.control.Command;
 import org.jlab.coda.emu.support.control.CommandAcceptor;
+import org.jlab.coda.emu.support.control.RcCommand;
 import org.jlab.coda.emu.support.control.State;
 import org.jlab.coda.emu.support.logger.Logger;
 import org.jlab.coda.emu.support.logger.LoggingEvent;
@@ -80,7 +81,7 @@ public class EMUCommander extends JFrame {
             this.subject = subject;
         }
 
-        public void postCommand(Command cmd) throws InterruptedException {
+        public void postCommand(RcCommand cmd) throws InterruptedException {
             cMsgMessage msg = new cMsgMessage();
             msg.setSubject(cmd.toString());
             msg.setType(subject + cmd.toString());
@@ -140,7 +141,7 @@ System.out.println("Allowed transitions are " + state.allowed());
                     // The "allow" method should be static, but is simpler to 
                     // just pick a particular enum (in the case, GO)
                     // and use that to allow various transitions.
-                    CODATransition.GO.allow(state.allowed());
+// TODO fix!!!                    CODATransition.GO.allow(state.allowed());
 System.out.println("State of " + this + " is now " + state());
                 } else {
 System.out.println("State not changed by command");
@@ -172,9 +173,9 @@ System.out.println("CMSGPortal.append error " + e.getMessage());
         logger.addAppender(logQueueAppender);
         logPanel.monitor(logQueueAppender);
 
-        smartToolbar.configure(new CommandHandler("run/transition/"), CODATransition.class);
-        smartToolbar1.configure(new CommandHandler("run/control/"), RunControl.class);
-        smartToolbar2.configure(new CommandHandler("session/control/"), SessionControl.class);
+        smartToolbar.configure(new CommandHandler("run/transition/"), 0);
+        smartToolbar1.configure(new CommandHandler("run/control/"), 1);
+        smartToolbar2.configure(new CommandHandler("session/control/"), 2);
 
         try {
             UDL = System.getProperty("cmsgUDL");

@@ -13,7 +13,7 @@ package org.jlab.coda.emu.support.codaComponent;
 
 import org.jlab.coda.emu.support.control.Command;
 import org.jlab.coda.emu.support.control.State;
-import org.jlab.coda.emu.support.messaging.RCConstants;
+import static org.jlab.coda.emu.support.messaging.RCConstants.*;
 
 import java.util.EnumSet;
 import java.util.HashMap;
@@ -26,19 +26,13 @@ import java.util.HashMap;
 public enum InfoControl implements Command {
 
     /** Command to get the state .*/
-    GET_STATE("Get the state", RCConstants.rcGetState),
+    GET_STATE("Get the state", getState),
     /** Command to get the status. */
-    GET_STATUS("Get the status", RCConstants.rcGetStatus),
+    GET_STATUS("Get the status", getStatus),
     /** Command to get the object type. */
-    GET_OBJECT_TYPE("Get the object type", RCConstants.rcGetObjectType),
+    GET_OBJECT_TYPE("Get the object type", getObjectType),
     /** Command to get the coda class. */
-    GET_CODA_CLASS("Get the coda class", RCConstants.rcGetCodaClass),
-    /** Command to get run number .*/
-    GET_RUN_NUMBER("Get the run number", RCConstants.rcGetRunNumber),
-    /** Command to get run type. */
-    GET_RUN_TYPE("Get the run type", RCConstants.rcGetRunType),
-    /** Command to get run type. */
-    GET_SESSION("Get the session", RCConstants.rcGetSession);
+    GET_CODA_CLASS("Get the coda class", getCodaClass);
 
     /** Map of arguments contained in the message from run control (in payload). */
     private final HashMap<String, Object> args = new HashMap<String, Object>();

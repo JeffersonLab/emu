@@ -11,12 +11,15 @@
 package org.jlab.coda.emu;
 
 import org.jlab.coda.emu.support.codaComponent.CODAState;
+import static org.jlab.coda.emu.support.codaComponent.CODAState.*;
 import org.jlab.coda.emu.support.codaComponent.CODATransition;
+import org.jlab.coda.emu.support.codaComponent.EmuCommand;
 import org.jlab.coda.emu.support.codaComponent.StatedObject;
+import static org.jlab.coda.emu.support.codaComponent.EmuCommand.*;
 import org.jlab.coda.emu.support.configurer.Configurer;
 import org.jlab.coda.emu.support.configurer.DataNotFoundException;
 import org.jlab.coda.emu.support.control.CmdExecException;
-import org.jlab.coda.emu.support.control.Command;
+import org.jlab.coda.emu.support.control.RcCommand;
 import org.jlab.coda.emu.support.control.State;
 import org.jlab.coda.emu.support.logger.Logger;
 import org.jlab.coda.emu.support.transport.DataChannel;
@@ -60,7 +63,7 @@ public class EmuModuleFactory implements StatedObject {
     private EmuClassLoader classLoader;
 
     /** State of the emu. */
-    private State state = CODAState.UNCONFIGURED;
+    private State state = UNCONFIGURED;
 
     /** Object which creates and manages transport (data movement) objects. */
     private final DataTransportFactory transportFactory;
@@ -108,22 +111,24 @@ public class EmuModuleFactory implements StatedObject {
      * This method executes commands given to it.
      *
      * @param cmd of type Command
-     * @see EmuModule#execute(Command)
+     * @see EmuModule#execute(RcCommand)
      */
     @SuppressWarnings({"ConstantConditions"})
-    public void execute(Command cmd) throws CmdExecException {
+    public void execute(RcCommand cmd) throws CmdExecException {
 
-        logger.info("EmuModuleFactory.execute : " + cmd);
+        EmuCommand emuCmd = cmd.getEmuCommand();
+
+        logger.info("EmuModuleFactory.execute : " + emuCmd);
 
         // CONFIGURE command does not involve components and is handled directly by the EMU ...
-        if (state != CODAState.ERROR && cmd.equals(CODATransition.CONFIGURE)) {
+        if (state != ERROR && emuCmd == CONFIGURE) {
             // If we got this far configure succeeded.
-            state = CODAState.CONFIGURED;
+            state = CONFIGURED;
             return;
         }
 
         // DOWNLOAD command does non-run-specific initialization that involves components/modules ...
-        if (cmd.equals(CODATransition.DOWNLOAD)) {
+        if (emuCmd == DOWNLOAD) {
 
             try {
                 // There are no modules loaded so we need to load some
@@ -242,14 +247,14 @@ System.out.println("Put (" + a.getNodeName() + "," + a.getNodeValue() + ") into 
 
             } catch (Exception e) {
                 e.printStackTrace();
-                CODAState.ERROR.getCauses().add(e);
-                state = CODAState.ERROR;
+                ERROR.getCauses().add(e);
+                state = ERROR;
                 throw new CmdExecException();
             }
         }
 
         // PRESTART command does run-specific initialization ...
-        else if (cmd.equals(CODATransition.PRESTART)) {
+        else if (emuCmd == PRESTART) {
 
             // Pass prestart to transport objects first
             transportFactory.execute(cmd);
@@ -341,8 +346,8 @@ System.out.println("Put (" + a.getNodeName() + "," + a.getNodeValue() + ") into 
             } catch (Exception e) {
                 logger.error("EmuModuleFactory.execute() : threw " + e.getMessage());
                 e.printStackTrace();
-                CODAState.ERROR.getCauses().add(e);
-                state = CODAState.ERROR;
+                ERROR.getCauses().add(e);
+                state = ERROR;
                 throw new CmdExecException();
             }
         }
@@ -361,14 +366,14 @@ System.out.println("Put (" + a.getNodeName() + "," + a.getNodeValue() + ") into 
         }
         
         // RESET command
-        if (cmd.equals(CODATransition.RESET)) {
+        if (emuCmd == RESET) {
             logger.info("EmuModuleFactory.execute : RESET");
-            state = CODAState.CONFIGURED;
-            CODAState.ERROR.getCauses().clear();
+            state = CONFIGURED;
+            ERROR.getCauses().clear();
             return;
         }
 
-        if (cmd.success() != null && state != CODAState.ERROR) state = cmd.success();
+        if (cmd.success() != null && state != ERROR) state = cmd.success();
 
     }
 
@@ -459,7 +464,7 @@ System.out.println("Put (" + a.getNodeName() + "," + a.getNodeValue() + ") into 
      */
     public State state() {
 
-        if (state == CODAState.ERROR) {
+        if (state == ERROR) {
             return state;
         }
 
@@ -467,14 +472,14 @@ System.out.println("Put (" + a.getNodeName() + "," + a.getNodeValue() + ") into 
 
         synchronized(modules) {
             for (StatedObject module : modules) {
-                if (module.state() == CODAState.ERROR) {
-                    state = CODAState.ERROR;
+                if (module.state() == ERROR) {
+                    state = ERROR;
                 }
             }
         }
 
-        if (transportFactory.state() == CODAState.ERROR) {
-            state = CODAState.ERROR;
+        if (transportFactory.state() == ERROR) {
+            state = ERROR;
         }
 
         return state;
@@ -500,7 +505,7 @@ System.out.println("Put (" + a.getNodeName() + "," + a.getNodeValue() + ") into 
 
     /** This method sets the emu state to ERROR. */
     public void ERROR() {
-        state = CODAState.ERROR;
+        state = ERROR;
     }
 
 }

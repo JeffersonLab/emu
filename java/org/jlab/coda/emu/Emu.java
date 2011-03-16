@@ -20,6 +20,8 @@ import org.jlab.coda.emu.support.configurer.Configurer;
 import org.jlab.coda.emu.support.configurer.DataNotFoundException;
 import org.jlab.coda.emu.support.control.CmdExecException;
 import org.jlab.coda.emu.support.control.Command;
+import org.jlab.coda.emu.support.control.RcCommand;
+import static org.jlab.coda.emu.support.codaComponent.EmuCommand.*;
 import org.jlab.coda.emu.support.control.State;
 import org.jlab.coda.emu.support.logger.Logger;
 import org.jlab.coda.emu.support.messaging.CMSGPortal;
@@ -30,6 +32,7 @@ import org.w3c.dom.Node;
 
 import java.io.File;
 import java.net.InetAddress;
+import java.util.EnumSet;
 import java.util.Vector;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
@@ -71,7 +74,7 @@ public class Emu implements CODAComponent {
      * Commands from cMsg are converted into objects of
      * class Command that are then posted in this mailbox queue.
      */
-    private final LinkedBlockingQueue<Command> mailbox;
+    private final LinkedBlockingQueue<RcCommand> mailbox;
 
     /**
      * LoadedConfig is the XML document loaded when the configure command is executed.
@@ -155,7 +158,7 @@ public class Emu implements CODAComponent {
     }
 
     /** {@inheritDoc} */
-    public void postCommand(Command cmd) throws InterruptedException {
+    public void postCommand(RcCommand cmd) throws InterruptedException {
         mailbox.put(cmd);
     }
 
@@ -450,7 +453,7 @@ System.out.println("STATUS REPORTING THREAD: DONE xxx");
         }
 
         // Define place to put incoming commands
-        mailbox = new LinkedBlockingQueue<Command>();
+        mailbox = new LinkedBlockingQueue<RcCommand>();
 
         // Put this (which is a CODAComponent and therefore Runnable)
         // into a thread group and keep track of this object's thread.
@@ -535,7 +538,7 @@ System.out.println("STATUS REPORTING THREAD: DONE xxx");
 
             try {
                 // do NOT block forever here
-                Command cmd = mailbox.poll(1, TimeUnit.SECONDS);
+                RcCommand cmd = mailbox.poll(1, TimeUnit.SECONDS);
 
                 if (!Thread.interrupted()) {
                     if (cmd != null) {
@@ -555,15 +558,25 @@ System.out.println("STATUS REPORTING THREAD: DONE xxx");
                     state = moduleFactory.state();
 
                     if ((state != null) && (state != oldState)) {
+System.out.println("Emu: state changed to " + state.name());
                         // Allows all transitions given by state.allowed().
                         // The "allow" method should be static, but is simpler to
                         // just pick a particular enum (in the case, GO)
                         // and use that to allow various transitions.
-                        CODATransition.GO.allow(state.allowed());
+                        EnumSet<CODATransition> eSet = state.allowed();
+                        // Enable/disable transition GUI buttons depending on
+                        // which transitions are allowed out of this state.
+                   //     CODATransition.GO.allow(eSet);  // TODO enable/disable GUI buttons
 
                         // enable/disable GUI buttons according to our current state
                         if (debugGUI != null) {
-                            debugGUI.getToolBar().update();
+                            int i=0;
+                            String[] names = new String[eSet.size()];
+                            for (CODATransition tran : eSet) {
+System.out.println("Emu: enable " + tran.name());
+                                names[i++] = tran.name();
+                            }
+                            debugGUI.getToolBar().enableButtons(names);
                         }
                         
                         logger.info("State Change to : " + state.toString());
@@ -587,6 +600,9 @@ System.out.println("ERROR in setting value in local config !!!");
                         }
                         oldState = state;
                     }
+                    else {
+                        System.out.println("Emu: state did NOT change, still in " + state.name());
+                    }
                 }
 
             } catch (InterruptedException e) {
@@ -606,12 +622,14 @@ System.out.println("ERROR in setting value in local config !!!");
      * This method takes a Command object and attempts to execute it.
      *
      * @param cmd of type Command
-     * @see EmuModule#execute(Command)
+     * @see EmuModule#execute(RcCommand)
      */
-    synchronized void execute(Command cmd) {
+    synchronized void execute(RcCommand cmd) {
 System.out.println("EXECUTING cmd = " + cmd.name());
 
-        if (cmd.equals(SessionControl.START_REPORTING)) {
+        EmuCommand emuCmd = cmd.getEmuCommand();
+
+        if (emuCmd == START_REPORTING) {
             statusReportingOn = true;
             // we are done so clean the cmd (necessary since this command object is static & is reused)
             cmd.clearArgs();
@@ -619,13 +637,13 @@ System.out.println("EXECUTING cmd = " + cmd.name());
             // the EMU subcomponents, so return immediately.
             return;
         }
-        else if (cmd.equals(SessionControl.STOP_REPORTING)) {
+        else if (emuCmd == STOP_REPORTING) {
             statusReportingOn = false;
             cmd.clearArgs();
             return;
         }
         // Run Control tells us our run number
-        else if (cmd.equals(SessionControl.SET_RUN_NUMBER)) {
+        else if (emuCmd == SET_RUN_NUMBER) {
             // get the new run number and store it
             try {
                 cMsgPayloadItem item = (cMsgPayloadItem) cmd.getArg("runNumber");
@@ -638,23 +656,22 @@ System.out.println("EXECUTING cmd = " + cmd.name());
             return;
         }
         // Send back our state
-        else if (cmd.equals(InfoControl.GET_STATE)) {
+        else if (emuCmd == GET_STATE) {
 System.out.println("     Info else if for GET_STATE:");
             if ( (cmsgPortal.getServer() != null) &&
                  (cmsgPortal.getServer().isConnected())) {
-System.out.println("       cmsg portal is valid");
 
                 cMsgMessage msg = new cMsgMessage();
                 msg.setSubject(name);
                 msg.setType(RCConstants.rcGetStateResponse);
                 String state = moduleFactory.state().name().toLowerCase();
-System.out.println("       send text field = " + state);
+System.out.println("     send STATE text field = " + state);
                 msg.setText(state);  //TODO:correct ??
 
                 try {
-System.out.print("       will send cmsg msg ... ");
+System.out.print("     will send cmsg msg ... ");
                     cmsgPortal.getServer().send(msg);
-System.out.println("       sent cmsg msg");
+System.out.println("sent cmsg msg");
                 }
                 catch (cMsgException e) {
                     e.printStackTrace();
@@ -665,7 +682,7 @@ System.out.println("       sent cmsg msg");
             return;
         }
         // Send back our CODA class
-        else if (cmd.equals(InfoControl.GET_CODA_CLASS)) {
+        else if (emuCmd == GET_CODA_CLASS) {
             if ( (cmsgPortal.getServer() != null) &&
                  (cmsgPortal.getServer().isConnected())) {
 
@@ -686,13 +703,13 @@ System.out.println("       sent cmsg msg");
             return;
         }
         // Send back our object type
-        else if (cmd.equals(InfoControl.GET_OBJECT_TYPE)) {
+        else if (emuCmd == GET_OBJECT_TYPE) {
             if ( (cmsgPortal.getServer() != null) &&
                  (cmsgPortal.getServer().isConnected())) {
 
                 cMsgMessage msg = new cMsgMessage();
                 msg.setSubject(name);
-                msg.setType(RCConstants.rcGetObjectType);
+                msg.setType(RCConstants.getObjectType);
                 msg.setText("coda3");  // TODO : object type set Where??
 
                 try {
@@ -707,7 +724,7 @@ System.out.println("       sent cmsg msg");
             return;
         }
         // Send back our state    // TODO: is this obsolete??
-        else if (cmd.equals(RunControl.GET_STATE)) {
+        else if (emuCmd == GET_STATE) {
             if ( (cmsgPortal.getServer() != null) &&
                  (cmsgPortal.getServer().isConnected())) {
 
@@ -734,7 +751,7 @@ System.out.println("       sent cmsg msg");
         // When we are told to CONFIGURE, the EMU handles this even though
         // this command is still passed on down to the modules. Read or
         // re-read the config file and update debug GUI.
-        if (cmd.equals(CODATransition.CONFIGURE)) {
+        if (emuCmd == CONFIGURE) {
 
             // save a reference to any previously used config
             Document oldConfig = loadedConfig;
@@ -790,7 +807,7 @@ System.out.println("       sent cmsg msg");
         // except to set its state to "CODAState.CONFIGURED".
         try {
             moduleFactory.execute(cmd);
-            logger.info("command " + cmd + " executed, state " + cmd.success());
+            logger.info("command " + emuCmd + " executed, state " + cmd.success());
         } catch (CmdExecException e) {
             CODAState.ERROR.getCauses().add(e);
             moduleFactory.ERROR();
@@ -798,10 +815,10 @@ System.out.println("       sent cmsg msg");
 
         // If given the "reset" command, do that after the modules have reset.
         // Go back to "configured" state
-        if (cmd.equals(CODATransition.RESET)) {
+        if (emuCmd == RESET) {
         }
         // If given the "exit" command, do that after the modules have exited
-        else if (cmd.equals(RunControl.EXIT)) {
+        else if (emuCmd == EXIT) {
             quit();
         }
 

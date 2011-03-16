@@ -11,6 +11,8 @@
 
 package org.jlab.coda.emu.support.transport;
 
+import org.jlab.coda.emu.support.codaComponent.EmuCommand;
+import org.jlab.coda.emu.support.control.RcCommand;
 import org.jlab.coda.et.*;
 import org.jlab.coda.et.system.SystemConfig;
 import org.jlab.coda.et.exception.EtException;
@@ -18,8 +20,8 @@ import org.jlab.coda.emu.Emu;
 import org.jlab.coda.emu.support.configurer.DataNotFoundException;
 import org.jlab.coda.emu.support.codaComponent.CODAState;
 import org.jlab.coda.emu.support.codaComponent.CODATransition;
+import static org.jlab.coda.emu.support.codaComponent.EmuCommand.*;
 import org.jlab.coda.emu.support.logger.Logger;
-import org.jlab.coda.emu.support.control.Command;
 
 import java.util.Map;
 import java.util.Collection;
@@ -309,10 +311,11 @@ System.out.println("Created channel " + name + ", channels size = " + channels()
         return c;
     }
 
-    public void execute(Command cmd) {
+    public void execute(RcCommand cmd) {
 logger.debug("    DataTransportImplEt.execute : " + cmd);
+        EmuCommand emuCmd = cmd.getEmuCommand();
 
-        if (cmd.equals(CODATransition.DOWNLOAD)) {
+        if (emuCmd == DOWNLOAD) {
             createdET = false;
             boolean existingET = false;
             boolean incompatibleET = false;
@@ -406,7 +409,7 @@ System.out.println("Create ET system, " + openConfig.getEtName() + " with cmd \n
                 }
             }
         }
-        else if (cmd.equals(CODATransition.PRESTART)) {
+        else if (emuCmd == PRESTART) {
 
             try {
                 logger.debug("    DataTransportImplEt.execute PRESTART: ET open : " + name() + " " + myInstance);
@@ -420,7 +423,7 @@ System.out.println("Create ET system, " + openConfig.getEtName() + " with cmd \n
             state = cmd.success();
             return;
         }
-        else if (cmd.equals(CODATransition.GO)) {
+        else if (emuCmd == GO) {
             if (!channels().isEmpty()) {
                 synchronized (channels()) {
                     for (DataChannel c : channels().values()) {
@@ -429,7 +432,7 @@ System.out.println("Create ET system, " + openConfig.getEtName() + " with cmd \n
                 }
             }
         }
-        else if (cmd.equals(CODATransition.PAUSE)) {
+        else if (emuCmd == PAUSE) {
             // have input channels stop reading events
 
             if (!channels().isEmpty()) {
@@ -440,7 +443,7 @@ System.out.println("Create ET system, " + openConfig.getEtName() + " with cmd \n
                 }
             }
         }
-        else if ((cmd.equals(CODATransition.END)) || (cmd.equals(CODATransition.RESET))) {
+        else if ((emuCmd == END) || (emuCmd == RESET)) {
             // TransportFactory already calls close on each channel for these transitions
             state = cmd.success();
             return;

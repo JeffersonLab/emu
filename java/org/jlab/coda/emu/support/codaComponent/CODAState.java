@@ -12,7 +12,9 @@
 package org.jlab.coda.emu.support.codaComponent;
 
 import org.jlab.coda.emu.support.control.State;
+import static org.jlab.coda.emu.support.codaComponent.CODATransition.*;
 import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.Vector;
 
 /**
@@ -67,24 +69,20 @@ import java.util.Vector;
 public enum CODAState implements State {
 
     /** UNCONFIGURED state. */
-    UNCONFIGURED("codaComponent is not configured", EnumSet.of(CODATransition.CONFIGURE)),
+    UNCONFIGURED("codaComponent is not configured", EnumSet.of(CONFIGURE)),
     
     /** CONFIGURED state. */
-    CONFIGURED("configuration is loaded", EnumSet.of(CODATransition.CONFIGURE,
-                                                     CODATransition.DOWNLOAD,
-                                                     CODATransition.RESET)),
+    CONFIGURED("configuration is loaded", EnumSet.of(CONFIGURE, DOWNLOAD, RESET)),
+
     /** DOWNLOADED state (same as ENDED). */
-    DOWNLOADED("external modules loaded", EnumSet.of(CODATransition.DOWNLOAD,
-                                                     CODATransition.PRESTART,
-                                                     CODATransition.RESET)),
+    DOWNLOADED("external modules loaded", EnumSet.of(DOWNLOAD, PRESTART, RESET)),
+
     /** PRESTARTED state (same as PAUSED). */
-    PRESTARTED("modules initialized and ready to go", EnumSet.of(CODATransition.GO,
-                                                                 CODATransition.END,
-                                                                 CODATransition.RESET)),
+    PRESTARTED("modules initialized and ready to go", EnumSet.of(GO, END, RESET)),
+
     /** ACTIVE state. */
-    ACTIVE("taking data", EnumSet.of(CODATransition.PAUSE,
-                                     CODATransition.END,
-                                     CODATransition.RESET)),
+    ACTIVE("taking data", EnumSet.of(PAUSE, END, RESET)),
+
     /** ERROR state. */
     ERROR("an error has occured", EnumSet.noneOf(CODATransition.class));
 
@@ -96,7 +94,28 @@ public enum CODAState implements State {
     private final Vector<Throwable> causes = new Vector<Throwable>();
 
     /** Set of all transitions allowed out of this state. */
-    private final EnumSet allowed;
+    private final EnumSet<CODATransition> allowed;
+
+
+    /** Map of CODAState name to an enum. */
+    private final static HashMap<String, CODAState> commandTypeToEnumMap = new HashMap<String, CODAState>();
+
+
+    // Fill static hashmap after all enum objects created.
+    static {
+        for (CODAState item : CODAState.values()) {
+            commandTypeToEnumMap.put(item.name(), item);
+        }
+    }
+
+    /**
+     * Map from CODAState name to a particular enum.
+     * @param s name of CODAState.
+     * @return associated enum, else null.
+     */
+    public static CODAState get(String s) {
+        return commandTypeToEnumMap.get(s);
+    }
 
 
     /**
@@ -105,10 +124,10 @@ public enum CODAState implements State {
      * @param description description of this state
      * @param allowed     set of transitions allowed out of this state
      */
-    CODAState(String description, EnumSet allowed) {
+    CODAState(String description, EnumSet<CODATransition> allowed) {
+System.out.println("CODAState creating " + name());
         this.description = description;
         this.allowed = allowed;
-
     }
 
     /**
@@ -134,7 +153,7 @@ public enum CODAState implements State {
      * Get the set of transitions allowed out of this state.
      * @return set of transitions allowed out of this state
      */
-    public EnumSet allowed() {
+    public EnumSet<CODATransition> allowed() {
         return allowed;
     }
 

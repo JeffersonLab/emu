@@ -11,6 +11,8 @@
 
 package org.jlab.coda.emu.support.control;
 
+import org.jlab.coda.cMsg.cMsgMessage;
+
 import java.util.EnumSet;
 
 /**
@@ -48,33 +50,6 @@ public interface Command {
      * @param cmds set of commands to be enabled
      */
     public void allow(EnumSet cmds);
-
-    /**
-     * Get the object (actually a cMsgPayloadItem) associated with this tag (unique mapping).
-     *
-     * @param tag name
-     * @return Object object associated with tag
-     */
-    public Object getArg(String tag);
-
-    /**
-     * Keep a set of tags each associated with a cMsgPayloadItem
-     * (although Object is used instead to avoid strict dependence
-     * on cMsg).
-     *
-     * @param tag   of type String (name of cMsgPayloadItem)
-     * @param value of type Object (actually cMsgPayloadItem)
-     */
-    public void setArg(String tag, Object value);
-
-    /**
-     * Does this command have any associated objects (args)?
-     * @return boolean
-     */
-    public boolean hasArgs();
-
-    /** Clear all args. */
-    public void clearArgs();
 
     /**
      * Get the resulting State (enum object) if command suceeded.

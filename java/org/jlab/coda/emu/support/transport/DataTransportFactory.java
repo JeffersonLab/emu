@@ -14,12 +14,14 @@ package org.jlab.coda.emu.support.transport;
 import org.jlab.coda.emu.Emu;
 import org.jlab.coda.emu.EmuClassLoader;
 import org.jlab.coda.emu.support.codaComponent.CODAState;
-import org.jlab.coda.emu.support.codaComponent.CODATransition;
+import static org.jlab.coda.emu.support.codaComponent.CODAState.*;
+import org.jlab.coda.emu.support.codaComponent.EmuCommand;
 import org.jlab.coda.emu.support.codaComponent.StatedObject;
+import static org.jlab.coda.emu.support.codaComponent.EmuCommand.*;
 import org.jlab.coda.emu.support.configurer.Configurer;
 import org.jlab.coda.emu.support.configurer.DataNotFoundException;
 import org.jlab.coda.emu.support.control.CmdExecException;
-import org.jlab.coda.emu.support.control.Command;
+import org.jlab.coda.emu.support.control.RcCommand;
 import org.jlab.coda.emu.support.control.State;
 import org.jlab.coda.emu.support.logger.Logger;
 import org.w3c.dom.NamedNodeMap;
@@ -52,7 +54,7 @@ public class DataTransportFactory implements StatedObject {
     private final String name = "Transport factory";
 
     /** Field state */
-    private State state = CODAState.UNCONFIGURED;
+    private State state = UNCONFIGURED;
 
     private Logger logger;
 
@@ -121,7 +123,7 @@ public class DataTransportFactory implements StatedObject {
 
     /** {@inheritDoc} */
     public State state() {
-        if (state == CODAState.ERROR) return state;
+        if (state == ERROR) return state;
 
         if (transports.size() == 0) return state;
 
@@ -132,8 +134,8 @@ public class DataTransportFactory implements StatedObject {
             //System.out.println("check state : " + transport.name() + " " + transport.state());
             s = transport.state();
 
-            if (s == CODAState.ERROR) {
-                state = CODAState.ERROR;
+            if (s == ERROR) {
+                state = ERROR;
             }
         }
 
@@ -149,15 +151,16 @@ public class DataTransportFactory implements StatedObject {
      *
      * @throws org.jlab.coda.emu.support.control.CmdExecException
      *          if command is invalid or fails
-     * @see org.jlab.coda.emu.EmuModule#execute(Command)
+     * @see org.jlab.coda.emu.EmuModule#execute(RcCommand)
      */
     @SuppressWarnings({"ConstantConditions", "ThrowableInstanceNeverThrown"})
-    public void execute(Command cmd) throws CmdExecException {
-        logger.info("  DataTransportFactory.execute : " + cmd);
-
+    public void execute(RcCommand cmd) throws CmdExecException {
         // DOWNLOAD loads transport implementation classes, creates objects from them and
         // stores them along with a transport fifo implementation object.
-        if (cmd.equals(CODATransition.DOWNLOAD)) {
+        EmuCommand emuCmd = cmd.getEmuCommand();
+        logger.info("  DataTransportFactory.execute : " + emuCmd);
+
+        if (emuCmd == DOWNLOAD) {
 
             try {
                 Node m = Configurer.getNode(emu.configuration(), "component/transports");
@@ -215,7 +218,7 @@ public class DataTransportFactory implements StatedObject {
                         // get the name used to access transport
                         String transportName = attrib.get("name");
                         if (transportName == null) throw new DataNotFoundException("transport name attribute missing in config");
-                        logger.info("  DataTransportFactory.execute DOWN : creating " + transportName);
+logger.info("  DataTransportFactory.execute DOWN : creating " + transportName);
 
                         // Generate a name for the implementation of this transport
                         // from the name passed from the configuration.
@@ -227,6 +230,7 @@ public class DataTransportFactory implements StatedObject {
                         if (transportClass.equals("Fifo")) {
 logger.warn("  DataTransportFactory.execute DOWN : Emu does not need to specify FIFOs in transport section of config");
                             state = cmd.success();
+System.out.println("  DataTransportFactory.execute: final state = " + state);
                             continue;
                         }
 
@@ -245,20 +249,21 @@ logger.info("  DataTransportFactory.execute DOWN : loaded class = " + c);
                             logger.info("  DataTransportFactory.execute DOWN : created " + transportName + " of protocol " + transportClass);
 
                         } catch (Exception e) {
-                            state = CODAState.ERROR;
-                            CODAState.ERROR.getCauses().add(e);
+                            state = ERROR;
+                            ERROR.getCauses().add(e);
                             throw new CmdExecException("cannot load transport class", e);
                         }
                     } // if node is element
                     state = cmd.success();
+System.out.println("  DataTransportFactory.execute: final state = " + state);
                 } // for each child node
             }
             catch (DataNotFoundException e) {
                 // If we're here, the transport section is missing from the config file.
                 // This is permissible if and only if Fifo is the only transport used.
 
-                // state = CODAState.ERROR;
-                // CODAState.ERROR.getCauses().add(e);
+                // state = ERROR;
+                // ERROR.getCauses().add(e);
                 // throw new CmdExecException("transport section missing/incomplete from config", e);
 logger.warn("  DataTransportFactory.execute DOWN : transport section missing/incomplete from config");
             }
@@ -267,12 +272,12 @@ logger.warn("  DataTransportFactory.execute DOWN : transport section missing/inc
 
         // Pass all commands down to all transport objects: DOWNLOAD, PRESTART, GO, PAUSE, RESET, END
         for (DataTransport transport : transports) {
-            logger.debug("  DataTransportFactory.execute : pass " + cmd + " down to " + transport.name());
+            logger.debug("  DataTransportFactory.execute : pass " + emuCmd + " down to " + transport.name());
             transport.execute(cmd);
         }
 
         // close channels for END transition
-        if (cmd.equals(CODATransition.END)) {
+        if (emuCmd == END) {
             for (DataTransport t : transports) {
                 logger.debug("  DataTransportFactory.execute END : " + t.name() + " close");
                 // close only the channels as transport object survives
@@ -282,7 +287,7 @@ logger.warn("  DataTransportFactory.execute DOWN : transport section missing/inc
         }
 
         // close transport objects for RESET transition
-        if (cmd.equals(CODATransition.RESET)) {
+        if (emuCmd == RESET) {
             for (DataTransport t : transports) {
                 logger.debug("  DataTransportFactory.execute RESET : " + t.name() + " close");
                 // close the whole transport object as it will disappear
@@ -305,15 +310,17 @@ logger.warn("  DataTransportFactory.execute DOWN : transport section missing/inc
      *
      * @throws org.jlab.coda.emu.support.control.CmdExecException
      *          if command is invalid or fails
-     * @see org.jlab.coda.emu.EmuModule#execute(Command)
+     * @see org.jlab.coda.emu.EmuModule#execute(RcCommand)
      */
     @SuppressWarnings({"ConstantConditions", "ThrowableInstanceNeverThrown"})
-    public void execute_EmuLoader(Command cmd) throws CmdExecException {
+    public void execute_EmuLoader(RcCommand cmd) throws CmdExecException {
         logger.info("DataTransportFactory.execute : " + cmd);
+
+        EmuCommand emuCmd = cmd.getEmuCommand();
 
         // DOWNLOAD loads transport implementation classes, creates objects from them and
         // stores them along with a transport fifo implementation object.
-        if (cmd.equals(CODATransition.DOWNLOAD)) {
+        if (emuCmd == DOWNLOAD) {
 
             try {
                 Node m = Configurer.getNode(emu.configuration(), "component/transports");
@@ -409,8 +416,8 @@ logger.info("&*&*&* Transport loaded class = " + c);
                             logger.info("DataTransportFactory created : " + transportName + " class " + transportClass);
 
                         } catch (Exception e) {
-                            state = CODAState.ERROR;
-                            CODAState.ERROR.getCauses().add(e);
+                            state = ERROR;
+                            ERROR.getCauses().add(e);
                             throw new CmdExecException("cannot load transport class", e);
                         }
                     } // if node is element
@@ -418,8 +425,8 @@ logger.info("&*&*&* Transport loaded class = " + c);
                 } // for each child node
             }
             catch (DataNotFoundException e) {
-                state = CODAState.ERROR;
-                CODAState.ERROR.getCauses().add(e);
+                state = ERROR;
+                ERROR.getCauses().add(e);
                 throw new CmdExecException("transport section missing/incomplete from config", e);
             }
 
@@ -430,8 +437,8 @@ logger.info("&*&*&* Transport loaded class = " + c);
                 attrs.put("server", "false");
                 transports.add(new DataTransportImplFifo("Fifo", attrs, logger));
             } catch (DataNotFoundException e) {
-                state = CODAState.ERROR;
-                CODAState.ERROR.getCauses().add(e);
+                state = ERROR;
+                ERROR.getCauses().add(e);
                 throw new CmdExecException(e);
             }
 
@@ -446,7 +453,7 @@ logger.info("&*&*&* Transport loaded class = " + c);
 
 
         // RESET & END transitions
-        if (cmd.equals(CODATransition.RESET) || cmd.equals(CODATransition.END)) {
+        if (emuCmd == RESET || emuCmd == END) {
             for (DataTransport t : transports) {
                 t.close();
             }

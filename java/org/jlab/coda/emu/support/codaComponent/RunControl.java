@@ -30,24 +30,14 @@ import java.util.HashMap;
 
 public enum RunControl implements Command {
 
-    /** Command to set state. */
-    SET_STATE("set state", null, RCConstants.setState),
-    /** Command to get state. */
-    GET_STATE("get state", null, RCConstants.getState),
-    /** Command to set session. */
-    SET_SESSION("set session", null, RCConstants.setSession),
-    /** Command to get session. */
-    GET_SESSION("get session", null, RCConstants.getSession),
-    /** Command to release session. */
-    RELEASE_SESSION("release session", null, RCConstants.releaseSession),
-    /** Command to set interval. */
-    SET_INTERVAL("set interval", null, RCConstants.setInterval),
-    /** Command to start. */
-    START("start", null, RCConstants.start),
-    /** Command to stop. */
-    STOP("stop", null, RCConstants.stop),
-    /** Command to exit. */
-    EXIT("shutdown the codaComponent", null, RCConstants.exit);
+    /** Command to set run number. */
+    SET_RUN_NUMBER("Set the run number", null, RCConstants.setRunNumber),
+    /** Command to get run number .*/
+    GET_RUN_NUMBER("Get the run number", null, RCConstants.getRunNumber),
+    /** Command to get run type. */
+    SET_RUN_TYPE("Set the run type", null, RCConstants.setRunType),
+    /** Command to get run type. */
+    GET_RUN_TYPE("Get the run type", null, RCConstants.getRunType);
 
     /** Description of this command. */
     private final String description;

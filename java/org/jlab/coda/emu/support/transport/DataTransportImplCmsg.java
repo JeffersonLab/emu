@@ -13,11 +13,13 @@ package org.jlab.coda.emu.support.transport;
 
 import org.jlab.coda.cMsg.*;
 import org.jlab.coda.emu.Emu;
+import org.jlab.coda.emu.support.codaComponent.EmuCommand;
 import org.jlab.coda.emu.support.configurer.DataNotFoundException;
 import org.jlab.coda.emu.support.codaComponent.CODAState;
 import org.jlab.coda.emu.support.codaComponent.CODATransition;
+import static org.jlab.coda.emu.support.codaComponent.EmuCommand.*;
+import org.jlab.coda.emu.support.control.RcCommand;
 import org.jlab.coda.emu.support.logger.Logger;
-import org.jlab.coda.emu.support.control.Command;
 
 import java.util.Map;
 
@@ -74,10 +76,11 @@ public class DataTransportImplCmsg extends DataTransportCore implements DataTran
         return c;
     }
 
-    public void execute(Command cmd) {
-logger.debug("    DataTransportImplCmsg.execute : " + cmd);
+    public void execute(RcCommand cmd) {
+        EmuCommand emuCmd = cmd.getEmuCommand();
+        logger.debug("    DataTransportImplCmsg.execute : " + emuCmd);
 
-        if (cmd.equals(CODATransition.PRESTART)) {
+        if (emuCmd == PRESTART) {
 
             try {
                 logger.debug("    DataTransportImplCmsg.execute PRESTART: cmsg connect : " + name() + " " + myInstance);
@@ -92,7 +95,7 @@ logger.debug("    DataTransportImplCmsg.execute : " + cmd);
             state = cmd.success();
             return;
         }
-        else if (cmd.equals(CODATransition.GO)) {
+        else if (emuCmd == GO) {
             cmsgConnection.start(); // allow message flow to callbacks
 
             if (!channels().isEmpty()) {
@@ -103,7 +106,7 @@ logger.debug("    DataTransportImplCmsg.execute : " + cmd);
                 }
             }
         }
-        else if (cmd.equals(CODATransition.PAUSE)) {
+        else if (emuCmd == PAUSE) {
             cmsgConnection.stop(); // stop message flow to callbacks
 
             if (!channels().isEmpty()) {
@@ -114,7 +117,7 @@ logger.debug("    DataTransportImplCmsg.execute : " + cmd);
                 }
             }
         }
-        else if ((cmd.equals(CODATransition.END)) || (cmd.equals(CODATransition.RESET))) {
+        else if ((emuCmd == END) || (emuCmd == RESET)) {
 
             try {
                 logger.debug("    DataTransportImplCmsg.execute END/RESET: cmsg disconnect : " + name() + " " + myInstance);
@@ -129,6 +132,7 @@ logger.debug("    DataTransportImplCmsg.execute : " + cmd);
 
         // We don't implement other commands so assume success.
         if (state != CODAState.ERROR) state = cmd.success();
+System.out.println("    DataTransportImplCmsg.execute: final state = " + state);
 
     }
 

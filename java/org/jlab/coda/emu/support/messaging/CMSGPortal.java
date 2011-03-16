@@ -111,21 +111,23 @@ System.out.println("\n CMSGPortal using UDL = " + UDL + "\n");
                         System.out.println("CMSGPortal CONNECTED");
                         // allow receipt of messages
                         server.start();
+                        // only need one callback
+                        RcCommandHandler handler = new RcCommandHandler(CMSGPortal.this);
                         // install callback for download, prestart, go, etc
     System.out.println("CMSGPortal subscribe to sub = *, type = " + RCConstants.transitionCommandType);
-                        server.subscribe("*", RCConstants.transitionCommandType, new RCTransitionHandler(CMSGPortal.this), null);
+                        server.subscribe("*", RCConstants.transitionCommandType, handler, null);
                         // install callback for reset, configure, start, stop, getsession, setsession, etc
     System.out.println("CMSGPortal subscribe to sub = *, type = " + RCConstants.runCommandType);
-                        server.subscribe("*", RCConstants.runCommandType, new RCControlHandler(CMSGPortal.this), null);
+                        server.subscribe("*", RCConstants.runCommandType, handler, null);
                         // install callback for set/get run number, set/get run type
     System.out.println("CMSGPortal subscribe to sub = *, type = " + RCConstants.sessionCommandType);
-                        server.subscribe("*", RCConstants.sessionCommandType, new RCSessionHandler(CMSGPortal.this), null);
+                        server.subscribe("*", RCConstants.sessionCommandType, handler, null);
                         // install callback for getting state, status, codaClass, & objectType
     System.out.println("CMSGPortal subscribe to sub = *, type = " + RCConstants.infoCommandType);
-                        server.subscribe("*", RCConstants.infoCommandType, new RCInfoHandler(CMSGPortal.this), null);
+                        server.subscribe("*", RCConstants.infoCommandType, handler, null);
                         // for future use
     System.out.println("CMSGPortal subscribe to sub = *, type = " + RCConstants.setOptionType);
-                        server.subscribe("*", RCConstants.setOptionType, new RCOptionHandler(CMSGPortal.this), null);
+                        server.subscribe("*", RCConstants.setOptionType, handler, null);
 
                         logger.info("cMSg server connected");
 

@@ -11,13 +11,16 @@
 
 package org.jlab.coda.emu.support.ui;
 
+import org.jlab.coda.emu.support.codaComponent.EmuCommand;
 import org.jlab.coda.emu.support.control.Command;
 import org.jlab.coda.emu.support.control.CommandAcceptor;
+import org.jlab.coda.emu.support.control.RcCommand;
 
 import javax.swing.*;
 import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
+import java.util.EnumSet;
 import java.util.HashMap;
 
 /** @author heyes */
@@ -29,7 +32,7 @@ public class SmartToolbar extends JToolBar {
     private static final long serialVersionUID = 7241838854981192095L;
 
     /** Field buttonHandlers */
-    private final HashMap<String, Command> buttonHandlers = new HashMap<String, Command>();
+    private final HashMap<String, RcCommand> buttonHandlers = new HashMap<String, RcCommand>();
 
     /** No-arg constructor. */
     public SmartToolbar() {
@@ -54,20 +57,95 @@ public class SmartToolbar extends JToolBar {
         super(name, orientation);
     }
 
+    public void enableButtons(String[] enableNames) {
+        Component[] comps =  this.getComponents();
+        for (Component comp : comps) {
+            JButton button = (JButton) comp;
+            button.setEnabled(false);
+System.out.println("SmartToolbar: disable " + button.getName());
+            for (String name : enableNames) {
+                if (button.getName().equals(name)) {
+                    button.setEnabled(true);
+System.out.println("SmartToolbar: enable " + name);
+                    break;
+                }
+            }
+        }
+
+    }
+
+    public void disableButtons(String[] names) {
+        Component[] comps =  this.getComponents();
+        for (Component comp : comps) {
+            JButton button = (JButton) comp;
+            for (String name : names) {
+                if (button.getName().equals(name)) {
+                    button.setEnabled(false);
+                    break;
+                }
+            }
+        }
+
+    }
+
+    /**
+     * Method configure ...
+     *
+     * @param target object that allows commands to be sent (eg Emu is a CodaComponent which is a CommandAcceptor)
+     * @param guiGroup gui group number of EmuCommands to configure
+     */
+    public void configure(CommandAcceptor target, int guiGroup) {
+        // get array of enum elements of Emu commands
+        //Object[] oarray = EmuCommand.class.getEnumConstants();
+        EnumSet<EmuCommand> emuCmdSet = EmuCommand.getGuiGroup(guiGroup);
+
+        try {
+            // for each enum item ...
+            //for (Object anOarray : oarray) {
+            for (EmuCommand emuCmd : emuCmdSet) {
+                RcCommand cmd = new RcCommand(emuCmd);
+                String name = cmd.name();
+
+                // put into a hashmap(key,val)
+                buttonHandlers.put(name, cmd);
+
+                // create a button (arg is text to be displayed)
+                JButton tbb = new JButton(name);
+
+                // bug bug: I think we need to add this for it to work (Carl)
+                tbb.setActionCommand(name);
+
+                // add listener to button
+                addButtonListener(target, tbb);
+
+                // boolean enabled = true. //TODO Later we run it through transition/state check
+                tbb.setEnabled(true);
+                tbb.setName(name);
+                this.add(tbb);
+            }
+
+        } catch (SecurityException e) {
+            e.printStackTrace();
+        } catch (IllegalArgumentException e) {
+            e.printStackTrace();
+        }
+    }
+
+    
     /**
      * Method configure ...
      *
      * @param target object that allows commands to be sent (eg Emu is a CodaComponent which is a CommandAcceptor)
      * @param c Class of the enum type
      */
-    public void configure(CommandAcceptor target, Class c) {
+    public void configureOrig(CommandAcceptor target, Class c) {
         // get array of enum elements or null if not enum type
         Object[] oarray = c.getEnumConstants();
 
         try {
             // for each enum item ...
             for (Object anOarray : oarray) {
-                Command cmd = (Command) anOarray;
+                RcCommand cmd = (RcCommand) anOarray;
                 String name = cmd.name();
 
                 // put into a hashmap(key,val)
@@ -83,7 +161,7 @@ public class SmartToolbar extends JToolBar {
                 addButtonListener(target, tbb);
 
                 // boolean enabled =
-                tbb.setEnabled(cmd.isEnabled());
+//                tbb.setEnabled(cmd.isEnabled());
                 tbb.setName(name);
                 this.add(tbb);
             }
@@ -95,7 +173,7 @@ public class SmartToolbar extends JToolBar {
         }
     }
 
-    
+
     /**
      * Set each button's enable status to be the
      * same as the enable status of its command.
@@ -105,8 +183,8 @@ public class SmartToolbar extends JToolBar {
 
         for (Component button : buttons) {
             String name = button.getName();
-            Command cmd = buttonHandlers.get(name);
-            button.setEnabled(cmd.isEnabled());
+            RcCommand cmd = buttonHandlers.get(name);
+//            button.setEnabled(cmd.isEnabled());  // TODO: get enabling right
         }
     }
 
@@ -125,7 +203,7 @@ public class SmartToolbar extends JToolBar {
             public void actionPerformed(ActionEvent e) {
                 // The name of the button must be the ActionEvent's command
                 // (which is also the key of the map).
-                Command cmd = buttonHandlers.get(e.getActionCommand());
+                RcCommand cmd = buttonHandlers.get(e.getActionCommand());
                 // We pressed a button. There can be no args.
                 cmd.clearArgs();
 

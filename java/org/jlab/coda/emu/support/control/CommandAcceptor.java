@@ -26,7 +26,7 @@ public interface CommandAcceptor {
      * @param cmd of type Command (eg. start transition, control run variables, control session)
      * @throws InterruptedException
      */
-    public void postCommand(Command cmd) throws InterruptedException;
+    public void postCommand(RcCommand cmd) throws InterruptedException;
 
     /**
      * Get the state of the CODA component.

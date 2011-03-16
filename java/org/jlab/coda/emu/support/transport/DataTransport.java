@@ -14,8 +14,8 @@ package org.jlab.coda.emu.support.transport;
 import org.jlab.coda.emu.Emu;
 import org.jlab.coda.emu.support.configurer.DataNotFoundException;
 import org.jlab.coda.emu.support.control.CmdExecException;
-import org.jlab.coda.emu.support.control.Command;
 import org.jlab.coda.emu.support.codaComponent.StatedObject;
+import org.jlab.coda.emu.support.control.RcCommand;
 import org.jlab.coda.jevio.EvioBank;
 
 import java.util.HashMap;
@@ -53,7 +53,7 @@ public interface DataTransport extends StatedObject {
      * @throws CmdExecException if exception processing command
      */
     @SuppressWarnings({"RedundantThrows"})
-    public void execute(Command cmd) throws CmdExecException;
+    public void execute(RcCommand cmd) throws CmdExecException;
 
     /**
      * This method sets an attribute.
