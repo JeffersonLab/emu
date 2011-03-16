@@ -33,7 +33,7 @@
                 The default is subject = name, type="*".
                 endian specifies the endianness of the bytes going over the output channel.
             -->
-            <inchannel  id="1" name="ROC1"      transp="cmsg1" subject="ROC1" type="a"/>
+            <inchannel  id="1" name="ROC1"      transp="cmsg1"/>
             <outchannel        name="BitBucket" transp="cmsg2" endian="big"/>
         </Eb1Module>
     </modules>
