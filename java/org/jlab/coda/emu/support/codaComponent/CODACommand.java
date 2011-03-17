@@ -90,13 +90,11 @@ public enum CODACommand {
     // session/setOption/
 
     /** Command to set run number. */
-    SET_FILE_PATH("Set config file path", setRunNumber, true, false, false, 2, null),
+    SET_FILE_PATH("Set config file path", setFilePath, true, false, false, 2, null),
     /** Command to get run number .*/
-    SET_FILE_PREFIX("Get config file prefix", getRunNumber, true, false, false, 2, null),
+    SET_FILE_PREFIX("Get config file prefix", setFilePrefix, true, false, false, 2, null),
     /** Command to set run type. */
-    SET_XML_FILE("Set xml config file name", setRunType, true, false, false, 2, null),
-    /** Command to get run type. */
-    SET_XML_STRING("Set xml config string", getRunType, true, false, false, 2, null);
+    SET_CONFIG_FILE("Set xml config file name", setConfigFile, true, false, false, 2, null);
 
 
     static enum InputType {
@@ -136,6 +134,7 @@ public enum CODACommand {
     static {
         for (CODACommand item : CODACommand.values()) {
             commandTypeToEnumMap.put(item.getCmdString(), item);
+System.out.println("map : " + item.getCmdString() + "  ->  " + item.name());
         }
     }
 

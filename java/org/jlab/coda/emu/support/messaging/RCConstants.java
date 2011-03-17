@@ -123,10 +123,8 @@ public class RCConstants {
     public static final String setFilePath   = setOption + "filePath";
     /** String used as type in message for the set-file-prefix command. */
     public static final String setFilePrefix = setOption + "filePrefix";
-    /** String used as type in message for the set-xml-file command. */
-    public static final String setXmlFile    = setOption + "xmlFile";
-    /** String used as type in message for the get-xml-string command. */
-    public static final String setXmlString  = setOption + "xmlString";
+    /** String used as type in message for the set-config-file command. */
+    public static final String setConfigFile    = setOption + "configFile";
 
     // response strings for coda/info/* commands
 
