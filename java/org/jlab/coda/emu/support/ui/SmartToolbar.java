@@ -150,8 +150,6 @@ public class SmartToolbar extends JToolBar {
                 // The name of the button must be the ActionEvent's command
                 // (which is also the key of the map).
                 RcCommand cmd = buttonHandlers.get(e.getActionCommand());
-                // We pressed a button. There can be no args.
-                cmd.clearArgs();
 
                 try {
                     // Execute the command associated with the given button.
