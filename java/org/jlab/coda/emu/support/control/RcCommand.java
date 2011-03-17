@@ -95,10 +95,6 @@ public class RcCommand {
         return !args.isEmpty();
     }
 
-    /** Clear all args. */
-    public void clearArgs() {
-        args.clear();
-    }
 
     /**
      * If this object is a transition command, this method
