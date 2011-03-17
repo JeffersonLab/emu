@@ -70,18 +70,18 @@ System.out.println("Received an invalid command");
             // us to attach all manner of mutable data to it. Thus we can now
             // store any extraneous data Run Control sends us and store them as
             // "args". We can also store GUI or emu-specific data.
-            Command rcCmd = new Command(emuCmd);
+            Command cmd = new Command(emuCmd);
 
             // set the args for this command
             Set<String> names = msg.getPayloadNames();
             for (String name : names) {
-                rcCmd.setArg(name, msg.getPayloadItem(name));
+                cmd.setArg(name, msg.getPayloadItem(name));
             }
 
             // Get the Emu object and have it post this new command
             // by putting it in a Q that is periodically checked by
             // the Emu's "run" (main thread) method.
-            cmsgPortal.comp.postCommand(rcCmd);
+            cmsgPortal.comp.postCommand(cmd);
 
         } catch (InterruptedException e) {
             e.printStackTrace();
