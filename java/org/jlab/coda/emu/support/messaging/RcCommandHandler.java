@@ -32,7 +32,7 @@ class RcCommandHandler extends GenericCallback implements cMsgCallbackInterface 
     private CMSGPortal cmsgPortal;
 
     /**
-     * Constructor RCTransitionHandler creates a new RCTransitionHandler instance.
+     * Constructor RcCommandHandler creates a new RcCommandHandler instance.
      *
      * @param cmsgPortal of type CMSGPortal
      */
