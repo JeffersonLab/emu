@@ -11,14 +11,17 @@
 
 package org.jlab.coda.emu.support.control;
 
+import org.jlab.coda.cMsg.cMsgMessage;
 import org.jlab.coda.emu.support.codaComponent.CODACommand;
 import org.jlab.coda.emu.support.codaComponent.CODATransition;
 
 import java.util.HashMap;
 
 /**
- * This class is used to wrap a static enum CODACommand object,
- * allowing storage of mutable, non-static data which will be
+ * This class represents a command given to an emu by CODA's Run
+ * Control. It is used to wrap a static enum CODACommand object
+ * (the command itself), also allowing storage of mutable, non-static
+ * data (arguments accompanying the command) which will be
  * discarded once the command is executed.
  *
  * @author timmer
@@ -26,24 +29,28 @@ import java.util.HashMap;
  */
 public class Command {
 
+    /**
+     * If this object wraps a transition command, this is
+     * the state the emu is in if the transition successful.
+     */
+    private State success;
 
-    String cmd;
+    /** Original message from Run Control containing command to be executed. */
+    private cMsgMessage msg;
 
-    CODACommand codaCommand;
+    /** CODACommand object to be wrapped by this class. */
+    private CODACommand codaCommand;
 
     /** Map of arguments contained in the message from run control (in payload). */
     private final HashMap<String, Object> args = new HashMap<String, Object>();
 
-    private State success = null;
 
 
+    /**
+     * Constructor.
+     * @param codaCommand CODACommand object to be wrapped by this class.
+     */
     public Command(CODACommand codaCommand) {
-        setCodaCommand(codaCommand);
-        cmd = codaCommand.getCmdString();
-    }
-
-
-    public void setCodaCommand(CODACommand codaCommand) {
         this.codaCommand = codaCommand;
 
         // see if this is a transition command (which has a state result)
@@ -55,22 +62,52 @@ public class Command {
         }
     }
 
-
+    /**
+     * Get the static command object representing the Run Control command.
+     * @return static command object representing the Run Control command.
+     */
     public CODACommand getCodaCommand() {
         return codaCommand;
     }
 
+    /**
+     * Get the name of the Run Control command.
+     * @return name of the Run Control command.
+     */
     public String name() {
         return codaCommand.name();
     }
 
+    /**
+     * Get the description of the Run Control command.
+     * @return description of the Run Control command.
+     */
     public String description() {
         return codaCommand.getDescription();
     }
 
+    /**
+     * Get the cMsg message containing the Run Control command.
+     * @return cMsg message containing the Run Control command.
+     */
+    public cMsgMessage getMsg() {
+        return msg;
+    }
 
     /**
-     * Get the object (actually a cMsgPayloadItem) associated with this tag (unique mapping).
+     * Set the cMsg message containing the Run Control command.
+     * @param msg cMsg message containing the Run Control command.
+     */
+    public void setMsg(cMsgMessage msg) {
+        this.msg = msg;
+    }
+
+
+    /**
+     * Get the object (a cMsgPayloadItem object) associated
+     * with this tag (unique mapping). The tag is the name of
+     * a payload item in the cMsg message sent as a command by
+     * Run Control.
      *
      * @param tag name
      * @return Object object associated with tag
@@ -80,9 +117,9 @@ public class Command {
     }
 
     /**
-     * Keep a set of tags each associated with a cMsgPayloadItem
+     * Keep a set of tags, each associated with a cMsgPayloadItem
      * (although Object is used instead to avoid strict dependence
-     * on cMsg).
+     * on cMsg). This method adds one such tag-payloadItem pairing.
      *
      * @param tag   of type String (name of cMsgPayloadItem)
      * @param value of type Object (actually cMsgPayloadItem)
@@ -93,7 +130,8 @@ public class Command {
 
     /**
      * Does this command have any associated objects (args)?
-     * @return boolean
+     * @return <code>true</code> if this command has any associated cMsgPayloadItems,
+     *         else <code>false</code>.
      */
     public boolean hasArgs() {
         return !args.isEmpty();
@@ -103,7 +141,7 @@ public class Command {
     /**
      * If this object is a transition command, this method
      * returns the state the Emu enters upon its success.
-     * If not, it returns null.
+     * If not a transition command, it returns null.
      *
      * @return the state the Emu enters upon success of a transition command, else null.
      */
