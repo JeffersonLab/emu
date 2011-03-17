@@ -11,10 +11,11 @@
 
 package org.jlab.coda.emu.support.ui;
 
+import org.jlab.coda.emu.support.codaComponent.CODATransition;
 import org.jlab.coda.emu.support.codaComponent.EmuCommand;
-import org.jlab.coda.emu.support.control.Command;
 import org.jlab.coda.emu.support.control.CommandAcceptor;
 import org.jlab.coda.emu.support.control.RcCommand;
+import org.jlab.coda.emu.support.control.State;
 
 import javax.swing.*;
 import java.awt.*;
@@ -57,36 +58,39 @@ public class SmartToolbar extends JToolBar {
         super(name, orientation);
     }
 
-    public void enableButtons(String[] enableNames) {
-        Component[] comps =  this.getComponents();
+
+    /**
+     * Enable or disable buttons depending on the emu state.
+     * @param state state used to decide which buttons to enable/disable.
+     */
+    public void updateButtons(State state) {
+        // Transitions which are allowed out of our state.
+        EnumSet<CODATransition> eSet = state.allowed();
+
+        // Names of allowed transitions
+        int i=0;
+        String[] names = new String[eSet.size()];
+        for (CODATransition tran : eSet) {
+            names[i++] = tran.name();
+        }
+
+        // Enable/disable transition GUI buttons.
+        Component[] comps = getComponents();
         for (Component comp : comps) {
             JButton button = (JButton) comp;
             button.setEnabled(false);
-System.out.println("SmartToolbar: disable " + button.getName());
-            for (String name : enableNames) {
-                if (button.getName().equals(name)) {
-                    button.setEnabled(true);
-System.out.println("SmartToolbar: enable " + name);
-                    break;
-                }
-            }
-        }
-
-    }
-
-    public void disableButtons(String[] names) {
-        Component[] comps =  this.getComponents();
-        for (Component comp : comps) {
-            JButton button = (JButton) comp;
+//System.out.println("SmartToolbar: disable " + button.getName());
             for (String name : names) {
                 if (button.getName().equals(name)) {
-                    button.setEnabled(false);
+                    button.setEnabled(true);
+//System.out.println("SmartToolbar: enable " + name);
                     break;
                 }
             }
         }
 
     }
+
 
     /**
      * Method configure ...
@@ -118,8 +122,7 @@ System.out.println("SmartToolbar: enable " + name);
                 // add listener to button
                 addButtonListener(target, tbb);
 
-                // boolean enabled = true. //TODO Later we run it through transition/state check
-                tbb.setEnabled(true);
+//                tbb.setEnabled(true);
                 tbb.setName(name);
                 this.add(tbb);
             }
@@ -128,63 +131,6 @@ System.out.println("SmartToolbar: enable " + name);
             e.printStackTrace();
         } catch (IllegalArgumentException e) {
             e.printStackTrace();
-        }
-    }
-
-    
-    /**
-     * Method configure ...
-     *
-     * @param target object that allows commands to be sent (eg Emu is a CodaComponent which is a CommandAcceptor)
-     * @param c Class of the enum type
-     */
-    public void configureOrig(CommandAcceptor target, Class c) {
-        // get array of enum elements or null if not enum type
-        Object[] oarray = c.getEnumConstants();
-
-        try {
-            // for each enum item ...
-            for (Object anOarray : oarray) {
-                RcCommand cmd = (RcCommand) anOarray;
-                String name = cmd.name();
-
-                // put into a hashmap(key,val)
-                buttonHandlers.put(name, cmd);
-
-                // create a button (arg is text to be displayed)
-                JButton tbb = new JButton(name);
-
-                // bug bug: I think we need to add this for it to work (Carl)
-                tbb.setActionCommand(name);
-
-                // add listener to button
-                addButtonListener(target, tbb);
-
-                // boolean enabled =
-//                tbb.setEnabled(cmd.isEnabled());
-                tbb.setName(name);
-                this.add(tbb);
-            }
-
-        } catch (SecurityException e) {
-            e.printStackTrace();
-        } catch (IllegalArgumentException e) {
-            e.printStackTrace();
-        }
-    }
-
-
-    /**
-     * Set each button's enable status to be the
-     * same as the enable status of its command.
-     */
-    public void update() {
-        Component[] buttons = this.getComponents();
-
-        for (Component button : buttons) {
-            String name = button.getName();
-            RcCommand cmd = buttonHandlers.get(name);
-//            button.setEnabled(cmd.isEnabled());  // TODO: get enabling right
         }
     }
 
@@ -211,9 +157,9 @@ System.out.println("SmartToolbar: enable " + name);
                     // Execute the command associated with the given button.
                     // (Emu puts cmd into Q which another thread pulls off).
                     target.postCommand(cmd);
-                    // set enable status of all buttons
-                    update();
-                    
+
+                    // Enabling or disabling of buttons was done when cmd was executed.
+
                 } catch (SecurityException e1) {
                     e1.printStackTrace();
                 } catch (IllegalArgumentException e1) {
