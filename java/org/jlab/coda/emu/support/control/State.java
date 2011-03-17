@@ -11,6 +11,8 @@
 
 package org.jlab.coda.emu.support.control;
 
+import org.jlab.coda.emu.support.codaComponent.CODATransition;
+
 import java.util.EnumSet;
 import java.util.Vector;
 
@@ -40,6 +42,6 @@ public interface State {
      * This method returns a set of the allowed transitions from this state.
      * @return a set of the allowed transitions from this state.
      */
-    public EnumSet allowed();
+    public EnumSet<CODATransition> allowed();
 
 }
