@@ -76,7 +76,6 @@ System.out.println("Received an invalid command");
 
             // set the args for this command
             Set<String> names = msg.getPayloadNames();
-            rcCmd.clearArgs();
             for (String name : names) {
                 rcCmd.setArg(name, msg.getPayloadItem(name));
             }
