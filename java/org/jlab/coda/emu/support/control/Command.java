@@ -17,6 +17,10 @@ import org.jlab.coda.emu.support.codaComponent.CODATransition;
 import java.util.HashMap;
 
 /**
+ * This class is used to wrap a static enum CODACommand object,
+ * allowing storage of mutable, non-static data which will be
+ * discarded once the command is executed.
+ *
  * @author timmer
  * Date: 3/14/11
  */
