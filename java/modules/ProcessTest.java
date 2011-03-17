@@ -1,11 +1,11 @@
 package modules;
 
+import org.jlab.coda.emu.support.codaComponent.CODACommand;
 import org.jlab.coda.emu.support.control.State;
 import org.jlab.coda.emu.support.control.RcCommand;
 import org.jlab.coda.emu.support.codaComponent.CODAState;
-import org.jlab.coda.emu.support.codaComponent.CODATransition;
-import org.jlab.coda.emu.support.codaComponent.EmuCommand;
-import static org.jlab.coda.emu.support.codaComponent.EmuCommand.*;
+
+import static org.jlab.coda.emu.support.codaComponent.CODACommand.*;
 import org.jlab.coda.emu.support.transport.DataChannel;
 import org.jlab.coda.emu.support.configurer.Configurer;
 import org.jlab.coda.emu.support.configurer.DataNotFoundException;
@@ -294,7 +294,7 @@ System.out.println("Process: Added bank's children to built event, event = " + c
     public void execute(RcCommand cmd) {
         Date theDate = new Date();
 
-        EmuCommand emuCmd = cmd.getEmuCommand();
+        CODACommand emuCmd = cmd.getCodaCommand();
 
         if (emuCmd == END) {
             state = CODAState.DOWNLOADED;

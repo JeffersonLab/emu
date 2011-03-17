@@ -11,7 +11,7 @@
 
 package org.jlab.coda.emu.support.transport;
 
-import org.jlab.coda.emu.support.codaComponent.EmuCommand;
+import org.jlab.coda.emu.support.codaComponent.CODACommand;
 import org.jlab.coda.emu.support.control.RcCommand;
 import org.jlab.coda.et.*;
 import org.jlab.coda.et.system.SystemConfig;
@@ -19,8 +19,8 @@ import org.jlab.coda.et.exception.EtException;
 import org.jlab.coda.emu.Emu;
 import org.jlab.coda.emu.support.configurer.DataNotFoundException;
 import org.jlab.coda.emu.support.codaComponent.CODAState;
-import org.jlab.coda.emu.support.codaComponent.CODATransition;
-import static org.jlab.coda.emu.support.codaComponent.EmuCommand.*;
+
+import static org.jlab.coda.emu.support.codaComponent.CODACommand.*;
 import org.jlab.coda.emu.support.logger.Logger;
 
 import java.util.Map;
@@ -313,7 +313,7 @@ System.out.println("Created channel " + name + ", channels size = " + channels()
 
     public void execute(RcCommand cmd) {
 logger.debug("    DataTransportImplEt.execute : " + cmd);
-        EmuCommand emuCmd = cmd.getEmuCommand();
+        CODACommand emuCmd = cmd.getCodaCommand();
 
         if (emuCmd == DOWNLOAD) {
             createdET = false;

@@ -15,10 +15,10 @@ import org.jlab.coda.emu.Emu;
 import org.jlab.coda.emu.EmuException;
 import org.jlab.coda.emu.EmuModule;
 import org.jlab.coda.emu.support.codaComponent.CODAClass;
+import org.jlab.coda.emu.support.codaComponent.CODACommand;
 import org.jlab.coda.emu.support.codaComponent.CODAState;
-import static org.jlab.coda.emu.support.codaComponent.EmuCommand.*;
+import static org.jlab.coda.emu.support.codaComponent.CODACommand.*;
 
-import org.jlab.coda.emu.support.codaComponent.EmuCommand;
 import org.jlab.coda.emu.support.configurer.Configurer;
 import org.jlab.coda.emu.support.configurer.DataNotFoundException;
 import org.jlab.coda.emu.support.control.RcCommand;
@@ -971,7 +971,7 @@ System.out.println("INTERRUPTED thread " + Thread.currentThread().getName());
     public void execute(RcCommand cmd) {
         Date theDate = new Date();
 
-        EmuCommand emuCmd = cmd.getEmuCommand();
+        CODACommand emuCmd = cmd.getCodaCommand();
 
         if (emuCmd == END) {
             state = CODAState.DOWNLOADED;

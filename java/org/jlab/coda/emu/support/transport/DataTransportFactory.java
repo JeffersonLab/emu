@@ -13,11 +13,12 @@ package org.jlab.coda.emu.support.transport;
 
 import org.jlab.coda.emu.Emu;
 import org.jlab.coda.emu.EmuClassLoader;
-import org.jlab.coda.emu.support.codaComponent.CODAState;
+import org.jlab.coda.emu.support.codaComponent.CODACommand;
+
 import static org.jlab.coda.emu.support.codaComponent.CODAState.*;
-import org.jlab.coda.emu.support.codaComponent.EmuCommand;
+
 import org.jlab.coda.emu.support.codaComponent.StatedObject;
-import static org.jlab.coda.emu.support.codaComponent.EmuCommand.*;
+import static org.jlab.coda.emu.support.codaComponent.CODACommand.*;
 import org.jlab.coda.emu.support.configurer.Configurer;
 import org.jlab.coda.emu.support.configurer.DataNotFoundException;
 import org.jlab.coda.emu.support.control.CmdExecException;
@@ -157,7 +158,7 @@ public class DataTransportFactory implements StatedObject {
     public void execute(RcCommand cmd) throws CmdExecException {
         // DOWNLOAD loads transport implementation classes, creates objects from them and
         // stores them along with a transport fifo implementation object.
-        EmuCommand emuCmd = cmd.getEmuCommand();
+        CODACommand emuCmd = cmd.getCodaCommand();
         logger.info("  DataTransportFactory.execute : " + emuCmd);
 
         if (emuCmd == DOWNLOAD) {
@@ -316,7 +317,7 @@ logger.warn("  DataTransportFactory.execute DOWN : transport section missing/inc
     public void execute_EmuLoader(RcCommand cmd) throws CmdExecException {
         logger.info("DataTransportFactory.execute : " + cmd);
 
-        EmuCommand emuCmd = cmd.getEmuCommand();
+        CODACommand emuCmd = cmd.getCodaCommand();
 
         // DOWNLOAD loads transport implementation classes, creates objects from them and
         // stores them along with a transport fifo implementation object.

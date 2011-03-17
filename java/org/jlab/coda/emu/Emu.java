@@ -20,7 +20,7 @@ import org.jlab.coda.emu.support.configurer.Configurer;
 import org.jlab.coda.emu.support.configurer.DataNotFoundException;
 import org.jlab.coda.emu.support.control.CmdExecException;
 import org.jlab.coda.emu.support.control.RcCommand;
-import static org.jlab.coda.emu.support.codaComponent.EmuCommand.*;
+import static org.jlab.coda.emu.support.codaComponent.CODACommand.*;
 import org.jlab.coda.emu.support.control.State;
 import org.jlab.coda.emu.support.logger.Logger;
 import org.jlab.coda.emu.support.messaging.CMSGPortal;
@@ -31,7 +31,6 @@ import org.w3c.dom.Node;
 
 import java.io.File;
 import java.net.InetAddress;
-import java.util.EnumSet;
 import java.util.Vector;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
@@ -612,20 +611,20 @@ System.out.println("ERROR in setting value in local config !!!");
     synchronized void execute(RcCommand cmd) {
 System.out.println("EXECUTING cmd = " + cmd.name());
 
-        EmuCommand emuCmd = cmd.getEmuCommand();
+        CODACommand codaCommand = cmd.getCodaCommand();
 
-        if (emuCmd == START_REPORTING) {
+        if (codaCommand == START_REPORTING) {
             statusReportingOn = true;
             // Some commands are for the EMU itself and not all
             // the EMU subcomponents, so return immediately.
             return;
         }
-        else if (emuCmd == STOP_REPORTING) {
+        else if (codaCommand == STOP_REPORTING) {
             statusReportingOn = false;
             return;
         }
         // Run Control tells us our run number
-        else if (emuCmd == SET_RUN_NUMBER) {
+        else if (codaCommand == SET_RUN_NUMBER) {
             // get the new run number and store it
             try {
                 cMsgPayloadItem item = (cMsgPayloadItem) cmd.getArg("runNumber");
@@ -637,7 +636,7 @@ System.out.println("EXECUTING cmd = " + cmd.name());
             return;
         }
         // Send back our state
-        else if (emuCmd == GET_STATE) {
+        else if (codaCommand == GET_STATE) {
 System.out.println("     Info else if for GET_STATE:");
             if ( (cmsgPortal.getServer() != null) &&
                  (cmsgPortal.getServer().isConnected())) {
@@ -662,7 +661,7 @@ System.out.println("sent cmsg msg");
             return;
         }
         // Send back our CODA class
-        else if (emuCmd == GET_CODA_CLASS) {
+        else if (codaCommand == GET_CODA_CLASS) {
             if ( (cmsgPortal.getServer() != null) &&
                  (cmsgPortal.getServer().isConnected())) {
 
@@ -682,7 +681,7 @@ System.out.println("sent cmsg msg");
             return;
         }
         // Send back our object type
-        else if (emuCmd == GET_OBJECT_TYPE) {
+        else if (codaCommand == GET_OBJECT_TYPE) {
             if ( (cmsgPortal.getServer() != null) &&
                  (cmsgPortal.getServer().isConnected())) {
 
@@ -702,7 +701,7 @@ System.out.println("sent cmsg msg");
             return;
         }
         // Send back our state    // TODO: is this obsolete??
-        else if (emuCmd == GET_STATE) {
+        else if (codaCommand == GET_STATE) {
             if ( (cmsgPortal.getServer() != null) &&
                  (cmsgPortal.getServer().isConnected())) {
 
@@ -728,7 +727,7 @@ System.out.println("sent cmsg msg");
         // When we are told to CONFIGURE, the EMU handles this even though
         // this command is still passed on down to the modules. Read or
         // re-read the config file and update debug GUI.
-        if (emuCmd == CONFIGURE) {
+        if (codaCommand == CONFIGURE) {
 
             // save a reference to any previously used config
             Document oldConfig = loadedConfig;
@@ -782,7 +781,7 @@ System.out.println("sent cmsg msg");
         // except to set its state to "CODAState.CONFIGURED".
         try {
             moduleFactory.execute(cmd);
-            logger.info("command " + emuCmd + " executed, state " + cmd.success());
+            logger.info("command " + codaCommand + " executed, state " + cmd.success());
         } catch (CmdExecException e) {
             CODAState.ERROR.getCauses().add(e);
             moduleFactory.ERROR();
@@ -790,10 +789,10 @@ System.out.println("sent cmsg msg");
 
         // If given the "reset" command, do that after the modules have reset.
         // Go back to "configured" state
-        if (emuCmd == RESET) {
+        if (codaCommand == RESET) {
         }
         // If given the "exit" command, do that after the modules have exited
-        else if (emuCmd == EXIT) {
+        else if (codaCommand == EXIT) {
             quit();
         }
 

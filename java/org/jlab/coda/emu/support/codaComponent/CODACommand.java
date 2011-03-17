@@ -23,7 +23,7 @@ import static org.jlab.coda.emu.support.messaging.RCConstants.*;
  * @author timmer
  * Date: 3/14/11
  */
-public enum EmuCommand {
+public enum CODACommand {
 
     // run/transition/
 
@@ -129,12 +129,12 @@ public enum EmuCommand {
 
 
     /** Map of string of incoming message from run control to an enum/command. */
-    private final static HashMap<String, EmuCommand> commandTypeToEnumMap = new HashMap<String, EmuCommand>();
+    private final static HashMap<String, CODACommand> commandTypeToEnumMap = new HashMap<String, CODACommand>();
 
 
     // Fill static hashmap after all enum objects created.
     static {
-        for (EmuCommand item : EmuCommand.values()) {
+        for (CODACommand item : CODACommand.values()) {
             commandTypeToEnumMap.put(item.getCmdString(), item);
         }
     }
@@ -145,7 +145,7 @@ public enum EmuCommand {
      * @param s type contained in incoming message from run control.
      * @return associated enum, else null.
      */
-    public static EmuCommand get(String s) {
+    public static CODACommand get(String s) {
         return commandTypeToEnumMap.get(s);
     }
 
@@ -156,9 +156,9 @@ public enum EmuCommand {
      * @param description of command
      * @param cmdString string from Run Control specifying this command
      */
-    EmuCommand(String description, String cmdString,
-               boolean hasInput, boolean hasOutput, boolean hasResult,
-               int guiGroup, InputType inputType) {
+    CODACommand(String description, String cmdString,
+                boolean hasInput, boolean hasOutput, boolean hasResult,
+                int guiGroup, InputType inputType) {
 
         this.cmdString   = cmdString;
         this.description = description;
@@ -199,12 +199,12 @@ public enum EmuCommand {
      * @param group gui group we want the members of
      * @return EnumSet of EmuCommands which are member of the given gui group.
      */
-    public static EnumSet<EmuCommand> getGuiGroup(int group) {
+    public static EnumSet<CODACommand> getGuiGroup(int group) {
         // put all commands in the set
-        EnumSet<EmuCommand> enumSet = EnumSet.allOf(EmuCommand.class);
+        EnumSet<CODACommand> enumSet = EnumSet.allOf(CODACommand.class);
 
         // subtract out items that do NOT have the correct gui group
-        for (EmuCommand item : EmuCommand.values()) {
+        for (CODACommand item : CODACommand.values()) {
             if (item.getGuiGroup() != group) {
                 enumSet.remove(item);
             }

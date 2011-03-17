@@ -13,10 +13,10 @@ package modules;
 
 import org.jlab.coda.emu.Emu;
 import org.jlab.coda.emu.EmuModule;
+import org.jlab.coda.emu.support.codaComponent.CODACommand;
 import org.jlab.coda.emu.support.codaComponent.CODAState;
-import org.jlab.coda.emu.support.codaComponent.CODATransition;
-import org.jlab.coda.emu.support.codaComponent.EmuCommand;
-import static org.jlab.coda.emu.support.codaComponent.EmuCommand.*;
+
+import static org.jlab.coda.emu.support.codaComponent.CODACommand.*;
 import org.jlab.coda.emu.support.control.RcCommand;
 import org.jlab.coda.emu.support.control.State;
 import org.jlab.coda.emu.support.logger.Logger;
@@ -83,7 +83,7 @@ public class Read implements EmuModule {
 
     public void execute(RcCommand cmd) {
 
-        EmuCommand emuCmd = cmd.getEmuCommand();
+        CODACommand emuCmd = cmd.getCodaCommand();
 
         if (emuCmd == END) {
             state = cmd.success();

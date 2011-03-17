@@ -11,8 +11,8 @@
 
 package org.jlab.coda.emu.support.ui;
 
+import org.jlab.coda.emu.support.codaComponent.CODACommand;
 import org.jlab.coda.emu.support.codaComponent.CODATransition;
-import org.jlab.coda.emu.support.codaComponent.EmuCommand;
 import org.jlab.coda.emu.support.control.CommandAcceptor;
 import org.jlab.coda.emu.support.control.RcCommand;
 import org.jlab.coda.emu.support.control.State;
@@ -100,13 +100,13 @@ public class SmartToolbar extends JToolBar {
      */
     public void configure(CommandAcceptor target, int guiGroup) {
         // get array of enum elements of Emu commands
-        //Object[] oarray = EmuCommand.class.getEnumConstants();
-        EnumSet<EmuCommand> emuCmdSet = EmuCommand.getGuiGroup(guiGroup);
+        //Object[] oarray = CODACommand.class.getEnumConstants();
+        EnumSet<CODACommand> emuCmdSet = CODACommand.getGuiGroup(guiGroup);
 
         try {
             // for each enum item ...
             //for (Object anOarray : oarray) {
-            for (EmuCommand emuCmd : emuCmdSet) {
+            for (CODACommand emuCmd : emuCmdSet) {
                 RcCommand cmd = new RcCommand(emuCmd);
                 String name = cmd.name();
 

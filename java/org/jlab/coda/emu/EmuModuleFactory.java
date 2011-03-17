@@ -10,12 +10,11 @@
  */
 package org.jlab.coda.emu;
 
-import org.jlab.coda.emu.support.codaComponent.CODAState;
 import static org.jlab.coda.emu.support.codaComponent.CODAState.*;
-import org.jlab.coda.emu.support.codaComponent.CODATransition;
-import org.jlab.coda.emu.support.codaComponent.EmuCommand;
+
+import org.jlab.coda.emu.support.codaComponent.CODACommand;
 import org.jlab.coda.emu.support.codaComponent.StatedObject;
-import static org.jlab.coda.emu.support.codaComponent.EmuCommand.*;
+import static org.jlab.coda.emu.support.codaComponent.CODACommand.*;
 import org.jlab.coda.emu.support.configurer.Configurer;
 import org.jlab.coda.emu.support.configurer.DataNotFoundException;
 import org.jlab.coda.emu.support.control.CmdExecException;
@@ -116,7 +115,7 @@ public class EmuModuleFactory implements StatedObject {
     @SuppressWarnings({"ConstantConditions"})
     public void execute(RcCommand cmd) throws CmdExecException {
 
-        EmuCommand emuCmd = cmd.getEmuCommand();
+        CODACommand emuCmd = cmd.getCodaCommand();
 
         logger.info("EmuModuleFactory.execute : " + emuCmd);
 

@@ -11,8 +11,8 @@
 
 package org.jlab.coda.emu.support.control;
 
+import org.jlab.coda.emu.support.codaComponent.CODACommand;
 import org.jlab.coda.emu.support.codaComponent.CODATransition;
-import org.jlab.coda.emu.support.codaComponent.EmuCommand;
 
 import java.util.HashMap;
 
@@ -25,7 +25,7 @@ public class RcCommand {
 
     String cmd;
 
-    EmuCommand emuCommand;
+    CODACommand codaCommand;
 
     /** Map of arguments contained in the message from run control (in payload). */
     private final HashMap<String, Object> args = new HashMap<String, Object>();
@@ -33,18 +33,18 @@ public class RcCommand {
     private State success = null;
 
 
-    public RcCommand(EmuCommand emuCommand) {
-        setEmuCommand(emuCommand);
+    public RcCommand(CODACommand emuCommand) {
+        setCodaCommand(emuCommand);
         cmd = emuCommand.getCmdString();
     }
 
 
-    public void setEmuCommand(EmuCommand emuCommand) {
-        this.emuCommand = emuCommand;
+    public void setCodaCommand(CODACommand codaCommand) {
+        this.codaCommand = codaCommand;
 
         // see if this is a transition command (which has a state result)
         for (CODATransition transition : CODATransition.values()) {
-            if (emuCommand.name().equalsIgnoreCase(transition.name())) {
+            if (codaCommand.name().equalsIgnoreCase(transition.name())) {
                 // it is a transition command, store it successful state
                 success = transition.success();
             }
@@ -52,16 +52,16 @@ public class RcCommand {
     }
 
 
-    public EmuCommand getEmuCommand() {
-        return emuCommand;
+    public CODACommand getCodaCommand() {
+        return codaCommand;
     }
 
     public String name() {
-        return emuCommand.name();
+        return codaCommand.name();
     }
 
     public String description() {
-        return emuCommand.getDescription();
+        return codaCommand.getDescription();
     }
 
 

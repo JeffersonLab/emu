@@ -13,11 +13,11 @@ package org.jlab.coda.emu.support.transport;
 
 import org.jlab.coda.cMsg.*;
 import org.jlab.coda.emu.Emu;
-import org.jlab.coda.emu.support.codaComponent.EmuCommand;
+import org.jlab.coda.emu.support.codaComponent.CODACommand;
 import org.jlab.coda.emu.support.configurer.DataNotFoundException;
 import org.jlab.coda.emu.support.codaComponent.CODAState;
-import org.jlab.coda.emu.support.codaComponent.CODATransition;
-import static org.jlab.coda.emu.support.codaComponent.EmuCommand.*;
+
+import static org.jlab.coda.emu.support.codaComponent.CODACommand.*;
 import org.jlab.coda.emu.support.control.RcCommand;
 import org.jlab.coda.emu.support.logger.Logger;
 
@@ -77,7 +77,7 @@ public class DataTransportImplCmsg extends DataTransportCore implements DataTran
     }
 
     public void execute(RcCommand cmd) {
-        EmuCommand emuCmd = cmd.getEmuCommand();
+        CODACommand emuCmd = cmd.getCodaCommand();
         logger.debug("    DataTransportImplCmsg.execute : " + emuCmd);
 
         if (emuCmd == PRESTART) {

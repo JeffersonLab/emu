@@ -13,7 +13,7 @@ package org.jlab.coda.emu.support.messaging;
 
 import org.jlab.coda.cMsg.cMsgCallbackInterface;
 import org.jlab.coda.cMsg.cMsgMessage;
-import org.jlab.coda.emu.support.codaComponent.EmuCommand;
+import org.jlab.coda.emu.support.codaComponent.CODACommand;
 import org.jlab.coda.emu.support.control.RcCommand;
 
 import java.util.Set;
@@ -56,16 +56,16 @@ System.out.println("GOT " + msg.getType() + " message");
 
             // The string cmdS may not be an allowed enum value, in which case an
             // IllegalArgumentException will be thrown.
-            EmuCommand emuCmd;
+            CODACommand emuCmd;
             try {
-                emuCmd = EmuCommand.valueOf(cmdS);
+                emuCmd = CODACommand.valueOf(cmdS);
             } catch (IllegalArgumentException e) {
                 // TODO: bug bug: do we want this printed, logged, etc ???
 System.out.println("Received an invalid command");
                 return;
             }
 
-            // Get the emuCmd - which is a STATIC EmuCommand enum object - and
+            // Get the emuCmd - which is a STATIC CODACommand enum object - and
             // wrap it with and RcCommand object which is not static and allows
             // us to attach all manner of mutable data to it. Thus we can now
             // store any extraneous data Run Control sends us and store them as

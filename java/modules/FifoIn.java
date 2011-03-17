@@ -13,10 +13,10 @@ package modules;
 
 import org.jlab.coda.emu.Emu;
 import org.jlab.coda.emu.EmuModule;
+import org.jlab.coda.emu.support.codaComponent.CODACommand;
 import org.jlab.coda.emu.support.codaComponent.CODAState;
-import org.jlab.coda.emu.support.codaComponent.CODATransition;
-import org.jlab.coda.emu.support.codaComponent.EmuCommand;
-import static org.jlab.coda.emu.support.codaComponent.EmuCommand.*;
+
+import static org.jlab.coda.emu.support.codaComponent.CODACommand.*;
 import org.jlab.coda.emu.support.configurer.Configurer;
 import org.jlab.coda.emu.support.configurer.DataNotFoundException;
 import org.jlab.coda.emu.support.control.RcCommand;
@@ -27,11 +27,9 @@ import org.jlab.coda.jevio.*;
 
 import java.util.ArrayList;
 import java.util.Date;
-import java.util.Iterator;
 import java.util.Map;
-import java.util.concurrent.BlockingQueue;
 
-import static org.jlab.coda.emu.support.codaComponent.EmuCommand.END;
+import static org.jlab.coda.emu.support.codaComponent.CODACommand.END;
 
 /**
  * This class codes an object that implements the EmuModule interface and can be loaded
@@ -209,7 +207,7 @@ System.out.println("Got int = " + i);
     public void execute(RcCommand cmd) {
         Date theDate = new Date();
         
-        EmuCommand emuCmd = cmd.getEmuCommand();
+        CODACommand emuCmd = cmd.getCodaCommand();
 
         if (emuCmd == END) {
             state = CODAState.DOWNLOADED;
