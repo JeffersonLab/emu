@@ -192,12 +192,12 @@ public enum CODACommand {
     }
 
     /**
-     * This method returns an EnumSet object of all the EmuCommands which
+     * This method returns an EnumSet object of all the CODACommands which
      * are of the given gui group. This is used to automatically create the
      * DebugGUI.
      *
      * @param group gui group we want the members of
-     * @return EnumSet of EmuCommands which are member of the given gui group.
+     * @return EnumSet of CODACommands which are member of the given gui group.
      */
     public static EnumSet<CODACommand> getGuiGroup(int group) {
         // put all commands in the set

@@ -33,9 +33,9 @@ public class RcCommand {
     private State success = null;
 
 
-    public RcCommand(CODACommand emuCommand) {
-        setCodaCommand(emuCommand);
-        cmd = emuCommand.getCmdString();
+    public RcCommand(CODACommand codaCommand) {
+        setCodaCommand(codaCommand);
+        cmd = codaCommand.getCmdString();
     }
 
 

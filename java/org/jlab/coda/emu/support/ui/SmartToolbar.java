@@ -96,7 +96,7 @@ public class SmartToolbar extends JToolBar {
      * Method configure ...
      *
      * @param target object that allows commands to be sent (eg Emu is a CodaComponent which is a CommandAcceptor)
-     * @param guiGroup gui group number of EmuCommands to configure
+     * @param guiGroup gui group number of CODACommands to configure
      */
     public void configure(CommandAcceptor target, int guiGroup) {
         // get array of enum elements of Emu commands
@@ -106,8 +106,8 @@ public class SmartToolbar extends JToolBar {
         try {
             // for each enum item ...
             //for (Object anOarray : oarray) {
-            for (CODACommand emuCmd : emuCmdSet) {
-                RcCommand cmd = new RcCommand(emuCmd);
+            for (CODACommand codaCmd : emuCmdSet) {
+                RcCommand cmd = new RcCommand(codaCmd);
                 String name = cmd.name();
 
                 // put into a hashmap(key,val)
