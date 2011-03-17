@@ -13,9 +13,7 @@ package org.jlab.coda.emu.support.messaging;
 
 import org.jlab.coda.cMsg.cMsgCallbackInterface;
 import org.jlab.coda.cMsg.cMsgMessage;
-import org.jlab.coda.emu.support.codaComponent.CODATransition;
 import org.jlab.coda.emu.support.codaComponent.EmuCommand;
-import org.jlab.coda.emu.support.control.Command;
 import org.jlab.coda.emu.support.control.RcCommand;
 
 import java.util.Set;

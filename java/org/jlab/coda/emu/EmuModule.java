@@ -13,7 +13,6 @@ package org.jlab.coda.emu;
 
 import org.jlab.coda.emu.support.codaComponent.StatedObject;
 import org.jlab.coda.emu.support.control.CmdExecException;
-import org.jlab.coda.emu.support.control.Command;
 import org.jlab.coda.emu.support.control.RcCommand;
 import org.jlab.coda.emu.support.transport.DataChannel;
 
