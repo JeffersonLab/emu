@@ -19,7 +19,6 @@ import org.jlab.coda.emu.support.codaComponent.*;
 import org.jlab.coda.emu.support.configurer.Configurer;
 import org.jlab.coda.emu.support.configurer.DataNotFoundException;
 import org.jlab.coda.emu.support.control.CmdExecException;
-import org.jlab.coda.emu.support.control.Command;
 import org.jlab.coda.emu.support.control.RcCommand;
 import static org.jlab.coda.emu.support.codaComponent.EmuCommand.*;
 import org.jlab.coda.emu.support.control.State;
@@ -520,7 +519,7 @@ System.out.println("STATUS REPORTING THREAD: DONE xxx");
             // Ignore this.
         }
 
-        if (debugGUI != null) debugGUI.getToolBar().update();
+//        if (debugGUI != null) debugGUI.getToolBar().update();
     }
 
 
@@ -559,26 +558,12 @@ System.out.println("STATUS REPORTING THREAD: DONE xxx");
 
                     if ((state != null) && (state != oldState)) {
 System.out.println("Emu: state changed to " + state.name());
-                        // Allows all transitions given by state.allowed().
-                        // The "allow" method should be static, but is simpler to
-                        // just pick a particular enum (in the case, GO)
-                        // and use that to allow various transitions.
-                        EnumSet<CODATransition> eSet = state.allowed();
-                        // Enable/disable transition GUI buttons depending on
-                        // which transitions are allowed out of this state.
-                   //     CODATransition.GO.allow(eSet);  // TODO enable/disable GUI buttons
-
-                        // enable/disable GUI buttons according to our current state
                         if (debugGUI != null) {
-                            int i=0;
-                            String[] names = new String[eSet.size()];
-                            for (CODATransition tran : eSet) {
-System.out.println("Emu: enable " + tran.name());
-                                names[i++] = tran.name();
-                            }
-                            debugGUI.getToolBar().enableButtons(names);
+                            // Enable/disable transition GUI buttons depending on
+                            // which transitions are allowed out of our current state.
+                            debugGUI.getToolBar().updateButtons(state);
                         }
-                        
+
                         logger.info("State Change to : " + state.toString());
 
                         try {
@@ -631,15 +616,12 @@ System.out.println("EXECUTING cmd = " + cmd.name());
 
         if (emuCmd == START_REPORTING) {
             statusReportingOn = true;
-            // we are done so clean the cmd (necessary since this command object is static & is reused)
-            cmd.clearArgs();
             // Some commands are for the EMU itself and not all
             // the EMU subcomponents, so return immediately.
             return;
         }
         else if (emuCmd == STOP_REPORTING) {
             statusReportingOn = false;
-            cmd.clearArgs();
             return;
         }
         // Run Control tells us our run number
@@ -652,7 +634,6 @@ System.out.println("EXECUTING cmd = " + cmd.name());
             catch (cMsgException e) {
                 e.printStackTrace();
             }
-            cmd.clearArgs();
             return;
         }
         // Send back our state
@@ -678,7 +659,6 @@ System.out.println("sent cmsg msg");
                 }
             }
 
-            cmd.clearArgs();
             return;
         }
         // Send back our CODA class
@@ -699,7 +679,6 @@ System.out.println("sent cmsg msg");
                 }
             }
 
-            cmd.clearArgs();
             return;
         }
         // Send back our object type
@@ -720,7 +699,6 @@ System.out.println("sent cmsg msg");
                 }
             }
 
-            cmd.clearArgs();
             return;
         }
         // Send back our state    // TODO: is this obsolete??
@@ -743,7 +721,6 @@ System.out.println("sent cmsg msg");
                 }
             }
 
-            cmd.clearArgs();
             return;
         }
 
@@ -779,7 +756,6 @@ System.out.println("sent cmsg msg");
                 logger.error("Configure FAILED", e.getMessage());
                 CODAState.ERROR.getCauses().add(e);
                 moduleFactory.ERROR();
-                cmd.clearArgs();
                 return;
             }
             // "config" payload item has no string (should never happen)
@@ -787,7 +763,6 @@ System.out.println("sent cmsg msg");
                 logger.error("Configure FAILED", e.getMessage());
                 CODAState.ERROR.getCauses().add(e);
                 moduleFactory.ERROR();
-                cmd.clearArgs();
                 return;
             }
             finally {
@@ -821,9 +796,6 @@ System.out.println("sent cmsg msg");
         else if (emuCmd == EXIT) {
             quit();
         }
-
-        // We are done so clean the cmd (necessary since this command object is static & is reused)
-        cmd.clearArgs();
 
     }
 
