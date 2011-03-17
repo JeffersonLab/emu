@@ -37,7 +37,7 @@
                 The default is subject = name, type="data".
                 endian specifies the endianness of the bytes going over the output channel.
             -->
-            <outchannel name="Emu1" transp="cmsg" subject="ROC1" type="a"/>
+            <outchannel name="Emu1" transp="cmsg"/>
         </RocModule>
     </modules>
 </component>
