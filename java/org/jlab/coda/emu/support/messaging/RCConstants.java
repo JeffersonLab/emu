@@ -73,15 +73,13 @@ public class RCConstants {
     public static final String stop             = sessionCommand + "stop";
     /** String used as type in message for the exit command. */
     public static final String exit             = sessionCommand + "exit";
-    /** String used as type in message for the configure command. */
-    public static final String configure        = sessionCommand + "configure";
-    /** String used as type in message for the reset command. */
-    public static final String reset            = sessionCommand + "reset";
 
     // Types in messages received in run/transition/* callback.
     // The 2 command immediately above (configure & reset) should
     // really be below in the transition section. But they ain't.
 
+    /** String used as type in message for the configure command. */
+    public static final String configure = transitionCommand + "configure";
     /** String used as type in message for the get-run-number command. */
     public static final String download = transitionCommand + "download";
     /** String used as type in message for the set-run-number command. */
@@ -94,6 +92,8 @@ public class RCConstants {
     public static final String pause     = transitionCommand + "pause";
     /** String used as type in message for the set-run-type command. */
     public static final String resume    = transitionCommand + "resume";
+    /** String used as type in message for the reset command. */
+    public static final String reset     = transitionCommand + "reset";
 
     // Types in messages received in run/control/* callback
 
