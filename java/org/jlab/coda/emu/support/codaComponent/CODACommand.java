@@ -28,7 +28,7 @@ public enum CODACommand {
     // run/transition/
 
     /** Configure transition. */
-    CONFIGURE("Load configuration", configure, false, false, true, 0, null), // actually in session/control/
+    CONFIGURE("Load configuration", configure, false, false, true, 0, null),
     /** Download transition. */
     DOWNLOAD("Apply configuration and load", download, false, false, true, 0, null),
     /** Prestart transition. */
@@ -40,7 +40,7 @@ public enum CODACommand {
     /** Pause transition. */
     PAUSE("Pause taking data", pause, false, false, true, 0, null),
     /** Reset transition. */
-    RESET("Return to configured state", reset, false, false, true, 0, null), // actually in session/control/
+    RESET("Return to configured state", reset, false, false, true, 0, null),
 
     // coda/info/
 
