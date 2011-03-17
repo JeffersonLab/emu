@@ -12,7 +12,7 @@
 package org.jlab.coda.emu.support.transport;
 
 import org.jlab.coda.emu.support.codaComponent.CODACommand;
-import org.jlab.coda.emu.support.control.RcCommand;
+import org.jlab.coda.emu.support.control.Command;
 import org.jlab.coda.et.*;
 import org.jlab.coda.et.system.SystemConfig;
 import org.jlab.coda.et.exception.EtException;
@@ -311,7 +311,7 @@ System.out.println("Created channel " + name + ", channels size = " + channels()
         return c;
     }
 
-    public void execute(RcCommand cmd) {
+    public void execute(Command cmd) {
 logger.debug("    DataTransportImplEt.execute : " + cmd);
         CODACommand emuCmd = cmd.getCodaCommand();
 

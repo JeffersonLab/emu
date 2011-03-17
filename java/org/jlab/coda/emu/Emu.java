@@ -19,7 +19,8 @@ import org.jlab.coda.emu.support.codaComponent.*;
 import org.jlab.coda.emu.support.configurer.Configurer;
 import org.jlab.coda.emu.support.configurer.DataNotFoundException;
 import org.jlab.coda.emu.support.control.CmdExecException;
-import org.jlab.coda.emu.support.control.RcCommand;
+import org.jlab.coda.emu.support.control.Command;
+
 import static org.jlab.coda.emu.support.codaComponent.CODACommand.*;
 import org.jlab.coda.emu.support.control.State;
 import org.jlab.coda.emu.support.logger.Logger;
@@ -72,7 +73,7 @@ public class Emu implements CODAComponent {
      * Commands from cMsg are converted into objects of
      * class Command that are then posted in this mailbox queue.
      */
-    private final LinkedBlockingQueue<RcCommand> mailbox;
+    private final LinkedBlockingQueue<Command> mailbox;
 
     /**
      * LoadedConfig is the XML document loaded when the configure command is executed.
@@ -156,7 +157,7 @@ public class Emu implements CODAComponent {
     }
 
     /** {@inheritDoc} */
-    public void postCommand(RcCommand cmd) throws InterruptedException {
+    public void postCommand(Command cmd) throws InterruptedException {
         mailbox.put(cmd);
     }
 
@@ -451,7 +452,7 @@ System.out.println("STATUS REPORTING THREAD: DONE xxx");
         }
 
         // Define place to put incoming commands
-        mailbox = new LinkedBlockingQueue<RcCommand>();
+        mailbox = new LinkedBlockingQueue<Command>();
 
         // Put this (which is a CODAComponent and therefore Runnable)
         // into a thread group and keep track of this object's thread.
@@ -536,7 +537,7 @@ System.out.println("STATUS REPORTING THREAD: DONE xxx");
 
             try {
                 // do NOT block forever here
-                RcCommand cmd = mailbox.poll(1, TimeUnit.SECONDS);
+                Command cmd = mailbox.poll(1, TimeUnit.SECONDS);
 
                 if (!Thread.interrupted()) {
                     if (cmd != null) {
@@ -606,9 +607,9 @@ System.out.println("ERROR in setting value in local config !!!");
      * This method takes a Command object and attempts to execute it.
      *
      * @param cmd of type Command
-     * @see EmuModule#execute(RcCommand)
+     * @see EmuModule#execute(org.jlab.coda.emu.support.control.Command)
      */
-    synchronized void execute(RcCommand cmd) {
+    synchronized void execute(Command cmd) {
 System.out.println("EXECUTING cmd = " + cmd.name());
 
         CODACommand codaCommand = cmd.getCodaCommand();

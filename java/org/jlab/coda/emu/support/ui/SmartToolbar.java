@@ -13,8 +13,8 @@ package org.jlab.coda.emu.support.ui;
 
 import org.jlab.coda.emu.support.codaComponent.CODACommand;
 import org.jlab.coda.emu.support.codaComponent.CODATransition;
+import org.jlab.coda.emu.support.control.Command;
 import org.jlab.coda.emu.support.control.CommandAcceptor;
-import org.jlab.coda.emu.support.control.RcCommand;
 import org.jlab.coda.emu.support.control.State;
 
 import javax.swing.*;
@@ -33,7 +33,7 @@ public class SmartToolbar extends JToolBar {
     private static final long serialVersionUID = 7241838854981192095L;
 
     /** Field buttonHandlers */
-    private final HashMap<String, RcCommand> buttonHandlers = new HashMap<String, RcCommand>();
+    private final HashMap<String, Command> buttonHandlers = new HashMap<String, Command>();
 
     /** No-arg constructor. */
     public SmartToolbar() {
@@ -107,7 +107,7 @@ public class SmartToolbar extends JToolBar {
             // for each enum item ...
             //for (Object anOarray : oarray) {
             for (CODACommand codaCmd : emuCmdSet) {
-                RcCommand cmd = new RcCommand(codaCmd);
+                Command cmd = new Command(codaCmd);
                 String name = cmd.name();
 
                 // put into a hashmap(key,val)
@@ -149,7 +149,7 @@ public class SmartToolbar extends JToolBar {
             public void actionPerformed(ActionEvent e) {
                 // The name of the button must be the ActionEvent's command
                 // (which is also the key of the map).
-                RcCommand cmd = buttonHandlers.get(e.getActionCommand());
+                Command cmd = buttonHandlers.get(e.getActionCommand());
 
                 try {
                     // Execute the command associated with the given button.

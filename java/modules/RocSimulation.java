@@ -20,7 +20,7 @@ import org.jlab.coda.emu.support.codaComponent.CODAState;
 import static org.jlab.coda.emu.support.codaComponent.CODACommand.*;
 import org.jlab.coda.emu.support.configurer.Configurer;
 import org.jlab.coda.emu.support.configurer.DataNotFoundException;
-import org.jlab.coda.emu.support.control.RcCommand;
+import org.jlab.coda.emu.support.control.Command;
 import org.jlab.coda.emu.support.control.State;
 import org.jlab.coda.emu.support.data.Evio;
 import org.jlab.coda.emu.support.logger.Logger;
@@ -394,7 +394,7 @@ System.out.println("Roc data creation thread is ending !!!");
     }
 
 
-    public void execute(RcCommand cmd) {
+    public void execute(Command cmd) {
         Date theDate = new Date();
 
         CODACommand emuCmd = cmd.getCodaCommand();

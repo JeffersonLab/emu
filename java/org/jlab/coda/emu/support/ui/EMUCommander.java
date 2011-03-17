@@ -21,8 +21,8 @@ import org.jlab.coda.cMsg.*;
 import org.jlab.coda.emu.support.codaComponent.CODAState;
 import org.jlab.coda.emu.support.codaComponent.CODATransition;
 import org.jlab.coda.emu.support.configurer.Configurer;
+import org.jlab.coda.emu.support.control.Command;
 import org.jlab.coda.emu.support.control.CommandAcceptor;
-import org.jlab.coda.emu.support.control.RcCommand;
 import org.jlab.coda.emu.support.control.State;
 import org.jlab.coda.emu.support.logger.Logger;
 import org.jlab.coda.emu.support.logger.LoggingEvent;
@@ -77,7 +77,7 @@ public class EMUCommander extends JFrame {
             this.subject = subject;
         }
 
-        public void postCommand(RcCommand cmd) throws InterruptedException {
+        public void postCommand(Command cmd) throws InterruptedException {
             cMsgMessage msg = new cMsgMessage();
             msg.setSubject(cmd.toString());
             msg.setType(subject + cmd.toString());

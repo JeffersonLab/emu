@@ -18,7 +18,7 @@ import static org.jlab.coda.emu.support.codaComponent.CODACommand.*;
 import org.jlab.coda.emu.support.configurer.Configurer;
 import org.jlab.coda.emu.support.configurer.DataNotFoundException;
 import org.jlab.coda.emu.support.control.CmdExecException;
-import org.jlab.coda.emu.support.control.RcCommand;
+import org.jlab.coda.emu.support.control.Command;
 import org.jlab.coda.emu.support.control.State;
 import org.jlab.coda.emu.support.logger.Logger;
 import org.jlab.coda.emu.support.transport.DataChannel;
@@ -110,10 +110,10 @@ public class EmuModuleFactory implements StatedObject {
      * This method executes commands given to it.
      *
      * @param cmd of type Command
-     * @see EmuModule#execute(RcCommand)
+     * @see EmuModule#execute(org.jlab.coda.emu.support.control.Command)
      */
     @SuppressWarnings({"ConstantConditions"})
-    public void execute(RcCommand cmd) throws CmdExecException {
+    public void execute(Command cmd) throws CmdExecException {
 
         CODACommand emuCmd = cmd.getCodaCommand();
 

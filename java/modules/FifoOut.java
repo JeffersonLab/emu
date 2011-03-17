@@ -19,7 +19,7 @@ import org.jlab.coda.emu.support.codaComponent.CODAState;
 import static org.jlab.coda.emu.support.codaComponent.CODACommand.*;
 import org.jlab.coda.emu.support.configurer.Configurer;
 import org.jlab.coda.emu.support.configurer.DataNotFoundException;
-import org.jlab.coda.emu.support.control.RcCommand;
+import org.jlab.coda.emu.support.control.Command;
 import org.jlab.coda.emu.support.control.State;
 import org.jlab.coda.emu.support.logger.Logger;
 import org.jlab.coda.emu.support.transport.DataChannel;
@@ -236,7 +236,7 @@ System.out.println("FifoOut: put bank on output Q");
         return last_error;
     }
 
-    public void execute(RcCommand cmd) {
+    public void execute(Command cmd) {
         Date theDate = new Date();
         
         CODACommand emuCmd = cmd.getCodaCommand();

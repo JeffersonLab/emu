@@ -21,7 +21,7 @@ import static org.jlab.coda.emu.support.codaComponent.CODACommand.*;
 
 import org.jlab.coda.emu.support.configurer.Configurer;
 import org.jlab.coda.emu.support.configurer.DataNotFoundException;
-import org.jlab.coda.emu.support.control.RcCommand;
+import org.jlab.coda.emu.support.control.Command;
 import org.jlab.coda.emu.support.control.State;
 import org.jlab.coda.emu.support.data.EventType;
 import org.jlab.coda.emu.support.data.Evio;
@@ -968,7 +968,7 @@ System.out.println("INTERRUPTED thread " + Thread.currentThread().getName());
         return lastError;
     }
 
-    public void execute(RcCommand cmd) {
+    public void execute(Command cmd) {
         Date theDate = new Date();
 
         CODACommand emuCmd = cmd.getCodaCommand();

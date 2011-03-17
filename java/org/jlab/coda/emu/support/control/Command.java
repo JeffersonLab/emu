@@ -20,7 +20,7 @@ import java.util.HashMap;
  * @author timmer
  * Date: 3/14/11
  */
-public class RcCommand {
+public class Command {
 
 
     String cmd;
@@ -33,7 +33,7 @@ public class RcCommand {
     private State success = null;
 
 
-    public RcCommand(CODACommand codaCommand) {
+    public Command(CODACommand codaCommand) {
         setCodaCommand(codaCommand);
         cmd = codaCommand.getCmdString();
     }

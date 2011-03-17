@@ -2,7 +2,7 @@ package modules;
 
 import org.jlab.coda.emu.support.codaComponent.CODACommand;
 import org.jlab.coda.emu.support.control.State;
-import org.jlab.coda.emu.support.control.RcCommand;
+import org.jlab.coda.emu.support.control.Command;
 import org.jlab.coda.emu.support.codaComponent.CODAState;
 
 import static org.jlab.coda.emu.support.codaComponent.CODACommand.*;
@@ -291,7 +291,7 @@ System.out.println("Process: Added bank's children to built event, event = " + c
         return last_error;
     }
 
-    public void execute(RcCommand cmd) {
+    public void execute(Command cmd) {
         Date theDate = new Date();
 
         CODACommand emuCmd = cmd.getCodaCommand();

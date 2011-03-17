@@ -17,7 +17,8 @@ import org.jlab.coda.emu.support.codaComponent.CODACommand;
 import org.jlab.coda.emu.support.codaComponent.CODAState;
 
 import static org.jlab.coda.emu.support.codaComponent.CODACommand.*;
-import org.jlab.coda.emu.support.control.RcCommand;
+
+import org.jlab.coda.emu.support.control.Command;
 import org.jlab.coda.emu.support.control.State;
 import org.jlab.coda.emu.support.logger.Logger;
 import org.jlab.coda.emu.support.transport.DataChannel;
@@ -81,7 +82,7 @@ public class Read implements EmuModule {
         state = s;
     }
 
-    public void execute(RcCommand cmd) {
+    public void execute(Command cmd) {
 
         CODACommand emuCmd = cmd.getCodaCommand();
 

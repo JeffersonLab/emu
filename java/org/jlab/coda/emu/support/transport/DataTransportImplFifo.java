@@ -2,7 +2,7 @@ package org.jlab.coda.emu.support.transport;
 
 import org.jlab.coda.emu.Emu;
 import org.jlab.coda.emu.support.configurer.DataNotFoundException;
-import org.jlab.coda.emu.support.control.RcCommand;
+import org.jlab.coda.emu.support.control.Command;
 import org.jlab.coda.emu.support.logger.Logger;
 
 import java.util.Map;
@@ -21,7 +21,7 @@ public class DataTransportImplFifo extends DataTransportCore implements DataTran
     }
 
     /** {@inheritDoc} */
-    public void execute(RcCommand cmd) {
+    public void execute(Command cmd) {
         // Dummy, nothing to see here people, move along...
     }
 

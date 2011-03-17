@@ -14,7 +14,7 @@ package org.jlab.coda.emu.support.messaging;
 import org.jlab.coda.cMsg.cMsgCallbackInterface;
 import org.jlab.coda.cMsg.cMsgMessage;
 import org.jlab.coda.emu.support.codaComponent.CODACommand;
-import org.jlab.coda.emu.support.control.RcCommand;
+import org.jlab.coda.emu.support.control.Command;
 
 import java.util.Set;
 
@@ -66,11 +66,11 @@ System.out.println("Received an invalid command");
             }
 
             // Get the emuCmd - which is a STATIC CODACommand enum object - and
-            // wrap it with and RcCommand object which is not static and allows
+            // wrap it with and Command object which is not static and allows
             // us to attach all manner of mutable data to it. Thus we can now
             // store any extraneous data Run Control sends us and store them as
             // "args". We can also store GUI or emu-specific data.
-            RcCommand rcCmd = new RcCommand(emuCmd);
+            Command rcCmd = new Command(emuCmd);
 
             // set the args for this command
             Set<String> names = msg.getPayloadNames();
