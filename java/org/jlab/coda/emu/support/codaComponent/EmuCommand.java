@@ -27,19 +27,19 @@ public enum EmuCommand {
 
     // run/transition/
 
-    /** Configure */
+    /** Configure transition. */
     CONFIGURE("Load configuration", configure, false, false, true, 0, null), // actually in session/control/
-    /** Download. */
+    /** Download transition. */
     DOWNLOAD("Apply configuration and load", download, false, false, true, 0, null),
-    /** Prestart. */
+    /** Prestart transition. */
     PRESTART("Prepare to start", prestart, false, false, true, 0, null),
-    /** Go. */
+    /** Go transition. */
     GO("Start taking data", go, false, false, true, 0, null),
-    /** End. */
+    /** End transition. */
     END("End taking data", end, false, false, true, 0, null),
-    /** Pause. */
+    /** Pause transition. */
     PAUSE("Pause taking data", pause, false, false, true, 0, null),
-    /** Reset. */
+    /** Reset transition. */
     RESET("Return to configured state", reset, false, false, true, 0, null), // actually in session/control/
 
     // coda/info/
