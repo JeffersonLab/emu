@@ -90,7 +90,7 @@ public class Command {
      * Get the cMsg message containing the Run Control command.
      * @return cMsg message containing the Run Control command.
      */
-    public cMsgMessage getMsg() {
+    public cMsgMessage getMessage() {
         return msg;
     }
 
@@ -98,7 +98,7 @@ public class Command {
      * Set the cMsg message containing the Run Control command.
      * @param msg cMsg message containing the Run Control command.
      */
-    public void setMsg(cMsgMessage msg) {
+    public void setMessage(cMsgMessage msg) {
         this.msg = msg;
     }
 

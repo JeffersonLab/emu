@@ -36,7 +36,7 @@ class RcCommandHandler extends GenericCallback implements cMsgCallbackInterface 
      *
      * @param cmsgPortal of type CMSGPortal
      */
-    public RcCommandHandler(CMSGPortal cmsgPortal) {
+    RcCommandHandler(CMSGPortal cmsgPortal) {
         this.cmsgPortal = cmsgPortal;
     }
 
@@ -56,9 +56,9 @@ System.out.println("GOT " + msg.getType() + " message");
 
             // The string cmdS may not be an allowed enum value, in which case an
             // IllegalArgumentException will be thrown.
-            CODACommand emuCmd;
+            CODACommand codaCmd;
             try {
-                emuCmd = CODACommand.valueOf(cmdS);
+                codaCmd = CODACommand.valueOf(cmdS);
             } catch (IllegalArgumentException e) {
                 // TODO: bug bug: do we want this printed, logged, etc ???
 System.out.println("Received an invalid command");
@@ -70,7 +70,11 @@ System.out.println("Received an invalid command");
             // us to attach all manner of mutable data to it. Thus we can now
             // store any extraneous data Run Control sends us and store them as
             // "args". We can also store GUI or emu-specific data.
-            Command cmd = new Command(emuCmd);
+            Command cmd = new Command(codaCmd);
+
+            // Save original msg. This is useful, for example,
+            // if response to sendAndGet is necessary.
+            cmd.setMessage(msg);
 
             // set the args for this command
             Set<String> names = msg.getPayloadNames();
