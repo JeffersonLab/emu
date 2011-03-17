@@ -18,13 +18,9 @@ package org.jlab.coda.emu.support.ui;
 import org.jdesktop.layout.GroupLayout;
 import org.jdesktop.layout.LayoutStyle;
 import org.jlab.coda.cMsg.*;
-import org.jlab.coda.emu.Emu;
 import org.jlab.coda.emu.support.codaComponent.CODAState;
 import org.jlab.coda.emu.support.codaComponent.CODATransition;
-import org.jlab.coda.emu.support.codaComponent.RunControl;
-import org.jlab.coda.emu.support.codaComponent.SessionControl;
 import org.jlab.coda.emu.support.configurer.Configurer;
-import org.jlab.coda.emu.support.control.Command;
 import org.jlab.coda.emu.support.control.CommandAcceptor;
 import org.jlab.coda.emu.support.control.RcCommand;
 import org.jlab.coda.emu.support.control.State;
@@ -137,20 +133,18 @@ System.out.println("CMSGPortal.append server = " + server);
                 if (tmp != null) {
                     state = tmp;
 System.out.println("Allowed transitions are " + state.allowed());
-                    // Allows all transitions given by state.allowed().
-                    // The "allow" method should be static, but is simpler to 
-                    // just pick a particular enum (in the case, GO)
-                    // and use that to allow various transitions.
-// TODO fix!!!                    CODATransition.GO.allow(state.allowed());
+                    // Enable/disable transition GUI buttons depending on
+                    // which transitions are allowed out of our current state.
+                    smartToolbar.updateButtons(state);
 System.out.println("State of " + this + " is now " + state());
                 } else {
 System.out.println("State not changed by command");
                 }
 
                 // enable/disable GUI buttons based on having commands enabled/disabled
-                smartToolbar.update();
-                smartToolbar1.update();
-                smartToolbar2.update();
+//                smartToolbar.update();
+//                smartToolbar1.update();
+//                smartToolbar2.update();
                 
             } catch (cMsgException e) {
 System.out.println("CMSGPortal.append error " + e.getMessage());
