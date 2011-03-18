@@ -227,7 +227,7 @@ public class EventBuilding implements EmuModule, Runnable {
         catch (NumberFormatException e) { /* default to 0 */ }
 
         // the module sets the type of CODA class it is.
-        emu.setCodaClass(CODAClass.EB);
+        emu.setCodaClass(CODAClass.CDEB);
 
 // System.out.println("**** HEY, HEY someone created one of ME (modules.ProcessTest object) ****");
 // System.out.println("**** LOADED NEW CLASS, DUDE!!! (modules.ProcessTest object) ****");
