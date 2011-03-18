@@ -373,15 +373,23 @@ System.out.println("Stats for module " + statsModule.name() + ": count = " + eve
                     try {
                         // over write any previously defined payload items
                         reportMsg.addPayloadItem(new cMsgPayloadItem(RCConstants.state, state));
-                        reportMsg.addPayloadItem(new cMsgPayloadItem(RCConstants.codaClass, "CDEB"));
+                        reportMsg.addPayloadItem(new cMsgPayloadItem(RCConstants.codaClass, codaClass.name()));
                         reportMsg.addPayloadItem(new cMsgPayloadItem(RCConstants.eventNumber, (int)eventCount));
                         reportMsg.addPayloadItem(new cMsgPayloadItem(RCConstants.eventRate, eventRate));
                         reportMsg.addPayloadItem(new cMsgPayloadItem(RCConstants.numberOfLongs, wordCount));
-                        reportMsg.addPayloadItem(new cMsgPayloadItem(RCConstants.dataRate, wordRate));
+                        reportMsg.addPayloadItem(new cMsgPayloadItem(RCConstants.dataRate, (double)wordRate));
 
                         // send msg
                         if (cmsgPortal != null && cmsgPortal.getServer() != null) {
-System.out.println("Send STATUS REPORTING Msg");
+System.out.println("Send STATUS REPORTING Msg:");
+                            System.out.println("   " + RCConstants.state + " = " + state);
+                            System.out.println("   " + RCConstants.codaClass + " = " + codaClass.name());
+                            System.out.println("   " + RCConstants.eventNumber + " = " + (int)eventCount);
+                            System.out.println("   " + RCConstants.eventRate + " = " + eventRate);
+                            System.out.println("   " + RCConstants.numberOfLongs + " = " + wordCount);
+                            System.out.println("   " + RCConstants.dataRate + " = " + (double)wordRate);
+
+
                             cmsgPortal.getServer().send(reportMsg);
                         }
                     }
@@ -415,17 +423,25 @@ System.out.println("STATUS REPORTING THREAD: DONE xxx");
      * By the end of the constructor several threads have been started.
      *
      * @param name            name of Emu
+     * @param type            CODA component type of Emu
      * @param configFileName  name of Emu configuration file
      * @param loadedConfig    parsed XML document object of Emu configuration file
      * @param cmsgUDL         UDL used to connect to cMsg server to receive run control commands
      * @param debugUI         start a debug GUI
      * @throws EmuException   if name is null
      */
-    public Emu(String name, String configFileName, Document loadedConfig,
+    public Emu(String name, String type, String configFileName, Document loadedConfig,
                String cmsgUDL, boolean debugUI) throws EmuException {
 
         if (name == null) {
             throw new EmuException("Emu name not defined");
+        }
+
+        if (type != null) {
+            CODAClass cc = CODAClass.get(type);
+            if (cc != null) {
+                codaClass = cc;
+            }
         }
 
         this.name = name;
@@ -585,9 +601,9 @@ System.out.println("ERROR in setting value in local config !!!");
                         }
                         oldState = state;
                     }
-                    else {
-                        System.out.println("Emu: state did NOT change, still in " + state.name());
-                    }
+//                    else {
+//                        System.out.println("Emu: state did NOT change, still in " + state.name());
+//                    }
                 }
 
             } catch (InterruptedException e) {
@@ -638,21 +654,23 @@ System.out.println("EXECUTING cmd = " + cmd.name());
         }
         // Send back our state
         else if (codaCommand == GET_STATE) {
-System.out.println("     Info else if for GET_STATE:");
             if ( (cmsgPortal.getServer() != null) &&
                  (cmsgPortal.getServer().isConnected())) {
 
-                cMsgMessage msg = new cMsgMessage();
-                msg.setSubject(name);
-                msg.setType(RCConstants.rcGetStateResponse);
-                String state = moduleFactory.state().name().toLowerCase();
-System.out.println("     send STATE text field = " + state);
-                msg.setText(state);  //TODO:correct ??
-
+                // need to reply to sendAndGet msg from Run Control
+                if (!cmd.getMessage().isGetRequest()) {
+                    return;
+                }
+                cMsgMessage msg = null;
                 try {
-System.out.print("     will send cmsg msg ... ");
+                    msg = cmd.getMessage().response();
+                }
+                catch (cMsgException e) {/* never happen */}
+                String state = moduleFactory.state().name().toLowerCase();
+//System.out.println("     send STATE text field = " + state);
+                msg.setText(state);
+                try {
                     cmsgPortal.getServer().send(msg);
-System.out.println("sent cmsg msg");
                 }
                 catch (cMsgException e) {
                     e.printStackTrace();
@@ -692,28 +710,6 @@ System.out.println("sent cmsg msg");
                 msg.setText("coda3");  // TODO : object type set Where??
 
                 try {
-                    cmsgPortal.getServer().send(msg);
-                }
-                catch (cMsgException e) {
-                    e.printStackTrace();
-                }
-            }
-
-            return;
-        }
-        // Send back our state    // TODO: is this obsolete??
-        else if (codaCommand == GET_STATE) {
-            if ( (cmsgPortal.getServer() != null) &&
-                 (cmsgPortal.getServer().isConnected())) {
-
-                cMsgMessage msg = new cMsgMessage();
-                msg.setSubject(name);
-                // TODO: set type to proper string
-                msg.setType(RCConstants.reportStatus);
-                String state = moduleFactory.state().name().toLowerCase();
-
-                try {
-                    msg.addPayloadItem(new cMsgPayloadItem(RCConstants.state, state));
                     cmsgPortal.getServer().send(msg);
                 }
                 catch (cMsgException e) {
@@ -778,7 +774,7 @@ System.out.println("sent cmsg msg");
         }
 
         // All commands are passed down to the modules here.
-        // Note: the "RunControl.CONFIGURE" command does nothing in the MODULE_FACTORY
+        // Note: the "CODACommand.CONFIGURE" command does nothing in the MODULE_FACTORY
         // except to set its state to "CODAState.CONFIGURED".
         try {
             moduleFactory.execute(cmd);
