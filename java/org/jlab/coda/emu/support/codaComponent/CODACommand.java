@@ -134,7 +134,7 @@ public enum CODACommand {
     static {
         for (CODACommand item : CODACommand.values()) {
             commandTypeToEnumMap.put(item.getCmdString(), item);
-System.out.println("map : " + item.getCmdString() + "  ->  " + item.name());
+//System.out.println("map : " + item.getCmdString() + "  ->  " + item.name());
         }
     }
 
