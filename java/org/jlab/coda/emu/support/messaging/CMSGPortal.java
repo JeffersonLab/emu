@@ -104,7 +104,7 @@ System.out.println("\n CMSGPortal using UDL = " + UDL + "\n");
                 if (server == null || !server.isConnected()) {
                     try {
                         // create connection to cMsg server
-    System.out.println("CMSGPortal creating cMsg object using UDL = " + UDL + "\n");
+    //System.out.println("CMSGPortal creating cMsg object using UDL = " + UDL + "\n");
                         server = new cMsg(UDL, comp.name(), "EMU called " + comp.name());
                         System.out.println("CMSGPortal created cMsg object");
                         server.connect();
@@ -114,19 +114,19 @@ System.out.println("\n CMSGPortal using UDL = " + UDL + "\n");
                         // only need one callback
                         RcCommandHandler handler = new RcCommandHandler(CMSGPortal.this);
                         // install callback for download, prestart, go, etc
-    System.out.println("CMSGPortal subscribe to sub = *, type = " + RCConstants.transitionCommandType);
+    //System.out.println("CMSGPortal subscribe to sub = *, type = " + RCConstants.transitionCommandType);
                         server.subscribe("*", RCConstants.transitionCommandType, handler, null);
                         // install callback for reset, configure, start, stop, getsession, setsession, etc
-    System.out.println("CMSGPortal subscribe to sub = *, type = " + RCConstants.runCommandType);
+    //System.out.println("CMSGPortal subscribe to sub = *, type = " + RCConstants.runCommandType);
                         server.subscribe("*", RCConstants.runCommandType, handler, null);
                         // install callback for set/get run number, set/get run type
-    System.out.println("CMSGPortal subscribe to sub = *, type = " + RCConstants.sessionCommandType);
+    //System.out.println("CMSGPortal subscribe to sub = *, type = " + RCConstants.sessionCommandType);
                         server.subscribe("*", RCConstants.sessionCommandType, handler, null);
                         // install callback for getting state, status, codaClass, & objectType
-    System.out.println("CMSGPortal subscribe to sub = *, type = " + RCConstants.infoCommandType);
+    //System.out.println("CMSGPortal subscribe to sub = *, type = " + RCConstants.infoCommandType);
                         server.subscribe("*", RCConstants.infoCommandType, handler, null);
                         // for future use
-    System.out.println("CMSGPortal subscribe to sub = *, type = " + RCConstants.setOptionType);
+    //System.out.println("CMSGPortal subscribe to sub = *, type = " + RCConstants.setOptionType);
                         server.subscribe("*", RCConstants.setOptionType, handler, null);
 
                         logger.info("cMSg server connected");
