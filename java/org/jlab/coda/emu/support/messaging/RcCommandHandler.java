@@ -49,16 +49,15 @@ class RcCommandHandler extends GenericCallback implements cMsgCallbackInterface 
      * @param o   object given in subscription & passed in here (null in this case)
      */
     public void callback(cMsgMessage msg, Object o) {
-System.out.println("GOT " + msg.getType() + " message");
+System.out.println("callback: got " + msg.getType() + " message");
         try {
             String type = msg.getType();
-            String cmdS = (type.substring(type.lastIndexOf("/") + 1));
 
             // The string cmdS may not be an allowed enum value, in which case an
             // IllegalArgumentException will be thrown.
             CODACommand codaCmd;
             try {
-                codaCmd = CODACommand.valueOf(cmdS);
+                codaCmd = CODACommand.get(type);
             } catch (IllegalArgumentException e) {
                 // TODO: bug bug: do we want this printed, logged, etc ???
 System.out.println("Received an invalid command");
