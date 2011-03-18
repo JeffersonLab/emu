@@ -11,13 +11,13 @@
 
 package org.jlab.coda.emu;
 
+import org.jlab.coda.emu.support.codaComponent.CODAClass;
 import org.jlab.coda.emu.support.configurer.Configurer;
 import org.jlab.coda.emu.support.configurer.DataNotFoundException;
 import org.w3c.dom.Document;
 import org.w3c.dom.NamedNodeMap;
 import org.w3c.dom.Node;
 
-import java.io.File;
 import java.util.LinkedHashSet;
 import java.util.LinkedList;
 
@@ -31,12 +31,28 @@ public class EmuFactory {
 
     /** Singleton pattern. */
     private static final EmuFactory INSTANCE = new EmuFactory();
+
+    /** Debug not used at present. */
     private static boolean debug;
 
+
+    /** List of CODA component names. All names must be defined. */
     private LinkedList<String> names = new LinkedList<String>();
+
+    /** List of CODA component types. Type default to EMU if not given. */
+    private LinkedList<String> types = new LinkedList<String>();
+
+    /** List of config file names if any. LinkedList allows null items. */
     private LinkedList<String> configFileNames = new LinkedList<String>();
+
+    /**
+     * List of parsed config file objects if any. Must
+     * have 1-to-1 correspondence to config file names.
+     */
     private LinkedList<Document> loadedConfigs = new LinkedList<Document>();
 
+
+    /** Singleton has private constructor. */
     private EmuFactory() {}
 
     /**
@@ -74,6 +90,7 @@ public class EmuFactory {
                 "        [-h]                 print this help\n" +
                 "        [-debug]             turn on printout\n" +
                 "        [-Dname=xxx]         set name of EMU\n"+
+                "        [-Dtype=xxx]         set CODA component type (eg. CDEB, ER)\n"+
                 "        [-Dconfig=xxx]       set config file name to be loaded at configuration\n"+
                 "        [-Dlconfig=xxx]      set local config file name for loading static info\n"+
                 "        [-Dexpid=xxx]        set experiment ID\n"+
@@ -201,28 +218,33 @@ public class EmuFactory {
         else {
             // If no component names & no config file names are given, give up.
             if (cmdLineNames == null) {
-                System.out.println("EMUFactory exit - no names or config files given");
+                System.out.println("EMUFactory exit - no names and no config files given");
                 System.exit(-1);
             }
 
-            // If we're here, component names exist, but no config file was given.
-            // Since config files are not explicitly given, the INSTALL_DIR
-            // environmental variable must be defined in order to find them.
-            String installDir = System.getenv("INSTALL_DIR");
-            if (installDir == null) {
-                System.out.println("EMUFactory exit - INSTALL_DIR is not set");
-                System.exit(-1);
-            }
+            // If we're here, component names exist, but no config files were given.
+            // Run Control will pass config files to the emus during the "configure"
+            // transition.
 
-System.out.println("Look for a config file for each component:");
-            String fileName;
-            for (String name : names) {
-                fileName = installDir + File.separator + "emu/conf" +
-                                        File.separator + name + ".xml";
-                configFileNames.add(fileName);
 
-System.out.println("- " + fileName);
-            }
+//            // If we're here, component names exist, but no config file was given.
+//            // Since config files are not explicitly given, the INSTALL_DIR
+//            // environmental variable must be defined in order to find them.
+//            String coolHome = System.getenv("COOL_HOME");
+//            if (coolHome == null) {
+//                System.out.println("EMUFactory exit - COOL_HOME env. variable is not set");
+//                System.exit(-1);
+//            }
+//
+//System.out.println("Look for a config file for each component:");
+//            String fileName;
+//            for (String name : names) {
+//                fileName = coolHome + File.separator + "emu/conf" +
+//                                      File.separator + name + ".xml";
+//                configFileNames.add(fileName);
+//
+//System.out.println("- " + fileName);
+//            }
         }
 
         // If we've identified some config files, try to load them
@@ -243,30 +265,50 @@ System.out.println("- " + fileName);
                 }
             }
 
-            // Pull component(s) name(s) out of the config file(s).
-            // Each file may contain only 1 component.
-            Node modulesConfig;
+            // Pull component(s) name(s) (and CODA component type(s) if any)
+            // out of the config file(s). Each file may contain only 1 component.
+
+            Node modulesConfig = null;
             LinkedHashSet<String> componentNames = new LinkedHashSet<String>();
-            //for (int i=0; i < loadedConfigs.length; i++) {
+
             for (Document doc : loadedConfigs) {
                 try {
-                    // get the config info again since it may have changed
+                    // get the config info
                     modulesConfig = Configurer.getNode(doc, "component");
-                    // get attribute of the top ("component") node
-                    NamedNodeMap nm = modulesConfig.getAttributes();
-                    // get name of component from node
-                    Node nameAttr = nm.getNamedItem("name");
-System.out.println("Found component " + nameAttr.getNodeValue());
-                    componentNames.add(nameAttr.getNodeValue());
                 } catch (DataNotFoundException e) {
                     // parsing XML error
-                    System.out.println("EMUFactory exit - cannot find \"component\" attribute in config file: " +
+                    System.out.println("EMUFactory exit - cannot find \"component\" element in config file: " +
                                        e.getMessage());
                     System.exit(-1);
+                }
+
+                // get attributes of the top ("component") node
+                NamedNodeMap nm = modulesConfig.getAttributes();
+
+                // get name of component from node
+                Node attr = nm.getNamedItem("name");
+                if (attr == null) {
+                    System.out.println("No \"name\" attr in component element of config file");
+                    System.exit(-1);
+                }
+System.out.println("Found component " + attr.getNodeValue());
+                componentNames.add(attr.getNodeValue());
+
+                // get type of component, if any
+                attr = nm.getNamedItem("type");
+                if (attr != null) {
+                    types.add(attr.getNodeValue());
+                }
+                else {
+                    types.add(null);
                 }
             }
 
             // Compare with names from command line if any. They must agree exactly.
+            // In other words, if names are specified on the command line, then ALL
+            // names must be specified there. If names are specified, and config
+            // files are specified, ALL config files must be given on the command
+            // line.
             if (names.size() > 0) {
                 if (componentNames.size() != names.size() ||
                    !componentNames.containsAll(names)) {
@@ -279,15 +321,66 @@ System.out.println("Found component " + nameAttr.getNodeValue());
             }
         }
 
+        // See if any CODA component types were given on the command line.
+        // If any are given, ALL must be given. Things must match what's in
+        // the config files (unless nothing given there).
+        String codaTypes = System.getProperty("type");
+        if (codaTypes != null) {
+            String[] strs;
+
+            if (codaTypes.contains(",")) {
+                strs = codaTypes.split(",");
+            }
+            else if (codaTypes.contains(":")) {
+                strs = codaTypes.split(":");
+            }
+            else if (codaTypes.contains(";")) {
+                strs = codaTypes.split(";");
+            }
+            else {
+                strs = new String[1];
+                strs[0] = codaTypes;
+            }
+
+            if (strs.length != names.size()) {
+                System.out.println("EMUFactory exit - need 1 type for each component if specified on cmd line");
+                System.exit(-1);
+            }
+
+            if (types.size() > 0) {
+                String typ;
+                for (int i=0; i<strs.length; i++) {
+                    typ = types.get(i);
+                    // If no type in config file, it's assumed to be EMU & changed later.
+                    // Don't compare now.
+                    if (typ != null && !strs[i].equals(typ)) {
+                        System.out.println("EMUFactory exit - type on cmd line (" + strs[i] +
+                                           ") must match type in config file ("+ types.get(i) + ")");
+                        System.exit(-1);
+                    }
+                }
+            }
+
+System.out.println("Look for CODA component types:");
+            for (String s : strs) {
+                if (CODAClass.get(s) == null) {
+                    System.out.println("EMUFactory exit - all types must be valid, \"" + s + "\" is not");
+                    System.exit(-1);
+                }
+                System.out.println("- " + s);
+            }
+        }
+
+
         // Create EMU objects here. By this time we should have
         // all the names and possibly configurations too.
         for (int i=0; i < names.size(); i++) {
             if (configFileNames.size() > 0) {
-                new Emu(names.get(i), configFileNames.get(i),
+                new Emu(names.get(i), types.get(i), configFileNames.get(i),
                         loadedConfigs.get(i), cmsgUDL, debugUI);
             }
             else {
-                new Emu(names.get(i), null, null, cmsgUDL, debugUI);
+                new Emu(names.get(i), null, null, null, cmsgUDL, debugUI);
             }
         }
     }
