@@ -11,7 +11,6 @@
 
 package org.jlab.coda.emu;
 
-import org.jlab.coda.cMsg.cMsgConstants;
 import org.jlab.coda.cMsg.cMsgException;
 import org.jlab.coda.cMsg.cMsgPayloadItem;
 import org.jlab.coda.cMsg.cMsgMessage;
@@ -28,6 +27,7 @@ import org.jlab.coda.emu.support.messaging.CMSGPortal;
 import org.jlab.coda.emu.support.messaging.RCConstants;
 import org.jlab.coda.emu.support.ui.DebugFrame;
 import org.w3c.dom.Document;
+import org.w3c.dom.NamedNodeMap;
 import org.w3c.dom.Node;
 
 import java.io.File;
@@ -42,7 +42,7 @@ import java.util.concurrent.TimeUnit;
  * with Run Control and implements a state machine.
  *
  * @athor heyes
- * @author timer
+ * @author timmer
  */
 public class Emu implements CODAComponent {
 
@@ -441,6 +441,7 @@ System.out.println("STATUS REPORTING THREAD: DONE xxx");
             CODAClass cc = CODAClass.get(type);
             if (cc != null) {
                 codaClass = cc;
+System.out.println("Emu constructor: set type to " + codaClass);
             }
         }
 
@@ -644,7 +645,7 @@ System.out.println("EXECUTING cmd = " + cmd.name());
         else if (codaCommand == SET_RUN_NUMBER) {
             // get the new run number and store it
             try {
-                cMsgPayloadItem item = (cMsgPayloadItem) cmd.getArg("runNumber");
+                cMsgPayloadItem item = cmd.getArg("runNumber");
                 if (item != null) setRunNumber(item.getInt());
             }
             catch (cMsgException e) {
@@ -658,12 +659,13 @@ System.out.println("EXECUTING cmd = " + cmd.name());
                  (cmsgPortal.getServer().isConnected())) {
 
                 // need to reply to sendAndGet msg from Run Control
-                if (!cmd.getMessage().isGetRequest()) {
+                cMsgMessage msg = null;
+                cMsgMessage rcMsg = cmd.getMessage();
+                if (!rcMsg.isGetRequest()) {
                     return;
                 }
-                cMsgMessage msg = null;
                 try {
-                    msg = cmd.getMessage().response();
+                    msg = rcMsg.response();
                 }
                 catch (cMsgException e) {/* never happen */}
                 String state = moduleFactory.state().name().toLowerCase();
@@ -722,41 +724,93 @@ System.out.println("EXECUTING cmd = " + cmd.name());
 
 
         // When we are told to CONFIGURE, the EMU handles this even though
-        // this command is still passed on down to the modules. Read or
-        // re-read the config file and update debug GUI.
+        // this command is still passed on down to the modules. Read the
+        // (if any) config file and update debug GUI.
         if (codaCommand == CONFIGURE) {
-
             // save a reference to any previously used config
             Document oldConfig = loadedConfig;
 
             try {
-                // If a "config" button was pressed, there are no args, but
-                // if we received a config command over cMsg, there may be a
-                // config file specified. Find out what it is and load 'er up.
-                if (cmd.hasArgs() && (cmd.getArg("config") != null)) {
+                // A msg from RC or a press of a debug GUI button can
+                // create a CONFIGURE command. In one case we have a
+                // cMsg message from the callback, in the other we don't.
+                cMsgMessage msg   = cmd.getMessage();
+                String xmlConfig  = null;
+                boolean newConfig = false;
+
+                if (msg != null) {
+                    // May have an xml string of the new configuration.
+                    xmlConfig = cmd.getMessage().getText();
+                    newConfig = cmd.getMessage().getUserInt() == 1;
+                }
+
+                // If this config is sent from Run Control...
+                if (xmlConfig != null) {
+                    // If it was NOT loaded before, load it now.
+                    if (newConfig || debugGUI != null) {
+System.out.println("loading NEW configuration");
+                        Configurer.setLogger(logger);
+                        // Parse XML config string into Document object.
+                        loadedConfig = Configurer.parseString(xmlConfig);
+                        Configurer.removeEmptyTextNodes(loadedConfig.getDocumentElement());
+                    }
+                }
+                // If we have no config from Run Control, use one
+                // provided locally on command line (if any).
+                // Don't do any fancy stuff here like only reload if
+                // file creation data changed, because RC & debug GUI
+                // can interfere otherwise.
+                else if (configFileName != null) {
                     Configurer.setLogger(logger);
-                    cMsgPayloadItem arg = (cMsgPayloadItem) cmd.getArg("config");
-                    if (arg.getType() == cMsgConstants.payloadStr) {
-                        // Parse a string containing an XML configuration
-                        // and turn it into a Document object.
-                        loadedConfig = Configurer.parseString(arg.getString());
-                    } else {
-                        throw new DataNotFoundException("cMsg: configuration argument for configure is not a string");
+                    // Parse XML config file and turn it into Document object.
+                    loadedConfig = Configurer.parseFile(configFileName);
+                    Configurer.removeEmptyTextNodes(loadedConfig.getDocumentElement());
+
+                    // Check that name and CODA type have NOT changed.
+                    Node modulesConfig = Configurer.getNode(loadedConfig, "component");
+
+                    // Get attributes of the top ("component") node
+                    NamedNodeMap nm = modulesConfig.getAttributes();
+
+                    // Get name of component from node
+                    Node attr = nm.getNamedItem("name");
+                    if (attr == null) {
+                        throw new DataNotFoundException("No \"name\" attr in component element of config file");
                     }
 
-                    Configurer.removeEmptyTextNodes(loadedConfig.getDocumentElement());
+System.out.println("Cmd line config: found component " + attr.getNodeValue());
+                    // Get name in config file and compare to our name - should be same.
+                    if (!attr.getNodeValue().equals(name)) {
+                        throw new DataNotFoundException("Name in config file (" + attr.getNodeValue() +
+                                                         ") conflicts with existing name (" + name + ")");
+                    }
+
+                    // Get type of component, if any - must be same as emu type.
+                    attr = nm.getNamedItem("type");
+                    if (attr != null) {
+//System.out.println("Exec configure: type = " + attr.getNodeValue());
+//System.out.println("              : old codaClass = " + codaClass);
+                        CODAClass cc = CODAClass.get(attr.getNodeValue());
+                        if (cc != null) {
+                            if (cc != codaClass) {
+                                throw new DataNotFoundException("CODA type in config file (" + attr.getNodeValue() +
+                                                                 ") conflicts with existing type (" + codaClass + ")");
+                            }
+                        }
+                        else {
+                            throw new DataNotFoundException("Unsupported CODA component type in config file (" +
+                                                             attr.getNodeValue() + ")");
+                        }
+                    }
+                }
+                else {
+                    // We were told to configure, but no config file or string provided.
+                    throw new DataNotFoundException("No config file provided from RC or emu cmd line");
                 }
             }
             // parsing XML error
             catch (DataNotFoundException e) {
-                logger.error("Configure FAILED", e.getMessage());
-                CODAState.ERROR.getCauses().add(e);
-                moduleFactory.ERROR();
-                return;
-            }
-            // "config" payload item has no string (should never happen)
-            catch (cMsgException e) {
-                logger.error("Configure FAILED", e.getMessage());
+                logger.error("CONFIGURE FAILED", e.getMessage());
                 CODAState.ERROR.getCauses().add(e);
                 moduleFactory.ERROR();
                 return;
@@ -764,14 +818,61 @@ System.out.println("EXECUTING cmd = " + cmd.name());
             finally {
                 Configurer.setLogger(null);
             }
-            
-//System.out.println("Here in execute");
+
             // update (or add to) GUI, window with non-local config info (static info)
             if (debugGUI != null) {
                 if (oldConfig != null) debugGUI.removeDocument(oldConfig);
                 debugGUI.addDocument(loadedConfig);
             }
+
         }
+
+
+        // When we are told to CONFIGURE, the EMU handles this even though
+        // this command is still passed on down to the modules. Read or
+        // re-read the config file and update debug GUI.
+//        if (codaCommand == CONFIGURE) {
+//            // save a reference to any previously used config
+//            Document oldConfig = loadedConfig;
+//
+//            try {
+//                // Should have an xml string of the new configuration.
+//                if (cmd.hasArgs() && (cmd.getArg("config") != null)) {
+//                    Configurer.setLogger(logger);
+//                    cMsgPayloadItem arg = cmd.getArg("config");
+//                    if (arg.getType() == cMsgConstants.payloadStr) {
+//                        // Parse a string containing an XML configuration
+//                        // and turn it into a Document object.
+//                        loadedConfig = Configurer.parseString(arg.getString());
+//                    } else {
+//                        throw new DataNotFoundException("cMsg: config payload item for SET_CONFIG_FILE is not a string");
+//                    }
+//
+//                    Configurer.removeEmptyTextNodes(loadedConfig.getDocumentElement());
+//                }
+//            }
+//            // parsing XML error
+//            catch (DataNotFoundException e) {
+//                logger.error("SET_CONFIG_FILE FAILED", e.getMessage());
+//                CODAState.ERROR.getCauses().add(e);
+//                moduleFactory.ERROR();
+//                return;
+//            }
+//            // "config" payload item has no string
+//            catch (cMsgException e) {
+//                // will never happen
+//            }
+//            finally {
+//                Configurer.setLogger(null);
+//            }
+//
+//            // update (or add to) GUI, window with non-local config info (static info)
+//            if (debugGUI != null) {
+//                if (oldConfig != null) debugGUI.removeDocument(oldConfig);
+//                debugGUI.addDocument(loadedConfig);
+//            }
+//
+//        }
 
         // All commands are passed down to the modules here.
         // Note: the "CODACommand.CONFIGURE" command does nothing in the MODULE_FACTORY
