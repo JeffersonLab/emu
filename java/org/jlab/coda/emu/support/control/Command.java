@@ -11,7 +11,10 @@
 
 package org.jlab.coda.emu.support.control;
 
+
+
 import org.jlab.coda.cMsg.cMsgMessage;
+import org.jlab.coda.cMsg.cMsgPayloadItem;
 import org.jlab.coda.emu.support.codaComponent.CODACommand;
 import org.jlab.coda.emu.support.codaComponent.CODATransition;
 
@@ -35,14 +38,14 @@ public class Command {
      */
     private State success;
 
-    /** Original message from Run Control containing command to be executed. */
+    /** Original cMsg message from Run Control containing command to be executed. */
     private cMsgMessage msg;
 
     /** CODACommand object to be wrapped by this class. */
     private final CODACommand codaCommand;
 
     /** Map of arguments contained in the message from run control (in payload). */
-    private final HashMap<String, Object> args = new HashMap<String, Object>();
+    private final HashMap<String, cMsgPayloadItem> args = new HashMap<String, cMsgPayloadItem>();
 
 
 
@@ -102,7 +105,6 @@ public class Command {
         this.msg = msg;
     }
 
-
     /**
      * Get the object (a cMsgPayloadItem object) associated
      * with this tag (unique mapping). The tag is the name of
@@ -112,7 +114,7 @@ public class Command {
      * @param tag name
      * @return Object object associated with tag
      */
-    public Object getArg(String tag) {
+    public cMsgPayloadItem getArg(String tag) {
         return args.get(tag);
     }
 
@@ -124,7 +126,7 @@ public class Command {
      * @param tag   of type String (name of cMsgPayloadItem)
      * @param value of type Object (actually cMsgPayloadItem)
      */
-    public void setArg(String tag, Object value) {
+    public void setArg(String tag, cMsgPayloadItem value) {
         args.put(tag, value);
     }
 
