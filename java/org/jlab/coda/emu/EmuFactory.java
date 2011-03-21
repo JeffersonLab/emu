@@ -300,7 +300,7 @@ System.out.println("Found component " + attr.getNodeValue());
                     types.add(attr.getNodeValue());
                 }
                 else {
-                    types.add(null);
+                    types.add(null); //  type = EMU by default
                 }
             }
 
@@ -361,13 +361,13 @@ System.out.println("Found component " + attr.getNodeValue());
                 }
             }
 
-System.out.println("Look for CODA component types:");
-            for (String s : strs) {
-                if (CODAClass.get(s) == null) {
-                    System.out.println("EMUFactory exit - all types must be valid, \"" + s + "\" is not");
+            for (int i=0; i<strs.length; i++) {
+                if (CODAClass.get(strs[i]) == null) {
+                    System.out.println("EMUFactory exit - all types must be valid, \"" + strs[i] + "\" is not");
                     System.exit(-1);
                 }
-                System.out.println("- " + s);
+                types.add(i, strs[i]);
+                System.out.println("- " + strs[i]);
             }
         }
 
