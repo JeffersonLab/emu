@@ -53,6 +53,13 @@ public class Emu implements CODAComponent {
      */
     private DebugFrame debugGUI;
 
+    /**
+     * Configure can be done by the debug GUI or Run Control command.
+     * Keep track of when debug GUI last did it so we know if a configuration
+     * from RC was already loaded or not.
+     */
+    private boolean debugGuiConfigured = true;
+
     /** The Emu starts all of it's threads in one thread group. */
     private final ThreadGroup threadGroup;
 
@@ -731,15 +738,16 @@ System.out.println("EXECUTING cmd = " + cmd.name());
                 // If this config is sent from Run Control...
                 if (xmlConfig != null) {
                     // If it was NOT loaded before, load it now.
-                    // If we have a debug GUI, load it again since the configuration
-                    // may have been changed by using that to reconfigure.
-                    if (newConfig || debugGUI != null) {
+                    // If we have a debug GUI, and it was used to last load
+                    // the configuration, then reconfigure.
+                    if (newConfig || debugGuiConfigured) {
 System.out.println("loading NEW configuration = \n" + xmlConfig);
                         Configurer.setLogger(logger);
                         // Parse XML config string into Document object.
                         loadedConfig = Configurer.parseString(xmlConfig);
                         Configurer.removeEmptyTextNodes(loadedConfig.getDocumentElement());
                     }
+                    debugGuiConfigured = false;
                 }
                 // If we have no config from Run Control, use one
                 // provided locally on command line (if any).
@@ -774,8 +782,8 @@ System.out.println("Cmd line config: found component " + attr.getNodeValue());
                     // Get type of component, if any - must be same as emu type.
                     attr = nm.getNamedItem("type");
                     if (attr != null) {
-//System.out.println("Exec configure: type = " + attr.getNodeValue());
-//System.out.println("              : old codaClass = " + codaClass);
+System.out.println("\n\n\nExec configure: type = " + attr.getNodeValue());
+System.out.println("              : old codaClass = " + codaClass);
                         CODAClass cc = CODAClass.get(attr.getNodeValue());
                         if (cc != null) {
                             if (cc != codaClass) {
@@ -788,6 +796,7 @@ System.out.println("Cmd line config: found component " + attr.getNodeValue());
                                                              attr.getNodeValue() + ")");
                         }
                     }
+                    debugGuiConfigured = true;
                 }
                 else {
                     // We were told to configure, but no config file or string provided.
@@ -797,6 +806,7 @@ System.out.println("Cmd line config: found component " + attr.getNodeValue());
             // parsing XML error
             catch (DataNotFoundException e) {
                 logger.error("CONFIGURE FAILED", e.getMessage());
+e.printStackTrace();
                 CODAState.ERROR.getCauses().add(e);
                 moduleFactory.ERROR();
                 return;
