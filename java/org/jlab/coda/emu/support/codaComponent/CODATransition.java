@@ -43,7 +43,7 @@ import org.jlab.coda.emu.support.control.State;
  *                 |                |           |           |
  *     prestart    |                | end       | end       | reset
  *                 |                |           |           |
- *                 '-> PRESTARTED -> -----------|---------->|
+ *                 '-> PAUSED -----> -----------|---------->|
  *                  <-            <-            |           ^
  *                 |                ^           |           |
  *        go       |                | pause     |           |
@@ -67,13 +67,13 @@ public enum CODATransition {
     /** Download transition. */
     DOWNLOAD("Apply the configuration and load", "DOWNLOADED"),
     /** Prestart transition. */
-    PRESTART("Prepare to start", "PRESTARTED"),
+    PRESTART("Prepare to start", "PAUSED"),
     /** Go transition. */
     GO("Start taking data", "ACTIVE"),
     /** End transition. */
     END("End taking data", "DOWNLOADED"),
     /** Pause transition. */
-    PAUSE("Pause taking data", "PRESTARTED"),
+    PAUSE("Pause taking data", "PAUSED"),
     /** Reset transition. */
     RESET("Return to configured state", "CONFIGURED");
 

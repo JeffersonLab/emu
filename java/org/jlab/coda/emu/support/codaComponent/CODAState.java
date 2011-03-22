@@ -48,7 +48,7 @@ import java.util.Vector;
  *                 |                |           |           |
  *     prestart    |                | end       | end       | reset
  *                 |                |           |           |
- *                 '-> PRESTARTED -> -----------|---------->|
+ *                 '-> PAUSED -----> -----------|---------->|
  *                  <-            <-            |           ^
  *                 |                ^           |           |
  *        go       |                | pause     |           |
@@ -77,14 +77,14 @@ public enum CODAState implements State {
     /** DOWNLOADED state (same as ENDED). */
     DOWNLOADED("external modules loaded", EnumSet.of(DOWNLOAD, PRESTART, RESET)),
 
-    /** PRESTARTED state (same as PAUSED). */
-    PRESTARTED("modules initialized and ready to go", EnumSet.of(GO, END, RESET)),
+    /** PAUSED state (same as PAUSED). */
+    PAUSED("modules initialized and ready to go", EnumSet.of(GO, END, RESET)),
 
     /** ACTIVE state. */
     ACTIVE("taking data", EnumSet.of(PAUSE, END, RESET)),
 
     /** ERROR state. */
-    ERROR("an error has occured", EnumSet.noneOf(CODATransition.class));
+    ERROR("an error has occurred", EnumSet.noneOf(CODATransition.class));
 
 
     /** Description of this state. */
