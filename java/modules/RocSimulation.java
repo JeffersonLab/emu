@@ -244,7 +244,7 @@ public class RocSimulation implements EmuModule, Runnable {
     private class Watcher extends Thread {
         /**
          * Method run is the action loop of the thread. It's created while the module is in the
-         * ACTIVE or PRESTARTED state. It is exited on end of run or reset.
+         * ACTIVE or PAUSED state. It is exited on end of run or reset.
          * It is started by the GO transition.
          */
         public void run() {
@@ -445,7 +445,7 @@ System.out.println("Roc data creation thread is ending !!!");
 
         else if (emuCmd == PRESTART) {
 
-            state = CODAState.PRESTARTED;
+            state = CODAState.PAUSED;
 
             // Reset some variables
             eventRate = wordRate = 0F;

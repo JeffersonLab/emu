@@ -87,7 +87,7 @@ public class FifoOut implements EmuModule, Runnable {
          * It is started by the GO transition.
          */
         public void run() {
-            while ((state == CODAState.ACTIVE) || (state == CODAState.PRESTARTED)) {
+            while ((state == CODAState.ACTIVE) || (state == CODAState.PAUSED)) {
                 try {
                     // In the paused state only wake every two seconds.
                     sleep(2000);
@@ -159,7 +159,7 @@ System.out.println("Process module: quitting watcher thread");
 
 System.out.println("Action Thread state " + state);
 
-        while ((state == CODAState.ACTIVE) || (state == CODAState.PRESTARTED)) {
+        while ((state == CODAState.ACTIVE) || (state == CODAState.PAUSED)) {
 System.out.println("FifoOut: is active or paused");
             try {
                 Iterator<DataChannel> outputIter = null;
@@ -274,7 +274,7 @@ System.out.println("FifoOut: put bank on output Q");
         }
 
         else if (emuCmd == PAUSE) {
-            state = CODAState.PRESTARTED;
+            state = CODAState.PAUSED;
             actionThread.interrupt();
             watcher.interrupt();
             actionThread = null;

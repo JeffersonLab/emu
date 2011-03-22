@@ -79,11 +79,11 @@ public class ProcessTest implements EmuModule, Runnable {
     private class Watcher extends Thread {
         /**
          * Method run is the action loop of the thread. It executes while the module is in the
-         * state ACTIVE or PRESTARTED. It is exited on end of run or reset.
+         * state ACTIVE or PAUSED. It is exited on end of run or reset.
          * It is started by the GO transition.
          */
         public void run() {
-            while ((state == CODAState.ACTIVE) || (state == CODAState.PRESTARTED)) {
+            while ((state == CODAState.ACTIVE) || (state == CODAState.PAUSED)) {
                 try {
                     // In the paused state only wake every two seconds.
                     sleep(2000);
@@ -335,7 +335,7 @@ System.out.println("Process: Added bank's children to built event, event = " + c
         }
 
         else if (emuCmd == PRESTART) {
-            state = CODAState.PRESTARTED;
+            state = CODAState.PAUSED;
 
             eventRate = wordRate = 0F;
             eventCountTotal = wordCountTotal = 0L;
@@ -354,7 +354,7 @@ System.out.println("Process: Added bank's children to built event, event = " + c
         }
 
         else if (emuCmd == PAUSE) {
-            state = CODAState.PRESTARTED;
+            state = CODAState.PAUSED;
             actionThread.interrupt();
             watcher.interrupt();
             watcher = new Watcher();

@@ -287,11 +287,11 @@ public class EventBuilding implements EmuModule, Runnable {
     private class WatcherOld extends Thread {
         /**
          * Method run is the action loop of the thread. It executes while the module is in the
-         * state ACTIVE or PRESTARTED. It is exited on end of run or reset.
+         * state ACTIVE or PAUSED. It is exited on end of run or reset.
          * It is started by the GO transition.
          */
         public void run() {
-            while ((state == CODAState.ACTIVE) || (state == CODAState.PRESTARTED)) {
+            while ((state == CODAState.ACTIVE) || (state == CODAState.PAUSED)) {
                 try {
                     // In the paused state only wake every two seconds.
                     sleep(2000);
@@ -325,7 +325,7 @@ public class EventBuilding implements EmuModule, Runnable {
     private class Watcher extends Thread {
         /**
          * Method run is the action loop of the thread. It's created while the module is in the
-         * ACTIVE or PRESTARTED state. It is exited on end of run or reset.
+         * ACTIVE or PAUSED state. It is exited on end of run or reset.
          * It is started by the GO transition.
          */
         public void run() {
@@ -1057,7 +1057,7 @@ System.out.println("INTERRUPTED thread " + Thread.currentThread().getName());
                 }
             }
 
-            state = CODAState.PRESTARTED;
+            state = CODAState.PAUSED;
 
             // Make sure we have the correct # of payload bank queues available.
             // Each queue holds payload banks taken from Data Transport Records
