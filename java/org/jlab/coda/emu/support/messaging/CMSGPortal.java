@@ -202,14 +202,15 @@ System.out.println("\n CMSGPortal using UDL = " + UDL + "\n");
 
             try {
                 if (event.hasData()) {
-                    msg.addPayloadItem(new cMsgPayloadItem("hostName", comp.getHostName()));
-                    msg.addPayloadItem(new cMsgPayloadItem("userName", comp.getUserName()));
+                    msg.addPayloadItem(new cMsgPayloadItem("hostName",  comp.getHostName()));
+                    msg.addPayloadItem(new cMsgPayloadItem("userName",  comp.getUserName()));
                     msg.addPayloadItem(new cMsgPayloadItem("runNumber", comp.getRunNumber()));
-                    msg.addPayloadItem(new cMsgPayloadItem("runType", comp.getRunType()));
-                    msg.addPayloadItem(new cMsgPayloadItem("config", comp.getConfig()));
+                    msg.addPayloadItem(new cMsgPayloadItem("runType",   comp.getRunType()));
+                    msg.addPayloadItem(new cMsgPayloadItem("codaClass", comp.getCodaClass()));
+                    // config is not implemented
+                    msg.addPayloadItem(new cMsgPayloadItem("config", "unknown"));
                     msg.addPayloadItem(new cMsgPayloadItem("severity", event.getFormatedLevel()));
                     if (comp.state() != null) msg.addPayloadItem(new cMsgPayloadItem("state", comp.state().toString()));
-                    msg.addPayloadItem(new cMsgPayloadItem("codaClass", comp.getCodaClass()));
                     msg.addPayloadItem(new cMsgPayloadItem("cmlogData", event.getFormatedData()));
                     DateFormat format = new SimpleDateFormat("HH:mm:ss.SSS ");
                     format.format(new Date(event.getEventTime()));
