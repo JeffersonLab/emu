@@ -112,14 +112,14 @@ public class Emu implements CODAComponent {
     /** The name of the user account the Emu is running under. */
     private String userName;
 
-    /** The name of the current configuration, passed via the configure command. */ // TODO: what is this again?
-    private String config = "unconfigured";
-
     /**
      * Type of CODA object this is. Initially this is an EMU,
      * but it may be set later by the module(s) loaded.
      */
     private CODAClass codaClass = CODAClass.EMU;
+
+    /** Which CODA version is this object designed for? */
+    private String objectType = "coda3";
 
     /** The run number. */
     private volatile int runNumber;
@@ -251,11 +251,6 @@ public class Emu implements CODAComponent {
     }
 
     /** {@inheritDoc} */
-    public String getConfig() {
-        return config;
-    }
-
-    /** {@inheritDoc} */
     public String getCodaClass() {
         return codaClass.name();
     }
@@ -281,14 +276,6 @@ public class Emu implements CODAComponent {
     /** {@inheritDoc} */
     public String getCmsgUDL() {
         return cmsgUDL;
-    }
-
-    /**
-     * {@inheritDoc}
-     * @see CODAComponent#setConfig(String)
-     */
-    public void setConfig(String config) {
-        this.config = config;
     }
 
     /**
@@ -441,7 +428,6 @@ System.out.println("STATUS REPORTING THREAD: DONE xxx");
             CODAClass cc = CODAClass.get(type);
             if (cc != null) {
                 codaClass = cc;
-System.out.println("Emu constructor: set type to " + codaClass);
             }
         }
 
@@ -509,7 +495,7 @@ System.out.println("Emu constructor: set type to " + codaClass);
             Node node = localConfig.getFirstChild();
             // Puts node & children (actually their associated DataNodes) into GUI
             // and returns DataNode associated with node.
-            Configurer.treeToPanel(node,0);  // TODO: ignoring returned DataNode object
+            Configurer.treeToPanel(node,0);
         }
 
         // Create object responsible for communication w/ runcontrol through cMsg server.
@@ -535,8 +521,6 @@ System.out.println("Emu constructor: set type to " + codaClass);
         } catch (java.net.UnknownHostException uhe) {
             // Ignore this.
         }
-
-//        if (debugGUI != null) debugGUI.getToolBar().update();
     }
 
 
@@ -709,7 +693,7 @@ System.out.println("EXECUTING cmd = " + cmd.name());
                 cMsgMessage msg = new cMsgMessage();
                 msg.setSubject(name);
                 msg.setType(RCConstants.getObjectType);
-                msg.setText("coda3");  // TODO : object type set Where??
+                msg.setText(objectType);
 
                 try {
                     cmsgPortal.getServer().send(msg);
@@ -732,7 +716,7 @@ System.out.println("EXECUTING cmd = " + cmd.name());
 
             try {
                 // A msg from RC or a press of a debug GUI button can
-                // create a CONFIGURE command. In one case we have a
+                // both create a CONFIGURE command. In one case we have a
                 // cMsg message from the callback, in the other we don't.
                 cMsgMessage msg   = cmd.getMessage();
                 String xmlConfig  = null;
@@ -747,8 +731,10 @@ System.out.println("EXECUTING cmd = " + cmd.name());
                 // If this config is sent from Run Control...
                 if (xmlConfig != null) {
                     // If it was NOT loaded before, load it now.
+                    // If we have a debug GUI, load it again since the configuration
+                    // may have been changed by using that to reconfigure.
                     if (newConfig || debugGUI != null) {
-System.out.println("loading NEW configuration");
+System.out.println("loading NEW configuration = \n" + xmlConfig);
                         Configurer.setLogger(logger);
                         // Parse XML config string into Document object.
                         loadedConfig = Configurer.parseString(xmlConfig);
