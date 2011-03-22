@@ -143,12 +143,13 @@ public class Configurer implements DOMErrorHandler, LSParserFilter {
     
     /**
      * Method to parse a file containing an XML configuration.
+     * Needs synchronization if more than one Emu in a JVM.
      *
      * @param configFile file containing an XML configuration
      * @return Document
      * @throws DataNotFoundException when
      */
-    public static Document parseFile(String configFile) throws DataNotFoundException {
+    synchronized public static Document parseFile(String configFile) throws DataNotFoundException {
         try {
             // parse document
             return domBuilder.parseURI(configFile);
@@ -160,12 +161,13 @@ public class Configurer implements DOMErrorHandler, LSParserFilter {
 
     /**
      * Method to parse a string containing an XML configuration.
+     * Needs synchronization if more than one Emu in a JVM.
      *
      * @param xmlConfig string containing an XML configuration
      * @return Document
      * @throws DataNotFoundException when
      */
-    public static Document parseString(String xmlConfig) throws DataNotFoundException {
+    synchronized public static Document parseString(String xmlConfig) throws DataNotFoundException {
 
         LSInput input = domImplementor.createLSInput();
         input.setStringData(xmlConfig);
@@ -184,7 +186,7 @@ public class Configurer implements DOMErrorHandler, LSParserFilter {
      * @param doc DOM object to serialize to string
      * @return String
      */
-    public static String serialize(Document doc) {
+    synchronized public static String serialize(Document doc) {
         try {
             return domWriter.writeToString(doc);
         } catch (Exception ex) {
