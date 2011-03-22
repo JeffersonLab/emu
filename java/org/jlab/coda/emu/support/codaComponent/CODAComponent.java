@@ -81,14 +81,6 @@ public interface CODAComponent extends Runnable, CommandAcceptor {
     public String getUserName();
 
     /**
-     * Get the name of the current configuration
-     * (passed via the configure command) of this CODA component.
-     *
-     * @return the current configuration name of this CODA component
-     */
-    public String getConfig();
-
-    /**
      * Get the class of this CODA component (e.g. "EMU", "ROC", "ER").
      *  TODO: enum???
      * @return the class of this CODA component (e.g. "EMU", "ROC", "ER")
@@ -112,12 +104,6 @@ public interface CODAComponent extends Runnable, CommandAcceptor {
      * @return the UDL used to connect to the cMsg server by this CODA component
      */
     public String getCmsgUDL();
-
-    /**
-     * Set the name of the current configuration of this CODA component.
-     * @param conf the name of the current configuration of this CODA component
-     */
-    public void setConfig(String conf);
 
     /**
      * Set the run number of this CODA component.
