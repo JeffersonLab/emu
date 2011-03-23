@@ -237,7 +237,7 @@ public class DataTransportCore {
 
     /**
      * Get the state of this object.
-     * @return the state of this Cobject
+     * @return the state of this object
      */
     public State state() {
         return state;
