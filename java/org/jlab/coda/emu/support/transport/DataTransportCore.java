@@ -11,6 +11,7 @@
 
 package org.jlab.coda.emu.support.transport;
 
+import org.jlab.coda.emu.Emu;
 import org.jlab.coda.emu.support.codaComponent.CODAState;
 import org.jlab.coda.emu.support.configurer.DataNotFoundException;
 import org.jlab.coda.emu.support.control.State;
@@ -60,6 +61,8 @@ public class DataTransportCore {
     /** This object is the Nth DataTransport object created. */
     protected int myInstance = -1;
 
+    protected Emu emu;
+
     protected Logger logger;
     
 
@@ -84,17 +87,22 @@ public class DataTransportCore {
      *
      * @param pname  of type String
      * @param attrib of type Map
-     * @param logger object used to send info to logger
+     * @param emu emu that created this object
      *
      * @throws DataNotFoundException when
      */
-    public DataTransportCore(String pname, Map<String, String> attrib, Logger logger) throws DataNotFoundException {
+    public
+    DataTransportCore(String pname, Map<String, String> attrib, Emu emu) throws DataNotFoundException {
 
         name = pname;
         // TODO transports.put(pname, this);
 
         attr = attrib;
-        this.logger = logger;
+        this.emu = emu;
+        // emu = null in case of fifo implementation being statically initialized
+        if (emu != null) {
+            this.logger = emu.getLogger();
+        }
 
         transportClass = getAttr("class");
         if (transportClass == null) {
