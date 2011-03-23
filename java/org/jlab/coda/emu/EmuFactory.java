@@ -29,12 +29,6 @@ import java.util.LinkedList;
  */
 public class EmuFactory {
 
-    /** Singleton pattern. */
-    private static final EmuFactory INSTANCE = new EmuFactory();
-
-    /** Debug not used at present. */
-    private static boolean debug;
-
 
     /** List of CODA component names. All names must be defined. */
     private LinkedList<String> names = new LinkedList<String>();
@@ -52,16 +46,6 @@ public class EmuFactory {
     private LinkedList<Document> loadedConfigs = new LinkedList<Document>();
 
 
-    /** Singleton has private constructor. */
-    private EmuFactory() {}
-
-    /**
-     * Get singleton instance of this class.
-     * @return singleton instance of this class.
-     */
-    public EmuFactory getInstance() {
-        return INSTANCE;
-    }
 
     /**
      * Method to decode the command line used to start this application.
@@ -73,8 +57,6 @@ public class EmuFactory {
             if (arg.equalsIgnoreCase("-h")) {
                 usage();
                 System.exit(-1);
-            } else if (arg.equalsIgnoreCase("-debug")) {
-                debug = true;
             } else {
                 usage();
                 System.exit(-1);
@@ -88,7 +70,6 @@ public class EmuFactory {
         System.out.println("\nUsage:\n\n" +
                 "   java Emu\n" +
                 "        [-h]                 print this help\n" +
-                "        [-debug]             turn on printout\n" +
                 "        [-Dname=xxx]         set name of EMU\n"+
                 "        [-Dtype=xxx]         set CODA component type (eg. CDEB, ER)\n"+
                 "        [-Dconfig=xxx]       set config file name to be loaded at configuration\n"+
@@ -110,7 +91,8 @@ public class EmuFactory {
     public static void main(String[] args) {
         decodeCommandLine(args);
         try {
-            INSTANCE.createEmus();
+            EmuFactory emuFactory = new EmuFactory();
+            emuFactory.createEmus();
         }
         catch (EmuException e) {
             e.printStackTrace();
