@@ -54,13 +54,12 @@ public class EmuFactory {
     private static void decodeCommandLine(String[] args) {
         // loop over all args
         for (String arg : args) {
-            if (arg.equalsIgnoreCase("-h")) {
-                usage();
-                System.exit(-1);
-            } else {
+            if (arg.equalsIgnoreCase("-h") ||
+                arg.equalsIgnoreCase("-help") ) {
                 usage();
                 System.exit(-1);
             }
+            // ignore all other args (not -D which is special)
         }
     }
 
@@ -70,6 +69,7 @@ public class EmuFactory {
         System.out.println("\nUsage:\n\n" +
                 "   java Emu\n" +
                 "        [-h]                 print this help\n" +
+                "        [-help]              print this help\n" +
                 "        [-Dname=xxx]         set name of EMU\n"+
                 "        [-Dtype=xxx]         set CODA component type (eg. CDEB, ER)\n"+
                 "        [-Dconfig=xxx]       set config file name to be loaded at configuration\n"+
