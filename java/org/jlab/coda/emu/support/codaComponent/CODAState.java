@@ -90,9 +90,6 @@ public enum CODAState implements State {
     /** Description of this state. */
     private final String description;
 
-    /** Vector of exception causes. */
-    private final Vector<Throwable> causes = new Vector<Throwable>();
-
     /** Set of all transitions allowed out of this state. */
     private final EnumSet<CODATransition> allowed;
 
@@ -133,13 +130,6 @@ public enum CODAState implements State {
      */
     public String getDescription() {
         return description;
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    public Vector<Throwable> getCauses() {
-        return causes;
     }
 
     /**
