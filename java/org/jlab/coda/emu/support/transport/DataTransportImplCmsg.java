@@ -51,10 +51,10 @@ public class DataTransportImplCmsg extends DataTransportCore implements DataTran
      * @throws DataNotFoundException
      *          when udl not given or cannot connect to cmsg server
      */
-    public DataTransportImplCmsg(String pname, Map<String, String> attrib, Logger logger) throws DataNotFoundException {
+    public DataTransportImplCmsg(String pname, Map<String, String> attrib, Emu emu) throws DataNotFoundException {
         // pname is the "name" entry in the attrib map
-        super(pname, attrib, logger);
-        this.logger = logger;
+        super(pname, attrib, emu);
+        this.logger = emu.getLogger();
 
         // Which udl do we connect to?
         String udl = attrib.get("udl");
@@ -87,7 +87,7 @@ public class DataTransportImplCmsg extends DataTransportCore implements DataTran
                 cmsgConnection.connect();
 
             } catch (cMsgException e) {
-                CODAState.ERROR.getCauses().add(e);
+                emu.getCauses().add(e);
                 state = CODAState.ERROR;
                 return;
             }

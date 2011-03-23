@@ -11,6 +11,7 @@
 
 package org.jlab.coda.emu.support.transport;
 
+import org.jlab.coda.emu.EmuFactory;
 import org.jlab.coda.emu.support.codaComponent.CODACommand;
 import org.jlab.coda.emu.support.control.Command;
 import org.jlab.coda.et.*;
@@ -50,6 +51,7 @@ public class DataTransportImplEt extends DataTransportCore implements DataTransp
     /** Running ET system process if any. */
     private Process processET;
 
+    private Emu emu;
     private Logger logger;
 
     /**
@@ -87,12 +89,13 @@ public class DataTransportImplEt extends DataTransportCore implements DataTransp
      *
      * @throws DataNotFoundException when cannot configure an ET system
      */
-    public DataTransportImplEt(String pname, Map<String, String> attrib, Logger logger)
+    public DataTransportImplEt(String pname, Map<String, String> attrib, Emu emu)
             throws DataNotFoundException {
 
         // pname is the "name" entry in the attrib map
-        super(pname, attrib, logger);
-        this.logger = logger;
+        super(pname, attrib, emu);
+        this.emu = emu;
+        this.logger = emu.getLogger();
 
         String etName = attrib.get("etName");
         if (etName == null) {
@@ -415,7 +418,7 @@ System.out.println("Create ET system, " + openConfig.getEtName() + " with cmd \n
                 logger.debug("    DataTransportImplEt.execute PRESTART: ET open : " + name() + " " + myInstance);
 
             } catch (Exception e) {
-                CODAState.ERROR.getCauses().add(e);
+                emu.getCauses().add(e);
                 state = CODAState.ERROR;
                 return;
             }

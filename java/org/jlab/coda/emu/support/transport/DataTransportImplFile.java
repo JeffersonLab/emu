@@ -16,8 +16,8 @@ import java.util.Map;
  */
 public class DataTransportImplFile extends DataTransportCore implements DataTransport {
 
-    public DataTransportImplFile(String pname, Map<String, String> attrib, Logger logger) throws DataNotFoundException {
-        super(pname, attrib, logger);
+    public DataTransportImplFile(String pname, Map<String, String> attrib, Emu emu) throws DataNotFoundException {
+        super(pname, attrib, emu);
     }
 
     /** {@inheritDoc} */

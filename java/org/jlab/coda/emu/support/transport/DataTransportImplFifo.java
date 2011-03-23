@@ -16,8 +16,8 @@ import java.util.Map;
  */
 public class DataTransportImplFifo extends DataTransportCore implements DataTransport {
 
-    public DataTransportImplFifo(String pname, Map<String, String> attrib, Logger logger) throws DataNotFoundException {
-        super(pname, attrib, logger);
+    public DataTransportImplFifo(String pname, Map<String, String> attrib, Emu emu) throws DataNotFoundException {
+        super(pname, attrib, emu);
     }
 
     /** {@inheritDoc} */

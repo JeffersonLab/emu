@@ -240,18 +240,18 @@ System.out.println("  DataTransportFactory.execute: final state = " + state);
 logger.info("  DataTransportFactory.execute DOWN : loaded class = " + c);
 
                             // 2 constructor args
-                            Class[] parameterTypes = {String.class, Map.class, Logger.class};
+                            Class[] parameterTypes = {String.class, Map.class, Emu.class};
                             Constructor co = c.getConstructor(parameterTypes);
 
                             // create an instance & store reference
-                            Object[] args = {transportName, attrib, logger};
+                            Object[] args = {transportName, attrib, emu};
                             transports.add((DataTransport) co.newInstance(args));
 
                             logger.info("  DataTransportFactory.execute DOWN : created " + transportName + " of protocol " + transportClass);
 
                         } catch (Exception e) {
                             state = ERROR;
-                            ERROR.getCauses().add(e);
+                            emu.getCauses().add(e);
                             throw new CmdExecException("cannot load transport class", e);
                         }
                     } // if node is element
@@ -418,7 +418,7 @@ logger.info("&*&*&* Transport loaded class = " + c);
 
                         } catch (Exception e) {
                             state = ERROR;
-                            ERROR.getCauses().add(e);
+                            emu.getCauses().add(e);
                             throw new CmdExecException("cannot load transport class", e);
                         }
                     } // if node is element
@@ -427,7 +427,7 @@ logger.info("&*&*&* Transport loaded class = " + c);
             }
             catch (DataNotFoundException e) {
                 state = ERROR;
-                ERROR.getCauses().add(e);
+                emu.getCauses().add(e);
                 throw new CmdExecException("transport section missing/incomplete from config", e);
             }
 
@@ -436,10 +436,10 @@ logger.info("&*&*&* Transport loaded class = " + c);
                 HashMap<String, String> attrs = new HashMap<String, String>();
                 attrs.put("class", "Fifo");
                 attrs.put("server", "false");
-                transports.add(new DataTransportImplFifo("Fifo", attrs, logger));
+                transports.add(new DataTransportImplFifo("Fifo", attrs, emu));
             } catch (DataNotFoundException e) {
                 state = ERROR;
-                ERROR.getCauses().add(e);
+                emu.getCauses().add(e);
                 throw new CmdExecException(e);
             }
 
