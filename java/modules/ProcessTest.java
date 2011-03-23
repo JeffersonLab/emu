@@ -347,7 +347,7 @@ System.out.println("Process: Added bank's children to built event, event = " + c
                 // set end-of-run time in local XML config / debug GUI
                 Configurer.setValue(emu.parameters(), "status/run_start_time", "--prestart--");
             } catch (DataNotFoundException e) {
-                CODAState.ERROR.getCauses().add(e);
+                emu.getCauses().add(e);
                 state = CODAState.ERROR;
                 return;
             }
@@ -372,7 +372,7 @@ System.out.println("Process: Added bank's children to built event, event = " + c
                 // set end-of-run time in local XML config / debug GUI
                 Configurer.setValue(emu.parameters(), "status/run_start_time", theDate.toString());
             } catch (DataNotFoundException e) {
-                CODAState.ERROR.getCauses().add(e);
+                emu.getCauses().add(e);
                 state = CODAState.ERROR;
                 return;
             }

@@ -1050,7 +1050,7 @@ System.out.println("INTERRUPTED thread " + Thread.currentThread().getName());
                 for (int j=i+1; j < inputChannels.size(); j++) {
                     if (inputChannels.get(i).getID() == inputChannels.get(j).getID()) {
                         // TODO: forget this exception ??
-                        CODAState.ERROR.getCauses().add(new EmuException("input channels duplicate rocIDs"));
+                        emu.getCauses().add(new EmuException("input channels duplicate rocIDs"));
                         state = CODAState.ERROR;
                         return;
                     }
@@ -1116,7 +1116,7 @@ System.out.println("INTERRUPTED thread " + Thread.currentThread().getName());
                 // set end-of-run time in local XML config / debug GUI
                 Configurer.setValue(emu.parameters(), "status/run_start_time", "--prestart--");
             } catch (DataNotFoundException e) {
-                CODAState.ERROR.getCauses().add(e);
+                emu.getCauses().add(e);
                 state = CODAState.ERROR;
                 return;
             }
@@ -1195,7 +1195,7 @@ System.out.println("INTERRUPTED thread " + Thread.currentThread().getName());
                 // set end-of-run time in local XML config / debug GUI
                 Configurer.setValue(emu.parameters(), "status/run_start_time", theDate.toString());
             } catch (DataNotFoundException e) {
-                CODAState.ERROR.getCauses().add(e);
+                emu.getCauses().add(e);
                 state = CODAState.ERROR;
                 return;
             }

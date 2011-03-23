@@ -267,7 +267,7 @@ System.out.println("FifoOut: put bank on output Q");
             try {
                 Configurer.setValue(emu.parameters(), "status/run_start_time", "--prestart--");
             } catch (DataNotFoundException e) {
-                CODAState.ERROR.getCauses().add(e);
+                emu.getCauses().add(e);
                 state = CODAState.ERROR;
                 return;
             }
@@ -293,7 +293,7 @@ System.out.println("GO in FifoOut module");
             try {
                 Configurer.setValue(emu.parameters(), "status/run_start_time", theDate.toString());
             } catch (DataNotFoundException e) {
-                CODAState.ERROR.getCauses().add(e);
+                emu.getCauses().add(e);
                 state = CODAState.ERROR;
                 return;
             }

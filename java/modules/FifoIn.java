@@ -235,7 +235,7 @@ System.out.println("Got int = " + i);
             try {
                 Configurer.setValue(emu.parameters(), "status/run_start_time", "--prestart--");
             } catch (DataNotFoundException e) {
-                CODAState.ERROR.getCauses().add(e);
+                emu.getCauses().add(e);
                 state = CODAState.ERROR;
                 return;
             }
@@ -261,7 +261,7 @@ System.out.println("GO in FifoIn module");
             try {
                 Configurer.setValue(emu.parameters(), "status/run_start_time", theDate.toString());
             } catch (DataNotFoundException e) {
-                CODAState.ERROR.getCauses().add(e);
+                emu.getCauses().add(e);
                 state = CODAState.ERROR;
                 return;
             }

@@ -464,7 +464,7 @@ System.out.println("Roc data creation thread is ending !!!");
             try {
                 Configurer.setValue(emu.parameters(), "status/run_start_time", "--prestart--");
             } catch (DataNotFoundException e) {
-                CODAState.ERROR.getCauses().add(e);
+                emu.getCauses().add(e);
                 state = CODAState.ERROR;
                 return;
             }
@@ -512,7 +512,7 @@ System.out.println("starting event generating thread");
             try {
                 Configurer.setValue(emu.parameters(), "status/run_start_time", theDate.toString());
             } catch (DataNotFoundException e) {
-                CODAState.ERROR.getCauses().add(e);
+                emu.getCauses().add(e);
                 state = CODAState.ERROR;
                 return;
             }
