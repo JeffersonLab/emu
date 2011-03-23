@@ -37,8 +37,6 @@ public class DataChannelImplFifo implements DataChannel {
     /** Is this channel an input (true) or output (false) channel? */
     boolean input;
 
-    private Logger logger;
-
 
     /**
      * Constructor DataChannelImplFifo creates a new DataChannelImplFifo instance.
@@ -49,26 +47,24 @@ public class DataChannelImplFifo implements DataChannel {
      *
      * @throws DataTransportException - unable to create fifo buffer.
      */
-    @SuppressWarnings({"UnusedParameters"})
     DataChannelImplFifo(String name, DataTransportImplFifo dataTransport,
-                        boolean input, Emu emu) throws DataTransportException {
+                        boolean input, Emu emu) {
 
-        this.name = name;
+        this.name  = name;
         this.input = input;
-        logger = emu.getLogger();
 
         int capacity = 40;
         try {
             capacity = dataTransport.getIntAttr("capacity");
         } catch (Exception e) {
-            logger.info(e.getMessage() + " default to " + capacity + " records.");
+            emu.getLogger().info(e.getMessage() + " default to " + capacity + " records.");
         }
 
         int size = 20000;
         try {
             size = dataTransport.getIntAttr("size");
         } catch (Exception e) {
-            logger.info(e.getMessage() + " default to " + size + " byte records.");
+            emu.getLogger().info(e.getMessage() + " default to " + size + " byte records.");
         }
 
         queue = new ArrayBlockingQueue<EvioBank>(capacity);
