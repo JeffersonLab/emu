@@ -31,14 +31,6 @@ public interface State {
     public String getDescription();
 
     /**
-     * Get the vector containing the causes of any exceptions
-     * of an attempted transition from this state.
-     * @return vector(type Vector<Throwable>) of causes of any execeptions
-     *         of an attempted transition from this state.
-     */
-    public Vector<Throwable> getCauses();
-
-    /**
      * This method returns a set of the allowed transitions from this state.
      * @return a set of the allowed transitions from this state.
      */
