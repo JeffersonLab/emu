@@ -138,7 +138,7 @@ public class EmuModuleFactory implements StatedObject {
 
                 // Check for config problems
                 if (modulesConfig == null) {
-                    // Only happens if  Emu.INSTANCE.configuration() is null
+                    // Only happens if  emu.configuration() is null
                     throw new DataNotFoundException("config never loaded");
                 }
 
@@ -246,7 +246,7 @@ System.out.println("Put (" + a.getNodeName() + "," + a.getNodeValue() + ") into 
 
             } catch (Exception e) {
                 e.printStackTrace();
-                ERROR.getCauses().add(e);
+                emu.getCauses().add(e);
                 state = ERROR;
                 throw new CmdExecException();
             }
@@ -345,7 +345,7 @@ System.out.println("Put (" + a.getNodeName() + "," + a.getNodeValue() + ") into 
             } catch (Exception e) {
                 logger.error("EmuModuleFactory.execute() : threw " + e.getMessage());
                 e.printStackTrace();
-                ERROR.getCauses().add(e);
+                emu.getCauses().add(e);
                 state = ERROR;
                 throw new CmdExecException();
             }
@@ -368,7 +368,7 @@ System.out.println("Put (" + a.getNodeName() + "," + a.getNodeValue() + ") into 
         if (emuCmd == RESET) {
             logger.info("EmuModuleFactory.execute : RESET");
             state = CONFIGURED;
-            ERROR.getCauses().clear();
+            emu.getCauses().clear();
             return;
         }
 
