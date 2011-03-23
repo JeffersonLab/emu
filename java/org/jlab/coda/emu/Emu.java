@@ -82,6 +82,9 @@ public class Emu implements CODAComponent {
      */
     private final LinkedBlockingQueue<Command> mailbox;
 
+    /** Vector of exception causes. */
+    private final Vector<Throwable> causes = new Vector<Throwable>();
+
     /**
      * LoadedConfig is the XML document loaded when the configure command is executed.
      * It may change from run to run and tells the Emu which modules to load, which
@@ -183,6 +186,16 @@ public class Emu implements CODAComponent {
      */
     public State state() {
         return moduleFactory.state();
+    }
+
+    /**
+     * Get the vector containing the causes of any exceptions
+     * of an attempted transition from this state.
+     * @return vector(type Vector<Throwable>) of causes of any exceptions
+     *         of an attempted transition from this state.
+     */
+    public Vector<Throwable> getCauses() {
+        return causes;
     }
 
     /**
@@ -337,7 +350,7 @@ public class Emu implements CODAComponent {
         }
 
         public void run() {
-System.out.println("STATUS REPORTING THREAD: STARTED +++");
+//System.out.println("STATUS REPORTING THREAD: STARTED +++");
 
             while (!Thread.interrupted()) {
                 if (statusReportingOn &&
@@ -359,8 +372,8 @@ System.out.println("STATUS REPORTING THREAD: STARTED +++");
                             wordCount  = (Long) stats[1];
                             eventRate  = (Float)stats[2];
                             wordRate   = (Float)stats[3];
-System.out.println("Stats for module " + statsModule.name() + ": count = " + eventCount +
-                   ", words = " + wordCount + ", eventRate = " + eventRate + ", wordRate = " + wordRate);
+//System.out.println("Stats for module " + statsModule.name() + ": count = " + eventCount +
+//                   ", words = " + wordCount + ", eventRate = " + eventRate + ", wordRate = " + wordRate);
                         }
                     }
 
@@ -374,18 +387,15 @@ System.out.println("Stats for module " + statsModule.name() + ": count = " + eve
                         reportMsg.addPayloadItem(new cMsgPayloadItem(RCConstants.dataRate, (double)wordRate));
 
                         // send msg
-                        if (cmsgPortal != null && cmsgPortal.getServer() != null) {
-System.out.println("Send STATUS REPORTING Msg:");
-                            System.out.println("   " + RCConstants.state + " = " + state);
-                            System.out.println("   " + RCConstants.codaClass + " = " + codaClass.name());
-                            System.out.println("   " + RCConstants.eventNumber + " = " + (int)eventCount);
-                            System.out.println("   " + RCConstants.eventRate + " = " + eventRate);
-                            System.out.println("   " + RCConstants.numberOfLongs + " = " + wordCount);
-                            System.out.println("   " + RCConstants.dataRate + " = " + (double)wordRate);
+//System.out.println("Send STATUS REPORTING Msg:");
+//                        System.out.println("   " + RCConstants.state + " = " + state);
+//                        System.out.println("   " + RCConstants.codaClass + " = " + codaClass.name());
+//                        System.out.println("   " + RCConstants.eventNumber + " = " + (int)eventCount);
+//                        System.out.println("   " + RCConstants.eventRate + " = " + eventRate);
+//                        System.out.println("   " + RCConstants.numberOfLongs + " = " + wordCount);
+//                        System.out.println("   " + RCConstants.dataRate + " = " + (double)wordRate);
 
-
-                            cmsgPortal.getServer().send(reportMsg);
-                        }
+                        cmsgPortal.getServer().send(reportMsg);
                     }
                     catch (cMsgException e) {
                         e.printStackTrace();
@@ -396,11 +406,11 @@ System.out.println("Send STATUS REPORTING Msg:");
                     Thread.sleep(statusReportingPeriod);
                 }
                 catch (InterruptedException e) {
-System.out.println("STATUS REPORTING THREAD: DONE xxx");
+//System.out.println("STATUS REPORTING THREAD: DONE xxx");
                     return;
                 }
             }
-System.out.println("STATUS REPORTING THREAD: DONE xxx");
+//System.out.println("STATUS REPORTING THREAD: DONE xxx");
 
         }
 
@@ -584,7 +594,6 @@ System.out.println("ERROR in setting value in local config !!!");
                         }
 
                         if (state == CODAState.ERROR) {
-                            Vector<Throwable> causes = CODAState.ERROR.getCauses();
                             for (Throwable cause : causes) {
                                 logger.error(cause.getMessage());
                             }
@@ -807,7 +816,7 @@ System.out.println("              : old codaClass = " + codaClass);
             catch (DataNotFoundException e) {
                 logger.error("CONFIGURE FAILED", e.getMessage());
 e.printStackTrace();
-                CODAState.ERROR.getCauses().add(e);
+                causes.add(e);
                 moduleFactory.ERROR();
                 return;
             }
@@ -877,7 +886,7 @@ e.printStackTrace();
             moduleFactory.execute(cmd);
             logger.info("command " + codaCommand + " executed, state " + cmd.success());
         } catch (CmdExecException e) {
-            CODAState.ERROR.getCauses().add(e);
+            causes.add(e);
             moduleFactory.ERROR();
         }
 
