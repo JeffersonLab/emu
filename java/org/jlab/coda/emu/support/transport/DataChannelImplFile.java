@@ -46,6 +46,7 @@ public class DataChannelImplFile implements DataChannel {
     /** Is this channel an input (true) or output (false) channel? */
     boolean input;
 
+    private Emu emu;
     private Logger logger;
 
 
@@ -65,6 +66,7 @@ public class DataChannelImplFile implements DataChannel {
         this.dataTransport = dataTransport;
         this.input = input;
         this.name = name;
+        this.emu  = emu;
         logger = emu.getLogger();
 
         String fileName = "dataFile.coda";
@@ -119,7 +121,7 @@ public class DataChannelImplFile implements DataChannel {
             } catch (Exception e) {
                 logger.warn("DataInputHelper exit " + e.getMessage());
                 logger.warn(name + " - File closed");
-                CODAState.ERROR.getCauses().add(e);
+                emu.getCauses().add(e);
                 dataTransport.state = CODAState.ERROR;
             }
 
@@ -148,7 +150,7 @@ public class DataChannelImplFile implements DataChannel {
                 logger.warn(name + " - data file closed");
             } catch (Exception e) {
                 logger.warn("DataOutputHelper exit " + e.getMessage());
-                CODAState.ERROR.getCauses().add(e);
+                emu.getCauses().add(e);
                 dataTransport.state = CODAState.ERROR;
             }
 
