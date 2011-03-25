@@ -28,79 +28,82 @@ public enum CODACommand {
     // run/transition/
 
     /** Configure transition. */
-    CONFIGURE("Load configuration", configure, false, false, true, 0, null),
+    CONFIGURE("Load configuration", configure, 0, InputType.TEXT, null),
     /** Download transition. */
-    DOWNLOAD("Apply configuration and load", download, false, false, true, 0, null),
+    DOWNLOAD("Apply configuration and load", download, 0, null, null),
     /** Prestart transition. */
-    PRESTART("Prepare to start", prestart, false, false, true, 0, null),
+    PRESTART("Prepare to start", prestart, 0, null, null),
     /** Go transition. */
-    GO("Start taking data", go, false, false, true, 0, null),
+    GO("Start taking data", go, 0, null, null),
     /** End transition. */
-    END("End taking data", end, false, false, true, 0, null),
+    END("End taking data", end, 0, null, null),
     /** Pause transition. */
-    PAUSE("Pause taking data", pause, false, false, true, 0, null),
+    PAUSE("Pause taking data", pause, 0, null, null),
     /** Reset transition. */
-    RESET("Return to configured state", reset, false, false, true, 0, null),
+    RESET("Return to configured state", reset, 0, null, null),
 
     // coda/info/
 
     /** Command to get the state .*/
-    GET_STATE("Get state", getState, false, true, false, 1, InputType.STRING),
+    GET_STATE("Get state", getState, -1, null, null),
     /** Command to get the status. */
-    GET_STATUS("Get status", getStatus, false, true, false, 1, InputType.STRING),
+    GET_STATUS("Get status", getStatus, -1, null, null),
     /** Command to get the object type. */
-    GET_OBJECT_TYPE("Get object type", getObjectType, false, true, false, 1, InputType.STRING),
+    GET_OBJECT_TYPE("Get object type", getObjectType, -1, null, null),
     /** Command to get the coda class. */
-    GET_CODA_CLASS("Get coda class", getCodaClass, false, true, false, 1, InputType.STRING),
+    GET_CODA_CLASS("Get coda class", getCodaClass, -1, null, null),
 
     // run/control/
 
     /** Command to set run number. */
-    SET_RUN_NUMBER("Set run number", setRunNumber, true, false, false, 1, null),
+    SET_RUN_NUMBER("Set run number", setRunNumber, 1, InputType.PAYLOAD_INT, "RUNNUMBER"),
     /** Command to get run number .*/
-    GET_RUN_NUMBER("Get run number", getRunNumber, false, true, false, 1, InputType.STRING),
+    GET_RUN_NUMBER("Get run number", getRunNumber, -1, null, null),
     /** Command to set run type. */
-    SET_RUN_TYPE("Set run type", setRunType, true, false, false, 1, null),
+    SET_RUN_TYPE("Set run type", setRunType, -1, null, null),
     /** Command to get run type. */
-    GET_RUN_TYPE("Get run type", getRunType, false, true, false, 1, InputType.STRING),
+    GET_RUN_TYPE("Get run type", getRunType, -1, null, null),
+
+    // session/setOption/    none implemented
+
+    /** Command to set run number. */
+    SET_FILE_PATH("Set config file path", setFilePath, -1, null, null),
+    /** Command to get run number .*/
+    SET_FILE_PREFIX("Get config file prefix", setFilePrefix, -1, null, null),
+    /** Command to set run type. */
+    SET_CONFIG_FILE("Set xml config file contents", setConfigFile, -1, null, null),
 
     // session/control/
 
-    /** Command to set state. */
-    SET_STATE("Set state", setState, true, false, false, 3, null),
-    /** Command to set session. */
-    SET_SESSION("Set session", setSession, true, false, false, 3, null),
-    /** Command to get session. */
-    GET_SESSION("Get session", getSession, false, true, false, 3, InputType.STRING),
-    /** Command to release session. */
-    RELEASE_SESSION("Release session", releaseSession, false, false, false, 3, null),
+    /** Command to set time interval between reporting messages in seconds. */
+    SET_INTERVAL("Set interval", setInterval, 1, InputType.USER_INT, null),
     /** Command to set start reporting. */
-    START_REPORTING("Start reporting", startReporting, false, false, false, 3, null),
+    START_REPORTING("Start reporting", startReporting, 1, null, null),
     /** Command to set stop reporting. */
-    STOP_REPORTING("Stop reporting", stopReporting, false, false, false, 3, null),
-    /** Command to set interval. */
-    SET_INTERVAL("Set interval", setInterval, true, false, false, 3, InputType.INT),
-    /** Command to start. */
-    START("Start", start, false, false, false, 3, null),
-    /** Command to stop. */
-    STOP("Stop", stop, false, false, false, 3, null),
+    STOP_REPORTING("Stop reporting", stopReporting, 1, null, null),
     /** Command to exit. */
-    EXIT("Shutdown coda component", exit, false, false, false, 3, null),
+    EXIT("Shutdown coda component", exit, 1, null, null),
+    /** Command to set state. */
+    SET_STATE("Set state", setState, -1, null, null),
+    /** Command to set session. */
+    SET_SESSION("Set session", setSession, -1, null, null),
+    /** Command to get session. */
+    GET_SESSION("Get session", getSession, -1, null, null),
+    /** Command to release session. */
+    RELEASE_SESSION("Release session", releaseSession, -1, null, null),
+    /** Command to start. */
+    START("Start", start, -1, null, null),
+    /** Command to stop. */
+    STOP("Stop", stop, -1, null, null),
+    ;
 
-    // session/setOption/
-
-    /** Command to set run number. */
-    SET_FILE_PATH("Set config file path", setFilePath, true, false, false, 2, null),
-    /** Command to get run number .*/
-    SET_FILE_PREFIX("Get config file prefix", setFilePrefix, true, false, false, 2, null),
-    /** Command to set run type. */
-    SET_CONFIG_FILE("Set xml config file name", setConfigFile, true, false, false, 2, null);
 
 
-    static enum InputType {
-        STRING,
-        DOUBLE,
-        INT;
+    public static enum InputType {
+        TEXT,
+        USER_INT,
+        PAYLOAD_TEXT,
+        PAYLOAD_INT;
     }
 
 
@@ -110,20 +113,19 @@ public enum CODACommand {
     /** Description of this command. */
     private final String description;
 
-    /** This command requires input data from Run Control. */
-    private final boolean hasInput;
-
-    /** This command has output that Run Control needs. */
-    private final boolean hasOutput;
-
-    /** This command has a result which the emu must use (eg. changes state). */
-    private final boolean hasResult;
-
-    /** If displayed in GUI, display with commands of same gui group. */
+    /**
+     * If this command is displayed in GUI, display with commands of same gui group.
+     * There are 4 gui groups that are used, 0-3, each with one line of buttons
+     * in the debug gui. All commands with other gui group values are ignored in
+     * the debug gui.
+     */
     private final int guiGroup;
 
-    /** If hasInput, what type of input is required? */
+    /** What type of input is required? */
     private final InputType inputType;
+
+    /** If inputType = InputType.PAYLOAD_TEXT / INT, this is the payload name. */
+    private String payloadName;
 
 
     /** Map of string of incoming message from run control to an enum/command. */
@@ -152,35 +154,26 @@ public enum CODACommand {
     /**
      * Constructor CODATransition creates a new CODATransition instance.
      *
-     * @param description of command
+     * @param description description of command
      * @param cmdString string from Run Control specifying this command
+     * @param guiGroup  in debug GUI there are 4 gui groups that are used,
+     *                  0-3,each with one line of buttons.
+     *                  All commands with other gui group values are
+     *                  ignored in debug gui.
+     * @param inputType what type of input is required from cMsg message:
+     *                  getText, getUserInt, payload text or payload int?
+     * @param payloadName if input type is payload, this is payload's name
      */
     CODACommand(String description, String cmdString,
-                boolean hasInput, boolean hasOutput, boolean hasResult,
-                int guiGroup, InputType inputType) {
+                int guiGroup, InputType inputType, String payloadName) {
 
         this.cmdString   = cmdString;
         this.description = description;
-        this.hasInput    = hasInput;
-        this.hasOutput   = hasOutput;
-        this.hasResult   = hasResult;
         this.guiGroup    = guiGroup;
         this.inputType   = inputType;
+        this.payloadName = payloadName;
     }
 
-    // new
-
-    public boolean hasInput() {
-        return hasInput;
-    }
-
-    public boolean hasOutput() {
-        return hasOutput;
-    }
-
-    public boolean hasResult() {
-        return hasResult;
-    }
 
     public InputType getInputType() {
         return inputType;
@@ -188,6 +181,10 @@ public enum CODACommand {
 
     public int getGuiGroup() {
         return guiGroup;
+    }
+
+    public String getPayloadName() {
+        return payloadName;
     }
 
     /**
