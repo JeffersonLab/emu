@@ -60,7 +60,7 @@ System.out.println("callback: got " + msg.getType() + " message");
                 codaCmd = CODACommand.get(type);
             } catch (IllegalArgumentException e) {
                 // TODO: bug bug: do we want this printed, logged, etc ???
-System.out.println("Received an invalid command");
+System.out.println("callback: received an invalid command");
                 return;
             }
 
