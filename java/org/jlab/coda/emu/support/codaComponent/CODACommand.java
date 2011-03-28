@@ -28,7 +28,7 @@ public enum CODACommand {
     // run/transition/
 
     /** Configure transition. */
-    CONFIGURE("Load configuration", configure, 0, InputType.TEXT, null),
+    CONFIGURE("Load configuration", configure, 0, InputType.PAYLOAD_TEXT, configPayloadFileName),
     /** Download transition. */
     DOWNLOAD("Apply configuration and load", download, 0, null, null),
     /** Prestart transition. */
@@ -99,11 +99,17 @@ public enum CODACommand {
 
 
 
+    /** Ways in which a command's input obtained from a cMsg message. */
     public static enum InputType {
+        /** By calling msg.getText(). */
         TEXT,
+        /** By calling msg.userInt(). */
         USER_INT,
+        /** By getting a payload item of text. */
         PAYLOAD_TEXT,
-        PAYLOAD_INT;
+        /** By getting a payload item of int. */
+        PAYLOAD_INT,
+        ;
     }
 
 
@@ -114,14 +120,15 @@ public enum CODACommand {
     private final String description;
 
     /**
-     * If this command is displayed in GUI, display with commands of same gui group.
+     * If this command is displayed in GUI, display with commands of same gui group
+     * in the same toolbar.
      * There are 4 gui groups that are used, 0-3, each with one line of buttons
      * in the debug gui. All commands with other gui group values are ignored in
      * the debug gui.
      */
     private final int guiGroup;
 
-    /** What type of input is required? */
+    /** How is this command's input obtained from a cMsg message? */
     private final InputType inputType;
 
     /** If inputType = InputType.PAYLOAD_TEXT / INT, this is the payload name. */
@@ -160,7 +167,7 @@ public enum CODACommand {
      *                  0-3,each with one line of buttons.
      *                  All commands with other gui group values are
      *                  ignored in debug gui.
-     * @param inputType what type of input is required from cMsg message:
+     * @param inputType how is this command's input obtained from cMsg message:
      *                  getText, getUserInt, payload text or payload int?
      * @param payloadName if input type is payload, this is payload's name
      */

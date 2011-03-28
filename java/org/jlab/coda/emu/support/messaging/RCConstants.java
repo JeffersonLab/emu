@@ -95,6 +95,14 @@ public class RCConstants {
     /** String used as type in message for the reset command. */
     public static final String reset     = transitionCommand + "reset";
 
+    /** String used as payload name for item holding config file name. */
+    public static final String configPayloadFileName = "fileName";
+    /** String used as payload name for item holding config file content. */
+    public static final String configPayloadFileContent = "fileContent";
+    /** String used as payload name for item holding int (1 if file content changed, else 0). */
+    public static final String configPayloadFileChanged = "fileChanged";
+
+
     // Types in messages received in run/control/* callback
 
     /** String used as type in message for the get-run-number command. */
@@ -139,7 +147,7 @@ public class RCConstants {
 
 
     // Payload names in reportStatus (above) message
-    
+
     public static final String    name                 = "codaName";
     public static final String    codaClass            = "codaClass";
     public static final String    state                = "state";
