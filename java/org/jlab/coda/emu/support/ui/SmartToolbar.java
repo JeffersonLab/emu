@@ -11,6 +11,9 @@
 
 package org.jlab.coda.emu.support.ui;
 
+import org.jlab.coda.cMsg.cMsgException;
+import org.jlab.coda.cMsg.cMsgMessage;
+import org.jlab.coda.cMsg.cMsgPayloadItem;
 import org.jlab.coda.emu.support.codaComponent.CODACommand;
 import org.jlab.coda.emu.support.codaComponent.CODATransition;
 import org.jlab.coda.emu.support.control.Command;
@@ -34,6 +37,9 @@ public class SmartToolbar extends JToolBar {
 
     /** Field buttonHandlers */
     private final HashMap<String, Command> buttonHandlers = new HashMap<String, Command>();
+
+    /** Store JTextField objects for certain commands. */
+    private final HashMap<String, JTextField> textFields = new HashMap<String, JTextField>();
 
     /** No-arg constructor. */
     public SmartToolbar() {
@@ -108,6 +114,8 @@ public class SmartToolbar extends JToolBar {
             //for (Object anOarray : oarray) {
             for (CODACommand codaCmd : emuCmdSet) {
                 Command cmd = new Command(codaCmd);
+                // mark message so emu knows it is from debug gui (clever huh?)
+                cmd.fromDebugGui(true);
                 String name = cmd.name();
 
                 // put into a hashmap(key,val)
@@ -122,7 +130,6 @@ public class SmartToolbar extends JToolBar {
                 // add listener to button
                 addButtonListener(target, tbb);
 
-//                tbb.setEnabled(true);
                 tbb.setName(name);
                 this.add(tbb);
             }
@@ -144,10 +151,16 @@ public class SmartToolbar extends JToolBar {
      */
     private void addButtonListener(final CommandAcceptor target, final JButton tbb) {
 
+        // remove existing listeners first
+        ActionListener[] listeners = tbb.getActionListeners();
+        for (ActionListener l : listeners) {
+            tbb.removeActionListener(l);
+        }
+
         tbb.addActionListener(new ActionListener() {
 
             public void actionPerformed(ActionEvent e) {
-                // The name of the button must be the ActionEvent's command
+                // The actionCommand was set to the name of the button
                 // (which is also the key of the map).
                 Command cmd = buttonHandlers.get(e.getActionCommand());
 
@@ -155,8 +168,6 @@ public class SmartToolbar extends JToolBar {
                     // Execute the command associated with the given button.
                     // (Emu puts cmd into Q which another thread pulls off).
                     target.postCommand(cmd);
-
-                    // Enabling or disabling of buttons was done when cmd was executed.
 
                 } catch (SecurityException e1) {
                     e1.printStackTrace();
@@ -170,6 +181,118 @@ public class SmartToolbar extends JToolBar {
         });
     }
     
+    /**
+     * Each time the given button is pressed, the target object posts or
+     * executes the command associated with the button. In this case, the
+     * button has an associated textField it must read, place into a cMsg
+     * message and pass it on with the command (just like run control does).
+     *
+     * @param target object that allows commands to be sent (eg Emu is a CodaComponent which is a CommandAcceptor)
+     * @param tbb of type JButton
+     */
+    void addButtonListener(final CommandAcceptor target, final JButton tbb, final JTextField textField) {
+
+        // remove existing listeners first
+        ActionListener[] listeners = tbb.getActionListeners();
+        for (ActionListener l : listeners) {
+            tbb.removeActionListener(l);
+        }
+
+        tbb.addActionListener(new ActionListener() {
+
+            public void actionPerformed(ActionEvent e) {
+                // The actionCommand was set to the name of the button
+                // (which is also the key of the map).
+                Command cmd = buttonHandlers.get(e.getActionCommand());
+                CODACommand codaCommand = cmd.getCodaCommand();
+                CODACommand.InputType type = codaCommand.getInputType();
+
+                // get input value
+                String txt = textField.getText();
+System.out.println("READ TXT AS -> " + txt);
+
+                // blank entry means sending no msg
+                if (txt == null || txt.equals("")) {
+                    cmd.setMessage(null);
+                }
+                else {
+                    String payloadName;
+                    cMsgPayloadItem item;
+                    cMsgMessage msg = new cMsgMessage();
+
+                    switch (type) {
+                        case TEXT:
+                            msg.setText(txt);
+                            break;
+
+                        case USER_INT:
+                            try {
+                                int i = Integer.parseInt(txt);
+                                msg.setUserInt(i);
+                            }
+                            catch (NumberFormatException ex) {
+                               JOptionPane.showMessageDialog(SmartToolbar.this,
+                                                              "Not integer in textfield",
+                                                              "Error",
+                                                              JOptionPane.ERROR_MESSAGE);
+                                return;
+                            }
+                            break;
+
+                        case PAYLOAD_INT:
+                            try {
+                                int i = Integer.parseInt(txt);
+                                payloadName = codaCommand.getPayloadName();
+                                System.out.println("Creating payload int with name = " + payloadName);
+                                item = new cMsgPayloadItem(payloadName, i);
+                                cmd.setArg(payloadName, item); // do here what callback normally does
+                                msg.addPayloadItem(item);
+                            }
+                            catch (NumberFormatException ex) {
+                                JOptionPane.showMessageDialog(SmartToolbar.this,
+                                                              "Not integer in textfield",
+                                                              "Error",
+                                                              JOptionPane.ERROR_MESSAGE);
+                                return;
+                            }
+                            catch (cMsgException ex) {/* never happen */}
+                            break;
+
+                        case PAYLOAD_TEXT:
+                            try {
+                                payloadName = codaCommand.getPayloadName();
+                                item = new cMsgPayloadItem(payloadName, txt);
+                                cmd.setArg(payloadName, item); // do here what callback normally does
+                                msg.addPayloadItem(item);
+                            }
+                            catch (cMsgException e1) {/* never happen */}
+                            break;
+
+                        default:
+                            return;
+                    }
+
+                    cmd.setMessage(msg);
+                }
+
+
+                try {
+                    // Execute the command associated with the given button.
+                    // (Emu puts cmd into Q which another thread pulls off).
+                    target.postCommand(cmd);
+
+                } catch (SecurityException e1) {
+                    e1.printStackTrace();
+                } catch (IllegalArgumentException e1) {
+                    e1.printStackTrace();
+                } catch (InterruptedException e3) {
+                    e3.printStackTrace();
+                }
+            }
+
+        });
+    }
+
 
     /** Remove all components from this toolbar. */
     public void reset() {
