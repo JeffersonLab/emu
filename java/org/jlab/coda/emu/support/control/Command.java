@@ -41,6 +41,9 @@ public class Command {
     /** Original cMsg message from Run Control containing command to be executed. */
     private cMsgMessage msg;
 
+    /** Is this command from run control or from the debug gui? */
+    private boolean fromDebugGui;
+
     /** CODACommand object to be wrapped by this class. */
     private final CODACommand codaCommand;
 
@@ -103,6 +106,22 @@ public class Command {
      */
     public void setMessage(cMsgMessage msg) {
         this.msg = msg;
+    }
+
+    /**
+     * Is this command from the debug gui or run control?
+     * @return <code>true</code> if command from debug gui, else <code>false</code>
+     */
+    public boolean isFromDebugGui() {
+        return fromDebugGui;
+    }
+
+    /**
+     * Set whether this command is from the debug gui or run control.
+     * @param fromDebugGui <code>true</code> if command from debug gui, else <code>false</code>
+     */
+    public void fromDebugGui(boolean fromDebugGui) {
+        this.fromDebugGui = fromDebugGui;
     }
 
     /**
