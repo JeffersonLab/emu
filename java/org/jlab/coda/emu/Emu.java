@@ -53,13 +53,6 @@ public class Emu implements CODAComponent {
      */
     private DebugFrame debugGUI;
 
-    /**
-     * Configure can be done by the debug GUI or Run Control command.
-     * Keep track of when debug GUI last did it so we know if a configuration
-     * from RC was already loaded or not.
-     */
-    private boolean debugGuiConfigured = true;
-
     /** The Emu starts all of it's threads in one thread group. */
     private final ThreadGroup threadGroup;
 
@@ -86,6 +79,28 @@ public class Emu implements CODAComponent {
     private final Vector<Throwable> causes = new Vector<Throwable>();
 
     /**
+     * Configuration data can come from 4 sources:
+     * run control string, run control file name,
+     * debug gui file name, and command line file name.
+     */
+    private enum ConfigSource {
+        CMD_LINE_FILE,
+        RC_STRING,
+        RC_FILE,
+        GUI_FILE;
+    }
+
+    /** Which of the 4 sources does our config data come from? */
+    private ConfigSource configSource;
+
+    /**
+     * Configure can be done by the debug GUI or Run Control command.
+     * Keep track of when debug GUI last did it so we know if a configuration
+     * from RC was already loaded or not.
+     */
+    private long configFileModifiedTime;
+
+    /**
      * LoadedConfig is the XML document loaded when the configure command is executed.
      * It may change from run to run and tells the Emu which modules to load, which
      * data transports to start and what data channels to open.
@@ -93,7 +108,10 @@ public class Emu implements CODAComponent {
     private Document loadedConfig;
 
     /** Name of the file containing the Emu configuration (if any). */
-    private String configFileName;
+    private String cmdLineConfigFile;
+
+    /** Name of the file containing the Emu configuration (if any). */
+    private String msgConfigFile;
 
     /**
      * LocalConfig is an XML document loaded when the configure command is executed.
@@ -428,13 +446,13 @@ public class Emu implements CODAComponent {
      *
      * @param name            name of Emu
      * @param type            CODA component type of Emu
-     * @param configFileName  name of Emu configuration file
+     * @param cmdLineConfigFile  name of Emu configuration file given on command line
      * @param loadedConfig    parsed XML document object of Emu configuration file
      * @param cmsgUDL         UDL used to connect to cMsg server to receive run control commands
      * @param debugUI         start a debug GUI
      * @throws EmuException   if name is null
      */
-    public Emu(String name, String type, String configFileName, Document loadedConfig,
+    public Emu(String name, String type, String cmdLineConfigFile, Document loadedConfig,
                String cmsgUDL, boolean debugUI) throws EmuException {
 
         if (name == null) {
@@ -451,7 +469,12 @@ public class Emu implements CODAComponent {
         this.name = name;
         this.cmsgUDL = cmsgUDL;  // may be null
         this.loadedConfig = loadedConfig;
-        this.configFileName = configFileName;
+        this.cmdLineConfigFile = cmdLineConfigFile;
+
+        // The source of our config info is the file given on the emu command line
+        if (cmdLineConfigFile != null) {
+            configSource = Emu.ConfigSource.CMD_LINE_FILE;
+        }
 
         // Set the name of this EMU
         setName(name);
@@ -508,6 +531,7 @@ public class Emu implements CODAComponent {
         // Put LOCAL config info into GUI
         if (debugGUI != null) {
             debugGUI.addDocument(localConfig);
+            debugGUI.generateInputPanel();
         } else {
             Node node = localConfig.getFirstChild();
             // Puts node & children (actually their associated DataNodes) into GUI
@@ -645,8 +669,16 @@ System.out.println("EXECUTING cmd = " + cmd.name());
         else if (codaCommand == SET_RUN_NUMBER) {
             // get the new run number and store it
             try {
-                cMsgPayloadItem item = cmd.getArg("runNumber");
-                if (item != null) setRunNumber(item.getInt());
+                //cMsgPayloadItem item = cmd.getMessage().getPayloadItem("RUNNUMBER");
+
+                cMsgPayloadItem item = cmd.getArg("RUNNUMBER");
+                if (item != null) {
+                    System.out.println("SET RUN NUMBER to " + item.getInt());
+                    setRunNumber(item.getInt());
+                }
+                else {
+                    System.out.println("Got RUN NUMBER command but no run #");
+                }
             }
             catch (cMsgException e) {
                 e.printStackTrace();
@@ -734,78 +766,165 @@ System.out.println("EXECUTING cmd = " + cmd.name());
                 // A msg from RC or a press of a debug GUI button can
                 // both create a CONFIGURE command. In one case we have a
                 // cMsg message from the callback, in the other we don't.
-                cMsgMessage msg   = cmd.getMessage();
-                String xmlConfig  = null;
-                boolean newConfig = false;
+                cMsgMessage msg = cmd.getMessage();
+                cMsgPayloadItem pItem;
+                String rcConfigString = null, rcConfigFile = null;
+                boolean isNewConfig = false;
 
                 if (msg != null) {
-                    // May have an xml string of the new configuration.
-                    xmlConfig = cmd.getMessage().getText();
-                    newConfig = cmd.getMessage().getUserInt() == 1;
-                }
-
-                // If this config is sent from Run Control...
-                if (xmlConfig != null) {
-                    // If it was NOT loaded before, load it now.
-                    // If we have a debug GUI, and it was used to last load
-                    // the configuration, then reconfigure.
-                    if (newConfig || debugGuiConfigured) {
-System.out.println("loading NEW configuration = \n" + xmlConfig);
-                        Configurer.setLogger(logger);
-                        // Parse XML config string into Document object.
-                        loadedConfig = Configurer.parseString(xmlConfig);
-                        Configurer.removeEmptyTextNodes(loadedConfig.getDocumentElement());
-                    }
-                    debugGuiConfigured = false;
-                }
-                // If we have no config from Run Control, use one
-                // provided locally on command line (if any).
-                // Don't do any fancy stuff here like only reload if
-                // file creation data changed, because RC & debug GUI
-                // can interfere otherwise.
-                else if (configFileName != null) {
-                    Configurer.setLogger(logger);
-                    // Parse XML config file and turn it into Document object.
-                    loadedConfig = Configurer.parseFile(configFileName);
-                    Configurer.removeEmptyTextNodes(loadedConfig.getDocumentElement());
-
-                    // Check that name and CODA type have NOT changed.
-                    Node modulesConfig = Configurer.getNode(loadedConfig, "component");
-
-                    // Get attributes of the top ("component") node
-                    NamedNodeMap nm = modulesConfig.getAttributes();
-
-                    // Get name of component from node
-                    Node attr = nm.getNamedItem("name");
-                    if (attr == null) {
-                        throw new DataNotFoundException("No \"name\" attr in component element of config file");
-                    }
-
-System.out.println("Cmd line config: found component " + attr.getNodeValue());
-                    // Get name in config file and compare to our name - should be same.
-                    if (!attr.getNodeValue().equals(name)) {
-                        throw new DataNotFoundException("Name in config file (" + attr.getNodeValue() +
-                                                         ") conflicts with existing name (" + name + ")");
-                    }
-
-                    // Get type of component, if any - must be same as emu type.
-                    attr = nm.getNamedItem("type");
-                    if (attr != null) {
-System.out.println("\n\n\nExec configure: type = " + attr.getNodeValue());
-System.out.println("              : old codaClass = " + codaClass);
-                        CODAClass cc = CODAClass.get(attr.getNodeValue());
-                        if (cc != null) {
-                            if (cc != codaClass) {
-                                throw new DataNotFoundException("CODA type in config file (" + attr.getNodeValue() +
-                                                                 ") conflicts with existing type (" + codaClass + ")");
+                    try {
+                        // May have an xml configuration string.
+                        pItem = cmd.getArg(RCConstants.configPayloadFileContent);
+                        if (pItem != null) {
+                            rcConfigString = pItem.getString();
+                            // Only get this if we have file content.
+                            // This tells us if it changed since last configure.
+                            pItem = cmd.getArg(RCConstants.configPayloadFileChanged);
+                            if (pItem != null) {
+                                isNewConfig = pItem.getInt() == 1;
                             }
                         }
-                        else {
-                            throw new DataNotFoundException("Unsupported CODA component type in config file (" +
-                                                             attr.getNodeValue() + ")");
+
+                        // May have configuration file name.
+                        pItem = cmd.getArg(RCConstants.configPayloadFileName);
+                        if (pItem != null) {
+                            rcConfigFile = pItem.getString();
                         }
                     }
-                    debugGuiConfigured = true;
+                    catch (cMsgException e) {/* never happen */}
+                }
+
+                // If this config is sent as a string from Run Control...
+                if (rcConfigString != null) {
+                    // If it was NOT loaded before, load it now.
+                    // If we have a debug GUI and it was used to last load
+                    // the configuration, or if rc send a filename which this
+                    // emu read and loaded, then reconfigure.
+                    if (configSource != Emu.ConfigSource.RC_STRING || isNewConfig) {
+System.out.println("LOADING NEW string config = \n" + rcConfigString);
+                        Configurer.setLogger(logger);
+                        // Parse XML config string into Document object.
+                        loadedConfig = Configurer.parseString(rcConfigString);
+                        Configurer.removeEmptyTextNodes(loadedConfig.getDocumentElement());
+                    }
+                    else {
+System.out.println("NO CHANGE to string config");
+                    }
+                    configSource = Emu.ConfigSource.RC_STRING;
+                }
+                // If config file name is sent (either from Run Control or debug gui) ...
+                else if (rcConfigFile != null) {
+                    File file = new File(rcConfigFile);
+                    if (!file.exists() || !file.isFile()) {
+                        throw new DataNotFoundException("File " + rcConfigFile + " cannot be found");
+                    }
+
+                    boolean loadFile = true;
+                    long modTime = file.lastModified();
+
+                    // If we configured by file name sent in msg last time, and
+                    // source is same (rc or debug gui), might not have to reload.
+                    if ((configSource == Emu.ConfigSource.RC_FILE  && !cmd.isFromDebugGui()) ||
+                        (configSource == Emu.ConfigSource.GUI_FILE &&  cmd.isFromDebugGui()) ) {
+                        if (rcConfigFile.equals(msgConfigFile) &&
+                            (modTime == configFileModifiedTime)) {
+                            loadFile = false;
+                        }
+                    }
+
+                    // reload
+                    if (loadFile) {
+System.out.println("LOADING FILE " + rcConfigFile);
+                        Configurer.setLogger(logger);
+                        // Parse XML config file into Document object.
+                        loadedConfig = Configurer.parseFile(rcConfigFile);
+                        Configurer.removeEmptyTextNodes(loadedConfig.getDocumentElement());
+                        // store name of file loaded & its mod time
+                        msgConfigFile = rcConfigFile;
+                        configFileModifiedTime = modTime;
+                    }
+                    else {
+System.out.println("ALREADY LOADED " + rcConfigFile);
+                    }
+
+                    if (cmd.isFromDebugGui()) {
+                        configSource = Emu.ConfigSource.GUI_FILE;
+                    }
+                    else {
+                        configSource = Emu.ConfigSource.RC_FILE;
+                    }
+
+                }
+                // If we have no config from Run Control or debug gui, use one
+                // provided locally on command line (if any).
+                // Don't do any fancy stuff here like only reload if
+                // file creation date changed, because RC & debug GUI
+                // can interfere otherwise.
+                else if (cmdLineConfigFile != null) {
+                    File file = new File(cmdLineConfigFile);
+                    if (!file.exists() || !file.isFile()) {
+                        throw new DataNotFoundException("File " + cmdLineConfigFile + " cannot be found");
+                    }
+
+                    boolean loadFile = true;
+                    long modTime = file.lastModified();
+
+                    // If we configured by cmd line file last time
+                    // and file is same, might not have to reload.
+                    if ((configSource == Emu.ConfigSource.CMD_LINE_FILE) &&
+                        (modTime == configFileModifiedTime)) {
+                        loadFile = false;
+                    }
+
+                    if (!loadFile) {
+System.out.println("ALREADY LOADED CMD LINE FILE " + cmdLineConfigFile);
+                    }
+                    else {
+System.out.println("LOADING CMD LINE FILE " + cmdLineConfigFile);
+                        Configurer.setLogger(logger);
+                        // Parse XML config file and turn it into Document object.
+                        loadedConfig = Configurer.parseFile(cmdLineConfigFile);
+                        Configurer.removeEmptyTextNodes(loadedConfig.getDocumentElement());
+                        configSource = ConfigSource.CMD_LINE_FILE;
+                        configFileModifiedTime = modTime;
+
+                        // Check that name and CODA type have NOT changed.
+                        Node modulesConfig = Configurer.getNode(loadedConfig, "component");
+
+                        // Get attributes of the top ("component") node
+                        NamedNodeMap nm = modulesConfig.getAttributes();
+
+                        // Get name of component from node
+                        Node attr = nm.getNamedItem("name");
+                        if (attr == null) {
+                            throw new DataNotFoundException("No \"name\" attr in component element of config file");
+                        }
+
+                        System.out.println("Cmd line config: found component " + attr.getNodeValue());
+                        // Get name in config file and compare to our name - should be same.
+                        if (!attr.getNodeValue().equals(name)) {
+                            throw new DataNotFoundException("Name in config file (" + attr.getNodeValue() +
+                                                             ") conflicts with existing name (" + name + ")");
+                        }
+
+                        // Get type of component, if any - must be same as emu type.
+                        attr = nm.getNamedItem("type");
+                        if (attr != null) {
+    System.out.println("\n\n\nExec configure: type = " + attr.getNodeValue());
+    System.out.println("              : old codaClass = " + codaClass);
+                            CODAClass cc = CODAClass.get(attr.getNodeValue());
+                            if (cc != null) {
+                                if (cc != codaClass) {
+                                    throw new DataNotFoundException("CODA type in config file (" + attr.getNodeValue() +
+                                                                     ") conflicts with existing type (" + codaClass + ")");
+                                }
+                            }
+                            else {
+                                throw new DataNotFoundException("Unsupported CODA component type in config file (" +
+                                                                 attr.getNodeValue() + ")");
+                            }
+                        }
+                    }
                 }
                 else {
                     // We were told to configure, but no config file or string provided.
@@ -832,52 +951,6 @@ e.printStackTrace();
 
         }
 
-
-        // When we are told to CONFIGURE, the EMU handles this even though
-        // this command is still passed on down to the modules. Read or
-        // re-read the config file and update debug GUI.
-//        if (codaCommand == CONFIGURE) {
-//            // save a reference to any previously used config
-//            Document oldConfig = loadedConfig;
-//
-//            try {
-//                // Should have an xml string of the new configuration.
-//                if (cmd.hasArgs() && (cmd.getArg("config") != null)) {
-//                    Configurer.setLogger(logger);
-//                    cMsgPayloadItem arg = cmd.getArg("config");
-//                    if (arg.getType() == cMsgConstants.payloadStr) {
-//                        // Parse a string containing an XML configuration
-//                        // and turn it into a Document object.
-//                        loadedConfig = Configurer.parseString(arg.getString());
-//                    } else {
-//                        throw new DataNotFoundException("cMsg: config payload item for SET_CONFIG_FILE is not a string");
-//                    }
-//
-//                    Configurer.removeEmptyTextNodes(loadedConfig.getDocumentElement());
-//                }
-//            }
-//            // parsing XML error
-//            catch (DataNotFoundException e) {
-//                logger.error("SET_CONFIG_FILE FAILED", e.getMessage());
-//                CODAState.ERROR.getCauses().add(e);
-//                moduleFactory.ERROR();
-//                return;
-//            }
-//            // "config" payload item has no string
-//            catch (cMsgException e) {
-//                // will never happen
-//            }
-//            finally {
-//                Configurer.setLogger(null);
-//            }
-//
-//            // update (or add to) GUI, window with non-local config info (static info)
-//            if (debugGUI != null) {
-//                if (oldConfig != null) debugGUI.removeDocument(oldConfig);
-//                debugGUI.addDocument(loadedConfig);
-//            }
-//
-//        }
 
         // All commands are passed down to the modules here.
         // Note: the "CODACommand.CONFIGURE" command does nothing in the MODULE_FACTORY
