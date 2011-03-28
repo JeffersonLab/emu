@@ -10,7 +10,11 @@
   ~
   -->
 
-<component name="Roc1">
+<!--
+    name = name of CODA component
+    type = type of CODA component (CDEB, ER, ROC, EMU). If not specified, EMU is assumed.
+-->
+<component name="Roc1" >
     <transports>
         <!--
             name = name of cmsg client used in transport object to connect to cmsg server.
