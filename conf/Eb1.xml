@@ -10,11 +10,12 @@
   ~
   -->
 
+<!--
+    name = name of CODA component
+    type = type of CODA component (CDEB, ER, ROC, EMU). If not specified, EMU is assumed.
+-->
 <component name="Eb1">
     <transports>
-        <!--
-            name = name of cmsg client used in transport object to connect to cmsg server.
-        -->
         <server name="cmsg1" class="Cmsg" udl="cMsg://localhost/cMsg/test"/>
         <client name="cmsg2" class="Cmsg" udl="cMsg://localhost/cMsg/test"/>
     </transports>
@@ -22,8 +23,10 @@
         <!--
             statistics=on means that if there are multiple modules defined, this module's statistics
             may be reported to runcontrol as being representative of everything. class is the name
-            of the class defining this module and must be loaded. id is the id number of this module
-            and is used as the unique event builder id if this module is building events.
+            of the class defining this module and must be loaded.
+
+            id = id number of this module and is used as the unique
+            event builder id if this module is building events.
         -->
         <Eb1Module class="EventBuilding" id="1">
             <!--
