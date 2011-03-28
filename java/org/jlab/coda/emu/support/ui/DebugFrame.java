@@ -18,6 +18,7 @@ package org.jlab.coda.emu.support.ui;
 import org.jdesktop.layout.GroupLayout;
 import org.jdesktop.layout.LayoutStyle;
 import org.jlab.coda.emu.Emu;
+import org.jlab.coda.emu.support.codaComponent.CODACommand;
 import org.jlab.coda.emu.support.configurer.Configurer;
 import org.jlab.coda.emu.support.configurer.DataNode;
 import org.jlab.coda.emu.support.logger.Logger;
@@ -27,10 +28,12 @@ import org.w3c.dom.Document;
 import org.w3c.dom.Node;
 
 import javax.swing.*;
+import javax.swing.border.LineBorder;
+import javax.swing.border.TitledBorder;
 import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
-import java.util.ResourceBundle;
+import java.util.*;
 
 /**
  * @author heyes
@@ -39,11 +42,13 @@ import java.util.ResourceBundle;
 public class DebugFrame extends JFrame {
     private int documentCount = 0;
     private Logger logger;
+    private Emu emu;
 
     public DebugFrame(Emu emu) {
         initComponents();
         setTitle(emu.name());
         QueueAppender logQueueAppender = new QueueAppender(1024);
+        this.emu = emu;
         logger = emu.getLogger();
         logger.addAppender(logQueueAppender);
         logPanel.monitor(logQueueAppender);
@@ -56,6 +61,101 @@ public class DebugFrame extends JFrame {
         setVisible(true);
     }
 
+    /** This method adds an internal frame used to grab input for emu commands that need input. */
+    public void generateInputPanel() {
+        //-------------------------------------------
+        // Get set of all commands that require input
+        //-------------------------------------------
+        // Put all commands in the set
+        EnumSet<CODACommand> enumSet = EnumSet.allOf(CODACommand.class);
+
+        // Subtract out items that do NOT have input either because they
+        // 1) do not require it, or 2) are not displayed.
+        for (CODACommand item : CODACommand.values()) {
+            if (item.getInputType() == null || item.getGuiGroup() < 0) {
+                enumSet.remove(item);
+            }
+        }
+
+
+        //--------------------------------------------------------------------
+        // 1) Look through each smartToolbar's buttons
+        // 2) See if they are linked to commands expecting input (found above)
+        // 3) If so, reset their action listener to grab the input from gui
+        //--------------------------------------------------------------------
+        // place to store input-expecting buttons & their associated toolbar
+        LinkedHashMap<JButton, SmartToolbar> buttons = new LinkedHashMap<JButton, SmartToolbar>();
+
+        SmartToolbar[] toolbars = new SmartToolbar[] {smartToolbar,  smartToolbar1,
+                                                      smartToolbar2, smartToolbar3};
+
+        // 1) & 2)
+        for (SmartToolbar toolbar : toolbars) {
+            Component[] comps = toolbar.getComponents();
+            for (Component comp : comps) {
+                for (CODACommand cmd : enumSet) {
+                    if (cmd.name().equals(comp.getName())) {
+                        buttons.put((JButton) comp, toolbar);
+                    }
+                }
+            }
+        }
+
+        // now start creating panel to be displayed by this gui
+        JPanel panel = new JPanel();
+
+        // border
+        Color color = new Color(0,0,255);   // blue
+        LineBorder border = new LineBorder(color,1);
+        TitledBorder titledBorder = BorderFactory.createTitledBorder(border, "Input", TitledBorder.LEFT,
+                                                                     TitledBorder.TOP, null, color);
+        panel.setBorder(titledBorder);
+
+        // Create layout manager
+        GroupLayout layout = new GroupLayout(panel);
+        panel.setLayout(layout);
+        // Turn off automatically adding gaps between components
+        layout.setAutocreateGaps(false);
+        // Turn off automatically creating gaps between components that touch
+        // the edge of the container and the container.
+        layout.setAutocreateContainerGaps(false);
+
+        // Create a sequential group for the horizontal axis.
+        GroupLayout.ParallelGroup hGroup = layout.createParallelGroup();
+        layout.setHorizontalGroup(hGroup);
+        GroupLayout.SequentialGroup rows = layout.createSequentialGroup();
+        layout.setVerticalGroup(rows);
+
+        // 3)
+        // For each button create label and input widget AND set new action listener
+        JButton button;
+        SmartToolbar toolbar;
+        Map.Entry<JButton,SmartToolbar> entry;
+
+        Iterator<Map.Entry<JButton,SmartToolbar>> it = buttons.entrySet().iterator();
+        for (;it.hasNext();) {
+            entry   = it.next();
+            button  = entry.getKey();
+            toolbar = entry.getValue();
+
+            GroupLayout.ParallelGroup   row = layout.createParallelGroup(GroupLayout.BASELINE);
+            GroupLayout.SequentialGroup col = layout.createSequentialGroup();
+            JLabel label    = new JLabel(button.getName());
+            JTextField text = new JTextField();
+            row.add(label);
+            col.add(label);
+            row.add(text);
+            col.add(text);
+            rows.add(row);
+            hGroup.add(col);
+            // remove old listener & then add new one
+            toolbar.addButtonListener(emu, button, text);
+        }
+
+        // Add this panel to debug GUI
+        addPanel(panel, "Input");
+    }
+
     /**
      * Method addDocument ...
      *
@@ -65,12 +165,10 @@ public class DebugFrame extends JFrame {
         try {
             Node node = doc.getDocumentElement();
             DataNode dn = Configurer.treeToPanel(node,0);
-            JInternalFrame f = new JInternalFrame(node.getNodeName(), true, true, true, true);
-
-            f.setTitle(dn.getValue());
+            JInternalFrame f = new JInternalFrame(dn.getValue(), true, false, true, true);
             f.getContentPane().add(dn.getContainer());
             f.setMinimumSize(new Dimension(200, 200));
-            f.setLocation(300 * documentCount, 0);
+            f.setLocation(220 * documentCount, 0);
             f.pack();
             f.setVisible(true);
             f.setSelected(true);
@@ -79,6 +177,32 @@ public class DebugFrame extends JFrame {
 
             doc.setUserData("DisplayPanel", f, null);
             pack();
+        } catch (Exception e) {
+            System.err.println("ERROR " + e.getMessage());
+            e.printStackTrace();
+        }
+
+        documentCount++;
+    }
+
+    /**
+     * Method to add Panel to gui.
+     * @param panel JPanel to add
+     */
+    public void addPanel(JPanel panel, String title) {
+        try {
+            JInternalFrame f = new JInternalFrame(title, true, false, true, true);
+            f.getContentPane().add(panel);
+            f.setPreferredSize(new Dimension(200, 200));
+            f.setMinimumSize(new Dimension(200, 200));
+            f.setLocation(220 * documentCount, 0);
+            f.pack();
+            f.setVisible(true);
+            f.setSelected(true);
+            desktopPane.add(f);
+            desktopPane.validate();
+            pack();
+
         } catch (Exception e) {
             System.err.println("ERROR " + e.getMessage());
             e.printStackTrace();
@@ -345,14 +469,14 @@ public class DebugFrame extends JFrame {
         contentPaneLayout.setHorizontalGroup(
             contentPaneLayout.createParallelGroup()
                 .add(contentPaneLayout.createSequentialGroup()
-                    .addContainerGap()
-                    .add(contentPaneLayout.createParallelGroup()
-                        .add(splitPane1, GroupLayout.DEFAULT_SIZE, 694, Short.MAX_VALUE)
-                        .add(smartToolbar1, GroupLayout.DEFAULT_SIZE, 694, Short.MAX_VALUE)
-                        .add(smartToolbar, GroupLayout.DEFAULT_SIZE, 694, Short.MAX_VALUE)
-                        .add(smartToolbar2, GroupLayout.DEFAULT_SIZE, 694, Short.MAX_VALUE)
-                        .add(smartToolbar3, GroupLayout.DEFAULT_SIZE, 694, Short.MAX_VALUE))
-                    .addContainerGap())
+                             .addContainerGap()
+                             .add(contentPaneLayout.createParallelGroup()
+                                          .add(splitPane1, GroupLayout.DEFAULT_SIZE, 694, Short.MAX_VALUE)
+                                          .add(smartToolbar1, GroupLayout.DEFAULT_SIZE, 694, Short.MAX_VALUE)
+                                          .add(smartToolbar, GroupLayout.DEFAULT_SIZE, 694, Short.MAX_VALUE)
+                                          .add(smartToolbar2, GroupLayout.DEFAULT_SIZE, 694, Short.MAX_VALUE)
+                                          .add(smartToolbar3, GroupLayout.DEFAULT_SIZE, 694, Short.MAX_VALUE))
+                             .addContainerGap())
         );
         contentPaneLayout.setVerticalGroup(
             contentPaneLayout.createParallelGroup()
