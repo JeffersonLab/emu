@@ -11,17 +11,22 @@
 
 package org.jlab.coda.emu.support.transport;
 
+import org.jlab.coda.cMsg.cMsgConstants;
+import org.jlab.coda.cMsg.cMsgMessage;
 import org.jlab.coda.emu.support.logger.Logger;
 import org.jlab.coda.emu.Emu;
 import org.jlab.coda.et.*;
 import org.jlab.coda.et.enums.Mode;
 import org.jlab.coda.et.enums.Modify;
 import org.jlab.coda.et.exception.*;
+import org.jlab.coda.jevio.EventWriter;
 import org.jlab.coda.jevio.EvioBank;
 import org.jlab.coda.jevio.EvioReader;
 import org.jlab.coda.jevio.EvioException;
 
 
+import java.io.PrintWriter;
+import java.io.StringWriter;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.Map;
@@ -58,6 +63,9 @@ public class DataChannelImplEt implements DataChannel {
 
     /** Name of ET station attached to. */
     private String stationName;
+
+    /** Position of ET station attached to. */
+    private int stationPosition = 1;
 
     /** Attachment to ET staton. */
     private EtAttachment attachment;
@@ -137,10 +145,10 @@ logger.info("      DataChannelImplEt.const : creating channel " + name);
 
         // Set id number. Use any defined in config file else use default (0)
         id = 0;
-        String idVal = attributeMap.get("id");
-        if (idVal != null) {
+        String attribString = attributeMap.get("id");
+        if (attribString != null) {
             try {
-                id = Integer.parseInt(idVal);
+                id = Integer.parseInt(attribString);
             }
             catch (NumberFormatException e) {  }
         }
@@ -152,7 +160,7 @@ logger.info("      DataChannelImplEt.const : id = " + id);
 
         // How may buffers do we grab at a time?
         chunk = 100;
-        String attribString = attributeMap.get("chunk");
+        attribString = attributeMap.get("chunk");
         if (attribString != null) {
             try {
                 chunk = Integer.parseInt(attribString);
@@ -176,6 +184,22 @@ logger.info("      DataChannelImplEt.const : chunk = " + chunk);
 logger.info("      DataChannelImplEt.const : ev size = " + evSize);
 
 
+        // Set station name. Use any defined in config file else use
+        // "station"+id for input and "GRAND_CENTRAL" for output.
+        stationName = attributeMap.get("stationName");
+        logger.info("      DataChannelImplEt.const : station name = " + stationName);
+
+
+        // Set station position. Use any defined in config file else use default (1)
+        attribString = attributeMap.get("position");
+        if (attribString != null) {
+            try {
+                stationPosition = Integer.parseInt(attribString);
+            }
+            catch (NumberFormatException e) {  }
+        }
+logger.info("      DataChannelImplEt.const : position = " + stationPosition);
+
         // if INPUT channel
         if (input) {
 
@@ -197,12 +221,11 @@ logger.info("      DataChannelImplEt.const : ev size = " + evSize);
                 stationConfig.setSelectMode(EtConstants.stationSelectMatch);
 
                 // create station if it does not already exist
-                stationName = "station"+id;
-                            }
-            catch (Exception e) {
-                e.printStackTrace();
-                throw new DataTransportException("cannot create/attach to ET station", e);
+                if (stationName == null) {
+                    stationName = "station"+id;
+                }
             }
+            catch (Exception e) {/* never happen */}
          }
         // if OUTPUT channel
         else {
@@ -215,7 +238,23 @@ logger.info("      DataChannelImplEt.const : ev size = " + evSize);
                     byteOrder = ByteOrder.LITTLE_ENDIAN;
                 }
             } catch (Exception e) {
-                logger.info("      DataChannelImplEt.const : no output data endianness specifed, default to big.");
+                logger.info("      DataChannelImplEt.const : no output data endianness specified, default to big.");
+            }
+
+            if (stationName == null) {
+                stationName = "GRAND_CENTRAL";
+            }
+
+            if (!stationName.equals("GRAND_CENTRAL")) {
+                try {
+                    // configuration of a new station
+                    stationConfig = new EtStationConfig();
+                    try {
+                        stationConfig.setUserMode(EtConstants.stationUserSingle);
+                    }
+                    catch (EtException e) { /* never happen */}
+                 }
+                catch (Exception e) {/* never happen */}
             }
        }
 
@@ -245,27 +284,26 @@ logger.info("      DataChannelImplEt.const : ev size = " + evSize);
         try {
             etSystem.open();
 
-            if (input) {
+            if (stationName.equals("GRAND_CENTRAL")) {
+                boolean exists = etSystem.stationExists(stationName);
+System.out.println(stationName + " exists = " + exists);
+                station = etSystem.stationNameToObject(stationName);
+            }
+            else {
                 try {
                     station = etSystem.createStation(stationConfig, stationName);
+                    etSystem.setStationPosition(station, stationPosition, 0);
                 }
                 catch (EtExistsException e) {
                     station = etSystem.stationNameToObject(stationName);
+                    etSystem.setStationPosition(station, stationPosition, 0);
                 }
-logger.info("      DataChannelImplEt.const : created or found station = " + stationName);
-
-                // attach to station
-                attachment = etSystem.attach(station);
-logger.info("      DataChannelImplEt.const : attached to station " + stationName);
             }
-            else {
-                // get GRAND_CENTRAL station object
-                station = etSystem.stationNameToObject("GRAND_CENTRAL");
+            logger.info("      DataChannelImplEt.const : created or found station = " + stationName);
 
-                // attach to grandcentral station
-                attachment = etSystem.attach(station);
-logger.info("      DataChannelImplEt.const : attached to grandCentral");
-            }
+            // attach to station
+            attachment = etSystem.attach(station);
+            logger.info("      DataChannelImplEt.const : attached to station " + stationName);
         }
         catch (Exception e) {
             throw new DataTransportException("cannot open ET system", e);
@@ -386,6 +424,7 @@ System.out.println("\n\n      DataChannelImplEt.DataInputHelper : " + name + " S
                 int bankSize;
                 EvioBank bank;
                 ByteBuffer buffer;
+                EventWriter evWriter = null;
 
                 while ( etSystem.alive() ) {
 
@@ -413,13 +452,25 @@ logger.warn("      DataChannelImplEt.DataOutputHelper : " + name + " et event to
                             etSystem.dumpEvents(attachment, new EtEvent[] {events[i]});
                             EtEvent[] evts = etSystem.newEvents(attachment, Mode.SLEEP, 0, 1, bankSize);
                             events[i] = evts[0];
+                            buffer = events[i].getDataBuffer();
                         }
 
-                        // write bank into et event
+                        // write bank into et event buffer
                         buffer.clear();
-                        bank.write(buffer);
+                        try {
+                            evWriter = new EventWriter(buffer, 128000, 10, null, null);
+                        }
+                        catch (EvioException e) {e.printStackTrace();/* never happen */}
+                        evWriter.writeEvent(bank);
+                        evWriter.close();
+
                         events[i].setByteOrder(bank.getByteOrder());
                         events[i].setLength(buffer.position());
+
+                        // CODA owns first select int
+                        int[] selects = events[i].getControl();
+                        selects[0] = id; // id in ROC output channel
+                        events[i].setControl(selects);
                     }
 
                     // put events back in ET system
