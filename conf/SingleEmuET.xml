@@ -75,6 +75,8 @@
                 For ET system channels only:
                 "size" is the size (bytes) of the requested new ET buffers used in output of built events
                 "chunk" sets the number of events asked for in one array
+                "stationName" sets the name of the station to attach to
+                "position" sets the position of any station either created or existing (besides GrandCentral)
             -->
             <inchannel  id="1" name="ROC1"      transp="EmuInputET" />
             <inchannel  id="2" name="ROC2"      transp="EmuInputET" />
