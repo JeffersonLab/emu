@@ -100,11 +100,13 @@ import java.util.concurrent.locks.ReentrantLock;
  * (by round robin if more than one).<p>
  *
  * NOTE: QFiller threads ignore any banks that are not DTRs. BuildingThread objects
- * immedately pass along any User events to their output queues. Any Control events
+ * immediately pass along any User events to their output queues. Any Control events
  * they find must appear on each payload queue in the same position. If not, an exception
  * is thrown. If so, one of the Control events is passed along to its output queue.
  * Finally, the QCollector thread places any User or Control events in the first output
  * channel. These are not part of the round-robin output to each channel in turn.
+ * If no output channels are defined in the config file, this module's QCollector thread
+ * pulls off all events and discards them.
  *
  * TODO: ET buffers have the number of events in them which varies from ROC to ROC.
  */
@@ -438,8 +440,17 @@ System.out.println("Qfiller: got non-DTR bank, discard");
 
                     while (state == CODAState.ACTIVE || paused) {
 
-                        if (hasOutputs) {
-
+                        if (!hasOutputs) {
+                            // Just pull stuff off & discard if no outputs.
+                            // No sense in doing all the evio stuff like
+                            // wrapping event in DTR bank.
+                            while (true) {
+                                for (BuildingThread thread : buildingThreadQueue) {
+                                    thread.outputQueue.take();
+                                }
+                            }
+                        }
+                        else {
                             int index=0;
                             int size = buildingThreadQueue.size();
                             PayloadBank[] banks = new PayloadBank[size];
@@ -567,9 +578,7 @@ System.out.println("Qfiller: got non-DTR bank, discard");
             EventBuilder builder = new EventBuilder(0, DataType.BANK, 0); // this event not used, just need a builder
             LinkedList<PayloadBank> userEventList = new LinkedList<PayloadBank>();
 
-
             while (state == CODAState.ACTIVE || paused) {
-
 
                     try {
                         nonFatalError = false;
@@ -630,7 +639,7 @@ System.out.println("BuldingThread: Got user event, order = " + myInputOrder);
 
                             // record its input order so that it can be used to order the output
                             myInputOrder = inputOrder++ % Integer.MAX_VALUE;
-System.out.println("BuldingThread: input order = " + myInputOrder);
+//System.out.println("BuldingThread: input order = " + myInputOrder);
                         }
                         finally {
                             getLock.unlock();
@@ -714,7 +723,7 @@ System.out.println("BuldingThread: create trigger bank in SEM");
                             }
                             else {
                                 // combine the trigger banks of input events into one
-System.out.println("BuldingThread: create trigger bank");
+//System.out.println("BuldingThread: create trigger bank");
                                 nonFatalError |= Evio.makeTriggerBankFromRocRaw(buildingBanks, builder,
                                                                                 ebId, firstEventNumber, runNumber);
                             }
@@ -768,7 +777,7 @@ System.out.println("BuldingThread: build physics event with physics banks");
                             Evio.buildPhysicsEventWithPhysics(combinedTrigger, buildingBanks, builder);
                         }
                         else {
-System.out.println("BuldingThread: build physics event with ROC raw banks");
+//System.out.println("BuldingThread: build physics event with ROC raw banks");
                             Evio.buildPhysicsEventWithRocRaw(combinedTrigger, buildingBanks, builder);
                         }
                         physicsEvent.setAllHeaderLengths();
@@ -801,6 +810,9 @@ System.out.println("BuldingThread: build physics event with ROC raw banks");
 if (outputQueue.size() > 998) System.out.println("outQ " + Thread.currentThread().getName() + " = " + outputQueue.size());
                         outputQueue.put(physicsEvent);
 
+                        // stats  // TODO: protect since in multithreaded environs
+                        eventCountTotal += totalNumberEvents;
+                        wordCountTotal  += physicsEvent.getHeader().getLength() + 1;
                     }
                     catch (EmuException e) {
                         // TODO: major error getting data events to build, do something ...
