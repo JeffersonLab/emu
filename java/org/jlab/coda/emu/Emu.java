@@ -405,7 +405,7 @@ public class Emu implements CODAComponent {
                         reportMsg.addPayloadItem(new cMsgPayloadItem(RCConstants.dataRate, (double)wordRate));
 
                         // send msg
-//System.out.println("Send STATUS REPORTING Msg:");
+//System.out.println("Emu " + name + " sending STATUS REPORTING Msg:");
 //                        System.out.println("   " + RCConstants.state + " = " + state);
 //                        System.out.println("   " + RCConstants.codaClass + " = " + codaClass.name());
 //                        System.out.println("   " + RCConstants.eventNumber + " = " + (int)eventCount);
