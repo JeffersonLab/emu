@@ -80,8 +80,8 @@ public class RocSimulation implements EmuModule, Runnable {
     /** Number of events in each ROC raw record. */
     private int eventBlockSize;
 
-    /** Number of payload banks in each data transport record. */
-    private int numPayloadBanks = 2;
+    /** Number of ROC Raw records in each data transport record. */
+    private int numPayloadBanks;
 
     /** The id of the detector which produced the data in block banks of the ROC raw records. */
     private int detectorId;
@@ -306,13 +306,6 @@ System.out.println("ProcessTest module: quitting watcher thread");
 
             EvioEvent ev;
             int timestamp=0, status=0, numEvents;
-            ByteBuffer bbuf = ByteBuffer.allocate(2048);
-
-            StringWriter sw = new StringWriter(2048);
-            PrintWriter wr = new PrintWriter(sw, true);
-            long start_time = System.currentTimeMillis();
-            EventWriter evWriter;
-
 
             while (state == CODAState.ACTIVE || paused) {
 
@@ -324,57 +317,19 @@ System.out.println("ProcessTest module: quitting watcher thread");
                                                         timestamp, rocRecordId,
                                                         numPayloadBanks, isSingleEventMode);
 
-                    bbuf.clear();
-                    try {
-                        evWriter = new EventWriter(bbuf, 128000, 10, null, null);
-                        evWriter.writeEvent(ev);
-                        evWriter.close();
-                    }
-                    catch (EvioException e) {
-                        /* never happen */
-                    }
-                    catch (IOException e) {
-                        e.printStackTrace();
-                    }
-                    bbuf.flip();
-
-//                    try {
-//                        StringWriter sw2 = new StringWriter(1000);
-//                        XMLStreamWriter xmlWriter = XMLOutputFactory.newInstance().createXMLStreamWriter(sw2);
-//                        ev.toXML(xmlWriter);
-//                        System.out.println("\nSending msg:\n" + sw2.toString());
-//
-//                        System.out.println("Sending msg (bin):");
-//                        while (bbuf.hasRemaining()) {
-//                            wr.printf("%#010x\n", bbuf.getInt());
-//                        }
-//                        System.out.println(sw.toString() + "\n\n");
-//                    }
-//                    catch (XMLStreamException e) {
-//                        e.printStackTrace();
-//                    }
-
-                    Thread.sleep(delay);
-
-                    long now = System.currentTimeMillis();
-                    long deltaT = now - start_time;
-                    if (deltaT > 2000) {
-                        wr.printf("%d  Hz\n", 3L/deltaT);
-System.out.println(sw.toString());
-                        start_time = now;
-                    }
-
                     // Stick it on the output Q.
                     outputChannels.get(0).getQueue().put(ev);
 
                     // stats
-                    numEvents = eventBlockSize *numPayloadBanks;
+                    numEvents = eventBlockSize * numPayloadBanks;
                     rocRecordId++;
                     timestamp       += numEvents;
                     eventNumber     += numEvents;
                     eventCountTotal += numEvents;
                     wordCountTotal  += ev.getHeader().getLength() + 1;
                     lastEventNumberCreated = eventNumber - 1;
+
+                    //Thread.sleep(delay);
                 }
                 catch (EvioException e) {
 System.out.println("MAJOR ERROR generating events");
@@ -386,7 +341,6 @@ System.out.println("INTERRUPTED thread " + Thread.currentThread().getName());
                     if (state == CODAState.DOWNLOADED) return;
                 }
             }
-System.out.println("Roc data creation thread is ending !!!");
 
         }
 
