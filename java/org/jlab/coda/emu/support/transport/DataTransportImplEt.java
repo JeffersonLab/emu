@@ -11,7 +11,6 @@
 
 package org.jlab.coda.emu.support.transport;
 
-import org.jlab.coda.emu.EmuFactory;
 import org.jlab.coda.emu.support.codaComponent.CODACommand;
 import org.jlab.coda.emu.support.control.Command;
 import org.jlab.coda.et.*;
@@ -100,7 +99,7 @@ public class DataTransportImplEt extends DataTransportCore implements DataTransp
         String etName = attrib.get("etName");
         if (etName == null) {
             // default name is EMU name in /tmp directory
-            etName = "/tmp/" +  System.getProperty("name");
+            etName = "/tmp/" +  emu.name();
         }
 
         //--------------------------------------
