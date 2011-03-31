@@ -49,9 +49,6 @@ public class DataChannelImplEt implements DataChannel {
     /** ID of this channel (corresponds to sourceId of ROCs for CODA event building). */
     private int id;
 
-    /** Size of events in bytes we ask the ET system for. */
-    private int evSize;
-
     /** Number of events to ask for in an array. */
     private int chunk;
 
@@ -169,19 +166,6 @@ logger.info("      DataChannelImplEt.const : id = " + id);
             catch (NumberFormatException e) {}
         }
 logger.info("      DataChannelImplEt.const : chunk = " + chunk);
-
-
-        // For output events, how big are they going to be (in bytes)?
-        evSize = 20000;
-        attribString = attributeMap.get("size");
-        if (attribString != null) {
-            try {
-                evSize = Integer.parseInt(attribString);
-                if (evSize < 1) evSize = 20000;
-            }
-            catch (NumberFormatException e) {}
-        }
-logger.info("      DataChannelImplEt.const : ev size = " + evSize);
 
 
         // Set station name. Use any defined in config file else use
@@ -436,7 +420,8 @@ logger.warn("      DataChannelImplEt.DataOutputHelper : " + name + " - PAUSED");
                     }
 
                     // read in new event in chunks
-                    events = etSystem.newEvents(attachment, Mode.SLEEP, 0, chunk, evSize);
+                    events = etSystem.newEvents(attachment, Mode.SLEEP, 0, chunk,
+                                                (int)etSystem.getEventSize());
 
                     for (int i=0; i < events.length; i++) {
                         // grab a bank and put it into an ET event buffer
