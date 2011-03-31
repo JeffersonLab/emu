@@ -34,7 +34,7 @@ public class DataTransportImplFifo extends DataTransportCore implements DataTran
         DataChannel c = channels().get(channelName);
         // if not, create it
         if (c ==  null) {
-            c = new DataChannelImplFifo(channelName, this, isInput, emu);
+            c = new DataChannelImplFifo(channelName, this, attributeMap, isInput, emu);
             channels().put(channelName, c);
         }
 //System.out.println("    DataTransportImplFifo.createChannel : put channel " + c.getName());

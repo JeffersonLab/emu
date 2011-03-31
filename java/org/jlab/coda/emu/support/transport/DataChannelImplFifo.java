@@ -15,6 +15,7 @@ import org.jlab.coda.emu.Emu;
 import org.jlab.coda.emu.support.logger.Logger;
 import org.jlab.coda.jevio.EvioBank;
 
+import java.util.Map;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ArrayBlockingQueue;
 
@@ -30,6 +31,9 @@ public class DataChannelImplFifo implements DataChannel {
 
     /** Field name */
     private final String name;
+
+    /** ID of this channel (corresponds to sourceId of ROCs for CODA event building). */
+    private int id;
 
     /** Field full - filled buffer queue */
     private final BlockingQueue<EvioBank> queue;
@@ -48,7 +52,7 @@ public class DataChannelImplFifo implements DataChannel {
      * @throws DataTransportException - unable to create fifo buffer.
      */
     DataChannelImplFifo(String name, DataTransportImplFifo dataTransport,
-                        boolean input, Emu emu) {
+                        Map<String, String> attributeMap, boolean input, Emu emu) {
 
         this.name  = name;
         this.input = input;
@@ -69,15 +73,24 @@ public class DataChannelImplFifo implements DataChannel {
 
         queue = new ArrayBlockingQueue<EvioBank>(capacity);
 
+        // Set id number. Use any defined in config file else use default (0)
+        id = 0;
+        String idVal = attributeMap.get("id");
+        if (idVal != null) {
+            try {
+                id = Integer.parseInt(idVal);
+            }
+            catch (NumberFormatException e) {  }
+        }
+
     }
 
     public String getName() {
         return name;
     }
 
-    // TODO: return something reasonable
     public int getID() {
-        return 0;
+        return id;
     }
 
     public boolean isInput() {
