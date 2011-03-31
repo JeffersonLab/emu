@@ -807,7 +807,7 @@ System.out.println("BuldingThread: build physics event with physics banks");
                         // Stick it on the local output Q (for this building thread).
                         // That way we don't waste time trying to coordinate between
                         // building threads right here - leave that to the QCollector thread.
-if (outputQueue.size() > 998) System.out.println("outQ " + Thread.currentThread().getName() + " = " + outputQueue.size());
+//if (outputQueue.size() > 999) System.out.println("outQ " + Thread.currentThread().getName() + " = " + outputQueue.size());
                         outputQueue.put(physicsEvent);
 
                         // stats  // TODO: protect since in multithreaded environs
