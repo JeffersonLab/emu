@@ -14,7 +14,7 @@
     name = name of CODA component
     type = type of CODA component (CDEB, ER, ROC, EMU). If not specified, EMU is assumed.
 -->
-<component name="Roc1" type="ROC" >
+<component name="Roc2" type="ROC" >
     <transports>
         <!--
             name = name of cmsg client used in transport object to connect to cmsg server.
@@ -35,7 +35,7 @@
             detectorId="111" sets the detector id in data block bank
             NOTE: the values listed are the defaults
             -->
-        <RocModule class="RocSimulation" id="1" delay="2500" >
+        <RocModule class="RocSimulation" id="2" delay="2500" >
             <!--
                 The "subject" & "type" attributes override the default subscriptions to send msgs over cmsg.
                 The default is subject = name, type="data".

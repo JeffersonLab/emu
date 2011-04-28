@@ -35,6 +35,7 @@
                 The "subject" & "type" attributes override the default subscriptions to receive msg over cmsg.
                 The default is subject = name, type="*".
                 endian specifies the endianness of the bytes going over the output channel.
+            <inchannel id="1" name="F1" transp="Fifo"/>
             -->
             <inchannel  id="1" name="ROC1"      transp="cmsg1"/>
             <outchannel        name="BitBucket" transp="cmsg2" endian="big"/>
