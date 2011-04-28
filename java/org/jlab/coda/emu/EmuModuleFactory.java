@@ -50,7 +50,8 @@ public class EmuModuleFactory implements StatedObject {
 
     /**
      * This object is a Vector and thus is synchronized for insertions and deletions.
-     * This vector is only modified in the {@link #execute} method and then only by
+     * This vector is only modified in the
+     * {@link #execute(org.jlab.coda.emu.support.control.Command)} method and then only by
      * the main EMU thread. However, it is possible that other threads (such as the EMU's
      * statistics reporting thread) may call methods which use its iterator ({@link #check()},
      * {@link #state()}, {@link #findModule(String)}, and {@link #getStatisticsModule()})
