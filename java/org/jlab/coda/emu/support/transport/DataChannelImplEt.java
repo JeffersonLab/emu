@@ -11,8 +11,7 @@
 
 package org.jlab.coda.emu.support.transport;
 
-import org.jlab.coda.cMsg.cMsgConstants;
-import org.jlab.coda.cMsg.cMsgMessage;
+
 import org.jlab.coda.emu.support.logger.Logger;
 import org.jlab.coda.emu.Emu;
 import org.jlab.coda.et.*;
@@ -25,14 +24,13 @@ import org.jlab.coda.jevio.EvioReader;
 import org.jlab.coda.jevio.EvioException;
 
 
-import java.io.PrintWriter;
-import java.io.StringWriter;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.Map;
 import java.util.Arrays;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.util.concurrent.Exchanger;
 
 /**
  * @author timmer
@@ -52,6 +50,9 @@ public class DataChannelImplEt implements DataChannel {
     /** Number of events to ask for in an array. */
     private int chunk;
 
+    /** Number of group from which new ET events are taken. */
+    private int group;
+
     /** ET system connected to. */
     private EtSystem etSystem;
 
@@ -70,8 +71,10 @@ public class DataChannelImplEt implements DataChannel {
     /** Configuration of ET station being created and attached to. */
     private EtStationConfig stationConfig;
 
-    /** Array of events obtained from ET system. */
-    private EtEvent[] events;
+    /** Arrays of events obtained from ET system. */
+    private EtEvent[] events1, events2;
+
+    private Exchanger<Boolean> synchronizer;
 
     /** Time in microseconds to wait for the ET system to deliver requested events
      *  before throwing an EtTimeoutException. */
@@ -81,7 +84,9 @@ public class DataChannelImplEt implements DataChannel {
     private final BlockingQueue<EvioBank> queue;
 
     /** Field dataThread */
-    private Thread dataThread;
+    private Thread dataInputThread;
+    private Thread newEventThread;
+    private Thread dataOutputThread;
 
     /** Do we pause the dataThread? */
     private boolean pause;
@@ -106,8 +111,8 @@ public class DataChannelImplEt implements DataChannel {
 
     /**
      * Constructor to create a new DataChannelImplEt instance.
-     * Used only by {@link DataTransportImplEt#createChannel} which is
-     * only used during PRESTART in {@link org.jlab.coda.emu.EmuModuleFactory}.
+     * Used only by {@link DataTransportImplEt#createChannel(String, java.util.Map, boolean, org.jlab.coda.emu.Emu)}
+     * which is only used during PRESTART in {@link org.jlab.coda.emu.EmuModuleFactory}.
      *
      * @param name        the name of this channel
      * @param transport   the DataTransport object that this channel belongs to
@@ -127,6 +132,7 @@ public class DataChannelImplEt implements DataChannel {
         this.input = input;
         this.attributeMap = attrib;
         this.dataTransport = transport;
+        synchronizer = new Exchanger<Boolean>();
         logger = emu.getLogger();
 logger.info("      DataChannelImplEt.const : creating channel " + name);
 
@@ -167,6 +173,21 @@ logger.info("      DataChannelImplEt.const : id = " + id);
         }
 logger.info("      DataChannelImplEt.const : chunk = " + chunk);
 
+        // From which group do we grab new events? (default = 1)
+        group = 1;
+        attribString = attributeMap.get("group");
+        if (attribString != null) {
+            try {
+                group = Integer.parseInt(attribString);
+                if (group < 1) group = 1;
+            }
+            catch (NumberFormatException e) {
+                e.printStackTrace();
+            }
+        }
+logger.info("      DataChannelImplEt.const : group = " + group);
+        logger.info("      GROUP = " + group);
+
 
         // Set station name. Use any defined in config file else use
         // "station"+id for input and "GRAND_CENTRAL" for output.
@@ -195,14 +216,17 @@ logger.info("      DataChannelImplEt.const : position = " + stationPosition);
                 }
                 catch (EtException e) { /* never happen */}
 
-                // Create filter for station so only events from a particular ROC
-                // (id as defined in config file) make it in.
-                // Station filter is the built-in selection function.
-                int[] selects = new int[EtConstants.stationSelectInts];
-                Arrays.fill(selects, -1);
-                selects[0] = id;
-                stationConfig.setSelect(selects);
-                stationConfig.setSelectMode(EtConstants.stationSelectMatch);
+                String filter = attributeMap.get("idFilter");
+                if (filter != null && filter.equalsIgnoreCase("on")) {
+                    // Create filter for station so only events from a particular ROC
+                    // (id as defined in config file) make it in.
+                    // Station filter is the built-in selection function.
+                    int[] selects = new int[EtConstants.stationSelectInts];
+                    Arrays.fill(selects, -1);
+                    selects[0] = id;
+                    stationConfig.setSelect(selects);
+                    stationConfig.setSelectMode(EtConstants.stationSelectMatch);
+                }
 
                 // create station if it does not already exist
                 if (stationName == null) {
@@ -313,13 +337,21 @@ System.out.println(stationName + " exists = " + exists);
      */
     public void close() {
         logger.warn("      DataChannelImplEt.close : " + name + " - closing this channel (close ET system)");
-        if (dataThread != null) dataThread.interrupt();
+
+        if (dataInputThread  != null) dataInputThread.interrupt();
+        if (dataOutputThread != null) dataOutputThread.interrupt();
+//        if (newEventThread   != null) newEventThread.interrupt();
+
         try {
             etSystem.detach(attachment);
-            etSystem.removeStation(station);
+            if (!stationName.equals("GRAND_CENTRAL")) {
+                etSystem.removeStation(station);
+            }
             etSystem.close();
         }
-        catch (Exception e) {/* ignore */}
+        catch (Exception e) {
+            //e.printStackTrace();
+        }
         queue.clear();
     }
 
@@ -350,7 +382,7 @@ logger.warn("      DataChannelImplEt.DataInputHelper : " + name + " - PAUSED");
 
                     // read in event in chunks
                     try {
-                        events = etSystem.getEvents(attachment, Mode.TIMED, Modify.NOTHING, etWaitTime, chunk);
+                        events1 = etSystem.getEvents(attachment, Mode.TIMED, Modify.NOTHING, etWaitTime, chunk);
                     }
                     catch (EtTimeoutException e) {
                         if (Thread.currentThread().isInterrupted()) {
@@ -362,7 +394,7 @@ logger.warn("      DataChannelImplEt.DataInputHelper : " + name + " - PAUSED");
 
                     // parse events
                     ByteBuffer buf;
-                    for (EtEvent ev : events) {
+                    for (EtEvent ev : events1) {
                         buf = ev.getDataBuffer();
 
                         if (ev.needToSwap()) {
@@ -372,9 +404,13 @@ System.out.println("\n\n      DataChannelImplEt.DataInputHelper : " + name + " S
 
                         try {
                             parser = new EvioReader(buf);
+                            // Speed things up since no EvioListeners are used - doesn't do much
+                            parser.getParser().setNotificationActive(false);
                             bank = parser.parseNextEvent();
                             // put evio bank on queue if it parses
                             queue.put(bank);
+int size = queue.size();
+if (size > 400 && size % 100 == 0) System.out.println("et chan IN Q: " + size);
                         }
                         catch (EvioException e) {
                             // if ET event data NOT in evio format, skip over it
@@ -384,7 +420,7 @@ System.out.println("\n\n      DataChannelImplEt.DataInputHelper : " + name + " S
                     }
 
                     // put events back in ET system
-                    etSystem.putEvents(attachment, events);
+                    etSystem.putEvents(attachment, events1);
                 }
 
             } catch (InterruptedException e) {
@@ -398,54 +434,122 @@ System.out.println("\n\n      DataChannelImplEt.DataInputHelper : " + name + " S
     }
 
 
-    private class DataOutputHelper implements Runnable {
-        int printCounter = 0;
-    
+    private class NewEventGetter implements Runnable {
+
+        EtEvent[] events;
+        int loopCounter = 0, printCounter = 0;
+
+        /** Method run ... */
+        public void run() {
+
+            try {
+                events1 = etSystem.newEvents(attachment, Mode.SLEEP, 0, chunk,
+                                            (int)etSystem.getEventSize());
+
+                while ( etSystem.alive() ) {
+
+                    if (pause) {
+                        if (printCounter++ % 400 == 0)
+logger.warn("      DataChannelImplEt.NewEventGetter : " + name + " - PAUSED");
+                        Thread.sleep(5);
+                        continue;
+                    }
+
+                    // use this to synchronize with the event-putting thread
+//System.out.println("      NEW EVENT GETTER: before sync ... ");
+                    synchronizer.exchange(null);
+//System.out.println("      NEW EVENT GETTER: past");
+
+                    // read in new event in chunks
+                    events = etSystem.newEvents(attachment, Mode.SLEEP, 0, chunk,
+                                               (int)etSystem.getEventSize());
+
+                    if (loopCounter++ % 2 == 1) {
+                        events1 = events;
+                    }
+                    else {
+                        events2 = events;
+                    }
+//System.out.println("      NEW EVENT GETTER: read in chunk");
+                }
+
+            } catch (InterruptedException e) {
+                logger.warn("      DataChannelImplEt.NewEventGetter : interrupted, exiting");
+            } catch (Exception e) {
+                e.printStackTrace();
+                logger.warn("      DataChannelImplEt.NewEventGetter : exit " + e.getMessage());
+            }
+
+        }
+
+    }
+
+
+    private class DataOutputHelperNew implements Runnable {
+
+        EtEvent[] events;
+        int loopCounter = 0, printCounter = 0;
+
         /** Method run ... */
         public void run() {
 
             try {
                 int bankSize;
                 EvioBank bank;
-                ByteBuffer buffer;
+                ByteBuffer buffer = ByteBuffer.allocate(4*8);
                 EventWriter evWriter = null;
+                try {
+                    // won't use buffer, just need it to avoid NullPointerException
+                    // and get the ball rolling
+                    evWriter = new EventWriter(buffer, 128000, 10, null, null);
+                    evWriter.close();
+                }
+                catch (EvioException e) {e.printStackTrace();/* never happen */}
+
+                // wait until new-event-getting thread has something
+//System.out.println("      OUTPUT HELPER: before first sync ... ");
+                synchronizer.exchange(null);
+//System.out.println("      OUTPUT HELPER: past");
 
                 while ( etSystem.alive() ) {
 
                     if (pause) {
                         if (printCounter++ % 400 == 0)
-logger.warn("      DataChannelImplEt.DataOutputHelper : " + name + " - PAUSED");
+logger.warn("      DataChannelImplEt.FilledEventPutter : " + name + " - PAUSED");
                         Thread.sleep(5);
                         continue;
                     }
 
-                    // read in new event in chunks
-                    events = etSystem.newEvents(attachment, Mode.SLEEP, 0, chunk,
-                                                (int)etSystem.getEventSize());
+                    // get new events already read in by other thread
+                    if (loopCounter++ % 2 == 0) {
+                        events = events1;
+                    }
+                    else {
+                        events = events2;
+                    }
 
                     for (int i=0; i < events.length; i++) {
                         // grab a bank and put it into an ET event buffer
+//System.out.println("      OUTPUT HELPER: try to take bank from Q");
                         bank     = queue.take();  // blocks
                         bankSize = bank.getTotalBytes();
                         buffer   = events[i].getDataBuffer();
+//System.out.println("      OUTPUT HELPER: try to event with bank");
 
                         // if not enough room in et event to hold bank ...
                         if (buffer.capacity() < bankSize) {
-logger.warn("      DataChannelImplEt.DataOutputHelper : " + name + " et event too small to contain built event");
+logger.warn("      DataChannelImplEt.FilledEventPutter : " + name + " et event too small to contain built event");
                             // This new event is not large enough, so dump it and replace it
                             // with a larger one. Performance will be terrible but it'll work.
                             etSystem.dumpEvents(attachment, new EtEvent[] {events[i]});
-                            EtEvent[] evts = etSystem.newEvents(attachment, Mode.SLEEP, 0, 1, bankSize);
+                            EtEvent[] evts = etSystem.newEvents(attachment, Mode.SLEEP, 0, 1, bankSize, group);
                             events[i] = evts[0];
                             buffer = events[i].getDataBuffer();
                         }
 
                         // write bank into et event buffer
                         buffer.clear();
-                        try {
-                            evWriter = new EventWriter(buffer, 128000, 10, null, null);
-                        }
-                        catch (EvioException e) {e.printStackTrace();/* never happen */}
+                        evWriter.setBuffer(buffer);
                         evWriter.writeEvent(bank);
                         evWriter.close();
 
@@ -459,7 +563,97 @@ logger.warn("      DataChannelImplEt.DataOutputHelper : " + name + " et event to
                     }
 
                     // put events back in ET system
+//System.out.println("      OUTPUT HELPER: try to put events into ET");
                     etSystem.putEvents(attachment, events);
+
+                    // use this to synchronize with the new-event-getting thread
+//System.out.println("OUTPUT HELPER: before sync ... ");
+                    synchronizer.exchange(null);
+//System.out.println("      OUTPUT HELPER: past");
+                }
+
+            } catch (InterruptedException e) {
+                logger.warn("      DataChannelImplEt.FilledEventPutter : interrupted, exiting");
+            } catch (Exception e) {
+                e.printStackTrace();
+                logger.warn("      DataChannelImplEt.FilledEventPutter : exit " + e.getMessage());
+            }
+
+        }
+
+    }
+
+
+    private class DataOutputHelper implements Runnable {
+        int printCounter = 0;
+
+        /** Method run ... */
+        public void run() {
+
+            try {
+                int bankSize;
+                EvioBank bank;
+                ByteBuffer buffer = ByteBuffer.allocate(4*8);
+                EventWriter evWriter = null;
+                try {
+                    // won't use buffer, just need it to avoid NullPointerException
+                    // and get the ball rolling
+                    evWriter = new EventWriter(buffer, 128000, 10, null, null);
+                    evWriter.close();
+                }
+                catch (EvioException e) {e.printStackTrace();/* never happen */}
+
+                while ( etSystem.alive() ) {
+
+                    if (pause) {
+                        if (printCounter++ % 400 == 0)
+logger.warn("      DataChannelImplEt.DataOutputHelper : " + name + " - PAUSED");
+                        Thread.sleep(5);
+                        continue;
+                    }
+
+                    // read in new event in chunks
+                    events1 = etSystem.newEvents(attachment, Mode.SLEEP, 0, chunk,
+                                                (int)etSystem.getEventSize(), group);
+
+                    for (int i=0; i < events1.length; i++) {
+                        // grab a bank and put it into an ET event buffer
+                        bank     = queue.take();  // blocks
+int size = queue.size();
+if (size > 400 && size % 100 == 0) System.out.println("et chan OUT Q: " + size);
+                        bankSize = bank.getTotalBytes();
+                        buffer   = events1[i].getDataBuffer();
+
+                        // if not enough room in et event to hold bank ...
+                        if (buffer.capacity() < bankSize) {
+logger.warn("      DataChannelImplEt.DataOutputHelper : " + name + " et event too small to contain built event");
+logger.warn("                                         : et ev buf = " + buffer.capacity() + ", bank size = " + bankSize);
+logger.warn("                                         : header length = " + bank.getHeader().getLength());
+                            // This new event is not large enough, so dump it and replace it
+                            // with a larger one. Performance will be terrible but it'll work.
+                            etSystem.dumpEvents(attachment, new EtEvent[] {events1[i]});
+                            EtEvent[] evts = etSystem.newEvents(attachment, Mode.SLEEP, 0, 1, bankSize, group);
+                            events1[i] = evts[0];
+                            buffer = events1[i].getDataBuffer();
+                        }
+
+                        // write bank into et event buffer
+                        buffer.clear();
+                        evWriter.setBuffer(buffer);
+                        evWriter.writeEvent(bank);
+                        evWriter.close();
+
+                        events1[i].setByteOrder(bank.getByteOrder());
+                        events1[i].setLength(buffer.position());
+
+                        // CODA owns first select int
+                        int[] selects = events1[i].getControl();
+                        selects[0] = id; // id in ROC output channel
+                        events1[i].setControl(selects);
+                    }
+
+                    // put events back in ET system
+                    etSystem.putEvents(attachment, events1);
                 }
 
             } catch (InterruptedException e) {
@@ -483,19 +677,21 @@ logger.warn("      DataChannelImplEt.DataOutputHelper : " + name + " et event to
      */
     public void startHelper() {
         if (input) {
-            dataThread = new Thread(emu.getThreadGroup(), new DataInputHelper(), getName() + " data in");
+            dataInputThread = new Thread(emu.getThreadGroup(), new DataInputHelper(), getName() + " data in");
+            dataInputThread.start();
         }
         else {
-            dataThread = new Thread(emu.getThreadGroup(), new DataOutputHelper(), getName() + " data out");
+//            newEventThread = new Thread(emu.getThreadGroup(), new NewEventGetter(), getName() + " new event");
+//            newEventThread.start();
+            dataOutputThread = new Thread(emu.getThreadGroup(), new DataOutputHelper(), getName() + " data out");
+            dataOutputThread.start();
         }
-        dataThread.start();
     }
 
     /**
      * Pause the DataInputHelper or DataOutputHelper thread.
      */
     public void pauseHelper() {
-        if (dataThread == null) return;
         pause = true;
     }
 
@@ -503,7 +699,6 @@ logger.warn("      DataChannelImplEt.DataOutputHelper : " + name + " et event to
      * Resume running the DataInputHelper or DataOutputHelper thread.
      */
     public void resumeHelper() {
-        if (dataThread == null) return;
         pause = false;
     }
 
