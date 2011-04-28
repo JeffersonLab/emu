@@ -225,6 +225,13 @@ public class DataTransportImplEt extends DataTransportCore implements DataTransp
                     for (int i=0; i < eventNum; i++) {
                         g[i%groups]++;
                     }
+
+                    System.out.println("GROUPS:");
+                    for (int i=0 ; i < g.length; i++) {
+                        System.out.println("  events in group " + i + " = " + g[i]);
+                    }
+
+
                     systemConfig.setGroups(g);
                 }
             }
@@ -291,10 +298,12 @@ public class DataTransportImplEt extends DataTransportCore implements DataTransp
 
         // kill any ET system this object started
         if (processET != null && createdET) {
-System.out.println("Kill the ET system " + openConfig.getEtName());
+System.out.println("Tell the ET system process to die - " + openConfig.getEtName());
             processET.destroy();
             try {
+System.out.print("     wait for the ET system process to die ... ");
                 processET.waitFor();
+System.out.println("is dead");
             }
             catch (InterruptedException e) { }
             // remove the ET system file
@@ -330,14 +339,16 @@ System.out.println("Try to create the ET system " + openConfig.getEtName());
                 EtSystem etSystem = new EtSystem(getOpenConfig());
                 try {
                     //etSystem.setDebug(EtConstants.debugInfo);
+System.out.println("  First try opening existing ET system " + openConfig.getEtName());
                     etSystem.open();
                     existingET = true;
-System.out.println("ET system " + openConfig.getEtName() + " already exists");
+System.out.println("  ET system " + openConfig.getEtName() + " already exists");
                 }
                 catch (Exception e) {
+                    e.printStackTrace();
                     // Any existing local ET might be different name or TCP port, or isn't local.
                     // A name conflict will spell doom for us later when we try to create it.
-System.out.println("Cannot open ET system " + openConfig.getEtName() + ", none there?");
+System.out.println("  Cannot open ET system " + openConfig.getEtName() + ", not there?");
                 }
 
                 // If one exists, see if it's compatible
@@ -382,7 +393,7 @@ System.out.println("Cannot open ET system " + openConfig.getEtName() + ", none t
                     // error if incompatible ET system exists
                     if (incompatibleET) {
 System.out.println("Incompatible ET system, " + openConfig.getEtName());
-                        logger.debug("    DataTransportImplEt.execute DOWNLOAD: imcompatible ET system exists : " + name() + " " + myInstance);
+                        logger.debug("    DataTransportImplEt.execute DOWNLOAD: incompatible ET system exists : " + name() + " " + myInstance);
                         state = CODAState.ERROR;
                         return;
                     }
