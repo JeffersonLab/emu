@@ -62,7 +62,7 @@ public class RocSimulation implements EmuModule, Runnable {
     /** Map containing attributes of this module given in config file. */
     private Map<String,String> attributeMap;
 
-    /** Last error thrown by the module */  // TODO: redo error throwing stuff?
+    /** Last error thrown by the module */
     private final Throwable lastError = null;
 
     /** User hit pause button if <code>true</code>. */
@@ -130,14 +130,17 @@ public class RocSimulation implements EmuModule, Runnable {
         this.emu = emu;
         this.name = name;
         this.attributeMap = attributeMap;
+        if (attributeMap == null) return;
         logger = emu.getLogger();
+
 
         try { rocId = Integer.parseInt(attributeMap.get("id")); }
         catch (NumberFormatException e) { /* defaults to 0 */ }
+System.out.println("                                      SET ROCID TO " + rocId);
 
-        delay = 2000;
+        delay = 0;
         try { delay = Integer.parseInt(attributeMap.get("delay")); }
-        catch (NumberFormatException e) { /* defaults to 2000 */ }
+        catch (NumberFormatException e) { /* defaults to 0 */ }
         if (delay < 0) delay = 0;
 
         triggerType = 15;
@@ -283,6 +286,36 @@ System.out.println("ProcessTest module: quitting watcher thread");
     }
 
 
+    /** Run this to find how fast the production of data transport records is. */
+    public static void main(String[] args) {
+
+        RocSimulation sim = new RocSimulation(null,null,null);
+
+        int counter = 0;
+        long start_time = System.currentTimeMillis();
+
+        for (int i=0; i < 3000000; i++) {
+            try {
+                Evio.createDataTransportRecord(1, 0, 11, 0, 1, 1, 0, 1, 1, false);
+                counter++;
+            }
+            catch (EvioException e) {
+                e.printStackTrace();
+                return;
+            }
+
+            long now = System.currentTimeMillis();
+            long deltaT = now - start_time;
+            if (deltaT > 2000) {
+                System.out.println("rate = " + String.format("%.3g", (counter*1000./deltaT) ) + " Hz");
+                start_time = now;
+                counter = 0;
+            }
+
+        }
+    }
+
+
     /**
      * This thread is started by the GO transition and runs while the state of the module is ACTIVE.
      * <p/>
@@ -306,6 +339,9 @@ System.out.println("ProcessTest module: quitting watcher thread");
 
             EvioEvent ev;
             int timestamp=0, status=0, numEvents;
+            int counter = 0, counter2 = 0;
+            long start_time = System.currentTimeMillis();
+            EvioEvent userEvent;
 
             while (state == CODAState.ACTIVE || paused) {
 
@@ -319,6 +355,8 @@ System.out.println("ProcessTest module: quitting watcher thread");
 
                     // Stick it on the output Q.
                     outputChannels.get(0).getQueue().put(ev);
+int size = outputChannels.get(0).getQueue().size();
+if (size > 400 && size % 100 == 0) System.out.println("outputChannel Q: " + size);
 
                     // stats
                     numEvents = eventBlockSize * numPayloadBanks;
@@ -328,8 +366,32 @@ System.out.println("ProcessTest module: quitting watcher thread");
                     eventCountTotal += numEvents;
                     wordCountTotal  += ev.getHeader().getLength() + 1;
                     lastEventNumberCreated = eventNumber - 1;
+                    counter++;
 
-                    //Thread.sleep(delay);
+                    // every 100000 events, put in user event
+//                    if (counter2++ % 100000 == 0) {
+//                        try {
+//System.out.println("PUTTING in control event after event # " + eventNumber);
+//                            userEvent = Evio.createControlDTR(rocId);
+//                            outputChannels.get(0).getQueue().put(userEvent);
+//                        }
+//                        catch (EvioException e) {
+//                            e.printStackTrace();
+//                        /* never happen */
+//                        }
+//                    }
+
+                    long now = System.currentTimeMillis();
+                    long deltaT = now - start_time;
+                    if (deltaT > 2000) {
+                        System.out.println("rate = " + String.format("%.3g", (counter*1000./deltaT) ) + " Hz");
+                        start_time = now;
+                        counter = 0;
+//                        userEvent = Evio.createUserDTR(rocId);
+//                        outputChannels.get(0).getQueue().put(userEvent);
+                    }
+
+                    if (delay > 0) Thread.sleep(delay);
                 }
                 catch (EvioException e) {
 System.out.println("MAJOR ERROR generating events");
