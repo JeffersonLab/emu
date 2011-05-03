@@ -147,7 +147,7 @@ System.out.println("                                      SET ROCID TO " + rocId
         try { triggerType = Integer.parseInt(attributeMap.get("triggerType")); }
         catch (NumberFormatException e) { /* defaults to 15 */ }
         if (triggerType <  0) triggerType = 0;
-        if (triggerType > 15) triggerType = 15;
+        else if (triggerType > 15) triggerType = 15;
 
         detectorId = 111;
         try { detectorId = Integer.parseInt(attributeMap.get("detectorId")); }
@@ -158,13 +158,13 @@ System.out.println("                                      SET ROCID TO " + rocId
         try { eventBlockSize = Integer.parseInt(attributeMap.get("blockSize")); }
         catch (NumberFormatException e) { /* defaults to 1 */ }
         if (eventBlockSize <   1) eventBlockSize = 1;
-        if (eventBlockSize > 255) eventBlockSize = 255;
+        else if (eventBlockSize > 255) eventBlockSize = 255;
 
         numPayloadBanks = 1;
         try { numPayloadBanks = Integer.parseInt(attributeMap.get("numRecords")); }
         catch (NumberFormatException e) { /* defaults to 1 */ }
         if (numPayloadBanks <   1) numPayloadBanks = 1;
-        if (numPayloadBanks > 255) numPayloadBanks = 255;
+        else if (numPayloadBanks > 255) numPayloadBanks = 255;
 
         s = attributeMap.get("SEMode");
         if (s != null) {
