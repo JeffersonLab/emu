@@ -89,7 +89,7 @@ public class DataChannelImplEt implements DataChannel {
     private Thread dataOutputThread;
 
     /** Do we pause the dataThread? */
-    private boolean pause;
+    volatile private boolean pause;
 
     /** Object for parsing evio data contained in incoming messages. */
     private EvioReader parser;
@@ -293,8 +293,6 @@ logger.info("      DataChannelImplEt.const : position = " + stationPosition);
             etSystem.open();
 
             if (stationName.equals("GRAND_CENTRAL")) {
-                boolean exists = etSystem.stationExists(stationName);
-System.out.println(stationName + " exists = " + exists);
                 station = etSystem.stationNameToObject(stationName);
             }
             else {
@@ -631,7 +629,7 @@ logger.warn("                                         : et ev buf = " + buffer.c
 logger.warn("                                         : header length = " + bank.getHeader().getLength());
                             // This new event is not large enough, so dump it and replace it
                             // with a larger one. Performance will be terrible but it'll work.
-                            etSystem.dumpEvents(attachment, new EtEvent[] {events1[i]});
+                            etSystem.dumpEvents(attachment, new EtEvent[]{events1[i]});
                             EtEvent[] evts = etSystem.newEvents(attachment, Mode.SLEEP, 0, 1, bankSize, group);
                             events1[i] = evts[0];
                             buffer = events1[i].getDataBuffer();
