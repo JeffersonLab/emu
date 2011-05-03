@@ -18,7 +18,7 @@ import java.nio.ByteBuffer;
  * Date: Feb 11, 2010
  * @author timmer
  */
-public class TestROCs {
+public class TestCmsgROCs {
 
     private int rocCount = 4;
 
@@ -35,7 +35,7 @@ public class TestROCs {
 
 
     /** Constructor. */
-    TestROCs(String[] args) {
+    TestCmsgROCs(String[] args) {
         decodeCommandLine(args);
     }
 
@@ -95,7 +95,7 @@ public class TestROCs {
      */
     public static void main(String[] args) {
         try {
-            TestROCs sender = new TestROCs(args);
+            TestCmsgROCs sender = new TestCmsgROCs(args);
             sender.run();
         }
         catch (cMsgException e) {
