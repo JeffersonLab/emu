@@ -651,7 +651,7 @@ System.out.println("ERROR in setting value in local config !!!");
      * @see EmuModule#execute(org.jlab.coda.emu.support.control.Command)
      */
     synchronized void execute(Command cmd) {
-System.out.println("EXECUTING cmd = " + cmd.name());
+//System.out.println("EXECUTING cmd = " + cmd.name());
 
         CODACommand codaCommand = cmd.getCodaCommand();
 
@@ -801,15 +801,15 @@ System.out.println("EXECUTING cmd = " + cmd.name());
                     // the configuration, or if rc send a filename which this
                     // emu read and loaded, then reconfigure.
                     if (configSource != Emu.ConfigSource.RC_STRING || isNewConfig) {
-System.out.println("LOADING NEW string config = \n" + rcConfigString);
+//System.out.println("LOADING NEW string config = \n" + rcConfigString);
                         Configurer.setLogger(logger);
                         // Parse XML config string into Document object.
                         loadedConfig = Configurer.parseString(rcConfigString);
                         Configurer.removeEmptyTextNodes(loadedConfig.getDocumentElement());
                     }
-                    else {
-System.out.println("NO CHANGE to string config");
-                    }
+//                    else {
+//System.out.println("NO CHANGE to string config");
+//                    }
                     configSource = Emu.ConfigSource.RC_STRING;
                 }
                 // If config file name is sent (either from Run Control or debug gui) ...
@@ -834,7 +834,7 @@ System.out.println("NO CHANGE to string config");
 
                     // reload
                     if (loadFile) {
-System.out.println("LOADING FILE " + rcConfigFile);
+//System.out.println("LOADING FILE " + rcConfigFile);
                         Configurer.setLogger(logger);
                         // Parse XML config file into Document object.
                         loadedConfig = Configurer.parseFile(rcConfigFile);
@@ -843,9 +843,9 @@ System.out.println("LOADING FILE " + rcConfigFile);
                         msgConfigFile = rcConfigFile;
                         configFileModifiedTime = modTime;
                     }
-                    else {
-System.out.println("ALREADY LOADED " + rcConfigFile);
-                    }
+//                    else {
+//System.out.println("ALREADY LOADED " + rcConfigFile);
+//                    }
 
                     if (cmd.isFromDebugGui()) {
                         configSource = Emu.ConfigSource.GUI_FILE;
@@ -877,10 +877,10 @@ System.out.println("ALREADY LOADED " + rcConfigFile);
                     }
 
                     if (!loadFile) {
-System.out.println("ALREADY LOADED CMD LINE FILE " + cmdLineConfigFile);
+//System.out.println("ALREADY LOADED CMD LINE FILE " + cmdLineConfigFile);
                     }
                     else {
-System.out.println("LOADING CMD LINE FILE " + cmdLineConfigFile);
+//System.out.println("LOADING CMD LINE FILE " + cmdLineConfigFile);
                         Configurer.setLogger(logger);
                         // Parse XML config file and turn it into Document object.
                         loadedConfig = Configurer.parseFile(cmdLineConfigFile);
@@ -910,8 +910,8 @@ System.out.println("LOADING CMD LINE FILE " + cmdLineConfigFile);
                         // Get type of component, if any - must be same as emu type.
                         attr = nm.getNamedItem("type");
                         if (attr != null) {
-    System.out.println("\n\n\nExec configure: type = " + attr.getNodeValue());
-    System.out.println("              : old codaClass = " + codaClass);
+//System.out.println("\n\n\nExec configure: type = " + attr.getNodeValue());
+//System.out.println("              : old codaClass = " + codaClass);
                             CODAClass cc = CODAClass.get(attr.getNodeValue());
                             if (cc != null) {
                                 if (cc != codaClass) {
@@ -934,7 +934,7 @@ System.out.println("LOADING CMD LINE FILE " + cmdLineConfigFile);
             // parsing XML error
             catch (DataNotFoundException e) {
                 logger.error("CONFIGURE FAILED", e.getMessage());
-e.printStackTrace();
+                //e.printStackTrace();
                 causes.add(e);
                 moduleFactory.ERROR();
                 return;
