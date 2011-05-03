@@ -290,7 +290,7 @@ public class SenderEt {
                 bank = new EvioBank(123, DataType.INT32, 456);
                 bank.appendIntData(new int[] {123});
                 builder.addChild(dtrEvent, bank);
-                dtrEvent.setAllHeaderLengths();  // TODO: necessary?
+                //dtrEvent.setAllHeaderLengths();  // TODO: necessary?   NO
 
             } catch (EvioException e) {/* never happen */}
 
@@ -484,7 +484,7 @@ System.out.println("Send thread started");
                 bank = new EvioBank(123, DataType.INT32, 456);
                 bank.appendIntData(new int[] {123});
                 builder.addChild(dtrEvent, bank);
-                dtrEvent.setAllHeaderLengths();  // TODO: necessary?
+                //dtrEvent.setAllHeaderLengths();  // TODO: necessary? NO
 
             } catch (EvioException e) {/* never happen */}
 
