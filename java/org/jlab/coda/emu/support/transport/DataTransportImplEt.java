@@ -298,12 +298,12 @@ public class DataTransportImplEt extends DataTransportCore implements DataTransp
 
         // kill any ET system this object started
         if (processET != null && createdET) {
-System.out.println("Tell the ET system process to die - " + openConfig.getEtName());
+//System.out.println("Tell the ET system process to die - " + openConfig.getEtName());
             processET.destroy();
             try {
-System.out.print("     wait for the ET system process to die ... ");
+//System.out.print("     wait for the ET system process to die ... ");
                 processET.waitFor();
-System.out.println("is dead");
+//System.out.println("is dead");
             }
             catch (InterruptedException e) { }
             // remove the ET system file
@@ -318,7 +318,7 @@ System.out.println("is dead");
                                      boolean isInput, Emu emu) throws DataTransportException {
         DataChannel c = new DataChannelImplEt(name, this, attributeMap, isInput, emu);
         channels().put(name, c);
-System.out.println("Created channel " + name + ", channels size = " + channels().size());
+//System.out.println("Created channel " + name + ", channels size = " + channels().size());
         return c;
     }
 
@@ -333,22 +333,25 @@ logger.debug("    DataTransportImplEt.execute : " + cmd);
 
             // Create the ET system if it does not exist and config file requests it.
             if (tryToCreateET) {
-System.out.println("Try to create the ET system " + openConfig.getEtName());
+//System.out.println("Try to create the ET system " + openConfig.getEtName());
                 // First check to see if there is an existing
                 // system by trying to open a connection to it.
-                EtSystem etSystem = new EtSystem(getOpenConfig());
+                // We don't want to wait for it here, so remove any wait.
+                EtSystemOpenConfig openConfig = new EtSystemOpenConfig(getOpenConfig());
+                openConfig.setWaitTime(0);
+                EtSystem etSystem = new EtSystem(openConfig);
                 try {
                     //etSystem.setDebug(EtConstants.debugInfo);
-System.out.println("  First try opening existing ET system " + openConfig.getEtName());
+//System.out.println("  First try opening existing ET system " + openConfig.getEtName());
                     etSystem.open();
                     existingET = true;
-System.out.println("  ET system " + openConfig.getEtName() + " already exists");
+//System.out.println("  ET system " + openConfig.getEtName() + " already exists");
                 }
                 catch (Exception e) {
                     e.printStackTrace();
                     // Any existing local ET might be different name or TCP port, or isn't local.
                     // A name conflict will spell doom for us later when we try to create it.
-System.out.println("  Cannot open ET system " + openConfig.getEtName() + ", not there?");
+//System.out.println("  Cannot open ET system " + openConfig.getEtName() + ", not there?");
                 }
 
                 // If one exists, see if it's compatible
@@ -412,7 +415,7 @@ System.out.println("Incompatible ET system, " + openConfig.getEtName());
                     }
 
                     try {
-System.out.println("Create ET system, " + openConfig.getEtName() + " with cmd \n" + etCmd);
+//System.out.println("Create ET system, " + openConfig.getEtName() + " with cmd \n" + etCmd);
                         processET = Runtime.getRuntime().exec(etCmd);
                         createdET = true;
                     }
