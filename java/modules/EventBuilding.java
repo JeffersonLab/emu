@@ -35,6 +35,8 @@ import java.nio.ByteOrder;
 import java.util.*;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.PriorityBlockingQueue;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.ReentrantLock;
 
 /**
@@ -102,9 +104,6 @@ public class EventBuilding implements EmuModule, Runnable {
 
     /** ID number of this event builder obtained from config file. */
     private int ebId;
-
-    /** Keep track of the number of records built in this event builder. Reset at prestart. */
-    private volatile int ebRecordId;
 
     /** State of the module. */
     private volatile State state = CODAState.UNCONFIGURED;
@@ -204,6 +203,9 @@ public class EventBuilding implements EmuModule, Runnable {
 
     /** Array of input orders - one for each output channel. */
     private int[] inputOrders;
+
+    /** Array of record ids - one for each output channel. */
+    private int[] recordIds;
 
     /**
      * Array of output orders - one for each output channel.
@@ -441,27 +443,29 @@ System.out.println("Qfiller: got non-DTR bank, discard");
         }
 
         try {
-            // wrap event-to-be-sent in Data Transport Record for next EB or ER
-            int dtrTag = Evio.createCodaTag(EventType.PHYSICS.getValue(), ebId);
-            EvioEvent dtrEvent = new PayloadBank(dtrTag, DataType.BANK, ebRecordId);
-            builder.setEvent(dtrEvent);
-
-            try {
-                // add bank with full recordId
-                EvioBank bank = new EvioBank(Evio.RECORD_ID_BANK, DataType.INT32, 1);
-                bank.appendIntData(new int[] {ebRecordId});
-                builder.addChild(dtrEvent, bank);
-                // add event
-                builder.addChild(dtrEvent, bankOut);
-                ebRecordId++;
-
-            } catch (EvioException e) {/* never happen */}
-
             EventOrder eo = (EventOrder)bankOut.getAttachment();
 //            System.out.println("bankToOutputChannel: ");
 //            System.out.println("                   : input order = " + eo.inputOrder);
 //            System.out.println("                   : index       = " + eo.index);
 //            System.out.println("                   : lock        = " + eo.lock);
+
+            int recordId = eo.inputOrder;
+
+            // wrap event-to-be-sent in Data Transport Record for next EB or ER
+            int dtrTag = Evio.createCodaTag(EventType.PHYSICS.getValue(), ebId);
+            EvioEvent dtrEvent = new PayloadBank(dtrTag, DataType.BANK, recordId);
+            builder.setEvent(dtrEvent);
+
+            try {
+                // add bank with full recordId
+                EvioBank bank = new EvioBank(Evio.RECORD_ID_BANK, DataType.INT32, 1);
+                bank.appendIntData(new int[] {recordId});
+                builder.addChild(dtrEvent, bank);
+                // add event
+                builder.addChild(dtrEvent, bankOut);
+
+            } catch (EvioException e) {/* never happen */}
+
 
             synchronized (eo.lock) {
                 // Is the bank we grabbed next to be output? If not, wait.
@@ -525,6 +529,7 @@ if (printQSizes) {
             EventBuilder builder = new EventBuilder(0, DataType.BANK, 0); // this event not used, just need a builder
             LinkedList<PayloadBank> userEventList = new LinkedList<PayloadBank>();
 
+            int myRecordId = 0;
             int myInputOrder = -1;
             int myOutputChannelIndex = 0;
             Object myOutputLock = null;
@@ -594,6 +599,7 @@ if (printQSizes) {
                                                 // Order in which this will be placed into its output channel.
                                                 myInputOrder = inputOrders[myOutputChannelIndex];
                                                 myOutputLock = locks[myOutputChannelIndex];
+
 //System.out.println("roc/phy ev setting locks[" + myOutputChannelIndex + "], lock = " + myOutputLock);
 
                                                 // Keep track of the next slot in this output channel.
@@ -654,6 +660,7 @@ if (printQSizes) {
                                             // Order in which this will be placed into its output channel.
                                             myInputOrder = inputOrders[myOutputChannelIndex];
                                             myOutputLock = locks[myOutputChannelIndex];
+
 //System.out.println("control ev setting locks[" + myOutputChannelIndex + "], lock = " + myOutputLock);
 
                                             // Keep track of the next slot in this output channel.
@@ -751,7 +758,7 @@ if (nonFatalError) System.out.println("\nERROR 2\n");
                             // The actual number of rocs + 2 will replace num in combinedTrigger definition above
                             //-----------------------------------------------------------------------------------
                             // combine the trigger banks of input events into one (same if single event mode)
-System.out.println("BuildingThread: create trigger bank from built banks");
+//System.out.println("BuildingThread: create trigger bank from built banks");
                             nonFatalError |= Evio.makeTriggerBankFromPhysics(buildingBanks, builder, ebId);
                         }
                         // else if building with ROC raw records ...
@@ -759,7 +766,7 @@ System.out.println("BuildingThread: create trigger bank from built banks");
                             // if in single event mode, build trigger bank differently
                             if (buildingBanks[0].isSingleEventMode()) {
                                 // create a trigger bank from data in Data Block banks
-System.out.println("BuildingThread: create trigger bank in SEM");
+//System.out.println("BuildingThread: create trigger bank in SEM");
                                 nonFatalError |= Evio.makeTriggerBankFromSemRocRaw(buildingBanks, builder,
                                                                                    ebId, firstEventNumber, runNumber);
                             }
@@ -815,7 +822,7 @@ if (nonFatalError) System.out.println("\nERROR 4\n");
                         physicsEvent = new PayloadBank(tag, DataType.BANK, totalNumberEvents);
                         builder.setEvent(physicsEvent);
                         if (havePhysicsEvents) {
-System.out.println("BuildingThread: build physics event with physics banks");
+//System.out.println("BuildingThread: build physics event with physics banks");
                             Evio.buildPhysicsEventWithPhysics(combinedTrigger, buildingBanks, builder);
                         }
                         else {
@@ -1058,8 +1065,8 @@ System.out.println("INTERRUPTED thread " + Thread.currentThread().getName());
             qFillers   = null;
             buildingThreadList.clear();
 
-            if (inputOrders  != null) Arrays.fill(inputOrders, 0);
-            if (outputOrders != null) Arrays.fill(outputOrders, 0);
+//            if (inputOrders  != null) Arrays.fill(inputOrders, 0);
+//            if (outputOrders != null) Arrays.fill(outputOrders, 0);
 
             paused = false;
 
@@ -1092,8 +1099,8 @@ System.out.println("INTERRUPTED thread " + Thread.currentThread().getName());
             qFillers   = null;
             buildingThreadList.clear();
 
-            if (inputOrders  != null) Arrays.fill(inputOrders, 0);
-            if (outputOrders != null) Arrays.fill(outputOrders, 0);
+//            if (inputOrders  != null) Arrays.fill(inputOrders, 0);
+//            if (outputOrders != null) Arrays.fill(outputOrders, 0);
             paused = false;
 
             if (previousState.equals(CODAState.ACTIVE)) {
@@ -1170,7 +1177,6 @@ System.out.println("\n\n\nNUM OF OUTPUT channels = " + outputChannelCount + "\n\
             eventRate = wordRate = 0F;
             eventCountTotal = wordCountTotal = 0L;
             runNumber = emu.getRunNumber();
-            ebRecordId = 0;
             eventNumber = 1L;
             lastEventNumberBuilt = 0L;
 
