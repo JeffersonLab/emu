@@ -583,13 +583,16 @@ if (printQSizes) {
 
                 try {
                     if (!hasOutputs) {
-                        // Just pull stuff off & discard if no outputs.
-                        // No sense in doing all the evio stuff like
-                        // wrapping event in DTR bank.
-                        for (BuildingThread thread : buildingThreadQueue) {
-                            thread.outputQueue.clear();
+                        // Just keep stats and pull stuff off & discard if no outputs.
+                        eventType = banks[index].getType();
+                        if (eventType.isPhysics()) {
+                            eventCountTotal += banks[index].getEventCount();              // event count
+                            wordCountTotal  += banks[index].getHeader().getLength() + 1;  //  word count
+                            lastEventNumberBuilt = banks[index].getFirstEventNumber() + eventCountTotal - 1;
                         }
-                        Thread.sleep(1);
+                        banks[index] = threads[index].outputQueue.take();
+                        index = ++index % size;
+                        // TODO: put delay in here ??!!!
                         continue;
                     }
 
@@ -689,6 +692,8 @@ if (printQSizes) {
             PayloadBank[] buildingBanks = new PayloadBank[inputChannels.size()];
             EventBuilder builder = new EventBuilder(0, DataType.BANK, 0); // this event not used, just need a builder
             LinkedList<PayloadBank> userEventList = new LinkedList<PayloadBank>();
+            // have output channels?
+            boolean hasOutputs = !outputChannels.isEmpty();
 
             while (state == CODAState.ACTIVE || paused) {
 
