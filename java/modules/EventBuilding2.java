@@ -468,25 +468,26 @@ System.out.println("Qfiller: got non-DTR bank, discard");
         }
 
         try {
+            EvioBank bank;
+            EventOrder evOrder;
+            EventOrder eo = (EventOrder)bankOut.getAttachment();
+
+            int recordId = eo.inputOrder;
+
             // wrap event-to-be-sent in Data Transport Record for next EB or ER
             int dtrTag = Evio.createCodaTag(EventType.PHYSICS.getValue(), ebId);
-            EvioEvent dtrEvent = new PayloadBank(dtrTag, DataType.BANK, ebRecordId);
+            EvioEvent dtrEvent = new PayloadBank(dtrTag, DataType.BANK, recordId);
             builder.setEvent(dtrEvent);
 
             try {
                 // add bank with full recordId
-                EvioBank bank = new EvioBank(Evio.RECORD_ID_BANK, DataType.INT32, 1);
-                bank.appendIntData(new int[] {ebRecordId});
+                bank = new EvioBank(Evio.RECORD_ID_BANK, DataType.INT32, 1);
+                bank.appendIntData(new int[] {recordId});
                 builder.addChild(dtrEvent, bank);
                 // add event
                 builder.addChild(dtrEvent, bankOut);
-                ebRecordId++;
 
             } catch (EvioException e) {/* never happen */}
-
-            EvioBank bank;
-            EventOrder evOrder;
-            EventOrder eo = (EventOrder)bankOut.getAttachment();
 
             synchronized (eo.lock) {
                 // Is the bank we grabbed next to be output?
@@ -803,7 +804,7 @@ if (nonFatalError) System.out.println("\nERROR 2\n");
                             // The actual number of rocs + 2 will replace num in combinedTrigger definition above
                             //-----------------------------------------------------------------------------------
                             // combine the trigger banks of input events into one (same if single event mode)
-System.out.println("BuildingThread: create trigger bank from built banks");
+//System.out.println("BuildingThread: create trigger bank from built banks");
                             nonFatalError |= Evio.makeTriggerBankFromPhysics(buildingBanks, builder, ebId);
                         }
                         // else if building with ROC raw records ...
@@ -811,7 +812,7 @@ System.out.println("BuildingThread: create trigger bank from built banks");
                             // if in single event mode, build trigger bank differently
                             if (buildingBanks[0].isSingleEventMode()) {
                                 // create a trigger bank from data in Data Block banks
-System.out.println("BuildingThread: create trigger bank in SEM");
+//System.out.println("BuildingThread: create trigger bank in SEM");
                                 nonFatalError |= Evio.makeTriggerBankFromSemRocRaw(buildingBanks, builder,
                                                                                    ebId, firstEventNumber, runNumber);
                             }
@@ -867,7 +868,7 @@ if (nonFatalError) System.out.println("\nERROR 4\n");
                         physicsEvent = new PayloadBank(tag, DataType.BANK, totalNumberEvents);
                         builder.setEvent(physicsEvent);
                         if (havePhysicsEvents) {
-System.out.println("BuildingThread: build physics event with physics banks");
+//System.out.println("BuildingThread: build physics event with physics banks");
                             Evio.buildPhysicsEventWithPhysics(combinedTrigger, buildingBanks, builder);
                         }
                         else {
