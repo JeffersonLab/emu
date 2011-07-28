@@ -108,7 +108,7 @@ public class EmuFactory {
      * <p/>
      * The emu loads local.xml which contains a specification of status parameters.
      * <p/>
-     * The emu starts up a connecton to the cMsg server.
+     * The emu starts up a connection to the cMsg server.
      * <p/>
      * By the end of the constructor several threads have been started and the static
      * method main will not exit while they are running.
