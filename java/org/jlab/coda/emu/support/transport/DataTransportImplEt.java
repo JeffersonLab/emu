@@ -138,7 +138,6 @@ public class DataTransportImplEt extends DataTransportCore implements DataTransp
             mAddrList = Arrays.asList(mAddrs);
         }
 
-
         // Are we willing to wait for an ET system to appear?
         int wait = 0;
         str = attrib.get("wait");
@@ -165,6 +164,11 @@ public class DataTransportImplEt extends DataTransportCore implements DataTransp
 
         // How do we contact the ET system?
         int method = EtConstants.direct;
+
+        // broadcast address to use to connect to ET (not to listen on)
+        String baddr;
+        String[] bAddrs;
+        Collection<String> bAddrList = null;
 
         // Where is the host the ET system is running on?
         String host = EtConstants.hostLocal;
@@ -243,9 +247,11 @@ public class DataTransportImplEt extends DataTransportCore implements DataTransp
         else {
             // How do we connect to it? By default, assume
             // it's anywhere and we need to broadcast.
-            method = EtConstants.broadcast;
             str = attrib.get("method");
-            if (str.equalsIgnoreCase("cast")) {
+            if (str == null) {
+                method = EtConstants.broadcast;
+            }
+            else if (str.equalsIgnoreCase("cast")) {
                 method = EtConstants.broadAndMulticast;
             }
             else if (str.equalsIgnoreCase("bcast")) {
@@ -260,6 +266,7 @@ public class DataTransportImplEt extends DataTransportCore implements DataTransp
 
             // Where do we look for it? By default assume
             // it can be anywhere (local or remote).
+            host = attrib.get("host");
             if (host == null) {
                 host = EtConstants.hostAnywhere;
             }
@@ -272,6 +279,13 @@ public class DataTransportImplEt extends DataTransportCore implements DataTransp
             else if (host.equalsIgnoreCase("remote")) {
                 host = EtConstants.hostRemote;
             }
+
+            // broadcast address to use to connect to ET
+            baddr = attrib.get("bAddr");
+            if (baddr != null) {
+                bAddrs = new String[] {baddr};
+                bAddrList = Arrays.asList(bAddrs);
+            }
         }
 
 
@@ -279,7 +293,7 @@ public class DataTransportImplEt extends DataTransportCore implements DataTransp
         // Configure ET system connection
         //------------------------------------------------
         try {
-            openConfig = new EtSystemOpenConfig(etName, host, mAddrList,
+            openConfig = new EtSystemOpenConfig(etName, host, bAddrList, mAddrList,
                                                 false, method, port, uport, uport,
                                                 EtConstants.multicastTTL,
                                                 EtConstants.policyError);
@@ -337,15 +351,22 @@ logger.debug("    DataTransportImplEt.execute : " + cmd);
                 // First check to see if there is an existing
                 // system by trying to open a connection to it.
                 // We don't want to wait for it here, so remove any wait.
+                EtSystem etSystem = null;
                 EtSystemOpenConfig openConfig = new EtSystemOpenConfig(getOpenConfig());
                 openConfig.setWaitTime(0);
-                EtSystem etSystem = new EtSystem(openConfig);
                 try {
+                    etSystem = new EtSystem(openConfig);
                     //etSystem.setDebug(EtConstants.debugInfo);
 //System.out.println("  First try opening existing ET system " + openConfig.getEtName());
                     etSystem.open();
                     existingET = true;
 //System.out.println("  ET system " + openConfig.getEtName() + " already exists");
+                }
+                catch (EtException e) {
+//System.out.println("  Cannot open ET system, config is not self consistent");
+                    logger.debug("    DataTransportImplEt.execute DOWNLOAD: self-contradictory ET system config : " + name() + " " + myInstance);
+                    state = CODAState.ERROR;
+                    return;
                 }
                 catch (Exception e) {
                     e.printStackTrace();
@@ -415,7 +436,7 @@ System.out.println("Incompatible ET system, " + openConfig.getEtName());
                     }
 
                     try {
-//System.out.println("Create ET system, " + openConfig.getEtName() + " with cmd \n" + etCmd);
+System.out.println("Create ET system, " + openConfig.getEtName() + " with cmd \n" + etCmd);
                         processET = Runtime.getRuntime().exec(etCmd);
                         createdET = true;
                     }

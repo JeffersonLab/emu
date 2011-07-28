@@ -159,7 +159,12 @@ logger.info("      DataChannelImplEt.const : id = " + id);
 
 
         // create ET system object & info
-        etSystem = new EtSystem(dataTransport.getOpenConfig());
+        try {
+            etSystem = new EtSystem(dataTransport.getOpenConfig());
+        }
+        catch (EtException e) {
+            throw new DataTransportException("", e);
+        }
 
         // How may buffers do we grab at a time?
         chunk = 100;
@@ -290,6 +295,7 @@ logger.info("      DataChannelImplEt.const : position = " + stationPosition);
      */
     public void openEtSystem() throws DataTransportException {
         try {
+System.out.println("Try to open" + dataTransport.getOpenConfig().getEtName() );
             etSystem.open();
 
             if (stationName.equals("GRAND_CENTRAL")) {
@@ -396,7 +402,7 @@ logger.warn("      DataChannelImplEt.DataInputHelper : " + name + " - PAUSED");
                         buf = ev.getDataBuffer();
 
                         if (ev.needToSwap()) {
-System.out.println("\n\n      DataChannelImplEt.DataInputHelper : " + name + " SETTING byte order to LITTLE endian\n");
+//System.out.println("      DataChannelImplEt.DataInputHelper : " + name + " SETTING byte order to LITTLE endian");
                             buf.order(ByteOrder.LITTLE_ENDIAN);
                         }
 
