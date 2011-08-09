@@ -6,11 +6,15 @@ package org.jlab.coda.emu.support.data;
  */
 public enum EventType {
 
-    // events
     ROC_RAW  (1),
     PHYSICS  (2),
-    CONTROL  (3),
-    USER     (4);
+    USER     (3),
+    SYNC     (4),
+    // Control Event Types:
+    PRESTART (5),
+    GO       (6),
+    PAUSE    (7),
+    END      (8);
 
     private int value;
 
@@ -47,7 +51,8 @@ public enum EventType {
      * @return <code>true</code> if control event type, else <code>false</code>
      */
     public boolean isControl() {
-        return this.equals(CONTROL);
+        return (this.equals(PRESTART) || this.equals(GO) ||
+                this.equals(PAUSE)    || this.equals(END) );
     }
 
     /**
@@ -72,6 +77,14 @@ public enum EventType {
      */
     public boolean isUser() {
         return this.equals(USER);
+    }
+
+    /**
+     * Is this a sync event type?
+     * @return <code>true</code> if sync event type, else <code>false</code>
+     */
+    public boolean isSync() {
+        return this.equals(SYNC);
     }
 
 
