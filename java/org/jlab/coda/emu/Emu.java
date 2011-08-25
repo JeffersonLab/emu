@@ -29,6 +29,7 @@ import org.jlab.coda.emu.support.ui.DebugFrame;
 import org.w3c.dom.Document;
 import org.w3c.dom.NamedNodeMap;
 import org.w3c.dom.Node;
+import org.w3c.dom.NodeList;
 
 import java.io.File;
 import java.net.InetAddress;
@@ -107,10 +108,10 @@ public class Emu implements CODAComponent {
      */
     private Document loadedConfig;
 
-    /** Name of the file containing the Emu configuration (if any). */
+    /** Name of the file containing the Emu configuration (if any) given on cmd line. */
     private String cmdLineConfigFile;
 
-    /** Name of the file containing the Emu configuration (if any). */
+    /** Name of the file containing the Emu configuration (if any) given in RC message. */
     private String msgConfigFile;
 
     /**
@@ -761,6 +762,7 @@ System.out.println("ERROR in setting value in local config !!!");
         if (codaCommand == CONFIGURE) {
             // save a reference to any previously used config
             Document oldConfig = loadedConfig;
+            boolean newConfigLoaded = false;
 
             try {
                 // A msg from RC or a press of a debug GUI button can
@@ -806,6 +808,7 @@ System.out.println("ERROR in setting value in local config !!!");
                         // Parse XML config string into Document object.
                         loadedConfig = Configurer.parseString(rcConfigString);
                         Configurer.removeEmptyTextNodes(loadedConfig.getDocumentElement());
+                        newConfigLoaded = true;
                     }
 //                    else {
 //System.out.println("NO CHANGE to string config");
@@ -842,6 +845,7 @@ System.out.println("ERROR in setting value in local config !!!");
                         // store name of file loaded & its mod time
                         msgConfigFile = rcConfigFile;
                         configFileModifiedTime = modTime;
+                        newConfigLoaded = true;
                     }
 //                    else {
 //System.out.println("ALREADY LOADED " + rcConfigFile);
@@ -887,6 +891,7 @@ System.out.println("ERROR in setting value in local config !!!");
                         Configurer.removeEmptyTextNodes(loadedConfig.getDocumentElement());
                         configSource = ConfigSource.CMD_LINE_FILE;
                         configFileModifiedTime = modTime;
+                        newConfigLoaded = true;
 
                         // Check that name and CODA type have NOT changed.
                         Node modulesConfig = Configurer.getNode(loadedConfig, "component");
@@ -949,6 +954,249 @@ System.out.println("ERROR in setting value in local config !!!");
                 debugGUI.addDocument(loadedConfig);
             }
 
+            // We need to look carefully at the newly loaded configuration.
+            // Each EMU may contain only ONE (1) data path. A data path may start
+            // with a set of transport input channels (or none at all). The data
+            // go through the channels to a single module which uses those channels.
+            // From there the data may be passed through a fifo to another module,
+            // so on and so forth, until it finally gets passed to a set of transport
+            // output channels. In order to keep the data flow from getting
+            // ridiculously complex, if a module has a fifo as its output channel,
+            // then it may only have ONE output channel. Likewise, if a module has a
+            // fifo as its input channel, then it may only have ONE input channel.
+            //
+            // The reason only one data path is allowed is simply because it prevents
+            // complications that arise when the output channels of one path are the
+            // input channels of another path. In such a situation, for example, an
+            // END event may not reach the second path since both sets of input channels
+            // are shutdown simultaneously.
+            //
+            // The reason all this is important is that RC instructions which end
+            // data flow (END or PAUSE) must be sent first to the input  channel,
+            // then to each succeeding module in the data flow until it
+            // finally gets sent to the output channel. In this way, for example,
+            // an END event may be watched for, beginning with the input channel and
+            // allowed to pass through the entire data path, enabling the EMU to be
+            // shut down in the proper sequence. For RC instructions that start a data
+            // flow (RESUME, GO), they must be sent first to the output channel,
+            // through the modules in the opposite direction of the data flow,
+            // and finally to the input channel.
+            //
+            // The following code is for analyzing the configuration to find the details
+            // of the data path so this EMU can distribute RC's commands in the proper
+            // sequence to its components.
+            if (newConfigLoaded) {
+                // We find the data paths by finding the modules
+                // which have at least one non-fifo input channel.
+                EmuDataPath dataPath = null;
+                int moduleCount = 0, usedModules = 0;
+                int  inputFifoCount = 0,  inputChannelCount = 0,
+                    outputFifoCount = 0, outputChannelCount = 0;
+
+                try {
+                    // Look in module section of config file ...
+                    Node modulesConfig = Configurer.getNode(loadedConfig, "component/modules");
+
+                    // Need at least 1 module in config file
+                    if (!modulesConfig.hasChildNodes()) {
+                        throw new DataNotFoundException("modules section present in config, but no modules");
+                    }
+
+                    int dataPathCount = 0;
+                    NodeList childList = modulesConfig.getChildNodes();
+
+                    // Look through all modules ...
+                    for (int j=0; j < childList.getLength(); j++) {
+                        Node moduleNode = childList.item(j);
+                        if (moduleNode.getNodeType() != Node.ELEMENT_NODE) continue;
+
+                        moduleCount++;
+
+                        // Name of module is its node name
+                        String moduleName = moduleNode.getNodeName();
+
+                        // Modules need children (input & output channels)
+                        //if (!moduleNode.hasChildNodes()) continue;
+
+                        // List of channels in (children of) the module ...
+                        NodeList childChannelList = moduleNode.getChildNodes();
+
+                        inputFifoCount  =  inputChannelCount = 0;
+                        outputFifoCount = outputChannelCount = 0;
+                        String channelTransName = null, channelName = null,
+                                inputFifoName = null, outputFifoName = null;
+
+                        // First count channels & look for fifos
+                        for (int i = 0; i < childChannelList.getLength(); i++) {
+                            Node channelNode = childChannelList.item(i);
+                            if (channelNode.getNodeType() != Node.ELEMENT_NODE) continue;
+
+                            // Get attributes of channel node
+                            NamedNodeMap nnm = channelNode.getAttributes();
+                            if (nnm == null) continue;
+
+                            // Get "name" attribute node from map
+                            Node channelNameNode = nnm.getNamedItem("name");
+                            // If none (junk in config file) go to next channel
+                            if (channelNameNode == null) continue;
+
+                            // Get name of this channel
+                            channelName = channelNameNode.getNodeValue();
+
+                            // Get "transp" attribute node from map
+                            Node channelTranspNode = nnm.getNamedItem("transp");
+                            if (channelTranspNode == null) continue;
+
+                            // Get name of transport
+                            channelTransName = channelTranspNode.getNodeValue();
+
+                            // If it's an input channel ...
+                            if (channelNode.getNodeName().equalsIgnoreCase("inchannel")) {
+                                // Count input channels
+                                inputChannelCount++;
+
+                                // Count Fifo type input channels
+                                if (channelTransName.equals("Fifo")) {
+                                    inputFifoCount++;
+                                    inputFifoName = channelName;
+                                }
+                            }
+                            else if (channelNode.getNodeName().equalsIgnoreCase("outchannel")) {
+                                outputChannelCount++;
+
+                                if (channelTransName.equals("Fifo")) {
+                                    outputFifoCount++;
+                                    outputFifoName = channelName;
+                                }
+                            }
+                        }
+
+                        // Illegal configurations, look for:
+                        // 1) more than 1 fifo in/out channel, and
+                        // 2) 1 fifo together with a non-fifo channel - either in or out
+                        if ( inputFifoCount > 1 || ( inputFifoCount == 1 &&  inputChannelCount > 1) ||
+                            outputFifoCount > 1 || (outputFifoCount == 1 && outputChannelCount > 1))   {
+                            throw new DataNotFoundException("CODAComponent exit - only 1 input/output channel allowed with fifo in/out");
+                        }
+                        // 3) input and output fifos must be different
+                        else if ((inputFifoCount == 1 && outputFifoCount == 1) &&
+                                  inputFifoName.equals(outputFifoName)) {
+                            throw new DataNotFoundException("CODAComponent exit - input & output fifos for " +
+                                                                   moduleName + " must be different");
+                        }
+
+                        // Find modules with non-fifo (or no) input channels which
+                        // will be the beginning point of a data path.
+                        if (inputFifoCount < 1) {
+                            // Found the starting point of a data path
+                            dataPathCount++;
+                            // (module with non-fifo input channel)
+                            dataPath = new EmuDataPath(moduleName, null, outputFifoName);
+                            usedModules++;
+                        }
+
+                        // If there is more than one data path, reject the configuration.
+                        if (dataPathCount > 1) {
+                            throw new DataNotFoundException("CODAComponent exit - only 1 data path allowed");
+                        }
+                    }
+
+                    // A fifo may not start a data path
+                    if (dataPathCount < 1 && inputFifoCount > 0) {
+                        throw new DataNotFoundException("CODAComponent exit - fifo not allowed to start data path");
+                    }
+
+                    // No data path (should not happen)
+                    if (dataPath == null) {
+                        throw new DataNotFoundException("CODAComponent exit - no data path found");
+                    }
+
+                    // Now that we have the starting point of the data path
+                    // (list of connected modules and transports), we can
+                    // construct the whole path. This will allow us to
+                    // properly distribute RC commands to all EMU modules
+                    // & the data transports.
+
+                    // Look through all modules trying to add them to path
+                    again:
+                    while (true) {
+
+                        for (int j=0; j < childList.getLength(); j++) {
+                            Node moduleNode = childList.item(j);
+                            if (moduleNode.getNodeType() != Node.ELEMENT_NODE) continue;
+
+                            String moduleName = moduleNode.getNodeName();
+
+                            if (dataPath.containsModuleName(moduleName)) {
+                                // This module is already in data
+                                // path so go to the next one.
+                                continue;
+                            }
+
+                            //if (!moduleNode.hasChildNodes()) continue;
+
+                            String channelTransName = null, channelName = null,
+                                    inputFifoName = null, outputFifoName = null;
+
+                            NodeList childChannelList = moduleNode.getChildNodes();
+
+                            for (int i=0; i < childChannelList.getLength(); i++) {
+
+                                Node channelNode = childChannelList.item(i);
+                                if (channelNode.getNodeType() != Node.ELEMENT_NODE) continue;
+
+                                NamedNodeMap nnm = channelNode.getAttributes();
+                                if (nnm == null) continue;
+
+                                Node channelNameNode = nnm.getNamedItem("name");
+                                if (channelNameNode == null) continue;
+
+                                channelName = channelNameNode.getNodeValue();
+
+                                Node channelTranspNode = nnm.getNamedItem("transp");
+                                if (channelTranspNode == null) continue;
+
+                                channelTransName = channelTranspNode.getNodeValue();
+
+                                // If it's an input channel ...
+                                if (channelNode.getNodeName().equalsIgnoreCase("inchannel")) {
+                                    // Count Fifo type input channels
+                                    if (channelTransName.equals("Fifo")) {
+                                        inputFifoName = channelName;
+                                    }
+                                }
+                                else if (channelNode.getNodeName().equalsIgnoreCase("outchannel")) {
+                                    if (channelTransName.equals("Fifo")) {
+                                        outputFifoName = channelName;
+                                    }
+                                }
+                            }
+
+                            // If successfully added, go through list of modules again
+                            // and try to add another.
+                            if (dataPath.addModuleName(moduleName, inputFifoName, outputFifoName)) {
+                                usedModules++;
+                                continue again;
+                            }
+                        }
+
+                        break;
+                    }
+
+                    // Check for any unused/stranded modules (have fifo input)
+                    if (moduleCount != usedModules) {
+                        throw new DataNotFoundException("CODAComponent exit - not all modules in data path");
+                    }
+
+                    moduleFactory.setDataPath(dataPath);
+
+                    System.out.println("DataPath -> " + dataPath);
+
+                }
+                catch (DataNotFoundException e) {
+                    e.printStackTrace();
+                }
+            }
         }
 
 
