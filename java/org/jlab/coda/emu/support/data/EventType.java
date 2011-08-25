@@ -56,6 +56,38 @@ public enum EventType {
     }
 
     /**
+     * Is this a prestart control event type?
+     * @return <code>true</code> if prestart control event type, else <code>false</code>
+     */
+    public boolean isPrestart() {
+        return this.equals(PRESTART);
+    }
+
+    /**
+     * Is this a go control event type?
+     * @return <code>true</code> if go control event type, else <code>false</code>
+     */
+    public boolean isGo() {
+        return this.equals(GO);
+    }
+
+    /**
+     * Is this a pause control event type?
+     * @return <code>true</code> if pause control event type, else <code>false</code>
+     */
+    public boolean isPause() {
+        return this.equals(PAUSE);
+    }
+
+    /**
+     * Is this an end control event type?
+     * @return <code>true</code> if end control event type, else <code>false</code>
+     */
+    public boolean isEnd() {
+        return this.equals(END);
+    }
+
+    /**
      * Is this a data event type?
      * @return <code>true</code> if data event type, else <code>false</code>
      */
