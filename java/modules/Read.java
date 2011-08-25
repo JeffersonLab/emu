@@ -98,11 +98,21 @@ public class Read implements EmuModule {
         super.finalize();
     }
 
+    /** {@inheritDoc} */
     public void setInputChannels(ArrayList<DataChannel> input_channels) {
-
     }
 
+    /** {@inheritDoc} */
     public void setOutputChannels(ArrayList<DataChannel> output_channels) {
+    }
 
+    /** {@inheritDoc} */
+    public ArrayList<DataChannel> getInputChannels() {
+        return null;
+    }
+
+    /** {@inheritDoc} */
+    public ArrayList<DataChannel> getOutputChannels() {
+        return null;
     }
 }

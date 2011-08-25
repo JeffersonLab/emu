@@ -391,12 +391,23 @@ System.out.println("Process: Added bank's children to built event, event = " + c
         super.finalize();
     }
 
+    /** {@inheritDoc} */
     public void setInputChannels(ArrayList<DataChannel> input_channels) {
         this.input_channels = input_channels;
     }
 
+    /** {@inheritDoc} */
     public void setOutputChannels(ArrayList<DataChannel> output_channels) {
         this.output_channels = output_channels;
     }
 
+    /** {@inheritDoc} */
+    public ArrayList<DataChannel> getInputChannels() {
+        return input_channels;
+    }
+
+    /** {@inheritDoc} */
+    public ArrayList<DataChannel> getOutputChannels() {
+        return output_channels;
+    }
 }

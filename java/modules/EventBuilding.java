@@ -452,7 +452,7 @@ System.out.println("Qfiller: got non-DTR bank, discard");
             int recordId = eo.inputOrder;
 
             // wrap event-to-be-sent in Data Transport Record for next EB or ER
-            int dtrTag = Evio.createCodaTag(EventType.PHYSICS.getValue(), ebId);
+            int dtrTag = Evio.createCodaTag(bankOut.getType().getValue(), ebId);
             EvioEvent dtrEvent = new PayloadBank(dtrTag, DataType.BANK, recordId);
             builder.setEvent(dtrEvent);
 
@@ -526,6 +526,7 @@ if (printQSizes) {
             EvioEvent combinedTrigger;
             PayloadBank physicsEvent;
             PayloadBank[] buildingBanks = new PayloadBank[inputChannels.size()];
+            EventOrder[] controlEventOrders = new EventOrder[outputChannelCount];
             EventBuilder builder = new EventBuilder(0, DataType.BANK, 0); // this event not used, just need a builder
             LinkedList<PayloadBank> userEventList = new LinkedList<PayloadBank>();
 
@@ -647,31 +648,38 @@ if (printQSizes) {
                                     }
 
                                     // If we're here, we've got control events.
-                                    // Do this once for a group of such events.
+                                    // We want one EventOrder object for each output channel
+                                    // since we want one control event placed on each.
                                     if (!gotBuildEvent) {
                                         // set flag
                                         gotBuildEvent = true;
 
-                                        if (outputChannelCount > 0) {
-                                            // User or control events go into first channel
-                                            myOutputChannel = outputChannels.get(0);
-                                            myOutputChannelIndex = 0;
+                                        // Loop through the output channels and get
+                                        // them ready to accept a control event.
+                                        for (int j=0; j < outputChannelCount; j++) {
+                                            // Output channel it should go to.
+                                            myOutputChannel = outputChannels.get(outputChannelIndex);
+                                            myOutputChannelIndex = outputChannelIndex;
+                                            outputChannelIndex = ++outputChannelIndex % outputChannelCount;
 
                                             // Order in which this will be placed into its output channel.
                                             myInputOrder = inputOrders[myOutputChannelIndex];
                                             myOutputLock = locks[myOutputChannelIndex];
 
-//System.out.println("control ev setting locks[" + myOutputChannelIndex + "], lock = " + myOutputLock);
-
                                             // Keep track of the next slot in this output channel.
                                             inputOrders[myOutputChannelIndex] =
                                                     ++inputOrders[myOutputChannelIndex] % Integer.MAX_VALUE;
-                                        }
-                                        else {
-//System.out.println("control (2) ev setting locks[" + myOutputChannelIndex + "], lock = \" + myOutputLock");
+
+                                            EventOrder eo = new EventOrder();
+                                            eo.index = myOutputChannelIndex;
+                                            eo.outputChannel = myOutputChannel;
+                                            eo.lock = myOutputLock;
+                                            eo.inputOrder = myInputOrder;
+
+                                            // Store control event output order info in array
+                                            controlEventOrders[j] = eo;
                                         }
                                     }
-
                                     // go to next input channel
                                     break;
                                 }
@@ -730,8 +738,27 @@ System.out.println("All events sent to EMU must be BIG endian");
                         // their input order and put 1 on output Q.
                         if (haveControlEvents) {
 System.out.println("Have CONTROL events");
-                            buildingBanks[0].setAttachment(evOrder);
-                            bankToOutputChannel(buildingBanks[0], builder);
+                            // Deal with the possibility that there are more output channels
+                            // than input channels. In that case we must copy the control
+                            // event and make sure one is placed on each output channel.
+                            if (outputChannelCount <= buildingBanks.length) {
+                                for (int j=0; j < outputChannelCount; j++) {
+                                    // Store control event output order info in array
+                                    buildingBanks[j].setAttachment(controlEventOrders[j]);
+                                    bankToOutputChannel(buildingBanks[j], builder);
+                                }
+                            }
+                            else {
+                                buildingBanks[0].setAttachment(controlEventOrders[0]);
+                                bankToOutputChannel(buildingBanks[0], builder);
+                                for (int j=1; j < outputChannelCount; j++) {
+                                    // copy first control event
+                                    PayloadBank bb = new PayloadBank(buildingBanks[0]);
+                                    bb.setAttachment(controlEventOrders[j]);
+                                    // write to other output Q's
+                                    bankToOutputChannel(bb, builder);
+                                }
+                            }
                             continue;
                         }
 
@@ -1280,12 +1307,24 @@ System.out.println("\n\n\nNUM OF OUTPUT channels = " + outputChannelCount + "\n\
         super.finalize();
     }
 
+    /** {@inheritDoc} */
     public void setInputChannels(ArrayList<DataChannel> input_channels) {
         this.inputChannels = input_channels;
     }
 
+    /** {@inheritDoc} */
     public void setOutputChannels(ArrayList<DataChannel> output_channels) {
         this.outputChannels = output_channels;
+    }
+
+    /** {@inheritDoc} */
+    public ArrayList<DataChannel> getInputChannels() {
+        return inputChannels;
+    }
+
+    /** {@inheritDoc} */
+    public ArrayList<DataChannel> getOutputChannels() {
+        return outputChannels;
     }
 
 }

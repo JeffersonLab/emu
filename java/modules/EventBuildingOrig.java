@@ -1357,12 +1357,24 @@ System.out.println("INTERRUPTED thread " + Thread.currentThread().getName());
         super.finalize();
     }
 
+    /** {@inheritDoc} */
     public void setInputChannels(ArrayList<DataChannel> input_channels) {
         this.inputChannels = input_channels;
     }
 
+    /** {@inheritDoc} */
     public void setOutputChannels(ArrayList<DataChannel> output_channels) {
         this.outputChannels = output_channels;
+    }
+
+    /** {@inheritDoc} */
+    public ArrayList<DataChannel> getInputChannels() {
+        return inputChannels;
+    }
+
+    /** {@inheritDoc} */
+    public ArrayList<DataChannel> getOutputChannels() {
+        return outputChannels;
     }
 
 }

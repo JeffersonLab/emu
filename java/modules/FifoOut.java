@@ -125,14 +125,17 @@ System.out.println("Process module: quitting watcher thread");
     }
 
 
+    /** {@inheritDoc} */
     public Object[] getStatistics() {
         return null;
     }
 
+    /** {@inheritDoc} */
     public boolean representsEmuStatistics() {
         return false;
     }
 
+    /** {@inheritDoc} */
     public String name() {
         return name;
     }
@@ -215,6 +218,7 @@ System.out.println("FifoOut: put bank on output Q");
 
     }
 
+    /** {@inheritDoc} */
     public State state() {
         return state;
     }
@@ -236,6 +240,7 @@ System.out.println("FifoOut: put bank on output Q");
         return last_error;
     }
 
+    /** {@inheritDoc} */
     public void execute(Command cmd) {
         Date theDate = new Date();
         
@@ -311,11 +316,23 @@ System.out.println("GO in FifoOut module");
         super.finalize();
     }
 
+    /** {@inheritDoc} */
     public void setInputChannels(ArrayList<DataChannel> input_channels) {
         this.input_channels = input_channels;
     }
 
+    /** {@inheritDoc} */
     public void setOutputChannels(ArrayList<DataChannel> output_channels) {
         this.output_channels = output_channels;
+    }
+
+    /** {@inheritDoc} */
+    public ArrayList<DataChannel> getInputChannels() {
+        return input_channels;
+    }
+
+    /** {@inheritDoc} */
+    public ArrayList<DataChannel> getOutputChannels() {
+        return output_channels;
     }
 }

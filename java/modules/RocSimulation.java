@@ -22,6 +22,7 @@ import org.jlab.coda.emu.support.configurer.Configurer;
 import org.jlab.coda.emu.support.configurer.DataNotFoundException;
 import org.jlab.coda.emu.support.control.Command;
 import org.jlab.coda.emu.support.control.State;
+import org.jlab.coda.emu.support.data.EventType;
 import org.jlab.coda.emu.support.data.Evio;
 import org.jlab.coda.emu.support.logger.Logger;
 import org.jlab.coda.emu.support.transport.DataChannel;
@@ -85,6 +86,9 @@ public class RocSimulation implements EmuModule, Runnable {
 
     /** The id of the detector which produced the data in block banks of the ROC raw records. */
     private int detectorId;
+
+    /** Number of Evio events generated & sent before an END event is sent. */
+    private int endLimit = 30000;
 
 
     // The following members are for keeping statistics
@@ -177,6 +181,16 @@ System.out.println("                                      SET ROCID TO " + rocId
             eventBlockSize = 1;
         }
 
+        String end = System.getProperty("end");
+        if (end != null) {
+            try {
+                endLimit = Integer.parseInt(end);
+                if (endLimit < 1) endLimit = 30000;
+            }
+            catch (NumberFormatException e) { /* defaults to 25M */ }
+        }
+
+
         // the module sets the type of CODA class it is.
         emu.setCodaClass(CODAClass.ROC);
     }
@@ -200,9 +214,9 @@ System.out.println("                                      SET ROCID TO " + rocId
     }
 
     /**
-     * Method getError returns the error of this ProcessTest object.
+     * Method getError returns the error of this RocSimulation object.
      *
-     * @return the error (type Throwable) of this ProcessTest object.
+     * @return the error (type Throwable) of this RocSimulation object.
      */
     public Throwable getError() {
         return lastError;
@@ -278,10 +292,10 @@ System.out.println("                                      SET ROCID TO " + rocId
                     }
 
                 } catch (InterruptedException e) {
-                    logger.info("ProcessTest thread " + name() + " interrupted");
+                    logger.info("RocSimulation thread " + name() + " interrupted");
                 }
             }
-System.out.println("ProcessTest module: quitting watcher thread");
+System.out.println("RocSimulation module: quitting watcher thread");
         }
     }
 
@@ -327,6 +341,8 @@ System.out.println("ProcessTest module: quitting watcher thread");
      */
     class EventGeneratingThread extends Thread {
 
+        private volatile boolean quit;
+
         EventGeneratingThread(ThreadGroup group, Runnable target, String name) {
             super(group, target, name);
         }
@@ -335,15 +351,21 @@ System.out.println("ProcessTest module: quitting watcher thread");
             super();
         }
 
+        void killThread() {
+            quit = true;
+        }
+
         public void run() {
 
             EvioEvent ev;
             int timestamp=0, status=0, numEvents;
-            int counter = 0, counter2 = 0;
+            int counter = 0, counter2 = 0, totalCount = 0;
             long start_time = System.currentTimeMillis();
-            EvioEvent userEvent;
+//            EvioEvent userEvent;
 
             while (state == CODAState.ACTIVE || paused) {
+
+                if (quit) return;
 
                 try {
                     // turn event into byte array
@@ -367,6 +389,7 @@ if (size > 400 && size % 100 == 0) System.out.println("outputChannel Q: " + size
                     wordCountTotal  += ev.getHeader().getLength() + 1;
                     lastEventNumberCreated = eventNumber - 1;
                     counter++;
+                    totalCount++;
 
                     // every 100000 events, put in user event
 //                    if (counter2++ % 100000 == 0) {
@@ -381,6 +404,11 @@ if (size > 400 && size % 100 == 0) System.out.println("outputChannel Q: " + size
 //                        }
 //                    }
 
+                    if (totalCount >= endLimit) {
+                        System.out.println("PUT THE " + totalCount + "th EVENT INTO STREAM, WAIT FOR END COMMAND");
+                        return;
+                    }
+
                     long now = System.currentTimeMillis();
                     long deltaT = now - start_time;
                     if (deltaT > 2000) {
@@ -391,7 +419,10 @@ if (size > 400 && size % 100 == 0) System.out.println("outputChannel Q: " + size
 //                        outputChannels.get(0).getQueue().put(userEvent);
                     }
 
-                    if (delay > 0) Thread.sleep(delay);
+                    if (delay > 0) {
+                        if (quit) return;
+                        Thread.sleep(delay);
+                    }
                 }
                 catch (EvioException e) {
 System.out.println("MAJOR ERROR generating events");
@@ -422,10 +453,36 @@ System.out.println("INTERRUPTED thread " + Thread.currentThread().getName());
             // Transport objects should already have been shutdown followed by this module.
             if (watcher != null) watcher.interrupt();
             watcher = null;
-            if (eventGeneratingThread != null) eventGeneratingThread.interrupt();
+
+            if (eventGeneratingThread != null) {
+                eventGeneratingThread.killThread();
+                try {
+                    // Wait until it's actually dead so we
+                    // know no new events are being put on Q.
+                    System.out.print("In END: try joining event-generating thread ... ");
+                    eventGeneratingThread.join();
+                    System.out.println("done");
+                }
+                catch (InterruptedException e) {
+                }
+            }
             eventGeneratingThread = null;
 
             paused = false;
+
+            // Put in END event
+            try {
+System.out.println("Putting in END control event");
+                EvioEvent controlEvent = Evio.createControlDTR(rocId, EventType.END);
+                outputChannels.get(0).getQueue().put(controlEvent);
+            }
+            catch (InterruptedException e) {
+                //e.printStackTrace();
+            }
+            catch (EvioException e) {
+                e.printStackTrace();
+                /* never happen */
+            }
 
             // set end-of-run time in local XML config / debug GUI
             try {
@@ -476,25 +533,65 @@ System.out.println("INTERRUPTED thread " + Thread.currentThread().getName());
                                                                    new EventGeneratingThread(),
                                                                    name+":generator");
 
-            // set end-of-run time in local XML config / debug GUI
+            // Put in PRESTART event
+            try {
+System.out.println("Putting in PRESTART control event");
+                EvioEvent controlEvent = Evio.createControlDTR(rocId, EventType.PRESTART);
+                outputChannels.get(0).getQueue().put(controlEvent);
+            }
+            catch (InterruptedException e) {
+                //e.printStackTrace();
+            }
+            catch (EvioException e) {
+                e.printStackTrace();
+                /* never happen */
+            }
+
+            // set start-run time in local XML config / debug GUI
             try {
                 Configurer.setValue(emu.parameters(), "status/run_start_time", "--prestart--");
             } catch (DataNotFoundException e) {
-                emu.getCauses().add(e);
-                state = CODAState.ERROR;
-                return;
+                e.printStackTrace();
             }
-        }
+       }
 
         // currently NOT used
         else if (emuCmd == PAUSE) {
 System.out.println("ROC: GOT PAUSE, DO NOTHING");
             paused = true;
+
+            // Put in PAUSE event
+            try {
+System.out.println("Putting in PAUSE control event");
+                EvioEvent controlEvent = Evio.createControlDTR(rocId, EventType.PAUSE);
+                outputChannels.get(0).getQueue().put(controlEvent);
+            }
+            catch (InterruptedException e) {
+                //e.printStackTrace();
+            }
+            catch (EvioException e) {
+                e.printStackTrace();
+                /* never happen */
+            }
         }
 
         else if (emuCmd == GO) {
             if (state == CODAState.ACTIVE) {
 System.out.println("WE musta hit go after PAUSE");
+            }
+
+            // Put in GO event
+            try {
+System.out.println("Putting in GO control event");
+                EvioEvent controlEvent = Evio.createControlDTR(rocId, EventType.GO);
+                outputChannels.get(0).getQueue().put(controlEvent);
+            }
+            catch (InterruptedException e) {
+                //e.printStackTrace();
+            }
+            catch (EvioException e) {
+                e.printStackTrace();
+                /* never happen */
             }
 
             state = CODAState.ACTIVE;
@@ -541,11 +638,22 @@ System.out.println("starting event generating thread");
         super.finalize();
     }
 
+    /** {@inheritDoc} */
     public void setInputChannels(ArrayList<DataChannel> input_channels) {
     }
 
+    /** {@inheritDoc} */
     public void setOutputChannels(ArrayList<DataChannel> output_channels) {
         this.outputChannels = output_channels;
     }
 
+    /** {@inheritDoc} */
+    public ArrayList<DataChannel> getInputChannels() {
+        return null;
+    }
+
+    /** {@inheritDoc} */
+    public ArrayList<DataChannel> getOutputChannels() {
+        return outputChannels;
+    }
 }

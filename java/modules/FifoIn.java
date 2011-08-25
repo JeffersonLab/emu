@@ -123,14 +123,17 @@ System.out.println("Process module: quitting watcher thread");
     }
 
 
+    /** {@inheritDoc} */
     public Object[] getStatistics() {
         return null;
     }
 
+    /** {@inheritDoc} */
     public boolean representsEmuStatistics() {
         return false;
     }
 
+    /** {@inheritDoc} */
     public String name() {
         return name;
     }
@@ -183,6 +186,7 @@ System.out.println("Got int = " + i);
 
     }
 
+    /** {@inheritDoc} */
     public State state() {
         return state;
     }
@@ -279,11 +283,23 @@ System.out.println("GO in FifoIn module");
         super.finalize();
     }
 
+    /** {@inheritDoc} */
     public void setInputChannels(ArrayList<DataChannel> input_channels) {
         this.input_channels = input_channels;
     }
 
+    /** {@inheritDoc} */
     public void setOutputChannels(ArrayList<DataChannel> output_channels) {
         this.output_channels = output_channels;
+    }
+
+    /** {@inheritDoc} */
+    public ArrayList<DataChannel> getInputChannels() {
+        return input_channels;
+    }
+
+    /** {@inheritDoc} */
+    public ArrayList<DataChannel> getOutputChannels() {
+        return output_channels;
     }
 }
