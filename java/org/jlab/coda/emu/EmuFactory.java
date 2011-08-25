@@ -76,7 +76,7 @@ public class EmuFactory {
                 "        [-Dlconfig=xxx]      set local config file name for loading static info\n"+
                 "        [-Dexpid=xxx]        set experiment ID\n"+
                 "        [-Dsession=xxx]      set experimental session name\n"+
-                "        [-user.name=xxx]     set user's name (defaults to expid, then session)\n"+
+                "        [-Duser.name=xxx]    set user's name (defaults to expid, then session)\n"+
                 "        [-DcmsgUDL=xxx]      set UDL to connect to cMsg server\n"+
                 "        [-DDebugUI]          display a control GUI\n");
     }
