@@ -64,6 +64,12 @@ System.out.println("callback: received an invalid command");
                 return;
             }
 
+            if (codaCmd == null) {
+                // TODO: bug bug: do we want this printed, logged, etc ???
+System.out.println("callback: received an invalid command of type " + type);
+                return;
+            }
+
             // Get the emuCmd - which is a STATIC CODACommand enum object - and
             // wrap it with and Command object which is not static and allows
             // us to attach all manner of mutable data to it. Thus we can now
