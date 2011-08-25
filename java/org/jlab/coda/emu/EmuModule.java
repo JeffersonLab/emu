@@ -56,6 +56,18 @@ public interface EmuModule extends StatedObject {
     public void setOutputChannels(ArrayList<DataChannel> output_channels);
 
     /**
+      * Set the input channels of this EmuModule object.
+      * @return ArrayList containing the input channels of this EmuModule object
+      */
+     public ArrayList<DataChannel> getInputChannels();
+
+     /**
+      * Set the output channels of this EmuModule object.
+      * @return ArrayList containing the output channels of this EmuModule object
+      */
+     public ArrayList<DataChannel> getOutputChannels();
+
+    /**
      * Get the <b>output</b> statistics of this EmuModule object. The output statistics
      * consists of an array of 2 longs and 2 floats in object form:<p>
      * <ol>
