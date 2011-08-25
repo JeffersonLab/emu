@@ -59,6 +59,8 @@ public class EmuModuleFactory implements StatedObject {
      */
     private final Vector<EmuModule> modules = new Vector<EmuModule>(10);
 
+    private EmuDataPath dataPath;
+
     /** This object is used to dynamically load modules (actually their classes). */
     private EmuClassLoader classLoader;
 
@@ -217,7 +219,7 @@ public class EmuModuleFactory implements StatedObject {
 //                System.runFinalization();
 
                 // Create the transport objects & channels before the modules  // TODO: WHY?
-                transportFactory.execute(cmd);
+                transportFactory.execute(cmd, false);
 
                 Node n = modulesConfig.getFirstChild();
                 do {
@@ -229,8 +231,8 @@ public class EmuModuleFactory implements StatedObject {
 
                         // store all attributes in a hashmap to pass to channel
                         Map<String, String> attributeMap = new HashMap<String, String>();
-                        for (int jx=0; jx < nm2.getLength(); jx++) {
-                            Node a = nm2.item(jx);
+                        for (int j=0; j < nm2.getLength(); j++) {
+                            Node a = nm2.item(j);
 System.out.println("Put (" + a.getNodeName() + "," + a.getNodeValue() + ") into attribute map for module " + n.getNodeName());
                             attributeMap.put(a.getNodeName(), a.getNodeValue());
                         }
@@ -245,6 +247,12 @@ System.out.println("Put (" + a.getNodeName() + "," + a.getNodeValue() + ") into 
 
                 } while ((n = n.getNextSibling()) != null);
 
+                // Pass DOWNLOAD to all the modules. "modules" is only
+                // changed in this method so no synchronization is necessary.
+                for (EmuModule module : modules) {
+                    module.execute(cmd);
+                }
+
             } catch (Exception e) {
                 e.printStackTrace();
                 emu.getCauses().add(e);
@@ -257,7 +265,7 @@ System.out.println("Put (" + a.getNodeName() + "," + a.getNodeValue() + ") into 
         else if (emuCmd == PRESTART) {
 
             // Pass prestart to transport objects first
-            transportFactory.execute(cmd);
+            transportFactory.execute(cmd, false);
 
             // Create transportation channels for all modules
             try {
@@ -275,8 +283,8 @@ System.out.println("Put (" + a.getNodeName() + "," + a.getNodeValue() + ") into 
                             
                             // For each channel in (children of) the module ...
                             NodeList childList = moduleNode.getChildNodes();
-                            for (int ix = 0; ix < childList.getLength(); ix++) {
-                                Node channelNode = childList.item(ix);
+                            for (int i=0; i < childList.getLength(); i++) {
+                                Node channelNode = childList.item(i);
                                 if (channelNode.getNodeType() != Node.ELEMENT_NODE) continue;
 
 //System.out.println("EmuModuleFactory.execute PRE : looking at channel node = " + channelNode.getNodeName());
@@ -313,8 +321,8 @@ System.out.println("Put (" + a.getNodeName() + "," + a.getNodeValue() + ") into 
 
                                 // Store all attributes in a hashmap to pass to channel
                                 Map<String, String> attributeMap = new HashMap<String, String>();
-                                for (int jx = 0; jx < nnm.getLength(); jx++) {
-                                    Node a = nnm.item(jx);
+                                for (int j=0; j < nnm.getLength(); j++) {
+                                    Node a = nnm.item(j);
 //System.out.println("Put (" + a.getNodeName() + "," + a.getNodeValue() + ") into attribute map for channel " + channelName);
                                     attributeMap.put(a.getNodeName(), a.getNodeValue());
                                 }
@@ -343,6 +351,11 @@ System.out.println("Put (" + a.getNodeName() + "," + a.getNodeValue() + ") into 
                     }
                 } while ((moduleNode = moduleNode.getNextSibling()) != null);  // while another module exists ...
 
+                // Pass PRESTART to all the modules.
+                for (EmuModule module : modules) {
+                    module.execute(cmd);
+                }
+
             } catch (Exception e) {
                 logger.error("EmuModuleFactory.execute() : threw " + e.getMessage());
                 e.printStackTrace();
@@ -352,19 +365,102 @@ System.out.println("Put (" + a.getNodeName() + "," + a.getNodeValue() + ") into 
             }
         }
 
-        // Other commands are passed down to transport layer
-        // since the GO, END, PAUSE, RESUME commands are concerned
-        // only with the flow of data.
-        else {
-            transportFactory.execute(cmd);
+        // END needs to be sent to EMU sub-components in order of data flow.
+        else if (emuCmd == END) {
+            LinkedList<EmuModule> mods = dataPath.getModules();
+
+            if (mods.size() < 1) {
+                logger.error("EmuModuleFactory.execute() : no modules in data path");
+                state = ERROR;
+                throw new CmdExecException("no modules in data path");
+            }
+
+
+            // pass command to input transports of FIRST module
+            EmuModule emuModule = mods.getFirst();
+            ArrayList<DataChannel> channelList = emuModule.getInputChannels();
+            if (channelList != null) {
+                for (DataChannel chan : channelList) {
+                    DataTransport trans = chan.getDataTransport();
+System.out.println("Execute END thru transport " + trans.name());
+                    trans.execute(cmd, true);  // true means we're doing inputs only
+                }
+            }
+
+            // pass command to all modules starting with first
+            for (int i=0; i < mods.size(); i++) {
+System.out.println("Execute END thru module " + mods.get(i).name());
+                mods.get(i).execute(cmd);
+            }
+
+            // pass command to output transports of LAST module
+            emuModule = mods.getLast();
+            channelList = emuModule.getOutputChannels();
+            if (channelList != null) {
+                for (DataChannel chan : channelList) {
+                    DataTransport trans = chan.getDataTransport();
+System.out.println("Execute END thru transport " + trans.name());
+                    trans.execute(cmd, false);  // false means we're doing outputs only
+                }
+            }
+
+            // close all transport objects including Fifos
+            transportFactory.execute(cmd, false);
         }
 
-        // Pass all commands down to all the modules. "modules" is only
-        // changed in this method so no synchronization is necessary.
-        for (EmuModule module : modules) {
-            module.execute(cmd);
+        // GO needs to be sent to EMU sub-components in reverse order of data flow.
+        else if (emuCmd == GO) {
+            LinkedList<EmuModule> mods = dataPath.getModules();
+
+            if (mods.size() < 1) {
+                logger.error("EmuModuleFactory.execute() : no modules in data path");
+                state = ERROR;
+                throw new CmdExecException("no modules in data path");
+            }
+
+
+            // pass command to output transports of LAST module
+            EmuModule emuModule = mods.getLast();
+            ArrayList<DataChannel> channelList = emuModule.getOutputChannels();
+            if (channelList != null) {
+                for (DataChannel chan : channelList) {
+                    DataTransport trans = chan.getDataTransport();
+System.out.println("Execute GO thru transport " + trans.name());
+                    trans.execute(cmd, false);  // false means we're doing outputs only
+                }
+            }
+
+            // pass command to all modules starting with last
+            for (int i=mods.size()-1; i >= 0; i--) {
+System.out.println("Execute GO thru module " + mods.get(i).name());
+                mods.get(i).execute(cmd);
+            }
+
+            // pass command to input transports of FIRST module
+            emuModule = mods.getFirst();
+            channelList = emuModule.getInputChannels();
+            if (channelList != null) {
+                for (DataChannel chan : channelList) {
+                    DataTransport trans = chan.getDataTransport();
+System.out.println("Execute GO thru transport " + trans.name());
+                    trans.execute(cmd, false);  // true means we're doing inputs only
+                }
+            }
+
+            // TODO: do we need to send this to the TransportFactory ??
         }
-        
+
+        // Other commands (PAUSE, RESET) are passed down to transport
+        // layer first, then to modules
+        else {
+            transportFactory.execute(cmd, false);
+
+            for (EmuModule module : modules) {
+                module.execute(cmd);
+            }
+        }
+
+
         // RESET command
         if (emuCmd == RESET) {
             logger.info("EmuModuleFactory.execute : RESET");
@@ -378,7 +474,7 @@ System.out.println("Put (" + a.getNodeName() + "," + a.getNodeValue() + ") into 
     }
 
     /**
-     * This method loads the class for a module "moduleName" and
+     * This method loads the class for a module (moduleClassName) and
      * creates an instance with name "name".
      *
      * @param name            name of module
@@ -422,6 +518,7 @@ System.out.println("Put (" + a.getNodeName() + "," + a.getNodeValue() + ") into 
         Object[] args = {name, attributeMap, emu};
         EmuModule thing = (EmuModule) co.newInstance(args);
 
+        dataPath.associateModule(thing);
         modules.add(thing);
         return thing;
     }
@@ -433,6 +530,28 @@ System.out.println("Put (" + a.getNodeName() + "," + a.getNodeValue() + ") into 
      */
     public String name() {
         return "ModuleFactory";
+    }
+
+
+    /**
+     * Get the data path object that directs how the run control
+     * commands are distributed among the EMU parts.
+     *
+     * @return the data path object
+     */
+    EmuDataPath getDataPath() {
+        return dataPath;
+    }
+
+
+    /**
+     * Set the data path object that directs how the run control
+     * commands are distributed among the EMU parts.
+     *
+     * @param dataPath the data path object
+     */
+    void setDataPath(EmuDataPath dataPath) {
+        this.dataPath = dataPath;
     }
 
 
