@@ -12,17 +12,8 @@
 package org.jlab.coda.emu;
 
 
-import org.jlab.coda.emu.EmuModule;
-import org.jlab.coda.emu.support.codaComponent.CODACommand;
-import org.jlab.coda.emu.support.control.CmdExecException;
-import org.jlab.coda.emu.support.transport.DataTransport;
-
 import java.util.LinkedList;
 
-import static org.jlab.coda.emu.support.codaComponent.CODACommand.CONFIGURE;
-import static org.jlab.coda.emu.support.codaComponent.CODACommand.DOWNLOAD;
-import static org.jlab.coda.emu.support.codaComponent.CODAState.CONFIGURED;
-import static org.jlab.coda.emu.support.codaComponent.CODAState.ERROR;
 
 /**
  * This class represents data flow through connected EMU modules.
@@ -200,24 +191,5 @@ public class EmuDataPath {
 
         return sb.toString();
     }
-
-//    public void execute(Command cmd)  throws CmdExecException {
-//        CODACommand emuCmd = cmd.getCodaCommand();
-//
-//        logger.info("EmuModuleFactory.execute : " + emuCmd);
-//
-//        // CONFIGURE command does not involve components and is handled directly by the EMU ...
-//        if (state != ERROR && emuCmd == CONFIGURE) {
-//            // If we got this far configure succeeded.
-//            state = CONFIGURED;
-//            return;
-//        }
-//
-//        // DOWNLOAD command does non-run-specific initialization that involves components/modules ...
-//        if (emuCmd == DOWNLOAD) {
-//
-//        }
-//
-//    }
 
 }
