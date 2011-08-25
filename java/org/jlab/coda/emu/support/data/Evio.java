@@ -585,10 +585,10 @@ System.out.println("isDataTransportRecord: is not DTR 5");
 System.out.print("extractPayloadBanks: unknown type, dump payload bank");
             return;
         }
-        else if (eventType == EventType.USER) {
+        else if (eventType.isUser()) {
 System.out.println("extractPayloadBanks: FOUND USER event !!!");
         }
-        else if (eventType == EventType.CONTROL) {
+        else if (eventType.isControl()) {
 System.out.println("extractPayloadBanks: FOUND CONTROL event !!!");
         }
 
@@ -1277,11 +1277,11 @@ System.out.println("                           " + (firstEvNum+i) + " != " + (se
      * @return created Control event (EvioEvent object)
      * @throws EvioException
      */
-    public static EvioEvent createControlDTR(int rocID)
+    public static EvioEvent createControlDTR(int rocID, EventType type)
             throws EvioException {
 
         // create data transport record (num = lost 8 bits of record id)
-        int tag = createCodaTag(EventType.CONTROL.getValue(), rocID);
+        int tag = createCodaTag(type.getValue(), rocID);
         EventBuilder eventBuilder = new EventBuilder(tag, DataType.BANK, -1);
         EvioEvent ev = eventBuilder.getEvent();
 
@@ -1297,7 +1297,19 @@ System.out.println("                           " + (firstEvNum+i) + " != " + (se
         data[2] = 123; // # events in run
 
         // create a single bank of integers which is the user bank
-        EvioBank dataBank = new EvioBank(20, DataType.UINT32, 0xcc);
+        EvioBank dataBank;
+        switch (type) {
+            case PRESTART:
+                dataBank = new EvioBank(17, DataType.UINT32, 0xcc); break;
+            case GO:
+                dataBank = new EvioBank(18, DataType.UINT32, 0xcc); break;
+            case PAUSE:
+                dataBank = new EvioBank(19, DataType.UINT32, 0xcc); break;
+            case END:
+                dataBank = new EvioBank(20, DataType.UINT32, 0xcc); break;
+            default:
+                throw new EvioException("bad EventType arg");
+        }
         eventBuilder.appendIntData(dataBank, data);
         eventBuilder.addChild(ev, dataBank);
 
