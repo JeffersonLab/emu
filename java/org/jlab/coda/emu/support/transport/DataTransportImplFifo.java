@@ -21,8 +21,8 @@ public class DataTransportImplFifo extends DataTransportCore implements DataTran
     }
 
     /** {@inheritDoc} */
-    public void execute(Command cmd) {
-        // Dummy, nothing to see here people, move along...
+    public void execute(Command cmd, boolean forInput) {
+        // Dummy - nothing to see here folks, move along.
     }
 
     /** {@inheritDoc} */
@@ -31,11 +31,17 @@ public class DataTransportImplFifo extends DataTransportCore implements DataTran
 //System.out.println("    DataTransportImplFifo.createChannel : create channel " + name);
         String channelName = name() + ":" + name;
         // see if channel (queue) has already been created
-        DataChannel c = channels().get(channelName);
+        DataChannel c = allChannels().get(channelName);
         // if not, create it
         if (c ==  null) {
             c = new DataChannelImplFifo(channelName, this, attributeMap, isInput, emu);
-            channels().put(channelName, c);
+            if (isInput) {
+                inChannels().put(channelName, c);
+            }
+            else {
+                outChannels().put(channelName, c);
+            }
+            allChannels().put(channelName, c);
         }
 //System.out.println("    DataTransportImplFifo.createChannel : put channel " + c.getName());
         return c;

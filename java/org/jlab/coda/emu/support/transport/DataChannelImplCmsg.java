@@ -156,9 +156,9 @@ public class DataChannelImplCmsg implements DataChannel {
     }
 
     /**
-     * Constructor to create a new DataChannelImplCmsg instance.
-     * Used only by {@link DataTransportImplCmsg#createChannel} which is
-     * only used during PRESTART in the EmuModuleFactory.
+     * Constructor to create a new DataChannelImplCmsg instance. Used only by
+     * {@link DataTransportImplCmsg#createChannel(String, Map, boolean, Emu)}
+     * which is only used during PRESTART in the EmuModuleFactory.
      *
      * @param name          the name of this channel
      * @param dataTransport the DataTransport object that this channel belongs to
@@ -247,6 +247,10 @@ System.out.println("\n\nDataChannel: subscribe to subject = " + subject + ", typ
         return input;
     }
 
+    public DataTransport getDataTransport() {
+        return dataTransport;
+    }
+
     public EvioBank receive() throws InterruptedException {
         return queue.take();
     }
@@ -300,6 +304,15 @@ System.out.println("\n\nDataChannel: subscribe to subject = " + subject + ", typ
             // ignore
         }
         queue.clear();
+    }
+
+    // TODO: make close end things more gracefully with cMsg server
+    /**
+     * {@inheritDoc}
+     * Kill/close this channel by unsubscribing from cmsg server and ending the data sending thread.
+     */
+    public void reset() {
+        close();
     }
 
 

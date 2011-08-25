@@ -173,6 +173,10 @@ public class DataChannelImplFile implements DataChannel {
         return input;
     }
 
+    public DataTransport getDataTransport() {
+        return dataTransport;
+    }
+
     /**
      * Method receive ...
      *
@@ -192,17 +196,21 @@ public class DataChannelImplFile implements DataChannel {
         queue.add(data);
     }
 
-    /** Method close ... */
+    /** {@inheritDoc} */
     public void close() {
         if (dataThread != null) dataThread.interrupt();
         try {
-
             if (evioFile != null) evioFile.close();
         } catch (Exception e) {
             //ignore
         }
         queue.clear();
 
+    }
+
+    /** {@inheritDoc} */
+    public void reset() {
+        close();
     }
 
     /**

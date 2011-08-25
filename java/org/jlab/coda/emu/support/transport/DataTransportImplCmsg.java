@@ -72,11 +72,17 @@ public class DataTransportImplCmsg extends DataTransportCore implements DataTran
 
     public DataChannel createChannel(String name, Map<String,String> attributeMap, boolean isInput, Emu emu) throws DataTransportException {
         DataChannel c = new DataChannelImplCmsg(name, this, attributeMap, isInput, emu);
-        channels().put(name, c);
+        allChannels().put(name, c);
+        if (isInput) {
+            inChannels().put(name, c);
+        }
+        else {
+            outChannels().put(name, c);
+        }
         return c;
     }
 
-    public void execute(Command cmd) {
+    public void execute(Command cmd, boolean forInput) {
         CODACommand emuCmd = cmd.getCodaCommand();
         logger.debug("    DataTransportImplCmsg.execute : " + emuCmd);
 
@@ -98,9 +104,9 @@ public class DataTransportImplCmsg extends DataTransportCore implements DataTran
         else if (emuCmd == GO) {
             cmsgConnection.start(); // allow message flow to callbacks
 
-            if (!channels().isEmpty()) {
-                synchronized (channels()) {
-                    for (DataChannel c : channels().values()) {
+            if (!allChannels.isEmpty()) {
+                synchronized (allChannels) {
+                    for (DataChannel c : allChannels.values()) {
                         ((DataChannelImplCmsg)c).resumeOutputHelper();
                     }
                 }
@@ -109,9 +115,9 @@ public class DataTransportImplCmsg extends DataTransportCore implements DataTran
         else if (emuCmd == PAUSE) {
             cmsgConnection.stop(); // stop message flow to callbacks
 
-            if (!channels().isEmpty()) {
-                synchronized (channels()) {
-                    for (DataChannel c : channels().values()) {
+            if (!allChannels.isEmpty()) {
+                synchronized (allChannels) {
+                    for (DataChannel c : allChannels.values()) {
                         ((DataChannelImplCmsg)c).pauseOutputHelper();
                     }
                 }

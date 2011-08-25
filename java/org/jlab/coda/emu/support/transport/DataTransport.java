@@ -50,10 +50,15 @@ public interface DataTransport extends StatedObject {
      * in the context of the receiving module.
      *
      * @param cmd of type Command
+     * @param forInput <code>true</code> if the command applicable only to the
+     *                 input channels of a transport, else <code>false</code>
+     *                 if applicable to output channels. Used only for commands
+     *                 GO & END in which data flow order in EMU subcomponents
+     *                 is important.
      * @throws CmdExecException if exception processing command
      */
     @SuppressWarnings({"RedundantThrows"})
-    public void execute(Command cmd) throws CmdExecException;
+    public void execute(Command cmd, boolean forInput) throws CmdExecException;
 
     /**
      * This method sets an attribute.
@@ -99,7 +104,21 @@ public interface DataTransport extends StatedObject {
      *
      * @return hashmap containing the data channels (HashMap<String, DataChannel>)
      */
-    public HashMap<String, DataChannel> channels();
+    public HashMap<String, DataChannel> allChannels();
+
+    /**
+     * This method gets all the input DataChannel objects contained in a DataTransport object.
+     *
+     * @return hashmap containing the input data channels (HashMap<String, DataChannel>)
+     */
+    public HashMap<String, DataChannel> inChannels();
+
+    /**
+     * This method gets all the output DataChannel objects contained in a DataTransport object.
+     *
+     * @return hashmap containing the output data channels (HashMap<String, DataChannel>)
+     */
+    public HashMap<String, DataChannel> outChannels();
 
     /**
      * This method tells if this DataTransport object is connected.
@@ -125,9 +144,19 @@ public interface DataTransport extends StatedObject {
      */
     public boolean isServer();
 
-    /** Close this DataTransport object and all its channels. */
+    /**
+     * Close this DataTransport object and all its channels.
+     * Channels are closed gracefully, waiting if necessary.
+     */
     public void close();
 
+    /**
+     * Close this DataTransport object and all its channels.
+     * Threads are interrupted - no waiting done. Called when
+     * undergoing the "RESET" transition.
+     */
+    public void reset();
+
     /** Close this DataTransport object's channels. */
-    public void closeChannels();
+ //   public void closeChannels();
 }

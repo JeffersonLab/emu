@@ -39,7 +39,10 @@ public class DataChannelImplFifo implements DataChannel {
     private final BlockingQueue<EvioBank> queue;
 
     /** Is this channel an input (true) or output (false) channel? */
-    boolean input;
+    private boolean input;
+
+    /** Transport object this channel belongs to. */
+    private DataTransportImplFifo dataTransport;
 
 
     /**
@@ -56,6 +59,7 @@ public class DataChannelImplFifo implements DataChannel {
 
         this.name  = name;
         this.input = input;
+        this.dataTransport = dataTransport;
 
         int capacity = 40;
         try {
@@ -97,6 +101,10 @@ public class DataChannelImplFifo implements DataChannel {
         return input;
     }
 
+    public DataTransport getDataTransport() {
+        return dataTransport;
+    }
+
     /**
      * This method receives or gets EvioBank objects from this object's queue.
      *
@@ -119,6 +127,11 @@ public class DataChannelImplFifo implements DataChannel {
     /** {@inheritDoc} */
     public void close() {
         queue.clear();
+    }
+
+    /** {@inheritDoc} */
+    public void reset() {
+        close();
     }
 
     /**

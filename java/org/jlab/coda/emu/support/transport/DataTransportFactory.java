@@ -149,13 +149,15 @@ public class DataTransportFactory implements StatedObject {
      * execute method.
      *
      * @param cmd of type Command
-     *
-     * @throws org.jlab.coda.emu.support.control.CmdExecException
-     *          if command is invalid or fails
-     * @see org.jlab.coda.emu.EmuModule#execute(org.jlab.coda.emu.support.control.Command)
+     * @param forInput <code>true</code> if the command applicable only to the
+     *                 input channels of a transport, else <code>false</code>
+     *                 if applicable to output channels. Used only for commands
+     *                 GO & END in which data flow order in EMU subcomponents
+     *                 is important.
+     * @throws CmdExecException if command is invalid or fails
      */
     @SuppressWarnings({"ConstantConditions", "ThrowableInstanceNeverThrown"})
-    public void execute(Command cmd) throws CmdExecException {
+    public void execute(Command cmd, boolean forInput) throws CmdExecException {
         // DOWNLOAD loads transport implementation classes, creates objects from them and
         // stores them along with a transport fifo implementation object.
         CODACommand emuCmd = cmd.getCodaCommand();
@@ -271,29 +273,35 @@ logger.warn("  DataTransportFactory.execute DOWN : transport section missing/inc
 
         }  // end of DOWNLOAD
 
-        // Pass all commands down to all transport objects: DOWNLOAD, PRESTART, GO, PAUSE, RESET, END
-        for (DataTransport transport : transports) {
-            logger.debug("  DataTransportFactory.execute : pass " + emuCmd + " down to " + transport.name());
-            transport.execute(cmd);
-        }
-
-        // close channels for END transition
-        if (emuCmd == END) {
-            for (DataTransport t : transports) {
-                logger.debug("  DataTransportFactory.execute END : " + t.name() + " close");
-                // close only the channels as transport object survives
-                t.closeChannels();
+        // Pass commands down to all transport objects: DOWNLOAD, PRESTART, PAUSE, & RESET.
+        if (emuCmd != END && emuCmd != GO) {
+            for (DataTransport transport : transports) {
+                logger.debug("  DataTransportFactory.execute : pass " + emuCmd + " down to " + transport.name());
+                transport.execute(cmd, forInput);
             }
-            state = cmd.success();
         }
-
-        // close transport objects for RESET transition
-        if (emuCmd == RESET) {
+        //  GO is handled in the EmuModuleFactory, not here.
+        // END is handled in the EmuModuleFactory and we close all transport objects here.
+        else if (emuCmd == END) {
             for (DataTransport t : transports) {
-                logger.debug("  DataTransportFactory.execute RESET : " + t.name() + " close");
-                // close the whole transport object as it will disappear
+                logger.debug("  DataTransportFactory.execute : close " + t.name());
                 t.close();
             }
+
+            // clear Fifos (not included in "transports" vector)
+System.out.println("CLOSE FIFOs");
+            fifoTransport.close();
+        }
+
+        // reset (hard close) transport objects for RESET transition
+        if (emuCmd == RESET) {
+            for (DataTransport t : transports) {
+                logger.debug("  DataTransportFactory.execute RESET : reset " + t.name());
+                t.reset();
+            }
+            // reset Fifos
+System.out.println("RESET FIFOs");
+            fifoTransport.reset();
             transports.clear();
             state = cmd.success();
         }
@@ -307,14 +315,20 @@ logger.warn("  DataTransportFactory.execute DOWN : transport section missing/inc
      * quite right. It attempts to reload classes dynamically but somehow fails in
      * loading internal classes correctly.
      *
-     * @param cmd of type Command
+     * WARNING: THIS CODE IS OUTDATED & UNUSED.
      *
-     * @throws org.jlab.coda.emu.support.control.CmdExecException
-     *          if command is invalid or fails
+     *
+     * @param cmd of type Command
+     * @param forInput <code>true</code> if the command applicable only to the
+     *                 input channels of a transport, else <code>false</code>
+     *                 if applicable to output channels. Used only for commands
+     *                 GO & END in which data flow order in EMU subcomponents
+     *                 is important.
+     * @throws CmdExecException if command is invalid or fails
      * @see org.jlab.coda.emu.EmuModule#execute(org.jlab.coda.emu.support.control.Command)
      */
     @SuppressWarnings({"ConstantConditions", "ThrowableInstanceNeverThrown"})
-    public void execute_EmuLoader(Command cmd) throws CmdExecException {
+    public void execute_EmuLoader(Command cmd, boolean forInput) throws CmdExecException {
         logger.info("DataTransportFactory.execute : " + cmd);
 
         CODACommand emuCmd = cmd.getCodaCommand();
@@ -449,7 +463,7 @@ logger.info("&*&*&* Transport loaded class = " + c);
         // Pass all commands down to all transport objects
         for (DataTransport transport : transports) {
             logger.debug("Transport : " + transport.name() + " execute " + cmd);
-            transport.execute(cmd);
+            transport.execute(cmd, forInput);
         }
 
 

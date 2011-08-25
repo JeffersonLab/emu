@@ -52,8 +52,14 @@ public class DataTransportCore {
     /** Map of attributes. */
     public final Map<String, String> attr;
 
-    /** Map of DataChannel channels. */
-    protected final HashMap<String, DataChannel> channels = new HashMap<String, DataChannel>();
+    /** Map of all DataChannel channels. */
+    protected final HashMap<String, DataChannel> allChannels = new HashMap<String, DataChannel>();
+
+    /** Map of DataChannel input channels. */
+    protected final HashMap<String, DataChannel> inChannels = new HashMap<String, DataChannel>();
+
+    /** Map of DataChannel output channels. */
+    protected final HashMap<String, DataChannel> outChannels = new HashMap<String, DataChannel>();
 
     /** How many DataTransport objects are there? */
     protected static int instanceCount;
@@ -65,22 +71,6 @@ public class DataTransportCore {
 
     protected Logger logger;
     
-
-    /**
-     * Method tester ...  NOT USED
-     *
-     * @return long
-     */
-    public native long tester();
-
-    /**
-     * Method fifo_list ... NOT USED
-     *
-     * @param arg of type long
-     *
-     * @return long
-     */
-    public static native long fifo_list(long arg);
 
     /**
      * Constructor.
@@ -186,8 +176,26 @@ public class DataTransportCore {
      *
      * @return hashmap containing the data channels (HashMap<String, DataChannel>)
      */
-    public HashMap<String, DataChannel> channels() {
-        return channels;
+    public HashMap<String, DataChannel> allChannels() {
+        return allChannels;
+    }
+
+    /**
+     * This method gets all the input DataChannel objects contained in a DataTransport object.
+     *
+     * @return hashmap containing the input data channels (HashMap<String, DataChannel>)
+     */
+    public HashMap<String, DataChannel> inChannels() {
+        return inChannels;
+    }
+
+    /**
+     * This method gets all the input DataChannel objects contained in a DataTransport object.
+     *
+     * @return hashmap containing the input data channels (HashMap<String, DataChannel>)
+     */
+    public HashMap<String, DataChannel> outChannels() {
+        return outChannels;
     }
 
     /**
@@ -221,25 +229,45 @@ public class DataTransportCore {
 
     /** Close this DataTransport object and all its channels. */
     public void close() {
-        closeChannels();
-    }
-
-    /** Close this DataTransport object's channels.  */
-    public void closeChannels() {
+System.out.println("Transport Core's close() being called");
         setConnected(false);
 
         if (logger != null) {
             logger.debug("close transport " + name());
         }
 
-        // close channels.
-        if (!channels().isEmpty()) {
-            synchronized (channels()) {
-                for (DataChannel c : channels().values()) {
+        // close channels
+        if (!allChannels().isEmpty()) {
+            //synchronized (allChannels()) {
+                for (DataChannel c : allChannels().values()) {
                     c.close();
                 }
-                channels().clear();
-            }
+                allChannels.clear();
+                outChannels.clear();
+                inChannels.clear();
+            //}
+        }
+    }
+
+    /** Close this DataTransport object's channels.  */
+    public void reset() {
+System.out.println("Transport Core's reset() being called");
+        setConnected(false);
+
+        if (logger != null) {
+            logger.debug("reset transport " + name());
+        }
+
+        // close channels
+        if (!allChannels().isEmpty()) {
+            //synchronized (allChannels()) {
+                for (DataChannel c : allChannels().values()) {
+                    c.reset();
+                }
+                allChannels.clear();
+                outChannels.clear();
+                inChannels.clear();
+            //}
         }
     }
 

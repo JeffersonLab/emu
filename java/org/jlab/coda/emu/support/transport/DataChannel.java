@@ -48,6 +48,8 @@ public interface DataChannel {
      */
     public boolean isInput();
 
+    public DataTransport getDataTransport();
+
     /**
      * Take a bank of data off the queue.
      * @return bank of data.
@@ -61,8 +63,19 @@ public interface DataChannel {
      */
     public void send(EvioBank data);
 
-    /** Close this data channel. */
+    /**
+     * Close this data channel gracefully, waiting if necessary.
+     * For an "END" transition, any data sending or receiving
+     * threads will wait for an "END"  event to come through before
+     * closing.
+     */
     public void close();
+
+    /**
+     * Close this data channel immediately, interrupting all threads.
+     * Called during "RESET" transition.
+     */
+    public void reset();
 
     /**
      * Get the queue of this data channel which contains

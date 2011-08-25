@@ -21,7 +21,7 @@ public class DataTransportImplFile extends DataTransportCore implements DataTran
     }
 
     /** {@inheritDoc} */
-    public void execute(Command cmd) {
+    public void execute(Command cmd, boolean forInput) {
         // Dummy - nothing to see here folks, move along.
     }
 
@@ -31,9 +31,14 @@ public class DataTransportImplFile extends DataTransportCore implements DataTran
             throws DataTransportException {
         System.out.println("create channel " + name);
         DataChannel c = new DataChannelImplFile(name() + ":" + name, this, isInput, emu);
-        channels().put(c.getName(), c);
+        if (isInput) {
+            inChannels().put(c.getName(), c);
+        }
+        else {
+            outChannels().put(c.getName(), c);
+        }
+        allChannels().put(c.getName(), c);
         System.out.println("put channel " + c.getName());
-        System.out.println("channels " + channels() + " " + this);
         return c;
     }
 

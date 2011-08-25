@@ -23,6 +23,7 @@ import org.jlab.coda.emu.support.codaComponent.CODAState;
 import static org.jlab.coda.emu.support.codaComponent.CODACommand.*;
 import org.jlab.coda.emu.support.logger.Logger;
 
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Collection;
 import java.util.Arrays;
@@ -306,38 +307,57 @@ public class DataTransportImplEt extends DataTransportCore implements DataTransp
     }
 
 
-    /** Close this DataTransport object and all its channels. */
-    public void close() {
-        closeChannels();
+    /**
+     * Close this DataTransport object.
+     * This method does nothing as closing channels is handled
+     * in {@link #execute(org.jlab.coda.emu.support.control.Command, boolean)}
+     * and we don't shutdown the ET system for an
+     * "END" command (which calls this close() eventually).
+     */
+    public void close() {}
 
+
+    /**
+     * Reset or hard close this DataTransport object.
+     * The resetting of channels is done in
+     * {@link #execute(org.jlab.coda.emu.support.control.Command, boolean)}.
+     * All this method does is remove any created ET system.
+     */
+    public void reset() {
         // kill any ET system this object started
         if (processET != null && createdET) {
-//System.out.println("Tell the ET system process to die - " + openConfig.getEtName());
+System.out.println("Tell the ET system process to die - " + openConfig.getEtName());
             processET.destroy();
             try {
-//System.out.print("     wait for the ET system process to die ... ");
+System.out.print("     wait for the ET system process to die ... ");
                 processET.waitFor();
-//System.out.println("is dead");
+System.out.println("is dead");
             }
             catch (InterruptedException e) { }
             // remove the ET system file
             File etFile = new File(openConfig.getEtName());
-            boolean deleted = etFile.delete();
-            System.out.println("     and removed the file (" + deleted + ")");
+            etFile.delete();
         }
     }
-
 
     public DataChannel createChannel(String name, Map<String,String> attributeMap,
                                      boolean isInput, Emu emu) throws DataTransportException {
         DataChannel c = new DataChannelImplEt(name, this, attributeMap, isInput, emu);
-        channels().put(name, c);
-//System.out.println("Created channel " + name + ", channels size = " + channels().size());
+
+        allChannels().put(name, c);
+        if (isInput) {
+            inChannels().put(name, c);
+        }
+        else {
+            outChannels().put(name, c);
+        }
+
         return c;
     }
 
-    public void execute(Command cmd) {
-logger.debug("    DataTransportImplEt.execute : " + cmd);
+
+    public void execute(Command cmd, boolean forInput) {
+logger.debug("    DataTransportImplEt.execute : " + cmd.name());
         CODACommand emuCmd = cmd.getCodaCommand();
 
         if (emuCmd == DOWNLOAD) {
@@ -447,41 +467,94 @@ System.out.println("Create ET system, " + openConfig.getEtName() + " with cmd \n
             }
         }
         else if (emuCmd == PRESTART) {
+            // channels created by EmuModuleFactory in PRESTART
+            state = cmd.success();
+            return;
+        }
+        else if (emuCmd == GO) {
+            HashMap<String, DataChannel> channels;
+            if (forInput) {
+                channels = inChannels;
+            }
+            else {
+                channels = outChannels;
+            }
 
-            try {
-                logger.debug("    DataTransportImplEt.execute PRESTART: ET open : " + name() + " " + myInstance);
+            if (!channels.isEmpty()) {
+                //synchronized (channels) {
+                    for (DataChannel c : channels.values()) {
+                        ((DataChannelImplEt)c).resumeHelper();
+                    }
+                //}
+            }
+        }
+        else if (emuCmd == PAUSE) {
+            // The timing of pausing the input & output channels
+            // is not so critical.
+            if (!inChannels.isEmpty()) {
+                //synchronized (inChannels) {
+                    for (DataChannel c : inChannels.values()) {
+                        ((DataChannelImplEt)c).pauseHelper();
+                    }
+                //}
+            }
+            if (!outChannels.isEmpty()) {
+                //synchronized (outChannels) {
+                    for (DataChannel c : outChannels.values()) {
+                        ((DataChannelImplEt)c).pauseHelper();
+                    }
+                //}
+            }
+        }
+        else if (emuCmd == END) {
+            setConnected(false);
 
-            } catch (Exception e) {
-                emu.getCauses().add(e);
-                state = CODAState.ERROR;
-                return;
+            if (logger != null) {
+                logger.debug("close transport " + name());
+            }
+
+            HashMap<String, DataChannel> channels;
+            if (forInput) {
+                channels = inChannels;
+            }
+            else {
+                channels = outChannels;
+            }
+
+            // close channels
+            if (!channels.isEmpty()) {
+                //synchronized (channels) {
+                    for (DataChannel c : channels.values()) {
+                        c.close();
+                        allChannels.remove(c.getName());
+                    }
+                    channels.clear();
+                //}
             }
 
             state = cmd.success();
             return;
         }
-        else if (emuCmd == GO) {
-            if (!channels().isEmpty()) {
-                synchronized (channels()) {
-                    for (DataChannel c : channels().values()) {
-                        ((DataChannelImplEt)c).resumeHelper();
-                    }
-                }
-            }
-        }
-        else if (emuCmd == PAUSE) {
-            // have input channels stop reading events
+        else if (emuCmd == RESET) {
+            setConnected(false);
 
-            if (!channels().isEmpty()) {
-                synchronized (channels()) {
-                    for (DataChannel c : channels().values()) {
-                        ((DataChannelImplEt)c).pauseHelper();
-                    }
-                }
+            if (logger != null) {
+                logger.debug("reset transport " + name());
             }
-        }
-        else if ((emuCmd == END) || (emuCmd == RESET)) {
-            // TransportFactory already calls close on each channel for these transitions
+
+            // reset channels
+            if (!allChannels.isEmpty()) {
+                //synchronized (allChannels) {
+                    for (DataChannel c : allChannels.values()) {
+                        c.reset();
+                    }
+                // all transport objects are closed and removed so don't bother clearing maps
+                    //allChannels.clear();
+                    //inChannels.clear();
+                    //outChannels.clear();
+                //}
+            }
+
             state = cmd.success();
             return;
         }
