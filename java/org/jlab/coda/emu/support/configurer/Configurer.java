@@ -287,7 +287,7 @@ public class Configurer implements DOMErrorHandler, LSParserFilter {
     }
 
     /**
-     * Method to set the value of the DataNode object assocated with the
+     * Method to set the value of the DataNode object associated with the
      * Node object given by the path argument. Does nothing if there is no
      * DataNode object at the given path.
      *
@@ -304,7 +304,7 @@ public class Configurer implements DOMErrorHandler, LSParserFilter {
 
     /**
      * Method to add an attribute (name/value pair) DataNode object
-     * to or replace one with the same name assocated with the
+     * to or replace one with the same name associated with the
      * Node object given by the path argument. Does nothing if
      * there is no Node object at the given path.<p>
      * Not Used.
