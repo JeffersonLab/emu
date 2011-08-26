@@ -1276,7 +1276,7 @@ if (debug) System.out.println("endBuildThreads: ending build thread but have no 
             // Allocate some arrays based on # of output channels
             waitingLists = null;
             if (outputChannelCount > 0) {
-                locks        = new Object[outputChannelCount];
+                locks = new Object[outputChannelCount];
                 for (int i=0; i < outputChannelCount; i++) {
                     locks[i] = new Object();
                 }
@@ -1323,23 +1323,18 @@ if (debug) System.out.println("endBuildThreads: ending build thread but have no 
 
         // Currently NOT used
         else if (emuCmd == PAUSE) {
-            System.out.println("EB: GOT PAUSE, DO NOTHING");
             paused = true;
         }
 
         else if (emuCmd == GO) {
-            if (state == CODAState.ACTIVE) {
-                System.out.println("WE musta hit go after PAUSE");
-            }
-
             state = CODAState.ACTIVE;
 
-            // start up all threads
+            // Start up all threads
             if (watcher == null) {
                 watcher = new Thread(emu.getThreadGroup(), new Watcher(), name+":watcher");
             }
+
             if (watcher.getState() == Thread.State.NEW) {
-                System.out.println("starting watcher thread");
                 watcher.start();
             }
 
@@ -1349,14 +1344,9 @@ if (debug) System.out.println("endBuildThreads: ending build thread but have no 
                     buildingThreadList.add(thd1);
                 }
             }
-            else {
-                System.out.println("EB: building thread Q is not empty, size = " + buildingThreadList.size());
-            }
-            int j=0;
+
             for (BuildingThread thd : buildingThreadList) {
-                System.out.println("EB: building thread " + thd.getName() + " isAlive = " + thd.isAlive());
                 if (thd.getState() == Thread.State.NEW) {
-                    System.out.println("Start building thread " + (++j));
                     thd.start();
                 }
             }
@@ -1372,7 +1362,6 @@ if (debug) System.out.println("endBuildThreads: ending build thread but have no 
             }
             for (int i=0; i < payloadBankQueues.size(); i++) {
                 if (qFillers[i].getState() == Thread.State.NEW) {
-                    System.out.println("Start qfiller thread " + i);
                     qFillers[i].start();
                 }
             }
@@ -1390,10 +1379,6 @@ if (debug) System.out.println("endBuildThreads: ending build thread but have no 
         }
 
         state = cmd.success();
-    }
-
-    protected void finalize() throws Throwable {
-        super.finalize();
     }
 
     /** {@inheritDoc} */
