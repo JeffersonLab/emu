@@ -331,6 +331,7 @@ public class EventBuilding2 implements EmuModule {
          * ACTIVE or PAUSED state. It is exited on end of run or reset.
          * It is started by the GO transition.
          */
+        @Override
         public void run() {
 
             // variables for instantaneous stats
@@ -389,6 +390,7 @@ public class EventBuilding2 implements EmuModule {
             this.payloadBankQ = payloadBankQ;
         }
 
+        @Override
         public void run() {
             EvioBank channelBank;
 
@@ -552,6 +554,7 @@ if (debug && printQSizes) {
             super();
         }
 
+        @Override
         public void run() {
 
             boolean runChecks = true;
@@ -800,7 +803,7 @@ if (debug) System.out.println("Have CONTROL event");
                         if (buildingBanks[0].getType().isEnd()) {
 if (debug) System.out.println("Found END event in build thread");
                             haveEndEvent = true;
-                            endBuildThreads(this, true);
+                            endBuildAndQFillerThreads(this, true);
                             return;
                         }
 
@@ -912,23 +915,7 @@ if (debug && nonFatalError) System.out.println("\nERROR 4\n");
                     physicsEvent.setEventCount(totalNumberEvents);
                     physicsEvent.setFirstEventNumber(firstEventNumber);
 
-//                    try {
-//                        StringWriter sw2 = new StringWriter(1000);
-//                        XMLStreamWriter xmlWriter = XMLOutputFactory.newInstance().createXMLStreamWriter(sw2);
-//                        physicsEvent.toXML(xmlWriter);
-//                        System.out.println("\nphysics event:\n" + sw2.toString());
-//
-//                    }
-//                    catch (XMLStreamException e) {
-//                        e.printStackTrace();
-//                    }
-//                    ByteBuffer bbuf = ByteBuffer.allocate(2048);
-//                    physicsEvent.write(bbuf);
-//                    bbuf.flip();
-//                    for (int j=0; j<bbuf.asIntBuffer().limit(); j++) {
-//                        System.out.println(bbuf.asIntBuffer().get(j));
-//                    }
-//                    System.out.println("\n\n\n");
+//                    printEvent(physicsEvent);
 
                     // Stick it on the local output Q (for this building thread).
                     // That way we don't waste time trying to coordinate between
@@ -957,6 +944,27 @@ if (debug) System.out.println("Building thread is ending !!!");
         }
 
     }
+
+
+//    private void printEvent(PayloadBank bank) {
+//        try {
+//            StringWriter sw2 = new StringWriter(1000);
+//            XMLStreamWriter xmlWriter = XMLOutputFactory.newInstance().createXMLStreamWriter(sw2);
+//            bank.toXML(xmlWriter);
+//            System.out.println("\nevent:\n" + sw2.toString());
+//
+//        }
+//        catch (XMLStreamException e) {
+//            e.printStackTrace();
+//        }
+//        ByteBuffer bbuf = ByteBuffer.allocate(2048);
+//        bank.write(bbuf);
+//        bbuf.flip();
+//        for (int j = 0; j < bbuf.asIntBuffer().limit(); j++) {
+//            System.out.println(bbuf.asIntBuffer().get(j));
+//        }
+//        System.out.println("\n\n\n");
+//    }
 
 
     /**
@@ -1085,45 +1093,63 @@ if (debug) System.out.println("gotValidControlEvents: found control event of typ
 
 
     /**
-     * End all build threads because an END event came through one of them.
-     * The build thread calling this method is not interrupted.
+     * End all build and QFiller threads because an END event came through
+     * one of them. The build thread calling this method is not interrupted.
      *
      * @param thisThread the build thread calling this method; if null,
-     *                   all build threads are interrupted
+     *                   all build & QFiller threads are interrupted
      * @param wait if <code>true</code> check if END event has arrived and
-     *             if the Qs are empty, if not, wait up to 1/2 second.
+     *             if all the Qs are empty, if not, wait up to 1/2 second.
      */
-    private void endBuildThreads(BuildingThread thisThread, boolean wait) {
+    private void endBuildAndQFillerThreads(BuildingThread thisThread, boolean wait) {
 
-        for (Thread thd : buildingThreadList) {
-            if (thisThread != null && thisThread == thd) continue;
+        if (wait) {
+            // Look to see if anything still on the payload bank or input channel Qs
+            int roundsLeft = 5;
+            boolean haveUnprocessedEvents = false;
 
-            if (wait) {
-                // Look to see if anything still on the Qs
-                int iter = 5, unprocessedEvents = 0;
-
-                for (int i=0; i < payloadBankQueues.size(); i++) {
-                    unprocessedEvents += payloadBankQueues.get(i).size();
-                }
-
-                // Wait up to 1/2 sec for events to be processed & END to arrive, then proceed
-                while ((unprocessedEvents > 0 || !haveEndEvent) && (iter-- > 0)) {
-                    try {Thread.sleep(100);}
-                    catch (InterruptedException e) {}
-
-                    unprocessedEvents = 0;
-                    for (int i=0; i < payloadBankQueues.size(); i++) {
-                        unprocessedEvents += payloadBankQueues.get(i).size();
-                    }
-                }
-
-                if (unprocessedEvents > 0 || !haveEndEvent) {
-if (debug) System.out.println("endBuildThreads: ending build thread but have no END event or Q not empty !!!");
-                    state = CODAState.ERROR;
+            for (int i=0; i < payloadBankQueues.size(); i++) {
+                // Strictly speaking the input channel Q holds events with
+                // multiple payload banks, but that doesn't matter here.
+                if (payloadBankQueues.get(i).size() +
+                        inputChannels.get(i).getQueue().size() > 0) {
+                    haveUnprocessedEvents = true;
+                    break;
                 }
             }
 
+            // Wait up to 1/2 sec for events to be processed & END to arrive, then proceed
+            while ((haveUnprocessedEvents || !haveEndEvent) && (roundsLeft-- > 0)) {
+                try {Thread.sleep(100);}
+                catch (InterruptedException e) {}
+
+                haveUnprocessedEvents = false;
+                for (int i=0; i < payloadBankQueues.size(); i++) {
+                    if (payloadBankQueues.get(i).size() +
+                            inputChannels.get(i).getQueue().size() > 0) {
+                        haveUnprocessedEvents = true;
+                        break;
+                    }
+                }
+            }
+
+            if (haveUnprocessedEvents || !haveEndEvent) {
+                if (debug) System.out.println("endBuildThreads: will end building/filling threads but no END event or Qs not empty !!!");
+                state = CODAState.ERROR;
+            }
+        }
+
+        // Interrupt all Building threads except the one calling this method
+        for (Thread thd : buildingThreadList) {
+            if (thd == thisThread) continue;
             thd.interrupt();
+        }
+
+        // Interrupt all QFiller threads too
+        if (qFillers != null) {
+            for (Thread qf : qFillers) {
+                qf.interrupt();
+            }
         }
     }
 
@@ -1142,9 +1168,8 @@ if (debug) System.out.println("endBuildThreads: ending build thread but have no 
     }
 
     /**
-     * Method getError returns the error of this EventBuilding2 object.
-     *
-     * @return the error (type Throwable) of this EventBuilding2 object.
+     * This method returns the error of this EventBuilding2 object.
+     * @return error (type Throwable) of this EventBuilding2 object.
      */
     public Throwable getError() {
         return lastError;
@@ -1163,14 +1188,9 @@ if (debug) System.out.println("endBuildThreads: ending build thread but have no 
             // Rocs should already have been shutdown, followed by the input transports,
             // followed by this module (followed by the output transports).
             if (watcher  != null) watcher.interrupt();
-            if (qFillers != null) {
-                for (Thread qf : qFillers) {
-                    qf.interrupt();
-                }
-            }
 
-            // Build threads should be ended by END event
-            endBuildThreads(null, true);
+            // Build & QFiller threads should already be ended by END event
+            endBuildAndQFillerThreads(null, true);
 
             watcher    = null;
             qFillers   = null;
@@ -1197,13 +1217,9 @@ if (debug) System.out.println("endBuildThreads: ending build thread but have no 
             eventCountTotal = wordCountTotal = 0L;
 
             if (watcher  != null) watcher.interrupt();
-            if (qFillers != null) {
-                for (Thread qf : qFillers) {
-                    qf.interrupt();
-                }
-            }
 
-            endBuildThreads(null, false);
+            // Build & QFiller threads should already be ended by END event
+            endBuildAndQFillerThreads(null, true);
 
             watcher    = null;
             qFillers   = null;
@@ -1229,7 +1245,6 @@ if (debug) System.out.println("endBuildThreads: ending build thread but have no 
             for (int i=0; i < inputChannels.size(); i++) {
                 for (int j=i+1; j < inputChannels.size(); j++) {
                     if (inputChannels.get(i).getID() == inputChannels.get(j).getID()) {
-                        // TODO: forget this exception ??
                         emu.getCauses().add(new EmuException("input channels duplicate rocIDs"));
                         state = CODAState.ERROR;
                         return;
