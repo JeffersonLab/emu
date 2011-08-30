@@ -162,7 +162,6 @@ public class EmuModuleFactory implements StatedObject {
                 if (srcAttr != null) src = srcAttr.getNodeValue();
 
                 // Change file name into full path by looking in dir $INSTALL_DIR/lib/
-                // TODO: should only have to get INSTALL_DIR once !!!  Look into this.
                 src = System.getenv("INSTALL_DIR") + "/lib/" + src;
 
                 // If NO user source, look only in standard location for standard modules
@@ -199,7 +198,7 @@ public class EmuModuleFactory implements StatedObject {
                 // That is irrelevant since we now use a custom classLoader (see ModuleClassLoader)
                 // and use a new one each time.
                 //
-                // I, timmer, have discovered that the following (commented out) method
+                // I, timmer, have discovered that the following (commented out) means
                 // to reload a class never worked. It worked by accident because the of
                 // the way the Emu was run:
                 //       java -jar emu.jar
@@ -214,11 +213,10 @@ public class EmuModuleFactory implements StatedObject {
                 // not reload them. Hope that makes sense.
                 //
                 //------------------------------------------------------------------------------
-//                System.gc();
-//                System.gc();
-//                System.runFinalization();
+                //                System.gc();
+                //                System.gc();
+                //                System.runFinalization();
 
-                // Create the transport objects & channels before the modules  // TODO: WHY?
                 transportFactory.execute(cmd, false);
 
                 Node n = modulesConfig.getFirstChild();
@@ -447,7 +445,7 @@ System.out.println("Execute GO thru transport " + trans.name());
                 }
             }
 
-            // TODO: do we need to send this to the TransportFactory ??
+            // Currently TransportFactory does nothing with GO
         }
 
         // Other commands (PAUSE, RESET) are passed down to transport
