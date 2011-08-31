@@ -14,7 +14,6 @@ package modules;
 import org.jlab.coda.emu.Emu;
 import org.jlab.coda.emu.EmuException;
 import org.jlab.coda.emu.EmuModule;
-import org.jlab.coda.emu.support.codaComponent.CODAClass;
 import org.jlab.coda.emu.support.codaComponent.CODACommand;
 import org.jlab.coda.emu.support.codaComponent.CODAState;
 import org.jlab.coda.emu.support.configurer.Configurer;
@@ -92,8 +91,6 @@ import static org.jlab.coda.emu.support.codaComponent.CODACommand.*;
  * Finally, the Building threads place any User events in the first output
  * channel. Control & User events are not part of the round-robin output to each channel in turn.
  * If no output channels are defined in the config file, this module discards all events.
- *
- * TODO: ET buffers have the number of events in them which varies from ROC to ROC.
  */
 public class EventBuilding2 implements EmuModule {
 
@@ -194,6 +191,15 @@ public class EventBuilding2 implements EmuModule {
     /** If <code>true</code>, then print sizes of various queues for debugging. */
     private boolean printQSizes;
 
+    /**
+     * If <code>true</code>, then each event building thread can put its built event
+     * onto a waiting list if it is not next in line for the Q. That allows it
+     * to continue building events instead of waiting for another thread to
+     * build the event that is next in line.
+     */
+    private boolean useOutputWaitingList = true;
+
+    /** If <code>true</code>, get debug print out. */
     private boolean debug = true;
 
     /** Comparator which tells priority queue how to sort elements. */
@@ -279,9 +285,6 @@ public class EventBuilding2 implements EmuModule {
             buildingThreadCount = Integer.parseInt(attributeMap.get("threads"));
         }
         catch (NumberFormatException e) { /* default to 0 */ }
-
-        // the module sets the type of CODA class it is.
-        emu.setCodaClass(CODAClass.CDEB);
     }
 
 
@@ -435,7 +438,8 @@ if (debug) System.out.println("Qfiller: got empty Data Transport Record or recor
     /**
      * This method is called by a build thread and is used to wrap a built
      * event in a Data Transport Record and place that onto the queue of an
-     * output channel.
+     * output channel. If the event is not in next in line for the Q, it will
+     * be put in a waiting list.
      *
      * @param bankOut the built event to wrap in a DTR and place on output channel queue
      * @param builder object used to build evio event
@@ -481,46 +485,59 @@ if (debug) System.out.println("Qfiller: got empty Data Transport Record or recor
         } catch (EvioException e) {/* never happen */}
 
         synchronized (eo.lock) {
-            // Is the bank we grabbed next to be output?
-            // If not, put in waiting list and return.
-            if (eo.inputOrder != outputOrders[eo.index]) {
-                dtrEvent.setAttachment(eo);
-                waitingLists[eo.index].add(dtrEvent);
-
-                // If the waiting list gets too big, just wait here
-                if (waitingLists[eo.index].size() > 9) {
+            if (!useOutputWaitingList) {
+                // Is the bank we grabbed next to be output? If not, wait.
+                while (eo.inputOrder != outputOrders[eo.index]) {
                     eo.lock.wait();
                 }
+                // Place Data Transport Record on output channel
+                eo.outputChannel.getQueue().put(dtrEvent);
+                outputOrders[eo.index] = ++outputOrders[eo.index] % Integer.MAX_VALUE;
+                eo.lock.notifyAll();
+            }
+            // else if we're using waiting lists
+            else {
+                // Is the bank we grabbed next to be output?
+                // If not, put in waiting list and return.
+                if (eo.inputOrder != outputOrders[eo.index]) {
+                    dtrEvent.setAttachment(eo);
+                    waitingLists[eo.index].add(dtrEvent);
+
+                    // If the waiting list gets too big, just wait here
+                    if (waitingLists[eo.index].size() > 9) {
+                        eo.lock.wait();
+                    }
 //if (debug) System.out.println("out of order = " + eo.inputOrder);
 //if (debug) System.out.println("waiting list = ");
 //                    for (EvioBank bk : waitingLists[eo.index]) {
 //                        if (debug) System.out.println("" + ((EventOrder)bk.getAttachment()).inputOrder);
 //                    }
-                return;
-            }
+                    return;
+                }
 
-            // Place Data Transport Record on output channel
-            eo.outputChannel.getQueue().put(dtrEvent);
-            outputOrders[eo.index] = ++outputOrders[eo.index] % Integer.MAX_VALUE;
+                // Place Data Transport Record on output channel
+                eo.outputChannel.getQueue().put(dtrEvent);
+                outputOrders[eo.index] = ++outputOrders[eo.index] % Integer.MAX_VALUE;
 //if (debug) System.out.println("placing = " + eo.inputOrder);
 
-            // Take a look on the waiting list without removing ...
-            bank = waitingLists[eo.index].peek();
-            while (bank != null) {
-                evOrder = (EventOrder) bank.getAttachment();
-                if (evOrder.inputOrder == outputOrders[eo.index]) {
-                    // Remove from waiting list permanently
-                    bank = waitingLists[eo.index].take();
-                    eo.outputChannel.getQueue().put(bank);
-                    outputOrders[eo.index] = ++outputOrders[eo.index] % Integer.MAX_VALUE;
-//if (debug) System.out.println("placing = " + evOrder.inputOrder);
-                }
-                else {
-                    break;
-                }
+                // Take a look on the waiting list without removing ...
                 bank = waitingLists[eo.index].peek();
+                while (bank != null) {
+                    evOrder = (EventOrder) bank.getAttachment();
+                    if (evOrder.inputOrder == outputOrders[eo.index]) {
+                        // Remove from waiting list permanently
+                        bank = waitingLists[eo.index].take();
+                        eo.outputChannel.getQueue().put(bank);
+                        outputOrders[eo.index] = ++outputOrders[eo.index] % Integer.MAX_VALUE;
+//if (debug) System.out.println("placing = " + evOrder.inputOrder);
+                    }
+                    else {
+                        break;
+                    }
+                    bank = waitingLists[eo.index].peek();
+                }
+                eo.lock.notifyAll();
             }
-            eo.lock.notifyAll();
         }
 
 if (debug && printQSizes) {
@@ -729,8 +746,6 @@ if (debug) System.out.println("BuildingThread: Got user event");
                         getLock.unlock();
                     }
 
-//if (debug) System.out.println("BuildingThread: input order = " + myInputOrder);
-//if (debug) System.out.println("BuildingThread: got something from each input");
 
                     // store all channel & order info here
                     EventOrder evOrder = new EventOrder();
@@ -790,10 +805,10 @@ if (debug) System.out.println("Have CONTROL event");
                             buildingBanks[0].setAttachment(controlEventOrders[0]);
                             bankToOutputChannel(buildingBanks[0], builder);
                             for (int j=1; j < outputChannelCount; j++) {
-                                // copy first control event
+                                // Copy first control event
                                 PayloadBank bb = new PayloadBank(buildingBanks[0]);
                                 bb.setAttachment(controlEventOrders[j]);
-                                // write to other output Q's
+                                // Write to other output Q's
                                 bankToOutputChannel(bb, builder);
                             }
                         }
