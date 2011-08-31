@@ -92,7 +92,7 @@ import static org.jlab.coda.emu.support.codaComponent.CODACommand.*;
  * channel. Control & User events are not part of the round-robin output to each channel in turn.
  * If no output channels are defined in the config file, this module discards all events.
  */
-public class EventBuilding2 implements EmuModule {
+public class EventBuilding implements EmuModule {
 
 
     /** Name of this event builder. */
@@ -262,12 +262,12 @@ public class EventBuilding2 implements EmuModule {
 
 
     /**
-     * Constructor creates a new EventBuilding2 instance.
+     * Constructor creates a new EventBuilding instance.
      *
      * @param name name of module
      * @param attributeMap map containing attributes of module
      */
-    public EventBuilding2(String name, Map<String, String> attributeMap, Emu emu) {
+    public EventBuilding(String name, Map<String, String> attributeMap, Emu emu) {
         this.emu = emu;
         this.name = name;
         this.attributeMap = attributeMap;
@@ -370,7 +370,7 @@ public class EventBuilding2 implements EmuModule {
                     }
 
                 } catch (InterruptedException e) {
-                    logger.info("EventBuilding2 thread " + name() + " interrupted");
+                    logger.info("EventBuilding thread " + name() + " interrupted");
                 }
             }
         }
@@ -1183,8 +1183,8 @@ if (debug) System.out.println("gotValidControlEvents: found control event of typ
     }
 
     /**
-     * This method returns the error of this EventBuilding2 object.
-     * @return error (type Throwable) of this EventBuilding2 object.
+     * This method returns the error of this EventBuilding object.
+     * @return error (type Throwable) of this EventBuilding object.
      */
     public Throwable getError() {
         return lastError;
