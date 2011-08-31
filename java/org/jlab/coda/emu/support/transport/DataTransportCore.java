@@ -37,9 +37,6 @@ public class DataTransportCore {
     /** Is this object connected? */
     private boolean connected;
 
-    // TODO Field transports - not used
-    //private static final HashMap<String, DataTransportCore> transports = new HashMap<String, DataTransportCore>();
-
     /** Name of class extending this class. */
     private String transportClass = "unknown";
 
