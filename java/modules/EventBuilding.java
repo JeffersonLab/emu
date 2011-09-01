@@ -870,18 +870,7 @@ if (debug && nonFatalError) System.out.println("\nERROR 2\n");
 
 if (debug && nonFatalError) System.out.println("\nERROR 3\n");
                     // Print out trigger bank
-//                        if (debug) {
-//                            try {
-//                                StringWriter sw2 = new StringWriter(1000);
-//                                XMLStreamWriter xmlWriter = XMLOutputFactory.newInstance().createXMLStreamWriter(sw2);
-//                                combinedTrigger.toXML(xmlWriter);
-//                                System.out.println("\ncombined trigger bank:\n" + sw2.toString());
-//
-//                            }
-//                            catch (XMLStreamException e) {
-//                                e.printStackTrace();
-//                            }
-//                        }
+//                    printEvent(combinedTrigger, "combined trigger");
 
                     // Check timestamps if requested
                     boolean requested = false;
@@ -930,7 +919,7 @@ if (debug && nonFatalError) System.out.println("\nERROR 4\n");
                     physicsEvent.setEventCount(totalNumberEvents);
                     physicsEvent.setFirstEventNumber(firstEventNumber);
 
-//                    printEvent(physicsEvent);
+//                    printEvent(physicsEvent, "physics event");
 
                     // Stick it on the local output Q (for this building thread).
                     // That way we don't waste time trying to coordinate between
@@ -961,12 +950,12 @@ if (debug) System.out.println("Building thread is ending !!!");
     }
 
 
-//    private void printEvent(PayloadBank bank) {
+//    private void printEvent(PayloadBank bank, String label) {
 //        try {
 //            StringWriter sw2 = new StringWriter(1000);
 //            XMLStreamWriter xmlWriter = XMLOutputFactory.newInstance().createXMLStreamWriter(sw2);
 //            bank.toXML(xmlWriter);
-//            System.out.println("\nevent:\n" + sw2.toString());
+//            System.out.println("\n" + label + "\n" + sw2.toString());
 //
 //        }
 //        catch (XMLStreamException e) {
@@ -1174,6 +1163,7 @@ if (debug) System.out.println("gotValidControlEvents: found control event of typ
         return state;
     }
 
+
     /**
      * Set the state of this object.
      * @param s the state of this object
@@ -1182,6 +1172,7 @@ if (debug) System.out.println("gotValidControlEvents: found control event of typ
         state = s;
     }
 
+
     /**
      * This method returns the error of this EventBuilding object.
      * @return error (type Throwable) of this EventBuilding object.
@@ -1189,6 +1180,7 @@ if (debug) System.out.println("gotValidControlEvents: found control event of typ
     public Throwable getError() {
         return lastError;
     }
+
 
     /** {@inheritDoc} */
     public void execute(Command cmd) {
@@ -1233,8 +1225,8 @@ if (debug) System.out.println("gotValidControlEvents: found control event of typ
 
             if (watcher  != null) watcher.interrupt();
 
-            // Build & QFiller threads should already be ended by END event
-            endBuildAndQFillerThreads(null, true);
+            // Build & QFiller threads must be immediately ended
+            endBuildAndQFillerThreads(null, false);
 
             watcher    = null;
             qFillers   = null;
