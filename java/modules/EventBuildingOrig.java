@@ -34,6 +34,7 @@ import java.nio.ByteOrder;
 import java.util.*;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.ReentrantLock;
 
 /**
@@ -214,7 +215,7 @@ public class EventBuildingOrig implements EmuModule {
 
 
     /**
-     * Constructor ProcessTest creates a new EventBuilding instance.
+     * Constructor creates a new EventBuildingOrig instance.
      *
      * @param name name of module
      * @param attributeMap map containing attributes of module
@@ -321,7 +322,7 @@ public class EventBuildingOrig implements EmuModule {
                     }
 
                 } catch (InterruptedException e) {
-                    logger.info("ProcessTest thread " + name() + " interrupted");
+                    logger.info("EventBuildingOrig watcher thread " + name() + " interrupted");
                 }
             }
         }
@@ -408,84 +409,98 @@ if (debug) System.out.println("Qfiller: got empty Data Transport Record or recor
             PayloadBank[] banks = new PayloadBank[size];
             BuildingThread[] threads = new BuildingThread[size];
 
-            try {
-                for (BuildingThread thread : buildingThreadList) {
-                    threads[index] = thread;
-                    banks[index] = thread.outputQueue.take();
-                    index++;
-                }
-            }
-            catch (InterruptedException e) {
-                return;
+            for (BuildingThread thread : buildingThreadList) {
+                threads[index] = thread;
+                banks[index++] = null;
             }
 
-            index = 0;
+            int counter = 1;
 
             while (state == CODAState.ACTIVE || paused) {
 
                 try {
-                    if (!hasOutputs) {
-                        // Just keep stats and pull stuff off & discard if no outputs.
-                        eventType = banks[index].getType();
-                        if (eventType.isPhysics()) {
-                            eventCountTotal += banks[index].getEventCount();              // event count
-                            wordCountTotal  += banks[index].getHeader().getLength() + 1;  //  word count
-                            lastEventNumberBuilt = banks[index].getFirstEventNumber() + eventCountTotal - 1;
+                    // try getting a built bank from each of the build threads
+                    for (int i=0; i < size ; i++) {
+                        if (banks[i] == null) {
+                            // don't block, just try next Q if empty
+                            banks[i] = threads[i].outputQueue.poll();
                         }
-                        banks[index] = threads[index].outputQueue.take();
-                        index = ++index % size;
-                        Thread.sleep(1);
-                        continue;
                     }
 
-
-                    // Is the bank we grabbed next to be output? If so ...
-                    if ((Integer)(banks[index].getAttachment()) == outputOrder) {
-                        // wrap event-to-be-sent in Data Transport Record for next EB or ER
-                        dtrTag = Evio.createCodaTag(EventType.PHYSICS.getValue(), ebId);
-                        dtrEvent = new PayloadBank(dtrTag, DataType.BANK, ebRecordId);
-                        builder.setEvent(dtrEvent);
-
-                        try {
-                            // add bank with full recordId
-                            bank = new EvioBank(Evio.RECORD_ID_BANK, DataType.INT32, 1);
-                            bank.appendIntData(new int[] {ebRecordId});
-                            builder.addChild(dtrEvent, bank);
-                            // add event
-                            builder.addChild(dtrEvent, banks[index]);
-                            ebRecordId++;
-                        } catch (EvioException e) {/* never happen */}
-
-                        eventType = banks[index].getType();
-                        if (eventType.isPhysics()) {
-                            outputChannels.get(outputOrderPhysics % outputChannels.size()).getQueue().put(dtrEvent);
-                            // stats
-                            eventCountTotal += banks[index].getEventCount();              // event count
-                            wordCountTotal  += banks[index].getHeader().getLength() + 1;  //  word count
-                            lastEventNumberBuilt = banks[index].getFirstEventNumber() + eventCountTotal - 1;
-                            outputOrderPhysics = ++outputOrderPhysics % Integer.MAX_VALUE;
-                        }
-                        else if (eventType.isControl()) {
-                            // Control events must go out over all output output channels
-                            // and are not part of the round-robin output.
-                            for (DataChannel outChannel : outputChannels) {
-                                // As far as I can tell, the EvioWriter write to an ET
-                                // buffer is thread safe. Guess we'll find out.
-                                outChannel.getQueue().put(dtrEvent);
+                    // see if any of the built banks are next to be output
+                    for (int i=0; i < size ; i++) {
+                        if (banks[i] == null) {
+                            // don't chew up too much CPU time
+                            if (counter++ % 5000 == 0) {
+//                                System.out.println("EBOrig: sleeeeeeeeeep in QCollector 1");
+                                Thread.sleep(40);
                             }
+                            continue;
+                        }
+
+                        if (!hasOutputs) {
+                            // Just keep stats and pull stuff off & discard if no outputs.
+                            eventType = banks[i].getType();
+                            if (eventType.isPhysics()) {
+                                eventCountTotal += banks[i].getEventCount();              // event count
+                                wordCountTotal  += banks[i].getHeader().getLength() + 1;  //  word count
+                                lastEventNumberBuilt = banks[i].getFirstEventNumber() + eventCountTotal - 1;
+                            }
+                            banks[i] = null;
+                        }
+                        // Is the bank we grabbed next to be output? If so ...
+                        else if ((Integer)(banks[i].getAttachment()) == outputOrder) {
+                            // wrap event-to-be-sent in Data Transport Record for next EB or ER
+                            eventType = banks[i].getType();
+                            dtrTag = Evio.createCodaTag(eventType.getValue(), ebId);
+                            dtrEvent = new PayloadBank(dtrTag, DataType.BANK, ebRecordId);
+                            builder.setEvent(dtrEvent);
+
+                            try {
+                                // add bank with full recordId, num = # payload banks
+                                bank = new EvioBank(Evio.RECORD_ID_BANK, DataType.INT32, 1);
+                                bank.appendIntData(new int[] {ebRecordId});
+                                builder.addChild(dtrEvent, bank);
+                                // add event
+                                builder.addChild(dtrEvent, banks[i]);
+                                ebRecordId++;
+                            } catch (EvioException e) {/* never happen */}
+
+                            if (eventType.isPhysics()) {
+                                outputChannels.get(outputOrderPhysics % outputChannels.size()).getQueue().put(dtrEvent);
+                                // stats
+                                eventCountTotal += banks[i].getEventCount();              // event count
+                                wordCountTotal  += banks[i].getHeader().getLength() + 1;  //  word count
+                                lastEventNumberBuilt = banks[i].getFirstEventNumber() + eventCountTotal - 1;
+                                outputOrderPhysics = ++outputOrderPhysics % Integer.MAX_VALUE;
+                            }
+                            else if (eventType.isControl()) {
+                                // Control events must go out over all output output channels
+                                // and are not part of the round-robin output.
+                                for (DataChannel outChannel : outputChannels) {
+                                    // As far as I can tell, the EvioWriter write to an ET
+                                    // buffer is thread safe. Guess we'll find out.
+                                    outChannel.getQueue().put(dtrEvent);
+                                }
+                            }
+                            else {
+                                // User events are not part of the round-robin output,
+                                // put on first output channel.
+                                outputChannels.get(0).getQueue().put(dtrEvent);
+                            }
+
+                            // Get another built bank from this Q
+                            banks[i] = null;
+                            outputOrder = ++outputOrder % Integer.MAX_VALUE;
+                            counter = 1;
                         }
                         else {
-                            // User events are not part of the round-robin output,
-                            // put on first output channel.
-                            outputChannels.get(0).getQueue().put(dtrEvent);
+                            // don't chew up too much CPU time
+                            if (counter++ % 5000 == 0) {
+                                Thread.sleep(40);
+                            }
                         }
-
-                        // This may block if a building thread is slow, slowing output rate
-                        banks[index] = threads[index].outputQueue.take();
-                        outputOrder = ++outputOrder % Integer.MAX_VALUE;
                     }
-
-                    index = ++index % size;
 
                 } catch (InterruptedException e) {
                     return;
@@ -746,7 +761,7 @@ if (debug && nonFatalError) System.out.println("\nERROR 4\n");
                         }
 
                         // setting header lengths done in Evio.buildPhysicsEventWith* methods
-                        //physicsEvent.setAllHeaderLengths();
+                        physicsEvent.setAllHeaderLengths();
 
                         physicsEvent.setAttachment(myInputOrder); // store its output order
                         physicsEvent.setType(EventType.PHYSICS);
@@ -1002,8 +1017,8 @@ if (debug) System.out.println("gotValidControlEvents: found control event of typ
 
 
     /**
-     * Method getError returns the error of this ProcessTest object.
-     * @return the error (type Throwable) of this ProcessTest object.
+     * Method getError returns the error of this EventBuildingOrig object.
+     * @return the error (type Throwable) of this EventBuildingOrig object.
      */
     public Throwable getError() {
         return lastError;
