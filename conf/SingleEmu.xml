@@ -47,7 +47,7 @@
         </CarlsModule>
         <!--
         <OutModule class="ProcessTest">
-            <inchannel name="F2" transp="Fifo"/>
+            <inchannel name="F1" transp="Fifo"/>
             <outchannel name="BitBucket" transp="BitBucket_SOCKET" endian="little"/>
         </OutModule>
         -->
