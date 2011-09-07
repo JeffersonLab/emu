@@ -208,10 +208,14 @@ public class EventBuilding implements EmuModule {
 
     /** Keep some data together and store as an event attachment. */
     private class EventOrder {
-        int index;
-        int inputOrder;
-        Object lock;
+        /** Output channel to use. */
         DataChannel outputChannel;
+        /** Index into arrays for this output channel. */
+        int index;
+        /** Place of event in output order of this output channel. */
+        int inputOrder;
+        /** Lock to use for output to this output channel. */
+        Object lock;
     }
 
     /**
@@ -435,6 +439,7 @@ if (debug) System.out.println("Qfiller: got empty Data Transport Record or recor
     }
 
 
+
     /**
      * This method is called by a build thread and is used to wrap a built
      * event in a Data Transport Record and place that onto the queue of an
@@ -462,13 +467,6 @@ if (debug) System.out.println("Qfiller: got empty Data Transport Record or recor
 
         // Wrap event-to-be-sent in Data Transport Record for next EB or ER
         EventType type = bankOut.getType();
-
-//            if (type == EventType.END) {
-//if (debug) System.out.println(" @@@@@@@ bankToOutputChannel: got END event");
-//            }
-//            else if (type != EventType.PHYSICS) {
-//if (debug) System.out.println(" @@@@@@@ bankToOutputChannel: got non-PHYSICS event");
-//            }
 
         int dtrTag = Evio.createCodaTag(type.getValue(), ebId);
         EvioEvent dtrEvent = new PayloadBank(dtrTag, DataType.BANK, recordId);
@@ -519,22 +517,23 @@ if (debug) System.out.println("Qfiller: got empty Data Transport Record or recor
                 eo.outputChannel.getQueue().put(dtrEvent);
                 outputOrders[eo.index] = ++outputOrders[eo.index] % Integer.MAX_VALUE;
 //if (debug) System.out.println("placing = " + eo.inputOrder);
+//                if (counter++ % 10000 == 0) {
+//                    System.out.println("DTR bytes -> " + dtrEvent.getTotalBytes());
+//                }
 
                 // Take a look on the waiting list without removing ...
                 bank = waitingLists[eo.index].peek();
                 while (bank != null) {
                     evOrder = (EventOrder) bank.getAttachment();
-                    if (evOrder.inputOrder == outputOrders[eo.index]) {
-                        // Remove from waiting list permanently
-                        bank = waitingLists[eo.index].take();
-                        eo.outputChannel.getQueue().put(bank);
-                        outputOrders[eo.index] = ++outputOrders[eo.index] % Integer.MAX_VALUE;
-//if (debug) System.out.println("placing = " + evOrder.inputOrder);
-                    }
-                    else {
+                    if (evOrder.inputOrder != outputOrders[eo.index]) {
                         break;
                     }
+                    // Remove from waiting list permanently
+                    bank = waitingLists[eo.index].take();
+                    eo.outputChannel.getQueue().put(bank);
+                    outputOrders[eo.index] = ++outputOrders[eo.index] % Integer.MAX_VALUE;
                     bank = waitingLists[eo.index].peek();
+//if (debug) System.out.println("placing = " + evOrder.inputOrder);
                 }
                 eo.lock.notifyAll();
             }
@@ -912,7 +911,7 @@ if (debug && nonFatalError) System.out.println("\nERROR 4\n");
                     }
 
                     // setting header lengths done in Evio.buildPhysicsEventWith* methods
-                    //physicsEvent.setAllHeaderLengths();
+                    physicsEvent.setAllHeaderLengths();
 
                     physicsEvent.setAttachment(evOrder); // store its input order info
                     physicsEvent.setType(EventType.PHYSICS);
