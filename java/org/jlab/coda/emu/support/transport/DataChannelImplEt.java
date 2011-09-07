@@ -27,12 +27,11 @@ import org.jlab.coda.jevio.EvioException;
 
 
 import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.ArrayBlockingQueue;
 import java.util.Map;
 import java.util.Arrays;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
-import java.util.concurrent.Exchanger;
+import java.util.concurrent.LinkedBlockingQueue;
 
 /**
  * @author timmer
@@ -144,7 +143,7 @@ logger.info("      DataChannelImplEt.const : creating channel " + name);
         } catch (Exception e) {
             logger.info("      DataChannelImplEt.const : " +  e.getMessage() + ", default to " + capacity + " records.");
         }
-        queue = new ArrayBlockingQueue<EvioBank>(capacity);
+        queue = new LinkedBlockingQueue<EvioBank>(capacity);
 
 
         // Set id number. Use any defined in config file else use default (0)
