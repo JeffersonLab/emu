@@ -43,7 +43,7 @@ public class PayloadBank extends EvioEvent {
         super();
     }
 
-    public PayloadBank(EvioBank bank) {
+    public PayloadBank(BaseStructure bank) {
         // copy over all basic, essential components of a bank
         header    = bank.getHeader();
         rawBytes  = bank.getRawBytes();
