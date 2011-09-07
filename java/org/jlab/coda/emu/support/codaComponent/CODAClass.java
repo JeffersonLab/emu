@@ -16,30 +16,41 @@ import java.util.HashMap;
 
 /**
  * This class is an enum which lists all the possible CODA class values,
- * which are the types of CODA components such as ROC, EB, or ER.
+ * which are the types of CODA components such as ROC, EMU, or ER.
  *
  * @author timmer
  */
 public enum CODAClass {
 
-    /** Event management unit. */
-    EMU("event management unit", 0),
+    /** Trigger supervisor. */
+    TS("trigger supervisor", 1000),
 
-    /** Read controller. */
-    ROC("read out controller", 1),
+    /** Read out controller. */
+    ROC("read out controller", 900),
 
-    /** Event Builder. */
-    EB("event builder", 2),
+    /** Data concentrator (first level) type of event builder. */
+    DC("data concentrator", 800),
 
-    /** Event Builder. */
-    CDEB("event builder", 2),
+    /** Single event builder. */
+    SEB("event builder", 700),
 
-    /** Event Recorder. */
-    ER("event recorder", 3),
+    /** Parallel event builder. */
+    PEB("event builder", 600),
 
     /** Analysis application. */
-    ANA("analysis application", 4);
+    ANA("analysis application", 500),
 
+    /** Event Recorder. */
+    ER("event recorder", 400),
+
+    /** Slow control component. */
+    SLC("event recorder", 200),
+
+    /** User component. */
+    USR("event recorder", 0),
+
+    /** Event management unit. */
+    EMU("event management unit", 0);
 
     /** Description of the CODA class. */
     private final String description;
