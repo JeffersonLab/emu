@@ -170,11 +170,11 @@ public class TestCmsgROCs {
                         // send event over network
 //System.out.println("Send roc record " + startingRocID + " over network");
                         // turn event into byte array
-                        ev = Evio.createDataTransportRecord(rocNum,      eventID,
-                                                            dataBankTag, status,
-                                                            eventNumber, numEventsInPayloadBank,
-                                                            timestamp,   recordId,
-                                                            numPayloadBanks, isSingleEventMode);
+                        ev = Evio.createRocDataTransportRecord(rocNum, eventID,
+                                                               dataBankTag, status,
+                                                               eventNumber, numEventsInPayloadBank,
+                                                               timestamp, recordId,
+                                                               numPayloadBanks, isSingleEventMode);
 
                         bbuf.clear();
                         try {
