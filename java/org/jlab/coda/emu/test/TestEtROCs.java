@@ -218,11 +218,11 @@ public class TestEtROCs {
                         // turn event into byte array
                         try {
                             // turn event into byte array
-                            ev = Evio.createDataTransportRecord(rocId, triggerType,
-                                                                detectorId, status,
-                                                                (int)eventNumber, eventBlockSize,
-                                                                timestamp, rocRecordId,
-                                                                numPayloadBanks, isSingleEventMode);
+                            ev = Evio.createRocDataTransportRecord(rocId, triggerType,
+                                                                   detectorId, status,
+                                                                   (int) eventNumber, eventBlockSize,
+                                                                   timestamp, rocRecordId,
+                                                                   numPayloadBanks, isSingleEventMode);
 
                             // stats
                             numEvents = eventBlockSize * numPayloadBanks;
