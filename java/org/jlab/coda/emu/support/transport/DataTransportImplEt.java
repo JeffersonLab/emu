@@ -205,6 +205,26 @@ public class DataTransportImplEt extends DataTransportCore implements DataTransp
                 catch (NumberFormatException e) {}
             }
 
+            // size of TCP send buffer (0 means use operating system default)
+            int tcpSendBuf = 0;
+            str = attrib.get("sendBuf");
+            if (str != null) {
+                try {
+                    tcpSendBuf = Integer.parseInt(str);
+                }
+                catch (NumberFormatException e) {}
+            }
+
+            // size of TCP receive buffer (0 means use operating system default)
+            int tcpRecvBuf = 0;
+            str = attrib.get("recvBuf");
+            if (str != null) {
+                try {
+                    tcpRecvBuf = Integer.parseInt(str);
+                }
+                catch (NumberFormatException e) {}
+            }
+
             // groups of events
             int groups = 1;
             str = attrib.get("groups");
@@ -221,6 +241,8 @@ public class DataTransportImplEt extends DataTransportCore implements DataTransp
                 systemConfig.setServerPort(port);
                 systemConfig.setUdpPort(uport);
                 systemConfig.setMulticastPort(uport);
+                systemConfig.setTcpSendBufSize(tcpSendBuf);
+                systemConfig.setTcpRecvBufSize(tcpRecvBuf);
                 if (maddr != null) {
                     systemConfig.addMulticastAddr(maddr);
                 }
@@ -230,12 +252,12 @@ public class DataTransportImplEt extends DataTransportCore implements DataTransp
                     for (int i=0; i < eventNum; i++) {
                         g[i%groups]++;
                     }
-
+                    /*
                     System.out.println("GROUPS:");
                     for (int i=0 ; i < g.length; i++) {
                         System.out.println("  events in group " + i + " = " + g[i]);
                     }
-
+                    */
 
                     systemConfig.setGroups(g);
                 }
@@ -453,6 +475,18 @@ System.out.println("Incompatible ET system, " + openConfig.getEtName());
 
                     if (systemConfig.getMulticastAddrs().size() > 0) {
                         etCmd += " -a " + systemConfig.getMulticastStrings()[0];
+                    }
+
+                    if (systemConfig.getTcpRecvBufSize() > 0) {
+                        etCmd += " -rb " + systemConfig.getTcpRecvBufSize();
+                    }
+
+                    if (systemConfig.getTcpSendBufSize() > 0) {
+                        etCmd += " -sb " + systemConfig.getTcpSendBufSize();
+                    }
+
+                    if (systemConfig.isNoDelay()) {
+                        etCmd += " -nd";
                     }
 
                     try {
