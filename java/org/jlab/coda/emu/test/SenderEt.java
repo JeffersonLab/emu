@@ -3,15 +3,12 @@ package org.jlab.coda.emu.test;
 import org.jlab.coda.jevio.*;
 import org.jlab.coda.et.*;
 import org.jlab.coda.et.enums.Mode;
-import org.jlab.coda.et.exception.EtException;
-import org.jlab.coda.et.exception.EtTooManyException;
 import org.jlab.coda.emu.support.data.Evio;
 import org.jlab.coda.emu.support.data.EventType;
 import org.jlab.coda.emu.support.data.PayloadBank;
 
 import java.io.*;
 import java.nio.ByteBuffer;
-import java.nio.ByteOrder;
 import java.util.Arrays;
 import java.util.concurrent.CountDownLatch;
 
@@ -302,7 +299,7 @@ public class SenderEt {
                 latch.await();
 
                 while (true) {
-                    EtEvent[] evs = sys.newEvents(att, Mode.SLEEP, 0, chunk, 1024, rocNum);
+                    EtEvent[] evs = sys.newEvents(att, Mode.SLEEP, false, 0, chunk, 1024, rocNum);
                     if (evs.length < chunk) {
                         sys.dumpEvents(att, evs);
                         continue;
@@ -329,11 +326,11 @@ public class SenderEt {
 
                     for (int j = 0; j < chunk; j++) {
                         // turn event into byte array
-                        ev = Evio.createDataTransportRecord(rocNum, eventID,
-                                                            detectorId, status,
-                                                            eventNumber, numEventsInPayloadBank,
-                                                            timestamp, recordId, numPayloadBanks,
-                                                            false);
+                        ev = Evio.createRocDataTransportRecord(rocNum, eventID,
+                                                               detectorId, status,
+                                                               eventNumber, numEventsInPayloadBank,
+                                                               timestamp, recordId, numPayloadBanks,
+                                                               false);
                         bbuf = evs[j].getDataBuffer();
                         evs[j].setLength(bbuf.limit());
                         evs[j].setControl(control);
@@ -518,11 +515,11 @@ System.out.println("Send thread started");
 
                         for (int i = 0; i < 3; i++) {
                             // turn event into byte array
-                            ev = Evio.createDataTransportRecord(rocNum, eventID,
-                                                                detectorId, status,
-                                                                eventNumber, numEventsInPayloadBank,
-                                                                timestamp, recordId, numPayloadBanks,
-                                                                false);
+                            ev = Evio.createRocDataTransportRecord(rocNum, eventID,
+                                                                   detectorId, status,
+                                                                   eventNumber, numEventsInPayloadBank,
+                                                                   timestamp, recordId, numPayloadBanks,
+                                                                   false);
                             index = j+i;
                             bbuf = evs[index].getDataBuffer();
                             evs[index].setLength(bbuf.limit());
