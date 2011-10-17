@@ -4,6 +4,7 @@ import org.jlab.coda.jevio.*;
 import org.jlab.coda.emu.EmuException;
 import org.jlab.coda.emu.support.logger.Logger;
 
+import java.util.Arrays;
 import java.util.Date;
 import java.util.Vector;
 
@@ -270,6 +271,7 @@ public class Evio {
     public static final int TRIGGER_BANK       = 0x0F01;
     /** ID number designating a Built Trigger bank. */
     public static final int BUILT_TRIGGER_BANK = 0x0F02;
+
 
 
     /**
@@ -627,7 +629,7 @@ System.out.println("extractPayloadBanks: record ID out of sequence, got " + reco
 
         for (int i=1; i < numKids; i++) {
             try {
-                payloadBank = new PayloadBank((EvioBank) kids.get(i));
+                payloadBank = new PayloadBank(kids.get(i));
             }
             catch (ClassCastException e) {
                 // dtrBank does not contain data banks and thus is not in the proper format
@@ -647,7 +649,7 @@ System.out.println("extractPayloadBanks: record ID out of sequence, got " + reco
                 tag    = header.getTag();
 
                 if (sourceId != getCodaId(tag)) {
-System.out.println("extractPayloadBanks: DTR bank source Id conflicts with payload bank's (roc,eb,etc.) id");
+System.out.println("extractPayloadBanks: DTR bank source Id (" + sourceId + ") != payload bank's id (" + getCodaId(tag) + ")");
                     nonFatalError = true;
                 }
 
@@ -672,33 +674,34 @@ System.out.println("extractPayloadBanks: DTR bank source Id conflicts with paylo
 
 
     /**
-     * For each event, compare the timestamps from all ROCs to make sure they're within
-     * the allowed difference.
-     * 
-     * @param triggerBank combined trigger bank containing timestamps to check for consistency
-     * @return <code>true</code> if timestamps are OK, else <code>false</code>
-     */
-    public static boolean timeStampsOk(EvioBank triggerBank) {
-        // TODO: implement this
-        return true;
-    }
-
-
-    /**
      * Combine the trigger banks of all input payload banks of Physics event format (from previous
      * event builder) into a single trigger bank which will be used in the final built event.
      * Any error which occurs but allows the build to continue will be noted in the return value.
-     * Errors which stop the event building cause an exception to be thrown.
+     * Errors which stop the event building cause an exception to be thrown.<p>
+     *
+     * If timestamp checking is enabled, it will only be valid here if all physics events
+     * being currently built have come via previous event builders in which timestamp
+     * checking was enabled, else timestamp checking will be disabled. The first level of
+     * event builders check the timestamp drift of each ROC. This (2nd or higher) level of
+     * event builder checks the average timestamp for an event from one group of ROCs against
+     * another group's.<p>
      *
      * @param inputPayloadBanks array containing a bank (Physics event) from each channel's
      *                          payload bank queue that will be built into one event
      * @param builder object used to build trigger bank
      * @param ebId id of event builder calling this method
+     * @param checkTimestamps if <code>true</code>, check timestamp consistency and
+     *                        return false if inconsistent
+     * @param timestampSlop maximum number of timestamp ticks that timestamps can differ
+     *                      for a single event before the error bit is set in a bank's
+     *                      status. Only used when checkTimestamps arg is <code>true</code>
+     *
      * @return <code>true</code> if non fatal error occurred, else <code>false</code>
      * @throws EmuException for major error in event building which necessitates stopping the build
      */
     public static boolean makeTriggerBankFromPhysics(PayloadBank[] inputPayloadBanks,
-                                                     EventBuilder builder, int ebId)
+                                                     EventBuilder builder, int ebId,
+                                                     boolean checkTimestamps, int timestampSlop)
             throws EmuException {
 
         if (builder == null || inputPayloadBanks == null || inputPayloadBanks.length < 1) {
@@ -708,13 +711,13 @@ System.out.println("extractPayloadBanks: DTR bank source Id conflicts with paylo
         int index;
         int rocCount;
         int totalRocCount = 0;
-        int numPayloadBanks = inputPayloadBanks.length;
+        int numInputBanks = inputPayloadBanks.length;
         int numEvents = inputPayloadBanks[0].getHeader().getNumber();
-        EvioBank[] triggerBanks = new EvioBank[numPayloadBanks];
+        EvioBank[] triggerBanks = new EvioBank[numInputBanks];
         boolean nonFatalError = false;
 
         // In each payload bank (of banks) is a built trigger bank. Extract them all.
-        for (int i=0; i < numPayloadBanks; i++) {
+        for (int i=0; i < numInputBanks; i++) {
 
             // find the built trigger bank (should be first one)
             index = 0;
@@ -760,7 +763,7 @@ System.out.println("extractPayloadBanks: DTR bank source Id conflicts with paylo
         //
         //
         // 2) The second segment in each built trigger bank contains common data
-        //    in the format given below. This is a segment of unsigned 16 bit                    isROCRaw
+        //    in the format given below. This is a segment of unsigned 16 bit
         //    integers containing the event type of each event.
         //
         //    MSB(31)                    LSB(0)    Big Endian,  higher mem  -->
@@ -780,31 +783,92 @@ System.out.println("extractPayloadBanks: DTR bank source Id conflicts with paylo
         longCommonData  = ebSeg1.getLongData();
         shortCommonData = ebSeg2.getShortData();
 
-        for (int i=1; i < numPayloadBanks; i++) {
-            // short stuff
-            commonShort = ((EvioSegment)triggerBanks[i].getChildAt(1)).getShortData();
-            if (shortCommonData.length != commonShort.length) {
-                throw new EmuException("Trying to merge records with different numbers of events");
-            }
-            for (int j=0; j < shortCommonData.length; j++) {
-                if (shortCommonData[j] != commonShort[j]) {
-                    throw new EmuException("Trying to merge records with different event types");
+        // check to see if at least event & run #s are present
+        if (longCommonData.length < 2) {
+            throw new EmuException("Common data incomplete");
+        }
+
+        // stuff for checking timestamps
+        long   ts;
+        long[] timestampsAvg = null;
+        long[] timestampsMax = null;
+        long[] timestampsMin = null;
+        if (checkTimestamps) {
+            timestampsAvg = new long[numEvents];
+            timestampsMax = new long[numEvents];
+            timestampsMin = new long[numEvents];
+            Arrays.fill(timestampsMin, Long.MAX_VALUE);
+        }
+
+        // check consistency of common data across events
+        for (int i=0; i < numInputBanks; i++) {
+            if (i > 0) {
+                // short stuff
+                commonShort = ((EvioSegment)triggerBanks[i].getChildAt(1)).getShortData();
+                if (shortCommonData.length != commonShort.length) {
+                    throw new EmuException("Trying to merge records with different numbers of events");
+                }
+                for (int j=0; j < shortCommonData.length; j++) {
+                    if (shortCommonData[j] != commonShort[j]) {
+                        throw new EmuException("Trying to merge records with different event types");
+                    }
+                }
+
+                // long stuff
+                commonLong = ((EvioSegment)triggerBanks[i].getChildAt(0)).getLongData();
+                for (int j=0; j < 2; j++) {
+                    if (longCommonData[j] != commonLong[j]) {
+                        throw new EmuException("Trying to merge records with different event or run numbers");
+                    }
+                }
+                if (longCommonData.length != commonLong.length) {
+                    // One event has been checked for timestamp consistency
+                    // and has timestamp info and the other does NOT.
+                    // So forget about checking timestamps here.
+                    checkTimestamps = false;
+System.out.println("one event has checked timestamps, the other NOT");
                 }
             }
-
-            // long stuff
-            commonLong = ((EvioSegment)triggerBanks[i].getChildAt(0)).getLongData();
-            if (longCommonData.length != commonLong.length) {
-                throw new EmuException("Trying to merge records with different amount of common data");
+            else {
+                commonLong = longCommonData;
             }
-            for (int j=0; j < longCommonData.length; j++) {
-                if (longCommonData[j] != commonLong[j]) {
-                    throw new EmuException("Trying to merge records with different event or run numbers");
+
+            // store timestamp info
+            if (checkTimestamps) {
+                // for each event find avg, max, & min
+                for (int j=0; j < numEvents; j++) {
+                    ts = commonLong[j+2];
+                    timestampsAvg[j] += ts;
+                    timestampsMax[j]  = ts > timestampsMax[j] ? ts : timestampsMax[j];
+                    timestampsMin[j]  = ts < timestampsMin[j] ? ts : timestampsMin[j];
                 }
             }
 
             // store stuff
             inputPayloadBanks[i].setEventCount(numEvents);
+        }
+
+
+        // Now that we have all timestamp info, check them against each other.
+        // Allow a slop of TIMESTAMP_SLOP from the max to min.
+        if (checkTimestamps) {
+            for (int j=0; j < numEvents; j++) {
+                // finish calculation to find average
+                timestampsAvg[j] /= numInputBanks;
+
+                if (timestampsMax[j] - timestampsMin[j] > 0)  {
+System.out.println("Timestamps differing by " + (timestampsMax[j] - timestampsMin[j]));
+                }
+                if (timestampsMax[j] - timestampsMin[j] > timestampSlop)  {
+                    nonFatalError = true;
+System.out.println("Timestamps are NOT consistent !!!");
+                }
+            }
+
+            // put newly calculated average timestamps in trigger bank
+            ebSeg1 = new EvioSegment((SegmentHeader)ebSeg1.getHeader());
+            try { ebSeg1.appendLongData(timestampsAvg); }
+            catch (EvioException e) {/* never happen*/}
         }
 
         // Bank we are trying to build. Need to update the num which = (# rocs + 2)
@@ -842,7 +906,11 @@ System.out.println("extractPayloadBanks: DTR bank source Id conflicts with paylo
      * Combine the trigger banks of all input payload banks of ROC raw format into a single
      * trigger bank which will be used in the final built event. Any error
      * which occurs but allows the build to continue will be noted in the return value.
-     * Errors which stop the event building cause an exception to be thrown.
+     * Errors which stop the event building cause an exception to be thrown.<p>
+     *
+     * To check timestamp consistency, for each event the difference between the max and
+     * min timestamps cannot exceed the argument timestampSlop. If it does for any event,
+     * this method returns <code>true</code>.<p>
      *
      * @param inputPayloadBanks array containing a bank (ROC Raw) from each channel's
      *                          payload bank queue that will be built into one event
@@ -850,12 +918,19 @@ System.out.println("extractPayloadBanks: DTR bank source Id conflicts with paylo
      * @param ebId id of event builder calling this method
      * @param firstEventNumber event number to place in trigger bank
      * @param runNumber run number to place in trigger bank
+     * @param checkTimestamps if <code>true</code>, check timestamp consistency and
+     *                        return false if inconsistent
+     * @param timestampSlop maximum number of timestamp ticks that timestamps can differ
+     *                      for a single event before the error bit is set in a bank's
+     *                      status. Only used when checkTimestamps arg is <code>true</code>
+     *
      * @return <code>true</code> if non fatal error occurred, else <code>false</code>
      * @throws EmuException for major error in event building which necessitates stopping the build
      */
     public static boolean makeTriggerBankFromRocRaw(PayloadBank[] inputPayloadBanks,
                                                     EventBuilder builder, int ebId,
-                                                    long firstEventNumber, long runNumber)
+                                                    long firstEventNumber, long runNumber,
+                                                    boolean checkTimestamps, int timestampSlop)
             throws EmuException {
 
         if (builder == null || inputPayloadBanks == null || inputPayloadBanks.length < 1) {
@@ -863,14 +938,14 @@ System.out.println("extractPayloadBanks: DTR bank source Id conflicts with paylo
         }
 
         int index;
-        int numPayloadBanks = inputPayloadBanks.length;
+        int numROCs = inputPayloadBanks.length;
         int numEvents = inputPayloadBanks[0].getHeader().getNumber();
         EvioSegment segment;
-        EvioBank[] triggerBanks = new EvioBank[numPayloadBanks];
+        EvioBank[] triggerBanks = new EvioBank[numROCs];
         boolean nonFatalError = false;
 
         // In each payload bank (of banks) is a trigger bank. Extract them all.
-        for (int i=0; i < numPayloadBanks; i++) {
+        for (int i=0; i < numROCs; i++) {
 
             // find the trigger bank (should be first one)
             index = 0;
@@ -933,10 +1008,88 @@ System.out.println("extractPayloadBanks: DTR bank source Id conflicts with paylo
         //    __________________________________
         //
 
-        // 1)
-        long[] longData = new long[2];
-        longData[0] = firstEventNumber;
-        longData[1] = runNumber;
+        // Find the types of events from first ROC
+        short[] evData = new short[numEvents];
+        for (int i=0; i < numEvents; i++) {
+            segment   = (EvioSegment) (triggerBanks[0].getChildAt(i));
+            evData[i] = (short) (segment.getHeader().getTag());  // event type
+        }
+
+        // Check the consistency of timestamps if desired
+        long ts;
+        long[] timestampsAvg = null;
+        long[] timestampsMax = null;
+        long[] timestampsMin = null;
+        if (checkTimestamps) {
+            timestampsAvg = new long[numEvents];
+            timestampsMax = new long[numEvents];
+            timestampsMin = new long[numEvents];
+            Arrays.fill(timestampsMin, Long.MAX_VALUE);
+        }
+
+        // It is convenient at this point to check and see if for a given event,
+        // across all ROCs, the event number & event type are the same.
+        int[] triggerData;
+        int firstEvNum = (int) firstEventNumber;
+        for (int i=0; i < numEvents; i++) {
+            for (int j=0; j < numROCs; j++) {
+                segment = (EvioSegment) (triggerBanks[j].getChildAt(i));
+                // check event type consistency
+                if (evData[i] != (short) (segment.getHeader().getTag())) {
+System.out.println("makeTriggerBankFromRocRaw: event type differs across ROCs");
+                    nonFatalError = true;
+                }
+
+                // check event number consistency
+                triggerData = segment.getIntData();
+                if (firstEvNum + i != triggerData[0]) {
+System.out.println("makeTriggerBankFromRocRaw: event number differs across ROCs");
+System.out.println("                           " + (firstEvNum+i) + " != " + (triggerData[0]));
+                    nonFatalError = true;
+                }
+
+                // store all timestamp related values so consistency can be checked below
+                if (checkTimestamps) {
+                    ts = (    (0xffffL & (long)triggerData[1] << 32) |
+                          (0xffffffffL & (long)triggerData[2]));
+                    timestampsAvg[i] += ts;
+                    timestampsMax[i]  = ts > timestampsMax[i] ? ts : timestampsMax[i];
+                    timestampsMin[i]  = ts < timestampsMin[i] ? ts : timestampsMin[i];
+                }
+            }
+            if (checkTimestamps) timestampsAvg[i] /= numROCs;
+        }
+
+        // Now that we have all timestamp info, check them against each other.
+        // Allow a slop of timestampSlop from the max to min.
+        if (checkTimestamps) {
+            for (int i=0; i < numEvents; i++) {
+                if (timestampsMax[i] - timestampsMin[i] > 0)  {
+System.out.println("Timestamps differing by " + (timestampsMax[i] - timestampsMin[i]));
+                }
+                if (timestampsMax[i] - timestampsMin[i] > timestampSlop)  {
+                        nonFatalError = true;
+System.out.println("Timestamps are NOT consistent !!!");
+                }
+            }
+        }
+
+        // 1) Add segment of long data
+        long[] longData;
+        if (!checkTimestamps) {
+            longData = new long[2];
+            longData[0] = firstEventNumber;
+            longData[1] = runNumber;
+        }
+        else {
+            // put avg timestamps in if doing timestamp checking
+            longData = new long[2+numEvents];
+            longData[0] = firstEventNumber;
+            longData[1] = runNumber;
+            for (int i=0; i < numEvents; i++) {
+                longData[i+2] = timestampsAvg[i];
+            }
+        }
 
         EvioSegment ebSeg = new EvioSegment(ebId, DataType.ULONG64);
         try {
@@ -945,39 +1098,13 @@ System.out.println("extractPayloadBanks: DTR bank source Id conflicts with paylo
         }
         catch (EvioException e) { /* never happen */ }
 
-        // 2)
-        short[] evData = new short[numEvents];
-        for (int i=0; i < numEvents; i++) {
-            segment   = (EvioSegment) (triggerBanks[0].getChildAt(i));
-            evData[i] = (short) (segment.getHeader().getTag());  // event type
-        }
-
+        // 2) Add segment of event types
         ebSeg = new EvioSegment(ebId, DataType.USHORT16);
         try {
             ebSeg.appendShortData(evData);
             builder.addChild(combinedTrigger, ebSeg);
         }
         catch (EvioException e) { /* never happen */ }
-
-        // It is convenient at this point to check and see if for a given place,
-        // across all ROCs, the event number & type is the same.
-        int firstEvNum = (int) firstEventNumber;
-        for (int i=0; i < numEvents; i++) {
-//System.out.println("event type ROC1 = " + evData[2*i]);
-            for (int j=1; j < triggerBanks.length; j++) {
-                segment = (EvioSegment) (triggerBanks[j].getChildAt(i));
-//System.out.println("event type next ROC = " + ((short) (segment.getHeader().getTag())));
-                if (evData[i] != (short) (segment.getHeader().getTag())) {
-System.out.println("makeTriggerBankFromRocRaw: event type differs across ROCs");
-                    nonFatalError = true;
-                }
-                if (firstEvNum + i != segment.getIntData()[0]) {
-System.out.println("makeTriggerBankFromRocRaw: event number differs across ROCs");
-System.out.println("                           " + (firstEvNum+i) + " != " + (segment.getIntData()[0]));
-                    nonFatalError = true;
-                }
-            }
-        }
 
         // now add one segment for each ROC with ROC-specific data in it
         int intCount, dataLenFromEachSeg;
@@ -1024,7 +1151,11 @@ System.out.println("                           " + (firstEvNum+i) + " != " + (se
      * Create a trigger bank from all input payload banks of ROC raw format (which are in
      * single event mode and therefore have no trigger bank) which will be used in the final
      * built event. Any error which occurs but allows the build to continue will be noted in
-     * the return value. Errors which stop the event building cause an exception to be thrown.
+     * the return value. Errors which stop the event building cause an exception to be thrown.<p>
+     *
+     * To check timestamp consistency, the difference between the max and
+     * min timestamps cannot exceed timestampSlop. If it does,
+     * this method returns <code>true</code>.<p>
      *
      * @param inputPayloadBanks array containing a bank (ROC Raw) from each channel's
      *                          payload bank queue that will be built into one event
@@ -1032,18 +1163,26 @@ System.out.println("                           " + (firstEvNum+i) + " != " + (se
      * @param ebId id of event builder calling this method
      * @param firstEventNumber event number to place in trigger bank
      * @param runNumber run number to place in trigger bank
+     * @param checkTimestamps if <code>true</code>, check timestamp consistency and
+     *                        return false if inconsistent
+     * @param timestampSlop maximum number of timestamp ticks that timestamps can differ
+     *                      for a single event before the error bit is set in a bank's
+     *                      status. Only used when checkTimestamps arg is <code>true</code>
+     *
+     *
      * @return <code>true</code> if non fatal error occurred, else <code>false</code>
      * @throws EmuException for major error in event building which necessitates stopping the build
      */
     public static boolean makeTriggerBankFromSemRocRaw(PayloadBank[] inputPayloadBanks,
                                                        EventBuilder builder, int ebId,
-                                                       long firstEventNumber, long runNumber)
+                                                       long firstEventNumber, long runNumber,
+                                                       boolean checkTimestamps, int timestampSlop)
             throws EmuException {
 
-        int numPayloadBanks = inputPayloadBanks.length;
+        int numROCs = inputPayloadBanks.length;
         boolean nonFatalError = false;
 
-        for (int i=0; i < numPayloadBanks; i++) {
+        for (int i=0; i < numROCs; i++) {
             // check to see if all payload banks think they have 1 event
             if (inputPayloadBanks[i].getHeader().getNumber() != 1) {
                 throw new EmuException("Data blocks contain different numbers of events");
@@ -1082,10 +1221,67 @@ System.out.println("                           " + (firstEvNum+i) + " != " + (se
         //    _________________________________
         //
 
+
+        // Extract needed event type from Data Block banks (pick first in list)
+        // for checking type consistency.
+        EvioBank blockBank = (EvioBank)inputPayloadBanks[0].getChildAt(0);
+        short[] evData = new short[1];
+        evData[0] = (short) (blockBank.getHeader().getNumber());  // event type
+
+        // This method is a convenient time to check the consistency of timestamps
+        long ts, timestampsAvg = 0L, timestampsMax = 0L, timestampsMin = Long.MAX_VALUE;
+
+        // It is convenient at this point to check and see if across
+        // all ROCs, the event number, event type, & timestamp are the same.
+        // We are not checking info from additional Data Block banks
+        // if more than one from a ROC.
+        int[] data;
+        for (int j=0; j < numROCs; j++) {
+            blockBank = (EvioBank) (inputPayloadBanks[j].getChildAt(0));
+
+            // check event type consistency
+            if (evData[0] != (short) (blockBank.getHeader().getNumber())) {
+                nonFatalError = true;
+            }
+
+            // check event number consistency
+            data = blockBank.getIntData();
+            if ((int)firstEventNumber != data[0]) {
+                nonFatalError = true;
+            }
+
+            // store timestamp related values so consistency can be checked later
+            if (checkTimestamps) {
+                ts = (    (0xffffL & (long)data[1] << 32) |
+                      (0xffffffffL & (long)data[2]));
+                timestampsAvg += ts;
+                timestampsMax  = ts > timestampsMax ? ts : timestampsMax;
+                timestampsMin  = ts < timestampsMin ? ts : timestampsMin;
+            }
+        }
+
+        if (checkTimestamps) {
+            timestampsAvg /= numROCs;
+            if ((timestampsMax - timestampsMin > timestampSlop)) {
+                nonFatalError = true;
+System.out.println("Timestamps are NOT consistent !!!");
+            }
+        }
+
         // 1)
-        long[] longData = new long[2];
-        longData[0] = firstEventNumber;
-        longData[1] = runNumber;
+        long[] longData;
+        if (!checkTimestamps) {
+            longData = new long[2];
+            longData[0] = firstEventNumber;
+            longData[1] = runNumber;
+        }
+        else {
+            // put avg timestamp in if doing timestamp checking
+            longData = new long[3];
+            longData[0] = firstEventNumber;
+            longData[1] = runNumber;
+            longData[2] = timestampsAvg;
+        }
 
         EvioSegment ebSeg = new EvioSegment(ebId, DataType.ULONG64);
         try {
@@ -1095,34 +1291,13 @@ System.out.println("                           " + (firstEvNum+i) + " != " + (se
         catch (EvioException e) { /* never happen */ }
 
         // 2)
-        // In each payload bank (of banks) there is no trigger bank.
-        // Extract needed info from Data Block banks (pick first in list).
-        EvioBank blockBank = (EvioBank)inputPayloadBanks[0].getChildAt(0);
-        short[] evData = new short[1];
-        evData[0] = (short) (blockBank.getHeader().getNumber());  // event type
-
+        // Store event type in segment of shorts.
         ebSeg = new EvioSegment(ebId, DataType.USHORT16);
         try {
             ebSeg.appendShortData(evData);
             builder.addChild(combinedTrigger, ebSeg);
         }
         catch (EvioException e) { /* never happen */ }
-
-        // It is convenient at this point to check and see if
-        // across all ROCs, the event number & type are the same.
-        // We are not checking info from additional Data Block banks
-        // if more than one from a ROC.
-//System.out.println("event type ROC1 = " + evData[0]);
-        for (int j=1; j < numPayloadBanks; j++) {
-            blockBank = (EvioBank) (inputPayloadBanks[j].getChildAt(0));
-//System.out.println("event type next ROC = " + ((short) (blockBank.getHeader().getNumber())));
-            if (evData[0] != (short) (blockBank.getHeader().getNumber())) {
-                nonFatalError = true;
-            }
-            if ((int)firstEventNumber != blockBank.getIntData()[0]) {
-                nonFatalError = true;
-            }
-        }
 
         // no segments to add for each ROC since we have no ROC-specific data
 
@@ -1316,19 +1491,95 @@ System.out.println("                           " + (firstEvNum+i) + " != " + (se
         return ev;
     }
 
+
+    /**
+     * Generate a single data block bank of entangled FADC250 fake data.
+     * Try for about 150 bytes of data per event (not counting headers & trailers).
+     *
+     * @param firstEvNum    starting event number
+     * @param numEvents     number of physics events in created record
+     * @param recordId      number of ROC raw event from ROC
+     * @param numberModules number of modules read by ROC
+     * @param isSEM         in single event mode if <code>true</code>
+     * @param timestamp     48-bit timestamp used only in single event mode
+     */
+    private static int[] generateEntangledDataFADC250(int firstEvNum, int numEvents,
+                                                      int recordId, int numberModules,
+                                                      boolean isSEM, long timestamp) {
+
+        int index=0, moduleType=0, startIndex, eventNumber;
+        if (numberModules > 16) numberModules = 16;
+        int wordsPerModule = (int) (38./numberModules + .5); // round up
+
+
+        int[] data;
+        if (isSEM) {
+            numEvents = 1;
+            data = new int[3 + (2 + (1 + wordsPerModule)*numEvents)*numberModules];
+        }
+        else {
+            data = new int[1 + (2 + (1 + wordsPerModule)*numEvents)*numberModules];
+        }
+
+        int blockHdr = (1 << 31) | ((numEvents & 0xFF) << 14) |
+                       ((moduleType & 0x3) << 12) | (recordId & 0xFFF);
+        int blockTlr = (1 << 31) | (1 << 27);
+        int eventHdr = (1 << 31) | (2 << 27) | ((numEvents & 0xFF) << 22) |
+                       ((moduleType & 0x3) << 20);
+        int pulseInt = (1 << 31) | (7 << 27) | 0x7FFFF;
+
+        // First put in starting event # (32 bits)
+        data[index++] = firstEvNum;
+
+        // if single event mode, put in timestamp
+        if (isSEM) {
+            data[index++] = (int) (timestamp >>> 32 & 0xFFFF); // high 16 of 48 bits
+            data[index++] = (int)  timestamp; // low 32 bits
+        }
+
+        // Put in data module-by-module
+        for (int j=0; j < numberModules; j++) {
+
+            startIndex  = index;
+            eventNumber = firstEvNum;
+
+            // block header
+            data[index++] = blockHdr | ((j & 0x1F) << 22);
+
+            for (int k=0; k < numEvents; k++) {
+                // event header
+                data[index++] = eventHdr | ((j & 0x1F) << 22) | (eventNumber++ & 0xFFFFF);
+                // raw data (pulse integrals)
+                for (int l=0; l < wordsPerModule; l++) {
+                    data[index++] = pulseInt;
+                }
+            }
+
+            // block trailer
+            data[index] = blockTlr | ((j & 0x1F) << 22) | (index - startIndex + 1);
+            index++;
+        }
+
+        return data;
+    }
+
+
     /**
      * Create an Evio ROC Raw record event/bank in single event mode to be placed in a Data Transport record.
      *
      * @param rocID       ROC id number
      * @param detectorId  id of detector producing data in data block bank
      * @param status      4-bit status associated with data
-     * @param eventNumber starting event number
+     * @param eventNumber event number
+     * @param recordId    number of ROC raw event from ROC
+     * @param timestamp   event's timestamp
      *
      * @return created ROC Raw Record (EvioEvent object)
      * @throws EvioException
      */
     public static EvioEvent createSingleEventModeRocRecord(int rocID,  int detectorId,
-                                                           int status, int eventNumber)
+                                                           int status, int eventNumber,
+                                                           int recordId, long timestamp)
             throws EvioException {
         // single event mode means 1 event
         int numEvents = 1;
@@ -1338,10 +1589,17 @@ System.out.println("                           " + (firstEvNum+i) + " != " + (se
         EventBuilder eventBuilder = new EventBuilder(rocTag, DataType.BANK, numEvents);
         EvioEvent rocRawEvent = eventBuilder.getEvent();
 
-        // put some data into event -- 2 ints per event. First is event #.
-        int[] data = new int[2];
-        data[0] = eventNumber;
-        data[1] = 10000;
+//        // Put some data into event -- 4 ints per event.
+//        // First is event #, then timestamp, then data
+//        int[] data = new int[4];
+//        data[0] = eventNumber;
+//        data[1] = (int) (timestamp >>> 32 & 0xFFFF); // high 16 of 48 bits
+//        data[2] = (int) timestamp; // low 32 bits
+//        data[3] = 10000;
+
+        // Put some data into event (10 modules worth)
+        int []data = generateEntangledDataFADC250(eventNumber, numEvents, recordId,
+                                                  10, true, timestamp);
 
         // create a single data block bank (of ints)
         int eventType = 33;
@@ -1354,6 +1612,7 @@ System.out.println("                           " + (firstEvNum+i) + " != " + (se
     }
 
 
+//    static boolean onlyOnce = true;
     /**
      * Create an Evio ROC Raw record event/bank to be placed in a Data Transport record.
      *
@@ -1363,6 +1622,7 @@ System.out.println("                           " + (firstEvNum+i) + " != " + (se
      * @param status      4-bit status associated with data
      * @param eventNumber starting event number
      * @param numEvents   number of physics events in created record
+     * @param recordId    number of ROC raw event from ROC
      * @param timestamp   starting event's timestamp
      *
      * @return created ROC Raw Record (EvioEvent object)
@@ -1371,41 +1631,56 @@ System.out.println("                           " + (firstEvNum+i) + " != " + (se
     public static EvioEvent createRocRawRecord(int rocID,       int triggerType,
                                                int detectorId,  int status,
                                                int eventNumber, int numEvents,
-                                               int timestamp) throws EvioException {
+                                               int recordId,    long timestamp)
+            throws EvioException {
 
-        // create a ROC Raw Data Record event/bank with numEvents physics events in it
+        // Create a ROC Raw Data Record event/bank with numEvents physics events in it
         int firstEvNum = eventNumber;
         int rocTag = createCodaTag(status, rocID);
         EventBuilder eventBuilder = new EventBuilder(rocTag, DataType.BANK, numEvents);
         EvioEvent rocRawEvent = eventBuilder.getEvent();
 
-        // create the trigger bank (of segments)
+        // Create the trigger bank (of segments)
         EvioBank triggerBank = new EvioBank(TRIGGER_BANK, DataType.SEGMENT, numEvents);
         eventBuilder.addChild(rocRawEvent, triggerBank);
 
         EvioSegment segment;
         for (int i = 0; i < numEvents; i++) {
-            // each segment contains eventNumber & timestamp of corresponding event in data bank
+            // Each segment contains eventNumber & timestamp of corresponding event in data bank
             segment = new EvioSegment(triggerType, DataType.UINT32);
             eventBuilder.addChild(triggerBank, segment);
-            // generate 2 segments per event
-            int[] segmentData = new int[2];
+            // Generate 3 segments per event (no miscellaneous data)
+            int[] segmentData = new int[3];
             segmentData[0] = eventNumber++;
-            segmentData[1] = timestamp++;
+            segmentData[1] = (int) (timestamp >>> 32 & 0xFFFF); // high 16 of 48 bits
+            segmentData[2] = (int)  timestamp; // low 32 bits
+//            if (rocID == 1 && onlyOnce) {
+//                // bad timestamp for Roc1
+//                timestamp += 9;
+//                onlyOnce = false;
+//            }
+//            else {
+                timestamp += 4;
+//            }
+
             eventBuilder.appendIntData(segment, segmentData); // copies reference only
         }
 
-        // put some data into event -- 40 ints per event
-        int[] data = new int[40*numEvents+1];
-        data[0] = firstEvNum;
-        for (int i = 1; i < 40*numEvents+1; i++) {
-            data[i] = i;
-        }
+        // Create a single data block bank for 10 modules
+        int []data = generateEntangledDataFADC250(eventNumber, numEvents, recordId,
+                                                  10, false, 0L);
 
-        // create a single data bank (of ints) -- NOT SURE WHAT A DATA BANK LOOKS LIKE !!!
+//        // put some data into event -- one int per event
+//        int[] data = new int[numEvents+1];
+//        data[0] = firstEvNum;
+//        for (int i = 1; i < numEvents; i++) {
+//            data[i] = 10000 + i;
+//        }
+
         int dataTag = createCodaTag(status, detectorId);
         EvioBank dataBank = new EvioBank(dataTag, DataType.INT32, numEvents);
         eventBuilder.appendIntData(dataBank, data);
+
         eventBuilder.addChild(rocRawEvent, dataBank);
 
         return rocRawEvent;
@@ -1423,6 +1698,7 @@ System.out.println("                           " + (firstEvNum+i) + " != " + (se
      * @param numRocs     number of ROCs
      * @param status      4 bits of status of EB & ROCs
      * @param startingRocId ROC ids start at this number
+     * @param recordId      record count
      *
      * @return created ROC Raw Record (EvioEvent object)
      * @throws EvioException
@@ -1430,44 +1706,64 @@ System.out.println("                           " + (firstEvNum+i) + " != " + (se
     public static EvioEvent createPhysicsEvent(int ebID,        int eventID,
                                                int eventNumber, int numEvents,
                                                int timestamp,   int numRocs,
-                                               int status,      int startingRocId) throws EvioException {
+                                               int status,      int startingRocId,
+                                               int recordId) throws EvioException {
 
         // create a Physics event/bank with numEvents physics events in it from multiple ROCs
         int ebTag = createCodaTag(status, ebID);
-        EventBuilder eventBuilder = new EventBuilder(ebTag, DataType.BANK, 0xCC);
+        EventBuilder eventBuilder = new EventBuilder(ebTag, DataType.BANK, numEvents);
         EvioEvent physicsEvent = eventBuilder.getEvent();
 
         //--------------------------------------
         // create the trigger bank (of segments)
         //--------------------------------------
 
-        EvioBank triggerBank = new EvioBank(BUILT_TRIGGER_BANK, DataType.SEGMENT, numRocs+1);
+        EvioBank triggerBank = new EvioBank(BUILT_TRIGGER_BANK, DataType.SEGMENT, numRocs+2);
         eventBuilder.addChild(physicsEvent, triggerBank);
 
-        // first the common data segment
-        EvioSegment segment;
-        segment = new EvioSegment(ebID, DataType.USHORT16);
-        // define common data
-        int eventNum = eventNumber;
-        short[] commonData = new short[2*numEvents];
-        for (int i = 0; i < 2*numEvents; i+=2) {
-            commonData[i]   = (short)eventID;
-            commonData[i+1] = (short)eventNum++;
-        }
-        eventBuilder.appendShortData(segment, commonData); // copies reference only
-        eventBuilder.addChild(triggerBank, segment);
-
-        // now the ROC-specific segments, each with only timestamp info
-        int rocId = startingRocId;
-        // each segment contains 1 timestamp for each event in data bank
-        int[] segmentData = new int[numEvents];
+        // 1st common data segment
+        EvioSegment segment1;
+        segment1 = new EvioSegment(ebID, DataType.LONG64);
+        // define common long data
+        long ts = timestamp;
+        long runNumber = 1L;
+        long[] commonLongs = new long[2 + numEvents];
+        commonLongs[0] = eventNumber;
+        commonLongs[1] = runNumber;
         for (int i=0; i < numEvents; i++) {
-            segmentData[i] = timestamp + i;
+            commonLongs[i+2] = ts;
+            ts += 4;
+        }
+
+        // 2nd common data segment - event types
+        EvioSegment segment2;
+        segment2 = new EvioSegment(ebID, DataType.SHORT16);
+        // define common short data
+        short eventType = 1;
+        short[] commonShorts = new short[numEvents];
+        Arrays.fill(commonShorts, eventType);
+
+        eventBuilder.appendLongData(segment1, commonLongs);     // copies reference only
+        eventBuilder.appendShortData(segment2, commonShorts); // copies reference only
+        eventBuilder.addChild(triggerBank, segment1);
+        eventBuilder.addChild(triggerBank, segment2);
+
+        // the ROC-specific segments, each with only timestamp info
+        EvioSegment segment;
+        segment = new EvioSegment(ebID, DataType.INT32);
+        int rocId = startingRocId;
+        // each segment contains 1 timestamp (64 bits) for each event in data bank
+        ts = timestamp;
+        int[] intData = new int[2*numEvents];
+        for (int i=0; i < 2*numEvents; i += 2) {
+            intData[i]   = (int) (ts >>> 32 & 0xFFFF); // high 16 of 48 bits
+            intData[i+1] = (int)  ts; // low 32 bits
+            ts += 4;
         }
 
         for (int i=0; i < numRocs; i++) {
-            segment = new EvioSegment(rocId++, DataType.UINT32);
-            eventBuilder.appendIntData(segment, segmentData);
+            segment = new EvioSegment(rocId++, DataType.INT32);
+            eventBuilder.appendIntData(segment, intData);
             eventBuilder.addChild(triggerBank, segment);
         }
 
@@ -1482,14 +1778,13 @@ System.out.println("                           " + (firstEvNum+i) + " != " + (se
         rocId = startingRocId;
 
         for (int i=0; i < numRocs; i++) {
-            // a data block bank contains starting event number & one int of data for each event
+            // a data block bank contains starting event number & Fadc250 data for each event
             blockTag = createCodaTag(0, detectorId);
             dataBlockBank = new EvioBank(blockTag, DataType.UINT32, numEvents);// if SEM, num = event Type
-            int[] bankData = new int[numEvents+1];
+            int[] FadcData = generateEntangledDataFADC250(eventNumber, numEvents, recordId, 1, false, timestamp);
+            int[] bankData = new int[FadcData.length + 1];
             bankData[0] = eventNumber;
-            for (int j=1; j < numEvents+1; j++) {
-                bankData[j] = timestamp + j - 1;
-            }
+            System.arraycopy(FadcData, 0, bankData, 1, FadcData.length);
             eventBuilder.appendIntData(dataBlockBank, bankData);
 
             // wrap block bank in data bank
@@ -1502,14 +1797,13 @@ System.out.println("                           " + (firstEvNum+i) + " != " + (se
             eventBuilder.addChild(physicsEvent, dataBank);
         }
 
-//eventBuilder.setAllHeaderLengths();
-
         return physicsEvent;
     }
 
 
     /**
-     * Create an Evio Data Transport Record event to send to the event building EMU.
+     * Create an Evio Data Transport Record event with simulated ROC data
+     * to send to the event building EMU.
      *
      * @param rocId       ROC id number
      * @param triggerType trigger type id number (0-15)
@@ -1525,12 +1819,12 @@ System.out.println("                           " + (firstEvNum+i) + " != " + (se
      * @return Evio Data Transport Record event
      * @throws EvioException
      */
-    public static EvioEvent createDataTransportRecord(int rocId,       int triggerType,
-                                                      int detectorId,  int status,
-                                                      int eventNumber, int numEvents,
-                                                      int timestamp,   int recordId,
-                                                      int numPayloadBanks,
-                                                      boolean singleEventMode)
+    public static EvioEvent createRocDataTransportRecord(int rocId, int triggerType,
+                                                         int detectorId, int status,
+                                                         int eventNumber, int numEvents,
+                                                         long timestamp, int recordId,
+                                                         int numPayloadBanks,
+                                                         boolean singleEventMode)
             throws EvioException {
 
         // create event with jevio package
@@ -1553,23 +1847,116 @@ System.out.println("                           " + (firstEvNum+i) + " != " + (se
         for (int i=0; i < numPayloadBanks; i++) {
 
             if (singleEventMode) {
-                event = createSingleEventModeRocRecord(rocId, detectorId,
-                                                       status, eventNumber);
+                event = createSingleEventModeRocRecord(rocId, detectorId, status,
+                                                       eventNumber, recordId, timestamp);
             }
             else {
                 event = createRocRawRecord(rocId, triggerType, detectorId, status,
-                                           eventNumber, numEvents, timestamp);
+                                           eventNumber, numEvents, recordId, timestamp);
             }
             eventBuilder.addChild(dtrEvent, event);
 
             eventNumber += numEvents;
-            timestamp   += numEvents;
+            timestamp   += 4*numEvents;
         }
 
-        // already done with addChild
-        //eventBuilder.setAllHeaderLengths();
-
         return dtrEvent;
+    }
+
+
+    /**
+     * Create an Evio Data Transport Record event with simulated ROC data
+     * to send to the event building EMU.
+     *
+     * @param rocId       ROC id number
+     * @param triggerType trigger type id number (0-15)
+     * @param detectorId  id of detector producing data in data block bank
+     * @param status      4-bit status associated with data
+     * @param eventNumber starting event number
+     * @param numEvents   number of physics events in created record
+     * @param timestamp   starting event's timestamp
+     * @param recordId    record count
+     * @param targetEventSize try to make the DTR as close as possible to this size (bytes),
+     *                        but NOT more!
+     * @param singleEventMode true if creating events in single event mode
+     * @param eventBuilder object used to build the data transport record
+     *
+     * @return number of events in the generated Data Transport Record event
+     * @throws EvioException
+     */
+    public static int createRocDataTransportRecord2(int rocId, int triggerType,
+                                                    int detectorId, int status,
+                                                    int eventNumber, int numEvents,
+                                                    long timestamp, int recordId,
+                                                    int targetEventSize,
+                                                    boolean singleEventMode,
+                                                    EventBuilder eventBuilder)
+            throws EvioException {
+
+        int firstEvNum = eventNumber;
+
+        EvioEvent dtrEvent = eventBuilder.getEvent();
+
+        // add a bank with record ID in it
+        EvioBank recordIdBank = new EvioBank(RECORD_ID_BANK, DataType.INT32, 0 /* updated later */);
+        eventBuilder.appendIntData(recordIdBank, new int[]{recordId});
+        eventBuilder.addChild(dtrEvent, recordIdBank);
+
+        if (singleEventMode) {
+            numEvents = 1;
+        }
+
+        EvioEvent event;
+        int evSize, numPayloadBanks = 0;
+
+        // create first ROC Raw Record
+        if (singleEventMode) {
+            event = createSingleEventModeRocRecord(rocId, detectorId, status,
+                                                   eventNumber, recordId, timestamp);
+        }
+        else {
+            event = createRocRawRecord(rocId, triggerType, detectorId, status,
+                                       eventNumber, numEvents, recordId, timestamp);
+        }
+
+        // see how big it is
+        evSize = event.getTotalBytes();
+
+        // see how many will fit in given buffer size
+        int numRecords = targetEventSize/evSize;
+        if (numRecords < 1) {
+            throw new EvioException("target event size is too small");
+        }
+
+        // add to DTR
+        eventBuilder.addChild(dtrEvent, event);
+        numPayloadBanks++;
+
+        eventNumber += numEvents;
+        timestamp   += 4*numEvents;
+
+        // now add the rest of the records
+        for (int i=1; i < numRecords; i++)  {
+            // add ROC Raw Records as payload banks
+            if (singleEventMode) {
+                event = createSingleEventModeRocRecord(rocId, detectorId, status,
+                                                       eventNumber, recordId, timestamp);
+            }
+            else {
+                event = createRocRawRecord(rocId, triggerType, detectorId, status,
+                                           eventNumber, numEvents, recordId, timestamp);
+            }
+
+            eventBuilder.addChild(dtrEvent, event);
+            numPayloadBanks++;
+
+            eventNumber += numEvents;
+            timestamp   += 4*numEvents;
+        }
+
+        recordIdBank.getHeader().setNumber(numPayloadBanks);
+
+        return (eventNumber - firstEvNum);
     }
 
 
@@ -1620,10 +2007,10 @@ System.out.println("                           " + (firstEvNum+i) + " != " + (se
         event = createPhysicsEvent(ebId,        eventID,
                                    eventNumber, numEvents,
                                    timestamp,   numRocs,
-                                   status,      startingRocId);
+                                   status,      startingRocId,
+                                   recordId);
 
         eventBuilder.addChild(ev, event);
-//eventBuilder.setAllHeaderLengths();
 
         return ev;
     }
