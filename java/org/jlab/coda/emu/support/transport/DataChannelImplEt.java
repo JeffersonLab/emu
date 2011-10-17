@@ -137,7 +137,7 @@ public class DataChannelImplEt implements DataChannel {
 logger.info("      DataChannelImplEt.const : creating channel " + name);
 
         // set queue capacity
-        int capacity = 100;    // 100 buffers * 100 events/buf * 150 bytes/Roc/ev =  1.5Mb/Roc
+        int capacity = 100;    // 100 buffers * 100 events/buf * 220 bytes/Roc/ev =  2.2Mb/Roc
         try {
             capacity = dataTransport.getIntAttr("capacity");
         } catch (Exception e) {
@@ -158,9 +158,53 @@ logger.info("      DataChannelImplEt.const : creating channel " + name);
 //logger.info("      DataChannelImplEt.const : id = " + id);
 
 
+        // size of TCP send buffer (0 means use operating system default)
+        int tcpSendBuf = 0;
+        attribString = attrib.get("sendBuf");
+        if (attribString != null) {
+            try {
+                tcpSendBuf = Integer.parseInt(attribString);
+                if (tcpSendBuf < 0) {
+                    tcpSendBuf = 0;
+                }
+            }
+            catch (NumberFormatException e) {}
+        }
+
+        // size of TCP receive buffer (0 means use operating system default)
+        int tcpRecvBuf = 0;
+        attribString = attrib.get("recvBuf");
+        if (attribString != null) {
+            try {
+                tcpRecvBuf = Integer.parseInt(attribString);
+                if (tcpRecvBuf < 0) {
+                    tcpRecvBuf = 0;
+                }
+            }
+            catch (NumberFormatException e) {}
+        }
+
+        // set TCP_NODELAY option on
+        boolean noDelay = false;
+        attribString = attrib.get("noDelay");
+        if (attribString != null) {
+            if (attribString.equalsIgnoreCase("true") ||
+                attribString.equalsIgnoreCase("on")   ||
+                attribString.equalsIgnoreCase("yes"))   {
+                noDelay = true;
+            }
+        }
+
         // create ET system object & info
         try {
-            etSystem = new EtSystem(dataTransport.getOpenConfig());
+            // copy transport's config
+            EtSystemOpenConfig openConfig = new EtSystemOpenConfig(dataTransport.getOpenConfig());
+            // set TCP options specific to this client only
+            openConfig.setTcpRecvBufSize(tcpRecvBuf);
+            openConfig.setTcpSendBufSize(tcpSendBuf);
+            openConfig.setNoDelay(noDelay);
+
+            etSystem = new EtSystem(openConfig);
         }
         catch (EtException e) {
             throw new DataTransportException("", e);
@@ -536,8 +580,11 @@ System.out.println("      DataChannelImplEt.DataInputHelper : " + name + " quit 
                 EventWriter evWriter = null;
                 try {
                     // Won't use buffer, just need it to avoid NullPointerException
-                    // and get the ball rolling
-                    evWriter = new EventWriter(buffer, 128000, 10, null, null);
+                    // and get the ball rolling. Make the block size bigger than
+                    // the 2MB ET buffer size so no additional block headers must
+                    // be written. It should contain less than 100 ROC Raw records,
+                    // but we'll allow 200 such banks per block header.
+                    evWriter = new EventWriter(buffer, 550000, 200, null, null);
                     evWriter.close();
                 }
                 catch (EvioException e) {e.printStackTrace();/* never happen */}
@@ -553,7 +600,7 @@ logger.warn("      DataChannelImplEt.DataOutputHelper : " + name + " - PAUSED");
 
                     // Read in new event in chunks
                     arrayLength = 0;
-                    events1 = etSystem.newEvents(attachment, Mode.SLEEP, 0, chunk,
+                    events1 = etSystem.newEvents(attachment, Mode.SLEEP, false, 0, chunk,
                                                 (int)etSystem.getEventSize(), group);
 
                     for (int i=0; i < events1.length; i++) {
@@ -562,8 +609,9 @@ logger.warn("      DataChannelImplEt.DataOutputHelper : " + name + " - PAUSED");
 
                         // What type of bank is this?
                         type = Evio.getEventType(bank);
-int size = queue.size();
-if (size > 400 && size % 100 == 0) System.out.println("et chan OUT Q: " + size);
+// TODO: following needs changing since Q size can be small !
+//int size = queue.size();
+//if (size > 400 && size % 100 == 0) System.out.println("et chan OUT Q: " + size);
                         bankSize = bank.getTotalBytes();
                         buffer   = events1[i].getDataBuffer();
 
@@ -575,7 +623,7 @@ logger.warn("                                         : header length = " + bank
                             // This new event is not large enough, so dump it and replace it
                             // with a larger one. Performance will be terrible but it'll work.
                             etSystem.dumpEvents(attachment, new EtEvent[]{events1[i]});
-                            EtEvent[] evts = etSystem.newEvents(attachment, Mode.SLEEP, 0, 1, bankSize, group);
+                            EtEvent[] evts = etSystem.newEvents(attachment, Mode.SLEEP, false, 0, 1, bankSize, group);
                             events1[i] = evts[0];
                             buffer = events1[i].getDataBuffer();
                         }
