@@ -190,6 +190,8 @@ public class EventBuilding2 implements EmuModule {
     /** Targeted time period in milliseconds over which instantaneous rates will be calculated. */
     private static final int statGatheringPeriod = 2000;
 
+    // --------------------------------------------------------------
+
     /** Thread to update statistics. */
     private Thread watcher;
 
@@ -212,6 +214,16 @@ public class EventBuilding2 implements EmuModule {
 
     /** If <code>true</code>, get debug print out. */
     private boolean debug = true;
+
+    /** If <code>true</code>, check timestamps for consistency. */
+    private boolean checkTimestamps;
+
+    /**
+     * The maximum difference in ticks for timestamps for a single event before
+     * an error condition is flagged. Only used if {@link #checkTimestamps} is
+     * <code>true</code>.
+     */
+    private int timestampSlop;
 
     /** Comparator which tells priority queue how to sort elements. */
     private BankComparator<EvioBank> comparator = new BankComparator<EvioBank>();
@@ -299,7 +311,25 @@ public class EventBuilding2 implements EmuModule {
         try {
             buildingThreadCount = Integer.parseInt(attributeMap.get("threads"));
         }
-        catch (NumberFormatException e) { /* default to 0 */ }
+        catch (NumberFormatException e) {}
+
+        // default is to check timestamp consistency
+        checkTimestamps = true;
+        String str = attributeMap.get("tsCheck");
+        if (str != null) {
+            if (str.equalsIgnoreCase("false") ||
+                str.equalsIgnoreCase("off")   ||
+                str.equalsIgnoreCase("no"))   {
+                checkTimestamps = false;
+            }
+        }
+
+        // default to 2 clock ticks
+        timestampSlop = 2;
+        try {
+            timestampSlop = Integer.parseInt(attributeMap.get("tsSlop"));
+        }
+        catch (NumberFormatException e) {}
     }
 
 
@@ -904,7 +934,8 @@ if (debug && nonFatalError) System.out.println("\nERROR 2\n");
                         //-----------------------------------------------------------------------------------
                         // Combine the trigger banks of input events into one (same if single event mode)
 //if (debug) System.out.println("BuildingThread: create trigger bank from built banks");
-                        nonFatalError |= Evio.makeTriggerBankFromPhysics(storage.buildingBanks, builder, ebId);
+                        nonFatalError |= Evio.makeTriggerBankFromPhysics(storage.buildingBanks, builder, ebId,
+                                                                         checkTimestamps, timestampSlop);
                     }
                     // else if building with ROC raw records ...
                     else {
@@ -913,28 +944,23 @@ if (debug && nonFatalError) System.out.println("\nERROR 2\n");
                             // Create a trigger bank from data in Data Block banks
 //if (debug) System.out.println("BuildingThread: create trigger bank in SEM");
                             nonFatalError |= Evio.makeTriggerBankFromSemRocRaw(storage.buildingBanks, builder,
-                                                                               ebId, storage.firstEventNumber, runNumber);
+                                                                               ebId, storage.firstEventNumber,
+                                                                               runNumber, checkTimestamps,
+                                                                               timestampSlop);
                         }
                         else {
                             // Combine the trigger banks of input events into one
 //if (debug) System.out.println("BuildingThread: create trigger bank");
                             nonFatalError |= Evio.makeTriggerBankFromRocRaw(storage.buildingBanks, builder,
-                                                                            ebId, storage.firstEventNumber, runNumber);
+                                                                            ebId, storage.firstEventNumber,
+                                                                            runNumber, checkTimestamps,
+                                                                            timestampSlop);
                         }
                     }
 
 if (debug && nonFatalError) System.out.println("\nERROR 3\n");
                     // Print out trigger bank
 //                    printEvent(combinedTrigger, "combined trigger");
-
-                    // Check timestamps if requested
-                    boolean requested = false;
-                    if (requested) {
-                        if (!Evio.timeStampsOk(combinedTrigger)) {
-                            // Timestamps show problems with data
-                            nonFatalError = true;
-                        }
-                    }
 
                     // Check payload banks for non-fatal errors when
                     // extracting them onto the payload queues.
