@@ -351,9 +351,9 @@ public class DataTransportImplEt extends DataTransportCore implements DataTransp
 System.out.println("Tell the ET system process to die - " + openConfig.getEtName());
             processET.destroy();
             try {
-System.out.print("     wait for the ET system process to die ... ");
+System.out.println("     wait for the ET system process to die ...");
                 processET.waitFor();
-System.out.println("is dead");
+System.out.println("     ET is dead");
             }
             catch (InterruptedException e) { }
             // remove the ET system file
