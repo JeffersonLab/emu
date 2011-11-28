@@ -277,6 +277,7 @@ logger.warn("  DataTransportFactory.execute DOWN : transport section missing/inc
         if (emuCmd != END && emuCmd != GO) {
             for (DataTransport transport : transports) {
                 logger.debug("  DataTransportFactory.execute : pass " + emuCmd + " down to " + transport.name());
+                // forInput is ignored here
                 transport.execute(cmd, forInput);
             }
         }
