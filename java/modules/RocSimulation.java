@@ -341,7 +341,6 @@ System.out.println("evRate = " + eventRate + ", byteRate = " + 4*wordRate + ", a
                     }
 
                 } catch (InterruptedException e) {
-                    logger.info("RocSimulation thread " + name() + " interrupted");
                 }
             }
 System.out.println("RocSimulation module: quitting watcher thread");
@@ -470,6 +469,172 @@ System.out.println("INTERRUPTED thread " + Thread.currentThread().getName());
     }
 
 
+     /**
+      * This thread is started by the GO transition and runs while the state of the module is ACTIVE.
+      * <p/>
+      * When the state is ACTIVE and the list of output DataChannels is not empty, this thread
+      * selects an output by taking the next one from a simple iterator. This thread then creates
+      * data transport records with payload banks containing ROC raw records and places them on the
+      * output DataChannel.
+      * <p/>
+      */
+     class EventGeneratingThreadGood extends Thread {
+
+         private volatile boolean quit;
+
+         EventGeneratingThreadGood(ThreadGroup group, Runnable target, String name) {
+             super(group, target, name);
+         }
+
+         EventGeneratingThreadGood() {
+             super();
+         }
+
+         void killThread() {
+             quit = true;
+         }
+
+        public void run() {
+
+            int  status=0, oldVal=0;
+            long timestamp = 0L, start_time = System.currentTimeMillis();
+
+            LinkedBlockingQueue<DataGenerateJobGood> jobList =
+                    new LinkedBlockingQueue<DataGenerateJobGood>(writeThreads*2);
+
+            // stuff for copying evio banks into ET events
+            for (int i=0; i < writeThreads*2; i++) {
+                jobList.add(new DataGenerateJobGood(jobList));
+            }
+
+            DataGenerateJobGood job;
+
+            // Run thread pool with "writeThreads" number of threads & fixed-sized queue.
+            ThreadPoolExecutor writeThreadPool = new ThreadPoolExecutor(writeThreads, writeThreads,
+                                          0L, TimeUnit.MILLISECONDS,
+                                          new LinkedBlockingQueue<Runnable>(2*writeThreads));
+
+            writeThreadPool.prestartAllCoreThreads();
+
+            System.out.println("ROC SIM write thds = " + writeThreads);
+
+            // Found out how many events are generated per method call, and the event size
+            int type = EventType.ROC_RAW.getValue();
+            int tag = Evio.createCodaTag(type, rocId);
+            EventBuilder eb = new EventBuilder(tag, DataType.BANK, 0);
+            try {
+                numEvents = Evio.createRocDataTransportRecord2(rocId, triggerType,
+                                                   detectorId, status,
+                                                   0, eventBlockSize,
+                                                   0, 0,
+                                                   eventSize, isSingleEventMode,
+                                                   eb);
+                eventWordSize = eb.getEvent().getHeader().getLength() + 1;
+            }
+            catch (EvioException e) {
+                System.out.println("INTERRUPTED thread " + Thread.currentThread().getName());
+                if (state == CODAState.DOWNLOADED) return;
+            }
+
+
+            while (state == CODAState.ACTIVE || paused) {
+
+                if (quit) return;
+
+                try {
+                    job = jobList.take();
+                    job.setStuff(timestamp, status, rocRecordId, tag,
+                                 (int) eventNumber, inputOrder);
+                    writeThreadPool.execute(job);
+
+                    inputOrder   = ++inputOrder % Integer.MAX_VALUE;
+                    timestamp   += 4*numEvents;
+                    eventNumber += numEvents;
+                    rocRecordId++;
+
+                    long now = System.currentTimeMillis();
+                    long deltaT = now - start_time;
+                    if (deltaT > 2000) {
+                        System.out.println("DTR rate = " + String.format("%.3g", ((rocRecordId-oldVal)*1000./deltaT) ) + " Hz");
+                        start_time = now;
+                        oldVal = rocRecordId;
+                    }
+                }
+                catch (Exception e) {
+                    e.printStackTrace();
+                    if (state == CODAState.DOWNLOADED) return;
+                }
+            }
+        }
+    }
+
+
+    /**
+     * This class is designed to create an evio bank's
+     * contents by way of a thread pool.
+     */
+    private class DataGenerateJobGood implements Runnable {
+
+        private long timeStamp;
+        private int status;
+        private int recordId;
+        private int evNum;
+        private int inputOrder;
+        private LinkedBlockingQueue<DataGenerateJobGood> jobList;
+        private EventBuilder eventBuilder;
+
+        /** Constructor. */
+        DataGenerateJobGood(LinkedBlockingQueue<DataGenerateJobGood> jobList) {
+            this.jobList = jobList;
+            eventBuilder = new EventBuilder(null);
+        }
+
+        void setStuff(long timeStamp, int status, int recordId, int tag, int evNum, int inputOrder) {
+            this.evNum      = evNum;
+            this.status     = status;
+            this.recordId   = recordId;
+            this.timeStamp  = timeStamp;
+            this.inputOrder = inputOrder;
+            eventBuilder.setEvent(new EvioEvent(tag, DataType.BANK, recordId));
+        }
+
+
+        EvioEvent getEvent() {
+            return eventBuilder.getEvent();
+        }
+
+
+        // write bank into et event buffer
+        public void run() {
+            try {
+                // turn event into byte array
+                Evio.createRocDataTransportRecord2(rocId, triggerType,
+                                                   detectorId, status,
+                                                   evNum, eventBlockSize,
+                                                   timeStamp, recordId,
+                                                   eventSize, isSingleEventMode,
+                                                   eventBuilder);
+
+                // put dtr into output channel
+                EvioEvent ev = eventBuilder.getEvent();
+                ev.setAttachment(inputOrder);
+                eventToOutputQueue(ev);
+
+                // this object can be reused to generate more data now
+                jobList.add(this);
+
+                // TODO: error handling
+            }
+            catch (EvioException e) {
+                e.printStackTrace();
+            }
+            catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+        }
+    }
+
+
 
     /**
      * This method is called by a DataGenerateJob running in a thread from a pool.
@@ -515,20 +680,27 @@ System.out.println("INTERRUPTED thread " + Thread.currentThread().getName());
      */
     class EventGeneratingThread extends Thread {
 
-        private volatile boolean quit;
-
         private ThreadPoolExecutor writeThreadPool;
 
         EventGeneratingThread(ThreadGroup group, Runnable target, String name) {
             super(group, target, name);
+            // Run thread pool with "writeThreads" number of threads & fixed-sized queue.
+            writeThreadPool = new ThreadPoolExecutor(writeThreads, writeThreads,
+                                         0L, TimeUnit.MILLISECONDS,
+                                         new LinkedBlockingQueue<Runnable>(2*writeThreads));
+
+            writeThreadPool.prestartAllCoreThreads();
+
         }
 
         EventGeneratingThread() {
             super();
-        }
+            writeThreadPool = new ThreadPoolExecutor(writeThreads, writeThreads,
+                                         0L, TimeUnit.MILLISECONDS,
+                                         new LinkedBlockingQueue<Runnable>(2*writeThreads));
 
-        void killThread() {
-            quit = true;
+            writeThreadPool.prestartAllCoreThreads();
+
         }
 
         ThreadPoolExecutor getWriteThreadPool() {
@@ -542,13 +714,6 @@ System.out.println("INTERRUPTED thread " + Thread.currentThread().getName());
 
            DataGenerateJob job;
            semaphore = new Semaphore(2*writeThreads);
-
-           // Run thread pool with "writeThreads" number of threads & fixed-sized queue.
-           writeThreadPool = new ThreadPoolExecutor(writeThreads, writeThreads,
-                                         0L, TimeUnit.MILLISECONDS,
-                                         new LinkedBlockingQueue<Runnable>(2*writeThreads));
-
-           writeThreadPool.prestartAllCoreThreads();
 
            System.out.println("ROC SIM write thds = " + writeThreads);
 
@@ -567,13 +732,16 @@ System.out.println("INTERRUPTED thread " + Thread.currentThread().getName());
            }
            catch (EvioException e) {
                System.out.println("INTERRUPTED thread " + Thread.currentThread().getName());
+               // TODO: what is this state == stuff? How about the following?
+//               emu.getCauses().add(e);
+//               state = CODAState.ERROR;
+//               e.printStackTrace();
+//               return;
                if (state == CODAState.DOWNLOADED) return;
            }
 
 
            while (state == CODAState.ACTIVE || paused) {
-
-               if (quit) return;
 
                try {
                    semaphore.acquire();
@@ -596,6 +764,7 @@ System.out.println("INTERRUPTED thread " + Thread.currentThread().getName());
                }
                catch (Exception e) {
                    e.printStackTrace();
+                   // TODO: what is this state == stuff?
                    if (state == CODAState.DOWNLOADED) return;
                }
            }
@@ -674,14 +843,20 @@ System.out.println("INTERRUPTED thread " + Thread.currentThread().getName());
             watcher = null;
 
             if (eventGeneratingThread != null) {
-                eventGeneratingThread.getWriteThreadPool().shutdown();
-                eventGeneratingThread.killThread();
                 try {
-                    // Wait until it's actually dead so we
-                    // know no new events are being put on Q.
-                    System.out.print("In END: try joining event-generating thread ... ");
+                    // Kill this thread before thread pool threads to avoid exception.
+System.out.println("RocSim END: try joining ev-gen thread ...");
                     eventGeneratingThread.join();
-                    System.out.println("done");
+System.out.println("RocSim END: done");
+                }
+                catch (InterruptedException e) {
+                }
+
+                try {
+System.out.println("RocSim END: try joining thread pool threads ...");
+                    eventGeneratingThread.getWriteThreadPool().shutdown();
+                    eventGeneratingThread.getWriteThreadPool().awaitTermination(100L, TimeUnit.MILLISECONDS);
+System.out.println("RocSim END: done");
                 }
                 catch (InterruptedException e) {
                 }
@@ -721,7 +896,26 @@ System.out.println("Putting in END control event");
 
             if (watcher != null) watcher.interrupt();
             watcher = null;
-            if (eventGeneratingThread != null) eventGeneratingThread.interrupt();
+
+            if (eventGeneratingThread != null) {
+                try {
+                    // Kill this thread before thread pool threads to avoid exception.
+System.out.println("RocSim RESET: try joining ev-gen thread ...");
+                    eventGeneratingThread.join();
+System.out.println("RocSim RESET: done");
+                }
+                catch (InterruptedException e) {
+                }
+
+                try {
+System.out.println("RocSim RESET: try joining thread pool threads ...");
+                    eventGeneratingThread.getWriteThreadPool().shutdown();
+                    eventGeneratingThread.getWriteThreadPool().awaitTermination(100L, TimeUnit.MILLISECONDS);
+System.out.println("RocSim RESET: done");
+                }
+                catch (InterruptedException e) {
+                }
+            }
             eventGeneratingThread = null;
 
             paused = false;
