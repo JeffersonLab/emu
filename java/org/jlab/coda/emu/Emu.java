@@ -672,19 +672,30 @@ System.out.println("ERROR in setting value in local config !!!");
         else if (codaCommand == SET_RUN_NUMBER) {
             // get the new run number and store it
             try {
-                //cMsgPayloadItem item = cmd.getMessage().getPayloadItem("RUNNUMBER");
-
                 cMsgPayloadItem item = cmd.getArg("RUNNUMBER");
                 if (item != null) {
                     System.out.println("SET RUN NUMBER to " + item.getInt());
                     setRunNumber(item.getInt());
                 }
                 else {
-                    System.out.println("Got RUN NUMBER command but no run #");
+                    System.out.println("Got SET_RUN_NUMBER command but no run # specified");
                 }
             }
             catch (cMsgException e) {
                 e.printStackTrace();
+            }
+            return;
+        }
+        // Run Control tells us our session
+        else if (codaCommand == SET_SESSION) {
+            // get the new session and store it
+            String txt = cmd.getMessage().getText();
+            if (txt != null) {
+                System.out.println("SET Session to " + txt);
+                session = txt;
+            }
+            else {
+                System.out.println("Got SET_SESSION command but no session specified");
             }
             return;
         }
