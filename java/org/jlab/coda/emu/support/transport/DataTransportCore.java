@@ -102,9 +102,9 @@ public class DataTransportCore {
         server = Boolean.valueOf(serverS);
         myInstance = instanceCount++;
 
-        if (logger != null) {
-            logger.debug("INSTANCE " + pname + " of class " + this.getClass() + " : " + myInstance);
-        }
+//        if (logger != null) {
+//            logger.debug("INSTANCE " + pname + " of class " + this.getClass() + " : " + myInstance);
+//        }
     }
 
     /**
@@ -226,12 +226,12 @@ public class DataTransportCore {
 
     /** Close this DataTransport object and all its channels. */
     public void close() {
-System.out.println("Transport Core's close() being called");
+//System.out.println("Transport Core's close() being called");
         setConnected(false);
 
-        if (logger != null) {
-            logger.debug("close transport " + name());
-        }
+//        if (logger != null) {
+//            logger.debug("close transport " + name());
+//        }
 
         // close channels
         if (!allChannels().isEmpty()) {
@@ -248,12 +248,12 @@ System.out.println("Transport Core's close() being called");
 
     /** Close this DataTransport object's channels.  */
     public void reset() {
-System.out.println("Transport Core's reset() being called");
+//System.out.println("Transport Core's reset() being called");
         setConnected(false);
 
-        if (logger != null) {
-            logger.debug("reset transport " + name());
-        }
+//        if (logger != null) {
+//            logger.debug("reset transport " + name());
+//        }
 
         // close channels
         if (!allChannels().isEmpty()) {
