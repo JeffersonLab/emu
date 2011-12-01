@@ -129,7 +129,7 @@ public class CMSGPortal implements LoggerAppender {
 //System.out.println("CMSGPortal subscribe to sub = *, type = " + RCConstants.setOptionType);
                         server.subscribe("*", RCConstants.setOptionType, handler, null);
 
-                        logger.info("cMSg server connected");
+//logger.info("cMSg server connected");
 
                     } catch (cMsgException e) {
                         logger.warn("cMSg server down, retry in 5 seconds");
