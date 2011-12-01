@@ -2,26 +2,30 @@ package org.jlab.coda.emu.support.transport;
 
 import org.jlab.coda.emu.Emu;
 import org.jlab.coda.emu.support.codaComponent.CODAState;
+import org.jlab.coda.emu.support.data.Evio;
 import org.jlab.coda.emu.support.logger.Logger;
-import org.jlab.coda.jevio.EvioBank;
-import org.jlab.coda.jevio.EvioReader;
-import org.jlab.coda.jevio.EventWriter;
+import org.jlab.coda.jevio.*;
 
 import java.io.*;
+import java.util.Map;
+import java.util.Vector;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 
 /**
- * Created by IntelliJ IDEA.
- * User: heyes
- * Date: Nov 10, 2008
- * Time: 1:37:43 PM
  * Implementation of a DataChannel reading/writing from/to a file in EVIO format.
+ *
+ * @author heyes
+ * @author timmer
+ * @date Nov 10, 2008
  */
 public class DataChannelImplFile implements DataChannel {
 
     /** Field transport */
     private final DataTransportImplFile dataTransport;
+
+    /** Map of config file attributes. */
+    private Map<String, String> attributeMap;
 
     /** Field name */
     private final String name;
@@ -29,13 +33,20 @@ public class DataChannelImplFile implements DataChannel {
     /** Field dataThread */
     private Thread dataThread;
 
-    /** Field size - the default size of the buffers used to receive data */
-    private int size = 20000;
+    /** The default size in bytes at which a new file is created. */
+    private long split;
+
+    /** Number on end of split data file. */
+    private int fileCount;
+
+    /** For output files, the name prefix. */
+    private String outputFilePrefix;
+
+    /** For input or output files, the directory. */
+    private String directory;
 
     /** Field queue - filled buffer queue */
     private final BlockingQueue<EvioBank> queue;
-
-    private File file;
 
     /** Evio data file. */
     private EvioReader evioFile;
@@ -53,27 +64,84 @@ public class DataChannelImplFile implements DataChannel {
     /**
      * Constructor DataChannelImplFifo creates a new DataChannelImplFifo instance.
      *
-     * @param name          of type String
-     * @param dataTransport of type DataTransport
+     * @param name          name of file channel
+     * @param dataTransport DataTransport object that created this channel
+     * @param attrib        the hashmap of config file attributes for this channel
      * @param input         true if this is an input
+     * @param emu           emu this channel belongs to
      *
-     * @throws org.jlab.coda.emu.support.transport.DataTransportException
-     *          - unable to create fifo buffer.
+     * @throws DataTransportException
+     *          - if unable to create fifo buffer.
      */
     DataChannelImplFile(String name, DataTransportImplFile dataTransport,
-                        boolean input, Emu emu) throws DataTransportException {
+                      Map<String, String> attrib, boolean input,
+                      Emu emu) throws DataTransportException {
 
         this.dataTransport = dataTransport;
+        this.attributeMap = attrib;
         this.input = input;
         this.name = name;
         this.emu  = emu;
         logger = emu.getLogger();
 
-        String fileName = "dataFile.coda";
+
+        // Default output file name =   <session>_<run#>.dat<seq#>
+        String session = emu.getSession();
+        int runNumber  = emu.getRunNumber();
+        outputFilePrefix = session + "_" + runNumber + ".dat";
+        String outputFileName = outputFilePrefix + fileCount;
+        String defaultInputFileName = "codaDataFile.evio";
+
+        // Directory given in config file?
         try {
-            fileName = dataTransport.getAttr("filename");
+            directory = attributeMap.get("dir");
+//logger.info("      DataChannel File: config file dir = " + directory);
         } catch (Exception e) {
-            logger.info(e.getMessage() + " default to file name" + fileName);
+        }
+
+        // Filename given in config file?
+        String fileName = null;
+        try {
+            fileName = attributeMap.get("file");
+//logger.info("      DataChannel File: config file name = " + fileName);
+        } catch (Exception e) {
+        }
+
+        // Filename given in config file?
+        String prefix = null;
+        try {
+            prefix = attributeMap.get("prefix");
+//logger.info("      DataChannel File: config file prefix = " + prefix);
+        } catch (Exception e) {
+        }
+
+        // Split parameter given in config file?
+        try {
+            String splitStr = attributeMap.get("split");
+            if (splitStr != null) {
+                split = Long.parseLong(splitStr);
+//logger.info("      DataChannel File: split = " + split);
+            }
+        } catch (Exception e) {
+        }
+
+        if (fileName == null) {
+            if (prefix != null) {
+                outputFilePrefix = prefix + "_" + runNumber + ".dat";
+                outputFileName = outputFilePrefix + fileCount;
+            }
+
+            if (input) {
+                fileName = defaultInputFileName;
+            }
+            else {
+                fileName = outputFileName;
+            }
+
+        }
+
+        if (directory != null) {
+            fileName = directory + "/" + fileName;
         }
 
         int capacity = 40;
@@ -81,46 +149,51 @@ public class DataChannelImplFile implements DataChannel {
 
         try {
             if (input) {
+logger.info("      DataChannel File: try opening input file of " + fileName);
                 evioFile = new EvioReader(fileName);
                 dataThread = new Thread(emu.getThreadGroup(), new DataInputHelper(), getName() + " data input");
             } else {
+logger.info("      DataChannel File: try opening output file of " + fileName);
                 evioFileWriter = new EventWriter(fileName);
                 dataThread = new Thread(emu.getThreadGroup(), new DataOutputHelper(), getName() + " data out");
             }
+
             dataThread.start();
+
         } catch (Exception e) {
-            if (input) throw new DataTransportException("DataChannelImplFile : Cannot open data file " + e.getMessage(), e);
-            else throw new DataTransportException("DataChannelImplFile : Cannot create data file" + e.getMessage(), e);
+            if (input) {
+                throw new DataTransportException("DataChannelImplFile : Cannot open data file " + e.getMessage(), e);
+            }
+            else {
+                throw new DataTransportException("DataChannelImplFile : Cannot create data file" + e.getMessage(), e);
+            }
         }
+
+        // TODO: possible race condition, should make sure threads are started before returning
     }
 
+
+// TODO: This method puts physics events on the Q when DTRs are expected
     /**
-     * <pre>
      * Class <b>DataInputHelper </b>
      * This class reads data from the file and queues it on the fifo.
-     * It checks that the data buffer is large enough and allocates a
-     * bigger buffer if needed.
-     * <p/>
-     * TODO : the acknowledge written is fixed at 0xaa, it should be some feedback to the sender
-     * </pre>
      */
     private class DataInputHelper implements Runnable {
-
-        /** Method run ... */
         public void run() {
             try {
-                logger.info("Data Input helper for File");
                 while (!dataThread.isInterrupted()) {
                     EvioBank bank = evioFile.parseNextEvent();
                     if (bank == null) {
                         break;
                     }
-                    queue.put(bank);
+                    queue.put(bank);  // will block
                 }
-                logger.warn(name + " - File closed");
+logger.info("      DataChannel File (" + name + "): close file");
+            } catch (InterruptedException e) {
+                // time to quit
             } catch (Exception e) {
-                logger.warn("DataInputHelper exit " + e.getMessage());
-                logger.warn(name + " - File closed");
+logger.warn("      DataChannel File (" + name + "): close file");
+logger.warn("      DataChannel File (" + name + "): exit " + e.getMessage());
                 emu.getCauses().add(e);
                 dataTransport.state = CODAState.ERROR;
             }
@@ -129,27 +202,89 @@ public class DataChannelImplFile implements DataChannel {
 
     }
 
+
+
     /**
-     * <pre>
      * Class <b>DataOutputHelper </b>
-     * </pre>
      * Handles sending data.
-     * TODO : the ack should be some feedback from the receiver.
      */
     private class DataOutputHelper implements Runnable {
 
-        /** Method run ... */
         public void run() {
+            EvioBank bank, dtrBank;
+            Vector<BaseStructure> kids;
+            int bankBytes, numKids;
+            long numBytesWritten = 0L;
+            boolean gotGO = false;
+
             try {
-                EvioBank bank;
-                logger.info("Data Output helper for File");
+
                 while (!dataThread.isInterrupted()) {
-                    bank = queue.take();
-                    evioFileWriter.writeEvent(bank);
+                    // This bank is a data transport record (DTR)
+                    dtrBank = queue.take(); // will block
+
+                    if (Evio.isEndEvent(dtrBank)) {
+                        evioFileWriter.close();
+logger.warn("      DataChannel File (" + name + "): got END, close file");
+                        return;
+                    }
+                    else if (Evio.isGoEvent(dtrBank)) {
+                        gotGO = true;
+                        continue;
+                    }
+                    else if (Evio.isControlEvent(dtrBank)) {
+logger.info("      DataChannel File (" + name + "): got control event of type " + Evio.getEventType(dtrBank));
+                        continue;
+                    }
+
+                    if (!Evio.isPhysicsEvent(dtrBank)) {
+logger.info("      DataChannel File (" + name + "): got event of type " + Evio.getEventType(dtrBank) +
+                    " but expecting PHYSICS");
+                    }
+
+                    if (!gotGO) {
+                        // Got physics event before we got GO event, ignore it
+logger.info("      DataChannel File (" + name + "): got PHYSICS event but NO GO");
+                        continue;
+                    }
+
+logger.info("      DataChannel File (" + name + "): got PHYSICS event!");
+
+                    // Dig out the physics events from DTR
+                    // and deal with them individually.
+                    kids = dtrBank.getChildren();
+                    numKids = kids.size();
+
+                    // write all banks except the first one containing record ID
+                    for (int i=1; i < numKids; i++) {
+                        bank = (EvioBank) kids.get(i);
+
+                        bankBytes = bank.getTotalBytes();
+
+                        // If we're splitting the output file and writing the next bank
+                        // would put it over the split size limit ...
+                        if (split > 0L && (numBytesWritten + bankBytes > split)) {
+                            evioFileWriter.close();
+                            numBytesWritten = 0L;
+                            String outputFileName = outputFilePrefix + (++fileCount);
+                            if (directory != null) {
+                                outputFileName = directory + "/" + outputFileName;
+                            }
+                            evioFileWriter = new EventWriter(outputFileName);
+                        }
+
+logger.info("      DataChannel File (" + name + "): try writing into file");
+                        evioFileWriter.writeEvent(bank);
+                        numBytesWritten += bankBytes;
+                    }
                 }
-                logger.warn(name + " - data file closed");
+
+logger.info("      DataChannel File (" + name + "): close file");
+
+            } catch (InterruptedException e) {
+                // time to quit
             } catch (Exception e) {
-                logger.warn("DataOutputHelper exit " + e.getMessage());
+logger.warn("      DataChannel File (" + name + "): exit, " + e.getMessage());
                 emu.getCauses().add(e);
                 dataTransport.state = CODAState.ERROR;
             }
@@ -205,7 +340,6 @@ public class DataChannelImplFile implements DataChannel {
             //ignore
         }
         queue.clear();
-
     }
 
     /** {@inheritDoc} */
