@@ -120,7 +120,7 @@ public class EmuModuleFactory implements StatedObject {
 
         CODACommand emuCmd = cmd.getCodaCommand();
 
-        logger.info("EmuModuleFactory.execute : " + emuCmd);
+logger.info("EmuModuleFactory.execute : " + emuCmd);
 
         // CONFIGURE command does not involve components and is handled directly by the EMU ...
         if (state != ERROR && emuCmd == CONFIGURE) {
@@ -166,15 +166,15 @@ public class EmuModuleFactory implements StatedObject {
 
                 // If NO user source, look only in standard location for standard modules
                 if (usrSrcAttr == null) {
-                    logger.info("Loading modules from " + src);
+//logger.info("Loading modules from " + src);
                     locations = new URL[] {(new File(src)).toURI().toURL()};
                 }
                 // If user has source, look for that file as well as for standard modules
                 else {
                     String usrSrc = usrSrcAttr.getNodeValue();
 
-                    logger.info("Load system modules from " + src);
-                    logger.info("Load user modules from " + usrSrc);
+//logger.info("Load system modules from " + src);
+//logger.info("Load user modules from " + usrSrc);
 
                     locations = new URL[] {(new File(src)).toURI().toURL(),
                                            (new File(usrSrc)).toURI().toURL()};
@@ -231,12 +231,12 @@ public class EmuModuleFactory implements StatedObject {
                         Map<String, String> attributeMap = new HashMap<String, String>();
                         for (int j=0; j < nm2.getLength(); j++) {
                             Node a = nm2.item(j);
-System.out.println("Put (" + a.getNodeName() + "," + a.getNodeValue() + ") into attribute map for module " + n.getNodeName());
+//System.out.println("Put (" + a.getNodeName() + "," + a.getNodeValue() + ") into attribute map for module " + n.getNodeName());
                             attributeMap.put(a.getNodeName(), a.getNodeValue());
                         }
 
                         String moduleClassName = "modules." + typeAttr.getNodeValue();
-                        logger.info("EmuModuleFactory.execute DOWN : load module " + moduleClassName);
+//logger.info("EmuModuleFactory.execute DOWN : load module " + moduleClassName);
 
                         // Use classLoader to load module. The name of
                         // the module is the first arg (node name).
@@ -355,7 +355,7 @@ System.out.println("Put (" + a.getNodeName() + "," + a.getNodeValue() + ") into 
                 }
 
             } catch (Exception e) {
-                logger.error("EmuModuleFactory.execute() : threw " + e.getMessage());
+logger.error("EmuModuleFactory.execute() : threw " + e.getMessage());
                 e.printStackTrace();
                 emu.getCauses().add(e);
                 state = ERROR;
@@ -380,14 +380,14 @@ System.out.println("Put (" + a.getNodeName() + "," + a.getNodeValue() + ") into 
             if (channelList != null) {
                 for (DataChannel chan : channelList) {
                     DataTransport trans = chan.getDataTransport();
-System.out.println("Execute END thru transport " + trans.name());
+logger.info("EmuModuleFactory.execute : END thru transport " + trans.name());
                     trans.execute(cmd, true);  // true means we're doing inputs only
                 }
             }
 
             // pass command to all modules starting with first
             for (int i=0; i < mods.size(); i++) {
-System.out.println("Execute END thru module " + mods.get(i).name());
+logger.info("EmuModuleFactory.execute : END thru module " + mods.get(i).name());
                 mods.get(i).execute(cmd);
             }
 
@@ -397,7 +397,7 @@ System.out.println("Execute END thru module " + mods.get(i).name());
             if (channelList != null) {
                 for (DataChannel chan : channelList) {
                     DataTransport trans = chan.getDataTransport();
-System.out.println("Execute END thru transport " + trans.name());
+logger.info("EmuModuleFactory.execute : END thru transport " + trans.name());
                     trans.execute(cmd, false);  // false means we're doing outputs only
                 }
             }
@@ -423,14 +423,14 @@ System.out.println("Execute END thru transport " + trans.name());
             if (channelList != null) {
                 for (DataChannel chan : channelList) {
                     DataTransport trans = chan.getDataTransport();
-System.out.println("Execute GO thru transport " + trans.name());
+logger.info("EmuModuleFactory.execute : GO thru transport " + trans.name());
                     trans.execute(cmd, false);  // false means we're doing outputs only
                 }
             }
 
             // pass command to all modules starting with last
             for (int i=mods.size()-1; i >= 0; i--) {
-System.out.println("Execute GO thru module " + mods.get(i).name());
+logger.info("EmuModuleFactory.execute : GO thru module " + mods.get(i).name());
                 mods.get(i).execute(cmd);
             }
 
@@ -440,7 +440,7 @@ System.out.println("Execute GO thru module " + mods.get(i).name());
             if (channelList != null) {
                 for (DataChannel chan : channelList) {
                     DataTransport trans = chan.getDataTransport();
-System.out.println("Execute GO thru transport " + trans.name());
+logger.info("EmuModuleFactory.execute : GO thru transport " + trans.name());
                     trans.execute(cmd, false);  // true means we're doing inputs only
                 }
             }
@@ -461,7 +461,7 @@ System.out.println("Execute GO thru transport " + trans.name());
 
         // RESET command
         if (emuCmd == RESET) {
-            logger.info("EmuModuleFactory.execute : RESET");
+logger.info("EmuModuleFactory.execute : RESET");
             state = CONFIGURED;
             emu.getCauses().clear();
             return;
