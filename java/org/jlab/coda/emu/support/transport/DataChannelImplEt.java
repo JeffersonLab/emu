@@ -69,7 +69,7 @@ public class DataChannelImplEt implements DataChannel {
     private ByteOrder byteOrder;
 
     /** Map of config file attributes. */
-    Map<String, String> attributeMap;
+    private Map<String, String> attributeMap;
 
     private int outputOrder;
     private int inputOrder;
@@ -160,14 +160,13 @@ public class DataChannelImplEt implements DataChannel {
         this.dataTransport = transport;
         logger = emu.getLogger();
 
-logger.info("      DataChannelImplEt.const : creating channel " + name);
+logger.info("      DataChannel Et : creating channel " + name);
 
         // set queue capacity
         int capacity = 100;    // 100 buffers * 100 events/buf * 220 bytes/Roc/ev =  2.2Mb/Roc
         try {
             capacity = dataTransport.getIntAttr("capacity");
         } catch (Exception e) {
-            logger.info("      DataChannelImplEt.const : " +  e.getMessage() + ", default to " + capacity + " records.");
         }
         queue = new LinkedBlockingQueue<EvioBank>(capacity);
 
@@ -181,7 +180,7 @@ logger.info("      DataChannelImplEt.const : creating channel " + name);
             }
             catch (NumberFormatException e) {  }
         }
-//logger.info("      DataChannelImplEt.const : id = " + id);
+//logger.info("      DataChannel Et : id = " + id);
 
 
         // size of TCP send buffer (0 means use operating system default)
@@ -247,7 +246,7 @@ logger.info("      DataChannelImplEt.const : creating channel " + name);
             }
             catch (NumberFormatException e) {}
         }
-logger.info("      DataChannelImplEt.const : write threads = " + writeThreadCount);
+//logger.info("      DataChannel Et : write threads = " + writeThreadCount);
 
         // How may groups of data writing threads at a time?
         inputThreadCount = 1;
@@ -260,7 +259,7 @@ logger.info("      DataChannelImplEt.const : write threads = " + writeThreadCoun
             }
             catch (NumberFormatException e) {}
         }
-logger.info("      DataChannelImplEt.const : input threads = " + inputThreadCount);
+//logger.info("      DataChannel Et : input threads = " + inputThreadCount);
 
         // How may groups of data writing threads at a time?
         outputThreadCount = 1;
@@ -273,7 +272,7 @@ logger.info("      DataChannelImplEt.const : input threads = " + inputThreadCoun
             }
             catch (NumberFormatException e) {}
         }
-logger.info("      DataChannelImplEt.const : output threads = " + outputThreadCount);
+//logger.info("      DataChannel Et : output threads = " + outputThreadCount);
 
         // How may buffers do we grab at a time?
         chunk = 100;
@@ -285,7 +284,7 @@ logger.info("      DataChannelImplEt.const : output threads = " + outputThreadCo
             }
             catch (NumberFormatException e) {}
         }
-//logger.info("      DataChannelImplEt.const : chunk = " + chunk);
+//logger.info("      DataChannel Et : chunk = " + chunk);
 
         // From which group do we grab new events? (default = 1)
         group = 1;
@@ -299,12 +298,12 @@ logger.info("      DataChannelImplEt.const : output threads = " + outputThreadCo
                 e.printStackTrace();
             }
         }
-//logger.info("      DataChannelImplEt.const : group = " + group);
+//logger.info("      DataChannel Et : group = " + group);
 
         // Set station name. Use any defined in config file else use
         // "station"+id for input and "GRAND_CENTRAL" for output.
         stationName = attributeMap.get("stationName");
-        logger.info("      DataChannelImplEt.const : station name = " + stationName);
+//logger.info("      DataChannel Et : station name = " + stationName);
 
 
         // Set station position. Use any defined in config file else use default (1)
@@ -315,7 +314,7 @@ logger.info("      DataChannelImplEt.const : output threads = " + outputThreadCo
             }
             catch (NumberFormatException e) {  }
         }
-//logger.info("      DataChannelImplEt.const : position = " + stationPosition);
+//logger.info("      DataChannel Et : position = " + stationPosition);
 
         // if INPUT channel
         if (input) {
@@ -358,7 +357,7 @@ logger.info("      DataChannelImplEt.const : output threads = " + outputThreadCo
                     byteOrder = ByteOrder.LITTLE_ENDIAN;
                 }
             } catch (Exception e) {
-                logger.info("      DataChannelImplEt.const : no output data endianness specified, default to big.");
+                logger.info("      DataChannel Et : no output data endianness specified, default to big.");
             }
 
             if (stationName == null) {
@@ -381,6 +380,7 @@ logger.info("      DataChannelImplEt.const : output threads = " + outputThreadCo
         // start up thread to help with input or output
         openEtSystem();
         startHelper();
+        // TODO: race condition, should make sure threads are started before returning
     }
 
     public String getName() {
@@ -405,7 +405,7 @@ logger.info("      DataChannelImplEt.const : output threads = " + outputThreadCo
      */
     public void openEtSystem() throws DataTransportException {
         try {
-System.out.println("Try to open" + dataTransport.getOpenConfig().getEtName() );
+//System.out.println("      DataChannel Et: try to open" + dataTransport.getOpenConfig().getEtName() );
             etSystem.open();
 
             if (stationName.equals("GRAND_CENTRAL")) {
@@ -421,11 +421,11 @@ System.out.println("Try to open" + dataTransport.getOpenConfig().getEtName() );
                     etSystem.setStationPosition(station, stationPosition, 0);
                 }
             }
-logger.info("      DataChannelImplEt.const : created or found station = " + stationName);
+//logger.info("      DataChannel Et: created or found station = " + stationName);
 
             // attach to station
             attachment = etSystem.attach(station);
-logger.info("      DataChannelImplEt.const : attached to station " + stationName);
+//logger.info("      DataChannel Et: attached to station " + stationName);
         }
         catch (Exception e) {
             throw new DataTransportException("cannot open ET system", e);
@@ -449,7 +449,7 @@ logger.info("      DataChannelImplEt.const : attached to station " + stationName
      * {@inheritDoc}
      */
     public void close() {
-        logger.warn("      DataChannelImplEt.close : " + name + " - closing this channel (close ET system)");
+        logger.warn("      DataChannel Et close() : " + name + " - closing this channel (close ET system)");
 
         gotEndCmd = true;
         gotResetCmd = false;
@@ -501,7 +501,7 @@ logger.info("      DataChannelImplEt.const : attached to station " + stationName
      * Close this channel by closing ET system and interrupting the data sending thread.
      */
     public void reset() {
-        logger.warn("      DataChannelImplEt.reset : " + name + " - closing this channel (close ET system)");
+        logger.warn("      DataChannel Et reset() : " + name + " - closing this channel (close ET system)");
 
         gotEndCmd = false;
         gotResetCmd = true;
@@ -604,12 +604,11 @@ logger.info("      DataChannelImplEt.const : attached to station " + stationName
                 ByteBuffer buf;
 //                EvioBank fakeEv = new EvioEvent(1,DataType.BANK,1);
 
-
                 while ( etSystem.alive() ) {
 
                     if (pause) {
                         if (pauseCounter++ % 400 == 0)
-logger.warn("      DataChannelImplEt.DataInputHelper : " + name + " - PAUSED");
+logger.warn("      DataChannel Et : " + name + " - PAUSED");
                         Thread.sleep(5);
                         continue;
                     }
@@ -626,7 +625,7 @@ logger.warn("      DataChannelImplEt.DataInputHelper : " + name + " - PAUSED");
                         }
                         catch (EtTimeoutException e) {
                             if (haveInputEndEvent || gotResetCmd) {
-System.out.println("      DataChannelImplEt.DataInputHelper : " + name + " found END or RESET, quitting");
+System.out.println("      DataChannel Et : " + name + " found END or RESET, quitting");
                                 return;
                             }
                             Thread.sleep(5);
@@ -640,7 +639,7 @@ System.out.println("      DataChannelImplEt.DataInputHelper : " + name + " found
                         buf = ev.getDataBuffer();
 
                         if (ev.needToSwap()) {
-System.out.println("      DataChannelImplEt.DataInputHelper : " + name + " SETTING byte order to LITTLE endian");
+System.out.println("      DataChannel Et : " + name + " SETTING byte order to LITTLE endian");
                             buf.order(ByteOrder.LITTLE_ENDIAN);
                         }
 
@@ -659,14 +658,14 @@ System.out.println("      DataChannelImplEt.DataInputHelper : " + name + " SETTI
                                 // There should be no more events coming down the pike so
                                 // go ahead write out existing events and then shut this
                                 // thread down.
-System.out.println("      DataChannelImplEt.DataInputHelper : got END event");
+logger.info("      DataChannel Et : got END event");
                                 haveInputEndEvent = true;
                                 break;
                             }
                         }
                         catch (EvioException e) {
                             // if ET event data NOT in evio format, skip over it
-                            logger.error("      DataChannelImplEt.DataInputHelper : " + name +
+                            logger.error("        DataChannel Et : " + name +
                                          " ET event data is NOT evio format, skip");
                         }
                     }
@@ -675,16 +674,16 @@ System.out.println("      DataChannelImplEt.DataInputHelper : got END event");
                     etSystem.putEvents(attachment, events);
 
                     if (haveInputEndEvent) {
-System.out.println("      DataChannelImplEt.DataInputHelper : " + name + " quit input helping thread");
+//logger.info("      DataChannel Et : " + name + " quit input helping thread");
                         return;
                     }
                 }
 
             } catch (InterruptedException e) {
-                logger.warn("      DataChannelImplEt.DataInputHelper : " + name + "  interrupted, exiting");
+                logger.warn("      DataChannel Et : " + name + "  interrupted, exiting");
             } catch (Exception e) {
                 e.printStackTrace();
-                logger.warn("      DataChannelImplEt.DataInputHelper : " + name + " exit " + e.getMessage());
+                logger.warn("      DataChannel Et : " + name + " exit " + e.getMessage());
             }
         }
 
@@ -727,8 +726,6 @@ System.out.println("      DataChannelImplEt.DataInputHelper : " + name + " quit 
 
             // Thread pool with 1 thread & queue
             getThreadPool = Executors.newSingleThreadExecutor();
-
-System.out.println("chunk = " + chunk + ", write thds = " + writeThreadCount);
         }
 
 
@@ -920,7 +917,7 @@ System.out.println("chunk = " + chunk + ", write thds = " + writeThreadCount);
 
                             // if not enough room in et event to hold bank ...
                             if (events[index].getDataBuffer().capacity() < bankSize) {
-logger.warn("      DataChannelImplEt.DataOutputHelper : " + name + " et event too small to contain built event");
+logger.warn("      DataChannel Et DataOutputHelper : " + name + " et event too small to contain built event");
                                 // This new event is not large enough, so dump it and replace it
                                 // with a larger one. Performance will be terrible but it'll work.
                                 etSystem.dumpEvents(attachment, new EtEvent[]{events[index]});
@@ -972,7 +969,7 @@ logger.warn("      DataChannelImplEt.DataOutputHelper : " + name + " et event to
             } catch (InterruptedException e) {
             } catch (Exception e) {
                 e.printStackTrace();
-                logger.warn("      DataChannelImplEt.DataOutputHelper : exit " + e.getMessage());
+                logger.warn("      DataChannel Et DataOutputHelper : exit " + e.getMessage());
             }
 
         }
@@ -1086,12 +1083,12 @@ logger.warn("      DataChannelImplEt.DataOutputHelper : " + name + " et event to
         if (input) {
             dataInputThreads = new Thread[inputThreadCount];
             inputHelpers = new DataInputHelper[inputThreadCount];
-            System.out.println("  # inputThreaCount = " + inputThreadCount);
+//System.out.println("  # inputThreadCount = " + inputThreadCount);
 
             for (int i=0; i < inputThreadCount; i++) {
                 inputHelpers[i] = new DataInputHelper();
                 dataInputThreads[i] = new Thread(emu.getThreadGroup(), inputHelpers[i], getName() + " data in" + i);
-System.out.println("STARTING INPUT THD");
+//System.out.println("STARTING INPUT THD");
                 dataInputThreads[i].start();
             }
         }
