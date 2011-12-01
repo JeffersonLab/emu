@@ -378,9 +378,41 @@ public class Evio {
      */
     public static EventType getEventType(EvioBank bank) {
         if (bank == null) return null;
-        
+
         int type = getEventTypeOrStatus(bank.getHeader().getTag());
         return EventType.getEventType(type);
+    }
+
+
+    /**
+     * Determine whether a Data Transport Record format bank contains the END control event or not.
+     *
+     * @param bank input Data Transport Record format bank
+     * @return <code>true</code> if arg contains END event, else <code>false</code>
+     */
+    public static boolean isEndEvent(EvioBank bank) {
+        if (bank == null)  return false;
+
+        EventType eventType = getEventType(bank);
+        if (eventType == null) return false;
+
+        return (eventType.isEnd());
+    }
+
+
+    /**
+     * Determine whether a Data Transport Record format bank contains the GO control event or not.
+     *
+     * @param bank input Data Transport Record format bank
+     * @return <code>true</code> if arg contains GO event, else <code>false</code>
+     */
+    public static boolean isGoEvent(EvioBank bank) {
+        if (bank == null)  return false;
+
+        EventType eventType = getEventType(bank);
+        if (eventType == null) return false;
+
+        return (eventType.isGo());
     }
 
 
@@ -392,12 +424,11 @@ public class Evio {
      */
     public static boolean isControlEvent(EvioBank bank) {
         if (bank == null)  return false;
-
-        int num = bank.getHeader().getNumber();
+// TODO: check the control event's (NOT DTR's !) num value, should be 0xcc
         EventType eventType = getEventType(bank);
         if (eventType == null) return false;
-   
-        return (num == 0xCC && eventType.isControl());
+
+        return (eventType.isControl());
     }
 
 
@@ -588,10 +619,10 @@ System.out.print("extractPayloadBanks: unknown type, dump payload bank");
             return;
         }
         else if (eventType.isUser()) {
-System.out.println("extractPayloadBanks: FOUND USER event !!!");
+//System.out.println("extractPayloadBanks: FOUND USER event !!!");
         }
         else if (eventType.isControl()) {
-System.out.println("extractPayloadBanks: FOUND CONTROL event !!!");
+//System.out.println("extractPayloadBanks: FOUND CONTROL event !!!");
         }
 
         // Initial recordId stored is 0, ignore that.
