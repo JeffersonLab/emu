@@ -25,12 +25,21 @@ public class DataTransportImplFile extends DataTransportCore implements DataTran
         // Dummy - nothing to see here folks, move along.
     }
 
+    // TODO: should this be here???
+    /**
+     * Close this DataTransport object.
+     * This method does nothing as closing files is handled by the channel when an
+     * "END" command comes along.
+     */
+    public void close() {}
+
+
     /** {@inheritDoc} */
     public DataChannel createChannel(String name, Map<String,String> attributeMap,
                                      boolean isInput, Emu emu)
             throws DataTransportException {
-        System.out.println("create channel " + name);
-        DataChannel c = new DataChannelImplFile(name() + ":" + name, this, isInput, emu);
+
+        DataChannel c = new DataChannelImplFile(name() + ":" + name, this, attributeMap, isInput, emu);
         if (isInput) {
             inChannels().put(c.getName(), c);
         }
@@ -38,7 +47,6 @@ public class DataTransportImplFile extends DataTransportCore implements DataTran
             outChannels().put(c.getName(), c);
         }
         allChannels().put(c.getName(), c);
-        System.out.println("put channel " + c.getName());
         return c;
     }
 
