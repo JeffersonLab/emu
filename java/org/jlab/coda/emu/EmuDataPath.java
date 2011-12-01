@@ -103,8 +103,8 @@ public class EmuDataPath {
             return false;
         }
 
-        System.out.println("Creating Module object with name = " + name +
-        " input fifo = " + inputFifo + " and output fifo = " + outputFifo);
+//        System.out.println("Creating Module object with name = " + name +
+//        " input fifo = " + inputFifo + " and output fifo = " + outputFifo);
 
         modules.add(mod);
         return true;
