@@ -49,7 +49,7 @@ class RcCommandHandler extends GenericCallback implements cMsgCallbackInterface 
      * @param o   object given in subscription & passed in here (null in this case)
      */
     public void callback(cMsgMessage msg, Object o) {
-System.out.println("callback: got " + msg.getType() + " message");
+//System.out.println("callback: got " + msg.getType() + " message");
         try {
             String type = msg.getType();
 
@@ -60,13 +60,13 @@ System.out.println("callback: got " + msg.getType() + " message");
                 codaCmd = CODACommand.get(type);
             } catch (IllegalArgumentException e) {
                 // TODO: bug bug: do we want this printed, logged, etc ???
-System.out.println("callback: received an invalid command");
+//System.out.println("callback: received an invalid command");
                 return;
             }
 
             if (codaCmd == null) {
                 // TODO: bug bug: do we want this printed, logged, etc ???
-System.out.println("callback: received an invalid command of type " + type);
+//System.out.println("callback: received an invalid command of type " + type);
                 return;
             }
 
