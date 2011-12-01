@@ -21,6 +21,9 @@ import org.jlab.coda.emu.support.control.CmdExecException;
 import org.jlab.coda.emu.support.control.Command;
 
 import static org.jlab.coda.emu.support.codaComponent.CODACommand.*;
+import static org.jlab.coda.emu.support.messaging.RCConstants.*;
+import static org.jlab.coda.emu.support.messaging.RCConstants.reset;
+
 import org.jlab.coda.emu.support.control.State;
 import org.jlab.coda.emu.support.logger.Logger;
 import org.jlab.coda.emu.support.messaging.CMSGPortal;
@@ -574,10 +577,10 @@ public class Emu implements CODAComponent {
      * @see CODAComponent#run()
      */
     public void run() {
-        logger.info("CODAComponent state monitor thread started");
+
         State oldState = null;
         State state;
-        // Thread.currentThread().getThreadGroup().list();
+
         do {
 
             try {
@@ -609,14 +612,11 @@ System.out.println("Emu: state changed to " + state.name());
                             debugGUI.getToolBar().updateButtons(state);
                         }
 
-                        logger.info("State Change to : " + state.toString());
-
                         try {
                             //Configurer.setValue(localConfig, "component/status/state", state.toString());
                             Configurer.setValue(localConfig, "status/state", state.toString());
                         } catch (DataNotFoundException e) {
                             // This is almost impossible but catch anyway
-System.out.println("ERROR in setting value in local config !!!");
                             logger.error("CODAComponent thread failed to set state");
                         }
 
@@ -672,7 +672,7 @@ System.out.println("ERROR in setting value in local config !!!");
         else if (codaCommand == SET_RUN_NUMBER) {
             // get the new run number and store it
             try {
-                cMsgPayloadItem item = cmd.getArg("RUNNUMBER");
+                cMsgPayloadItem item = cmd.getArg(codaCommand.getPayloadName());
                 if (item != null) {
                     System.out.println("SET RUN NUMBER to " + item.getInt());
                     setRunNumber(item.getInt());
@@ -691,7 +691,7 @@ System.out.println("ERROR in setting value in local config !!!");
             // get the new session and store it
             String txt = cmd.getMessage().getText();
             if (txt != null) {
-                System.out.println("SET Session to " + txt);
+//System.out.println("SET Session to " + txt);
                 session = txt;
             }
             else {
@@ -918,7 +918,7 @@ System.out.println("ERROR in setting value in local config !!!");
                             throw new DataNotFoundException("No \"name\" attr in component element of config file");
                         }
 
-                        System.out.println("Cmd line config: found component " + attr.getNodeValue());
+//System.out.println("Cmd line config: found component " + attr.getNodeValue());
                         // Get name in config file and compare to our name - should be same.
                         if (!attr.getNodeValue().equals(name)) {
                             throw new DataNotFoundException("Name in config file (" + attr.getNodeValue() +
@@ -951,7 +951,7 @@ System.out.println("ERROR in setting value in local config !!!");
             }
             // parsing XML error
             catch (DataNotFoundException e) {
-                logger.error("CONFIGURE FAILED", e.getMessage());
+logger.error("CONFIGURE FAILED", e.getMessage());
                 //e.printStackTrace();
                 causes.add(e);
                 moduleFactory.ERROR();
@@ -1203,7 +1203,7 @@ System.out.println("ERROR in setting value in local config !!!");
 
                     moduleFactory.setDataPath(dataPath);
 
-                    System.out.println("DataPath -> " + dataPath);
+//System.out.println("DataPath -> " + dataPath);
 
                 }
                 catch (DataNotFoundException e) {
@@ -1213,23 +1213,21 @@ System.out.println("ERROR in setting value in local config !!!");
         }
 
 
-        // All commands are passed down to the modules here.
+        // All *** TRANSITION *** commands are passed down to the modules here.
         // Note: the "CODACommand.CONFIGURE" command does nothing in the MODULE_FACTORY
         // except to set its state to "CODAState.CONFIGURED".
         try {
-            moduleFactory.execute(cmd);
-            logger.info("command " + codaCommand + " executed, state " + cmd.success());
+            if (codaCommand.isTransition()) {
+                moduleFactory.execute(cmd);
+            }
+//logger.info("command " + codaCommand + " executed, state " + cmd.success());
         } catch (CmdExecException e) {
             causes.add(e);
             moduleFactory.ERROR();
         }
 
-        // If given the "reset" command, do that after the modules have reset.
-        // Go back to "configured" state
-        if (codaCommand == RESET) {
-        }
         // If given the "exit" command, do that after the modules have exited
-        else if (codaCommand == EXIT) {
+        if (codaCommand == EXIT) {
             quit();
         }
 
