@@ -745,6 +745,12 @@ System.out.println("INTERRUPTED thread " + Thread.currentThread().getName());
 
                try {
                    semaphore.acquire();
+
+                   if (eventNumber + numEvents > endLimit) {
+System.out.println("TIME TO END ...");
+                       return;
+                   }
+
                    job = new DataGenerateJob(timestamp, status, rocRecordId, tag,
                                             (int) eventNumber, inputOrder);
                    writeThreadPool.execute(job);
@@ -845,18 +851,18 @@ System.out.println("INTERRUPTED thread " + Thread.currentThread().getName());
             if (eventGeneratingThread != null) {
                 try {
                     // Kill this thread before thread pool threads to avoid exception.
-System.out.println("RocSim END: try joining ev-gen thread ...");
+//System.out.println("          RocSim END: try joining ev-gen thread ...");
                     eventGeneratingThread.join();
-System.out.println("RocSim END: done");
+//System.out.println("          RocSim END: done");
                 }
                 catch (InterruptedException e) {
                 }
 
                 try {
-System.out.println("RocSim END: try joining thread pool threads ...");
+//System.out.println("          RocSim END: try joining thread pool threads ...");
                     eventGeneratingThread.getWriteThreadPool().shutdown();
                     eventGeneratingThread.getWriteThreadPool().awaitTermination(100L, TimeUnit.MILLISECONDS);
-System.out.println("RocSim END: done");
+//System.out.println("          RocSim END: done");
                 }
                 catch (InterruptedException e) {
                 }
@@ -867,7 +873,7 @@ System.out.println("RocSim END: done");
 
             // Put in END event
             try {
-System.out.println("Putting in END control event");
+System.out.println("          RocSim: Putting in END control event");
                 EvioEvent controlEvent = Evio.createControlDTR(rocId, EventType.END);
                 outputChannels.get(0).getQueue().put(controlEvent);
             }
@@ -900,18 +906,18 @@ System.out.println("Putting in END control event");
             if (eventGeneratingThread != null) {
                 try {
                     // Kill this thread before thread pool threads to avoid exception.
-System.out.println("RocSim RESET: try joining ev-gen thread ...");
+//System.out.println("          RocSim RESET: try joining ev-gen thread ...");
                     eventGeneratingThread.join();
-System.out.println("RocSim RESET: done");
+//System.out.println("          RocSim RESET: done");
                 }
                 catch (InterruptedException e) {
                 }
 
                 try {
-System.out.println("RocSim RESET: try joining thread pool threads ...");
+//System.out.println("          RocSim RESET: try joining thread pool threads ...");
                     eventGeneratingThread.getWriteThreadPool().shutdown();
                     eventGeneratingThread.getWriteThreadPool().awaitTermination(100L, TimeUnit.MILLISECONDS);
-System.out.println("RocSim RESET: done");
+//System.out.println("          RocSim RESET: done");
                 }
                 catch (InterruptedException e) {
                 }
@@ -949,7 +955,7 @@ System.out.println("RocSim RESET: done");
 
             // Put in PRESTART event
             try {
-System.out.println("Putting in PRESTART control event");
+System.out.println("          RocSim: Putting in PRESTART control event");
                 EvioEvent controlEvent = Evio.createControlDTR(rocId, EventType.PRESTART);
                 outputChannels.get(0).getQueue().put(controlEvent);
             }
@@ -971,12 +977,12 @@ System.out.println("Putting in PRESTART control event");
 
         // currently NOT used
         else if (emuCmd == PAUSE) {
-System.out.println("ROC: GOT PAUSE, DO NOTHING");
+//System.out.println("          RocSim: GOT PAUSE, DO NOTHING");
             paused = true;
 
             // Put in PAUSE event
             try {
-System.out.println("Putting in PAUSE control event");
+System.out.println("          RocSim: Putting in PAUSE control event");
                 EvioEvent controlEvent = Evio.createControlDTR(rocId, EventType.PAUSE);
                 outputChannels.get(0).getQueue().put(controlEvent);
             }
@@ -991,12 +997,12 @@ System.out.println("Putting in PAUSE control event");
 
         else if (emuCmd == GO) {
             if (state == CODAState.ACTIVE) {
-System.out.println("WE musta hit go after PAUSE");
+System.out.println("          RocSim: We musta hit go after PAUSE");
             }
 
             // Put in GO event
             try {
-System.out.println("Putting in GO control event");
+System.out.println("          RocSim: Putting in GO control event");
                 EvioEvent controlEvent = Evio.createControlDTR(rocId, EventType.GO);
                 outputChannels.get(0).getQueue().put(controlEvent);
             }
@@ -1016,7 +1022,7 @@ System.out.println("Putting in GO control event");
             }
 
             if (watcher.getState() == Thread.State.NEW) {
-System.out.println("starting watcher thread");
+//System.out.println("starting watcher thread");
                 watcher.start();
             }
 
@@ -1029,7 +1035,7 @@ System.out.println("starting watcher thread");
 //System.out.println("ROC: event generating thread " + eventGeneratingThread.getName() + " isAlive = " +
 //                    eventGeneratingThread.isAlive());
             if (eventGeneratingThread.getState() == Thread.State.NEW) {
-System.out.println("starting event generating thread");
+//System.out.println("starting event generating thread");
                 eventGeneratingThread.start();
             }
 
