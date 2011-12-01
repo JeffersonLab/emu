@@ -28,73 +28,73 @@ public enum CODACommand {
     // run/transition/
 
     /** Configure transition. */
-    CONFIGURE("Load configuration", configure, 0, InputType.PAYLOAD_TEXT, configPayloadFileName),
+    CONFIGURE("Load configuration", configure, true, 0, InputType.PAYLOAD_TEXT, configPayloadFileName),
     /** Download transition. */
-    DOWNLOAD("Apply configuration and load", download, 0, null, null),
+    DOWNLOAD("Apply configuration and load", download, true, 0, null, null),
     /** Prestart transition. */
-    PRESTART("Prepare to start", prestart, 0, null, null),
+    PRESTART("Prepare to start", prestart, true, 0, null, null),
     /** Go transition. */
-    GO("Start taking data", go, 0, null, null),
+    GO("Start taking data", go, true, 0, null, null),
     /** End transition. */
-    END("End taking data", end, 0, null, null),
+    END("End taking data", end, true, 0, null, null),
     /** Pause transition. */
-    PAUSE("Pause taking data", pause, 0, null, null),
+    PAUSE("Pause taking data", pause, true, 0, null, null),
     /** Reset transition. */
-    RESET("Return to configured state", reset, 0, null, null),
+    RESET("Return to configured state", reset, true, 0, null, null),
 
     // coda/info/
 
     /** Command to get the state .*/
-    GET_STATE("Get state", getState, -1, null, null),
+    GET_STATE("Get state", getState, false, -1, null, null),
     /** Command to get the status. */
-    GET_STATUS("Get status", getStatus, -1, null, null),
+    GET_STATUS("Get status", getStatus, false, -1, null, null),
     /** Command to get the object type. */
-    GET_OBJECT_TYPE("Get object type", getObjectType, -1, null, null),
+    GET_OBJECT_TYPE("Get object type", getObjectType, false, -1, null, null),
     /** Command to get the coda class. */
-    GET_CODA_CLASS("Get coda class", getCodaClass, -1, null, null),
+    GET_CODA_CLASS("Get coda class", getCodaClass, false, -1, null, null),
 
     // run/control/
 
     /** Command to set run number. */
-    SET_RUN_NUMBER("Set run number", setRunNumber, 1, InputType.PAYLOAD_INT, "RUNNUMBER"),
+    SET_RUN_NUMBER("Set run number", setRunNumber, false, 1, InputType.PAYLOAD_INT, "RUNNUMBER"),
     /** Command to get run number .*/
-    GET_RUN_NUMBER("Get run number", getRunNumber, -1, null, null),
+    GET_RUN_NUMBER("Get run number", getRunNumber, false, -1, null, null),
     /** Command to set run type. */
-    SET_RUN_TYPE("Set run type", setRunType, -1, null, null),
+    SET_RUN_TYPE("Set run type", setRunType, false, -1, null, null),
     /** Command to get run type. */
-    GET_RUN_TYPE("Get run type", getRunType, -1, null, null),
+    GET_RUN_TYPE("Get run type", getRunType, false, -1, null, null),
 
     // session/setOption/    none implemented
 
     /** Command to set run number. */
-    SET_FILE_PATH("Set config file path", setFilePath, -1, null, null),
+    SET_FILE_PATH("Set config file path", setFilePath, false, -1, null, null),
     /** Command to get run number .*/
-    SET_FILE_PREFIX("Get config file prefix", setFilePrefix, -1, null, null),
+    SET_FILE_PREFIX("Get config file prefix", setFilePrefix, false, -1, null, null),
     /** Command to set run type. */
-    SET_CONFIG_FILE("Set xml config file contents", setConfigFile, -1, null, null),
+    SET_CONFIG_FILE("Set xml config file contents", setConfigFile, false, -1, null, null),
 
     // session/control/
 
     /** Command to set time interval between reporting messages in seconds. */
-    SET_INTERVAL("Set interval", setInterval, 1, InputType.USER_INT, null),
+    SET_INTERVAL("Set interval", setInterval, false, 1, InputType.USER_INT, null),
     /** Command to set start reporting. */
-    START_REPORTING("Start reporting", startReporting, 1, null, null),
+    START_REPORTING("Start reporting", startReporting, false, 1, null, null),
     /** Command to set stop reporting. */
-    STOP_REPORTING("Stop reporting", stopReporting, 1, null, null),
+    STOP_REPORTING("Stop reporting", stopReporting, false, 1, null, null),
     /** Command to exit. */
-    EXIT("Shutdown coda component", exit, 1, null, null),
+    EXIT("Shutdown coda component", exit, false, 1, null, null),
     /** Command to set state. */
-    SET_STATE("Set state", setState, -1, null, null),
+    SET_STATE("Set state", setState, false, -1, null, null),
     /** Command to set session. */
-    SET_SESSION("Set session", setSession, -1, null, null),
+    SET_SESSION("Set session", setSession, false, -1, null, null),
     /** Command to get session. */
-    GET_SESSION("Get session", getSession, -1, null, null),
+    GET_SESSION("Get session", getSession, false, -1, null, null),
     /** Command to release session. */
-    RELEASE_SESSION("Release session", releaseSession, -1, null, null),
+    RELEASE_SESSION("Release session", releaseSession, false, -1, null, null),
     /** Command to start. */
-    START("Start", start, -1, null, null),
+    START("Start", start, false, -1, null, null),
     /** Command to stop. */
-    STOP("Stop", stop, -1, null, null),
+    STOP("Stop", stop, false, -1, null, null),
     ;
 
 
@@ -118,6 +118,9 @@ public enum CODACommand {
 
     /** Description of this command. */
     private final String description;
+
+    /** Does this command represent a runcontrol transition? */
+    private boolean isTransition;
 
     /**
      * If this command is displayed in GUI, display with commands of same gui group
@@ -161,24 +164,26 @@ public enum CODACommand {
     /**
      * Constructor CODATransition creates a new CODATransition instance.
      *
-     * @param description description of command
-     * @param cmdString string from Run Control specifying this command
-     * @param guiGroup  in debug GUI there are 4 gui groups that are used,
-     *                  0-3,each with one line of buttons.
-     *                  All commands with other gui group values are
-     *                  ignored in debug gui.
-     * @param inputType how is this command's input obtained from cMsg message:
-     *                  getText, getUserInt, payload text or payload int?
-     * @param payloadName if input type is payload, this is payload's name
+     * @param description  description of command
+     * @param cmdString    string from Run Control specifying this command
+     * @param isTransition does this command represent a runcontrol transition?
+     * @param guiGroup     in debug GUI there are 4 gui groups that are used,
+     *                     0-3,each with one line of buttons.
+     *                     All commands with other gui group values are
+     *                     ignored in debug gui.
+     * @param inputType    how is this command's input obtained from cMsg message:
+     *                     getText, getUserInt, payload text or payload int?
+     * @param payloadName  if input type is payload, this is payload's name
      */
-    CODACommand(String description, String cmdString,
+    CODACommand(String description, String cmdString, boolean isTransition,
                 int guiGroup, InputType inputType, String payloadName) {
 
-        this.cmdString   = cmdString;
-        this.description = description;
-        this.guiGroup    = guiGroup;
-        this.inputType   = inputType;
-        this.payloadName = payloadName;
+        this.cmdString    = cmdString;
+        this.description  = description;
+        this.isTransition = isTransition;
+        this.guiGroup     = guiGroup;
+        this.inputType    = inputType;
+        this.payloadName  = payloadName;
     }
 
 
@@ -188,6 +193,10 @@ public enum CODACommand {
 
     public int getGuiGroup() {
         return guiGroup;
+    }
+
+    public boolean isTransition() {
+        return isTransition;
     }
 
     public String getPayloadName() {
