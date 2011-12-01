@@ -166,25 +166,6 @@ public class DataTransportFactory implements StatedObject {
         if (emuCmd == DOWNLOAD) {
 
             try {
-                Node m = Configurer.getNode(emu.configuration(), "component/transports");
-                if (!m.hasChildNodes()) {
-                    logger.warn("transport section present in config but no transports");
-
-                    // If doing a download from the downloaded state,
-                    // close the existing transport objects first
-                    // (this step is normally done from RESET).
-                    for (DataTransport t : transports) {
-                        logger.debug("  DataTransportFactory.execute DOWNLOAD : " + t.name() + " close");
-                        t.close();
-                    }
-
-                    // remove all current (non-fifo) data transport objects
-                    transports.removeAllElements();
-                    return;
-                }
-
-                NodeList l = m.getChildNodes();
-
                 // If doing a download from the downloaded state,
                 // close the existing transport objects first
                 // (this step is normally done from RESET).
@@ -195,6 +176,14 @@ public class DataTransportFactory implements StatedObject {
 
                 // remove all current data transport objects
                 transports.removeAllElements();
+
+                Node m = Configurer.getNode(emu.configuration(), "component/transports");
+                if (!m.hasChildNodes()) {
+                    logger.warn("transport section present in config but no transports");
+                    return;
+                }
+
+                NodeList l = m.getChildNodes();
 
                 // for each child node (under component/transports) ...
                 for (int ix = 0; ix < l.getLength(); ix++) {
@@ -221,7 +210,7 @@ public class DataTransportFactory implements StatedObject {
                         // get the name used to access transport
                         String transportName = attrib.get("name");
                         if (transportName == null) throw new DataNotFoundException("transport name attribute missing in config");
-logger.info("  DataTransportFactory.execute DOWN : creating " + transportName);
+//logger.info("  DataTransportFactory.execute DOWN : creating " + transportName);
 
                         // Generate a name for the implementation of this transport
                         // from the name passed from the configuration.
@@ -231,15 +220,14 @@ logger.info("  DataTransportFactory.execute DOWN : creating " + transportName);
 
                         // Fifos are created internally, not by an Emu
                         if (transportClass.equals("Fifo")) {
-logger.warn("  DataTransportFactory.execute DOWN : Emu does not need to specify FIFOs in transport section of config");
+//logger.warn("  DataTransportFactory.execute DOWN : Emu does not need to specify FIFOs in transport section of config");
                             state = cmd.success();
-System.out.println("  DataTransportFactory.execute: final state = " + state);
                             continue;
                         }
 
                         try {
                             Class c = DataTransportFactory.class.getClassLoader().loadClass(implName);
-logger.info("  DataTransportFactory.execute DOWN : loaded class = " + c);
+//logger.info("  DataTransportFactory.execute DOWN : loaded class = " + c);
 
                             // 2 constructor args
                             Class[] parameterTypes = {String.class, Map.class, Emu.class};
@@ -249,7 +237,7 @@ logger.info("  DataTransportFactory.execute DOWN : loaded class = " + c);
                             Object[] args = {transportName, attrib, emu};
                             transports.add((DataTransport) co.newInstance(args));
 
-                            logger.info("  DataTransportFactory.execute DOWN : created " + transportName + " of protocol " + transportClass);
+//logger.info("  DataTransportFactory.execute DOWN : created " + transportName + " of protocol " + transportClass);
 
                         } catch (Exception e) {
                             state = ERROR;
@@ -258,7 +246,7 @@ logger.info("  DataTransportFactory.execute DOWN : loaded class = " + c);
                         }
                     } // if node is element
                     state = cmd.success();
-System.out.println("  DataTransportFactory.execute: final state = " + state);
+//System.out.println("  DataTransportFactory.execute: final state = " + state);
                 } // for each child node
             }
             catch (DataNotFoundException e) {
@@ -276,7 +264,7 @@ logger.warn("  DataTransportFactory.execute DOWN : transport section missing/inc
         // Pass commands down to all transport objects: DOWNLOAD, PRESTART, PAUSE, & RESET.
         if (emuCmd != END && emuCmd != GO) {
             for (DataTransport transport : transports) {
-                logger.debug("  DataTransportFactory.execute : pass " + emuCmd + " down to " + transport.name());
+logger.debug("  DataTransportFactory.execute : pass " + emuCmd + " down to " + transport.name());
                 // forInput is ignored here
                 transport.execute(cmd, forInput);
             }
@@ -285,23 +273,23 @@ logger.warn("  DataTransportFactory.execute DOWN : transport section missing/inc
         // END is handled in the EmuModuleFactory and we close all transport objects here.
         else if (emuCmd == END) {
             for (DataTransport t : transports) {
-                logger.debug("  DataTransportFactory.execute : close " + t.name());
+logger.debug("  DataTransportFactory.execute : close " + t.name());
                 t.close();
             }
 
             // clear Fifos (not included in "transports" vector)
-System.out.println("CLOSE FIFOs");
+//System.out.println("CLOSE FIFOs");
             fifoTransport.close();
         }
 
         // reset (hard close) transport objects for RESET transition
         if (emuCmd == RESET) {
             for (DataTransport t : transports) {
-                logger.debug("  DataTransportFactory.execute RESET : reset " + t.name());
+logger.debug("  DataTransportFactory.execute RESET : reset " + t.name());
                 t.reset();
             }
             // reset Fifos
-System.out.println("RESET FIFOs");
+//System.out.println("RESET FIFOs");
             fifoTransport.reset();
             transports.clear();
             state = cmd.success();
