@@ -167,6 +167,7 @@ public class EventBuilding implements EmuModule {
     /** The number of the event that this Event Builder last completely built. */
     private long lastEventNumberBuilt;
 
+    // TODO: make stats volatile??
     /** Total number of DataBank objects written to the outputs. */
     private long eventCountTotal;
 
@@ -205,7 +206,7 @@ public class EventBuilding implements EmuModule {
     private boolean useOutputWaitingList = true;
 
     /** If <code>true</code>, get debug print out. */
-    private boolean debug = true;
+    private boolean debug = false;
 
     /** If <code>true</code>, check timestamps for consistency. */
     private boolean checkTimestamps;
@@ -415,6 +416,40 @@ public class EventBuilding implements EmuModule {
             }
         }
     }
+
+
+    /**
+     * This class takes Data Transport Records from a queue (an input channel, eg. ROC),
+     * extracts payload banks from those DTRs, and places the resulting banks in a payload
+     * bank queue associated with that channel. All other types of events are ignored.
+     * Nothing in this class depends on single event mode status.
+     */
+    private class QfillerDump extends Thread {
+
+        BlockingQueue<EvioBank> channelQ;
+        PayloadBankQueue<PayloadBank> payloadBankQ;
+
+        QfillerDump(PayloadBankQueue<PayloadBank> payloadBankQ, BlockingQueue<EvioBank> channelQ) {
+            this.channelQ = channelQ;
+            this.payloadBankQ = payloadBankQ;
+        }
+
+        @Override
+        public void run() {
+            while (state == CODAState.ACTIVE || paused) {
+                try {
+                    while (state == CODAState.ACTIVE || paused) {
+                        // block waiting for the next DTR from ROC.
+                        channelQ.take();  // blocks, throws InterruptedException
+
+                    }
+                } catch (InterruptedException e) {
+                    return;
+                }
+            }
+        }
+    }
+
 
 
     /**
