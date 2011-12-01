@@ -86,6 +86,7 @@ public class DataTransportImplEt extends DataTransportCore implements DataTransp
      *
      * @param pname  name of transport
      * @param attrib transport's attribute map from config file
+     * @param emu  emu object this transport belongs to
      *
      * @throws DataNotFoundException when cannot configure an ET system
      */
@@ -348,12 +349,12 @@ public class DataTransportImplEt extends DataTransportCore implements DataTransp
     public void reset() {
         // kill any ET system this object started
         if (processET != null && createdET) {
-System.out.println("Tell the ET system process to die - " + openConfig.getEtName());
+logger.debug("    DataTransport Et: tell the ET system process to die - " + openConfig.getEtName());
             processET.destroy();
             try {
-System.out.println("     wait for the ET system process to die ...");
+logger.debug("    DataTransport Et: wait for the ET system process to die ...");
                 processET.waitFor();
-System.out.println("     ET is dead");
+logger.debug("    DataTransport Et: ET is dead");
             }
             catch (InterruptedException e) { }
             // remove the ET system file
@@ -379,7 +380,7 @@ System.out.println("     ET is dead");
 
 
     public void execute(Command cmd, boolean forInput) {
-logger.debug("    DataTransportImplEt.execute : " + cmd.name());
+logger.debug("    DataTransport Et execute : " + cmd.name());
         CODACommand emuCmd = cmd.getCodaCommand();
 
         if (emuCmd == DOWNLOAD) {
@@ -406,12 +407,12 @@ logger.debug("    DataTransportImplEt.execute : " + cmd.name());
                 }
                 catch (EtException e) {
 //System.out.println("  Cannot open ET system, config is not self consistent");
-                    logger.debug("    DataTransportImplEt.execute DOWNLOAD: self-contradictory ET system config : " + name() + " " + myInstance);
+                    logger.debug("    DataTransport Et execute DOWNLOAD: self-contradictory ET system config : " + name() + " " + myInstance);
                     state = CODAState.ERROR;
                     return;
                 }
                 catch (Exception e) {
-                    e.printStackTrace();
+//                    e.printStackTrace();
                     // Any existing local ET might be different name or TCP port, or isn't local.
                     // A name conflict will spell doom for us later when we try to create it.
 //System.out.println("  Cannot open ET system " + openConfig.getEtName() + ", not there?");
@@ -458,8 +459,7 @@ logger.debug("    DataTransportImplEt.execute : " + cmd.name());
 
                     // error if incompatible ET system exists
                     if (incompatibleET) {
-System.out.println("Incompatible ET system, " + openConfig.getEtName());
-                        logger.debug("    DataTransportImplEt.execute DOWNLOAD: incompatible ET system exists : " + name() + " " + myInstance);
+logger.debug("    DataTransport Et execute DOWNLOAD: incompatible ET system exists : " + name() + " " + myInstance);
                         state = CODAState.ERROR;
                         return;
                     }
@@ -490,7 +490,7 @@ System.out.println("Incompatible ET system, " + openConfig.getEtName());
                     }
 
                     try {
-System.out.println("Create ET system, " + openConfig.getEtName() + " with cmd \n" + etCmd);
+logger.debug("    DataTransport Et: create ET system, " + openConfig.getEtName() + " with cmd \n" + etCmd);
                         processET = Runtime.getRuntime().exec(etCmd);
                         createdET = true;
                     }
@@ -543,9 +543,9 @@ System.out.println("Create ET system, " + openConfig.getEtName() + " with cmd \n
         else if (emuCmd == END) {
             setConnected(false);
 
-            if (logger != null) {
-                logger.debug("close transport " + name());
-            }
+//            if (logger != null) {
+//                logger.debug("close transport " + name());
+//            }
 
             HashMap<String, DataChannel> channels;
             if (forInput) {
@@ -572,9 +572,9 @@ System.out.println("Create ET system, " + openConfig.getEtName() + " with cmd \n
         else if (emuCmd == RESET) {
             setConnected(false);
 
-            if (logger != null) {
-                logger.debug("reset transport " + name());
-            }
+//            if (logger != null) {
+//                logger.debug("reset transport " + name());
+//            }
 
             // reset channels
             if (!allChannels.isEmpty()) {
