@@ -31,7 +31,9 @@ public class DataTransportImplFile extends DataTransportCore implements DataTran
      * This method does nothing as closing files is handled by the channel when an
      * "END" command comes along.
      */
-    public void close() {}
+    public void close() {
+//        logger.debug("    DataTransport File: close() called, do noting");
+    }
 
 
     /** {@inheritDoc} */
