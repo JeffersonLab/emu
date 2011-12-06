@@ -203,7 +203,7 @@ public class EventBuilding implements EmuModule {
      * to continue building events instead of waiting for another thread to
      * build the event that is next in line.
      */
-    private boolean useOutputWaitingList = true;
+    private boolean useOutputWaitingList = false;
 
     /** If <code>true</code>, get debug print out. */
     private boolean debug = false;
