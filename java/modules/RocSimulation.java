@@ -469,172 +469,6 @@ System.out.println("INTERRUPTED thread " + Thread.currentThread().getName());
     }
 
 
-     /**
-      * This thread is started by the GO transition and runs while the state of the module is ACTIVE.
-      * <p/>
-      * When the state is ACTIVE and the list of output DataChannels is not empty, this thread
-      * selects an output by taking the next one from a simple iterator. This thread then creates
-      * data transport records with payload banks containing ROC raw records and places them on the
-      * output DataChannel.
-      * <p/>
-      */
-     class EventGeneratingThreadGood extends Thread {
-
-         private volatile boolean quit;
-
-         EventGeneratingThreadGood(ThreadGroup group, Runnable target, String name) {
-             super(group, target, name);
-         }
-
-         EventGeneratingThreadGood() {
-             super();
-         }
-
-         void killThread() {
-             quit = true;
-         }
-
-        public void run() {
-
-            int  status=0, oldVal=0;
-            long timestamp = 0L, start_time = System.currentTimeMillis();
-
-            LinkedBlockingQueue<DataGenerateJobGood> jobList =
-                    new LinkedBlockingQueue<DataGenerateJobGood>(writeThreads*2);
-
-            // stuff for copying evio banks into ET events
-            for (int i=0; i < writeThreads*2; i++) {
-                jobList.add(new DataGenerateJobGood(jobList));
-            }
-
-            DataGenerateJobGood job;
-
-            // Run thread pool with "writeThreads" number of threads & fixed-sized queue.
-            ThreadPoolExecutor writeThreadPool = new ThreadPoolExecutor(writeThreads, writeThreads,
-                                          0L, TimeUnit.MILLISECONDS,
-                                          new LinkedBlockingQueue<Runnable>(2*writeThreads));
-
-            writeThreadPool.prestartAllCoreThreads();
-
-            System.out.println("ROC SIM write thds = " + writeThreads);
-
-            // Found out how many events are generated per method call, and the event size
-            int type = EventType.ROC_RAW.getValue();
-            int tag = Evio.createCodaTag(type, rocId);
-            EventBuilder eb = new EventBuilder(tag, DataType.BANK, 0);
-            try {
-                numEvents = Evio.createRocDataTransportRecord2(rocId, triggerType,
-                                                   detectorId, status,
-                                                   0, eventBlockSize,
-                                                   0, 0,
-                                                   eventSize, isSingleEventMode,
-                                                   eb);
-                eventWordSize = eb.getEvent().getHeader().getLength() + 1;
-            }
-            catch (EvioException e) {
-                System.out.println("INTERRUPTED thread " + Thread.currentThread().getName());
-                if (state == CODAState.DOWNLOADED) return;
-            }
-
-
-            while (state == CODAState.ACTIVE || paused) {
-
-                if (quit) return;
-
-                try {
-                    job = jobList.take();
-                    job.setStuff(timestamp, status, rocRecordId, tag,
-                                 (int) eventNumber, inputOrder);
-                    writeThreadPool.execute(job);
-
-                    inputOrder   = ++inputOrder % Integer.MAX_VALUE;
-                    timestamp   += 4*numEvents;
-                    eventNumber += numEvents;
-                    rocRecordId++;
-
-                    long now = System.currentTimeMillis();
-                    long deltaT = now - start_time;
-                    if (deltaT > 2000) {
-                        System.out.println("DTR rate = " + String.format("%.3g", ((rocRecordId-oldVal)*1000./deltaT) ) + " Hz");
-                        start_time = now;
-                        oldVal = rocRecordId;
-                    }
-                }
-                catch (Exception e) {
-                    e.printStackTrace();
-                    if (state == CODAState.DOWNLOADED) return;
-                }
-            }
-        }
-    }
-
-
-    /**
-     * This class is designed to create an evio bank's
-     * contents by way of a thread pool.
-     */
-    private class DataGenerateJobGood implements Runnable {
-
-        private long timeStamp;
-        private int status;
-        private int recordId;
-        private int evNum;
-        private int inputOrder;
-        private LinkedBlockingQueue<DataGenerateJobGood> jobList;
-        private EventBuilder eventBuilder;
-
-        /** Constructor. */
-        DataGenerateJobGood(LinkedBlockingQueue<DataGenerateJobGood> jobList) {
-            this.jobList = jobList;
-            eventBuilder = new EventBuilder(null);
-        }
-
-        void setStuff(long timeStamp, int status, int recordId, int tag, int evNum, int inputOrder) {
-            this.evNum      = evNum;
-            this.status     = status;
-            this.recordId   = recordId;
-            this.timeStamp  = timeStamp;
-            this.inputOrder = inputOrder;
-            eventBuilder.setEvent(new EvioEvent(tag, DataType.BANK, recordId));
-        }
-
-
-        EvioEvent getEvent() {
-            return eventBuilder.getEvent();
-        }
-
-
-        // write bank into et event buffer
-        public void run() {
-            try {
-                // turn event into byte array
-                Evio.createRocDataTransportRecord2(rocId, triggerType,
-                                                   detectorId, status,
-                                                   evNum, eventBlockSize,
-                                                   timeStamp, recordId,
-                                                   eventSize, isSingleEventMode,
-                                                   eventBuilder);
-
-                // put dtr into output channel
-                EvioEvent ev = eventBuilder.getEvent();
-                ev.setAttachment(inputOrder);
-                eventToOutputQueue(ev);
-
-                // this object can be reused to generate more data now
-                jobList.add(this);
-
-                // TODO: error handling
-            }
-            catch (EvioException e) {
-                e.printStackTrace();
-            }
-            catch (InterruptedException e) {
-                e.printStackTrace();
-            }
-        }
-    }
-
-
 
     /**
      * This method is called by a DataGenerateJob running in a thread from a pool.
@@ -709,6 +543,7 @@ System.out.println("INTERRUPTED thread " + Thread.currentThread().getName());
 
         public void run() {
 
+           boolean sentOneAlready = false;
            int  status=0, oldVal=0;
            long timestamp = 0L, start_time = System.currentTimeMillis();
 
@@ -746,10 +581,10 @@ System.out.println("INTERRUPTED thread " + Thread.currentThread().getName());
                try {
                    semaphore.acquire();
 
-                   if (eventNumber + numEvents > endLimit) {
-System.out.println("TIME TO END ...");
+                   if (sentOneAlready && (eventNumber + numEvents > endLimit)) {
                        return;
                    }
+                   sentOneAlready = true;
 
                    job = new DataGenerateJob(timestamp, status, rocRecordId, tag,
                                             (int) eventNumber, inputOrder);
@@ -873,7 +708,7 @@ System.out.println("TIME TO END ...");
 
             // Put in END event
             try {
-System.out.println("          RocSim: Putting in END control event");
+//System.out.println("          RocSim: Putting in END control event");
                 EvioEvent controlEvent = Evio.createControlDTR(rocId, EventType.END);
                 outputChannels.get(0).getQueue().put(controlEvent);
             }
@@ -955,7 +790,7 @@ System.out.println("          RocSim: Putting in END control event");
 
             // Put in PRESTART event
             try {
-System.out.println("          RocSim: Putting in PRESTART control event");
+//System.out.println("          RocSim: Putting in PRESTART control event");
                 EvioEvent controlEvent = Evio.createControlDTR(rocId, EventType.PRESTART);
                 outputChannels.get(0).getQueue().put(controlEvent);
             }
@@ -982,7 +817,7 @@ System.out.println("          RocSim: Putting in PRESTART control event");
 
             // Put in PAUSE event
             try {
-System.out.println("          RocSim: Putting in PAUSE control event");
+//System.out.println("          RocSim: Putting in PAUSE control event");
                 EvioEvent controlEvent = Evio.createControlDTR(rocId, EventType.PAUSE);
                 outputChannels.get(0).getQueue().put(controlEvent);
             }
@@ -997,12 +832,12 @@ System.out.println("          RocSim: Putting in PAUSE control event");
 
         else if (emuCmd == GO) {
             if (state == CODAState.ACTIVE) {
-System.out.println("          RocSim: We musta hit go after PAUSE");
+//System.out.println("          RocSim: We musta hit go after PAUSE");
             }
 
             // Put in GO event
             try {
-System.out.println("          RocSim: Putting in GO control event");
+//System.out.println("          RocSim: Putting in GO control event");
                 EvioEvent controlEvent = Evio.createControlDTR(rocId, EventType.GO);
                 outputChannels.get(0).getQueue().put(controlEvent);
             }
