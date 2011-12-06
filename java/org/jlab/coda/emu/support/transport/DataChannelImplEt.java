@@ -624,8 +624,12 @@ logger.warn("      DataChannel Et : " + name + " - PAUSED");
                             inputOrderIn = (inputOrderIn + events.length) % Integer.MAX_VALUE;
                         }
                         catch (EtTimeoutException e) {
-                            if (haveInputEndEvent || gotResetCmd) {
-System.out.println("      DataChannel Et : " + name + " found END or RESET, quitting");
+                            if (haveInputEndEvent) {
+//System.out.println("      DataChannel Et : " + name + " have END, quitting");
+                                return;
+                            }
+                            else if (gotResetCmd) {
+//System.out.println("      DataChannel Et : " + name + " got RESET, quitting");
                                 return;
                             }
                             Thread.sleep(5);
@@ -639,7 +643,7 @@ System.out.println("      DataChannel Et : " + name + " found END or RESET, quit
                         buf = ev.getDataBuffer();
 
                         if (ev.needToSwap()) {
-System.out.println("      DataChannel Et : " + name + " SETTING byte order to LITTLE endian");
+//System.out.println("      DataChannel Et : " + name + " SETTING byte order to LITTLE endian");
                             buf.order(ByteOrder.LITTLE_ENDIAN);
                         }
 
@@ -658,7 +662,7 @@ System.out.println("      DataChannel Et : " + name + " SETTING byte order to LI
                                 // There should be no more events coming down the pike so
                                 // go ahead write out existing events and then shut this
                                 // thread down.
-logger.info("      DataChannel Et : got END event");
+//logger.info("      DataChannel Et : found END event");
                                 haveInputEndEvent = true;
                                 break;
                             }
@@ -674,7 +678,7 @@ logger.info("      DataChannel Et : got END event");
                     etSystem.putEvents(attachment, events);
 
                     if (haveInputEndEvent) {
-//logger.info("      DataChannel Et : " + name + " quit input helping thread");
+//logger.info("      DataChannel Et : have END, " + name + " quit input helping thread");
                         return;
                     }
                 }
