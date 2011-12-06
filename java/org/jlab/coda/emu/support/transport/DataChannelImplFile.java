@@ -1,7 +1,9 @@
 package org.jlab.coda.emu.support.transport;
 
 import org.jlab.coda.emu.Emu;
+import org.jlab.coda.emu.EmuException;
 import org.jlab.coda.emu.support.codaComponent.CODAState;
+import org.jlab.coda.emu.support.data.EventType;
 import org.jlab.coda.emu.support.data.Evio;
 import org.jlab.coda.emu.support.logger.Logger;
 import org.jlab.coda.jevio.*;
@@ -29,6 +31,9 @@ public class DataChannelImplFile implements DataChannel {
 
     /** Field name */
     private final String name;
+
+    /** Channel id (corresponds to sourceId of file). */
+    private int id;
 
     /** Field dataThread */
     private Thread dataThread;
@@ -89,8 +94,19 @@ public class DataChannelImplFile implements DataChannel {
         String session = emu.getSession();
         int runNumber  = emu.getRunNumber();
         outputFilePrefix = session + "_" + runNumber + ".dat";
-        String outputFileName = outputFilePrefix + fileCount;
+        String outputFileName = String.format("%s%06d", outputFilePrefix, fileCount);
         String defaultInputFileName = "codaDataFile.evio";
+
+        // Set id number. Use any defined in config file else use default (0)
+        id = 0;
+        String attribString = attributeMap.get("id");
+        if (attribString != null) {
+            try {
+                id = Integer.parseInt(attribString);
+            }
+            catch (NumberFormatException e) {  }
+        }
+//logger.info("      DataChannel File: id = " + id);
 
         // Directory given in config file?
         try {
@@ -128,7 +144,7 @@ public class DataChannelImplFile implements DataChannel {
         if (fileName == null) {
             if (prefix != null) {
                 outputFilePrefix = prefix + "_" + runNumber + ".dat";
-                outputFileName = outputFilePrefix + fileCount;
+                outputFileName = String.format("%s%06d", outputFilePrefix, fileCount);
             }
 
             if (input) {
@@ -149,11 +165,11 @@ public class DataChannelImplFile implements DataChannel {
 
         try {
             if (input) {
-logger.info("      DataChannel File: try opening input file of " + fileName);
+//logger.info("      DataChannel File: try opening input file of " + fileName);
                 evioFile = new EvioReader(fileName);
                 dataThread = new Thread(emu.getThreadGroup(), new DataInputHelper(), getName() + " data input");
             } else {
-logger.info("      DataChannel File: try opening output file of " + fileName);
+//logger.info("      DataChannel File: try opening output file of " + fileName);
                 evioFileWriter = new EventWriter(fileName);
                 dataThread = new Thread(emu.getThreadGroup(), new DataOutputHelper(), getName() + " data out");
             }
@@ -173,12 +189,16 @@ logger.info("      DataChannel File: try opening output file of " + fileName);
     }
 
 
-// TODO: This method puts physics events on the Q when DTRs are expected
     /**
      * Class <b>DataInputHelper </b>
      * This class reads data from the file and queues it on the fifo.
+     * Don't know if this will ever be useful. Might as well generate
+     * an END event when file is fully read.
      */
     private class DataInputHelper implements Runnable {
+
+        int recordId = 0;
+
         public void run() {
             try {
                 while (!dataThread.isInterrupted()) {
@@ -186,14 +206,34 @@ logger.info("      DataChannel File: try opening output file of " + fileName);
                     if (bank == null) {
                         break;
                     }
-                    queue.put(bank);  // will block
+
+                    // Wrap in DTR. Should really put a few more banks into 1 DTR.
+                    int tag = Evio.createCodaTag(EventType.PHYSICS.getValue(), id);
+                    EventBuilder eventBuilder = new EventBuilder(tag, DataType.BANK, recordId);
+                    EvioEvent ev = eventBuilder.getEvent();
+
+                    // add a bank with record ID in it
+                    EvioBank recordIdBank = new EvioBank(Evio.RECORD_ID_BANK, DataType.INT32, 1);
+                    eventBuilder.appendIntData(recordIdBank, new int[]{recordId++});
+                    eventBuilder.addChild(ev, recordIdBank);
+
+                    // add payload bank to DTR
+                    eventBuilder.addChild(ev, bank);
+
+                    queue.put(ev);  // will block
                 }
-logger.info("      DataChannel File (" + name + "): close file");
+
+                // Put in END event
+                EvioEvent controlEvent = Evio.createControlDTR(id, EventType.END);
+                queue.put(controlEvent);  // will block
+
+//logger.info("      DataChannel File (" + name + "): close file");
+
             } catch (InterruptedException e) {
                 // time to quit
             } catch (Exception e) {
-logger.warn("      DataChannel File (" + name + "): close file");
-logger.warn("      DataChannel File (" + name + "): exit " + e.getMessage());
+//logger.warn("      DataChannel File (" + name + "): close file");
+//logger.warn("      DataChannel File (" + name + "): exit " + e.getMessage());
                 emu.getCauses().add(e);
                 dataTransport.state = CODAState.ERROR;
             }
@@ -229,26 +269,28 @@ logger.warn("      DataChannel File (" + name + "): got END, close file");
                         return;
                     }
                     else if (Evio.isGoEvent(dtrBank)) {
+//logger.warn("      DataChannel File (" + name + "): got GO");
                         gotGO = true;
                         continue;
                     }
                     else if (Evio.isControlEvent(dtrBank)) {
-logger.info("      DataChannel File (" + name + "): got control event of type " + Evio.getEventType(dtrBank));
+//logger.info("      DataChannel File (" + name + "): got control event of type " + Evio.getEventType(dtrBank));
                         continue;
                     }
 
                     if (!Evio.isPhysicsEvent(dtrBank)) {
-logger.info("      DataChannel File (" + name + "): got event of type " + Evio.getEventType(dtrBank) +
-                    " but expecting PHYSICS");
+//logger.info("      DataChannel File (" + name + "): got event of type " + Evio.getEventType(dtrBank) +
+//                    " but expecting PHYSICS");
+                        throw new EmuException("expecting Physics event");
                     }
 
                     if (!gotGO) {
                         // Got physics event before we got GO event, ignore it
-logger.info("      DataChannel File (" + name + "): got PHYSICS event but NO GO");
+//logger.info("      DataChannel File (" + name + "): got PHYSICS event but NO GO");
                         continue;
                     }
 
-logger.info("      DataChannel File (" + name + "): got PHYSICS event!");
+//logger.info("      DataChannel File (" + name + "): got PHYSICS event!");
 
                     // Dig out the physics events from DTR
                     // and deal with them individually.
@@ -266,14 +308,14 @@ logger.info("      DataChannel File (" + name + "): got PHYSICS event!");
                         if (split > 0L && (numBytesWritten + bankBytes > split)) {
                             evioFileWriter.close();
                             numBytesWritten = 0L;
-                            String outputFileName = outputFilePrefix + (++fileCount);
+                            String outputFileName = String.format("%s%06d", outputFilePrefix, (++fileCount));
                             if (directory != null) {
                                 outputFileName = directory + "/" + outputFileName;
                             }
                             evioFileWriter = new EventWriter(outputFileName);
                         }
 
-logger.info("      DataChannel File (" + name + "): try writing into file");
+//logger.info("      DataChannel File (" + name + "): try writing into file");
                         evioFileWriter.writeEvent(bank);
                         numBytesWritten += bankBytes;
                     }
@@ -284,7 +326,7 @@ logger.info("      DataChannel File (" + name + "): close file");
             } catch (InterruptedException e) {
                 // time to quit
             } catch (Exception e) {
-logger.warn("      DataChannel File (" + name + "): exit, " + e.getMessage());
+//logger.warn("      DataChannel File (" + name + "): exit, " + e.getMessage());
                 emu.getCauses().add(e);
                 dataTransport.state = CODAState.ERROR;
             }
