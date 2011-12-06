@@ -32,7 +32,7 @@ public enum CODACommand {
     /** Download transition. */
     DOWNLOAD("Apply configuration and load", download, true, 0, null, null),
     /** Prestart transition. */
-    PRESTART("Prepare to start", prestart, true, 0, null, null),
+    PRESTART("Prepare to start", prestart, true, 0, InputType.PAYLOAD_INT, "runNumber"),
     /** Go transition. */
     GO("Start taking data", go, true, 0, null, null),
     /** End transition. */
@@ -56,7 +56,7 @@ public enum CODACommand {
     // run/control/
 
     /** Command to set run number. */
-    SET_RUN_NUMBER("Set run number", setRunNumber, false, 1, InputType.PAYLOAD_INT, "RUNNUMBER"),
+//    SET_RUN_NUMBER("Set run number", setRunNumber, false, 1, InputType.PAYLOAD_INT, "runNumber"),
     /** Command to get run number .*/
     GET_RUN_NUMBER("Get run number", getRunNumber, false, -1, null, null),
     /** Command to set run type. */
