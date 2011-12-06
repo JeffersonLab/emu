@@ -380,14 +380,14 @@ logger.error("EmuModuleFactory.execute() : threw " + e.getMessage());
             if (channelList != null) {
                 for (DataChannel chan : channelList) {
                     DataTransport trans = chan.getDataTransport();
-logger.info("EmuModuleFactory.execute : END thru transport " + trans.name());
+//logger.info("EmuModuleFactory.execute : END thru transport " + trans.name());
                     trans.execute(cmd, true);  // true means we're doing inputs only
                 }
             }
 
             // pass command to all modules starting with first
             for (int i=0; i < mods.size(); i++) {
-logger.info("EmuModuleFactory.execute : END thru module " + mods.get(i).name());
+//logger.info("EmuModuleFactory.execute : END thru module " + mods.get(i).name());
                 mods.get(i).execute(cmd);
             }
 
@@ -397,13 +397,13 @@ logger.info("EmuModuleFactory.execute : END thru module " + mods.get(i).name());
             if (channelList != null) {
                 for (DataChannel chan : channelList) {
                     DataTransport trans = chan.getDataTransport();
-logger.info("EmuModuleFactory.execute : END thru transport " + trans.name());
+//logger.info("EmuModuleFactory.execute : END thru transport " + trans.name());
                     trans.execute(cmd, false);  // false means we're doing outputs only
                 }
             }
 
             // close all transport objects including Fifos
-            transportFactory.execute(cmd, false);
+//            transportFactory.execute(cmd, false);
         }
 
         // GO needs to be sent to EMU sub-components in reverse order of data flow.
@@ -423,14 +423,14 @@ logger.info("EmuModuleFactory.execute : END thru transport " + trans.name());
             if (channelList != null) {
                 for (DataChannel chan : channelList) {
                     DataTransport trans = chan.getDataTransport();
-logger.info("EmuModuleFactory.execute : GO thru transport " + trans.name());
+//logger.info("EmuModuleFactory.execute : GO thru transport " + trans.name());
                     trans.execute(cmd, false);  // false means we're doing outputs only
                 }
             }
 
             // pass command to all modules starting with last
             for (int i=mods.size()-1; i >= 0; i--) {
-logger.info("EmuModuleFactory.execute : GO thru module " + mods.get(i).name());
+//logger.info("EmuModuleFactory.execute : GO thru module " + mods.get(i).name());
                 mods.get(i).execute(cmd);
             }
 
@@ -440,7 +440,7 @@ logger.info("EmuModuleFactory.execute : GO thru module " + mods.get(i).name());
             if (channelList != null) {
                 for (DataChannel chan : channelList) {
                     DataTransport trans = chan.getDataTransport();
-logger.info("EmuModuleFactory.execute : GO thru transport " + trans.name());
+//logger.info("EmuModuleFactory.execute : GO thru transport " + trans.name());
                     trans.execute(cmd, false);  // true means we're doing inputs only
                 }
             }
@@ -461,7 +461,7 @@ logger.info("EmuModuleFactory.execute : GO thru transport " + trans.name());
 
         // RESET command
         if (emuCmd == RESET) {
-logger.info("EmuModuleFactory.execute : RESET");
+//logger.info("EmuModuleFactory.execute : RESET");
             state = CONFIGURED;
             emu.getCauses().clear();
             return;
