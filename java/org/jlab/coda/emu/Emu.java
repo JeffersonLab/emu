@@ -668,24 +668,6 @@ System.out.println("Emu: state changed to " + state.name());
             statusReportingOn = false;
             return;
         }
-        // Run Control tells us our run number
-        else if (codaCommand == SET_RUN_NUMBER) {
-            // get the new run number and store it
-            try {
-                cMsgPayloadItem item = cmd.getArg(codaCommand.getPayloadName());
-                if (item != null) {
-                    System.out.println("SET RUN NUMBER to " + item.getInt());
-                    setRunNumber(item.getInt());
-                }
-                else {
-                    System.out.println("Got SET_RUN_NUMBER command but no run # specified");
-                }
-            }
-            catch (cMsgException e) {
-                e.printStackTrace();
-            }
-            return;
-        }
         // Run Control tells us our session
         else if (codaCommand == SET_SESSION) {
             // get the new session and store it
@@ -769,10 +751,27 @@ System.out.println("Emu: state changed to " + state.name());
         }
 
 
+        if (codaCommand == PRESTART) {
+            // Run Control tells us our run number
+            // get the new run number and store it
+            try {
+                cMsgPayloadItem item = cmd.getArg(codaCommand.getPayloadName());
+                if (item != null) {
+//System.out.println("SET RUN NUMBER to " + item.getInt());
+                    setRunNumber(item.getInt());
+                }
+                else {
+                    System.out.println("Got PRESTART command but no run # specified");
+                }
+            }
+            catch (cMsgException e) {
+                e.printStackTrace();
+            }
+        }
         // When we are told to CONFIGURE, the EMU handles this even though
         // this command is still passed on down to the modules. Read the
         // (if any) config file and update debug GUI.
-        if (codaCommand == CONFIGURE) {
+        else if (codaCommand == CONFIGURE) {
             // save a reference to any previously used config
             Document oldConfig = loadedConfig;
             boolean newConfigLoaded = false;
