@@ -75,7 +75,7 @@
         </path>
 
         <javac srcdir="${java.source.dir}"
-               debug="on"
+               debug="off"
                verbose="no"
                failonerror="yes"
                listfiles="yes"
