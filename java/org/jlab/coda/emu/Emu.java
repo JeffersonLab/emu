@@ -545,11 +545,6 @@ public class Emu implements CODAComponent {
             Configurer.treeToPanel(node,0);
         }
 
-        // Create object responsible for communication w/ runcontrol through cMsg server.
-        cmsgPortal = new CMSGPortal(this);
-
-        Configurer.setLogger(null);
-
         // Need the following info for this object's getter methods
         String tmp = System.getProperty("expid");
         if (tmp != null) expid = tmp;
@@ -560,6 +555,11 @@ public class Emu implements CODAComponent {
         // Get the user name which is added to the payload of logging messages
         tmp = System.getProperty("user.name");
         if (tmp != null) userName = tmp;
+
+        // Create object responsible for communication w/ runcontrol through cMsg server.
+        cmsgPortal = new CMSGPortal(this, expid);
+
+        Configurer.setLogger(null);
 
         // Get the local hostname which is added to the payload of logging messages
         try {

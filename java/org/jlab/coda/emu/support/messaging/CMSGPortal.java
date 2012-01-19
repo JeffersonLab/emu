@@ -11,6 +11,7 @@
 
 package org.jlab.coda.emu.support.messaging;
 
+import com.sun.xml.internal.ws.util.localization.NullLocalizable;
 import org.jlab.coda.cMsg.cMsg;
 import org.jlab.coda.cMsg.cMsgException;
 import org.jlab.coda.cMsg.cMsgMessage;
@@ -49,8 +50,9 @@ public class CMSGPortal implements LoggerAppender {
     /**
      * Constructor.
      * @param emu reference to EMU object
+     * @param expid experiment id
      */
-    public CMSGPortal(Emu emu) {
+    public CMSGPortal(Emu emu, String expid) {
         comp = emu;
         // UDL for connection to cMsg server was originally specified
         // with -DcmsgUDL=xxx flag to interpreter when running EMU.
@@ -58,7 +60,10 @@ public class CMSGPortal implements LoggerAppender {
 
         // construct default UDL if necessary
         if (udl == null) {
-            String expid = System.getenv("EXPID");
+            if (expid == null) {
+                expid = System.getenv("EXPID");
+            }
+
             if (expid != null)  {
                 udl = "cMsg:rc://multicast/" + expid;
             }
