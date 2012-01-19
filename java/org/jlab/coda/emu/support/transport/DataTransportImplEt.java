@@ -100,8 +100,8 @@ public class DataTransportImplEt extends DataTransportCore implements DataTransp
 
         String etName = attrib.get("etName");
         if (etName == null) {
-            // default name is EMU name in /tmp directory
-            etName = "/tmp/" +  emu.name();
+            // default name is <EXPID>_<EMU name> in /tmp directory
+            etName = "/tmp/" +  emu.getExpid() + "_" + emu.name();
         }
 
         //--------------------------------------
