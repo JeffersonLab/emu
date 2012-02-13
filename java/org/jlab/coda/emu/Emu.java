@@ -529,16 +529,15 @@ public class Emu implements CODAComponent {
         try {
             localConfig = Configurer.parseFile(localConfigFile);
         } catch (DataNotFoundException e) {
-            e.printStackTrace();
-            logger.error("CODAComponent exit - " + localConfigFile + " not found");
-            System.exit(-1);
+            logger.warn("CODAComponent - " + localConfigFile + " not found");
         }
 
         // Put LOCAL config info into GUI
         if (debugGUI != null) {
             debugGUI.addDocument(localConfig);
             debugGUI.generateInputPanel();
-        } else {
+        }
+        else if (localConfig != null) {
             Node node = localConfig.getFirstChild();
             // Puts node & children (actually their associated DataNodes) into GUI
             // and returns DataNode associated with node.
