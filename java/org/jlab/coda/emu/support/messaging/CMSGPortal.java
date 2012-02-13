@@ -11,7 +11,6 @@
 
 package org.jlab.coda.emu.support.messaging;
 
-import com.sun.xml.internal.ws.util.localization.NullLocalizable;
 import org.jlab.coda.cMsg.cMsg;
 import org.jlab.coda.cMsg.cMsgException;
 import org.jlab.coda.cMsg.cMsgMessage;
