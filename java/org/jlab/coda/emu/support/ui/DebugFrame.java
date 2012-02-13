@@ -162,6 +162,7 @@ public class DebugFrame extends JFrame {
      * @param doc of type Document
      */
     public void addDocument(Document doc) {
+        if (doc == null) return;
         try {
             Node node = doc.getDocumentElement();
             DataNode dn = Configurer.treeToPanel(node,0);
