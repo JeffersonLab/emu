@@ -185,6 +185,10 @@ public class DataTransportFactory implements StatedObject {
 
                 NodeList l = m.getChildNodes();
 
+                //****************************************************
+                // TODO: only create transports if used by a channel!!
+                //****************************************************
+
                 // for each child node (under component/transports) ...
                 for (int ix = 0; ix < l.getLength(); ix++) {
                     Node n = l.item(ix);
