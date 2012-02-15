@@ -815,16 +815,16 @@ System.out.println("Emu: state changed to " + state.name());
                     // the configuration, or if rc send a filename which this
                     // emu read and loaded, then reconfigure.
                     if (configSource != Emu.ConfigSource.RC_STRING || isNewConfig) {
-//System.out.println("LOADING NEW string config = \n" + rcConfigString);
+System.out.println("LOADING NEW string config = \n" + rcConfigString);
                         Configurer.setLogger(logger);
                         // Parse XML config string into Document object.
                         loadedConfig = Configurer.parseString(rcConfigString);
                         Configurer.removeEmptyTextNodes(loadedConfig.getDocumentElement());
                         newConfigLoaded = true;
                     }
-//                    else {
-//System.out.println("NO CHANGE to string config");
-//                    }
+                    else {
+System.out.println("NO CHANGE to string config");
+                    }
                     configSource = Emu.ConfigSource.RC_STRING;
                 }
                 // If config file name is sent (either from Run Control or debug gui) ...
@@ -849,7 +849,7 @@ System.out.println("Emu: state changed to " + state.name());
 
                     // reload
                     if (loadFile) {
-//System.out.println("LOADING FILE " + rcConfigFile);
+System.out.println("LOADING FILE " + rcConfigFile);
                         Configurer.setLogger(logger);
                         // Parse XML config file into Document object.
                         loadedConfig = Configurer.parseFile(rcConfigFile);
@@ -860,7 +860,7 @@ System.out.println("Emu: state changed to " + state.name());
                         newConfigLoaded = true;
                     }
 //                    else {
-//System.out.println("ALREADY LOADED " + rcConfigFile);
+System.out.println("ALREADY LOADED " + rcConfigFile);
 //                    }
 
                     if (cmd.isFromDebugGui()) {
@@ -893,10 +893,10 @@ System.out.println("Emu: state changed to " + state.name());
                     }
 
                     if (!loadFile) {
-//System.out.println("ALREADY LOADED CMD LINE FILE " + cmdLineConfigFile);
+System.out.println("ALREADY LOADED CMD LINE FILE " + cmdLineConfigFile);
                     }
                     else {
-//System.out.println("LOADING CMD LINE FILE " + cmdLineConfigFile);
+System.out.println("LOADING CMD LINE FILE " + cmdLineConfigFile);
                         Configurer.setLogger(logger);
                         // Parse XML config file and turn it into Document object.
                         loadedConfig = Configurer.parseFile(cmdLineConfigFile);
@@ -917,7 +917,7 @@ System.out.println("Emu: state changed to " + state.name());
                             throw new DataNotFoundException("No \"name\" attr in component element of config file");
                         }
 
-//System.out.println("Cmd line config: found component " + attr.getNodeValue());
+System.out.println("Cmd line config: found component " + attr.getNodeValue());
                         // Get name in config file and compare to our name - should be same.
                         if (!attr.getNodeValue().equals(name)) {
                             throw new DataNotFoundException("Name in config file (" + attr.getNodeValue() +
@@ -927,7 +927,7 @@ System.out.println("Emu: state changed to " + state.name());
                         // Get type of component, if any - must be same as emu type.
                         attr = nm.getNamedItem("type");
                         if (attr != null) {
-//System.out.println("\n\n\nExec configure: type = " + attr.getNodeValue());
+//System.out.println("\nExec configure: type = " + attr.getNodeValue());
 //System.out.println("              : old codaClass = " + codaClass);
                             CODAClass cc = CODAClass.get(attr.getNodeValue());
                             if (cc != null) {
