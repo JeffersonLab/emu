@@ -32,7 +32,7 @@ import java.util.Map;
 public class DataTransportCore {
 
     /** State of this DataTransport object. */
-    protected State state = CODAState.UNCONFIGURED;
+    protected State state = CODAState.BOOTED;
 
     /** Is this object connected? */
     private boolean connected;

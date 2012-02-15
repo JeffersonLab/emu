@@ -55,7 +55,7 @@ public class DataTransportFactory implements StatedObject {
     private final String name = "Transport factory";
 
     /** Field state */
-    private State state = UNCONFIGURED;
+    private State state = BOOTED;
 
     private Logger logger;
 
