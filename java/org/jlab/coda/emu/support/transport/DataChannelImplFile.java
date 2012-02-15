@@ -119,6 +119,8 @@ public class DataChannelImplFile implements DataChannel {
         String fileName = null;
         try {
             fileName = attributeMap.get("file");
+            // scan for %d which must be replaced by the run number
+            fileName = fileName.replace("%d", ""+runNumber);
 //logger.info("      DataChannel File: config file name = " + fileName);
         } catch (Exception e) {
         }
@@ -153,7 +155,6 @@ public class DataChannelImplFile implements DataChannel {
             else {
                 fileName = outputFileName;
             }
-
         }
 
         if (directory != null) {
