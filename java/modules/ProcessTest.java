@@ -30,7 +30,7 @@ public class ProcessTest implements EmuModule, Runnable {
     private final String name;
 
     /** Field state is the state of the module */
-    private State state = CODAState.UNCONFIGURED;
+    private State state = CODAState.BOOTED;
 
     /** Field input_channels is an ArrayList of DataChannel objects that are inputs. */
     private ArrayList<DataChannel> input_channels = new ArrayList<DataChannel>();
@@ -314,7 +314,7 @@ System.out.println("Process: Added bank's children to built event, event = " + c
 
         else if (emuCmd == RESET) {
             State previousState = state;
-            state = CODAState.UNCONFIGURED;
+            state = CODAState.BOOTED;
 
             eventRate = wordRate = 0F;
             eventCountTotal = wordCountTotal = 0L;

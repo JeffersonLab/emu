@@ -33,7 +33,6 @@ import java.util.*;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.PriorityBlockingQueue;
-import java.util.concurrent.locks.ReentrantLock;
 
 import static org.jlab.coda.emu.support.codaComponent.CODACommand.*;
 
@@ -117,7 +116,7 @@ public class EventBuilding2 implements EmuModule {
     private volatile int ebRecordId;
 
     /** State of this module. */
-    private volatile State state = CODAState.UNCONFIGURED;
+    private volatile State state = CODAState.BOOTED;
 
     /** ArrayList of DataChannel objects that are inputs. */
     private ArrayList<DataChannel> inputChannels = new ArrayList<DataChannel>();

@@ -36,7 +36,7 @@ import java.util.Map;
 public class Send implements EmuModule {
 
     /** Field state */
-    private State state = CODAState.UNCONFIGURED;
+    private State state = CODAState.BOOTED;
 
     /** Field name */
     private String name = null;

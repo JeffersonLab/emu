@@ -71,7 +71,7 @@ public class EMUCommander extends JFrame {
      */
     protected class CommandHandler implements CommandAcceptor {
         private String subject;
-        private State state = CODAState.UNCONFIGURED;
+        private State state = CODAState.BOOTED;
 
         CommandHandler(String subject) {
             this.subject = subject;

@@ -49,7 +49,7 @@ public class RocSimulation implements EmuModule, Runnable {
     private volatile int rocRecordId;
 
     /** State of the module. */
-    private volatile State state = CODAState.UNCONFIGURED;
+    private volatile State state = CODAState.BOOTED;
 
     /** OutputChannels is an ArrayList of DataChannel objects that are outputs. */
     private ArrayList<DataChannel> outputChannels = new ArrayList<DataChannel>();

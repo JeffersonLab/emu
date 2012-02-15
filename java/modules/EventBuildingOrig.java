@@ -34,7 +34,6 @@ import java.nio.ByteOrder;
 import java.util.*;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.ReentrantLock;
 
 /**
@@ -121,7 +120,7 @@ public class EventBuildingOrig implements EmuModule {
     private volatile int ebRecordId;
 
     /** State of the module. */
-    private volatile State state = CODAState.UNCONFIGURED;
+    private volatile State state = CODAState.BOOTED;
 
     /** InputChannels is an ArrayList of DataChannel objects that are inputs. */
     private ArrayList<DataChannel> inputChannels = new ArrayList<DataChannel>();

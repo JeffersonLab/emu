@@ -105,7 +105,7 @@ public class Disentangling implements EmuModule {
     private volatile int ebRecordId;
 
     /** State of this module. */
-    private volatile State state = CODAState.UNCONFIGURED;
+    private volatile State state = CODAState.BOOTED;
 
     /** ArrayList of DataChannel objects that are inputs. */
     private ArrayList<DataChannel> inputChannels = new ArrayList<DataChannel>();

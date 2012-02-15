@@ -48,7 +48,7 @@ public class Process implements EmuModule, Runnable {
     private final String name;
 
     /** Field state is the state of the module */
-    private State state = CODAState.UNCONFIGURED;
+    private State state = CODAState.BOOTED;
 
     /** Field input_channels is an ArrayList of DataCannel objects that are inputs */
     private ArrayList<DataChannel> input_channels = new ArrayList<DataChannel>();
