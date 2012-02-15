@@ -529,7 +529,7 @@ public class Emu implements CODAComponent {
         try {
             localConfig = Configurer.parseFile(localConfigFile);
         } catch (DataNotFoundException e) {
-            logger.warn("CODAComponent - " + localConfigFile + " not found");
+//            logger.warn("CODAComponent - " + localConfigFile + " not found");
         }
 
         // Put LOCAL config info into GUI
@@ -1205,7 +1205,10 @@ logger.error("CONFIGURE FAILED", e.getMessage());
 
                 }
                 catch (DataNotFoundException e) {
-                    e.printStackTrace();
+                    logger.error("CONFIGURE FAILED", e.getMessage());
+                    causes.add(e);
+                    moduleFactory.ERROR();
+                    return;
                 }
             }
         }
