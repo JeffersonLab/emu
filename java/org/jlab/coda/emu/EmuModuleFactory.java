@@ -65,7 +65,7 @@ public class EmuModuleFactory implements StatedObject {
     private EmuClassLoader classLoader;
 
     /** State of the emu. */
-    private State state = UNCONFIGURED;
+    private State state = BOOTED;
 
     /** Object which creates and manages transport (data movement) objects. */
     private final DataTransportFactory transportFactory;

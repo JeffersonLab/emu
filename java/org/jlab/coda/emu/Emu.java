@@ -21,8 +21,6 @@ import org.jlab.coda.emu.support.control.CmdExecException;
 import org.jlab.coda.emu.support.control.Command;
 
 import static org.jlab.coda.emu.support.codaComponent.CODACommand.*;
-import static org.jlab.coda.emu.support.messaging.RCConstants.*;
-import static org.jlab.coda.emu.support.messaging.RCConstants.reset;
 
 import org.jlab.coda.emu.support.control.State;
 import org.jlab.coda.emu.support.logger.Logger;
@@ -182,7 +180,7 @@ public class Emu implements CODAComponent {
 
     /** This method sends the loaded XML configuration to the logger. */
     public void list() {
-        if (moduleFactory.state() != CODAState.UNCONFIGURED) {
+        if (moduleFactory.state() != CODAState.BOOTED) {
             logger.info("Dump of configuration", Configurer.serialize(loadedConfig));
         }
         else logger.warn("cannot list configuration, not configured");
