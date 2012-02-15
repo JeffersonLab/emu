@@ -236,13 +236,16 @@ public class EmuFactory {
             for (String fileName : configFileNames) {
                 try {
                     // Parse XML config file and turn it into Document object.
+System.out.println("EmuFactory: start parsing " + fileName);
                     document = Configurer.parseFile(fileName);
                     loadedConfigs.add(document);
                     Configurer.removeEmptyTextNodes(document.getDocumentElement());
+System.out.println("EmuFactory: done parsing " + fileName);
                 } catch (DataNotFoundException e) {
                     // parsing XML error
                     System.out.println("EMUFactory exit - parsing config file " + fileName +
                                        " FAILED: " + e.getMessage());
+                    e.printStackTrace();
                     System.exit(-1);
                 }
             }
