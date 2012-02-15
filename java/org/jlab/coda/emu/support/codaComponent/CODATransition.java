@@ -28,7 +28,7 @@ import org.jlab.coda.emu.support.control.State;
  * ________________|_________________|______________________________
  *
  *
- *                  <- UNCONFIGURED
+ *                  <- BOOTED
  *                 |
  *     configure   |
  *                 |               <------------------------,

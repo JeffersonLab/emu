@@ -33,7 +33,7 @@ import java.util.Vector;
  * ________________|_________________|______________________________
  *
  *
- *                  <- UNCONFIGURED
+ *                  <- BOOTED
  *                 |
  *     configure   |
  *                 |               <------------------------,
@@ -68,8 +68,8 @@ import java.util.Vector;
  */
 public enum CODAState implements State {
 
-    /** UNCONFIGURED state. */
-    UNCONFIGURED("codaComponent is not configured", EnumSet.of(CONFIGURE)),
+    /** BOOTED state. */
+    BOOTED("codaComponent is not configured", EnumSet.of(CONFIGURE)),
     
     /** CONFIGURED state. */
     CONFIGURED("configuration is loaded", EnumSet.of(CONFIGURE, DOWNLOAD, RESET)),
