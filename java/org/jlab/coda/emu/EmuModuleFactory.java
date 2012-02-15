@@ -123,9 +123,8 @@ public class EmuModuleFactory implements StatedObject {
 logger.info("EmuModuleFactory.execute : " + emuCmd);
 
         // CONFIGURE command does not involve components and is handled directly by the EMU ...
-        if (state != ERROR && emuCmd == CONFIGURE) {
-            // If we got this far configure succeeded.
-            state = CONFIGURED;
+        if (emuCmd == CONFIGURE) {
+            if (state != ERROR) state = CONFIGURED;
             return;
         }
 
