@@ -212,6 +212,17 @@ public class Emu implements CODAComponent {
     }
 
     /**
+     * This method returns the previous state of the modules in this EMU.
+     * If the EMU has not undergone any transitions yet, it returns null.
+     *
+     * @return state before last transition
+     * @return null if no transitions undergone yet
+     */
+    public State previousState() {
+        return previousState;
+    }
+
+    /**
      * Get the vector containing the causes of any exceptions
      * of an attempted transition from this state.
      * @return vector(type Vector<Throwable>) of causes of any exceptions
@@ -657,6 +668,12 @@ System.out.println("Emu: state changed to " + state.name());
 //System.out.println("EXECUTING cmd = " + cmd.name());
 
         CODACommand codaCommand = cmd.getCodaCommand();
+
+        // save the current state if attempting a transition
+        if (codaCommand.isTransition()) {
+            previousState = moduleFactory.state();
+        }
+
 
         if (codaCommand == START_REPORTING) {
             statusReportingOn = true;
