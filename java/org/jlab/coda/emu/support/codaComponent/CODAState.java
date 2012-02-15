@@ -33,10 +33,10 @@ import java.util.Vector;
  * ________________|_________________|______________________________
  *
  *
- *                  <- BOOTED
- *                 |
- *     configure   |
- *                 |               <------------------------,
+ *                  <- BOOTED <-----------------------------,
+ *                 |           (if reset from error state)  |
+ *     configure   |                                        |
+ *                 |               <------------------------|
  *                 '-> CONFIGURED ->----------------------->|
  *                  <-                                      ^
  *                 |                                        |
@@ -59,7 +59,7 @@ import java.util.Vector;
  *
  *  NOTE: DOWNLOADED can always do a download,
  *        CONFIGURED can always do a configure, &
- *        RESET goes from any state to CONFIGURED
+ *        RESET goes from any state to CONFIGURED or BOOTED if in ERROR state
  *
  * </pre></code>
  *
