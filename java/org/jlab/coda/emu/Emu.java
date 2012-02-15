@@ -65,11 +65,14 @@ public class Emu implements CODAComponent {
      */
     private final EmuModuleFactory moduleFactory;
 
-    /** Name of the Emu, initially "unconfigured". */
-    private String name = "unconfigured";
+    /** Name of the Emu, initially "booted". */
+    private String name = "booted";
 
     /** The Emu monitors it's own status via a thread. */
     private Thread statusMonitor;
+
+    /** What was this emu's previous state? Useful when doing RESET transition. */
+    private State previousState;
 
     /**
      * Commands from cMsg are converted into objects of
@@ -597,7 +600,7 @@ public class Emu implements CODAComponent {
                         }
                     }
                     // If modules are not loaded then our state is either
-                    // unconfigured, configured, or error.
+                    // booted, configured, or error.
 
                     state = moduleFactory.state();
 
