@@ -461,11 +461,11 @@ logger.error("EmuModuleFactory.execute() : threw " + e.getMessage());
         // RESET command
         if (emuCmd == RESET) {
 //logger.info("EmuModuleFactory.execute : RESET");
-            if (emu.previousState() != ERROR) {
-                state = CONFIGURED;
+            if (emu.previousState() == ERROR || emu.previousState() == BOOTED) {
+                state = BOOTED;
             }
             else {
-                state = BOOTED;
+                state = CONFIGURED;
             }
             emu.getCauses().clear();
             return;

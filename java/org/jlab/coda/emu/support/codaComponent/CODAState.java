@@ -32,9 +32,9 @@ import java.util.Vector;
  *    transition   |      STATE      |  transition
  * ________________|_________________|______________________________
  *
- *
+ *                               (if reset from ERROR or BOOTED)
  *                  <- BOOTED <-----------------------------,
- *                 |           (if reset from error state)  |
+ *                 |                                        |
  *     configure   |                                        |
  *                 |               <------------------------|
  *                 '-> CONFIGURED ->----------------------->|
