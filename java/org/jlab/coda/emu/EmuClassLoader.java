@@ -19,8 +19,8 @@ import java.net.URL;
  * classLoader except for a single named class which is "refound" and reloaded using standard URLClassLoader
  * means.<p>
  *
- * This class is used to load module and transport classes at "download" in order to create the necessary
- * (from configuration) module and transport objects. The manner in which this class is used is as follows.
+ * This class is used to load module classes at "download" in order to create the necessary
+ * (from configuration) module objects. The manner in which this class is used is as follows.
  * Either a public interface (myInterface) or (public?) superclass (mySuperclass) is defined such that:<p>
  *<pre><code>
  *           public interface myInterface
