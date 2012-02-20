@@ -492,6 +492,29 @@ logger.debug("    DataTransport Et execute DOWNLOAD: incompatible ET system exis
                     try {
 logger.debug("    DataTransport Et: create ET system, " + openConfig.getEtName() + " with cmd \n" + etCmd);
                         processET = Runtime.getRuntime().exec(etCmd);
+                        // There is no feedback mechanism to tell if this ET system
+                        // actually started. So try for a few seconds to connect to
+                        // it. If we can't, then there must have been an error trying
+                        // to start it up (like another ET system using the same ports).
+
+logger.debug("    DataTransport Et: try for 3 secs to connect to it");
+                        openConfig.setWaitTime(3000);
+                        try {
+                            etSystem = new EtSystem(openConfig);
+                            //etSystem.setDebug(EtConstants.debugInfo);
+//System.out.println("  First try opening existing ET system " + openConfig.getEtName());
+                            etSystem.open();
+                            existingET = true;
+//System.out.println("  ET system " + openConfig.getEtName() + " already exists");
+                        }
+                        catch (Exception e) {
+                            // Any existing local ET might be different name or TCP port, or isn't local.
+                            // A name conflict will spell doom for us later when we try to create it.
+logger.debug("    Cannot open ET system " + openConfig.getEtName() + ", not there?");
+                            state = CODAState.ERROR;
+                            return;
+                        }
+
                         createdET = true;
                     }
                     catch (IOException e) {
