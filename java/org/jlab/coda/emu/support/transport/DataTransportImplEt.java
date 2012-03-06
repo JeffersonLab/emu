@@ -471,7 +471,8 @@ logger.debug("    DataTransport Et execute DOWNLOAD: incompatible ET system exis
                             " -n " + systemConfig.getNumEvents() +
                             " -g " + systemConfig.getGroups().length +
                             " -p " + systemConfig.getServerPort() +
-                            " -u " + systemConfig.getUdpPort();
+                            " -u " + systemConfig.getUdpPort() +
+                            " -d";
 
                     if (systemConfig.getMulticastAddrs().size() > 0) {
                         etCmd += " -a " + systemConfig.getMulticastStrings()[0];
@@ -502,6 +503,7 @@ logger.debug("    DataTransport Et: try for 3 secs to connect to it");
                         try {
                             etSystem = new EtSystem(openConfig);
                             etSystem.open();
+                            try {etSystem.close();} catch (Exception e) {}
                         }
                         catch (Exception e) {
 logger.debug("    Cannot open ET system " + openConfig.getEtName() + ", not there?");
