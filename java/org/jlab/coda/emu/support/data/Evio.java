@@ -538,7 +538,7 @@ public class Evio {
         // Second bank - must be at least one data bank.
         Vector<BaseStructure> kids = bank.getChildren();
         if (kids.size() < 2) {
-System.out.println("isDataTransportRecord: is not DTR 1");
+System.out.println("isDataTransportRecord: is not DTR 1, contains < 2 banks");
             return false;
         }
 
@@ -548,14 +548,16 @@ System.out.println("isDataTransportRecord: is not DTR 1");
         // check tag
         int tag = firstBank.getHeader().getTag();
         if (tag != RECORD_ID_BANK) {
-System.out.println("isDataTransportRecord: is not DTR 2");
+System.out.println("isDataTransportRecord: is not DTR 2, tag = " +
+                           Integer.toHexString(tag) + ", should = " +
+                           Integer.toHexString(RECORD_ID_BANK));
             return false;
         }
 
         // contained data must be (U)INT32
         int[] intData = firstBank.getIntData();
         if (intData == null) {
-System.out.println("isDataTransportRecord: is not DTR 3");
+System.out.println("isDataTransportRecord: is not DTR 3, 1st bank must contain (u)ints");
             return false;
         }
 
@@ -564,7 +566,7 @@ System.out.println("isDataTransportRecord: is not DTR 3");
         int num = bank.getHeader().getNumber();
         if ( (recordId & 0xff) != num ) {
             // contradictory internal data
-System.out.println("isDataTransportRecord: is not DTR 4: recordID = " + recordId +
+System.out.println("isDataTransportRecord: is not DTR 4, contradictory data: recordID = " + recordId +
 ", rID& 0xff = " + (recordId & 0xff) + ", num = " + num);
             return false;
         }
@@ -573,7 +575,8 @@ System.out.println("isDataTransportRecord: is not DTR 4: recordID = " + recordId
         num = firstBank.getHeader().getNumber();
         if (num != kids.size() - 1) {
             // contradictory internal data
-System.out.println("isDataTransportRecord: is not DTR 5");
+System.out.println("isDataTransportRecord: is not DTR 5, num = " + num +
+                           ", != #payld banks " + (kids.size() - 1));
             return false;
         }
 
