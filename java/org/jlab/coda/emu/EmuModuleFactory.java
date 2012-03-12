@@ -312,7 +312,7 @@ logger.info("EmuModuleFactory.execute : " + emuCmd);
                                 }
                                 // Get name of transport
                                 String channelTransName = channelTranspNode.getNodeValue();
-//System.out.println("EmuModuleFactory.execute PRE : module " + module.name() + " channel " + channelName + " transp " + channelTransName);
+//System.out.println("EmuModuleFactory.execute PRE : module = " + module.name() + ", channel = " + channelName + ", transp = " + channelTransName);
                                 // Look up transport object from name
                                 DataTransport trans = transportFactory.findNamedTransport(channelTransName);
 
