@@ -481,6 +481,14 @@ if (debug && printQSizes) {
     int size1 = channelQ.size();
     if (size1 > 400 && size1 % 100 == 0) System.out.println("in chan: " + size1);
 }
+                        System.out.println("");
+                        byte[] bytes = channelBank.getRawBytes();
+                        int[] words = ByteDataTransformer.getAsIntArray(bytes, channelBank.getByteOrder());
+                        for (int i=0; i < words.length; i++) {
+                            System.out.print("0x" + Integer.toHexString(words[i]) + "  ");
+                            if (i%2 == 1) System.out.println("");
+                        }
+                        System.out.println("");
 
                         // Is bank is in Data Transport Record format? If not, ignore it.
                         if ( Evio.isDataTransportRecord(channelBank) ) {
