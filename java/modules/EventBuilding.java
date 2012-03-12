@@ -1145,8 +1145,8 @@ if (debug) System.out.println("Building thread is ending !!!");
         if (controlEventCount > 0) {
             // All events must be control events
             if (controlEventCount != numberOfBanks) {
-if (debug) System.out.println("gotValidControlEvents: got " + controlEventCount +
-                              " control events, but have " + numberOfBanks + " banks!");
+if (true) System.out.println("gotValidControlEvents: got " + controlEventCount +
+                             " control events, but have " + numberOfBanks + " banks!");
                 throw new EmuException("not all channels have control events");
             }
 
@@ -1157,7 +1157,24 @@ if (debug) System.out.println("gotValidControlEvents: got " + controlEventCount 
                     throw new EmuException("different type control events on each channel");
                 }
             }
-if (debug) System.out.println("gotValidControlEvents: found control event of type " + eventType.name());
+
+            // Prestart events require an additional check,
+            // run #'s and run types must be identical
+            if (eventType == EventType.PRESTART) {
+                int[] prestartData;
+                for (PayloadBank bank : buildingBanks) {
+                    prestartData = bank.getIntData();
+                    if (prestartData == null) {
+                        throw new EmuException("PRESTART event does not have data");
+                    }
+                    if (prestartData[1] != runNumber) {
+if (true) System.out.println("gotValidControlEvents: PRESTART event bad run #, " +
+                                      prestartData[1] + ", should be " + runNumber);
+                        throw new EmuException("PRESTART event bad run #, " + prestartData[1]);
+                    }
+                }
+            }
+if (true) System.out.println("gotValidControlEvents: found control event of type " + eventType.name());
 
             return true;
         }
