@@ -488,10 +488,10 @@ if (debug && printQSizes) {
                         int tag =  channelBank.getHeader().getTag();
                         int type = channelBank.getHeader().getDataTypeValue();
 
-                        System.out.println("Header len = " + Integer.toHexString(hLen) +
-                        ", tag = " + Integer.toHexString(tag) +
-                        ", type = " + Integer.toHexString(type) +
-                        ", num = " + Integer.toHexString(num));
+                        System.out.println("Header len = 0x" + Integer.toHexString(hLen) +
+                        ", tag = 0x" + Integer.toHexString(tag) +
+                        ", type = 0x" + Integer.toHexString(type) +
+                        ", num = 0x" + Integer.toHexString(num));
 
 
                         byte[] bytes = channelBank.getRawBytes();
