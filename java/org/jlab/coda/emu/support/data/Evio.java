@@ -552,7 +552,7 @@ System.out.println("isDataTransportRecord: is not DTR 1, contains < 2 banks");
         int tag =  firstBank.getHeader().getTag();
         int type = firstBank.getHeader().getDataTypeValue();
 
-        System.out.println("Header len = 0x" + Integer.toHexString(hLen) +
+        System.out.println("    Header len = 0x" + Integer.toHexString(hLen) +
         ", tag = 0x" + Integer.toHexString(tag) +
         ", type = 0x" + Integer.toHexString(type) +
         ", num = 0x" + Integer.toHexString(num));
@@ -561,7 +561,7 @@ System.out.println("isDataTransportRecord: is not DTR 1, contains < 2 banks");
         byte[] bytes = firstBank.getRawBytes();
         int[] words = ByteDataTransformer.getAsIntArray(bytes, firstBank.getByteOrder());
         for (int i=0; i < words.length; i++) {
-            System.out.print("0x" + Integer.toHexString(words[i]) + "  ");
+            System.out.print("    0x" + Integer.toHexString(words[i]) + "  ");
             if (i%2 == 1) System.out.println("");
         }
         System.out.println("");
