@@ -545,8 +545,30 @@ System.out.println("isDataTransportRecord: is not DTR 1, contains < 2 banks");
         // first bank must contain one 32 bit int - the record ID
         BaseStructure firstBank = kids.firstElement();
 
+        System.out.println("isDataTransportRecord(): # DTR kids = " + (kids.size()) + ", Record ID bank -> ");
+        // print out header first
+        int hLen = firstBank.getHeader().getLength();
+        int num =  firstBank.getHeader().getNumber();
+        int tag =  firstBank.getHeader().getTag();
+        int type = firstBank.getHeader().getDataTypeValue();
+
+        System.out.println("Header len = 0x" + Integer.toHexString(hLen) +
+        ", tag = 0x" + Integer.toHexString(tag) +
+        ", type = 0x" + Integer.toHexString(type) +
+        ", num = 0x" + Integer.toHexString(num));
+
+
+        byte[] bytes = firstBank.getRawBytes();
+        int[] words = ByteDataTransformer.getAsIntArray(bytes, firstBank.getByteOrder());
+        for (int i=0; i < words.length; i++) {
+            System.out.print("0x" + Integer.toHexString(words[i]) + "  ");
+            if (i%2 == 1) System.out.println("");
+        }
+        System.out.println("");
+
+
         // check tag
-        int tag = firstBank.getHeader().getTag();
+        tag = firstBank.getHeader().getTag();
         if (tag != RECORD_ID_BANK) {
 System.out.println("isDataTransportRecord: is not DTR 2, tag = " +
                            Integer.toHexString(tag) + ", should = " +
@@ -563,7 +585,7 @@ System.out.println("isDataTransportRecord: is not DTR 3, 1st bank must contain (
 
         // lower 8 bits of recordId must equal num of top bank
         int recordId = intData[0];
-        int num = bank.getHeader().getNumber();
+        num = bank.getHeader().getNumber();
         if ( (recordId & 0xff) != num ) {
             // contradictory internal data
 System.out.println("isDataTransportRecord: is not DTR 4, contradictory data: recordID = " + recordId +
