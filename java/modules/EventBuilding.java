@@ -482,6 +482,18 @@ if (debug && printQSizes) {
     if (size1 > 400 && size1 % 100 == 0) System.out.println("in chan: " + size1);
 }
                         System.out.println("");
+                        // print out header first
+                        int hLen = channelBank.getHeader().getLength();
+                        int num =  channelBank.getHeader().getNumber();
+                        int tag =  channelBank.getHeader().getTag();
+                        int type = channelBank.getHeader().getDataTypeValue();
+
+                        System.out.println("Header len = " + Integer.toHexString(hLen) +
+                        ", tag = " + Integer.toHexString(tag) +
+                        ", type = " + Integer.toHexString(type) +
+                        ", num = " + Integer.toHexString(num));
+
+
                         byte[] bytes = channelBank.getRawBytes();
                         int[] words = ByteDataTransformer.getAsIntArray(bytes, channelBank.getByteOrder());
                         for (int i=0; i < words.length; i++) {
