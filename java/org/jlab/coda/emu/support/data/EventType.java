@@ -6,15 +6,18 @@ package org.jlab.coda.emu.support.data;
  */
 public enum EventType {
 
-    ROC_RAW  (1),
-    PHYSICS  (2),
-    USER     (3),
-    SYNC     (4),
+    ROC_RAW              (0),
+    PHYSICS              (1),
+    PARTIAL_PHYSICS      (2),
+    DISENTANGLED_PHYSICS (3),
+    USER                 (4),
     // Control Event Types:
-    PRESTART (5),
-    GO       (6),
-    PAUSE    (7),
-    END      (8);
+    CONTROL              (5), // prestart, go, pause or end
+    PRESTART             (6),
+    GO                   (7),
+    PAUSE                (8),
+    END                  (9),
+    OTHER               (15);
 
     private int value;
 
@@ -52,7 +55,8 @@ public enum EventType {
      */
     public boolean isControl() {
         return (this.equals(PRESTART) || this.equals(GO) ||
-                this.equals(PAUSE)    || this.equals(END) );
+                this.equals(PAUSE)    || this.equals(END) ||
+                this.equals(CONTROL));
     }
 
     /**
@@ -96,11 +100,36 @@ public enum EventType {
     }
 
     /**
-     * Is this a physics event type?
-     * @return <code>true</code> if physics event type, else <code>false</code>
+     * Is this a any kind of a physics event type?
+     * @return <code>true</code> if any kind of a physics event type, else <code>false</code>
+     */
+    public boolean isAnyPhysics() {
+        return this.equals(PHYSICS);
+    }
+
+    /**
+     * Is this a fully-built, but entangled physics event type?
+     * @return <code>true</code> if complete, but entangled physics event type, else <code>false</code>
      */
     public boolean isPhysics() {
         return this.equals(PHYSICS);
+    }
+
+    /**
+     * Is this a partially-built physics event type?
+     * If so, this event did not yet make it through all the layers of event building.
+     * @return <code>true</code> if partially-built physics event type, else <code>false</code>
+     */
+    public boolean isPartialPhysics() {
+        return this.equals(PARTIAL_PHYSICS);
+    }
+
+    /**
+     * Is this a fully-built, disentangled physics event type?
+     * @return <code>true</code> if complete & disentangled physics event type, else <code>false</code>
+     */
+    public boolean isDisentangledPhysics() {
+        return this.equals(DISENTANGLED_PHYSICS);
     }
 
     /**
@@ -111,13 +140,6 @@ public enum EventType {
         return this.equals(USER);
     }
 
-    /**
-     * Is this a sync event type?
-     * @return <code>true</code> if sync event type, else <code>false</code>
-     */
-    public boolean isSync() {
-        return this.equals(SYNC);
-    }
 
 
 }
