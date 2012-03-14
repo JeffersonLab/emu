@@ -2,10 +2,9 @@ package org.jlab.coda.emu.support.data;
 
 import org.jlab.coda.jevio.*;
 import org.jlab.coda.emu.EmuException;
-import org.jlab.coda.emu.support.logger.Logger;
 
+import java.nio.ByteOrder;
 import java.util.Arrays;
-import java.util.Date;
 import java.util.Vector;
 
 /**
@@ -116,12 +115,12 @@ import java.util.Vector;
  *
  * S is the 4-bit status:
  * |_____________________________________|
- * | Single| Reserved |  Error |  Sync   |
- * | Event |          |        |  Event  |
+ * | Single|   Data   |  Error |  Sync   |
+ * | Event |  Endian  |        |  Event  |
  * |  Mode |          |        |         |
  * |_____________________________________|
  *
- *
+ *  Data Endian bit is set if data is big endian
  *
  *
  * ############################
@@ -260,8 +259,8 @@ public class Evio {
     private static final int SYNC_BIT_MASK               = 0x1000;
     /** In ROC Raw Record, mask to get has-error status bit from tag. */
     private static final int ERROR_BIT_MASK              = 0x2000;
-    /** In ROC Raw Record, mask to get reserved status bit from tag. */
-    private static final int RESERVED_BIT_MASK           = 0x4000;
+    /** In ROC Raw Record, mask to get endian status bit from tag. */
+    private static final int ENDIAN_BIT_MASK             = 0x4000;
     /** In ROC Raw Record, mask to get single-event status bit from tag. */
     private static final int SINGLE_EVENT_MODE_BIT_MASK  = 0x8000;
 
@@ -285,18 +284,18 @@ public class Evio {
      *
      * @param sync is sync event
      * @param error is error
-     * @param reserved reserved for future use
+     * @param isBigEndian data is big endian
      * @param singleEventMode is single event mode
      * @param id lowest 12 bits are id
      * @return a 16-bit tag for a ROC Raw Record or Physics Event out of 4 status bits and a 12-bit id
      */
-    public static int createCodaTag(boolean sync,     boolean error,
-                                    boolean reserved, boolean singleEventMode, int id) {
+    public static int createCodaTag(boolean sync, boolean error, boolean isBigEndian,
+                                    boolean singleEventMode, int id) {
         int status = 0;
         
         if (sync)            status |= SYNC_BIT_MASK;
         if (error)           status |= ERROR_BIT_MASK;
-        if (reserved)        status |= RESERVED_BIT_MASK;
+        if (isBigEndian)     status |= ENDIAN_BIT_MASK;
         if (singleEventMode) status |= SINGLE_EVENT_MODE_BIT_MASK;
 
         return ( status | (id & ID_BIT_MASK) );
@@ -320,7 +319,7 @@ public class Evio {
      * @param codaTag tag from evio bank.
      * @return the id of the CODA-format tag.
      */
-    public static int getCodaId(int codaTag) {
+    public static int getTagCodaId(int codaTag) {
         return ID_BIT_MASK & codaTag;
     }
 
@@ -331,7 +330,7 @@ public class Evio {
      * @param codaTag tag from evio bank.
      * @return <code>true</code> if the ROC is in single event mode.
      */
-    public static boolean isSingleEventMode(int codaTag) {
+    public static boolean isTagSingleEventMode(int codaTag) {
         return (codaTag & SINGLE_EVENT_MODE_BIT_MASK) != 0;
     }
 
@@ -342,8 +341,33 @@ public class Evio {
      * @param codaTag tag from evio bank.
      * @return <code>true</code> if is a sync event.
      */
-    public static boolean isSyncEvent(int codaTag) {
+    public static boolean isTagSyncEvent(int codaTag) {
         return (codaTag & SYNC_BIT_MASK) != 0;
+    }
+
+    /**
+     * See if the given CODA-format tag indicates data is big endian.
+     * This condition is set by the ROC and may be set in emu if data is swapped.
+     *
+     * @param codaTag tag from evio bank.
+     * @return <code>true</code> if data is big endian.
+     */
+    public static boolean isTagBigEndian(int codaTag) {
+        return (codaTag & ENDIAN_BIT_MASK) != 0;
+    }
+
+    /**
+     * Set the given CODA-format tag to indicate data is little/big endian.
+     *
+     * @param codaTag tag from evio bank.
+     * @param isBigEndian <code>true</code> if big endian, else <code>false</code>
+     * @return new codaTag with bit set to indicate data endianness.
+     */
+    public static int setTagEndian(int codaTag, boolean isBigEndian) {
+        if (isBigEndian) {
+            return (codaTag | ENDIAN_BIT_MASK);
+        }
+        return (codaTag & ~ENDIAN_BIT_MASK);
     }
 
     /**
@@ -353,7 +377,7 @@ public class Evio {
      * @param codaTag tag from evio bank.
      * @return <code>true</code> if the ROC/EB has an error.
      */
-    public static boolean hasError(int codaTag) {
+    public static boolean tagHasError(int codaTag) {
         return (codaTag & ERROR_BIT_MASK) != 0;
     }
 
@@ -365,7 +389,7 @@ public class Evio {
      * @param codaTag tag from evio bank.
      * @return the event type or status from various records/events.
      */
-    public static int getEventTypeOrStatus(int codaTag) {
+    public static int getTagEventTypeOrStatus(int codaTag) {
         return (codaTag >>> 12);
     }
 
@@ -379,7 +403,7 @@ public class Evio {
     public static EventType getEventType(EvioBank bank) {
         if (bank == null) return null;
 
-        int type = getEventTypeOrStatus(bank.getHeader().getTag());
+        int type = getTagEventTypeOrStatus(bank.getHeader().getTag());
         return EventType.getEventType(type);
     }
 
@@ -444,7 +468,7 @@ public class Evio {
         EventType eventType = getEventType(bank);
         if (eventType == null) return false;
 
-        return (eventType.isPhysics());
+        return (eventType.isAnyPhysics());
     }
 
 
@@ -479,7 +503,9 @@ public class Evio {
         if (eventType == null) return false;
 //System.out.println("isForPayloadQueue: event type = " + eventType);
 
-        return ( eventType.isROCRaw() || (num == 0xCC && eventType.isControl()) || eventType.isPhysics() );
+        return ( eventType.isROCRaw() ||
+                (num == 0xCC && eventType.isControl()) ||
+                 eventType.isAnyPhysics() );
     }
 
 
@@ -548,8 +574,8 @@ System.out.println("isDataTransportRecord: is not DTR 1, contains < 2 banks");
         System.out.println("isDataTransportRecord(): # DTR kids = " + (kids.size()) + ", Record ID bank -> ");
         // print out header first
         int hLen = firstBank.getHeader().getLength();
-        int num =  firstBank.getHeader().getNumber();
-        int tag =  firstBank.getHeader().getTag();
+        int num  = firstBank.getHeader().getNumber();
+        int tag  = firstBank.getHeader().getTag();
         int type = firstBank.getHeader().getDataTypeValue();
 
         System.out.println("    Header len = 0x" + Integer.toHexString(hLen) +
@@ -677,7 +703,7 @@ System.out.println("extractPayloadBanks: record ID out of sequence, got " + reco
 
         // store all banks except the first one containing record ID
         int numKids  = kids.size();
-        int sourceId = Evio.getCodaId(dtrBank.getHeader().getTag()); // get 12 bit id from tag
+        int sourceId = Evio.getTagCodaId(dtrBank.getHeader().getTag()); // get 12 bit id from tag
 
         int tag;
         PayloadBank payloadBank;
@@ -704,8 +730,8 @@ System.out.println("extractPayloadBanks: record ID out of sequence, got " + reco
                 header = payloadBank.getHeader();
                 tag    = header.getTag();
 
-                if (sourceId != getCodaId(tag)) {
-System.out.println("extractPayloadBanks: DTR bank source Id (" + sourceId + ") != payload bank's id (" + getCodaId(tag) + ")");
+                if (sourceId != getTagCodaId(tag)) {
+System.out.println("extractPayloadBanks: DTR bank source Id (" + sourceId + ") != payload bank's id (" + getTagCodaId(tag) + ")");
                     nonFatalError = true;
                 }
 
@@ -715,9 +741,9 @@ System.out.println("extractPayloadBanks: DTR bank source Id (" + sourceId + ") !
                     throw new EmuException("ROC raw / physics record not in proper format");
                 }
 
-                payloadBank.setSync(Evio.isSyncEvent(tag));
-                payloadBank.setError(Evio.hasError(tag));
-                payloadBank.setSingleEventMode(Evio.isSingleEventMode(tag));
+                payloadBank.setSync(Evio.isTagSyncEvent(tag));
+                payloadBank.setError(Evio.tagHasError(tag));
+                payloadBank.setSingleEventMode(Evio.isTagSingleEventMode(tag));
             }
 
             payloadBank.setNonFatalBuildingError(nonFatalError || nonFatalRecordIdError);
@@ -1416,31 +1442,80 @@ System.out.println("Timestamps are NOT consistent !!!");
                                                        EvioBank[] inputPayloadBanks,
                                                        EventBuilder builder) {
 
-        int childrenCount;
+        int tag, childrenCount;
         int numPayloadBanks = inputPayloadBanks.length;
+        boolean isBigE = false;
         BankHeader header;
-        EvioBank blockBank, dataBlock;
+        EvioBank dataBank, blockBank;
         EvioEvent finalEvent = builder.getEvent();
 
         try {
-            // add combined trigger bank
+            // Add combined trigger bank to physics event
             builder.addChild(finalEvent, triggerBank);
 
             // Wrap and add data block banks (from payload banks).
             // Use the same header to wrap data blocks as used for payload bank.
             for (int i=0; i < numPayloadBanks; i++) {
+                // Get Roc Raw header
                 header = (BankHeader)inputPayloadBanks[i].getHeader();
-                blockBank = new EvioBank(header.getTag(), DataType.BANK, header.getNumber());
+                // What is the endianness of the Roc data?
+                // Find it by looking at status bit in tag.
+                tag = header.getTag();
+                isBigE = Evio.isTagBigEndian(tag);
+                // Reset it to big endian
+                tag = Evio.setTagEndian(tag, true);
+                // Create physics data bank with same tag & num as Roc Raw bank
+                dataBank = new EvioBank(tag, DataType.BANK, header.getNumber());
+                // How many banks inside Roc Raw bank ?
                 childrenCount = inputPayloadBanks[i].getChildCount();
+                // Add Roc Raw's data block banks to our data bank
                 for (int j=0; j < childrenCount; j++) {
-                    dataBlock = (EvioBank)inputPayloadBanks[i].getChildAt(j);
-                    // ignore the trigger bank (should be first one)
-                    if (Evio.isTriggerBank(dataBlock)) {
+                    blockBank = (EvioBank)inputPayloadBanks[i].getChildAt(j);
+                    // Ignore the Roc Raw's trigger bank (should be first one)
+                    if (Evio.isTriggerBank(blockBank)) {
                         continue;
                     }
-                    builder.addChild(blockBank, dataBlock);
+
+                    // Here's where things can get tricky. There is a status bit
+                    // telling us the data endianness which was set on the ROC
+                    // (see above). However, when reading evio events over the
+                    // network, the emu knows the endianness of the host it came.
+                    // It is possible these are not the same if some crazy user
+                    // stored big endian data on a little endian host or vice versa.
+
+                    // If data is big endian, just add bank
+                    if (isBigE) {
+                        if (blockBank.getByteOrder() != ByteOrder.BIG_ENDIAN) {
+                            blockBank.setByteOrder(ByteOrder.BIG_ENDIAN);
+                        }
+                        builder.addChild(dataBank, blockBank);
+                    }
+                    // Otherwise, read, swap and rewrite data.
+                    else {
+                        if (blockBank.getByteOrder() != ByteOrder.LITTLE_ENDIAN) {
+                            blockBank.setByteOrder(ByteOrder.LITTLE_ENDIAN);
+                        }
+                        // Get the data (swapped in this method call)
+                        int[] dat = blockBank.getIntData();
+                        // Create a new bank to put it in
+                        header = (BankHeader)blockBank.getHeader();
+                        tag = header.getTag();
+                        // make it say we have big endian data
+                        tag = Evio.setTagEndian(tag, true);
+                        blockBank = new EvioBank(tag, DataType.UINT32, header.getNumber());
+                        blockBank.appendIntData(dat);
+                        // Add new block bank with swapped data to data bank
+                        builder.addChild(dataBank, blockBank);
+                        // Now we must change the status bit saying we have big endian data.
+                        // Do this for physics event (as we just did for the data & block banks).
+                        BankHeader bh = (BankHeader)builder.getEvent().getHeader();
+                        tag = bh.getTag();
+                        tag = Evio.setTagEndian(tag, true);
+                        bh.setTag(tag);
+                    }
                 }
-                builder.addChild(finalEvent, blockBank);
+                // Add our data bank to physics event
+                builder.addChild(finalEvent, dataBank);
             }
         } catch (EvioException e) {
             // never happen
