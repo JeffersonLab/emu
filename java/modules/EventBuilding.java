@@ -723,7 +723,7 @@ if (debug && printQSizes) {
                                 eventType = buildingBanks[i].getType();
 
                                 // If event needs to be built ...
-                                if (eventType.isROCRaw() || eventType.isPhysics()) {
+                                if (eventType.isROCRaw() || eventType.isAnyPhysics()) {
                                     // One-time init stuff for a group of
                                     // records that will be built together.
                                     if (!gotBuildEvent) {
@@ -858,11 +858,14 @@ if (debug) System.out.println("BuildingThread: Got user event");
                     // Check endianness & source IDs
                     if (runChecks) {
                         for (int i=0; i < payloadBankQueues.size(); i++) {
-                            // Check endianness
-                            if (buildingBanks[i].getByteOrder() != ByteOrder.BIG_ENDIAN) {
-if (debug) System.out.println("All events sent to EMU must be BIG endian");
-                                throw new EmuException("events must be BIG endian");
-                            }
+                            // Remove endian checking since we now will swap little
+                            // endian data while building the physics event
+
+//                            // Check endianness
+//                            if (buildingBanks[i].getByteOrder() != ByteOrder.BIG_ENDIAN) {
+//if (debug) System.out.println("All events sent to EMU must be BIG endian");
+//                                throw new EmuException("events must be BIG endian");
+//                            }
 
                             // Check the source ID of this bank to see if it matches
                             // what should be coming over this channel.
@@ -918,7 +921,7 @@ if (debug) System.out.println("Found END event in build thread");
                     }
 
                     // At this point there are only physics or ROC raw events, which do we have?
-                    havePhysicsEvents = buildingBanks[0].getType().isPhysics();
+                    havePhysicsEvents = buildingBanks[0].getType().isAnyPhysics();
 
                     // Check for identical syncs, uniqueness of ROC ids,
                     // single-event-mode, and identical (physics or ROC raw) event types
@@ -1097,7 +1100,7 @@ if (debug) System.out.println("Building thread is ending !!!");
                 singleEventModeBankCount++;
             }
 
-            if (buildingBanks[i].getType().isPhysics()) {
+            if (buildingBanks[i].getType().isAnyPhysics()) {
                 physicsEventCount++;
             }
 
