@@ -53,6 +53,9 @@ public class DataChannelImplFile implements DataChannel {
     /** Field queue - filled buffer queue */
     private final BlockingQueue<EvioBank> queue;
 
+    /** Name of file currently being written to. */
+    String fileName;
+
     /** Evio data file. */
     private EvioReader evioFile;
 
@@ -116,7 +119,6 @@ public class DataChannelImplFile implements DataChannel {
         }
 
         // Filename given in config file?
-        String fileName = null;
         try {
             fileName = attributeMap.get("file");
             // scan for %d which must be replaced by the run number
@@ -166,11 +168,11 @@ public class DataChannelImplFile implements DataChannel {
 
         try {
             if (input) {
-//logger.info("      DataChannel File: try opening input file of " + fileName);
+logger.info("      DataChannel File: try opening input file of " + fileName);
                 evioFile = new EvioReader(fileName);
                 dataThread = new Thread(emu.getThreadGroup(), new DataInputHelper(), getName() + " data input");
             } else {
-//logger.info("      DataChannel File: try opening output file of " + fileName);
+logger.info("      DataChannel File: try opening output file of " + fileName);
                 evioFileWriter = new EventWriter(fileName);
                 dataThread = new Thread(emu.getThreadGroup(), new DataOutputHelper(), getName() + " data out");
             }
@@ -264,22 +266,22 @@ public class DataChannelImplFile implements DataChannel {
                     // This bank is a data transport record (DTR)
                     dtrBank = queue.take(); // will block
 
-                    if (Evio.isEndEvent(dtrBank)) {
+                    if (Evio.dtrHasEndEvent(dtrBank)) {
                         evioFileWriter.close();
-logger.warn("      DataChannel File (" + name + "): got END, close file");
+logger.warn("      DataChannel File (" + name + "): got END, close file " + fileName);
                         return;
                     }
-                    else if (Evio.isGoEvent(dtrBank)) {
+                    else if (Evio.dtrHasGoEvent(dtrBank)) {
 //logger.warn("      DataChannel File (" + name + "): got GO");
                         gotGO = true;
                         continue;
                     }
-                    else if (Evio.isControlEvent(dtrBank)) {
+                    else if (Evio.dtrHasControlEvent(dtrBank)) {
 //logger.info("      DataChannel File (" + name + "): got control event of type " + Evio.getEventType(dtrBank));
                         continue;
                     }
 
-                    if (!Evio.isPhysicsEvent(dtrBank)) {
+                    if (!Evio.dtrHasPhysicsEvents(dtrBank)) {
 //logger.info("      DataChannel File (" + name + "): got event of type " + Evio.getEventType(dtrBank) +
 //                    " but expecting PHYSICS");
                         throw new EmuException("expecting Physics event");
@@ -309,20 +311,21 @@ logger.warn("      DataChannel File (" + name + "): got END, close file");
                         if (split > 0L && (numBytesWritten + bankBytes > split)) {
                             evioFileWriter.close();
                             numBytesWritten = 0L;
-                            String outputFileName = String.format("%s%06d", outputFilePrefix, (++fileCount));
+                            fileName = String.format("%s%06d", outputFilePrefix, (++fileCount));
                             if (directory != null) {
-                                outputFileName = directory + "/" + outputFileName;
+                                fileName = directory + "/" + fileName;
                             }
-                            evioFileWriter = new EventWriter(outputFileName);
+logger.info("      DataChannel File (" + name + "): split, new file = " + fileName);
+                            evioFileWriter = new EventWriter(fileName);
                         }
 
-//logger.info("      DataChannel File (" + name + "): try writing into file");
+logger.info("      DataChannel File (" + name + "): try writing into file" + fileName);
                         evioFileWriter.writeEvent(bank);
                         numBytesWritten += bankBytes;
                     }
                 }
 
-logger.info("      DataChannel File (" + name + "): close file");
+logger.info("      DataChannel File (" + name + "): close file " + fileName);
 
             } catch (InterruptedException e) {
                 // time to quit
