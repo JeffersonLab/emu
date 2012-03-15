@@ -407,33 +407,31 @@ public class Evio {
         return EventType.getEventType(type);
     }
 
-
     /**
-     * Determine whether a Data Transport Record format bank contains the END control event or not.
+     * Determine whether a Data Transport Record format bank contains an END control event or not.
      *
-     * @param bank input Data Transport Record format bank
-     * @return <code>true</code> if arg contains END event, else <code>false</code>
+     * @param dtr input Data Transport Record format bank
+     * @return <code>true</code> if arg contains an END event, else <code>false</code>
      */
-    public static boolean isEndEvent(EvioBank bank) {
-        if (bank == null)  return false;
+    public static boolean dtrHasEndEvent(EvioBank dtr) {
+        if (dtr == null)  return false;
 
-        EventType eventType = getEventType(bank);
+        EventType eventType = getEventType(dtr);
         if (eventType == null) return false;
 
         return (eventType.isEnd());
     }
 
-
     /**
-     * Determine whether a Data Transport Record format bank contains the GO control event or not.
+     * Determine whether a Data Transport Record format bank contains a GO control event or not.
      *
-     * @param bank input Data Transport Record format bank
+     * @param dtr input Data Transport Record format bank
      * @return <code>true</code> if arg contains GO event, else <code>false</code>
      */
-    public static boolean isGoEvent(EvioBank bank) {
-        if (bank == null)  return false;
+    public static boolean dtrHasGoEvent(EvioBank dtr) {
+        if (dtr == null)  return false;
 
-        EventType eventType = getEventType(bank);
+        EventType eventType = getEventType(dtr);
         if (eventType == null) return false;
 
         return (eventType.isGo());
@@ -441,15 +439,15 @@ public class Evio {
 
 
     /**
-     * Determine whether a Data Transport Record format bank contains control event(s) or not.
+     * Determine whether a Data Transport Record format bank contains a control event or not.
      *
-     * @param bank input Data Transport Record format bank
-     * @return <code>true</code> if arg contains control event(s), else <code>false</code>
+     * @param dtr input Data Transport Record format bank
+     * @return <code>true</code> if arg contains a control event, else <code>false</code>
      */
-    public static boolean isControlEvent(EvioBank bank) {
-        if (bank == null)  return false;
-// TODO: check the control event's (NOT DTR's !) num value, should be 0xcc
-        EventType eventType = getEventType(bank);
+    public static boolean dtrHasControlEvent(EvioBank dtr) {
+        if (dtr == null)  return false;
+
+        EventType eventType = getEventType(dtr);
         if (eventType == null) return false;
 
         return (eventType.isControl());
@@ -459,13 +457,13 @@ public class Evio {
     /**
      * Determine whether a Data Transport Record format bank contains physics event(s) or not.
      *
-     * @param bank input Data Transport Record format bank
+     * @param dtr input Data Transport Record format bank
      * @return <code>true</code> if arg contains physics event(s), else <code>false</code>
      */
-    public static boolean isPhysicsEvent(EvioBank bank) {
-        if (bank == null)  return false;
+    public static boolean dtrHasPhysicsEvents(EvioBank dtr) {
+        if (dtr == null)  return false;
 
-        EventType eventType = getEventType(bank);
+        EventType eventType = getEventType(dtr);
         if (eventType == null) return false;
 
         return (eventType.isAnyPhysics());
@@ -475,17 +473,113 @@ public class Evio {
     /**
      * Determine whether a Data Transport Record format bank contains ROC raw record(s) or not.
      *
-     * @param bank input Data Transport Record format bank
+     * @param dtr input Data Transport Record format bank
      * @return <code>true</code> if arg contains ROC raw record(s), else <code>false</code>
      */
-    public static boolean isRocRawRecord(EvioBank bank) {
-        if (bank == null)  return false;
+    public static boolean dtrHasRocRawRecords(EvioBank dtr) {
+        if (dtr == null)  return false;
 
-        EventType eventType = getEventType(bank);
+        EventType eventType = getEventType(dtr);
         if (eventType == null) return false;
 
         return (eventType.isROCRaw());
     }
+
+
+    /**
+     * Determine whether a bank is an END control event or not.
+     *
+     * @param bank input bank
+     * @return <code>true</code> if arg is END event, else <code>false</code>
+     */
+    public static boolean isEndEvent(EvioBank bank) {
+        if (bank == null)  return false;
+
+        BaseStructureHeader header = bank.getHeader();
+
+        // Look inside to see if it is an END event.
+        return (header.getTag() == 20 &&
+                header.getNumber() == 0xCC &&
+                header.getDataTypeValue() == 1 &&
+                header.getLength() == 4);
+    }
+
+
+    /**
+      * Determine whether a bank is a GO control event or not.
+      *
+      * @param bank input bank
+      * @return <code>true</code> if arg is GO event, else <code>false</code>
+      */
+     public static boolean isGoEvent(EvioBank bank) {
+         if (bank == null)  return false;
+
+         BaseStructureHeader header = bank.getHeader();
+
+         // Look inside to see if it is a GO event.
+         return (header.getTag() == 18 &&
+                 header.getNumber() == 0xCC &&
+                 header.getDataTypeValue() == 1 &&
+                 header.getLength() == 4);
+     }
+
+
+    /**
+      * Determine whether a bank is a PRESTART control event or not.
+      *
+      * @param bank input bank
+      * @return <code>true</code> if arg is PRESTART event, else <code>false</code>
+      */
+     public static boolean isPrestartEvent(EvioBank bank) {
+         if (bank == null)  return false;
+
+         BaseStructureHeader header = bank.getHeader();
+
+         // Look inside to see if it is an END event.
+         return (header.getTag() == 17 &&
+                 header.getNumber() == 0xCC &&
+                 header.getDataTypeValue() == 1 &&
+                 header.getLength() == 4);
+     }
+
+
+    /**
+      * Determine whether a bank is a PAUSE control event or not.
+      *
+      * @param bank input bank
+      * @return <code>true</code> if arg is PAUSE event, else <code>false</code>
+      */
+     public static boolean isPauseEvent(EvioBank bank) {
+         if (bank == null)  return false;
+
+         BaseStructureHeader header = bank.getHeader();
+
+         // Look inside to see if it is an END event.
+         return (header.getTag() == 19 &&
+                 header.getNumber() == 0xCC &&
+                 header.getDataTypeValue() == 1 &&
+                 header.getLength() == 4);
+     }
+
+
+    /**
+      * Determine whether a bank is a PAUSE control event or not.
+      *
+      * @param bank input bank
+      * @return <code>true</code> if arg is PAUSE event, else <code>false</code>
+      */
+     public static boolean isControlEvent(EvioBank bank) {
+         if (bank == null)  return false;
+
+         BaseStructureHeader header = bank.getHeader();
+         int tag = header.getTag();
+
+         // Look inside to see if it is an END event.
+         return ((tag == 20 || tag == 19 || tag == 18 || tag == 17) &&
+                 header.getNumber() == 0xCC &&
+                 header.getDataTypeValue() == 1 &&
+                 header.getLength() == 4);
+     }
 
 
     /**
@@ -632,6 +726,126 @@ System.out.println("isDataTransportRecord: is not DTR 5, num = " + num +
     }
 
 
+//    /**
+//     * Check the given payload bank (physics, ROC raw, control, or user format evio banks)
+//     * for correct format and place onto the specified queue.
+//     * <b>All other banks are thrown away.</b><p>
+//     * Payload banks which are physics events, ROC raw events,
+//     * run control events, or user events.<p>
+//     *
+//     * No checks done on arguments. However, format of payload banks is checked here for
+//     * the first time.<p>
+//     *
+//     * @param payloadBank payload bank to be examined
+//     * @param payloadQueue queue on which to place acceptable payload bank
+//     * @throws EmuException if dtrBank contains no data banks or record ID is out of sequence
+//     * @throws InterruptedException if blocked while putting bank on full output queue
+//     */
+//    public static void checkPayloadBank(EvioBank payloadBank, PayloadBankQueue<PayloadBank> payloadQueue)
+//            throws EmuException, InterruptedException {
+//
+//        // get sub banks
+//        Vector<BaseStructure> kids = dtrBank.getChildren();
+//
+//        // check to make sure record ID is sequential
+//        BaseStructure firstBank = kids.firstElement();
+//        int recordId = firstBank.getIntData()[0];
+//        boolean nonFatalError;
+//        boolean nonFatalRecordIdError = false;
+//
+//        // See what type of event DTR bank is wrapping.
+//        // Only interested in known types such as physics, roc raw, control, and user events.
+//        EventType eventType = getEventType(dtrBank);
+//        if (eventType == null) {
+//System.out.print("extractPayloadBanks: unknown type, dump payload bank");
+//            return;
+//        }
+//        else if (eventType.isUser()) {
+////System.out.println("extractPayloadBanks: FOUND USER event !!!");
+//        }
+//        else if (eventType.isControl()) {
+////System.out.println("extractPayloadBanks: FOUND CONTROL event !!!");
+//        }
+//
+//        // Initial recordId stored is 0, ignore that.
+//        // The recordId for user events is meaningless, just ignore it.
+////        if (eventType != EventType.USER    &&
+////            eventType != EventType.CONTROL &&
+////            payloadQueue.getRecordId() > 0 &&
+////            recordId != payloadQueue.getRecordId() + 1) {
+////System.out.println("extractPayloadBanks: record ID out of sequence, got " + recordId +
+////                           " but expecting " + (payloadQueue.getRecordId() + 1) + ", type = " + eventType);
+////            nonFatalRecordIdError = true;
+////            //payloadQueue.setRecordId(recordId);
+////        }
+////        payloadQueue.setRecordId(recordId);
+//
+//        // Only worry about record id if event to be built.
+//        // Initial recordId stored is 0, ignore that.
+//        if (eventType == EventType.PHYSICS || eventType != EventType.ROC_RAW) {
+//            if (payloadQueue.getRecordId() > 0 &&
+//                recordId != payloadQueue.getRecordId() + 1) {
+//System.out.println("extractPayloadBanks: record ID out of sequence, got " + recordId +
+//                           " but expecting " + (payloadQueue.getRecordId() + 1) + ", type = " + eventType);
+//                nonFatalRecordIdError = true;
+//            }
+//            payloadQueue.setRecordId(recordId);
+//        }
+//
+//        // store all banks except the first one containing record ID
+//        int numKids  = kids.size();
+//        int sourceId = Evio.getTagCodaId(dtrBank.getHeader().getTag()); // get 12 bit id from tag
+//
+//        int tag;
+//        PayloadBank payloadBank;
+//        BaseStructureHeader header;
+//
+//        for (int i=1; i < numKids; i++) {
+//            try {
+//                payloadBank = new PayloadBank(kids.get(i));
+//            }
+//            catch (ClassCastException e) {
+//                // dtrBank does not contain data banks and thus is not in the proper format
+//                throw new EmuException("DTR bank contains things other than banks");
+//            }
+//
+//            payloadBank.setType(eventType);
+//            payloadBank.setRecordId(recordId);
+//            payloadBank.setSourceId(sourceId);
+//
+//            // so far so good
+//            nonFatalError = false;
+//
+//            // dig out extra info for ROC raw and physics events
+//            if (eventType == EventType.ROC_RAW || eventType == EventType.PHYSICS) {
+//                header = payloadBank.getHeader();
+//                tag    = header.getTag();
+//
+//                if (sourceId != getTagCodaId(tag)) {
+//System.out.println("extractPayloadBanks: DTR bank source Id (" + sourceId + ") != payload bank's id (" + getTagCodaId(tag) + ")");
+//                    nonFatalError = true;
+//                }
+//
+//                // pick this bank apart a little here
+//                if (header.getDataType() != DataType.BANK &&
+//                    header.getDataType() != DataType.ALSOBANK) {
+//                    throw new EmuException("ROC raw / physics record not in proper format");
+//                }
+//
+//                payloadBank.setSync(Evio.isTagSyncEvent(tag));
+//                payloadBank.setError(Evio.tagHasError(tag));
+//                payloadBank.setSingleEventMode(Evio.isTagSingleEventMode(tag));
+//            }
+//
+//            payloadBank.setNonFatalBuildingError(nonFatalError || nonFatalRecordIdError);
+//
+//            // Put bank on queue.
+////System.out.println("  QFiller: putting bank on payload bank Q");
+//            payloadQueue.put(payloadBank);
+//        }
+//    }
+
+
     /**
      * Extract certain payload banks (physics, ROC raw, control, or user format evio banks)
      * from a Data Transport Record (DTR) format event and place onto the specified queue.
@@ -747,7 +961,7 @@ System.out.println("extractPayloadBanks: DTR bank source Id (" + sourceId + ") !
             }
 
             payloadBank.setNonFatalBuildingError(nonFatalError || nonFatalRecordIdError);
-            
+
             // Put bank on queue.
 //System.out.println("  QFiller: putting bank on payload bank Q");
             payloadQueue.put(payloadBank);
