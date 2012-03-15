@@ -481,27 +481,6 @@ if (debug && printQSizes) {
     int size1 = channelQ.size();
     if (size1 > 400 && size1 % 100 == 0) System.out.println("in chan: " + size1);
 }
-                        System.out.println("");
-                        // print out header first
-                        int hLen = channelBank.getHeader().getLength();
-                        int num =  channelBank.getHeader().getNumber();
-                        int tag =  channelBank.getHeader().getTag();
-                        int type = channelBank.getHeader().getDataTypeValue();
-
-                        System.out.println("Header len = 0x" + Integer.toHexString(hLen) +
-                        ", tag = 0x" + Integer.toHexString(tag) +
-                        ", type = 0x" + Integer.toHexString(type) +
-                        ", num = 0x" + Integer.toHexString(num));
-
-
-                        byte[] bytes = channelBank.getRawBytes();
-                        int[] words = ByteDataTransformer.getAsIntArray(bytes, channelBank.getByteOrder());
-                        for (int i=0; i < words.length; i++) {
-                            System.out.print("0x" + Integer.toHexString(words[i]) + "  ");
-                            if (i%2 == 1) System.out.println("");
-                        }
-                        System.out.println("");
-
                         // Is bank is in Data Transport Record format? If not, ignore it.
                         if ( Evio.isDataTransportRecord(channelBank) ) {
                             // Extract payload banks from DTR & place onto Q.
@@ -1183,6 +1162,7 @@ if (true) System.out.println("gotValidControlEvents: got " + controlEventCount +
 
             // Prestart events require an additional check,
             // run #'s and run types must be identical
+            // TODO: run types need to be checked ...
             if (eventType == EventType.PRESTART) {
                 int[] prestartData;
                 for (PayloadBank bank : buildingBanks) {
@@ -1191,9 +1171,9 @@ if (true) System.out.println("gotValidControlEvents: got " + controlEventCount +
                         throw new EmuException("PRESTART event does not have data");
                     }
                     if (prestartData[1] != runNumber) {
-if (true) System.out.println("gotValidControlEvents: PRESTART event bad run #, " +
+if (true) System.out.println("gotValidControlEvents: warning, PRESTART event bad run #, " +
                                       prestartData[1] + ", should be " + runNumber);
-                        throw new EmuException("PRESTART event bad run #, " + prestartData[1]);
+//throw new EmuException("PRESTART event bad run #, " + prestartData[1]);
                     }
                 }
             }
