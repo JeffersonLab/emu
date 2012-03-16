@@ -65,7 +65,7 @@ public class EmuModuleFactory implements StatedObject {
     private EmuClassLoader classLoader;
 
     /** State of the emu. */
-    private State state = BOOTED;
+    private volatile State state = BOOTED;
 
     /** Object which creates and manages transport (data movement) objects. */
     private final DataTransportFactory transportFactory;
@@ -379,14 +379,14 @@ logger.error("EmuModuleFactory.execute() : threw " + e.getMessage());
             if (channelList != null) {
                 for (DataChannel chan : channelList) {
                     DataTransport trans = chan.getDataTransport();
-//logger.info("EmuModuleFactory.execute : END thru transport " + trans.name());
+logger.info("EmuModuleFactory.execute : END thru transport " + trans.name());
                     trans.execute(cmd, true);  // true means we're doing inputs only
                 }
             }
 
             // pass command to all modules starting with first
             for (int i=0; i < mods.size(); i++) {
-//logger.info("EmuModuleFactory.execute : END thru module " + mods.get(i).name());
+logger.info("EmuModuleFactory.execute : END thru module " + mods.get(i).name());
                 mods.get(i).execute(cmd);
             }
 
@@ -396,7 +396,7 @@ logger.error("EmuModuleFactory.execute() : threw " + e.getMessage());
             if (channelList != null) {
                 for (DataChannel chan : channelList) {
                     DataTransport trans = chan.getDataTransport();
-//logger.info("EmuModuleFactory.execute : END thru transport " + trans.name());
+logger.info("EmuModuleFactory.execute : END thru transport " + trans.name());
                     trans.execute(cmd, false);  // false means we're doing outputs only
                 }
             }
