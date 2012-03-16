@@ -120,7 +120,7 @@ public class DataChannelImplFile implements DataChannel {
 
         // Filename given in config file?
         try {
-            fileName = attributeMap.get("file");
+            fileName = attributeMap.get("fileName");
             // scan for %d which must be replaced by the run number
             fileName = fileName.replace("%d", ""+runNumber);
 //logger.info("      DataChannel File: config file name = " + fileName);
