@@ -74,6 +74,9 @@ public class Emu implements CODAComponent {
     /** What was this emu's previous state? Useful when doing RESET transition. */
     private State previousState;
 
+    /** Maximum time to wait when commanded to END but no END event received. */
+    private long endingTimeLimit = 60000;
+
     /**
      * Commands from cMsg are converted into objects of
      * class Command that are then posted in this mailbox queue.
@@ -192,6 +195,16 @@ public class Emu implements CODAComponent {
     /** {@inheritDoc} */
     public void postCommand(Command cmd) throws InterruptedException {
         mailbox.put(cmd);
+    }
+
+    /**
+     * This method gets the amount of milliseconds to wait for an
+     * END command to succeed before going to an ERROR state.
+     * @return amount of milliseconds to wait for an
+     *         END command to succeed before going to an ERROR state.
+     */
+    public long getEndingTimeLimit() {
+        return endingTimeLimit;
     }
 
     /**
