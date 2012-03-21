@@ -471,7 +471,13 @@ logger.info("EmuModuleFactory.execute : END thru transport " + trans.name());
             return;
         }
 
-        if (cmd.success() != null && state != ERROR) state = cmd.success();
+        if (cmd.success() != null && state != ERROR) {
+            state = cmd.success();
+logger.info("EmuModuleFactory.execute : transition success, setting state to " + state);
+        }
+        else {
+logger.info("EmuModuleFactory.execute : transition NOT successful, state = " + state);
+        }
 
     }
 
