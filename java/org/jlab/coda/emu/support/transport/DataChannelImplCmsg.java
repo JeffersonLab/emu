@@ -11,6 +11,9 @@
 
 package org.jlab.coda.emu.support.transport;
 
+import org.jlab.coda.emu.support.data.EventType;
+import org.jlab.coda.emu.support.data.Evio;
+import org.jlab.coda.emu.support.data.PayloadBank;
 import org.jlab.coda.emu.support.logger.Logger;
 import org.jlab.coda.emu.Emu;
 import org.jlab.coda.cMsg.*;
@@ -65,6 +68,21 @@ public class DataChannelImplCmsg implements DataChannel {
     /** Byte order of output data (input data's order is specified in msg). */
     ByteOrder byteOrder;
 
+    /** Enforce evio block header numbers to be sequential? */
+    boolean blockNumberChecking;
+
+    /** Read END event from input queue. */
+    private volatile boolean haveInputEndEvent;
+
+    /** Read END event from output queue. */
+    private volatile boolean haveOutputEndEvent;
+
+    /** Got END command from Run Control. */
+    private volatile boolean gotEndCmd;
+
+    /** Got RESET command from Run Control. */
+    private volatile boolean gotResetCmd;
+
     /** cMsg subscription for receiving messages with data. */
     private cMsgSubscriptionHandle sub;
 
@@ -88,65 +106,144 @@ public class DataChannelImplCmsg implements DataChannel {
          *
          * @param msg message received from domain server
          * @param userObject object passed as an argument which was set when the
-         *                   client orginally subscribed to a subject and type of
+         *                   client originally subscribed to a subject and type of
          *                   message.
          */
         public void callback(cMsgMessage msg, Object userObject) {
 //System.out.println("cmsg data channel " + name + ": got message in callback");
-            ByteBuffer buffer;
             byte[] data = msg.getByteArray();
             if (data == null) {
                 System.out.println("cmsg data channel " + name + ": ain't got no data!!!");
                 return;
             }
 
-            try {
-                ByteOrder byteOrder = ByteOrder.BIG_ENDIAN;
+            ByteBuffer buffer = ByteBuffer.wrap(data);
 
-                if (msg.getByteArrayEndian() == cMsgConstants.endianLittle) {
-                    byteOrder = ByteOrder.LITTLE_ENDIAN;
+            EvioBank bank;
+            PayloadBank payloadBank;
+            int evioVersion, payloadCount, sourceId;
+            BlockHeaderV4 header4;
+            EventType  type;
+            EvioReader reader;
+
+
+            try {
+                reader = new EvioReader(buffer);
+
+                // Have reader throw an exception if evio
+                // block numbers are not sequential.
+                if (blockNumberChecking) reader.checkBlockNumberSequence(true);
+
+                // Speed things up since no EvioListeners are used - doesn't do much
+                reader.getParser().setNotificationActive(false);
+
+                IBlockHeader blockHeader = reader.getCurrentBlockHeader();
+                evioVersion = blockHeader.getVersion();
+                if (evioVersion < 4) {
+                    throw new EvioException("Evio data needs to be written in version 4+ format");
+                }
+                header4      = (BlockHeaderV4)blockHeader;
+                type         = EventType.getEventType(header4.getEventType());
+                sourceId     = header4.getReserved1();
+                payloadCount = header4.getEventCount();
+
+                while ((bank = reader.parseNextEvent()) != null) {
+                    if (payloadCount < 1) {
+                        throw new EvioException("Evio header inconsistency");
+                    }
+
+                    // Not a real copy, just points to stuff in bank
+                    payloadBank = new PayloadBank(bank);
+                    // Add vital info from block header.
+                    payloadBank.setRecordId(blockHeader.getNumber());
+                    payloadBank.setType(type);
+                    payloadBank.setSourceId(sourceId);
+
+                    // Put evio bank (payload bank) on Q if it parses
+                    queue.put(bank);
+
+                    // Handle end event ...
+                    if (Evio.isEndEvent(bank)) {
+                        // There should be no more events coming down the pike so
+                        // go ahead write out existing events and then shut this
+                        // thread down.
+//logger.info("      DataChannel cMsg : found END event");
+                        haveInputEndEvent = true;
+                        break;
+                    }
+
+                    payloadCount--;
                 }
 
-                buffer = ByteBuffer.wrap(data).order(byteOrder);
-                parser = new EvioReader(buffer);
-                EvioBank bank = parser.parseNextEvent();
-//System.out.println("cmsg data channel ("+ name +"): got bank over cmsg, try putting into channel Q");
-                queue.put(bank);
-//System.out.println("cmsg data channel: put into channel Q");
-
-//                System.out.println("\nReceiving msg:\n" + bank.toString());
-//
-//                ByteBuffer bbuf = ByteBuffer.allocate(1000);
-//                bbuf.clear();
-//                bank.write(bbuf);
-//
-//                StringWriter sw2 = new StringWriter(1000);
-//                XMLStreamWriter xmlWriter = XMLOutputFactory.newInstance().createXMLStreamWriter(sw2);
-//                bank.toXML(xmlWriter);
-//                System.out.println("Receiving msg:\n" + sw2.toString());
-//                bbuf.flip();
-//
-//                System.out.println("Receiving msg (bin):");
-//                sw2.getBuffer().delete(0, sw2.getBuffer().capacity());
-//                PrintWriter wr = new PrintWriter(sw2);
-//                while (bbuf.hasRemaining()) {
-//                    wr.printf("%#010x\n", bbuf.getInt());
-//                }
-//                System.out.println(sw2.toString() + "\n\n");
-//            }
-//            catch (XMLStreamException e) {
-//                e.printStackTrace();
-            }
-            catch (IOException e) {
-                e.printStackTrace();
+                if (haveInputEndEvent) {
+                    // TODO: do something!!!
+                }
             }
             catch (EvioException e) {
-                e.printStackTrace();
+                // if ET event data NOT in evio format, skip over it
+                logger.error("        DataChannel Et : " + name +
+                                     " ET event data is NOT (latest) evio format, skip");
+            }
+            catch (IOException e) {
+                // if buffer read failure (bad data format ?)
+                logger.error("        DataChannel Et : " + name +
+                                     " ET event data is NOT (latest) evio format, skip");
             }
             catch (InterruptedException e) {
                 e.printStackTrace();
             }
 
+
+
+
+//            try {
+////                ByteOrder byteOrder = ByteOrder.BIG_ENDIAN;
+////
+////                if (msg.getByteArrayEndian() == cMsgConstants.endianLittle) {
+////                    byteOrder = ByteOrder.LITTLE_ENDIAN;
+////                }
+////
+////                buffer = ByteBuffer.wrap(data).order(byteOrder);
+//                buffer = ByteBuffer.wrap(data);
+//                parser = new EvioReader(buffer);
+//                EvioBank bank = parser.parseNextEvent();
+////System.out.println("cmsg data channel ("+ name +"): got bank over cmsg, try putting into channel Q");
+//                queue.put(bank);
+////System.out.println("cmsg data channel: put into channel Q");
+//
+////                System.out.println("\nReceiving msg:\n" + bank.toString());
+////
+////                ByteBuffer bbuf = ByteBuffer.allocate(1000);
+////                bbuf.clear();
+////                bank.write(bbuf);
+////
+////                StringWriter sw2 = new StringWriter(1000);
+////                XMLStreamWriter xmlWriter = XMLOutputFactory.newInstance().createXMLStreamWriter(sw2);
+////                bank.toXML(xmlWriter);
+////                System.out.println("Receiving msg:\n" + sw2.toString());
+////                bbuf.flip();
+////
+////                System.out.println("Receiving msg (bin):");
+////                sw2.getBuffer().delete(0, sw2.getBuffer().capacity());
+////                PrintWriter wr = new PrintWriter(sw2);
+////                while (bbuf.hasRemaining()) {
+////                    wr.printf("%#010x\n", bbuf.getInt());
+////                }
+////                System.out.println(sw2.toString() + "\n\n");
+////            }
+////            catch (XMLStreamException e) {
+////                e.printStackTrace();
+//            }
+//            catch (IOException e) {
+//                e.printStackTrace();
+//            }
+//            catch (EvioException e) {
+//                e.printStackTrace();
+//            }
+//            catch (InterruptedException e) {
+//                e.printStackTrace();
+//            }
+//
 
         }
 
@@ -179,6 +276,17 @@ public class DataChannelImplCmsg implements DataChannel {
         this.name = name;
         this.emu = emu;
         logger = emu.getLogger();
+
+        // set option whether or not to enforce evio
+        // block header numbers to be sequential
+        String attribString = attributeMap.get("blockNumCheck");
+        if (attribString != null) {
+            if (attribString.equalsIgnoreCase("true") ||
+                attribString.equalsIgnoreCase("on")   ||
+                attribString.equalsIgnoreCase("yes"))   {
+                blockNumberChecking = true;
+            }
+        }
 
         // set queue capacity
         int capacity = 40;
