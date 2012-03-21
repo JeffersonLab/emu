@@ -1587,15 +1587,17 @@ if (true) System.out.println("gotValidControlEvents: found control event of type
     }
 
     /**
-     * Method to create thread objects for filling Qs and building events.
+     * Method to create thread objects for stats, filling Qs and building events.
      * @param qCount number of qFiller threads to start
      */
     private void createThreads(int qCount) {
         watcher = new Thread(emu.getThreadGroup(), new Watcher(), name+":watcher");
+
         for (int i=0; i < buildingThreadCount; i++) {
             BuildingThread thd1 = new BuildingThread(emu.getThreadGroup(), new BuildingThread(), name+":builder"+i);
             buildingThreadList.add(thd1);
         }
+
         qFillers = new Thread[qCount];
         for (int i=0; i < qCount; i++) {
             qFillers[i] = new Thread(emu.getThreadGroup(),
