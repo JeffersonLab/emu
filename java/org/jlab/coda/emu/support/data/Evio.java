@@ -492,6 +492,37 @@ public class Evio {
      * @param bank input bank
      * @return <code>true</code> if arg is END event, else <code>false</code>
      */
+    public static boolean isAnyPhysicsEvent(EvioBank bank) {
+        if (bank == null)  return false;
+
+        // check to see if bank of banks
+        BaseStructureHeader header = bank.getHeader();
+        if (header.getDataType() != DataType.BANK ||
+            header.getDataType() != DataType.ALSOBANK) {
+            return false;
+        }
+
+        // get first bank which should be built trigger bank
+        try {
+            EvioBank kid = (EvioBank)bank.getChildAt(0);
+            if (kid.getHeader().getTag() != BUILT_TRIGGER_BANK) {
+                return false;
+            }
+        }
+        catch (Exception e) {
+            return false;
+        }
+
+        return true;
+    }
+
+
+    /**
+     * Determine whether a bank is an END control event or not.
+     *
+     * @param bank input bank
+     * @return <code>true</code> if arg is END event, else <code>false</code>
+     */
     public static boolean isEndEvent(EvioBank bank) {
         if (bank == null)  return false;
 
@@ -726,124 +757,73 @@ System.out.println("isDataTransportRecord: is not DTR 5, num = " + num +
     }
 
 
-//    /**
-//     * Check the given payload bank (physics, ROC raw, control, or user format evio banks)
-//     * for correct format and place onto the specified queue.
-//     * <b>All other banks are thrown away.</b><p>
-//     * Payload banks which are physics events, ROC raw events,
-//     * run control events, or user events.<p>
-//     *
-//     * No checks done on arguments. However, format of payload banks is checked here for
-//     * the first time.<p>
-//     *
-//     * @param payloadBank payload bank to be examined
-//     * @param payloadQueue queue on which to place acceptable payload bank
-//     * @throws EmuException if dtrBank contains no data banks or record ID is out of sequence
-//     * @throws InterruptedException if blocked while putting bank on full output queue
-//     */
-//    public static void checkPayloadBank(EvioBank payloadBank, PayloadBankQueue<PayloadBank> payloadQueue)
-//            throws EmuException, InterruptedException {
-//
-//        // get sub banks
-//        Vector<BaseStructure> kids = dtrBank.getChildren();
-//
-//        // check to make sure record ID is sequential
-//        BaseStructure firstBank = kids.firstElement();
-//        int recordId = firstBank.getIntData()[0];
-//        boolean nonFatalError;
-//        boolean nonFatalRecordIdError = false;
-//
-//        // See what type of event DTR bank is wrapping.
-//        // Only interested in known types such as physics, roc raw, control, and user events.
-//        EventType eventType = getEventType(dtrBank);
-//        if (eventType == null) {
-//System.out.print("extractPayloadBanks: unknown type, dump payload bank");
-//            return;
-//        }
-//        else if (eventType.isUser()) {
-////System.out.println("extractPayloadBanks: FOUND USER event !!!");
-//        }
-//        else if (eventType.isControl()) {
-////System.out.println("extractPayloadBanks: FOUND CONTROL event !!!");
-//        }
-//
-//        // Initial recordId stored is 0, ignore that.
-//        // The recordId for user events is meaningless, just ignore it.
-////        if (eventType != EventType.USER    &&
-////            eventType != EventType.CONTROL &&
-////            payloadQueue.getRecordId() > 0 &&
-////            recordId != payloadQueue.getRecordId() + 1) {
-////System.out.println("extractPayloadBanks: record ID out of sequence, got " + recordId +
-////                           " but expecting " + (payloadQueue.getRecordId() + 1) + ", type = " + eventType);
-////            nonFatalRecordIdError = true;
-////            //payloadQueue.setRecordId(recordId);
-////        }
-////        payloadQueue.setRecordId(recordId);
-//
-//        // Only worry about record id if event to be built.
-//        // Initial recordId stored is 0, ignore that.
-//        if (eventType == EventType.PHYSICS || eventType != EventType.ROC_RAW) {
-//            if (payloadQueue.getRecordId() > 0 &&
-//                recordId != payloadQueue.getRecordId() + 1) {
-//System.out.println("extractPayloadBanks: record ID out of sequence, got " + recordId +
-//                           " but expecting " + (payloadQueue.getRecordId() + 1) + ", type = " + eventType);
-//                nonFatalRecordIdError = true;
-//            }
-//            payloadQueue.setRecordId(recordId);
-//        }
-//
-//        // store all banks except the first one containing record ID
-//        int numKids  = kids.size();
-//        int sourceId = Evio.getTagCodaId(dtrBank.getHeader().getTag()); // get 12 bit id from tag
-//
-//        int tag;
-//        PayloadBank payloadBank;
-//        BaseStructureHeader header;
-//
-//        for (int i=1; i < numKids; i++) {
-//            try {
-//                payloadBank = new PayloadBank(kids.get(i));
-//            }
-//            catch (ClassCastException e) {
-//                // dtrBank does not contain data banks and thus is not in the proper format
-//                throw new EmuException("DTR bank contains things other than banks");
-//            }
-//
-//            payloadBank.setType(eventType);
-//            payloadBank.setRecordId(recordId);
-//            payloadBank.setSourceId(sourceId);
-//
-//            // so far so good
-//            nonFatalError = false;
-//
-//            // dig out extra info for ROC raw and physics events
-//            if (eventType == EventType.ROC_RAW || eventType == EventType.PHYSICS) {
-//                header = payloadBank.getHeader();
-//                tag    = header.getTag();
-//
-//                if (sourceId != getTagCodaId(tag)) {
-//System.out.println("extractPayloadBanks: DTR bank source Id (" + sourceId + ") != payload bank's id (" + getTagCodaId(tag) + ")");
-//                    nonFatalError = true;
-//                }
-//
-//                // pick this bank apart a little here
-//                if (header.getDataType() != DataType.BANK &&
-//                    header.getDataType() != DataType.ALSOBANK) {
-//                    throw new EmuException("ROC raw / physics record not in proper format");
-//                }
-//
-//                payloadBank.setSync(Evio.isTagSyncEvent(tag));
-//                payloadBank.setError(Evio.tagHasError(tag));
-//                payloadBank.setSingleEventMode(Evio.isTagSingleEventMode(tag));
-//            }
-//
-//            payloadBank.setNonFatalBuildingError(nonFatalError || nonFatalRecordIdError);
-//
-//            // Put bank on queue.
-////System.out.println("  QFiller: putting bank on payload bank Q");
-//            payloadQueue.put(payloadBank);
-//        }
-//    }
+    /**
+     * Check the given payload bank (physics, ROC raw, control, or user format evio banks)
+     * for correct format and place onto the specified queue.
+     * <b>All other banks are thrown away.</b><p>
+     *
+     * No checks done on arguments. However, format of payload banks is checked here for
+     * the first time.<p>
+     *
+     * @param pBank payload bank to be examined
+     * @param payloadQueue queue on which to place acceptable payload bank
+     * @throws EmuException if physics or roc raw bank has improper format
+     * @throws InterruptedException if blocked while putting bank on full output queue
+     */
+    public static void checkPayloadBank(PayloadBank pBank, PayloadBankQueue<PayloadBank> payloadQueue)
+            throws EmuException, InterruptedException {
+
+        // check to make sure record ID is sequential - already checked by EvioReader
+        int tag;
+        BaseStructureHeader header;
+        int recordId = pBank.getRecordId();
+        int sourceId = pBank.getSourceId();
+        boolean nonFatalError = false;
+        boolean nonFatalRecordIdError = false;
+
+        // See what type of event this is
+        // Only interested in known types such as physics, roc raw, control, and user events.
+        EventType eventType = pBank.getType();
+        if (eventType == null) {
+System.out.print("extractPayloadBanks: unknown type, dump payload bank");
+            return;
+        }
+
+        // Only worry about record id if event to be built.
+        // Initial recordId stored is 0, ignore that.
+        if (eventType.isAnyPhysics() || eventType.isROCRaw()) {
+            if (payloadQueue.getRecordId() > 0 &&
+                recordId != payloadQueue.getRecordId() + 1) {
+System.out.println("checkPayloadBank: record ID out of sequence, got " + recordId +
+                           " but expecting " + (payloadQueue.getRecordId() + 1) + ", type = " + eventType);
+                nonFatalRecordIdError = true;
+            }
+            payloadQueue.setRecordId(recordId);
+
+            header = pBank.getHeader();
+            tag    = header.getTag();
+
+            if (sourceId != getTagCodaId(tag)) {
+System.out.println("checkPayloadBank: DTR bank source Id (" + sourceId + ") != payload bank's id (" + getTagCodaId(tag) + ")");
+                nonFatalError = true;
+            }
+
+            // pick this bank apart a little here
+            if (header.getDataType() != DataType.BANK &&
+                header.getDataType() != DataType.ALSOBANK) {
+                throw new EmuException("ROC raw / physics record not in proper format");
+            }
+
+            pBank.setSync(Evio.isTagSyncEvent(tag));
+            pBank.setError(Evio.tagHasError(tag));
+            pBank.setSingleEventMode(Evio.isTagSingleEventMode(tag));
+        }
+
+        pBank.setNonFatalBuildingError(nonFatalError || nonFatalRecordIdError);
+
+        // Put bank on queue.
+        payloadQueue.put(pBank);
+    }
 
 
     /**
@@ -1793,9 +1773,10 @@ System.out.println("Timestamps are NOT consistent !!!");
      * </pre></code>
      *
      * @param rocID ROC id number
+     * @param type event type, must be PRESTART, GO, PAUSE, or END
      *
      * @return created Control event (EvioEvent object)
-     * @throws EvioException
+     * @throws EvioException if bad event type
      */
     public static EvioEvent createControlDTR(int rocID, EventType type)
             throws EvioException {
@@ -1832,6 +1813,60 @@ System.out.println("Timestamps are NOT consistent !!!");
         }
         eventBuilder.appendIntData(dataBank, data);
         eventBuilder.addChild(ev, dataBank);
+
+        return ev;
+    }
+
+
+    /**
+     * Create a Control event for testing purposes.
+     * An end event (type = 20) is shown below.
+     * <code><pre>
+     * _______________________________________
+     * |        Event Length = 4             |
+     * |_____________________________________|
+     * |    type = 20     |  0x1   |  0xCC   |
+     * |_____________________________________|
+     * |                Time                 |
+     * |_____________________________________|
+     * |              (reserved)             |
+     * |_____________________________________|
+     * |      number of events in run        |
+     * |_____________________________________|
+     * </pre></code>
+     *
+     * @param type event type, must be PRESTART, GO, PAUSE, or END
+     * @param runNumber run number used if generating prestart event
+     *
+     * @return created Control event (EvioEvent object)
+     * @throws EvioException if bad event type
+     */
+    public static EvioEvent createControlEvent(EventType type, int runNumber)
+            throws EvioException {
+
+        EventBuilder eventBuilder;
+
+        // put some data into event
+        int[] data = new int[3];
+        data[0] = (int) (System.currentTimeMillis()); // time in seconds from Jan 1, 1970 GMT
+        data[1] = runNumber; // run number for prestart, else reserved
+        data[2] = 0;         // # events in run
+
+        // create a single bank of integers which is the user bank
+        switch (type) {
+            case PRESTART:
+                eventBuilder = new EventBuilder(17, DataType.UINT32, 0xcc); break;
+            case GO:
+                eventBuilder = new EventBuilder(18, DataType.UINT32, 0xcc); break;
+            case PAUSE:
+                eventBuilder = new EventBuilder(19, DataType.UINT32, 0xcc); break;
+            case END:
+                eventBuilder = new EventBuilder(20, DataType.UINT32, 0xcc); break;
+            default:
+                throw new EvioException("bad EventType arg");
+        }
+        EvioEvent ev = eventBuilder.getEvent();
+        eventBuilder.appendIntData(ev, data);
 
         return ev;
     }
