@@ -8,7 +8,6 @@ import org.jlab.coda.emu.support.data.Evio;
 import org.jlab.coda.emu.support.logger.Logger;
 import org.jlab.coda.jevio.*;
 
-import java.io.*;
 import java.util.Map;
 import java.util.Vector;
 import java.util.concurrent.ArrayBlockingQueue;
@@ -210,24 +209,11 @@ logger.info("      DataChannel File: try opening output file of " + fileName);
                         break;
                     }
 
-                    // Wrap in DTR. Should really put a few more banks into 1 DTR.
-                    int tag = Evio.createCodaTag(EventType.PHYSICS.getValue(), id);
-                    EventBuilder eventBuilder = new EventBuilder(tag, DataType.BANK, recordId);
-                    EvioEvent ev = eventBuilder.getEvent();
-
-                    // add a bank with record ID in it
-                    EvioBank recordIdBank = new EvioBank(Evio.RECORD_ID_BANK, DataType.INT32, 1);
-                    eventBuilder.appendIntData(recordIdBank, new int[]{recordId++});
-                    eventBuilder.addChild(ev, recordIdBank);
-
-                    // add payload bank to DTR
-                    eventBuilder.addChild(ev, bank);
-
-                    queue.put(ev);  // will block
+                    queue.put(bank);  // will block
                 }
 
-                // Put in END event
-                EvioEvent controlEvent = Evio.createControlDTR(id, EventType.END);
+                // Put in END event (not DTR)
+                EvioEvent controlEvent = Evio.createControlEvent(EventType.END, 0);
                 queue.put(controlEvent);  // will block
 
 //logger.info("      DataChannel File (" + name + "): close file");
@@ -252,6 +238,82 @@ logger.info("      DataChannel File: try opening output file of " + fileName);
      * Handles sending data.
      */
     private class DataOutputHelper implements Runnable {
+
+        public void run() {
+            EvioBank bank;
+            int bankBytes;
+            long numBytesWritten = 0L;
+            boolean gotGO = false, gotEnd = false;
+
+            try {
+
+                while (!dataThread.isInterrupted()) {
+                    // This bank is a data transport record (DTR)
+                    bank = queue.take(); // will block
+
+                    if (Evio.isEndEvent(bank)) {
+                        evioFileWriter.close();
+                        gotEnd = true;
+logger.warn("      DataChannel File (" + name + "): got END, close file " + fileName);
+                    }
+                    else if (Evio.isGoEvent(bank)) {
+//logger.warn("      DataChannel File (" + name + "): got GO");
+                        gotGO = true;
+                    }
+
+                    // Don't start writing to file until we get GO
+                    if (!gotGO) {
+//logger.info("      DataChannel File (" + name + "): got event but NO GO");
+                        continue;
+                    }
+
+                    bankBytes = bank.getTotalBytes();
+
+                    // If we're splitting the output file and writing the next bank
+                    // would put it over the split size limit ...
+                    if (split > 0L && (numBytesWritten + bankBytes > split)) {
+                        evioFileWriter.close();
+                        numBytesWritten = 0L;
+                        fileName = String.format("%s%06d", outputFilePrefix, (++fileCount));
+                        if (directory != null) {
+                            fileName = directory + "/" + fileName;
+                        }
+logger.info("      DataChannel File (" + name + "): split, new file = " + fileName);
+                        evioFileWriter = new EventWriter(fileName);
+                    }
+
+logger.info("      DataChannel File (" + name + "): try writing into file" + fileName);
+                    evioFileWriter.writeEvent(bank);
+                    numBytesWritten += bankBytes;
+
+                    if (gotEnd) {
+                        try { evioFileWriter.close(); }
+                        catch (Exception e) {}
+                        return;
+                    }
+                }
+
+                logger.info("      DataChannel File (" + name + "): close file " + fileName);
+
+            } catch (InterruptedException e) {
+                // time to quit
+            } catch (Exception e) {
+//logger.warn("      DataChannel File (" + name + "): exit, " + e.getMessage());
+                emu.getCauses().add(e);
+                dataTransport.state = CODAState.ERROR;
+            }
+
+            try { evioFileWriter.close(); }
+            catch (Exception e) {}
+        }
+
+    }
+
+    /**
+     * Class <b>DataOutputHelper </b>
+     * Handles sending data.
+     */
+    private class DataOutputHelperOrig implements Runnable {
 
         public void run() {
             EvioBank bank, dtrBank;
