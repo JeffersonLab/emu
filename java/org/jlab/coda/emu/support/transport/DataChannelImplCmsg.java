@@ -26,6 +26,7 @@ import javax.xml.stream.XMLStreamWriter;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.io.StringWriter;
+import java.util.BitSet;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.Map;
@@ -436,7 +437,7 @@ System.out.println("\n\nDataChannel: subscribe to subject = " + subject + ", typ
         public void run() {
             try {
                 int size;
-                EvioBank bank;
+                PayloadBank bank;
                 cMsgMessage msg = new cMsgMessage();
                 msg.setSubject(subject);
                 msg.setType(type);
@@ -445,8 +446,6 @@ System.out.println("\n\nDataChannel: subscribe to subject = " + subject + ", typ
                 // by default ByteBuffer is big endian
                 buffer.order(byteOrder);
                 EventWriter evWriter = null;
-                StringWriter sw = new StringWriter(2048);
-                PrintWriter wr = new PrintWriter(sw, true);
 
                 while ( dataTransport.getCmsgConnection().isConnected() ) {
 
@@ -456,7 +455,7 @@ System.out.println("\n\nDataChannel: subscribe to subject = " + subject + ", typ
                         continue;
                     }
 
-                    bank = queue.take();  // blocks
+                    bank = (PayloadBank)queue.take();  // blocks
 
                     size = bank.getTotalBytes();
                     if (buffer.capacity() < size) {
@@ -467,9 +466,14 @@ System.out.println("\n\nDataChannel: subscribe to subject = " + subject + ", typ
                     buffer.clear();
 
                     try {
-                        evWriter = new EventWriter(buffer, 128000, 10, null, null);
+                        // encode the event type into bits
+                        BitSet bitInfo = new BitSet(24);
+                        BlockHeaderV4.setEventType(bitInfo, bank.getType().getValue());
+
+                        evWriter = new EventWriter(buffer, 128000, 10, null, bitInfo, emu.getCodaid());
                     }
                     catch (EvioException e) {e.printStackTrace();/* never happen */}
+
                     evWriter.writeEvent(bank);
                     evWriter.close();
                     buffer.flip();
