@@ -1548,18 +1548,8 @@ if (true) System.out.println("gotValidControlEvents: found control event of type
             lastEventNumberBuilt = 0L;
 
             // Create threads objects (but don't start them yet)
-            watcher = new Thread(emu.getThreadGroup(), new Watcher(), name+":watcher");
-            for (int i=0; i < buildingThreadCount; i++) {
-                BuildingThread thd1 = new BuildingThread(emu.getThreadGroup(), new BuildingThread(), name+":builder"+i);
-                buildingThreadList.add(thd1);
-            }
-            qFillers = new Thread[qCount];
-            for (int i=0; i < qCount; i++) {
-                qFillers[i] = new Thread(emu.getThreadGroup(),
-                                         new Qfiller(payloadBankQueues.get(i),
-                                                        inputChannels.get(i).getQueue()),
-                                         name+":qfiller"+i);
-            }
+            createThreads(qCount);
+            startThreads();
 
             try {
                 // Set end-of-run time in local XML config / debug GUI
@@ -1579,42 +1569,7 @@ if (true) System.out.println("gotValidControlEvents: found control event of type
         else if (emuCmd == GO) {
             state = CODAState.ACTIVE;
 
-            // Start up all threads
-            if (watcher == null) {
-                watcher = new Thread(emu.getThreadGroup(), new Watcher(), name+":watcher");
-            }
-
-            if (watcher.getState() == Thread.State.NEW) {
-                watcher.start();
-            }
-
-            if (buildingThreadList.size() < 1) {
-                for (int i=0; i < buildingThreadCount; i++) {
-                    BuildingThread thd1 = new BuildingThread(emu.getThreadGroup(), new BuildingThread(), name+":builder"+i);
-                    buildingThreadList.add(thd1);
-                }
-            }
-
-            for (BuildingThread thd : buildingThreadList) {
-                if (thd.getState() == Thread.State.NEW) {
-                    thd.start();
-                }
-            }
-
-            if (qFillers == null) {
-                qFillers = new Thread[payloadBankQueues.size()];
-                for (int i=0; i < payloadBankQueues.size(); i++) {
-                    qFillers[i] = new Thread(emu.getThreadGroup(),
-                                             new Qfiller(payloadBankQueues.get(i),
-                                                            inputChannels.get(i).getQueue()),
-                                             name+":qfiller"+i);
-                }
-            }
-            for (int i=0; i < payloadBankQueues.size(); i++) {
-                if (qFillers[i].getState() == Thread.State.NEW) {
-                    qFillers[i].start();
-                }
-            }
+//            startThreads();
 
             paused = false;
 
@@ -1629,6 +1584,67 @@ if (true) System.out.println("gotValidControlEvents: found control event of type
         }
 
         state = cmd.success();
+    }
+
+    /**
+     * Method to create thread objects for filling Qs and building events.
+     * @param qCount number of qFiller threads to start
+     */
+    private void createThreads(int qCount) {
+        watcher = new Thread(emu.getThreadGroup(), new Watcher(), name+":watcher");
+        for (int i=0; i < buildingThreadCount; i++) {
+            BuildingThread thd1 = new BuildingThread(emu.getThreadGroup(), new BuildingThread(), name+":builder"+i);
+            buildingThreadList.add(thd1);
+        }
+        qFillers = new Thread[qCount];
+        for (int i=0; i < qCount; i++) {
+            qFillers[i] = new Thread(emu.getThreadGroup(),
+                                     new Qfiller(payloadBankQueues.get(i),
+                                                    inputChannels.get(i).getQueue()),
+                                     name+":qfiller"+i);
+        }
+    }
+
+    /**
+     * Method to start threads for stats, filling Qs, and building events.
+     */
+    private void startThreads() {
+        // Start up all threads
+        if (watcher == null) {
+            watcher = new Thread(emu.getThreadGroup(), new Watcher(), name+":watcher");
+        }
+
+        if (watcher.getState() == Thread.State.NEW) {
+            watcher.start();
+        }
+
+        if (buildingThreadList.size() < 1) {
+            for (int i=0; i < buildingThreadCount; i++) {
+                BuildingThread thd1 = new BuildingThread(emu.getThreadGroup(), new BuildingThread(), name+":builder"+i);
+                buildingThreadList.add(thd1);
+            }
+        }
+
+        for (BuildingThread thd : buildingThreadList) {
+            if (thd.getState() == Thread.State.NEW) {
+                thd.start();
+            }
+        }
+
+        if (qFillers == null) {
+            qFillers = new Thread[payloadBankQueues.size()];
+            for (int i=0; i < payloadBankQueues.size(); i++) {
+                qFillers[i] = new Thread(emu.getThreadGroup(),
+                                         new Qfiller(payloadBankQueues.get(i),
+                                                     inputChannels.get(i).getQueue()),
+                                         name+":qfiller"+i);
+            }
+        }
+        for (int i=0; i < payloadBankQueues.size(); i++) {
+            if (qFillers[i].getState() == Thread.State.NEW) {
+                qFillers[i].start();
+            }
+        }
     }
 
     /** {@inheritDoc} */
