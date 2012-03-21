@@ -155,6 +155,9 @@ public class EventBuilding implements EmuModule {
     /** END event detected by one of the building threads. */
     private volatile boolean haveEndEvent;
 
+    /** Maximum time to wait when commanded to END but no END event received. */
+    private long endingTimeLimit = 60000;
+
 
     // The following members are for keeping statistics
 
@@ -419,10 +422,8 @@ public class EventBuilding implements EmuModule {
 
 
     /**
-     * This class takes Data Transport Records from a queue (an input channel, eg. ROC),
-     * extracts payload banks from those DTRs, and places the resulting banks in a payload
-     * bank queue associated with that channel. All other types of events are ignored.
-     * Nothing in this class depends on single event mode status.
+     * This class takes banks from a queue (an input channel, eg. ROC),
+     * and dumps them.
      */
     private class QfillerDump extends Thread {
 
@@ -441,7 +442,6 @@ public class EventBuilding implements EmuModule {
                     while (state == CODAState.ACTIVE || paused) {
                         // block waiting for the next DTR from ROC.
                         channelQ.take();  // blocks, throws InterruptedException
-
                     }
                 } catch (InterruptedException e) {
                     return;
@@ -458,12 +458,12 @@ public class EventBuilding implements EmuModule {
      * bank queue associated with that channel. All other types of events are ignored.
      * Nothing in this class depends on single event mode status.
      */
-    private class Qfiller extends Thread {
+    private class QfillerOrig extends Thread {
 
         BlockingQueue<EvioBank> channelQ;
         PayloadBankQueue<PayloadBank> payloadBankQ;
 
-        Qfiller(PayloadBankQueue<PayloadBank> payloadBankQ, BlockingQueue<EvioBank> channelQ) {
+        QfillerOrig(PayloadBankQueue<PayloadBank> payloadBankQ, BlockingQueue<EvioBank> channelQ) {
             this.channelQ = channelQ;
             this.payloadBankQ = payloadBankQ;
         }
@@ -511,6 +511,134 @@ if (debug) System.out.println("Qfiller: got empty Data Transport Record or recor
 
 
     /**
+     * This class takes payload banks from a queue (an input channel, eg. ROC),
+     * and places the them in a payload bank queue associated with that channel.
+     * All other types of events are ignored.
+     * Nothing in this class depends on single event mode status.
+     */
+    private class Qfiller extends Thread {
+
+        BlockingQueue<EvioBank> channelQ;
+        PayloadBankQueue<PayloadBank> payloadBankQ;
+
+        Qfiller(PayloadBankQueue<PayloadBank> payloadBankQ, BlockingQueue<EvioBank> channelQ) {
+            this.channelQ = channelQ;
+            this.payloadBankQ = payloadBankQ;
+        }
+
+        @Override
+        public void run() {
+            PayloadBank channelBank;
+
+            while (state == CODAState.ACTIVE || paused) {
+                try {
+                    while (state == CODAState.ACTIVE || paused) {
+                        // Block waiting for the next bank from ROC
+                        channelBank = (PayloadBank)channelQ.take();  // blocks, throws InterruptedException
+                        // Check this bank's format. If bad, ignore it
+                        Evio.checkPayloadBank(channelBank, payloadBankQ);
+                    }
+                } catch (EmuException e) {
+                    // EmuException from Evio.checkPayloadBank() if
+                    // Roc raw or physics banks are in the wrong format
+if (debug) System.out.println("Qfiller: Roc raw or physics event in wrong format");
+                    state = CODAState.ERROR;
+                    return;
+                } catch (InterruptedException e) {
+                    return;
+                }
+            }
+        }
+    }
+
+
+
+    /**
+     * This method is called by a build thread and is used to place
+     * a bank onto the queue of an output channel. If the event is
+     * not in next in line for the Q, it can be put in a waiting list.
+     *
+     * @param bankOut the built/control/user event to place on output channel queue
+     * @throws InterruptedException if wait, put, or take interrupted
+     */
+    private void bankToOutputChannel(PayloadBank bankOut)
+                    throws InterruptedException {
+
+        // Have output channels?
+        if (outputChannelCount < 1) {
+            return;
+        }
+
+        EvioBank bank;
+        EventOrder evOrder;
+        EventOrder eo = (EventOrder)bankOut.getAttachment();
+
+        synchronized (eo.lock) {
+            if (!useOutputWaitingList) {
+                // Is the bank we grabbed next to be output? If not, wait.
+                while (eo.inputOrder != outputOrders[eo.index]) {
+                    eo.lock.wait();
+                }
+                // Place Data Transport Record on output channel
+                eo.outputChannel.getQueue().put(bankOut);
+                outputOrders[eo.index] = ++outputOrders[eo.index] % Integer.MAX_VALUE;
+                eo.lock.notifyAll();
+            }
+            // else if we're using waiting lists
+            else {
+                // Is the bank we grabbed next to be output?
+                // If not, put in waiting list and return.
+                if (eo.inputOrder != outputOrders[eo.index]) {
+                    bankOut.setAttachment(eo);
+                    waitingLists[eo.index].add(bankOut);
+
+                    // If the waiting list gets too big, just wait here
+                    if (waitingLists[eo.index].size() > 9) {
+                        eo.lock.wait();
+                    }
+//if (debug) System.out.println("out of order = " + eo.inputOrder);
+//if (debug) System.out.println("waiting list = ");
+//                    for (EvioBank bk : waitingLists[eo.index]) {
+//                        if (debug) System.out.println("" + ((EventOrder)bk.getAttachment()).inputOrder);
+//                    }
+                    return;
+                }
+
+                // Place bank on output channel
+                eo.outputChannel.getQueue().put(bankOut);
+                outputOrders[eo.index] = ++outputOrders[eo.index] % Integer.MAX_VALUE;
+//if (debug) System.out.println("placing = " + eo.inputOrder);
+
+                // Take a look on the waiting list without removing ...
+                bank = waitingLists[eo.index].peek();
+                while (bank != null) {
+                    evOrder = (EventOrder) bank.getAttachment();
+                    // If it's not next to be output, skip this waiting list
+                    if (evOrder.inputOrder != outputOrders[eo.index]) {
+                        break;
+                    }
+                    // Remove from waiting list permanently
+                    bank = waitingLists[eo.index].take();
+                    // Place Data Transport Record on output channel
+                    eo.outputChannel.getQueue().put(bank);
+                    outputOrders[eo.index] = ++outputOrders[eo.index] % Integer.MAX_VALUE;
+                    bank = waitingLists[eo.index].peek();
+//if (debug) System.out.println("placing = " + evOrder.inputOrder);
+                }
+                eo.lock.notifyAll();
+            }
+        }
+
+if (debug && printQSizes) {
+    int size = eo.outputChannel.getQueue().size();
+    if (size > 400 && size % 100 == 0) System.out.println("output chan: " + size);
+}
+
+    }
+
+
+
+    /**
      * This method is called by a build thread and is used to wrap a built
      * event in a Data Transport Record and place that onto the queue of an
      * output channel. If the event is not in next in line for the Q, it will
@@ -521,7 +649,7 @@ if (debug) System.out.println("Qfiller: got empty Data Transport Record or recor
      *
      * @throws InterruptedException if wait, put, or take interrupted
      */
-    private void bankToOutputChannel(PayloadBank bankOut, EventBuilder builder)
+    private void bankToOutputChannelOrig(PayloadBank bankOut, EventBuilder builder)
                     throws InterruptedException {
 
         // Have output channels?
@@ -829,7 +957,8 @@ if (debug) System.out.println("BuildingThread: Got user event");
                     // Source may be any of the inputs.
                     if (userEventList.size() > 0) {
                         for (PayloadBank pbank : userEventList) {
-                            bankToOutputChannel(pbank, builder);
+                            //bankToOutputChannel(pbank, builder);
+                            bankToOutputChannel(pbank);
                         }
                         userEventList.clear();
                     }
@@ -865,6 +994,7 @@ if (debug && nonFatalError) System.out.println("\nERROR 1\n");
                     // input order object and put 1 event on each output Q.
                     if (haveControlEvents) {
 if (debug) System.out.println("Have CONTROL event");
+ // TODO: rebuild PRESTART event here
                         // Deal with the possibility that there are more output channels
                         // than input channels. In that case we must copy the control
                         // event and make sure one is placed on each output channel.
@@ -872,18 +1002,21 @@ if (debug) System.out.println("Have CONTROL event");
                             for (int j=0; j < outputChannelCount; j++) {
                                 // Store control event output order info in array
                                 buildingBanks[j].setAttachment(controlEventOrders[j]);
-                                bankToOutputChannel(buildingBanks[j], builder);
+                                //bankToOutputChannel(buildingBanks[j], builder);
+                                bankToOutputChannel(buildingBanks[j]);
                             }
                         }
                         else {
                             buildingBanks[0].setAttachment(controlEventOrders[0]);
-                            bankToOutputChannel(buildingBanks[0], builder);
+                            //bankToOutputChannel(buildingBanks[0], builder);
+                            bankToOutputChannel(buildingBanks[0]);
                             for (int j=1; j < outputChannelCount; j++) {
                                 // Copy first control event
                                 PayloadBank bb = new PayloadBank(buildingBanks[0]);
                                 bb.setAttachment(controlEventOrders[j]);
                                 // Write to other output Q's
-                                bankToOutputChannel(bb, builder);
+                                //bankToOutputChannel(bb, builder);
+                                bankToOutputChannel(bb);
                             }
                         }
 
@@ -892,7 +1025,7 @@ if (debug) System.out.println("Have CONTROL event");
                         if (buildingBanks[0].getType().isEnd()) {
 if (debug) System.out.println("Found END event in build thread");
                             haveEndEvent = true;
-                            endBuildAndQFillerThreads(this, true);
+                            endBuildAndQFillerThreads(this, false);
                             return;
                         }
 
@@ -994,7 +1127,8 @@ if (debug && nonFatalError) System.out.println("\nERROR 4\n");
                     // Stick it on the local output Q (for this building thread).
                     // That way we don't waste time trying to coordinate between
                     // building threads right here - leave that to the QCollector thread.
-                    bankToOutputChannel(physicsEvent, builder);
+                    bankToOutputChannel(physicsEvent);
+                    //bankToOutputChannel(physicsEvent, builder);
 
 //                    synchronized (EventBuilding.this) {
                         // stats  // TODO: protect since in multithreaded environs
@@ -1187,8 +1321,8 @@ if (true) System.out.println("gotValidControlEvents: found control event of type
 
 
     /**
-     * End all build and QFiller threads because an END event came through
-     * one of them. The build thread calling this method is not interrupted.
+     * End all build and QFiller threads because an END cmd or event came through.
+     * The build thread calling this method is not interrupted.
      *
      * @param thisThread the build thread calling this method; if null,
      *                   all build & QFiller threads are interrupted
@@ -1199,12 +1333,10 @@ if (true) System.out.println("gotValidControlEvents: found control event of type
 
         if (wait) {
             // Look to see if anything still on the payload bank or input channel Qs
-            int roundsLeft = 5;
             boolean haveUnprocessedEvents = false;
+            long startTime = System.currentTimeMillis();
 
             for (int i=0; i < payloadBankQueues.size(); i++) {
-                // Strictly speaking the input channel Q holds events with
-                // multiple payload banks, but that doesn't matter here.
                 if (payloadBankQueues.get(i).size() +
                         inputChannels.get(i).getQueue().size() > 0) {
                     haveUnprocessedEvents = true;
@@ -1212,9 +1344,11 @@ if (true) System.out.println("gotValidControlEvents: found control event of type
                 }
             }
 
-            // Wait up to 1/2 sec for events to be processed & END to arrive, then proceed
-            while ((haveUnprocessedEvents || !haveEndEvent) && (roundsLeft-- > 0)) {
-                try {Thread.sleep(100);}
+            // Wait up to endingTimeLimit millisec for events to
+            // be processed & END event to arrive, then proceed
+            while ((haveUnprocessedEvents || !haveEndEvent) &&
+                   (System.currentTimeMillis() - startTime < endingTimeLimit)) {
+                try {Thread.sleep(200);}
                 catch (InterruptedException e) {}
 
                 haveUnprocessedEvents = false;
@@ -1232,6 +1366,10 @@ if (true) System.out.println("gotValidControlEvents: found control event of type
                 state = CODAState.ERROR;
             }
         }
+
+        // NOTE: EMU has a command executing thread which calls this EB module's execute
+        // method which, in turn, calls this method when an END cmd is sent. In this case
+        // all build threads will be interrupted in the following code.
 
         // Interrupt all Building threads except the one calling this method
         for (Thread thd : buildingThreadList) {
