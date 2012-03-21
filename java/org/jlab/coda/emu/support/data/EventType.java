@@ -104,7 +104,8 @@ public enum EventType {
      * @return <code>true</code> if any kind of a physics event type, else <code>false</code>
      */
     public boolean isAnyPhysics() {
-        return this.equals(PHYSICS);
+        return (this.equals(PHYSICS) || this.equals(PARTIAL_PHYSICS) ||
+                this.equals(DISENTANGLED_PHYSICS));
     }
 
     /**
