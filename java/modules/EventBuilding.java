@@ -1512,6 +1512,7 @@ if (true) System.out.println("gotValidControlEvents: found control event of type
             }
 
             int qCount = payloadBankQueues.size();
+System.out.println("Have " + qCount + " payload bank Qs");
 
             // Clear all payload bank queues, associate each one with source ID, reset record ID
             for (int i=0; i < qCount; i++) {
