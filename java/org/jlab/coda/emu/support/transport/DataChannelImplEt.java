@@ -1161,7 +1161,7 @@ logger.warn("      DataChannel Et : " + name + " - PAUSED");
                         writeThreadPool.execute(writer);
 
                         // Keep track of how many events we want to write
-                        events2Write++;
+                        events2Write += bankList.size();
 
                         // Handle END event ...
                         for (PayloadBank bank : bankList) {
