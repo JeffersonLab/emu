@@ -785,9 +785,10 @@ System.out.println("isDataTransportRecord: is not DTR 5, num = " + num +
         // Only interested in known types such as physics, roc raw, control, and user events.
         EventType eventType = pBank.getType();
         if (eventType == null) {
-System.out.print("extractPayloadBanks: unknown type, dump payload bank");
+System.out.print("checkPayloadBank: unknown type, dump payload bank");
             return;
         }
+System.out.print("building module, checkPayloadBank: got bank of type " + eventType);
 
         // Only worry about record id if event to be built.
         // Initial recordId stored is 0, ignore that.
@@ -2337,6 +2338,59 @@ System.out.println("Timestamps are NOT consistent !!!");
         recordIdBank.getHeader().setNumber(numPayloadBanks);
 
         return (eventNumber - firstEvNum);
+    }
+
+
+    /**
+     * Create an array of Evio events with simulated ROC data
+     * to send to the event building EMU. <b>No</b>
+     * Data Transport Record wrapping is included.
+     *
+     * @param rocId       ROC id number
+     * @param triggerType trigger type id number (0-15)
+     * @param detectorId  id of detector producing data in data block bank
+     * @param status      4-bit status associated with data
+     * @param eventNumber starting event number
+     * @param numEvents   number of physics events in created record
+     * @param timestamp   starting event's timestamp
+     * @param recordId    record count
+     * @param numPayloadBanks number of payload banks to generate
+     * @param singleEventMode true if creating events in single event mode
+     *
+     * @return number of events in the generated Data Transport Record event
+     * @throws EvioException
+     */
+    public static EvioEvent[] createRocDataEvents(int rocId, int triggerType,
+                                                    int detectorId, int status,
+                                                    int eventNumber, int numEvents,
+                                                    long timestamp, int recordId,
+                                                    int numPayloadBanks,
+                                                    boolean singleEventMode)
+            throws EvioException {
+
+        if (singleEventMode) {
+            numEvents = 1;
+        }
+
+        EvioEvent[] events =  new EvioEvent[numPayloadBanks];
+
+        // now add the rest of the records
+        for (int i=0; i < numPayloadBanks; i++)  {
+            // add ROC Raw Records as payload banks
+            if (singleEventMode) {
+                events[i] = createSingleEventModeRocRecord(rocId, detectorId, status,
+                                                       eventNumber, recordId, timestamp);
+            }
+            else {
+                events[i] = createRocRawRecord(rocId, triggerType, detectorId, status,
+                                           eventNumber, numEvents, recordId, timestamp);
+            }
+
+            eventNumber += numEvents;
+            timestamp   += 4*numEvents;
+        }
+
+        return events;
     }
 
 
