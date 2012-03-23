@@ -102,8 +102,8 @@ public class DataChannelImplEt implements DataChannel {
     /** Got RESET command from Run Control. */
     private volatile boolean gotResetCmd;
 
-    /** Enforce evio block header numbers to be sequential? */
-    boolean blockNumberChecking;
+//    /** Enforce evio block header numbers to be sequential? */
+//    boolean blockNumberChecking;
 
     /** Group sequential events on the output queue into a single ET buffer. */
     boolean autoGroupOutput;
@@ -191,16 +191,16 @@ logger.info("      DataChannel Et : creating channel " + name);
 //logger.info("      DataChannel Et : id = " + id);
 
 
-        // set option whether or not to enforce evio
-        // block header numbers to be sequential
-        attribString = attrib.get("blockNumCheck");
-        if (attribString != null) {
-            if (attribString.equalsIgnoreCase("true") ||
-                attribString.equalsIgnoreCase("on")   ||
-                attribString.equalsIgnoreCase("yes"))   {
-                blockNumberChecking = true;
-            }
-        }
+//        // set option whether or not to enforce evio
+//        // block header numbers to be sequential
+//        attribString = attrib.get("blockNumCheck");
+//        if (attribString != null) {
+//            if (attribString.equalsIgnoreCase("true") ||
+//                attribString.equalsIgnoreCase("on")   ||
+//                attribString.equalsIgnoreCase("yes"))   {
+//                blockNumberChecking = true;
+//            }
+//        }
 
         // size of TCP send buffer (0 means use operating system default)
         int tcpSendBuf = 0;
@@ -676,9 +676,12 @@ logger.warn("      DataChannel Et : " + name + " - PAUSED");
 
                         try {
                             reader = new EvioReader(buf);
-                            // Have reader throw an exception if evio
-                            // block numbers are not sequential.
-                            if (blockNumberChecking) reader.checkBlockNumberSequence(true);
+//                            // Have reader throw an exception if evio
+//                            // block numbers are not sequential.
+//                            if (blockNumberChecking) {
+//logger.info("      DataChannel Et : " + name + " have evio check block # sequence");
+//                                reader.checkBlockNumberSequence(true);
+//                            }
                             // Speed things up since no EvioListeners are used - doesn't do much
                             reader.getParser().setNotificationActive(false);
                             IBlockHeader blockHeader = reader.getCurrentBlockHeader();
@@ -688,7 +691,7 @@ logger.warn("      DataChannel Et : " + name + " - PAUSED");
                             }
                             header4      = (BlockHeaderV4)blockHeader;
                             type         = EventType.getEventType(header4.getEventType());
-logger.info("      DataChannel Et : " + name + "  got block header with data type " + type +
+logger.info("      DataChannel Et : " + name + " got block header with data type " + type +
                 ", type's int val = " + header4.getEventType());
                             sourceId     = header4.getReserved1();
                             payloadCount = header4.getEventCount();
