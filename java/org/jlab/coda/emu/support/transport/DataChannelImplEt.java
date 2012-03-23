@@ -953,15 +953,15 @@ logger.warn("      DataChannel Et : " + name + " - PAUSED");
 
 
         /** Method run ... */
-        public void runNew() {
+        public void run() {
 
             try {
                 EtEvent[] events;
                 EventType previousType=null, pBanktype;
                 PayloadBank pBank = null;
-                LinkedList<PayloadBank> bankList = null;
+                LinkedList<PayloadBank> bankList;
                 int etEventsIndex, pBankSize, banksTotalSize, etSize;
-                int bankSize, bankCount, events2Write, eventArrayLen, putLimit, index, myInputOrder=0;
+                int events2Write, eventArrayLen, myInputOrder=0;
 
                 // Create an array of list of PayloadBank objects by 2-step
                 // initialization to avoid "generic array creation" error.
@@ -1003,7 +1003,6 @@ logger.warn("      DataChannel Et : " + name + " - PAUSED");
                     }
 
                     // Init variables
-                    bankCount = 0;
                     events2Write = 0;
                     etEventsIndex = 0;
                     banksTotalSize = 0;
@@ -1027,15 +1026,15 @@ logger.warn("      DataChannel Et : " + name + " - PAUSED");
                             // RESET command or someone found an END event.
                             while (!gotResetCmd && (etEventsIndex < eventArrayLen)) {
 
-                                // Get bank off of Q
+                                // Get bank off of Q.
                                 pBank = (PayloadBank) queue.poll(100L, TimeUnit.MILLISECONDS);
-                                // If no banks left on Q, go do some writing
+                                // If wait longer that 100ms, send things to the ET system.
                                 if (pBank == null) break;
 
                                 pBanktype = pBank.getType();
                                 pBankSize = pBank.getTotalBytes();
+                                // assume worst case of one block header / banks
                                 banksTotalSize += pBankSize + 32;
-                                bankCount++;
 
                                 // Is this bank a diff type as previous bank?
                                 // Or if it's the same type, will it not fit in
@@ -1084,59 +1083,40 @@ logger.warn("      DataChannel Et : " + name + " - PAUSED");
                         }
                     }
                     else {
-                        // Grab a bank to put into an ET event buffer,
-                        // checking occasionally to see if we got an
-                        // RESET command or someone found an END event.
                         while (!gotResetCmd && (etEventsIndex < eventArrayLen)) {
 
-                            // Get bank off of Q
                             pBank = (PayloadBank) queue.poll(100L, TimeUnit.MILLISECONDS);
-                            // If no banks left on Q, go do some writing
                             if (pBank == null) break;
 
                             pBanktype = pBank.getType();
                             pBankSize = pBank.getTotalBytes();
                             banksTotalSize += pBankSize + 32;
-                            bankCount++;
 
-                            // Is this bank a diff type as previous bank?
-                            // Or if it's the same type, will it not fit in
-                            // the ET event? In any case start using a new list.
                             if (previousType != null &&
                                (previousType != pBanktype || etSize < banksTotalSize)) {
 
                                 bankList = bankListArray[etEventsIndex++];
-                                // Add bank to new list
                                 bankList.add(pBank);
-                                // 64 -> take possible ending header into account
                                 banksTotalSize = pBankSize + 64;
                             }
-                            // This the first time through the while loop
-                            // or it's OK to add this bank to the list.
                             else {
-                                // Add bank to the list since there's
-                                // room and it's the right type.
                                 bankList.add(pBank);
                             }
 
-                            // Look for END event and mark it in attachment
                             if (Evio.isEndEvent(pBank)) {
                                 pBank.setAttachment(Boolean.TRUE);
                                 haveOutputEndEvent = true;
                                 break;
                             }
 
-                            // Set this for next round
                             previousType = pBanktype;
                             pBank.setAttachment(Boolean.FALSE);
                         }
 
-                        // If I've been told to RESET ...
                         if (gotResetCmd) {
                             shutdown();
                             return;
                         }
-                        // If I have END event in hand ...
                         else if (haveOutputEndEvent) {
                             break;
                         }
@@ -1145,8 +1125,24 @@ logger.warn("      DataChannel Et : " + name + " - PAUSED");
                     latch = new CountDownLatch(etEventsIndex);
 
                     for (int i=0; i < etEventsIndex; i++) {
-
+                        // Get list of banks to put into this ET event
                         bankList = bankListArray[i];
+
+                        // Check to see if not enough room in ET event to hold bank.
+                        // In this case, list will only contain 1 (big) bank.
+                        if (bankList.size() == 1) {
+                            // Minimum # of bytes to write this bank into buffer
+                            int bankWrittenSize = bankList.getFirst().getTotalBytes() + 64;
+                            if (bankWrittenSize > etSize) {
+logger.warn("      DataChannel Et DataOutputHelper : " + name + " ET event too small to contain built event");
+                                // This new event is not large enough, so dump it and replace it
+                                // with a larger one. Performance will be terrible but it'll work.
+                                etSystem.dumpEvents(attachment, new EtEvent[]{events[i]});
+                                EtEvent[] evts = etSystem.newEvents(attachment, Mode.SLEEP, false,
+                                                                    0, 1, bankWrittenSize, group);
+                                events[i] = evts[0];
+                            }
+                        }
 
                         // Set byte order of ET event
                         events[i].setByteOrder(bankList.getFirst().getByteOrder());
@@ -1156,7 +1152,7 @@ logger.warn("      DataChannel Et : " + name + " - PAUSED");
                         selects[0] = id; // id in ROC output channel
                         events[i].setControl(selects);
 
-                        // write bank's data into ET buffer in separate thread
+                        // Write banks' data into ET buffer in separate thread
                         EvWriterNew writer = new EvWriterNew(bankList, events[i]);
                         writeThreadPool.execute(writer);
 
@@ -1215,16 +1211,6 @@ logger.warn("      DataChannel Et : " + name + " - PAUSED");
                 this.event = event;
                 this.bankList = bankList;
 
-//                            // if not enough room in et event to hold bank ...
-//                            if (events[index].getDataBuffer().capacity() < bankSize) {
-//logger.warn("      DataChannel Et DataOutputHelper : " + name + " et event too small to contain built event");
-//                                // This new event is not large enough, so dump it and replace it
-//                                // with a larger one. Performance will be terrible but it'll work.
-//                                etSystem.dumpEvents(attachment, new EtEvent[]{events[index]});
-//                                EtEvent[] evts = etSystem.newEvents(attachment, Mode.SLEEP, false, 0, 1, bankSize, group);
-//                                events[index] = evts[0];
-//                            }
-
                 try {
                     // Make the block size bigger than
                     // the Roc's 2MB ET buffer size so no additional block headers must
@@ -1268,7 +1254,7 @@ logger.warn("      DataChannel Et : " + name + " - PAUSED");
 
 
         /** Method run ... */
-         public void run() {
+         public void runOld() {
 
              try {
                  EtEvent[] events;
