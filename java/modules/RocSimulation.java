@@ -24,6 +24,7 @@ import org.jlab.coda.emu.support.control.Command;
 import org.jlab.coda.emu.support.control.State;
 import org.jlab.coda.emu.support.data.EventType;
 import org.jlab.coda.emu.support.data.Evio;
+import org.jlab.coda.emu.support.data.PayloadBank;
 import org.jlab.coda.emu.support.logger.Logger;
 import org.jlab.coda.emu.support.transport.DataChannel;
 import org.jlab.coda.jevio.*;
@@ -472,15 +473,15 @@ System.out.println("INTERRUPTED thread " + Thread.currentThread().getName());
 
     /**
      * This method is called by a DataGenerateJob running in a thread from a pool.
-     * It generates a DataTransportRecord with many ROC Raw events in it with simulated
-     * FADC250 data, and places that onto the queue of an output channel.
+     * It generates many ROC Raw events in it with simulated
+     * FADC250 data, and places them onto the queue of an output channel.
      *
-     * @param dtrEvent the DTR event to place on output channel queue
+     * @param event the event to place on output channel queue
      * @throws InterruptedException if put or wait interrupted
      */
-    private void eventToOutputQueue(EvioEvent dtrEvent) throws InterruptedException {
+    private void eventToOutputQueue(EvioEvent event) throws InterruptedException {
 
-        int inputOrder = (Integer) dtrEvent.getAttachment();
+        int inputOrder = (Integer) event.getAttachment();
 
         synchronized (lock) {
             // Is the bank we grabbed next to be output? If not, wait.
@@ -489,7 +490,7 @@ System.out.println("INTERRUPTED thread " + Thread.currentThread().getName());
             }
 
             // Place Data Transport Record on output channel
-            outputChannels.get(0).getQueue().put(dtrEvent);
+            outputChannels.get(0).getQueue().put(event);
 
             // next one to be put on output channel
             outputOrder = ++outputOrder % Integer.MAX_VALUE;
@@ -542,6 +543,136 @@ System.out.println("INTERRUPTED thread " + Thread.currentThread().getName());
         }
 
         public void run() {
+
+           boolean sentOneAlready = false;
+           int  status=0, oldVal=0;
+           long timestamp = 0L, start_time = System.currentTimeMillis();
+
+           DataGenerateJobNew job;
+           semaphore = new Semaphore(2*writeThreads);
+
+           System.out.println("ROC SIM write thds = " + writeThreads);
+
+           // Found out how many events are generated per method call, and the event size
+           try {
+               // don't use 1, cause you'll get single event mode
+               numEvents = 2;
+               EvioEvent[] evs = Evio.createRocDataEvents(rocId, triggerType,
+                                                     detectorId, status,
+                                                     0, eventBlockSize,
+                                                     0L, 0,
+                                                     numEvents,
+                                                     isSingleEventMode);
+               eventWordSize = evs[0].getHeader().getLength() + 1;
+           }
+           catch (EvioException e) {
+               System.out.println("INTERRUPTED thread " + Thread.currentThread().getName());
+               // TODO: what is this state == stuff? How about the following?
+//               emu.getCauses().add(e);
+//               state = CODAState.ERROR;
+//               e.printStackTrace();
+//               return;
+               if (state == CODAState.DOWNLOADED) return;
+           }
+
+
+           while (state == CODAState.ACTIVE || paused) {
+
+               numEvents = 2;
+
+               try {
+                   semaphore.acquire();
+
+                   if (sentOneAlready && (eventNumber + numEvents > endLimit)) {
+                       return;
+                   }
+                   sentOneAlready = true;
+
+                   job = new DataGenerateJobNew(timestamp, status, rocRecordId, numEvents,
+                                                (int) eventNumber, inputOrder);
+                   writeThreadPool.execute(job);
+
+                   inputOrder   = ++inputOrder % Integer.MAX_VALUE;
+                   timestamp   += 4*numEvents;
+                   eventNumber += numEvents;
+                   rocRecordId++;
+
+                   long now = System.currentTimeMillis();
+                   long deltaT = now - start_time;
+                   if (deltaT > 2000) {
+                       System.out.println("DTR rate = " + String.format("%.3g", ((rocRecordId-oldVal)*1000./deltaT) ) + " Hz");
+                       start_time = now;
+                       oldVal = rocRecordId;
+                   }
+               }
+               catch (Exception e) {
+                   e.printStackTrace();
+                   // TODO: what is this state == stuff?
+                   if (state == CODAState.DOWNLOADED) return;
+               }
+           }
+       }
+
+
+
+
+
+        /**
+         * This class is designed to create an evio bank's
+         * contents by way of a thread pool.
+         */
+        private class DataGenerateJobNew implements Runnable {
+
+            private long timeStamp;
+            private int status;
+            private int recordId;
+            private int numEvs;
+            private int evNum;
+            private int inputOrder;
+
+            /** Constructor. */
+            DataGenerateJobNew(long timeStamp, int status, int recordId, int numEvs, int evNum, int inputOrder) {
+                this.evNum      = evNum;
+                this.numEvs     = numEvs;
+                this.status     = status;
+                this.recordId   = recordId;
+                this.timeStamp  = timeStamp;
+                this.inputOrder = inputOrder;
+            }
+
+
+            // write bank into et event buffer
+            public void run() {
+                try {
+                    // turn event into byte array
+                    EvioEvent[] evs = Evio.createRocDataEvents(rocId, triggerType,
+                                                          detectorId, status,
+                                                          evNum, eventBlockSize,
+                                                          timeStamp, recordId,
+                                                          numEvs,
+                                                          isSingleEventMode);
+
+                    // put generated events into output channel
+                    for (EvioEvent ev : evs) {
+                        ev.setAttachment(inputOrder);
+                        eventToOutputQueue(ev);
+                    }
+                    semaphore.release();
+
+                    // TODO: error handling
+                }
+                catch (EvioException e) {
+                    e.printStackTrace();
+                }
+                catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+            }
+        }
+
+
+
+       public void runOrig() {
 
            boolean sentOneAlready = false;
            int  status=0, oldVal=0;
