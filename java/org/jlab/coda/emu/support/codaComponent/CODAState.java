@@ -83,6 +83,9 @@ public enum CODAState implements State {
     /** ACTIVE state. */
     ACTIVE("taking data", EnumSet.of(PAUSE, END, RESET)),
 
+    /** Ending state - got END command but no END event. */
+    ENDING("ending run", EnumSet.of(END, RESET)),
+
     /** ERROR state. */
     ERROR("an error has occurred", EnumSet.noneOf(CODATransition.class));
 
