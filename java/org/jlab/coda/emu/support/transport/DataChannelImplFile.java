@@ -5,6 +5,7 @@ import org.jlab.coda.emu.EmuException;
 import org.jlab.coda.emu.support.codaComponent.CODAState;
 import org.jlab.coda.emu.support.data.EventType;
 import org.jlab.coda.emu.support.data.Evio;
+import org.jlab.coda.emu.support.data.PayloadBank;
 import org.jlab.coda.emu.support.logger.Logger;
 import org.jlab.coda.jevio.*;
 
@@ -240,7 +241,7 @@ logger.info("      DataChannel File: try opening output file of " + fileName);
     private class DataOutputHelper implements Runnable {
 
         public void run() {
-            EvioBank bank;
+            PayloadBank bank;
             int bankBytes;
             long numBytesWritten = 0L;
             boolean gotGO = false, gotEnd = false;
@@ -249,21 +250,24 @@ logger.info("      DataChannel File: try opening output file of " + fileName);
 
                 while (!dataThread.isInterrupted()) {
                     // This bank is a data transport record (DTR)
-                    bank = queue.take(); // will block
+                    bank = (PayloadBank)queue.take(); // will block
 
-                    if (Evio.isEndEvent(bank)) {
+                    if (bank.getType() == EventType.END) {
                         evioFileWriter.close();
                         gotEnd = true;
-logger.warn("      DataChannel File (" + name + "): got END, close file " + fileName);
+logger.info("      DataChannel File (" + name + "): got END, close file " + fileName);
                     }
-                    else if (Evio.isGoEvent(bank)) {
-//logger.warn("      DataChannel File (" + name + "): got GO");
+                    else if (bank.getType() == EventType.GO) {
+logger.info("      DataChannel File (" + name + "): got GO");
                         gotGO = true;
+                    }
+                    else {
+logger.info("      DataChannel File (" + name + "): got bank of type " + bank.getType());
                     }
 
                     // Don't start writing to file until we get GO
                     if (!gotGO) {
-//logger.info("      DataChannel File (" + name + "): got event but NO GO");
+logger.warn("      DataChannel File (" + name + "): got event but NO GO, get another off Q");
                         continue;
                     }
 
