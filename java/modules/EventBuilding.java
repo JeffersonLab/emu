@@ -308,6 +308,8 @@ public class EventBuilding implements EmuModule {
             buildingThreadCount = Integer.parseInt(attributeMap.get("threads"));
         }
         catch (NumberFormatException e) {}
+System.out.println("EventBuilding constr: " + buildingThreadCount +
+                           " number of event building threads");
 
         // default is to check timestamp consistency
         checkTimestamps = true;
@@ -528,15 +530,15 @@ if (debug) System.out.println("Qfiller: got empty Data Transport Record or recor
 
         @Override
         public void run() {
-            PayloadBank channelBank;
+            PayloadBank pBank;
 
             while (state == CODAState.ACTIVE || paused) {
                 try {
                     while (state == CODAState.ACTIVE || paused) {
                         // Block waiting for the next bank from ROC
-                        channelBank = (PayloadBank)channelQ.take();  // blocks, throws InterruptedException
+                        pBank = (PayloadBank)channelQ.take();  // blocks, throws InterruptedException
                         // Check this bank's format. If bad, ignore it
-                        Evio.checkPayloadBank(channelBank, payloadBankQ);
+                        Evio.checkPayloadBank(pBank, payloadBankQ);
                     }
                 } catch (EmuException e) {
                     // EmuException from Evio.checkPayloadBank() if
@@ -1490,8 +1492,7 @@ if (true) System.out.println("gotValidControlEvents: found control event of type
             state = CODAState.PAUSED;
 
             // Make sure we have the correct # of payload bank queues available.
-            // Each queue holds payload banks taken from Data Transport Records
-            // from a particular source (ROC).
+            // Each queue holds payload banks taken from a particular source (ROC).
             int diff = inputChannels.size() - payloadBankQueues.size();
             boolean add = true;
             if (diff < 0) {
@@ -1505,7 +1506,7 @@ if (true) System.out.println("gotValidControlEvents: found control event of type
                     // Allow only payloadBankQueueSize items on the q at once
                     payloadBankQueues.add(new PayloadBankQueue<PayloadBank>(payloadBankQueueSize));
                 }
-                // Remove excess queues
+                // Remove excess queues (from head of linked list)
                 else {
                     payloadBankQueues.remove();
                 }
@@ -1548,8 +1549,8 @@ System.out.println("Have " + qCount + " payload bank Qs");
             eventNumber = 1L;
             lastEventNumberBuilt = 0L;
 
-            // Create threads objects (but don't start them yet)
-            createThreads(qCount);
+            // Create & start threads
+            createThreads();
             startThreads();
 
             try {
@@ -1589,9 +1590,8 @@ System.out.println("Have " + qCount + " payload bank Qs");
 
     /**
      * Method to create thread objects for stats, filling Qs and building events.
-     * @param qCount number of qFiller threads to start
      */
-    private void createThreads(int qCount) {
+    private void createThreads() {
         watcher = new Thread(emu.getThreadGroup(), new Watcher(), name+":watcher");
 
         for (int i=0; i < buildingThreadCount; i++) {
@@ -1599,21 +1599,30 @@ System.out.println("Have " + qCount + " payload bank Qs");
             buildingThreadList.add(thd1);
         }
 
-        qFillers = new Thread[qCount];
-        for (int i=0; i < qCount; i++) {
+        // Sanity check
+        if (buildingThreadList.size() != buildingThreadCount) {
+            System.out.println("Have " + buildingThreadList.size() + " build threads, but want " +
+                                buildingThreadCount);
+        }
+
+        qFillers = new Thread[payloadBankQueues.size()];
+        for (int i=0; i < payloadBankQueues.size(); i++) {
             qFillers[i] = new Thread(emu.getThreadGroup(),
                                      new Qfiller(payloadBankQueues.get(i),
                                                     inputChannels.get(i).getQueue()),
                                      name+":qfiller"+i);
         }
+System.out.println("createThreads(): created " + payloadBankQueues.size() +
+                           " Q-filling threads, # = ");
     }
 
     /**
      * Method to start threads for stats, filling Qs, and building events.
+     * It creates these threads if they don't exist yet.
      */
     private void startThreads() {
-        // Start up all threads
         if (watcher == null) {
+System.out.println("startThreads(): recreating watcher thread");
             watcher = new Thread(emu.getThreadGroup(), new Watcher(), name+":watcher");
         }
 
@@ -1626,6 +1635,8 @@ System.out.println("Have " + qCount + " payload bank Qs");
                 BuildingThread thd1 = new BuildingThread(emu.getThreadGroup(), new BuildingThread(), name+":builder"+i);
                 buildingThreadList.add(thd1);
             }
+System.out.println("startThreads(): recreated building threads, # = " +
+                               buildingThreadList.size());
         }
 
         for (BuildingThread thd : buildingThreadList) {
@@ -1642,6 +1653,9 @@ System.out.println("Have " + qCount + " payload bank Qs");
                                                      inputChannels.get(i).getQueue()),
                                          name+":qfiller"+i);
             }
+
+System.out.println("startThreads(): recreated " + payloadBankQueues.size() +
+                                       " Q-filling threads, # = ");
         }
         for (int i=0; i < payloadBankQueues.size(); i++) {
             if (qFillers[i].getState() == Thread.State.NEW) {
