@@ -49,6 +49,7 @@ public class PayloadBank extends EvioEvent {
         rawBytes  = bank.getRawBytes();
         byteOrder = bank.getByteOrder();
         children  = bank.getChildren();
+        if (children != null && children.size() > 1) isLeaf = false;
     }
 
     /**
