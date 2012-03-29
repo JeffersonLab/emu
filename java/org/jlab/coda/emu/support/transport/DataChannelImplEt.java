@@ -602,13 +602,42 @@ logger.info("      DataChannel Et : creating channel " + name);
 
             synchronized (lockOut2) {
                 // Is the bank we grabbed next to be output? If not, wait.
-//System.out.println("  DTR order = " + order + ", outputOrderIn = " + outputOrderIn);
                 while (order != outputOrderIn) {
                     lockOut2.wait();
                 }
 
                 // put events back in ET system
                 queue.put(bank);
+
+                // next one to be put on output channel
+                outputOrderIn = ++outputOrderIn % Integer.MAX_VALUE;
+                lockOut2.notifyAll();
+            }
+        }
+
+
+        /**
+         * This method is used to put a list of PayloadBank objects
+         * onto a queue. It allows coordination between multiple DataInputHelper
+         * threads so that event order is preserved.
+         *
+         * @param banks a list of payload banks to put on the queue
+         * @param order the record Id of the DTR bank taken from the ET event
+         * @throws InterruptedException if put or wait interrupted
+         */
+        private void writeEvents(List<PayloadBank> banks, int order)
+                throws InterruptedException {
+
+            synchronized (lockOut2) {
+                // Is the bank we grabbed next to be output? If not, wait.
+                while (order != outputOrderIn) {
+                    lockOut2.wait();
+                }
+
+                // put events back in ET system
+                for (PayloadBank bank : banks) {
+                    queue.put(bank);
+                }
 
                 // next one to be put on output channel
                 outputOrderIn = ++outputOrderIn % Integer.MAX_VALUE;
@@ -624,6 +653,7 @@ logger.info("      DataChannel Et : creating channel " + name);
 
                 EvioBank bank;
                 PayloadBank payloadBank;
+                LinkedList<PayloadBank> payloadBanks = new LinkedList<PayloadBank>();
                 int myInputOrder, evioVersion, payloadCount, sourceId;
                 BlockHeaderV4 header4;
                 EventType type;
@@ -652,11 +682,11 @@ logger.warn("      DataChannel Et : " + name + " - PAUSED");
                         }
                         catch (EtTimeoutException e) {
                             if (haveInputEndEvent) {
-//System.out.println("      DataChannel Et : " + name + " have END, quitting");
+System.out.println("      DataChannel Et : " + name + " have END, quitting");
                                 return;
                             }
                             else if (gotResetCmd) {
-//System.out.println("      DataChannel Et : " + name + " got RESET, quitting");
+System.out.println("      DataChannel Et : " + name + " got RESET, quitting");
                                 return;
                             }
                             Thread.sleep(5);
@@ -664,7 +694,6 @@ logger.warn("      DataChannel Et : " + name + " - PAUSED");
                         }
                     }
 
-                    int index = 0;
 
                     for (EtEvent ev : events) {
                         buf = ev.getDataBuffer();
@@ -691,10 +720,13 @@ logger.warn("      DataChannel Et : " + name + " - PAUSED");
                             }
                             header4      = (BlockHeaderV4)blockHeader;
                             type         = EventType.getEventType(header4.getEventType());
-logger.info("      DataChannel Et : " + name + " got block header with data type " + type +
-                ", type's int val = " + header4.getEventType());
+//logger.info("      DataChannel Et : " + name + " got block header, data type " + type +
+//                ", source id = " + header4.getReserved1() + ", payld count = " + header4.getEventCount());
+//System.out.println("Header = " + header4.toString());
                             sourceId     = header4.getReserved1();
                             payloadCount = header4.getEventCount();
+
+                            payloadBanks.clear();
 
                             while ((bank = reader.parseNextEvent()) != null) {
                                 if (payloadCount < 1) {
@@ -708,21 +740,24 @@ logger.info("      DataChannel Et : " + name + " got block header with data type
                                 payloadBank.setType(type);
                                 payloadBank.setSourceId(sourceId);
 
-                                // Put evio bank (payload bank) on Q if it parses
-                                writeEvents(bank, myInputOrder + index++);
+                                // add bank to list for later writing
+                                payloadBanks.add(payloadBank);
 
                                 // Handle end event ...
                                 if (Evio.isEndEvent(bank)) {
                                     // There should be no more events coming down the pike so
                                     // go ahead write out existing events and then shut this
                                     // thread down.
-//logger.info("      DataChannel Et : found END event");
+logger.info("      DataChannel Et : found END event");
                                     haveInputEndEvent = true;
                                     break;
                                 }
 
                                 payloadCount--;
                             }
+
+                            // Write any existing banks
+                            writeEvents(payloadBanks, myInputOrder);
 
                             if (haveInputEndEvent) break;
                         }
@@ -737,7 +772,7 @@ logger.info("      DataChannel Et : " + name + " got block header with data type
                     etSystem.putEvents(attachment, events);
 
                     if (haveInputEndEvent) {
-//logger.info("      DataChannel Et : have END, " + name + " quit input helping thread");
+logger.info("      DataChannel Et : have END, " + name + " quit input helping thread");
                         return;
                     }
                 }
@@ -942,6 +977,8 @@ logger.warn("      DataChannel Et : " + name + " - PAUSED");
                     }
 
                     // put events back in ET system
+//System.out.println("multithreaded put: array len = " + events.length + ", put " + events2Write +
+//                     " # of events into ET");
                     etSystem.putEvents(attachment, events, offset, events2Write);
 
                     // next one to be put on output channel
@@ -950,6 +987,8 @@ logger.warn("      DataChannel Et : " + name + " - PAUSED");
                 }
             }
             else {
+//System.out.println("singlethreaded put: array len = " + events.length + ", put " + events2Write +
+// " # of events into ET");
                 etSystem.putEvents(attachment, events, offset, events2Write);
             }
         }
@@ -963,6 +1002,7 @@ logger.warn("      DataChannel Et : " + name + " - PAUSED");
                 EventType previousType=null, pBanktype;
                 PayloadBank pBank = null;
                 LinkedList<PayloadBank> bankList;
+                boolean gotNothingYet;
                 int etEventsIndex, pBankSize, banksTotalSize, etSize;
                 int events2Write, eventArrayLen, myInputOrder=0;
 
@@ -1009,6 +1049,8 @@ logger.warn("      DataChannel Et : " + name + " - PAUSED");
                     events2Write = 0;
                     etEventsIndex = 0;
                     banksTotalSize = 0;
+                    previousType = null;
+                    gotNothingYet = true;
                     bankList = bankListArray[etEventsIndex++];
 
                     // If more than 1 output thread, need to sync things
@@ -1031,9 +1073,16 @@ logger.warn("      DataChannel Et : " + name + " - PAUSED");
 
                                 // Get bank off of Q.
                                 pBank = (PayloadBank) queue.poll(100L, TimeUnit.MILLISECONDS);
-                                // If wait longer that 100ms, send things to the ET system.
-                                if (pBank == null) break;
+                                // If wait longer than 100ms, and there are thing to write,
+                                // send them to the ET system.
+                                if (pBank == null) {
+                                    if (gotNothingYet) {
+                                        continue;
+                                    }
+                                    break;
+                                }
 
+                                gotNothingYet = false;
                                 pBanktype = pBank.getType();
                                 pBankSize = pBank.getTotalBytes();
                                 // assume worst case of one block header / banks
@@ -1089,8 +1138,14 @@ logger.warn("      DataChannel Et : " + name + " - PAUSED");
                         while (!gotResetCmd && (etEventsIndex < eventArrayLen)) {
 
                             pBank = (PayloadBank) queue.poll(100L, TimeUnit.MILLISECONDS);
-                            if (pBank == null) break;
+                            if (pBank == null) {
+                                if (gotNothingYet) {
+                                    continue;
+                                }
+                                break;
+                            }
 
+                            gotNothingYet = false;
                             pBanktype = pBank.getType();
                             pBankSize = pBank.getTotalBytes();
                             banksTotalSize += pBankSize + 32;
@@ -1101,9 +1156,15 @@ logger.warn("      DataChannel Et : " + name + " - PAUSED");
                                 bankList = bankListArray[etEventsIndex++];
                                 bankList.add(pBank);
                                 banksTotalSize = pBankSize + 64;
+//System.out.println("      DataChannel Et: got bank, NEW LIST ("+ (etEventsIndex-1) + "), type = " +
+//                   pBanktype + ", bytes = " + pBankSize +
+//                   ", reset total size (bytes) to " + banksTotalSize);
                             }
                             else {
+//System.out.println("      DataChannel Et: add bank to existing list (#" + (etEventsIndex - 1) + ")");
                                 bankList.add(pBank);
+//System.out.println("      DataChannel Et: got bank, type = " + pBanktype + ", bytes = " + pBankSize +
+//                   ", total size (bytes) = " + banksTotalSize);
                             }
 
                             if (Evio.isEndEvent(pBank)) {
@@ -1130,6 +1191,8 @@ logger.warn("      DataChannel Et : " + name + " - PAUSED");
                     for (int i=0; i < etEventsIndex; i++) {
                         // Get list of banks to put into this ET event
                         bankList = bankListArray[i];
+
+                        if (bankList.size() < 1) continue;
 
                         // Check to see if not enough room in ET event to hold bank.
                         // In this case, list will only contain 1 (big) bank.
@@ -1159,8 +1222,8 @@ logger.warn("      DataChannel Et DataOutputHelper : " + name + " ET event too s
                         EvWriterNew writer = new EvWriterNew(bankList, events[i]);
                         writeThreadPool.execute(writer);
 
-                        // Keep track of how many events we want to write
-                        events2Write += bankList.size();
+                        // Keep track of how many ET events we want to write
+                        events2Write++;
 
                         // Handle END event ...
                         for (PayloadBank bank : bankList) {
@@ -1176,14 +1239,17 @@ logger.warn("      DataChannel Et DataOutputHelper : " + name + " ET event too s
                     latch.await();
 
                     // Put events back in ET system
+//System.out.println("      DataChannel Et: write " + events2Write + " events");
                     writeEvents(events, myInputOrder, 0, events2Write);
 
                     // Dump any left over new ET events.
                     if (events2Write < eventArrayLen) {
+//System.out.println("Dumping " + (eventArrayLen - events2Write) + " unused new events");
                         etSystem.dumpEvents(attachment, events, events2Write, (eventArrayLen - events2Write));
                     }
 
                     if (haveOutputEndEvent) {
+System.out.println("Ending");
                         shutdown();
                         return;
                     }
@@ -1208,6 +1274,18 @@ logger.warn("      DataChannel Et DataOutputHelper : " + name + " ET event too s
             private ByteBuffer  buffer;
             private EventWriter evWriter;
 
+            void setEventType(BitSet bSet, int type) {
+                if (type < 0) type = 0;
+                else if (type > 15) type = 15;
+
+                if (bSet.size() < 6) {
+                    return;
+                }
+
+                for (int i=2; i < 6; i++) {
+                    bSet.set(i, ((type >>> i - 2) & 0x1) > 0);
+                }
+            }
 
             /** Constructor. */
             EvWriterNew(LinkedList<PayloadBank> bankList, EtEvent event) {
@@ -1225,7 +1303,11 @@ logger.warn("      DataChannel Et DataOutputHelper : " + name + " ET event too s
 
                     // encode the event type into bits
                     BitSet bitInfo = new BitSet(24);
-                    BlockHeaderV4.setEventType(bitInfo, bankList.getFirst().getType().getValue());
+//System.out.println("      EvWriterNew Et: setting block header type to " +
+//                                               bankList.getFirst().getType().getValue());
+                    setEventType(bitInfo, bankList.getFirst().getType().getValue());
+//System.out.println("      EvWriterNew Et: bit info = " + bitInfo + ", source id = " + emu.getCodaid());
+
 
                     evWriter = new EventWriter(buffer, 550000, 200, null, bitInfo, emu.getCodaid());
                 }
@@ -1237,6 +1319,8 @@ logger.warn("      DataChannel Et DataOutputHelper : " + name + " ET event too s
             public void run() {
                 try {
                     for (PayloadBank bank : bankList) {
+//System.out.println("      EvWriterNew Et: writing bank of type " +
+//                         bank.getType() + ", and total bytes " + bank.getTotalBytes());
                         evWriter.writeEvent(bank);
                     }
                     evWriter.close();
