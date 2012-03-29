@@ -689,48 +689,48 @@ public class Evio {
         // Second bank - must be at least one data bank.
         Vector<BaseStructure> kids = bank.getChildren();
         if (kids.size() < 2) {
-System.out.println("isDataTransportRecord: is not DTR 1, contains < 2 banks");
+//System.out.println("isDataTransportRecord: is not DTR 1, contains < 2 banks");
             return false;
         }
 
         // first bank must contain one 32 bit int - the record ID
         BaseStructure firstBank = kids.firstElement();
 
-        System.out.println("isDataTransportRecord(): # DTR kids = " + (kids.size()) + ", Record ID bank -> ");
+//System.out.println("isDataTransportRecord(): # DTR kids = " + (kids.size()) + ", Record ID bank -> ");
         // print out header first
         int hLen = firstBank.getHeader().getLength();
         int num  = firstBank.getHeader().getNumber();
         int tag  = firstBank.getHeader().getTag();
         int type = firstBank.getHeader().getDataTypeValue();
 
-        System.out.println("    Header len = 0x" + Integer.toHexString(hLen) +
-        ", tag = 0x" + Integer.toHexString(tag) +
-        ", type = 0x" + Integer.toHexString(type) +
-        ", num = 0x" + Integer.toHexString(num));
+//        System.out.println("    Header len = 0x" + Integer.toHexString(hLen) +
+//        ", tag = 0x" + Integer.toHexString(tag) +
+//        ", type = 0x" + Integer.toHexString(type) +
+//        ", num = 0x" + Integer.toHexString(num));
 
 
-        byte[] bytes = firstBank.getRawBytes();
-        int[] words = ByteDataTransformer.getAsIntArray(bytes, firstBank.getByteOrder());
-        for (int i=0; i < words.length; i++) {
-            System.out.print("    0x" + Integer.toHexString(words[i]) + "  ");
-            if (i%2 == 1) System.out.println("");
-        }
-        System.out.println("");
+//        byte[] bytes = firstBank.getRawBytes();
+//        int[] words = ByteDataTransformer.getAsIntArray(bytes, firstBank.getByteOrder());
+//        for (int i=0; i < words.length; i++) {
+//            System.out.print("    0x" + Integer.toHexString(words[i]) + "  ");
+//            if (i%2 == 1) System.out.println("");
+//        }
+//        System.out.println("");
 
 
         // check tag
         tag = firstBank.getHeader().getTag();
         if (tag != RECORD_ID_BANK) {
-System.out.println("isDataTransportRecord: is not DTR 2, tag = " +
-                           Integer.toHexString(tag) + ", should = " +
-                           Integer.toHexString(RECORD_ID_BANK));
+//System.out.println("isDataTransportRecord: is not DTR 2, tag = " +
+//                           Integer.toHexString(tag) + ", should = " +
+//                           Integer.toHexString(RECORD_ID_BANK));
             return false;
         }
 
         // contained data must be (U)INT32
         int[] intData = firstBank.getIntData();
         if (intData == null) {
-System.out.println("isDataTransportRecord: is not DTR 3, 1st bank must contain (u)ints");
+//System.out.println("isDataTransportRecord: is not DTR 3, 1st bank must contain (u)ints");
             return false;
         }
 
@@ -739,8 +739,8 @@ System.out.println("isDataTransportRecord: is not DTR 3, 1st bank must contain (
         num = bank.getHeader().getNumber();
         if ( (recordId & 0xff) != num ) {
             // contradictory internal data
-System.out.println("isDataTransportRecord: is not DTR 4, contradictory data: recordID = " + recordId +
-", rID& 0xff = " + (recordId & 0xff) + ", num = " + num);
+//System.out.println("isDataTransportRecord: is not DTR 4, contradictory data: recordID = " + recordId +
+//", rID& 0xff = " + (recordId & 0xff) + ", num = " + num);
             return false;
         }
 
@@ -748,8 +748,8 @@ System.out.println("isDataTransportRecord: is not DTR 4, contradictory data: rec
         num = firstBank.getHeader().getNumber();
         if (num != kids.size() - 1) {
             // contradictory internal data
-System.out.println("isDataTransportRecord: is not DTR 5, num = " + num +
-                           ", != #payld banks " + (kids.size() - 1));
+//System.out.println("isDataTransportRecord: is not DTR 5, num = " + num +
+//                           ", != #payld banks " + (kids.size() - 1));
             return false;
         }
 
@@ -785,10 +785,10 @@ System.out.println("isDataTransportRecord: is not DTR 5, num = " + num +
         // Only interested in known types such as physics, roc raw, control, and user events.
         EventType eventType = pBank.getType();
         if (eventType == null) {
-System.out.print("checkPayloadBank: unknown type, dump payload bank");
+System.out.println("checkPayloadBank: unknown type, dump payload bank");
             return;
         }
-System.out.print("building module, checkPayloadBank: got bank of type " + eventType);
+System.out.println("building module, checkPayloadBank: got bank of type " + eventType);
 
         // Only worry about record id if event to be built.
         // Initial recordId stored is 0, ignore that.
@@ -2018,11 +2018,11 @@ System.out.println("Timestamps are NOT consistent !!!");
         // Create a ROC Raw Data Record event/bank with numEvents physics events in it
         int firstEvNum = eventNumber;
         int rocTag = createCodaTag(status, rocID);
-        EventBuilder eventBuilder = new EventBuilder(rocTag, DataType.BANK, numEvents);
+        EventBuilder eventBuilder = new EventBuilder(rocTag, DataType.ALSOBANK, numEvents);
         EvioEvent rocRawEvent = eventBuilder.getEvent();
 
         // Create the trigger bank (of segments)
-        EvioBank triggerBank = new EvioBank(TRIGGER_BANK, DataType.SEGMENT, numEvents);
+        EvioBank triggerBank = new EvioBank(TRIGGER_BANK, DataType.ALSOSEGMENT, numEvents);
         eventBuilder.addChild(rocRawEvent, triggerBank);
 
         EvioSegment segment;
@@ -2059,7 +2059,7 @@ System.out.println("Timestamps are NOT consistent !!!");
 //        }
 
         int dataTag = createCodaTag(status, detectorId);
-        EvioBank dataBank = new EvioBank(dataTag, DataType.INT32, numEvents);
+        EvioBank dataBank = new EvioBank(dataTag, DataType.UINT32, numEvents);
         eventBuilder.appendIntData(dataBank, data);
 
         eventBuilder.addChild(rocRawEvent, dataBank);
@@ -2360,7 +2360,7 @@ System.out.println("Timestamps are NOT consistent !!!");
      * @return number of events in the generated Data Transport Record event
      * @throws EvioException
      */
-    public static EvioEvent[] createRocDataEvents(int rocId, int triggerType,
+    public static PayloadBank[] createRocDataEvents(int rocId, int triggerType,
                                                     int detectorId, int status,
                                                     int eventNumber, int numEvents,
                                                     long timestamp, int recordId,
@@ -2372,25 +2372,28 @@ System.out.println("Timestamps are NOT consistent !!!");
             numEvents = 1;
         }
 
-        EvioEvent[] events =  new EvioEvent[numPayloadBanks];
+        EvioEvent ev;
+        PayloadBank[] pBanks =  new PayloadBank[numPayloadBanks];
 
         // now add the rest of the records
         for (int i=0; i < numPayloadBanks; i++)  {
             // add ROC Raw Records as payload banks
             if (singleEventMode) {
-                events[i] = createSingleEventModeRocRecord(rocId, detectorId, status,
+                ev = createSingleEventModeRocRecord(rocId, detectorId, status,
                                                        eventNumber, recordId, timestamp);
             }
             else {
-                events[i] = createRocRawRecord(rocId, triggerType, detectorId, status,
+                ev = createRocRawRecord(rocId, triggerType, detectorId, status,
                                            eventNumber, numEvents, recordId, timestamp);
             }
+            pBanks[i] = new PayloadBank(ev);
+            pBanks[i].setType(EventType.ROC_RAW);
 
             eventNumber += numEvents;
             timestamp   += 4*numEvents;
         }
 
-        return events;
+        return pBanks;
     }
 
 
