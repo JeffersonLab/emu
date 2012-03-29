@@ -257,7 +257,7 @@ logger.info("      DataChannel File: try opening output file of " + fileName);
 logger.info("      DataChannel File (" + name + "): got END, close file " + fileName);
                     }
                     else if (bank.getType() == EventType.PRESTART) {
-logger.info("      DataChannel File (" + name + "): got GO");
+logger.info("      DataChannel File (" + name + "): got PRESTART");
                         gotPrestart = true;
                     }
                     else {
