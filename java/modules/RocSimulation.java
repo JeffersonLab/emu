@@ -144,6 +144,7 @@ public class RocSimulation implements EmuModule, Runnable {
     private Logger logger;
 
     private Emu emu;
+    static int jobNumber;
 
 
     /**
@@ -164,6 +165,7 @@ public class RocSimulation implements EmuModule, Runnable {
         try { rocId = Integer.parseInt(attributeMap.get("id")); }
         catch (NumberFormatException e) { /* defaults to 0 */ }
 System.out.println("                                      SET ROCID TO " + rocId);
+        emu.setCodaid(rocId);
 
         delay = 0;
         try { delay = Integer.parseInt(attributeMap.get("delay")); }
@@ -476,21 +478,60 @@ System.out.println("INTERRUPTED thread " + Thread.currentThread().getName());
      * It generates many ROC Raw events in it with simulated
      * FADC250 data, and places them onto the queue of an output channel.
      *
-     * @param event the event to place on output channel queue
+     * @param bank the event to place on output channel queue
      * @throws InterruptedException if put or wait interrupted
      */
-    private void eventToOutputQueue(EvioEvent event) throws InterruptedException {
+    private void eventToOutputQueue(PayloadBank bank) throws InterruptedException {
 
-        int inputOrder = (Integer) event.getAttachment();
+        int inputOrder = (Integer) bank.getAttachment();
 
         synchronized (lock) {
             // Is the bank we grabbed next to be output? If not, wait.
             while (inputOrder != outputOrder) {
+System.out.println("eventToOutputQ: waiting on lock");
                 lock.wait();
             }
 
             // Place Data Transport Record on output channel
-            outputChannels.get(0).getQueue().put(event);
+System.out.println("eventToOutputQ: put bank on channel");
+            outputChannels.get(0).getQueue().put(bank);
+
+            // next one to be put on output channel
+            outputOrder = ++outputOrder % Integer.MAX_VALUE;
+            lock.notifyAll();
+
+            // stats
+            eventCountTotal += numEvents;
+            wordCountTotal  += eventWordSize;
+        }
+
+    }
+
+
+    /**
+     * This method is called by a DataGenerateJob running in a thread from a pool.
+     * It generates many ROC Raw events in it with simulated
+     * FADC250 data, and places them onto the queue of an output channel.
+     *
+     * @param banks the events to place on output channel queue
+     * @throws InterruptedException if put or wait interrupted
+     */
+    private void eventToOutputQueue(PayloadBank[] banks) throws InterruptedException {
+
+        int inputOrder = (Integer) banks[0].getAttachment();
+
+        synchronized (lock) {
+            // Is the bank we grabbed next to be output? If not, wait.
+            while (inputOrder != outputOrder) {
+//System.out.println("eventToOutputQ: waiting on lock");
+                lock.wait();
+            }
+
+            // Place Data Transport Record on output channel
+//System.out.println("eventToOutputQ: put bank on channel");
+            for (PayloadBank bank : banks) {
+                outputChannels.get(0).getQueue().put(bank);
+            }
 
             // next one to be put on output channel
             outputOrder = ++outputOrder % Integer.MAX_VALUE;
@@ -557,13 +598,18 @@ System.out.println("INTERRUPTED thread " + Thread.currentThread().getName());
            try {
                // don't use 1, cause you'll get single event mode
                numEvents = 2;
-               EvioEvent[] evs = Evio.createRocDataEvents(rocId, triggerType,
+               PayloadBank[] evs = Evio.createRocDataEvents(rocId, triggerType,
                                                      detectorId, status,
                                                      0, eventBlockSize,
                                                      0L, 0,
                                                      numEvents,
                                                      isSingleEventMode);
                eventWordSize = evs[0].getHeader().getLength() + 1;
+//System.out.println("ROCSim: each generated event data = " + (4*(eventWordSize - 2)) +
+//                " bytes, words = " + (eventWordSize -2 ) + ", tag = " +
+//                evs[0].getHeader().getTag() + ", num = " + evs[0].getHeader().getNumber());
+//System.out.println("ROCSim: each generated event = " + evs[0].toXML());
+
            }
            catch (EvioException e) {
                System.out.println("INTERRUPTED thread " + Thread.currentThread().getName());
@@ -581,20 +627,24 @@ System.out.println("INTERRUPTED thread " + Thread.currentThread().getName());
                numEvents = 2;
 
                try {
+//System.out.println("RocSim: wait to acquire semaphore, available permits = " +
+//                           semaphore.availablePermits());
                    semaphore.acquire();
 
                    if (sentOneAlready && (eventNumber + numEvents > endLimit)) {
+//System.out.println("RocSim: hit end limit of " + endLimit + ", quitting");
                        return;
                    }
                    sentOneAlready = true;
 
                    job = new DataGenerateJobNew(timestamp, status, rocRecordId, numEvents,
                                                 (int) eventNumber, inputOrder);
+//System.out.println("RocSim: submit job to threadpool");
                    writeThreadPool.execute(job);
 
                    inputOrder   = ++inputOrder % Integer.MAX_VALUE;
-                   timestamp   += 4*numEvents;
-                   eventNumber += numEvents;
+                   timestamp   += 4*eventBlockSize*numEvents;
+                   eventNumber += eventBlockSize*numEvents;
                    rocRecordId++;
 
                    long now = System.currentTimeMillis();
@@ -604,6 +654,7 @@ System.out.println("INTERRUPTED thread " + Thread.currentThread().getName());
                        start_time = now;
                        oldVal = rocRecordId;
                    }
+//System.out.println("RocSim: another round");
                }
                catch (Exception e) {
                    e.printStackTrace();
@@ -622,6 +673,7 @@ System.out.println("INTERRUPTED thread " + Thread.currentThread().getName());
          * contents by way of a thread pool.
          */
         private class DataGenerateJobNew implements Runnable {
+            private int jobNum;
 
             private long timeStamp;
             private int status;
@@ -638,6 +690,7 @@ System.out.println("INTERRUPTED thread " + Thread.currentThread().getName());
                 this.recordId   = recordId;
                 this.timeStamp  = timeStamp;
                 this.inputOrder = inputOrder;
+                jobNum = jobNumber++;
             }
 
 
@@ -645,7 +698,8 @@ System.out.println("INTERRUPTED thread " + Thread.currentThread().getName());
             public void run() {
                 try {
                     // turn event into byte array
-                    EvioEvent[] evs = Evio.createRocDataEvents(rocId, triggerType,
+//System.out.println("RocSim("+jobNum+"): executing job");
+                    PayloadBank[] evs = Evio.createRocDataEvents(rocId, triggerType,
                                                           detectorId, status,
                                                           evNum, eventBlockSize,
                                                           timeStamp, recordId,
@@ -653,11 +707,13 @@ System.out.println("INTERRUPTED thread " + Thread.currentThread().getName());
                                                           isSingleEventMode);
 
                     // put generated events into output channel
-                    for (EvioEvent ev : evs) {
-                        ev.setAttachment(inputOrder);
-                        eventToOutputQueue(ev);
-                    }
+//System.out.println("RocSim("+jobNum + "): generated " + evs.length + " Roc Raw events");
+                    evs[0].setAttachment(inputOrder);
+                    eventToOutputQueue(evs);
+//System.out.println("RocSim("+jobNum + "): put evs on output Q");
                     semaphore.release();
+//System.out.println("RocSim(" + jobNum + "): released semaphore, available permits = " +
+//                           semaphore.availablePermits());
 
                     // TODO: error handling
                 }
@@ -785,7 +841,8 @@ System.out.println("INTERRUPTED thread " + Thread.currentThread().getName());
                // put dtr into output channel
                EvioEvent ev = eventBuilder.getEvent();
                ev.setAttachment(inputOrder);
-               eventToOutputQueue(ev);
+               // TODO: this cast will never work!!
+               eventToOutputQueue((PayloadBank)ev);
                semaphore.release();
 
                // TODO: error handling
@@ -840,8 +897,10 @@ System.out.println("INTERRUPTED thread " + Thread.currentThread().getName());
             // Put in END event
             try {
 //System.out.println("          RocSim: Putting in END control event");
-                EvioEvent controlEvent = Evio.createControlDTR(rocId, EventType.END);
-                outputChannels.get(0).getQueue().put(controlEvent);
+                EvioEvent controlEvent = Evio.createControlEvent(EventType.END, emu.getRunNumber());
+                PayloadBank bank = new PayloadBank(controlEvent);
+                bank.setType(EventType.END);
+                outputChannels.get(0).getQueue().put(bank);
             }
             catch (InterruptedException e) {
                 //e.printStackTrace();
@@ -922,8 +981,10 @@ System.out.println("INTERRUPTED thread " + Thread.currentThread().getName());
             // Put in PRESTART event
             try {
 //System.out.println("          RocSim: Putting in PRESTART control event");
-                EvioEvent controlEvent = Evio.createControlDTR(rocId, EventType.PRESTART);
-                outputChannels.get(0).getQueue().put(controlEvent);
+                EvioEvent controlEvent = Evio.createControlEvent(EventType.PRESTART, emu.getRunNumber());
+                PayloadBank bank = new PayloadBank(controlEvent);
+                bank.setType(EventType.PRESTART);
+                outputChannels.get(0).getQueue().put(bank);
             }
             catch (InterruptedException e) {
                 //e.printStackTrace();
@@ -949,8 +1010,10 @@ System.out.println("INTERRUPTED thread " + Thread.currentThread().getName());
             // Put in PAUSE event
             try {
 //System.out.println("          RocSim: Putting in PAUSE control event");
-                EvioEvent controlEvent = Evio.createControlDTR(rocId, EventType.PAUSE);
-                outputChannels.get(0).getQueue().put(controlEvent);
+                EvioEvent controlEvent = Evio.createControlEvent(EventType.PAUSE, emu.getRunNumber());
+                PayloadBank bank = new PayloadBank(controlEvent);
+                bank.setType(EventType.PAUSE);
+                outputChannels.get(0).getQueue().put(bank);
             }
             catch (InterruptedException e) {
                 //e.printStackTrace();
@@ -969,8 +1032,10 @@ System.out.println("INTERRUPTED thread " + Thread.currentThread().getName());
             // Put in GO event
             try {
 //System.out.println("          RocSim: Putting in GO control event");
-                EvioEvent controlEvent = Evio.createControlDTR(rocId, EventType.GO);
-                outputChannels.get(0).getQueue().put(controlEvent);
+                EvioEvent controlEvent = Evio.createControlEvent(EventType.GO, emu.getRunNumber());
+                PayloadBank bank = new PayloadBank(controlEvent);
+                bank.setType(EventType.GO);
+                outputChannels.get(0).getQueue().put(bank);
             }
             catch (InterruptedException e) {
                 //e.printStackTrace();
