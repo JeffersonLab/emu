@@ -582,6 +582,7 @@ if (debug) System.out.println("Qfiller: Roc raw or physics event in wrong format
                     eo.lock.wait();
                 }
                 // Place Data Transport Record on output channel
+//System.out.println("Put bank on output channel");
                 eo.outputChannel.getQueue().put(bankOut);
                 outputOrders[eo.index] = ++outputOrders[eo.index] % Integer.MAX_VALUE;
                 eo.lock.notifyAll();
@@ -995,7 +996,7 @@ if (debug && nonFatalError) System.out.println("\nERROR 1\n");
                     // If they are all control events, just store their
                     // input order object and put 1 event on each output Q.
                     if (haveControlEvents) {
-if (debug) System.out.println("Have CONTROL event");
+if (true) System.out.println("Have CONTROL event");
  // TODO: rebuild PRESTART event here
                         // Deal with the possibility that there are more output channels
                         // than input channels. In that case we must copy the control
@@ -1025,7 +1026,7 @@ if (debug) System.out.println("Have CONTROL event");
                         // If it is an END event, interrupt other build threads
                         // then quit this one.
                         if (buildingBanks[0].getType().isEnd()) {
-if (debug) System.out.println("Found END event in build thread");
+if (true) System.out.println("Found END event in build thread");
                             haveEndEvent = true;
                             endBuildAndQFillerThreads(this, false);
                             return;
@@ -1074,7 +1075,7 @@ if (debug && nonFatalError) System.out.println("\nERROR 2\n");
                         }
                         else {
                             // Combine the trigger banks of input events into one
-//if (debug) System.out.println("BuildingThread: create trigger bank");
+if (true) System.out.println("BuildingThread: create trigger bank");
                             nonFatalError |= Evio.makeTriggerBankFromRocRaw(buildingBanks, builder,
                                                                             ebId, firstEventNumber,
                                                                             runNumber, checkTimestamps,
@@ -1112,7 +1113,7 @@ if (debug && nonFatalError) System.out.println("\nERROR 4\n");
                         Evio.buildPhysicsEventWithPhysics(combinedTrigger, buildingBanks, builder);
                     }
                     else {
-//if (debug) System.out.println("BuildingThread: build physics event with ROC raw banks");
+if (true) System.out.println("BuildingThread: build physics event with ROC raw banks");
                         Evio.buildPhysicsEventWithRocRaw(combinedTrigger, buildingBanks, builder);
                     }
 
@@ -1490,6 +1491,7 @@ if (true) System.out.println("gotValidControlEvents: found control event of type
             }
 
             state = CODAState.PAUSED;
+            paused = true;
 
             // Make sure we have the correct # of payload bank queues available.
             // Each queue holds payload banks taken from a particular source (ROC).
@@ -1612,8 +1614,6 @@ System.out.println("Have " + qCount + " payload bank Qs");
                                                     inputChannels.get(i).getQueue()),
                                      name+":qfiller"+i);
         }
-System.out.println("createThreads(): created " + payloadBankQueues.size() +
-                           " Q-filling threads, # = ");
     }
 
     /**
@@ -1655,7 +1655,7 @@ System.out.println("startThreads(): recreated building threads, # = " +
             }
 
 System.out.println("startThreads(): recreated " + payloadBankQueues.size() +
-                                       " Q-filling threads, # = ");
+                                       " Q-filling threads");
         }
         for (int i=0; i < payloadBankQueues.size(); i++) {
             if (qFillers[i].getState() == Thread.State.NEW) {
