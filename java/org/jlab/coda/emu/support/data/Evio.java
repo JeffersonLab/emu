@@ -2351,7 +2351,7 @@ System.out.println("Timestamps are NOT consistent !!!");
      * @param detectorId  id of detector producing data in data block bank
      * @param status      4-bit status associated with data
      * @param eventNumber starting event number
-     * @param numEvents   number of physics events in created record
+     * @param numEvents   number of physics events in created payload bank
      * @param timestamp   starting event's timestamp
      * @param recordId    record count
      * @param numPayloadBanks number of payload banks to generate
