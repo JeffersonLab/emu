@@ -244,7 +244,7 @@ logger.info("      DataChannel File: try opening output file of " + fileName);
             PayloadBank bank;
             int bankBytes;
             long numBytesWritten = 0L;
-            boolean gotGO = false, gotEnd = false;
+            boolean gotPrestart = false, gotEnd = false;
 
             try {
 
@@ -253,21 +253,20 @@ logger.info("      DataChannel File: try opening output file of " + fileName);
                     bank = (PayloadBank)queue.take(); // will block
 
                     if (bank.getType() == EventType.END) {
-                        evioFileWriter.close();
                         gotEnd = true;
 logger.info("      DataChannel File (" + name + "): got END, close file " + fileName);
                     }
-                    else if (bank.getType() == EventType.GO) {
+                    else if (bank.getType() == EventType.PRESTART) {
 logger.info("      DataChannel File (" + name + "): got GO");
-                        gotGO = true;
+                        gotPrestart = true;
                     }
                     else {
 logger.info("      DataChannel File (" + name + "): got bank of type " + bank.getType());
                     }
 
-                    // Don't start writing to file until we get GO
-                    if (!gotGO) {
-logger.warn("      DataChannel File (" + name + "): got event but NO GO, get another off Q");
+                    // Don't start writing to file until we get PRESTART
+                    if (!gotPrestart) {
+logger.warn("      DataChannel File (" + name + "): got event but NO PRESTART, get another off Q");
                         continue;
                     }
 
