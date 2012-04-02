@@ -161,7 +161,7 @@ public class Emu implements CODAComponent {
     private volatile int runNumber;
 
     /** The numeric code representing the run type. */
-    private int runType;
+    private volatile int runType;
 
     /** A unique numeric identifier for this Emu. */
     private int codaid;
@@ -781,21 +781,44 @@ System.out.println("Emu: state changed to " + state.name());
         }
 
 
+//        if (codaCommand == PRESTART) {
+//            // Run Control tells us our run number
+//            // get the new run number and store it
+//            try {
+//                cMsgPayloadItem item = cmd.getArg(codaCommand.getPayloadName());
+//                if (item != null) {
+////System.out.println("SET RUN NUMBER to " + item.getInt());
+//                    setRunNumber(item.getInt());
+//                }
+//                else {
+//                    System.out.println("Got PRESTART command but no run # specified");
+//                }
+//            }
+//            catch (cMsgException e) {
+//                e.printStackTrace();
+//            }
+//        }
         if (codaCommand == PRESTART) {
-            // Run Control tells us our run number
-            // get the new run number and store it
-            try {
-                cMsgPayloadItem item = cmd.getArg(codaCommand.getPayloadName());
-                if (item != null) {
-//System.out.println("SET RUN NUMBER to " + item.getInt());
-                    setRunNumber(item.getInt());
+            // Run Control tells us our run number & runType.
+            // Get and store them.
+            cMsgMessage msg = cmd.getMessage();
+            cMsgPayloadItem pItem;
+
+            if (msg != null) {
+                try {
+                    // Should have run number
+                    pItem = cmd.getArg(RCConstants.prestartPayloadRunNumber);
+                    if (pItem != null) {
+                        setRunNumber(pItem.getInt());
+                    }
+
+                    // Should have run type
+                    pItem = cmd.getArg(RCConstants.prestartPayloadRunType);
+                    if (pItem != null) {
+                        setRunType(pItem.getInt());
+                    }
                 }
-                else {
-                    System.out.println("Got PRESTART command but no run # specified");
-                }
-            }
-            catch (cMsgException e) {
-                e.printStackTrace();
+                catch (cMsgException e) {/* never happen */}
             }
         }
         // When we are told to CONFIGURE, the EMU handles this even though
