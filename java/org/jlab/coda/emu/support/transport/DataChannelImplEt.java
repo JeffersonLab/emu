@@ -999,8 +999,8 @@ logger.warn("      DataChannel Et : " + name + " - PAUSED");
 
             try {
                 EtEvent[] events;
-                EventType previousType=null, pBanktype;
-                PayloadBank pBank = null;
+                EventType previousType, pBanktype;
+                PayloadBank pBank;
                 LinkedList<PayloadBank> bankList;
                 boolean gotNothingYet;
                 int etEventsIndex, pBankSize, banksTotalSize, etSize;
@@ -1032,9 +1032,20 @@ logger.warn("      DataChannel Et : " + name + " - PAUSED");
                     // new events, which means we should never block here.
                     getBarrier.await();
                     events = getter.getEvents();
+
+                    if (events == null || events.length < 1) {
+                        // If I've been told to RESET ...
+                        if (gotResetCmd) {
+                            shutdown();
+                            return;
+                        }
+                        continue;
+                    }
+
                     // Number of events obtained in a newEvents() call will
                     // always be <= chunk. Convenience variable.
                     eventArrayLen = events.length;
+
                     // Execute thread to get more new events while we're
                     // filling and putting the ones we have.
                     getThreadPool.execute(getter);
@@ -1069,8 +1080,7 @@ logger.warn("      DataChannel Et : " + name + " - PAUSED");
                             // Grab a bank to put into an ET event buffer,
                             // checking occasionally to see if we got an
                             // RESET command or someone found an END event.
-                            while (!gotResetCmd && (etEventsIndex < eventArrayLen)) {
-
+                            do {
                                 // Get bank off of Q.
                                 pBank = (PayloadBank) queue.poll(100L, TimeUnit.MILLISECONDS);
                                 // If wait longer than 100ms, and there are thing to write,
@@ -1118,7 +1128,8 @@ logger.warn("      DataChannel Et : " + name + " - PAUSED");
                                 // Set this for next round
                                 previousType = pBanktype;
                                 pBank.setAttachment(Boolean.FALSE);
-                            }
+
+                            } while (!gotResetCmd && (etEventsIndex < eventArrayLen));
 
                             // If I've been told to RESET ...
                             if (gotResetCmd) {
@@ -1135,8 +1146,7 @@ logger.warn("      DataChannel Et : " + name + " - PAUSED");
                         }
                     }
                     else {
-                        while (!gotResetCmd && (etEventsIndex < eventArrayLen)) {
-
+                        do {
                             pBank = (PayloadBank) queue.poll(100L, TimeUnit.MILLISECONDS);
                             if (pBank == null) {
                                 if (gotNothingYet) {
@@ -1156,15 +1166,9 @@ logger.warn("      DataChannel Et : " + name + " - PAUSED");
                                 bankList = bankListArray[etEventsIndex++];
                                 bankList.add(pBank);
                                 banksTotalSize = pBankSize + 64;
-//System.out.println("      DataChannel Et: got bank, NEW LIST ("+ (etEventsIndex-1) + "), type = " +
-//                   pBanktype + ", bytes = " + pBankSize +
-//                   ", reset total size (bytes) to " + banksTotalSize);
                             }
                             else {
-//System.out.println("      DataChannel Et: add bank to existing list (#" + (etEventsIndex - 1) + ")");
                                 bankList.add(pBank);
-//System.out.println("      DataChannel Et: got bank, type = " + pBanktype + ", bytes = " + pBankSize +
-//                   ", total size (bytes) = " + banksTotalSize);
                             }
 
                             if (Evio.isEndEvent(pBank)) {
@@ -1175,7 +1179,8 @@ logger.warn("      DataChannel Et : " + name + " - PAUSED");
 
                             previousType = pBanktype;
                             pBank.setAttachment(Boolean.FALSE);
-                        }
+
+                        } while (!gotResetCmd && (etEventsIndex < eventArrayLen));
 
                         if (gotResetCmd) {
                             shutdown();
@@ -1192,7 +1197,9 @@ logger.warn("      DataChannel Et : " + name + " - PAUSED");
                         // Get list of banks to put into this ET event
                         bankList = bankListArray[i];
 
-                        if (bankList.size() < 1) continue;
+                        if (bankList.size() < 1) {
+                            continue;
+                        }
 
                         // Check to see if not enough room in ET event to hold bank.
                         // In this case, list will only contain 1 (big) bank.
@@ -1256,6 +1263,7 @@ System.out.println("Ending");
                 }
 
             } catch (InterruptedException e) {
+                e.printStackTrace();
             } catch (Exception e) {
                 e.printStackTrace();
                 logger.warn("      DataChannel Et DataOutputHelper : exit " + e.getMessage());
@@ -1311,7 +1319,10 @@ System.out.println("Ending");
 
                     evWriter = new EventWriter(buffer, 550000, 200, null, bitInfo, emu.getCodaid());
                 }
-                catch (EvioException e) {/* never happen */}
+                catch (EvioException e) {
+                /* never happen */
+                    e.printStackTrace();
+                }
             }
 
 
@@ -1325,6 +1336,7 @@ System.out.println("Ending");
                     }
                     evWriter.close();
                     event.setLength(buffer.position());
+System.out.println("LC " + latch.getCount());
                     latch.countDown();
                 }
                 catch (EvioException e) {
@@ -1788,15 +1800,20 @@ System.out.println("Ending");
             // get et events
             public void run() {
                 try {
+                    events = null;
                     events = etSystem.newEvents(attachment, Mode.SLEEP, false, 0,
                                                 chunk, (int)etSystem.getEventSize(), group);
+System.out.println("ET channel, EvGetter: await barrier");
                     barrier.await();
+System.out.println("ET channel, EvGetter: await past");
                 }
                 catch (BrokenBarrierException e) {
                     // may happen when ending or resetting
+                    e.printStackTrace();
                 }
                 catch (InterruptedException e) {
                     // told to quit
+                    e.printStackTrace();
                 }
                 catch (Exception e) {
                     // ET system problem - run will come to an end
