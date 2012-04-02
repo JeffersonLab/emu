@@ -88,8 +88,11 @@ public class RocSimulation implements EmuModule, Runnable {
     /** The id of the detector which produced the data in block banks of the ROC raw records. */
     private int detectorId;
 
-    /** Number of Evio events generated & sent before an END event is sent. */
-    private int endLimit = 30000;
+    /**
+     * Number of Evio events generated & sent before an END event is sent.
+     * Value of 0 means don't end any END events automatically.
+     */
+    private int endLimit;
 
     /** Number of writing threads to ask for in generating data for ROC Raw banks. */
     private int writeThreads;
@@ -223,7 +226,7 @@ System.out.println("                                      SET ROCID TO " + rocId
         if (end != null) {
             try {
                 endLimit = Integer.parseInt(end);
-                if (endLimit < 1) endLimit = 30000;
+                if (endLimit < 1) endLimit = 0;
             }
             catch (NumberFormatException e) { /* defaults to 25M */ }
         }
@@ -488,12 +491,10 @@ System.out.println("INTERRUPTED thread " + Thread.currentThread().getName());
         synchronized (lock) {
             // Is the bank we grabbed next to be output? If not, wait.
             while (inputOrder != outputOrder) {
-System.out.println("eventToOutputQ: waiting on lock");
                 lock.wait();
             }
 
             // Place Data Transport Record on output channel
-System.out.println("eventToOutputQ: put bank on channel");
             outputChannels.get(0).getQueue().put(bank);
 
             // next one to be put on output channel
@@ -523,23 +524,21 @@ System.out.println("eventToOutputQ: put bank on channel");
         synchronized (lock) {
             // Is the bank we grabbed next to be output? If not, wait.
             while (inputOrder != outputOrder) {
-//System.out.println("eventToOutputQ: waiting on lock");
                 lock.wait();
             }
 
-            // Place Data Transport Record on output channel
-//System.out.println("eventToOutputQ: put bank on channel");
+            // Place banks on output channel
             for (PayloadBank bank : banks) {
                 outputChannels.get(0).getQueue().put(bank);
             }
 
-            // next one to be put on output channel
+            // next group to be put on output channel
             outputOrder = ++outputOrder % Integer.MAX_VALUE;
             lock.notifyAll();
 
             // stats
-            eventCountTotal += numEvents;
-            wordCountTotal  += eventWordSize;
+            eventCountTotal += eventBlockSize*banks.length;
+            wordCountTotal  += eventWordSize*banks.length;
         }
 
     }
@@ -586,13 +585,13 @@ System.out.println("eventToOutputQ: put bank on channel");
         public void run() {
 
            boolean sentOneAlready = false;
-           int  status=0, oldVal=0;
-           long timestamp = 0L, start_time = System.currentTimeMillis();
+           int  status=0;
+           long oldVal=0L, timestamp=0L, start_time = System.currentTimeMillis();
 
            DataGenerateJobNew job;
            semaphore = new Semaphore(2*writeThreads);
 
-           System.out.println("ROC SIM write thds = " + writeThreads);
+System.out.println("ROC SIM write thds = " + writeThreads);
 
            // Found out how many events are generated per method call, and the event size
            try {
@@ -627,19 +626,17 @@ System.out.println("eventToOutputQ: put bank on channel");
                numEvents = 2;
 
                try {
-//System.out.println("RocSim: wait to acquire semaphore, available permits = " +
-//                           semaphore.availablePermits());
                    semaphore.acquire();
 
-                   if (sentOneAlready && (eventNumber + numEvents > endLimit)) {
-//System.out.println("RocSim: hit end limit of " + endLimit + ", quitting");
+                   if (sentOneAlready && (endLimit > 0) &&
+                           (eventNumber + numEvents > endLimit)) {
+System.out.println("\nRocSim: hit event number limit of " + endLimit + ", quitting\n");
                        return;
                    }
                    sentOneAlready = true;
 
                    job = new DataGenerateJobNew(timestamp, status, rocRecordId, numEvents,
                                                 (int) eventNumber, inputOrder);
-//System.out.println("RocSim: submit job to threadpool");
                    writeThreadPool.execute(job);
 
                    inputOrder   = ++inputOrder % Integer.MAX_VALUE;
@@ -650,11 +647,10 @@ System.out.println("eventToOutputQ: put bank on channel");
                    long now = System.currentTimeMillis();
                    long deltaT = now - start_time;
                    if (deltaT > 2000) {
-                       System.out.println("DTR rate = " + String.format("%.3g", ((rocRecordId-oldVal)*1000./deltaT) ) + " Hz");
+                       System.out.println("event rate = " + String.format("%.3g", ((eventNumber-oldVal)*1000./deltaT) ) + " Hz");
                        start_time = now;
-                       oldVal = rocRecordId;
+                       oldVal = eventNumber;
                    }
-//System.out.println("RocSim: another round");
                }
                catch (Exception e) {
                    e.printStackTrace();
@@ -712,8 +708,6 @@ System.out.println("eventToOutputQ: put bank on channel");
                     eventToOutputQueue(evs);
 //System.out.println("RocSim("+jobNum + "): put evs on output Q");
                     semaphore.release();
-//System.out.println("RocSim(" + jobNum + "): released semaphore, available permits = " +
-//                           semaphore.availablePermits());
 
                     // TODO: error handling
                 }
@@ -768,7 +762,8 @@ System.out.println("eventToOutputQ: put bank on channel");
                try {
                    semaphore.acquire();
 
-                   if (sentOneAlready && (eventNumber + numEvents > endLimit)) {
+                   if (sentOneAlready && (endLimit > 0) &&
+                           (eventNumber + numEvents > endLimit)) {
                        return;
                    }
                    sentOneAlready = true;
