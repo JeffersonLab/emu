@@ -500,7 +500,7 @@ logger.info("      DataChannel Et : creating channel " + name);
             if (dataOutputThreads != null) {
                 waitTime = emu.getEndingTimeLimit() / outputThreadCount;
                 for (int i=0; i < outputThreadCount; i++) {
-//System.out.println("        try joining output thread #" + i + " ...");
+//System.out.println("        try joining output thread #" + i + " for " + (waitTime/1000) + " sec");
                     dataOutputThreads[i].join(waitTime);
                     // kill it if not already dead since we waited as long as possible
                     dataOutputThreads[i].interrupt();
@@ -525,6 +525,7 @@ logger.info("      DataChannel Et : creating channel " + name);
             e.printStackTrace();
         }
         queue.clear();
+//System.out.println("      close() is done");
     }
 
 
@@ -772,7 +773,7 @@ logger.info("      DataChannel Et : found END event");
                     etSystem.putEvents(attachment, events);
 
                     if (haveInputEndEvent) {
-logger.info("      DataChannel Et : have END, " + name + " quit input helping thread");
+//logger.info("      DataChannel Et : have END, " + name + " quit input helping thread");
                         return;
                     }
                 }
@@ -1136,10 +1137,6 @@ logger.warn("      DataChannel Et : " + name + " - PAUSED");
                                 shutdown();
                                 return;
                             }
-                            // If I have END event in hand ...
-                            else if (haveOutputEndEvent) {
-                                break;
-                            }
 
                             myInputOrder = inputOrder;
                             inputOrder = ++inputOrder % Integer.MAX_VALUE;
@@ -1186,13 +1183,11 @@ logger.warn("      DataChannel Et : " + name + " - PAUSED");
                             shutdown();
                             return;
                         }
-                        else if (haveOutputEndEvent) {
-                            break;
-                        }
                     }
 
                     latch = new CountDownLatch(etEventsIndex);
 
+                    // For each ET event that can be filled with something ...
                     for (int i=0; i < etEventsIndex; i++) {
                         // Get list of banks to put into this ET event
                         bankList = bankListArray[i];
@@ -1332,11 +1327,13 @@ System.out.println("Ending");
                     for (PayloadBank bank : bankList) {
 //System.out.println("      EvWriterNew Et: writing bank of type " +
 //                         bank.getType() + ", and total bytes " + bank.getTotalBytes());
+//                        if ( (Boolean)bank.getAttachment() ) {
+//                            System.out.println("SENDING OUT END");
+//                        }
                         evWriter.writeEvent(bank);
                     }
                     evWriter.close();
                     event.setLength(buffer.position());
-System.out.println("LC " + latch.getCount());
                     latch.countDown();
                 }
                 catch (EvioException e) {
@@ -1803,21 +1800,16 @@ System.out.println("LC " + latch.getCount());
                     events = null;
                     events = etSystem.newEvents(attachment, Mode.SLEEP, false, 0,
                                                 chunk, (int)etSystem.getEventSize(), group);
-System.out.println("ET channel, EvGetter: await barrier");
                     barrier.await();
-System.out.println("ET channel, EvGetter: await past");
                 }
                 catch (BrokenBarrierException e) {
                     // may happen when ending or resetting
-                    e.printStackTrace();
                 }
                 catch (InterruptedException e) {
                     // told to quit
-                    e.printStackTrace();
                 }
                 catch (Exception e) {
                     // ET system problem - run will come to an end
-                    e.printStackTrace();
                 }
             }
         }
