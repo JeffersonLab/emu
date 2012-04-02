@@ -261,7 +261,7 @@ logger.info("      DataChannel File (" + name + "): got PRESTART");
                         gotPrestart = true;
                     }
                     else {
-logger.info("      DataChannel File (" + name + "): got bank of type " + bank.getType());
+//logger.info("      DataChannel File (" + name + "): got bank of type " + bank.getType());
                     }
 
                     // Don't start writing to file until we get PRESTART
@@ -281,11 +281,11 @@ logger.warn("      DataChannel File (" + name + "): got event but NO PRESTART, g
                         if (directory != null) {
                             fileName = directory + "/" + fileName;
                         }
-logger.info("      DataChannel File (" + name + "): split, new file = " + fileName);
+//logger.info("      DataChannel File (" + name + "): split, new file = " + fileName);
                         evioFileWriter = new EventWriter(fileName);
                     }
 
-logger.info("      DataChannel File (" + name + "): try writing into file" + fileName);
+//logger.info("      DataChannel File (" + name + "): try writing into file" + fileName);
                     evioFileWriter.writeEvent(bank);
                     numBytesWritten += bankBytes;
 
