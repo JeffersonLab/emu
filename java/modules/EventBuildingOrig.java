@@ -22,10 +22,7 @@ import org.jlab.coda.emu.support.configurer.Configurer;
 import org.jlab.coda.emu.support.configurer.DataNotFoundException;
 import org.jlab.coda.emu.support.control.Command;
 import org.jlab.coda.emu.support.control.State;
-import org.jlab.coda.emu.support.data.EventType;
-import org.jlab.coda.emu.support.data.Evio;
-import org.jlab.coda.emu.support.data.PayloadBank;
-import org.jlab.coda.emu.support.data.PayloadBankQueue;
+import org.jlab.coda.emu.support.data.*;
 import org.jlab.coda.emu.support.logger.Logger;
 import org.jlab.coda.emu.support.transport.DataChannel;
 import org.jlab.coda.jevio.*;
@@ -173,6 +170,15 @@ public class EventBuildingOrig implements EmuModule {
     /** END event detected by one of the building threads. */
     private volatile boolean haveEndEvent;
 
+    /** If true, include run number & type in built trigger bank. */
+    private boolean includeRunData;
+
+    /** The number of the experimental run's configuration. */
+    private int runType;
+
+    /** The number of the experimental run. */
+    private int runNumber;
+
     /** If <code>true</code>, check timestamps for consistency. */
     private boolean checkTimestamps;
 
@@ -183,17 +189,13 @@ public class EventBuildingOrig implements EmuModule {
      */
     private int timestampSlop;
 
-
-    // The following members are for keeping statistics
-
-    /** The number of the experimental run. */
-    private long runNumber;
-
     /** The number of the event to be assigned to that which is built next. */
     private long eventNumber;
 
     /** The number of the event that this Event Builder last completely built. */
     private long lastEventNumberBuilt;
+
+    // The following members are for keeping statistics
 
     /** Total number of DataBank objects written to the outputs. */
     private long eventCountTotal;
@@ -248,9 +250,20 @@ public class EventBuildingOrig implements EmuModule {
         }
         catch (NumberFormatException e) {}
 
+        // default is NOT to include run number & type in build trigger bank
+        String str = attributeMap.get("runData");
+        if (str != null) {
+            if (str.equalsIgnoreCase("true") ||
+                str.equalsIgnoreCase("in")   ||
+                str.equalsIgnoreCase("on")   ||
+                str.equalsIgnoreCase("yes"))   {
+                includeRunData = true;
+            }
+        }
+
         // default is to check timestamp consistency
         checkTimestamps = true;
-        String str = attributeMap.get("tsCheck");
+        str = attributeMap.get("tsCheck");
         if (str != null) {
             if (str.equalsIgnoreCase("false") ||
                 str.equalsIgnoreCase("off")   ||
@@ -357,61 +370,45 @@ public class EventBuildingOrig implements EmuModule {
 
 
     /**
-     * This class takes Data Transport Records from a queue (an input channel, eg. ROC),
-     * extracts payload banks from those DTRs, and places the resulting banks in a payload
-     * bank queue associated with that channel. All other types of events are ignored.
-     * Nothing in this class depends on single event mode status.
-     */
-    private class Qfiller extends Thread {
+      * This class takes payload banks from a queue (an input channel, eg. ROC),
+      * and places the them in a payload bank queue associated with that channel.
+      * All other types of events are ignored.
+      * Nothing in this class depends on single event mode status.
+      */
+     private class Qfiller extends Thread {
 
-        BlockingQueue<EvioBank> channelQ;
-        PayloadBankQueue<PayloadBank> payloadBankQ;
+         BlockingQueue<EvioBank> channelQ;
+         PayloadBankQueue<PayloadBank> payloadBankQ;
 
-        Qfiller(PayloadBankQueue<PayloadBank> payloadBankQ, BlockingQueue<EvioBank> channelQ) {
-            this.channelQ = channelQ;
-            this.payloadBankQ = payloadBankQ;
-        }
+         Qfiller(PayloadBankQueue<PayloadBank> payloadBankQ, BlockingQueue<EvioBank> channelQ) {
+             this.channelQ = channelQ;
+             this.payloadBankQ = payloadBankQ;
+         }
 
-        @Override
-        public void run() {
-            EvioBank channelBank;
+         @Override
+         public void run() {
+             PayloadBank pBank;
 
-            while (state == CODAState.ACTIVE || paused) {
-                try {
-                    while (state == CODAState.ACTIVE || paused) {
-                        // block waiting for the next DTR from ROC.
-                        channelBank = channelQ.take();  // blocks, throws InterruptedException
-if (debug && printQSizes) {
-    int size1 = channelQ.size();
-    if (size1 > 400 && size1 % 100 == 0) System.out.println("in chan: " + size1);
-}
-
-                        // Is bank is in Data Transport Record format? If not, ignore it.
-                        if ( Evio.isDataTransportRecord(channelBank) ) {
-                            // Extract payload banks from DTR & place onto Q.
-                            // May be blocked here waiting on a Q.
-                            Evio.extractPayloadBanks(channelBank, payloadBankQ);
-if (debug && printQSizes) {
-    int size2 = payloadBankQ.size();
-    if (size2 > 400 && size2 % 100 == 0) System.out.println("payload Q: " + size2);
-}
-                        }
-                        else {
-if (debug) System.out.println("Qfiller: got non-DTR bank, discard");
-                        }
-                    }
-                } catch (EmuException e) {
-                    // EmuException from Evio.extractPayloadBanks if dtrBank
-                    // contains no data banks or record ID is out-of-sequence
-if (debug) System.out.println("Qfiller: got empty Data Transport Record or record ID is out-of-sequence");
-                    state = CODAState.ERROR;
-                    return;
-                } catch (InterruptedException e) {
-                    return;
-                }
-            }
-        }
-    }
+             while (state == CODAState.ACTIVE || paused) {
+                 try {
+                     while (state == CODAState.ACTIVE || paused) {
+                         // Block waiting for the next bank from ROC
+                         pBank = (PayloadBank)channelQ.take();  // blocks, throws InterruptedException
+                         // Check this bank's format. If bad, ignore it
+                         Evio.checkPayloadBank(pBank, payloadBankQ);
+                     }
+                 } catch (EmuException e) {
+                     // EmuException from Evio.checkPayloadBank() if
+                     // Roc raw or physics banks are in the wrong format
+ if (debug) System.out.println("Qfiller: Roc raw or physics event in wrong format");
+                     state = CODAState.ERROR;
+                     return;
+                 } catch (InterruptedException e) {
+                     return;
+                 }
+             }
+         }
+     }
 
 
     /**
@@ -479,22 +476,9 @@ if (debug) System.out.println("Qfiller: got empty Data Transport Record or recor
                         else if ((Integer)(banks[i].getAttachment()) == outputOrder) {
                             // wrap event-to-be-sent in Data Transport Record for next EB or ER
                             eventType = banks[i].getType();
-                            dtrTag = Evio.createCodaTag(eventType.getValue(), ebId);
-                            dtrEvent = new PayloadBank(dtrTag, DataType.BANK, ebRecordId);
-                            builder.setEvent(dtrEvent);
-
-                            try {
-                                // add bank with full recordId, num = # payload banks
-                                bank = new EvioBank(Evio.RECORD_ID_BANK, DataType.INT32, 1);
-                                bank.appendIntData(new int[] {ebRecordId});
-                                builder.addChild(dtrEvent, bank);
-                                // add event
-                                builder.addChild(dtrEvent, banks[i]);
-                                ebRecordId++;
-                            } catch (EvioException e) {/* never happen */}
 
                             if (eventType.isPhysics()) {
-                                outputChannels.get(outputOrderPhysics % outputChannels.size()).getQueue().put(dtrEvent);
+                                outputChannels.get(outputOrderPhysics % outputChannels.size()).getQueue().put(banks[i]);
                                 // stats
                                 eventCountTotal += banks[i].getEventCount();              // event count
                                 wordCountTotal  += banks[i].getHeader().getLength() + 1;  //  word count
@@ -507,13 +491,13 @@ if (debug) System.out.println("Qfiller: got empty Data Transport Record or recor
                                 for (DataChannel outChannel : outputChannels) {
                                     // As far as I can tell, the EvioWriter write to an ET
                                     // buffer is thread safe. Guess we'll find out.
-                                    outChannel.getQueue().put(dtrEvent);
+                                    outChannel.getQueue().put(banks[i]);
                                 }
                             }
                             else {
                                 // User events are not part of the round-robin output,
                                 // put on first output channel.
-                                outputChannels.get(0).getQueue().put(dtrEvent);
+                                outputChannels.get(0).getQueue().put(banks[i]);
                             }
 
                             // Get another built bank from this Q
@@ -716,7 +700,7 @@ if (debug && nonFatalError) System.out.println("\nERROR 2\n");
                         //--------------------------------------------------------------------
                         // Build trigger bank, number of ROCs given by number of buildingBanks
                         //--------------------------------------------------------------------
-                        combinedTrigger = new EvioEvent(Evio.BUILT_TRIGGER_BANK,
+                        combinedTrigger = new EvioEvent(CODATag.BUILT_TRIGGER_BANK.getValue(),
                                                         DataType.SEGMENT,
                                                         buildingBanks.length + 2);
                         builder.setEvent(combinedTrigger);
@@ -729,6 +713,8 @@ if (debug && nonFatalError) System.out.println("\nERROR 2\n");
                             // combine the trigger banks of input events into one (same if single event mode)
 //if (debug) System.out.println("BuildingThread: create trigger bank from built banks");
                             nonFatalError |= Evio.makeTriggerBankFromPhysics(buildingBanks, builder, ebId,
+                                                                             runNumber, runType,
+                                                                             includeRunData,
                                                                              checkTimestamps, timestampSlop);
                         }
                         // else if building with ROC raw records ...
@@ -739,7 +725,9 @@ if (debug && nonFatalError) System.out.println("\nERROR 2\n");
 //if (debug) System.out.println("BuildingThread: create trigger bank in SEM");
                                 nonFatalError |= Evio.makeTriggerBankFromSemRocRaw(buildingBanks, builder,
                                                                                    ebId, firstEventNumber,
-                                                                                   runNumber, checkTimestamps,
+                                                                                   runNumber, runType,
+                                                                                   includeRunData,
+                                                                                   checkTimestamps,
                                                                                    timestampSlop);
                             }
                             else {
@@ -747,7 +735,9 @@ if (debug && nonFatalError) System.out.println("\nERROR 2\n");
 //if (debug) System.out.println("BuildingThread: create trigger bank");
                                 nonFatalError |= Evio.makeTriggerBankFromRocRaw(buildingBanks, builder,
                                                                                 ebId, firstEventNumber,
-                                                                                runNumber, checkTimestamps,
+                                                                                runNumber, runType,
+                                                                                includeRunData,
+                                                                                checkTimestamps,
                                                                                 timestampSlop);
                             }
                         }
@@ -1164,6 +1154,7 @@ if (debug) System.out.println("gotValidControlEvents: found control event of typ
             // Reset some variables
             eventRate = wordRate = 0F;
             eventCountTotal = wordCountTotal = 0L;
+            runType = emu.getRunType();
             runNumber = emu.getRunNumber();
             ebRecordId = 0;
             eventNumber = 1L;
