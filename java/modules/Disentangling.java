@@ -826,7 +826,8 @@ if (debug && nonFatalError) System.out.println("\nERROR 4\n");
                     }
                     else {
 //if (debug) System.out.println("BuildingThread: build physics event with ROC raw banks");
-                        Evio.buildPhysicsEventWithRocRaw(combinedTrigger, buildingBanks, builder);
+                        Evio.buildPhysicsEventWithRocRaw(combinedTrigger, buildingBanks,
+                                                         builder, true);
                     }
 
                     // setting header lengths done in Evio.buildPhysicsEventWith* methods

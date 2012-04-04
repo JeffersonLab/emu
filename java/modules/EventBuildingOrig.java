@@ -170,6 +170,12 @@ public class EventBuildingOrig implements EmuModule {
     /** END event detected by one of the building threads. */
     private volatile boolean haveEndEvent;
 
+    /**
+     * If true, swap data if necessary when building event
+     * Assume data is all 32 bit integers.
+     */
+    private boolean swapData;
+
     /** If true, include run number & type in built trigger bank. */
     private boolean includeRunData;
 
@@ -250,8 +256,20 @@ public class EventBuildingOrig implements EmuModule {
         }
         catch (NumberFormatException e) {}
 
+        // default is to swap data if necessary -
+        // assume 32 bit ints
+        swapData = true;
+        String str = attributeMap.get("swap");
+        if (str != null) {
+            if (str.equalsIgnoreCase("false") ||
+                str.equalsIgnoreCase("off")   ||
+                str.equalsIgnoreCase("no"))   {
+                swapData = false;
+            }
+        }
+
         // default is NOT to include run number & type in build trigger bank
-        String str = attributeMap.get("runData");
+        str = attributeMap.get("runData");
         if (str != null) {
             if (str.equalsIgnoreCase("true") ||
                 str.equalsIgnoreCase("in")   ||
@@ -770,7 +788,8 @@ if (debug && nonFatalError) System.out.println("\nERROR 4\n");
                         }
                         else {
 //if (debug) System.out.println("BuildingThread: build physics event with ROC raw banks");
-                            Evio.buildPhysicsEventWithRocRaw(combinedTrigger, buildingBanks, builder);
+                            Evio.buildPhysicsEventWithRocRaw(combinedTrigger, buildingBanks,
+                                                             builder, swapData);
                         }
 
                         // setting header lengths done in Evio.buildPhysicsEventWith* methods
