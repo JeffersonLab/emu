@@ -102,6 +102,11 @@ public class RCConstants {
     /** String used as payload name for item holding int (1 if file content changed, else 0). */
     public static final String configPayloadFileChanged = "fileChanged";
 
+    /** String used as payload name for item holding run type int. */
+    public static final String prestartPayloadRunType = "codaId";
+    /** String used as payload name for item holding run number. */
+    public static final String prestartPayloadRunNumber = "runNumber";
+
 
     // Types in messages received in run/control/* callback
 
