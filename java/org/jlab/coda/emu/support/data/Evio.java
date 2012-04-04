@@ -1573,11 +1573,13 @@ System.out.println("Timestamps are NOT consistent !!!");
      * @param triggerBank bank containing merged trigger info
      * @param inputPayloadBanks array containing ROC raw records that will be built together
      * @param builder object used to build trigger bank
+     * @param swap swap the data to big endian if necessary by assuming all 32 bit ints
      * @return bank final built event
      */
     public static EvioBank buildPhysicsEventWithRocRaw(EvioBank triggerBank,
                                                        EvioBank[] inputPayloadBanks,
-                                                       EventBuilder builder) {
+                                                       EventBuilder builder,
+                                                       boolean swap) {
 
         int tag, childrenCount;
         int numPayloadBanks = inputPayloadBanks.length;
@@ -1600,8 +1602,10 @@ System.out.println("Timestamps are NOT consistent !!!");
                 // Find it by looking at status bit in tag.
                 tag = header.getTag();
                 isBigE = Evio.isTagBigEndian(tag);
-                // Reset it to big endian
-                tag = Evio.setTagEndian(tag, true);
+                // Reset it to big endian if swapping
+                if (swap) {
+                    tag = Evio.setTagEndian(tag, true);
+                }
 
                 // Create physics data bank with same tag & num as Roc Raw bank
                 dataBank = new EvioBank(tag, DataType.BANK, header.getNumber());
@@ -1625,8 +1629,8 @@ System.out.println("Timestamps are NOT consistent !!!");
                     // It is possible these are not the same if some crazy user
                     // stored big endian data on a little endian host or vice versa.
 
-                    // If data is big endian, just add bank
-                    if (isBigE) {
+                    // If data is big endian or we don't want to swap, just add bank
+                    if (isBigE || !swap) {
                         if (blockBank.getByteOrder() != ByteOrder.BIG_ENDIAN) {
                             blockBank.setByteOrder(ByteOrder.BIG_ENDIAN);
                         }
