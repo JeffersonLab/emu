@@ -379,7 +379,7 @@ logger.error("EmuModuleFactory.execute() : threw " + e.getMessage());
             if (channelList != null) {
                 for (DataChannel chan : channelList) {
                     DataTransport trans = chan.getDataTransport();
-logger.info("EmuModuleFactory.execute : END thru transport " + trans.name());
+logger.info("EmuModuleFactory.execute : END thru input transport " + trans.name());
                     trans.execute(cmd, true);  // true means we're doing inputs only
                 }
             }
@@ -396,7 +396,7 @@ logger.info("EmuModuleFactory.execute : END thru module " + mods.get(i).name());
             if (channelList != null) {
                 for (DataChannel chan : channelList) {
                     DataTransport trans = chan.getDataTransport();
-logger.info("EmuModuleFactory.execute : END thru transport " + trans.name());
+logger.info("EmuModuleFactory.execute : END thru output transport " + trans.name());
                     trans.execute(cmd, false);  // false means we're doing outputs only
                 }
             }
