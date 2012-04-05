@@ -72,15 +72,31 @@ public class DataChannelImplEt implements DataChannel {
     /** Byte order of output data (input data's order is specified in msg). */
     private ByteOrder byteOrder;
 
+    // OUTPUT
+
+    /** Order number of next array of new ET events (containing
+     *  bank lists) to be put back into ET system. */
     private int outputOrder;
+    /** Order of array of bank lists (to be put
+     *  into array of ET events) taken off Q. */
     private int inputOrder;
+    /** Synchronize getting banks off Q for multiple DataOutputHelpers. */
     private Object lockIn  = new Object();
+    /** Synchronize putting new ET events into ET system for multiple DataOutputHelpers. */
     private Object lockOut = new Object();
 
-    private Object lockIn2  = new Object();
-    private Object lockOut2 = new Object();
+    // INPUT
+
+    /** Order number of next list of evio banks to be put onto Q. */
     private int outputOrderIn;
+    /** Order of array of ET events read from the ET system. */
     private int inputOrderIn;
+    /** Synchronize getting ET events for multiple DataInputHelpers. */
+    private Object lockIn2  = new Object();
+    /** Synchronize putting evio banks onto Q for multiple DataInputHelpers. */
+    private Object lockOut2 = new Object();
+
+    // ----
 
     /** Do we pause the dataThread? */
     private volatile boolean pause;
@@ -743,7 +759,7 @@ logger.info("      DataChannel Et : found END event");
 
 
     /**
-     * Class used to take Evio events from Q, write them into ET events
+     * Class used to take Evio banks from Q, write them into ET events
      * and put them into an ET system.
      */
     private class DataOutputHelper implements Runnable {
@@ -754,7 +770,7 @@ logger.info("      DataChannel Et : found END event");
         /** Help in pausing DAQ. */
         int pauseCounter;
 
-        /** Thread pool for writing Evio events into new ET events. */
+        /** Thread pool for writing Evio banks into new ET events. */
         ExecutorService writeThreadPool;
 
         /** Thread pool for getting new ET events. */
@@ -763,7 +779,7 @@ logger.info("      DataChannel Et : found END event");
         /** Runnable object for getting new ET events - to be run in getThreadPool. */
         EvGetter getter;
 
-        /** Syncing for putting ET events into ET system. */
+        /** Syncing for getting new ET events from ET system. */
         CyclicBarrier getBarrier;
 
 
@@ -807,13 +823,14 @@ logger.info("      DataChannel Et : found END event");
 
         /**
          * This method is used to put an array of ET events into an ET system.
-         * It allows coordination between 2 DataOutputHelper threads so that
+         * It allows coordination between multiple DataOutputHelper threads so that
          * event order is preserved.
          *
          * @param events the ET events to put back into ET system
          * @param inputOrder the order in which evio events were grabbed off Q
          * @param offset index into events array
          * @param events2Write number of events to write
+         *
          * @throws InterruptedException if put or wait interrupted
          * @throws IOException ET communication error
          * @throws EtException will not happen
@@ -1126,25 +1143,41 @@ System.out.println("Ending");
          */
         private class EvWriter implements Runnable {
 
+            /** List of evio banks to write. */
             private LinkedList<PayloadBank> bankList;
+            /** ET event in which to write banks. */
             private EtEvent     event;
+            /** ET event's data buffer. */
             private ByteBuffer  buffer;
+            /** Object for writing banks into ET data buffer. */
             private EventWriter evWriter;
 
+            /**
+             * Encode the event type into the bit info word
+             * which will be in each evio block header.
+             *
+             * @param bSet bit set which will become part of the bit info word
+             * @param type event type to be encoded
+             */
             void setEventType(BitSet bSet, int type) {
+                // check args
                 if (type < 0) type = 0;
                 else if (type > 15) type = 15;
 
-                if (bSet.size() < 6) {
+                if (bSet == null || bSet.size() < 6) {
                     return;
                 }
-
+                // do the encoding
                 for (int i=2; i < 6; i++) {
                     bSet.set(i, ((type >>> i - 2) & 0x1) > 0);
                 }
             }
 
-            /** Constructor. */
+            /**
+             * Constructor.
+             * @param bankList list of banks to be written into a single ET event
+             * @param event ET event in which to place the banks
+             */
             EvWriter(LinkedList<PayloadBank> bankList, EtEvent event) {
                 this.event = event;
                 this.bankList = bankList;
@@ -1154,13 +1187,17 @@ System.out.println("Ending");
                     // the Roc's 2MB ET buffer size so no additional block headers must
                     // be written. It should contain less than 100 ROC Raw records,
                     // but we'll allow 200 such banks per block header.
+
+                    // ET event's data buffer
                     buffer = event.getDataBuffer();
                     buffer.clear();
                     buffer.order(byteOrder);
 
-                    // encode the event type into bits
+                    // Encode the event type into bits
                     BitSet bitInfo = new BitSet(24);
                     setEventType(bitInfo, bankList.getFirst().getType().getValue());
+
+                    // Create object to write evio banks into ET buffer
                     evWriter = new EventWriter(buffer, 550000, 200, null, bitInfo, emu.getCodaid());
                 }
                 catch (EvioException e) {
@@ -1170,16 +1207,21 @@ System.out.println("Ending");
             }
 
 
-            // Write bank into et event buffer.
-            /** {@inheritDoc} */
+            /**
+             * {@inheritDoc}<p>
+             * Write bank into et event buffer.
+             */
             @Override
             public void run() {
                 try {
+                    // Write banks into ET buffer
                     for (PayloadBank bank : bankList) {
                         evWriter.writeEvent(bank);
                     }
                     evWriter.close();
+                    // Be sure to set the length to bytes of data actually written
                     event.setLength(buffer.position());
+                    // Tell the DataOutputHelper thread that we're done
                     latch.countDown();
                 }
                 catch (EvioException e) {
@@ -1197,24 +1239,37 @@ System.out.println("Ending");
 
         /**
          * This class is designed to get new ET buffers/events
-         * simultaneously by way of a thread pool.
+         * simultaneously by way of a thread pool. The design is
+         * for an array of events to be available for use while
+         * this thread is getting another.
          */
         private class EvGetter implements Runnable {
 
+            /** Array of new events obtained from the ET system. */
             private EtEvent[] events;
+            /** Object used to synchronize the getting of new ET events. */
             private final CyclicBarrier barrier;
 
-            /** Constructor. */
+            /**
+             * Constructor.
+             * @param barrier object used to synchronize the getting of new ET events
+             */
             EvGetter(CyclicBarrier barrier) {
                 this.barrier = barrier;
             }
 
+            /**
+             * Get the array of new ET events obtained in newEvents() call.
+             * @return the array of new ET events obtained in newEvents() call
+             */
             EtEvent[] getEvents() {
                 return events;
             }
 
-            // get et events
-            /** {@inheritDoc} */
+            /**
+             * {@inheritDoc}<p>
+             * Get the ET events.
+             */
             @Override
             public void run() {
                 try {
@@ -1244,7 +1299,7 @@ System.out.println("Ending");
      * parses each, puts the events back into the ET system, and puts the parsed
      * evio banks onto the queue.<p>
      * For output channel, start the DataOutputHelper thread which takes a bank from
-     * the queue, puts it in a message, and sends it.
+     * the queue, puts it into a new ET event and puts that into the ET system.
      */
     public void startHelper() {
         if (input) {
@@ -1269,16 +1324,12 @@ System.out.println("Ending");
         }
     }
 
-    /**
-     * Pause the DataInputHelper or DataOutputHelper thread.
-     */
+    /** Pause the DataInputHelper or DataOutputHelper thread. */
     public void pauseHelper() {
         pause = true;
     }
 
-    /**
-     * Resume running the DataInputHelper or DataOutputHelper thread.
-     */
+    /** Resume running the DataInputHelper or DataOutputHelper thread. */
     public void resumeHelper() {
         pause = false;
     }
