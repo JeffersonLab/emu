@@ -116,9 +116,6 @@ public class DataChannelImplEt implements DataChannel {
     /** Got RESET command from Run Control. */
     private volatile boolean gotResetCmd;
 
-    /** Group sequential events on the output queue into a single ET buffer. */
-    boolean autoGroupOutput;
-
 
     //-------------------------------------------
     // ET Stuff
@@ -396,7 +393,6 @@ logger.info("      DataChannel Et : creating channel " + name);
         // start up thread to help with input or output
         openEtSystem();
         startHelper();
-        // TODO: race condition, should make sure threads are started before returning
     }
 
 
@@ -590,12 +586,27 @@ logger.info("      DataChannel Et : creating channel " + name);
      */
     private class DataInputHelper implements Runnable {
 
+        /** Array of ET events to be gotten from ET system. */
         private EtEvent[] events;
+
+        /** Variable to print messages when paused. */
         private int pauseCounter = 0;
+
+        /** Let a single waiter know that the main thread has been started. */
+        private CountDownLatch latch = new CountDownLatch(1);
 
 
         /** Constructor. */
         DataInputHelper () {}
+
+        /** A single waiter can call this method which returns when thread was started. */
+        private void waitUntilStarted() {
+            try {
+                latch.await();
+            }
+            catch (InterruptedException e) {
+            }
+        }
 
         /**
          * This method is used to put a list of PayloadBank objects
@@ -630,6 +641,9 @@ logger.info("      DataChannel Et : creating channel " + name);
         /** {@inheritDoc} */
         @Override
         public void run() {
+
+            // Tell the world I've started
+            latch.countDown();
 
             try {
 
@@ -765,25 +779,29 @@ logger.info("      DataChannel Et : found END event");
     private class DataOutputHelper implements Runnable {
 
         /** Used to sync things before putting new ET events. */
-        CountDownLatch latch;
+        private CountDownLatch latch;
 
         /** Help in pausing DAQ. */
-        int pauseCounter;
+        private int pauseCounter;
 
         /** Thread pool for writing Evio banks into new ET events. */
-        ExecutorService writeThreadPool;
+        private ExecutorService writeThreadPool;
 
         /** Thread pool for getting new ET events. */
-        ExecutorService getThreadPool;
+        private ExecutorService getThreadPool;
 
         /** Runnable object for getting new ET events - to be run in getThreadPool. */
-        EvGetter getter;
+        private EvGetter getter;
 
         /** Syncing for getting new ET events from ET system. */
-        CyclicBarrier getBarrier;
+        private CyclicBarrier getBarrier;
+
+        /** Let a single waiter know that the main thread has been started. */
+        private CountDownLatch startLatch = new CountDownLatch(1);
 
 
-        /** Constructor. */
+
+         /** Constructor. */
         DataOutputHelper() {
             // Thread pool with "writeThreadCount" number of threads & queue.
             writeThreadPool = Executors.newFixedThreadPool(writeThreadCount);
@@ -794,6 +812,16 @@ logger.info("      DataChannel Et : found END event");
 
             // Thread pool with 1 thread & queue
             getThreadPool = Executors.newSingleThreadExecutor();
+        }
+
+
+        /** A single waiter can call this method which returns when thread was started. */
+        private void waitUntilStarted() {
+            try {
+                startLatch.await();
+            }
+            catch (InterruptedException e) {
+            }
         }
 
 
@@ -868,6 +896,9 @@ logger.info("      DataChannel Et : found END event");
         /** {@inheritDoc} */
         @Override
         public void run() {
+
+            // Tell the world I've started
+            startLatch.countDown();
 
             try {
                 EtEvent[] events;
@@ -1306,20 +1337,22 @@ System.out.println("Ending");
             dataInputThreads = new Thread[inputThreadCount];
 
             for (int i=0; i < inputThreadCount; i++) {
-                dataInputThreads[i] = new Thread(emu.getThreadGroup(),
-                                                 new DataInputHelper(),
+                DataInputHelper helper = new DataInputHelper();
+                dataInputThreads[i] = new Thread(emu.getThreadGroup(), helper,
                                                  getName() + " data in" + i);
                 dataInputThreads[i].start();
+                helper.waitUntilStarted();
             }
         }
         else {
             dataOutputThreads = new Thread[outputThreadCount];
 
             for (int i=0; i < outputThreadCount; i++) {
-                dataOutputThreads[i] = new Thread(emu.getThreadGroup(),
-                                                  new DataOutputHelper(),
+                DataOutputHelper helper = new DataOutputHelper();
+                dataOutputThreads[i] = new Thread(emu.getThreadGroup(), helper,
                                                   getName() + " data out" + i);
                 dataOutputThreads[i].start();
+                helper.waitUntilStarted();
             }
         }
     }
