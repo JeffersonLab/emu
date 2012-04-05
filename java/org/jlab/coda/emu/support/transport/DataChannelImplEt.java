@@ -188,19 +188,6 @@ logger.info("      DataChannel Et : creating channel " + name);
             }
             catch (NumberFormatException e) {  }
         }
-//logger.info("      DataChannel Et : id = " + id);
-
-
-//        // set option whether or not to enforce evio
-//        // block header numbers to be sequential
-//        attribString = attrib.get("blockNumCheck");
-//        if (attribString != null) {
-//            if (attribString.equalsIgnoreCase("true") ||
-//                attribString.equalsIgnoreCase("on")   ||
-//                attribString.equalsIgnoreCase("yes"))   {
-//                blockNumberChecking = true;
-//            }
-//        }
 
         // size of TCP send buffer (0 means use operating system default)
         int tcpSendBuf = 0;
@@ -585,37 +572,7 @@ logger.info("      DataChannel Et : creating channel " + name);
 
 
         /** Constructor. */
-        DataInputHelper () {
-        }
-
-
-        /**
-         * This method is used to put an Evio bank (Data Transport Record)
-         * onto a queue. It allows coordination between multiple DataInputHelper
-         * threads so that event order is preserved.
-         *
-         * @param bank the Evio bank to put on the queue
-         * @param order the record Id of the DTR bank taken from the ET event
-         * @throws InterruptedException if put or wait interrupted
-         */
-        private void writeEvents(EvioBank bank, int order)
-                throws InterruptedException {
-
-            synchronized (lockOut2) {
-                // Is the bank we grabbed next to be output? If not, wait.
-                while (order != outputOrderIn) {
-                    lockOut2.wait();
-                }
-
-                // put events back in ET system
-                queue.put(bank);
-
-                // next one to be put on output channel
-                outputOrderIn = ++outputOrderIn % Integer.MAX_VALUE;
-                lockOut2.notifyAll();
-            }
-        }
-
+        DataInputHelper () {}
 
         /**
          * This method is used to put a list of PayloadBank objects
@@ -699,19 +656,8 @@ System.out.println("      DataChannel Et : " + name + " got RESET, quitting");
                     for (EtEvent ev : events) {
                         buf = ev.getDataBuffer();
 
-//                        if (ev.needToSwap()) {
-////System.out.println("      DataChannel Et : " + name + " SETTING byte order to LITTLE endian");
-//                            buf.order(ByteOrder.LITTLE_ENDIAN);
-//                        }
-
                         try {
                             reader = new EvioReader(buf);
-//                            // Have reader throw an exception if evio
-//                            // block numbers are not sequential.
-//                            if (blockNumberChecking) {
-//logger.info("      DataChannel Et : " + name + " have evio check block # sequence");
-//                                reader.checkBlockNumberSequence(true);
-//                            }
                             // Speed things up since no EvioListeners are used - doesn't do much
                             reader.getParser().setNotificationActive(false);
                             IBlockHeader blockHeader = reader.getCurrentBlockHeader();
@@ -785,107 +731,6 @@ logger.info("      DataChannel Et : found END event");
                 logger.warn("      DataChannel Et : " + name + " exit " + e.getMessage());
             }
         }
-
-
-
-                /** Method run ... */
-        public void runOrig() {
-
-            try {
-
-                EvioBank bank;
-                int myInputOrder;
-                EvioReader parser;
-                ByteBuffer buf;
-//                EvioBank fakeEv = new EvioEvent(1,DataType.BANK,1);
-
-                while ( etSystem.alive() ) {
-
-                    if (pause) {
-                        if (pauseCounter++ % 400 == 0)
-logger.warn("      DataChannel Et : " + name + " - PAUSED");
-                        Thread.sleep(5);
-                        continue;
-                    }
-
-                    // Get events while checking periodically to see if we must go away
-                    synchronized (lockIn2) {
-                        try {
-                            events = etSystem.getEvents(attachment, Mode.TIMED,
-                                                        Modify.NOTHING, etWaitTime, chunk);
-                            // Keep track of the order in which events are grabbed
-                            // in order to preserve event order with multiple threads.
-                            myInputOrder = inputOrderIn;
-                            inputOrderIn = (inputOrderIn + events.length) % Integer.MAX_VALUE;
-                        }
-                        catch (EtTimeoutException e) {
-                            if (haveInputEndEvent) {
-//System.out.println("      DataChannel Et : " + name + " have END, quitting");
-                                return;
-                            }
-                            else if (gotResetCmd) {
-//System.out.println("      DataChannel Et : " + name + " got RESET, quitting");
-                                return;
-                            }
-                            Thread.sleep(5);
-                            continue;
-                        }
-                    }
-
-                    int index = 0;
-
-                    for (EtEvent ev : events) {
-                        buf = ev.getDataBuffer();
-
-                        if (ev.needToSwap()) {
-//System.out.println("      DataChannel Et : " + name + " SETTING byte order to LITTLE endian");
-                            buf.order(ByteOrder.LITTLE_ENDIAN);
-                        }
-
-                        try {
-                            parser = new EvioReader(buf);
-                            // Speed things up since no EvioListeners are used - doesn't do much
-                            parser.getParser().setNotificationActive(false);
-                            bank = parser.parseNextEvent();
-//                            bank = fakeEv;
-
-                            // Put evio bank (DTR) on Q if it parses
-                            writeEvents(bank, myInputOrder + index++);
-
-                            // Handle end event ...
-                            if (Evio.dtrHasEndEvent(bank)) {
-                                // There should be no more events coming down the pike so
-                                // go ahead write out existing events and then shut this
-                                // thread down.
-//logger.info("      DataChannel Et : found END event");
-                                haveInputEndEvent = true;
-                                break;
-                            }
-                        }
-                        catch (EvioException e) {
-                            // if ET event data NOT in evio format, skip over it
-                            logger.error("        DataChannel Et : " + name +
-                                         " ET event data is NOT evio format, skip");
-                        }
-                    }
-
-                    // put all events back in ET system - even those unused
-                    etSystem.putEvents(attachment, events);
-
-                    if (haveInputEndEvent) {
-//logger.info("      DataChannel Et : have END, " + name + " quit input helping thread");
-                        return;
-                    }
-                }
-
-            } catch (InterruptedException e) {
-                logger.warn("      DataChannel Et : " + name + "  interrupted, exiting");
-            } catch (Exception e) {
-                e.printStackTrace();
-                logger.warn("      DataChannel Et : " + name + " exit " + e.getMessage());
-            }
-        }
-
     }
 
 
@@ -1221,7 +1066,7 @@ logger.warn("      DataChannel Et DataOutputHelper : " + name + " ET event too s
                         events[i].setControl(selects);
 
                         // Write banks' data into ET buffer in separate thread
-                        EvWriterNew writer = new EvWriterNew(bankList, events[i]);
+                        EvWriter writer = new EvWriter(bankList, events[i]);
                         writeThreadPool.execute(writer);
 
                         // Keep track of how many ET events we want to write
@@ -1270,7 +1115,7 @@ System.out.println("Ending");
          * This class is designed to write an evio bank's
          * contents into an ET buffer by way of a thread pool.
          */
-        private class EvWriterNew implements Runnable {
+        private class EvWriter implements Runnable {
 
             private LinkedList<PayloadBank> bankList;
             private EtEvent     event;
@@ -1291,7 +1136,7 @@ System.out.println("Ending");
             }
 
             /** Constructor. */
-            EvWriterNew(LinkedList<PayloadBank> bankList, EtEvent event) {
+            EvWriter(LinkedList<PayloadBank> bankList, EtEvent event) {
                 this.event = event;
                 this.bankList = bankList;
 
@@ -1306,12 +1151,7 @@ System.out.println("Ending");
 
                     // encode the event type into bits
                     BitSet bitInfo = new BitSet(24);
-//System.out.println("      EvWriterNew Et: setting block header type to " +
-//                                               bankList.getFirst().getType().getValue());
                     setEventType(bitInfo, bankList.getFirst().getType().getValue());
-//System.out.println("      EvWriterNew Et: bit info = " + bitInfo + ", source id = " + emu.getCodaid());
-
-
                     evWriter = new EventWriter(buffer, 550000, 200, null, bitInfo, emu.getCodaid());
                 }
                 catch (EvioException e) {
@@ -1325,11 +1165,6 @@ System.out.println("Ending");
             public void run() {
                 try {
                     for (PayloadBank bank : bankList) {
-//System.out.println("      EvWriterNew Et: writing bank of type " +
-//                         bank.getType() + ", and total bytes " + bank.getTotalBytes());
-//                        if ( (Boolean)bank.getAttachment() ) {
-//                            System.out.println("SENDING OUT END");
-//                        }
                         evWriter.writeEvent(bank);
                     }
                     evWriter.close();
@@ -1347,433 +1182,6 @@ System.out.println("Ending");
                 }
             }
         }
-
-
-        /** Method run ... */
-         public void runOld() {
-
-             try {
-                 EtEvent[] events;
-                 PayloadBank[] banks = new PayloadBank[chunk];
-                 int bankSize, bankCount, events2Write, eventArrayLen, putLimit, index, myInputOrder=0;
-
-                 // Get some new ET events
-                 getThreadPool.execute(getter);
-
-                 while ( etSystem.alive() ) {
-
-                     if (pause) {
-                         if (pauseCounter++ % 400 == 0) Thread.sleep(5);
-                         continue;
-                     }
-
-                     // Get new ET events, then have thread simultaneously get more.
-                     // If things are working properly, we can always get new events,
-                     // which means we should never block here.
-                     getBarrier.await();
-                     events = getter.getEvents();
-                     eventArrayLen = events.length; // convenience variable
-                     // Execute thread to get more new events
-                     getThreadPool.execute(getter);
-
-                     // Write events in chunks of this size.
-                     events2Write = 0;
-                     bankCount = 0;
-
-                     // First, grab all the banks we need ... in order!
-                     for (int j=0; j < eventArrayLen; j++) {
-                         banks[j] = null;
-                     }
-
-                     // If more than 1 output thread, need to sync things
-                     if (dataOutputThreads.length > 1) {
-                         synchronized (lockIn) {
-
-                             for (int j=0; j < eventArrayLen; j++) {
-                                 // Because "haveOutputEndEvent" is set true only in this
-                                 // synchronized code, we can check for it upon entering.
-                                 // If found already, we can quit.
-                                 if (haveOutputEndEvent) {
-                                     shutdown();
-                                     return;
-                                 }
-
-                                 // Grab a bank to put into an ET event buffer
-                                 // (one bank into one buffer),
-                                 // checking occasionally to see if we got an
-                                 // RESET command or someone found an END event.
-                                 while ((banks[j] == null) && !gotResetCmd) {
-                                     // Get bank off of Q
-                                     banks[j] = (PayloadBank) queue.poll(100L, TimeUnit.MILLISECONDS);
-
-                                     // Look for END event and mark it in attachment
-                                     if (Evio.isEndEvent(banks[j])) {
-                                         bankCount++;
-                                         banks[j].setAttachment(Boolean.TRUE);
-                                         haveOutputEndEvent = true;
-                                         break;
-                                     }
-                                     else if (banks[j] != null) {
-                                         bankCount++;
-                                         banks[j].setAttachment(Boolean.FALSE);
-                                     }
-                                 }
-
-                                 // If I've been told to RESET ...
-                                 if (gotResetCmd) {
-                                     shutdown();
-                                     return;
-                                 }
-                                 // If I have END event in hand ...
-                                 else if (haveOutputEndEvent) {
-                                     break;
-                                 }
-                             }
-
-                             myInputOrder = inputOrder;
-                             inputOrder = ++inputOrder % Integer.MAX_VALUE;
-                         }
-                     }
-                     else {
-                         for (int j=0; j < eventArrayLen; j++) {
-                             while ((banks[j] == null) && !gotResetCmd) {
-                                 banks[j] = (PayloadBank) queue.poll(100L, TimeUnit.MILLISECONDS);
-
-                                 if (Evio.isEndEvent(banks[j])) {
-                                     bankCount++;
-                                     banks[j].setAttachment(Boolean.TRUE);
-                                     haveOutputEndEvent = true;
-                                     break;
-                                 }
-                                 else if (banks[j] != null) {
-                                     bankCount++;
-                                     banks[j].setAttachment(Boolean.FALSE);
-                                 }
-                             }
-
-                             if (gotResetCmd) {
-                                 shutdown();
-                                 return;
-                             }
-                             else if (haveOutputEndEvent) {
-                                 break;
-                             }
-                         }
-                     }
-
-                     latch = new CountDownLatch(bankCount);
-                     // How many threads do we use to write this batch?
-                     putLimit = writeThreadCount > bankCount ? bankCount : writeThreadCount;
-
-                     outerLoop:
-                     for (int i=0; i < bankCount; ) {
-
-                         putLimit = putLimit > (bankCount - i) ? (bankCount - i) : putLimit;
-
-                         for (int j=0; j < putLimit; j++) {
-                             index = j+i;
-
-                             bankSize = banks[index].getTotalBytes();
-
-                             // if not enough room in et event to hold bank ...
-                             if (events[index].getDataBuffer().capacity() < bankSize) {
- logger.warn("      DataChannel Et DataOutputHelper : " + name + " et event too small to contain built event");
-                                 // This new event is not large enough, so dump it and replace it
-                                 // with a larger one. Performance will be terrible but it'll work.
-                                 etSystem.dumpEvents(attachment, new EtEvent[]{events[index]});
-                                 EtEvent[] evts = etSystem.newEvents(attachment, Mode.SLEEP, false, 0, 1, bankSize, group);
-                                 events[index] = evts[0];
-                             }
-
-                             // write bank's data into ET buffer in separate thread
-                             EvWriter writer = new EvWriter(banks[index], events[index]);
-                             writeThreadPool.execute(writer);
-
-                             events[index].setByteOrder(banks[index].getByteOrder());
-
-                             // CODA owns first select int
-                             int[] selects = events[index].getControl();
-                             selects[0] = id; // id in ROC output channel
-                             events[index].setControl(selects);
-
-                             // Keep track of how many events we want to write
-                             events2Write++;
-
-                             // Handle end event ...
-                             if (banks[index].getAttachment() == Boolean.TRUE) {
-                                 // There should be no more events coming down the pike so
-                                 // go ahead write out events and then shut this thread down.
-                                 break outerLoop;
-                             }
-                         }
-                         i += putLimit;
-                     }
-
-                     // Wait for all events to finish processing
-                     latch.await();
-
-                     // Put events back in ET system
-                     writeEvents(events, myInputOrder, 0, events2Write);
-
-                     // Dump any left over new ET events.
-                     if (events2Write < eventArrayLen) {
-                         etSystem.dumpEvents(attachment, events, events2Write, (eventArrayLen - events2Write));
-                     }
-
-                     if (haveOutputEndEvent) {
-                         shutdown();
-                         return;
-                     }
-                 }
-
-             } catch (InterruptedException e) {
-             } catch (Exception e) {
-                 e.printStackTrace();
-                 logger.warn("      DataChannel Et DataOutputHelper : exit " + e.getMessage());
-             }
-
-         }
-
-
-//        /** Method run ... */
-//        public void runOrig() {
-//
-//            try {
-//                EtEvent[] events;
-//                EvioBank[] banks = new EvioBank[chunk];
-//                int bankSize, bankCount, events2Write, eventArrayLen, putLimit, index, myInputOrder=0;
-//
-//                // Get some new ET events
-//                getThreadPool.execute(getter);
-//
-//                while ( etSystem.alive() ) {
-//
-//                    if (pause) {
-//                        if (pauseCounter++ % 400 == 0) Thread.sleep(5);
-//                        continue;
-//                    }
-//
-//                    // Get new ET events, then have thread simultaneously get more.
-//                    // If things are working properly, we can always get new events,
-//                    // which means we should never block here.
-//                    getBarrier.await();
-//                    events = getter.getEvents();
-//                    eventArrayLen = events.length; // convenience variable
-//                    // Execute thread to get more new events
-//                    getThreadPool.execute(getter);
-//
-//                    // Write events in chunks of this size.
-//                    events2Write = 0;
-//                    bankCount = 0;
-//
-//                    // First, grab all the banks we need ... in order!
-//                    for (int j=0; j < eventArrayLen; j++) {
-//                        banks[j] = null;
-//                    }
-//                    // If more than 1 output thread, need to sync things
-//                    if (dataOutputThreads.length > 1) {
-//                        synchronized (lockIn) {
-//
-//                            for (int j=0; j < eventArrayLen; j++) {
-//                                // Because "haveOutputEndEvent" is set true only in this
-//                                // synchronized code, we can check for it upon entering.
-//                                // If found already, we can quit.
-//                                if (haveOutputEndEvent) {
-//                                    shutdown();
-//                                    return;
-//                                }
-//
-//                                // Grab a bank to put into an ET event buffer,
-//                                // checking occasionally to see if we got an
-//                                // RESET command or someone found an END event.
-//                                while ((banks[j] == null) && !gotResetCmd) {
-//                                    // Get bank off of Q
-//                                    banks[j] = queue.poll(100L, TimeUnit.MILLISECONDS);
-//
-//                                    // Look for END event and mark it in attachment
-//                                    if (Evio.isEndEvent(banks[j])) {
-//                                        bankCount++;
-//                                        banks[j].setAttachment(Boolean.TRUE);
-//                                        haveOutputEndEvent = true;
-//                                        break;
-//                                    }
-//                                    else if (banks[j] != null) {
-//                                        bankCount++;
-//                                        banks[j].setAttachment(Boolean.FALSE);
-//                                    }
-//                                }
-//
-//                                // If I've been told to RESET ...
-//                                if (gotResetCmd) {
-//                                    shutdown();
-//                                    return;
-//                                }
-//                                // If I have END event in hand ...
-//                                else if (haveOutputEndEvent) {
-//                                    break;
-//                                }
-//                            }
-//
-//                            myInputOrder = inputOrder;
-//                            inputOrder = ++inputOrder % Integer.MAX_VALUE;
-//                        }
-//                    }
-//                    else {
-//                        for (int j=0; j < eventArrayLen; j++) {
-//                            while ((banks[j] == null) && !gotResetCmd) {
-//                                banks[j] = queue.poll(100L, TimeUnit.MILLISECONDS);
-//
-//                                if (Evio.isEndEvent(banks[j])) {
-//                                    bankCount++;
-//                                    banks[j].setAttachment(Boolean.TRUE);
-//                                    haveOutputEndEvent = true;
-//                                    break;
-//                                }
-//                                else if (banks[j] != null) {
-//                                    bankCount++;
-//                                    banks[j].setAttachment(Boolean.FALSE);
-//                                }
-//                            }
-//
-//                            if (gotResetCmd) {
-//                                shutdown();
-//                                return;
-//                            }
-//                            else if (haveOutputEndEvent) {
-//                                break;
-//                            }
-//                        }
-//                    }
-//
-//                    latch = new CountDownLatch(bankCount);
-//                    putLimit = writeThreadCount > bankCount ? bankCount : writeThreadCount;
-//
-//                    outerLoop:
-//                    for (int i=0; i < bankCount; ) {
-//
-//                        putLimit = putLimit > (bankCount - i) ? (bankCount - i) : putLimit;
-//
-//                        for (int j=0; j < putLimit; j++) {
-//                            index = j+i;
-//
-//                            bankSize = banks[index].getTotalBytes();
-//
-//                            // if not enough room in et event to hold bank ...
-//                            if (events[index].getDataBuffer().capacity() < bankSize) {
-//logger.warn("      DataChannel Et DataOutputHelper : " + name + " et event too small to contain built event");
-//                                // This new event is not large enough, so dump it and replace it
-//                                // with a larger one. Performance will be terrible but it'll work.
-//                                etSystem.dumpEvents(attachment, new EtEvent[]{events[index]});
-//                                EtEvent[] evts = etSystem.newEvents(attachment, Mode.SLEEP, false, 0, 1, bankSize, group);
-//                                events[index] = evts[0];
-//                            }
-//
-//                            // write bank's data into ET buffer in separate thread
-//                            EvWriter writer = new EvWriter(banks, events, index);
-//                            writeThreadPool.execute(writer);
-//
-//                            events[index].setByteOrder(banks[index].getByteOrder());
-//
-//                            // CODA owns first select int
-//                            int[] selects = events[index].getControl();
-//                            selects[0] = id; // id in ROC output channel
-//                            events[index].setControl(selects);
-//
-//                            // Keep track of how many events we want to write
-//                            events2Write++;
-//
-//                            // Handle end event ...
-//                            if (banks[index].getAttachment() == Boolean.TRUE) {
-//                                // There should be no more events coming down the pike so
-//                                // go ahead write out events and then shut this thread down.
-//                                break outerLoop;
-//                            }
-//                        }
-//                        i += putLimit;
-//                    }
-//
-//                    // Wait for all events to finish processing
-//                    latch.await();
-//
-//                    // Put events back in ET system
-//                    writeEvents(events, myInputOrder, 0, events2Write);
-//
-//                    // Dump any left over new ET events.
-//                    if (events2Write < eventArrayLen) {
-//                        etSystem.dumpEvents(attachment, events, events2Write, (eventArrayLen - events2Write));
-//                    }
-//
-//                    if (haveOutputEndEvent) {
-//                        shutdown();
-//                        return;
-//                    }
-//                }
-//
-//            } catch (InterruptedException e) {
-//            } catch (Exception e) {
-//                e.printStackTrace();
-//                logger.warn("      DataChannel Et DataOutputHelper : exit " + e.getMessage());
-//            }
-//
-//        }
-
-
-         /**
-         * This class is designed to write an evio bank's
-         * contents into an ET buffer by way of a thread pool.
-         */
-        private class EvWriter implements Runnable {
-
-            private PayloadBank bank;
-            private EtEvent     event;
-            private ByteBuffer  buffer;
-            private EventWriter evWriter;
-
-
-            /** Constructor. */
-            EvWriter(PayloadBank bank, EtEvent event) {
-                this.bank  = bank;
-                this.event = event;
-
-                try {
-                    // Make the block size bigger than
-                    // the Roc's 2MB ET buffer size so no additional block headers must
-                    // be written. It should contain less than 100 ROC Raw records,
-                    // but we'll allow 200 such banks per block header.
-                    buffer = event.getDataBuffer();
-                    buffer.clear();
-                    buffer.order(byteOrder);
-
-                    // encode the event type into bits
-                    BitSet bitInfo = new BitSet(24);
-                    BlockHeaderV4.setEventType(bitInfo, bank.getType().getValue());
-
-                    evWriter = new EventWriter(buffer, 550000, 200, null, bitInfo, emu.getCodaid());
-                }
-                catch (EvioException e) {/* never happen */}
-            }
-
-
-            // Write bank into et event buffer.
-            public void run() {
-                try {
-                    evWriter.writeEvent(bank);
-                    evWriter.close();
-                    event.setLength(buffer.position());
-                    latch.countDown();
-                }
-                catch (EvioException e) {
-                    e.printStackTrace();
-                }
-                catch (IOException e) {
-                    e.printStackTrace();
-                }
-                catch (EtException e) {
-                    e.printStackTrace();
-                }
-            }
-        }
-
 
 
         /**
@@ -1829,12 +1237,10 @@ System.out.println("Ending");
         if (input) {
             dataInputThreads = new Thread[inputThreadCount];
             inputHelpers = new DataInputHelper[inputThreadCount];
-//System.out.println("  # inputThreadCount = " + inputThreadCount);
 
             for (int i=0; i < inputThreadCount; i++) {
                 inputHelpers[i] = new DataInputHelper();
                 dataInputThreads[i] = new Thread(emu.getThreadGroup(), inputHelpers[i], getName() + " data in" + i);
-//System.out.println("STARTING INPUT THD");
                 dataInputThreads[i].start();
             }
         }
