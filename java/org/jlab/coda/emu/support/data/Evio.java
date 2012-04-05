@@ -539,27 +539,6 @@ public class Evio {
 
 
     /**
-     * Determine whether a Data Transport Record format bank contains banks which should be
-     * on the payload bank queue (ie is a physics event, control event, or ROC raw record).
-     *
-     * @param bank input bank
-     * @return <code>true</code> if arg is physics, control or ROC raw bank, else <code>false</code>
-     */
-    private static boolean isForPayloadQueue(EvioBank bank) {
-        if (bank == null)  return false;
-
-        int num = bank.getHeader().getNumber();
-        EventType eventType = getEventType(bank);
-        if (eventType == null) return false;
-//System.out.println("isForPayloadQueue: event type = " + eventType);
-
-        return ( eventType.isROCRaw() ||
-                (num == 0xCC && eventType.isControl()) ||
-                 eventType.isAnyPhysics() );
-    }
-
-
-    /**
      * Determine whether a bank is a trigger bank from a ROC or not.
      *
      * @param bank input bank
