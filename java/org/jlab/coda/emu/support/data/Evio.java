@@ -1473,9 +1473,6 @@ System.out.println("Timestamps are NOT consistent !!!");
     }
 
 
-    // TODO: make data swapping optional!!!!!!!
-
-
     /**
      * Build a single physics event with the given trigger bank
      * and the given array of ROC raw records. Swap data if necessary
