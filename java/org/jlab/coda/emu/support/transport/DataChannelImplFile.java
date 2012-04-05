@@ -39,16 +39,16 @@ public class DataChannelImplFile implements DataChannel {
     /** Logger associated with this EMU. */
     private Logger logger;
 
-    /** Field transport */
+    /** Transport object that created this channel. */
     private final DataTransportImplFile dataTransport;
 
-    /** Field name */
+    /** Channel name */
     private final String name;
 
     /** Channel id (corresponds to sourceId of file). */
     private int id;
 
-    /** Field dataThread */
+    /** Thread used to input or output data. */
     private Thread dataThread;
 
     /** The default size in bytes at which a new file is created. */
