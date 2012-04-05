@@ -1,7 +1,17 @@
+/*
+ * Copyright (c) 2008, Jefferson Science Associates
+ *
+ * Thomas Jefferson National Accelerator Facility
+ * Data Acquisition Group
+ *
+ * 12000, Jefferson Ave, Newport News, VA 23606
+ * Phone : (757)-269-7100
+ *
+ */
+
 package org.jlab.coda.emu.support.transport;
 
 import org.jlab.coda.emu.Emu;
-import org.jlab.coda.emu.EmuException;
 import org.jlab.coda.emu.support.codaComponent.CODAState;
 import org.jlab.coda.emu.support.data.EventType;
 import org.jlab.coda.emu.support.data.Evio;
@@ -10,9 +20,9 @@ import org.jlab.coda.emu.support.logger.Logger;
 import org.jlab.coda.jevio.*;
 
 import java.util.Map;
-import java.util.Vector;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.CountDownLatch;
 
 /**
  * Implementation of a DataChannel reading/writing from/to a file in EVIO format.
@@ -23,11 +33,14 @@ import java.util.concurrent.BlockingQueue;
  */
 public class DataChannelImplFile implements DataChannel {
 
+    /** EMU object that created this channel. */
+    private Emu emu;
+
+    /** Logger associated with this EMU. */
+    private Logger logger;
+
     /** Field transport */
     private final DataTransportImplFile dataTransport;
-
-    /** Map of config file attributes. */
-    private Map<String, String> attributeMap;
 
     /** Field name */
     private final String name;
@@ -54,7 +67,7 @@ public class DataChannelImplFile implements DataChannel {
     private final BlockingQueue<EvioBank> queue;
 
     /** Name of file currently being written to. */
-    String fileName;
+    private String fileName;
 
     /** Evio data file. */
     private EvioReader evioFile;
@@ -63,10 +76,8 @@ public class DataChannelImplFile implements DataChannel {
     private EventWriter evioFileWriter;
 
     /** Is this channel an input (true) or output (false) channel? */
-    boolean input;
+    private boolean input;
 
-    private Emu emu;
-    private Logger logger;
 
 
     /**
@@ -86,7 +97,6 @@ public class DataChannelImplFile implements DataChannel {
                       Emu emu) throws DataTransportException {
 
         this.dataTransport = dataTransport;
-        this.attributeMap = attrib;
         this.input = input;
         this.name = name;
         this.emu  = emu;
@@ -102,7 +112,7 @@ public class DataChannelImplFile implements DataChannel {
 
         // Set id number. Use any defined in config file else use default (0)
         id = 0;
-        String attribString = attributeMap.get("id");
+        String attribString = attrib.get("id");
         if (attribString != null) {
             try {
                 id = Integer.parseInt(attribString);
@@ -113,14 +123,14 @@ public class DataChannelImplFile implements DataChannel {
 
         // Directory given in config file?
         try {
-            directory = attributeMap.get("dir");
+            directory = attrib.get("dir");
 //logger.info("      DataChannel File: config file dir = " + directory);
         } catch (Exception e) {
         }
 
         // Filename given in config file?
         try {
-            fileName = attributeMap.get("fileName");
+            fileName = attrib.get("fileName");
             // scan for %d which must be replaced by the run number
             fileName = fileName.replace("%d", ""+runNumber);
 //logger.info("      DataChannel File: config file name = " + fileName);
@@ -130,14 +140,14 @@ public class DataChannelImplFile implements DataChannel {
         // Filename given in config file?
         String prefix = null;
         try {
-            prefix = attributeMap.get("prefix");
+            prefix = attrib.get("prefix");
 //logger.info("      DataChannel File: config file prefix = " + prefix);
         } catch (Exception e) {
         }
 
         // Split parameter given in config file?
         try {
-            String splitStr = attributeMap.get("split");
+            String splitStr = attrib.get("split");
             if (splitStr != null) {
                 split = Long.parseLong(splitStr);
 //logger.info("      DataChannel File: split = " + split);
@@ -170,14 +180,19 @@ public class DataChannelImplFile implements DataChannel {
             if (input) {
 logger.info("      DataChannel File: try opening input file of " + fileName);
                 evioFile = new EvioReader(fileName);
-                dataThread = new Thread(emu.getThreadGroup(), new DataInputHelper(), getName() + " data input");
+                DataInputHelper helper = new DataInputHelper();
+                dataThread = new Thread(emu.getThreadGroup(), helper, getName() + " data input");
+                dataThread.start();
+                helper.waitUntilStarted();
             } else {
 logger.info("      DataChannel File: try opening output file of " + fileName);
                 evioFileWriter = new EventWriter(fileName);
-                dataThread = new Thread(emu.getThreadGroup(), new DataOutputHelper(), getName() + " data out");
+                DataOutputHelper helper = new DataOutputHelper();
+                dataThread = new Thread(emu.getThreadGroup(), helper, getName() + " data out");
+                dataThread.start();
+                helper.waitUntilStarted();
             }
 
-            dataThread.start();
 
         } catch (Exception e) {
             if (input) {
@@ -187,22 +202,36 @@ logger.info("      DataChannel File: try opening output file of " + fileName);
                 throw new DataTransportException("DataChannelImplFile : Cannot create data file" + e.getMessage(), e);
             }
         }
-
-        // TODO: possible race condition, should make sure threads are started before returning
     }
 
 
     /**
-     * Class <b>DataInputHelper </b>
+     * Class <b>DataInputHelper</b>
      * This class reads data from the file and queues it on the fifo.
      * Don't know if this will ever be useful. Might as well generate
      * an END event when file is fully read.
      */
     private class DataInputHelper implements Runnable {
 
-        int recordId = 0;
+        /** Let a single waiter know that the main thread has been started. */
+        private CountDownLatch latch = new CountDownLatch(1);
 
+        /** A single waiter can call this method which returns when thread was started. */
+        private void waitUntilStarted() {
+            try {
+                latch.await();
+            }
+            catch (InterruptedException e) {
+            }
+        }
+
+        /** {@inheritDoc} */
+        @Override
         public void run() {
+
+            // I've started
+            latch.countDown();
+
             try {
                 while (!dataThread.isInterrupted()) {
                     EvioBank bank = evioFile.parseNextEvent();
@@ -213,11 +242,9 @@ logger.info("      DataChannel File: try opening output file of " + fileName);
                     queue.put(bank);  // will block
                 }
 
-                // Put in END event (not DTR)
+                // Put in END event
                 EvioEvent controlEvent = Evio.createControlEvent(EventType.END, 0);
                 queue.put(controlEvent);  // will block
-
-//logger.info("      DataChannel File (" + name + "): close file");
 
             } catch (InterruptedException e) {
                 // time to quit
@@ -240,7 +267,25 @@ logger.info("      DataChannel File: try opening output file of " + fileName);
      */
     private class DataOutputHelper implements Runnable {
 
+        /** Let a single waiter know that the main thread has been started. */
+        private CountDownLatch latch = new CountDownLatch(1);
+
+        /** A single waiter can call this method which returns when thread was started. */
+        private void waitUntilStarted() {
+            try {
+                latch.await();
+            }
+            catch (InterruptedException e) {
+            }
+        }
+
+        /** {@inheritDoc} */
+        @Override
         public void run() {
+
+            // I've started
+            latch.countDown();
+
             PayloadBank bank;
             int bankBytes;
             long numBytesWritten = 0L;
@@ -312,137 +357,45 @@ logger.warn("      DataChannel File (" + name + "): got event but NO PRESTART, g
 
     }
 
-    /**
-     * Class <b>DataOutputHelper </b>
-     * Handles sending data.
-     */
-    private class DataOutputHelperOrig implements Runnable {
 
-        public void run() {
-            EvioBank bank, dtrBank;
-            Vector<BaseStructure> kids;
-            int bankBytes, numKids;
-            long numBytesWritten = 0L;
-            boolean gotGO = false;
-
-            try {
-
-                while (!dataThread.isInterrupted()) {
-                    // This bank is a data transport record (DTR)
-                    dtrBank = queue.take(); // will block
-
-                    if (Evio.dtrHasEndEvent(dtrBank)) {
-                        evioFileWriter.close();
-logger.warn("      DataChannel File (" + name + "): got END, close file " + fileName);
-                        return;
-                    }
-                    else if (Evio.dtrHasGoEvent(dtrBank)) {
-//logger.warn("      DataChannel File (" + name + "): got GO");
-                        gotGO = true;
-                        continue;
-                    }
-                    else if (Evio.dtrHasControlEvent(dtrBank)) {
-//logger.info("      DataChannel File (" + name + "): got control event of type " + Evio.getEventType(dtrBank));
-                        continue;
-                    }
-
-                    if (!Evio.dtrHasPhysicsEvents(dtrBank)) {
-//logger.info("      DataChannel File (" + name + "): got event of type " + Evio.getEventType(dtrBank) +
-//                    " but expecting PHYSICS");
-                        throw new EmuException("expecting Physics event");
-                    }
-
-                    if (!gotGO) {
-                        // Got physics event before we got GO event, ignore it
-//logger.info("      DataChannel File (" + name + "): got PHYSICS event but NO GO");
-                        continue;
-                    }
-
-//logger.info("      DataChannel File (" + name + "): got PHYSICS event!");
-
-                    // Dig out the physics events from DTR
-                    // and deal with them individually.
-                    kids = dtrBank.getChildren();
-                    numKids = kids.size();
-
-                    // write all banks except the first one containing record ID
-                    for (int i=1; i < numKids; i++) {
-                        bank = (EvioBank) kids.get(i);
-
-                        bankBytes = bank.getTotalBytes();
-
-                        // If we're splitting the output file and writing the next bank
-                        // would put it over the split size limit ...
-                        if (split > 0L && (numBytesWritten + bankBytes > split)) {
-                            evioFileWriter.close();
-                            numBytesWritten = 0L;
-                            fileName = String.format("%s%06d", outputFilePrefix, (++fileCount));
-                            if (directory != null) {
-                                fileName = directory + "/" + fileName;
-                            }
-logger.info("      DataChannel File (" + name + "): split, new file = " + fileName);
-                            evioFileWriter = new EventWriter(fileName);
-                        }
-
-logger.info("      DataChannel File (" + name + "): try writing into file" + fileName);
-                        evioFileWriter.writeEvent(bank);
-                        numBytesWritten += bankBytes;
-                    }
-                }
-
-logger.info("      DataChannel File (" + name + "): close file " + fileName);
-
-            } catch (InterruptedException e) {
-                // time to quit
-            } catch (Exception e) {
-//logger.warn("      DataChannel File (" + name + "): exit, " + e.getMessage());
-                emu.getCauses().add(e);
-                dataTransport.state = CODAState.ERROR;
-            }
-
-            try { evioFileWriter.close(); }
-            catch (Exception e) {}
-        }
-
-    }
-
+    /** {@inheritDoc} */
+    @Override
     public String getName() {
         return name;
     }
 
-    // TODO: return something reasonable
+    /** {@inheritDoc} */
+    @Override
     public int getID() {
-        return 0;
+        return id;
     }
 
+    /** {@inheritDoc} */
+    @Override
     public boolean isInput() {
         return input;
     }
 
+    /** {@inheritDoc} */
+    @Override
     public DataTransport getDataTransport() {
         return dataTransport;
     }
 
-    /**
-     * Method receive ...
-     *
-     * @return EvioBank containing data
-     * @throws InterruptedException on wakeup with no data
-     */
+    /** {@inheritDoc} */
+    @Override
     public EvioBank receive() throws InterruptedException {
         return queue.take();
     }
 
-    /**
-     * Method send ...
-     *
-     * @param data in EvioBank format
-     */
+    /** {@inheritDoc} */
+    @Override
     public void send(EvioBank data) {
         queue.add(data);
     }
 
     /** {@inheritDoc} */
+    @Override
     public void close() {
         if (dataThread != null) dataThread.interrupt();
         try {
@@ -454,15 +407,13 @@ logger.info("      DataChannel File (" + name + "): close file " + fileName);
     }
 
     /** {@inheritDoc} */
+    @Override
     public void reset() {
         close();
     }
 
-    /**
-     * Method getQueue returns the queue of this DataChannel object.
-     *
-     * @return the queue (type BlockingQueue<EvioBank>) of this DataChannel object.
-     */
+    /** {@inheritDoc} */
+    @Override
     public BlockingQueue<EvioBank> getQueue() {
         return queue;
     }
