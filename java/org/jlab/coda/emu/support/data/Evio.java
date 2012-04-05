@@ -1,3 +1,14 @@
+/*
+ * Copyright (c) 2009, Jefferson Science Associates
+ *
+ * Thomas Jefferson National Accelerator Facility
+ * Data Acquisition Group
+ *
+ * 12000, Jefferson Ave, Newport News, VA 23606
+ * Phone : (757)-269-7100
+ *
+ */
+
 package org.jlab.coda.emu.support.data;
 
 import org.jlab.coda.jevio.*;
@@ -5,7 +16,6 @@ import org.jlab.coda.emu.EmuException;
 
 import java.nio.ByteOrder;
 import java.util.Arrays;
-import java.util.Vector;
 
 /**
  * This class is used as a layer on top of evio to handle CODA3 specific details.
