@@ -58,15 +58,19 @@ public class DataChannelImplEt implements DataChannel {
     /** Number of writing threads to ask for in copying data from banks to ET events. */
     private int writeThreadCount;
 
-    /** Number of output threads each of which has a pool of writeThreadCount. */
+    /** Number of data output helper threads each of which has a pool of writeThreadCount. */
     private int outputThreadCount;
+
+    /** Number of data input helper threads. */
     private int inputThreadCount;
 
     /** Field queue - filled buffer queue */
     private final BlockingQueue<EvioBank> queue;
 
-    /** Field dataThread */
+    /** Array of threads used to input data. */
     private Thread[] dataInputThreads;
+
+    /** Array of threads used output data. */
     private Thread[] dataOutputThreads;
 
     /** Byte order of output data (input data's order is specified in msg). */
