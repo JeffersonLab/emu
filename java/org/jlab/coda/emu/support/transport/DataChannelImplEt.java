@@ -31,6 +31,9 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 
 /**
+ * This class implement a data channel which gets data from
+ * or sends data to an ET system.
+ *
  * @author timmer
  * Dec 2, 2009
  */
@@ -69,20 +72,15 @@ public class DataChannelImplEt implements DataChannel {
     /** Byte order of output data (input data's order is specified in msg). */
     private ByteOrder byteOrder;
 
-    /** Map of config file attributes. */
-    private Map<String, String> attributeMap;
-
     private int outputOrder;
     private int inputOrder;
     private Object lockIn  = new Object();
     private Object lockOut = new Object();
-    private DataOutputHelper[] outputHelpers;
 
     private Object lockIn2  = new Object();
     private Object lockOut2 = new Object();
     private int outputOrderIn;
     private int inputOrderIn;
-    private DataInputHelper[] inputHelpers;
 
     /** Do we pause the dataThread? */
     private volatile boolean pause;
@@ -101,9 +99,6 @@ public class DataChannelImplEt implements DataChannel {
 
     /** Got RESET command from Run Control. */
     private volatile boolean gotResetCmd;
-
-//    /** Enforce evio block header numbers to be sequential? */
-//    boolean blockNumberChecking;
 
     /** Group sequential events on the output queue into a single ET buffer. */
     boolean autoGroupOutput;
@@ -164,7 +159,6 @@ public class DataChannelImplEt implements DataChannel {
         this.emu = emu;
         this.name = name;
         this.input = input;
-        this.attributeMap = attrib;
         this.dataTransport = transport;
         logger = emu.getLogger();
 
@@ -181,7 +175,7 @@ logger.info("      DataChannel Et : creating channel " + name);
 
         // Set id number. Use any defined in config file else use default (0)
         id = 0;
-        String attribString = attributeMap.get("id");
+        String attribString = attrib.get("id");
         if (attribString != null) {
             try {
                 id = Integer.parseInt(attribString);
@@ -243,7 +237,7 @@ logger.info("      DataChannel Et : creating channel " + name);
 
         // How may data writing threads at a time?
         writeThreadCount = 1;
-        attribString = attributeMap.get("wthreads");
+        attribString = attrib.get("wthreads");
         if (attribString != null) {
             try {
                 writeThreadCount = Integer.parseInt(attribString);
@@ -256,7 +250,7 @@ logger.info("      DataChannel Et : creating channel " + name);
 
         // How may groups of data writing threads at a time?
         inputThreadCount = 1;
-        attribString = attributeMap.get("ithreads");
+        attribString = attrib.get("ithreads");
         if (attribString != null) {
             try {
                 inputThreadCount = Integer.parseInt(attribString);
@@ -269,7 +263,7 @@ logger.info("      DataChannel Et : creating channel " + name);
 
         // How may groups of data writing threads at a time?
         outputThreadCount = 1;
-        attribString = attributeMap.get("othreads");
+        attribString = attrib.get("othreads");
         if (attribString != null) {
             try {
                 outputThreadCount = Integer.parseInt(attribString);
@@ -282,7 +276,7 @@ logger.info("      DataChannel Et : creating channel " + name);
 
         // How may buffers do we grab at a time?
         chunk = 100;
-        attribString = attributeMap.get("chunk");
+        attribString = attrib.get("chunk");
         if (attribString != null) {
             try {
                 chunk = Integer.parseInt(attribString);
@@ -294,7 +288,7 @@ logger.info("      DataChannel Et : creating channel " + name);
 
         // From which group do we grab new events? (default = 1)
         group = 1;
-        attribString = attributeMap.get("group");
+        attribString = attrib.get("group");
         if (attribString != null) {
             try {
                 group = Integer.parseInt(attribString);
@@ -308,12 +302,12 @@ logger.info("      DataChannel Et : creating channel " + name);
 
         // Set station name. Use any defined in config file else use
         // "station"+id for input and "GRAND_CENTRAL" for output.
-        stationName = attributeMap.get("stationName");
+        stationName = attrib.get("stationName");
 //logger.info("      DataChannel Et : station name = " + stationName);
 
 
         // Set station position. Use any defined in config file else use default (1)
-        attribString = attributeMap.get("position");
+        attribString = attrib.get("position");
         if (attribString != null) {
             try {
                 stationPosition = Integer.parseInt(attribString);
@@ -333,7 +327,7 @@ logger.info("      DataChannel Et : creating channel " + name);
                 }
                 catch (EtException e) { /* never happen */}
 
-                String filter = attributeMap.get("idFilter");
+                String filter = attrib.get("idFilter");
                 if (filter != null && filter.equalsIgnoreCase("on")) {
                     // Create filter for station so only events from a particular ROC
                     // (id as defined in config file) make it in.
@@ -358,7 +352,7 @@ logger.info("      DataChannel Et : creating channel " + name);
             // set endianness of data
             byteOrder = ByteOrder.BIG_ENDIAN;
             try {
-                String order = attributeMap.get("endian");
+                String order = attrib.get("endian");
                 if (order != null && order.equalsIgnoreCase("little")) {
                     byteOrder = ByteOrder.LITTLE_ENDIAN;
                 }
@@ -389,18 +383,27 @@ logger.info("      DataChannel Et : creating channel " + name);
         // TODO: race condition, should make sure threads are started before returning
     }
 
+
+    /** {@inheritDoc} */
+    @Override
     public String getName() {
         return name;
     }
 
+    /** {@inheritDoc} */
+    @Override
     public int getID() {
         return id;
     }
 
+    /** {@inheritDoc} */
+    @Override
     public boolean isInput() {
         return input;
     }
 
+    /** {@inheritDoc} */
+    @Override
     public DataTransportImplEt getDataTransport() {
         return dataTransport;
     }
@@ -438,10 +441,14 @@ logger.info("      DataChannel Et : creating channel " + name);
         }
     }
 
+    /** {@inheritDoc} */
+    @Override
     public EvioBank receive() throws InterruptedException {
         return queue.take();
     }
 
+    /** {@inheritDoc} */
+    @Override
     public void send(EvioBank bank) {
         try {
             queue.put(bank);   // blocks if capacity reached
@@ -451,9 +458,8 @@ logger.info("      DataChannel Et : creating channel " + name);
         catch (InterruptedException e) {/* ignore */}
     }
 
-    /**
-     * {@inheritDoc}
-     */
+    /** {@inheritDoc} */
+    @Override
     public void close() {
         logger.warn("      DataChannel Et close() : " + name + " - closing this channel (close ET system)");
 
@@ -520,6 +526,7 @@ logger.info("      DataChannel Et : creating channel " + name);
      * {@inheritDoc}
      * Reset this channel by interrupting the data sending threads and closing ET system.
      */
+    @Override
     public void reset() {
         logger.warn("      DataChannel Et reset() : " + name + " - closing this channel (close ET system)");
 
@@ -604,7 +611,8 @@ logger.info("      DataChannel Et : creating channel " + name);
         }
 
 
-        /** Method run ... */
+        /** {@inheritDoc} */
+        @Override
         public void run() {
 
             try {
@@ -840,7 +848,8 @@ logger.info("      DataChannel Et : found END event");
         }
 
 
-        /** Method run ... */
+        /** {@inheritDoc} */
+        @Override
         public void run() {
 
             try {
@@ -1162,6 +1171,8 @@ System.out.println("Ending");
 
 
             // Write bank into et event buffer.
+            /** {@inheritDoc} */
+            @Override
             public void run() {
                 try {
                     for (PayloadBank bank : bankList) {
@@ -1203,6 +1214,8 @@ System.out.println("Ending");
             }
 
             // get et events
+            /** {@inheritDoc} */
+            @Override
             public void run() {
                 try {
                     events = null;
@@ -1236,21 +1249,21 @@ System.out.println("Ending");
     public void startHelper() {
         if (input) {
             dataInputThreads = new Thread[inputThreadCount];
-            inputHelpers = new DataInputHelper[inputThreadCount];
 
             for (int i=0; i < inputThreadCount; i++) {
-                inputHelpers[i] = new DataInputHelper();
-                dataInputThreads[i] = new Thread(emu.getThreadGroup(), inputHelpers[i], getName() + " data in" + i);
+                dataInputThreads[i] = new Thread(emu.getThreadGroup(),
+                                                 new DataInputHelper(),
+                                                 getName() + " data in" + i);
                 dataInputThreads[i].start();
             }
         }
         else {
             dataOutputThreads = new Thread[outputThreadCount];
-            outputHelpers = new DataOutputHelper[outputThreadCount];
 
             for (int i=0; i < outputThreadCount; i++) {
-                outputHelpers[i] = new DataOutputHelper();
-                dataOutputThreads[i] = new Thread(emu.getThreadGroup(), outputHelpers[i], getName() + " data out" + i);
+                dataOutputThreads[i] = new Thread(emu.getThreadGroup(),
+                                                  new DataOutputHelper(),
+                                                  getName() + " data out" + i);
                 dataOutputThreads[i].start();
             }
         }
@@ -1270,10 +1283,11 @@ System.out.println("Ending");
         pause = false;
     }
 
+    /** {@inheritDoc} */
+    @Override
     public BlockingQueue<EvioBank> getQueue() {
         return queue;
     }
-
 
 
 }
