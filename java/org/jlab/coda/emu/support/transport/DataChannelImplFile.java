@@ -229,6 +229,8 @@ logger.info("      DataChannel File: try opening output file of " + fileName);
         @Override
         public void run() {
 
+            int counter = 0;
+
             // I've started
             latch.countDown();
 
@@ -240,10 +242,11 @@ logger.info("      DataChannel File: try opening output file of " + fileName);
                     }
 
                     queue.put(bank);  // will block
+                    counter++;
                 }
 
                 // Put in END event
-                EvioEvent controlEvent = Evio.createControlEvent(EventType.END, 0);
+                EvioEvent controlEvent = Evio.createControlEvent(EventType.END, 0, 0, counter, 0);
                 queue.put(controlEvent);  // will block
 
             } catch (InterruptedException e) {
