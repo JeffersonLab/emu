@@ -126,10 +126,10 @@ public class RocSimulation implements EmuModule, Runnable {
     /** The number of the last event that this ROC created. */
     private long lastEventNumberCreated;
 
-    /** Total number of DataBank objects written to the outputs. */
+    /** Total number of EvioBank objects written to the outputs. */
     private long eventCountTotal;
 
-    /** Sum of the sizes, in 32-bit words, of all DataBank objects written to the outputs. */
+    /** Sum of the sizes, in 32-bit words, of all EvioBank objects written to the outputs. */
     private long wordCountTotal;
 
     /** Instantaneous event rate in Hz over the last time period of length {@link #statGatheringPeriod}. */
@@ -733,7 +733,8 @@ System.out.println("\nRocSim: hit event number limit of " + endLimit + ", quitti
             // Put in END event
             try {
 //System.out.println("          RocSim: Putting in END control event");
-                EvioEvent controlEvent = Evio.createControlEvent(EventType.END, emu.getRunNumber());
+                EvioEvent controlEvent = Evio.createControlEvent(EventType.END, 0, 0,
+                                                                 (int)eventCountTotal, 0);
                 PayloadBank bank = new PayloadBank(controlEvent);
                 bank.setType(EventType.END);
                 outputChannels.get(0).getQueue().put(bank);
@@ -817,7 +818,8 @@ System.out.println("\nRocSim: hit event number limit of " + endLimit + ", quitti
             // Put in PRESTART event
             try {
 //System.out.println("          RocSim: Putting in PRESTART control event");
-                EvioEvent controlEvent = Evio.createControlEvent(EventType.PRESTART, emu.getRunNumber());
+                EvioEvent controlEvent = Evio.createControlEvent(EventType.PRESTART, emu.getRunNumber(),
+                                                                 emu.getRunType(), 0, 0);
                 PayloadBank bank = new PayloadBank(controlEvent);
                 bank.setType(EventType.PRESTART);
                 outputChannels.get(0).getQueue().put(bank);
@@ -846,7 +848,8 @@ System.out.println("\nRocSim: hit event number limit of " + endLimit + ", quitti
             // Put in PAUSE event
             try {
 //System.out.println("          RocSim: Putting in PAUSE control event");
-                EvioEvent controlEvent = Evio.createControlEvent(EventType.PAUSE, emu.getRunNumber());
+                EvioEvent controlEvent = Evio.createControlEvent(EventType.PAUSE, 0, 0,
+                                                                 (int)eventCountTotal, 0);
                 PayloadBank bank = new PayloadBank(controlEvent);
                 bank.setType(EventType.PAUSE);
                 outputChannels.get(0).getQueue().put(bank);
@@ -868,7 +871,8 @@ System.out.println("\nRocSim: hit event number limit of " + endLimit + ", quitti
             // Put in GO event
             try {
 //System.out.println("          RocSim: Putting in GO control event");
-                EvioEvent controlEvent = Evio.createControlEvent(EventType.GO, emu.getRunNumber());
+                EvioEvent controlEvent = Evio.createControlEvent(EventType.GO, 0, 0,
+                                                                 (int)eventCountTotal, 0);
                 PayloadBank bank = new PayloadBank(controlEvent);
                 bank.setType(EventType.GO);
                 outputChannels.get(0).getQueue().put(bank);
