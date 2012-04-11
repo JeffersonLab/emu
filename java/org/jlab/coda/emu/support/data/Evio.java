@@ -519,6 +519,25 @@ public class Evio {
 
 
     /**
+      * Determine whether a bank is a SYNC control event or not.
+      *
+      * @param bank input bank
+      * @return <code>true</code> if arg is SYNC event, else <code>false</code>
+      */
+     public static boolean isSyncEvent(EvioBank bank) {
+         if (bank == null)  return false;
+
+         BaseStructureHeader header = bank.getHeader();
+
+         // Look inside to see if it is an END event.
+         return (header.getTag() == 16 &&
+                 header.getNumber() == 0xCC &&
+                 header.getDataTypeValue() == 1 &&
+                 header.getLength() == 4);
+     }
+
+
+    /**
       * Determine whether a bank is a PAUSE control event or not.
       *
       * @param bank input bank
@@ -590,7 +609,7 @@ public class Evio {
         // See what type of event this is
         // Only interested in known types such as physics, roc raw, control, and user events.
         EventType eventType = pBank.getType();
-        if (eventType == null) {
+        if (eventType == null || !eventType.isEbFriendly()) {
 System.out.println("checkPayloadBank: unknown type, dump payload bank");
             return;
         }
@@ -630,6 +649,312 @@ System.out.println("checkPayloadBank: DTR bank source Id (" + sourceId + ") != p
 
         // Put bank on queue.
         payloadQueue.put(pBank);
+    }
+
+
+    /**
+     * Check each payload bank - one from each input channel - for a number of issues:<p>
+     * <ol>
+     * <li>if there are any sync bits set, all must be sync banks
+     * <li>the ROC ids of the banks must be unique
+     * <li>if any banks are in single-event-mode, all need to be in that mode
+     * <li>at this point all banks are either physics events or ROC raw record, but must be identical types
+     * <li>there are the same number of events in each bank
+     * </ol>
+     *
+     * @param buildingBanks array containing banks that will be built together
+     * @return <code>true</code> if non-fatal error occurred, else <code>false</code>
+     * @throws EmuException if some events are in single event mode and others are not;
+     *                      if some physics and others ROC raw event types;
+     *                      if there are a differing number of events in each payload bank
+     */
+    public static boolean checkConsistency(PayloadBank[] buildingBanks) throws EmuException {
+        boolean nonFatalError = false;
+
+        // For each ROC raw data record check the sync bit
+        int syncBankCount = 0;
+
+        // For each ROC raw data record check the single-event-mode bit
+        int singleEventModeBankCount = 0;
+
+        // By the time this method is run, all input banks are either (partial)physics or ROC raw.
+        // Just make sure they're all identical.
+        int physicsEventCount = 0;
+
+        // Number of events contained payload bank
+        int numEvents = buildingBanks[0].getHeader().getNumber();
+
+        for (int i=0; i < buildingBanks.length; i++) {
+            if (buildingBanks[i].isSync()) {
+                syncBankCount++;
+            }
+
+            if (buildingBanks[i].isSingleEventMode()) {
+                singleEventModeBankCount++;
+            }
+
+            if (buildingBanks[i].getType().isAnyPhysics()) {
+                physicsEventCount++;
+            }
+
+            for (int j=i+1; j < buildingBanks.length; j++) {
+                if ( buildingBanks[i].getSourceId() == buildingBanks[j].getSourceId()  ) {
+                    // ROCs have duplicate IDs
+                    nonFatalError = true;
+                }
+            }
+
+            // Check that there are the same # of events are contained in each payload bank
+            if (numEvents != buildingBanks[i].getHeader().getNumber()) {
+                throw new EmuException("differing # of events sent by each ROC");
+            }
+        }
+
+        // If one is a sync, all must be syncs
+        if (syncBankCount > 0 && syncBankCount != buildingBanks.length) {
+            // Some banks are sync banks and some are not
+            nonFatalError = true;
+        }
+
+        // If one is a single-event-mode, all must be
+        if (singleEventModeBankCount > 0 && singleEventModeBankCount != buildingBanks.length) {
+            // Some banks are single-event-mode and some are not, so we cannot build at this point
+            throw new EmuException("not all events are in single event mode");
+        }
+
+        // All must be physics or all must be ROC raw
+        if (physicsEventCount > 0 && physicsEventCount != buildingBanks.length) {
+            // Some banks are physics and some ROC raw
+            throw new EmuException("not all events are physics or not all are ROC raw");
+        }
+
+        return nonFatalError;
+    }
+
+
+    /**
+     * Check each payload bank - one from each input channel - to see if there are any
+     * control events. A valid control event requires all channels to have identical
+     * control events. If only some are control events, throw exception as it must
+     * be all or none. If none are control events, do nothing as the banks will be built
+     * into a single event momentarily.
+     *
+     * @param buildingBanks array containing events that will be built together
+     * @param runNumber check this (correct) run # against the one in the control event
+     * @param runType   check this (correct) run type against the one in the control event
+     * @return <code>true</code> if a proper control events found, else <code>false</code>
+     * @throws EmuException if events contain mixture of control/data or control types
+     */
+    public static boolean gotValidControlEvents(PayloadBank[] buildingBanks, int runNumber, int runType)
+            throws EmuException {
+
+        int counter = 0;
+        int controlEventCount = 0;
+        int numberOfBanks = buildingBanks.length;
+        EventType eventType;
+        EventType[] types = new EventType[numberOfBanks];
+        boolean debug = false;
+
+        // Count control events
+        for (PayloadBank bank : buildingBanks) {
+            // Might be a ROC Raw, Physics, or Control Event
+            eventType = bank.getType();
+            if (eventType.isControl()) {
+                controlEventCount++;
+            }
+            types[counter++] = eventType;
+        }
+
+        // If one is a control event, all must be identical control events.
+        if (controlEventCount > 0) {
+            // All events must be control events
+            if (controlEventCount != numberOfBanks) {
+if (debug) System.out.println("gotValidControlEvents: got " + controlEventCount +
+                             " control events, but have " + numberOfBanks + " banks!");
+                throw new EmuException("not all channels have control events");
+            }
+
+            // Make sure all are the same type of control event
+            eventType = types[0];
+            for (int i=1; i < types.length; i++) {
+                if (eventType != types[i]) {
+                    throw new EmuException("different type control events on each channel");
+                }
+            }
+
+            // Prestart events require an additional check,
+            // run #'s and run types must be identical
+            if (eventType == EventType.PRESTART) {
+                int[] prestartData;
+                for (PayloadBank bank : buildingBanks) {
+                    prestartData = bank.getIntData();
+                    if (prestartData == null) {
+                        throw new EmuException("PRESTART event does not have data");
+                    }
+
+                    if (prestartData[1] != runNumber) {
+if (debug) System.out.println("gotValidControlEvents: warning, PRESTART event bad run #, " +
+                                      prestartData[1] + ", should be " + runNumber);
+                        throw new EmuException("PRESTART event bad run #, " + prestartData[1]);
+                    }
+
+                    if (prestartData[2] != runType) {
+if (debug) System.out.println("gotValidControlEvents: warning, PRESTART event bad run type, " +
+                                      prestartData[2] + ", should be " + runType);
+                        throw new EmuException("PRESTART event bad run type, " + prestartData[2]);
+                    }
+                }
+
+
+
+            }
+if (debug) System.out.println("gotValidControlEvents: found control event of type " + eventType.name());
+
+            return true;
+        }
+
+        return false;
+    }
+
+
+    /**
+     * This method takes an existing control event and updates its data.
+     * This is useful for the event builder which receives control events
+     * from ROCs or other EBs and needs to pass it "updated" further
+     * downstream.
+     *
+     * @param controlEvent    control event to be updated; if not a valid type, false is returned
+     * @param runNumber       current run number for prestart event
+     * @param runType         current run type for prestart event
+     * @param eventsInRun     number of events so far in run for all except prestart event
+     * @param eventsSinceSync number of events since last sync for sync event
+     *
+     * @return <code>true</code> if a proper control event found and updated,
+     *         else <code>false</code>
+     */
+    public static boolean updateControlEvent(EvioEvent controlEvent, int runNumber, int runType,
+                                      int eventsInRun, int eventsSinceSync) {
+
+        // Current time in seconds since Jan 1, 1970 GMT
+        int time = (int) (System.currentTimeMillis()/1000L);
+
+        if (isGoEvent(controlEvent)   ||
+            isEndEvent(controlEvent)  ||
+            isPauseEvent(controlEvent)  ) {
+
+            int[] newData = new int[] {time, 0, eventsInRun};
+            controlEvent.setIntData(newData);
+        }
+        else if (isPrestartEvent(controlEvent)) {
+            int[] newData = new int[] {time, runNumber, runType};
+            controlEvent.setIntData(newData);
+        }
+        else if (isSyncEvent(controlEvent)) {
+            int[] newData = new int[] {time, eventsSinceSync, eventsInRun};
+            controlEvent.setIntData(newData);
+        }
+        else {
+            return false;
+        }
+
+        return true;
+    }
+
+
+    /**
+     * Create a Control event for testing purposes.
+     *
+     * <code><pre>
+     * Sync event:
+     * _______________________________________
+     * |          Event Length = 4           |
+     * |_____________________________________|
+     * |    type = 16     |  0x1   |  0xCC   |
+     * |_____________________________________|
+     * |                time                 |
+     * |_____________________________________|
+     * |   number of events since last sync  |
+     * |_____________________________________|
+     * |      number of events in run        |
+     * |_____________________________________|
+     *
+     * Prestart event:
+     * _______________________________________
+     * |          Event Length = 4           |
+     * |_____________________________________|
+     * |    type = 17     |  0x1   |  0xCC   |
+     * |_____________________________________|
+     * |                time                 |
+     * |_____________________________________|
+     * |              Run Number             |
+     * |_____________________________________|
+     * |               Run Type              |
+     * |_____________________________________|
+     *
+     *
+     * Go (type = 18), Pause (type = 19) or End (type = 20) event:
+     * _______________________________________
+     * |          Event Length = 4           |
+     * |_____________________________________|
+     * |    type = 20     |  0x1   |  0xCC   |
+     * |_____________________________________|
+     * |                time                 |
+     * |_____________________________________|
+     * |              (reserved)             |
+     * |_____________________________________|
+     * |      number of events in run        |
+     * |_____________________________________|
+     * </pre></code>
+     *
+     * @param type event type, must be PRESTART, GO, PAUSE, or END
+     * @param runNumber       current run number for prestart event
+     * @param runType         current run type for prestart event
+     * @param eventsInRun     number of events so far in run for all except prestart event
+     * @param eventsSinceSync number of events since last sync for sync event
+     *
+     * @return created Control event (EvioEvent object)
+     * @throws EvioException if bad event type
+     */
+    public static EvioEvent createControlEvent(EventType type, int runNumber, int runType,
+                                               int eventsInRun, int eventsSinceSync)
+            throws EvioException {
+
+        int[] data;
+        EventBuilder eventBuilder;
+
+        // Current time in seconds since Jan 1, 1970 GMT
+        int time = (int) (System.currentTimeMillis()/1000L);
+
+        // create a single bank of integers which is the user bank
+        switch (type) {
+            case SYNC:
+                data = new int[] {time, eventsSinceSync, eventsInRun};
+                eventBuilder = new EventBuilder(16, DataType.UINT32, 0xcc);
+                break;
+            case PRESTART:
+                data = new int[] {time, runNumber, runType};
+                eventBuilder = new EventBuilder(17, DataType.UINT32, 0xcc);
+                break;
+            case GO:
+                data = new int[] {time, 0, eventsInRun};
+                eventBuilder = new EventBuilder(18, DataType.UINT32, 0xcc);
+                break;
+            case PAUSE:
+                data = new int[] {time, 0, eventsInRun};
+                eventBuilder = new EventBuilder(19, DataType.UINT32, 0xcc);
+                break;
+            case END:
+                data = new int[] {time, 0, eventsInRun};
+                eventBuilder = new EventBuilder(20, DataType.UINT32, 0xcc);
+                break;
+            default:
+                throw new EvioException("bad EventType arg");
+        }
+
+        EvioEvent ev = eventBuilder.getEvent();
+        eventBuilder.appendIntData(ev, data);
+
+        return ev;
     }
 
 
@@ -1577,63 +1902,6 @@ System.out.println("Timestamps are NOT consistent !!!");
         }
 
         return null;
-    }
-
-
-
-
-
-    /**
-     * Create a Control event for testing purposes.
-     * An end event (type = 20) is shown below.
-     * <code><pre>
-     * _______________________________________
-     * |        Event Length = 4             |
-     * |_____________________________________|
-     * |    type = 20     |  0x1   |  0xCC   |
-     * |_____________________________________|
-     * |                Time                 |
-     * |_____________________________________|
-     * |              (reserved)             |
-     * |_____________________________________|
-     * |      number of events in run        |
-     * |_____________________________________|
-     * </pre></code>
-     *
-     * @param type event type, must be PRESTART, GO, PAUSE, or END
-     * @param runNumber run number used if generating prestart event
-     *
-     * @return created Control event (EvioEvent object)
-     * @throws EvioException if bad event type
-     */
-    public static EvioEvent createControlEvent(EventType type, int runNumber)
-            throws EvioException {
-
-        EventBuilder eventBuilder;
-
-        // put some data into event
-        int[] data = new int[3];
-        data[0] = (int) (System.currentTimeMillis()); // time in seconds from Jan 1, 1970 GMT
-        data[1] = runNumber; // run number for prestart, else reserved
-        data[2] = 0;         // # events in run
-
-        // create a single bank of integers which is the user bank
-        switch (type) {
-            case PRESTART:
-                eventBuilder = new EventBuilder(17, DataType.UINT32, 0xcc); break;
-            case GO:
-                eventBuilder = new EventBuilder(18, DataType.UINT32, 0xcc); break;
-            case PAUSE:
-                eventBuilder = new EventBuilder(19, DataType.UINT32, 0xcc); break;
-            case END:
-                eventBuilder = new EventBuilder(20, DataType.UINT32, 0xcc); break;
-            default:
-                throw new EvioException("bad EventType arg");
-        }
-        EvioEvent ev = eventBuilder.getEvent();
-        eventBuilder.appendIntData(ev, data);
-
-        return ev;
     }
 
 
