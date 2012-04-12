@@ -28,6 +28,7 @@ public enum EventType {
     GO                   (7),
     PAUSE                (8),
     END                  (9),
+    SYNC                (10),
     OTHER               (15);
 
     private int value;
@@ -67,7 +68,7 @@ public enum EventType {
     public boolean isControl() {
         return (this.equals(PRESTART) || this.equals(GO) ||
                 this.equals(PAUSE)    || this.equals(END) ||
-                this.equals(CONTROL));
+                this.equals(SYNC)     || this.equals(CONTROL));
     }
 
     /**
@@ -100,6 +101,14 @@ public enum EventType {
      */
     public boolean isEnd() {
         return this.equals(END);
+    }
+
+    /**
+     * Is this an sync control event type?
+     * @return <code>true</code> if sync control event type, else <code>false</code>
+     */
+    public boolean isSync() {
+        return this.equals(SYNC);
     }
 
     /**
@@ -142,6 +151,23 @@ public enum EventType {
      */
     public boolean isDisentangledPhysics() {
         return this.equals(DISENTANGLED_PHYSICS);
+    }
+
+    /**
+     * Is this a type appropriate for the event builder?
+     * @return <code>true</code> if appropriate for the event builder, else <code>false</code>
+     */
+    public boolean isEbFriendly() {
+        return (isBuildable()  || this.equals(USER));
+    }
+
+    /**
+     * Is this a type buildable by the event builder?
+     * @return <code>true</code> if buildable by the event builder, else <code>false</code>
+     */
+    public boolean isBuildable() {
+        return (isControl() || this.equals(ROC_RAW) ||
+                this.equals(PHYSICS) || this.equals(PARTIAL_PHYSICS));
     }
 
     /**
