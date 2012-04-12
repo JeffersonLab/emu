@@ -618,10 +618,17 @@ System.out.println("checkPayloadBank: unknown type, dump payload bank");
         // Only worry about record id if event to be built.
         // Initial recordId stored is 0, ignore that.
         if (eventType.isAnyPhysics() || eventType.isROCRaw()) {
-            if (payloadQueue.getRecordId() > 0 &&
+            // The recordId associated with each bank is taken from the first
+            // evio block header in a single ET data buffer. For a physics or
+            // ROC raw type, it should start at zero and increase by one in the
+            // first evio block header of the next ET data buffer.
+            // NOTE: There may be multiple banks from the same ET buffer and
+            // they will all have the same recordId.
+            if (recordId != payloadQueue.getRecordId() &&
                 recordId != payloadQueue.getRecordId() + 1) {
 System.out.println("checkPayloadBank: record ID out of sequence, got " + recordId +
-                           " but expecting " + (payloadQueue.getRecordId() + 1) + ", type = " + eventType);
+                   " but expecting " + payloadQueue.getRecordId() + " or " +
+                  (payloadQueue.getRecordId()+1) + ", type = " + eventType);
                 nonFatalRecordIdError = true;
             }
             payloadQueue.setRecordId(recordId);
