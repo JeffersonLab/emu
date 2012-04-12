@@ -89,6 +89,7 @@ public class DataChannelImplEt implements DataChannel {
     /** Synchronize putting new ET events into ET system for multiple DataOutputHelpers. */
     private Object lockOut = new Object();
 
+
     // INPUT
 
     /** Order number of next list of evio banks to be put onto Q. */
@@ -101,6 +102,9 @@ public class DataChannelImplEt implements DataChannel {
     private Object lockOut2 = new Object();
 
     // ----
+
+    /** Use the evio block header's block number as a record id. */
+    private int recordId;
 
     /** Do we pause the dataThread? */
     private volatile boolean pause;
@@ -702,6 +706,7 @@ System.out.println("      DataChannel Et : " + name + " got RESET, quitting");
                             reader = new EvioReader(buf);
                             // Speed things up since no EvioListeners are used - doesn't do much
                             reader.getParser().setNotificationActive(false);
+                            // First block header in ET buffer
                             IBlockHeader blockHeader = reader.getCurrentBlockHeader();
                             evioVersion = blockHeader.getVersion();
                             if (evioVersion < 4) {
@@ -709,11 +714,11 @@ System.out.println("      DataChannel Et : " + name + " got RESET, quitting");
                             }
                             header4      = (BlockHeaderV4)blockHeader;
                             type         = EventType.getEventType(header4.getEventType());
-//logger.info("      DataChannel Et : " + name + " got block header, data type " + type +
-//                ", source id = " + header4.getReserved1() + ", payld count = " + header4.getEventCount());
-//System.out.println("Header = " + header4.toString());
                             sourceId     = header4.getReserved1();
                             payloadCount = header4.getEventCount();
+//logger.info("      DataChannel Et : " + name + " block header, data type " + type +
+//            ", src id = " + sourceId + ", payld count = " + payloadCount +
+//            ", recd id = " + header4.getNumber());
 
                             payloadBanks.clear();
 
@@ -912,6 +917,7 @@ logger.info("      DataChannel Et : found END event");
                 boolean gotNothingYet;
                 int etEventsIndex, pBankSize, banksTotalSize, etSize;
                 int events2Write, eventArrayLen, myInputOrder=0;
+                int[] recordIds = new int[chunk];
 
                 // Create an array of list of PayloadBank objects by 2-step
                 // initialization to avoid "generic array creation" error.
@@ -969,7 +975,7 @@ logger.info("      DataChannel Et : found END event");
                     banksTotalSize = 0;
                     previousType = null;
                     gotNothingYet = true;
-                    bankList = bankListArray[etEventsIndex++];
+                    bankList = bankListArray[etEventsIndex];
 
                     // If more than 1 output thread, need to sync things
                     if (dataOutputThreads.length > 1) {
@@ -1011,14 +1017,36 @@ logger.info("      DataChannel Et : found END event");
                                 if (previousType != null &&
                                    (previousType != pBanktype || etSize < banksTotalSize)) {
 
-                                    bankList = bankListArray[etEventsIndex++];
+                                    bankList = bankListArray[etEventsIndex];
                                     // Add bank to new list
                                     bankList.add(pBank);
                                     // 64 -> take possible ending header into account
                                     banksTotalSize = pBankSize + 64;
+                                    // Set recordId depending on what type this bank is
+                                    if (pBanktype.isAnyPhysics() || pBanktype.isROCRaw()) {
+                                        recordIds[etEventsIndex] = recordId++;
+                                    }
+                                    else {
+                                        recordIds[etEventsIndex] = -1;
+                                    }
+                                    etEventsIndex++;
                                 }
                                 // This the first time through the while loop
-                                // or it's OK to add this bank to the list.
+                                else if (previousType == null) {
+                                    // Add bank to the list since there's
+                                    // always room for one.
+                                    bankList.add(pBank);
+
+                                    // Set recordId depending on what type this bank is
+                                    if (pBanktype.isAnyPhysics() || pBanktype.isROCRaw()) {
+                                        recordIds[etEventsIndex] = recordId++;
+                                    }
+                                    else {
+                                        recordIds[etEventsIndex] = -1;
+                                    }
+                                    etEventsIndex++;
+                                }
+                                // It's OK to add this bank to the existing list.
                                 else {
                                     // Add bank to the list since there's
                                     // room and it's the right type.
@@ -1064,11 +1092,29 @@ logger.info("      DataChannel Et : found END event");
                             banksTotalSize += pBankSize + 32;
 
                             if (previousType != null &&
-                               (previousType != pBanktype || etSize < banksTotalSize)) {
+                                    (previousType != pBanktype || etSize < banksTotalSize)) {
 
-                                bankList = bankListArray[etEventsIndex++];
+                                bankList = bankListArray[etEventsIndex];
                                 bankList.add(pBank);
                                 banksTotalSize = pBankSize + 64;
+                                if (pBanktype.isAnyPhysics() || pBanktype.isROCRaw()) {
+                                    recordIds[etEventsIndex] = recordId++;
+                                }
+                                else {
+                                    recordIds[etEventsIndex] = -1;
+                                }
+                                etEventsIndex++;
+                            }
+                            else if (previousType == null) {
+                                bankList.add(pBank);
+
+                                if (pBanktype.isAnyPhysics() || pBanktype.isROCRaw()) {
+                                    recordIds[etEventsIndex] = recordId++;
+                                }
+                                else {
+                                    recordIds[etEventsIndex] = -1;
+                                }
+                                etEventsIndex++;
                             }
                             else {
                                 bankList.add(pBank);
@@ -1127,7 +1173,7 @@ logger.warn("      DataChannel Et DataOutputHelper : " + name + " ET event too s
                         events[i].setControl(selects);
 
                         // Write banks' data into ET buffer in separate thread
-                        EvWriter writer = new EvWriter(bankList, events[i]);
+                        EvWriter writer = new EvWriter(bankList, events[i], recordIds[i]);
                         writeThreadPool.execute(writer);
 
                         // Keep track of how many ET events we want to write
@@ -1213,7 +1259,7 @@ System.out.println("Ending");
              * @param bankList list of banks to be written into a single ET event
              * @param event ET event in which to place the banks
              */
-            EvWriter(LinkedList<PayloadBank> bankList, EtEvent event) {
+            EvWriter(LinkedList<PayloadBank> bankList, EtEvent event, int myRecordId) {
                 this.event = event;
                 this.bankList = bankList;
 
@@ -1234,6 +1280,7 @@ System.out.println("Ending");
 
                     // Create object to write evio banks into ET buffer
                     evWriter = new EventWriter(buffer, 550000, 200, null, bitInfo, emu.getCodaid());
+                    evWriter.setStartingBlockNumber(myRecordId);
                 }
                 catch (EvioException e) {
                 /* never happen */
