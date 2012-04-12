@@ -660,7 +660,7 @@ logger.info("      DataChannel Et : creating channel " + name);
                 LinkedList<PayloadBank> payloadBanks = new LinkedList<PayloadBank>();
                 int myInputOrder, evioVersion, payloadCount, sourceId;
                 BlockHeaderV4 header4;
-                EventType type;
+                EventType type, bankType;
 
                 EvioReader reader;
                 ByteBuffer buf;
@@ -698,7 +698,6 @@ System.out.println("      DataChannel Et : " + name + " got RESET, quitting");
                         }
                     }
 
-
                     for (EtEvent ev : events) {
                         buf = ev.getDataBuffer();
 
@@ -716,6 +715,7 @@ System.out.println("      DataChannel Et : " + name + " got RESET, quitting");
                             type         = EventType.getEventType(header4.getEventType());
                             sourceId     = header4.getReserved1();
                             payloadCount = header4.getEventCount();
+
 //logger.info("      DataChannel Et : " + name + " block header, data type " + type +
 //            ", src id = " + sourceId + ", payld count = " + payloadCount +
 //            ", recd id = " + header4.getNumber());
@@ -727,11 +727,21 @@ System.out.println("      DataChannel Et : " + name + " got RESET, quitting");
                                     throw new EvioException("Evio header inconsistency");
                                 }
 
+                                // Complication: from the ROC, we'll be receiving USER events
+                                // mixed in with and labeled as ROC Raw events. Check for that
+                                // and fix it.
+                                bankType = type;
+                                if (type == EventType.ROC_RAW) {
+                                    if (Evio.isUserEvent(bank)) {
+                                        bankType = EventType.USER;
+                                    }
+                                }
+
                                 // Not a real copy, just points to stuff in bank
                                 payloadBank = new PayloadBank(bank);
                                 // Add vital info from block header.
                                 payloadBank.setRecordId(blockHeader.getNumber());
-                                payloadBank.setType(type);
+                                payloadBank.setType(bankType);
                                 payloadBank.setSourceId(sourceId);
 
                                 // add bank to list for later writing
