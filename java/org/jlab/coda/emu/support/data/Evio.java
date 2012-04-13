@@ -412,15 +412,15 @@ public class Evio {
 
 
     /**
-     * Determine whether a bank is an END control event or not.
+     * Determine whether a bank is a physics event or not.
      *
      * @param bank input bank
-     * @return <code>true</code> if arg is END event, else <code>false</code>
+     * @return <code>true</code> if arg is a physics event, else <code>false</code>
      */
     public static boolean isAnyPhysicsEvent(EvioBank bank) {
         if (bank == null)  return false;
 
-        // check to see if bank of banks
+        // must be bank of banks
         BaseStructureHeader header = bank.getHeader();
         if (header.getDataType() != DataType.BANK ||
             header.getDataType() != DataType.ALSOBANK) {
@@ -554,6 +554,22 @@ public class Evio {
                  header.getNumber() == 0xCC &&
                  header.getDataTypeValue() == 1 &&
                  header.getLength() == 4);
+     }
+
+
+    /**
+     * Determine whether a bank is a USER event or not.
+     * Only called on banks that were originally from the
+     * ROC and labeled as ROC Raw type.
+     *
+     * @param bank input bank
+     * @return <code>true</code> if arg is USER event, else <code>false</code>
+     */
+     public static boolean isUserEvent(EvioBank bank) {
+         if (bank == null)  return false;
+
+         // Look inside to see if it is a USER event.
+         return (bank.getHeader().getNumber() == 0);
      }
 
 
