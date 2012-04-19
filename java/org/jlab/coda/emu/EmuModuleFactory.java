@@ -109,6 +109,31 @@ public class EmuModuleFactory implements StatedObject {
         }
     }
 
+
+    /**
+     * This method executes a RESET command.
+     * RESET must always have top priority and therefore its own means of execution.
+     */
+    public void reset() {
+        // Pass RESET down to transport layer first, then to modules
+        transportFactory.reset();
+
+        for (EmuModule module : modules) {
+            module.reset();
+        }
+
+        if (emu.previousState() == ERROR || emu.previousState() == BOOTED) {
+            state = BOOTED;
+        }
+        else {
+            state = CONFIGURED;
+        }
+
+        emu.getCauses().clear();
+        return;
+    }
+
+
     /**
      * This method executes commands given to it.
      *

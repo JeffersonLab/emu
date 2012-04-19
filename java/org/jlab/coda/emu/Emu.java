@@ -672,6 +672,18 @@ System.out.println("Emu: state changed to " + state.name());
 
 
     /**
+     * This method executes a RESET command.
+     * Do not use {@link #execute(Command)} to do a reset since we
+     * don't want to have it queued up and possibly waiting like a regular command.
+     * RESET must always have top priority and therefore its own means of execution.
+     */
+    synchronized public void reset() {
+        // RESET is passed down to the modules here.
+        moduleFactory.reset();
+    }
+
+
+    /**
      * This method takes a Command object and attempts to execute it.
      *
      * @param cmd of type Command
@@ -681,6 +693,13 @@ System.out.println("Emu: state changed to " + state.name());
 //System.out.println("EXECUTING cmd = " + cmd.name());
 
         CODACommand codaCommand = cmd.getCodaCommand();
+
+        // Use the reset method, not this method to do a RESET.
+        // RESET commands <should> never make it here.
+        if (codaCommand == RESET) {
+            reset();
+            return;
+        }
 
         // save the current state if attempting a transition
         if (codaCommand.isTransition()) {

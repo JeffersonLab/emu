@@ -94,4 +94,9 @@ public interface EmuModule extends StatedObject {
      */
     public boolean representsEmuStatistics();
 
+
+    /**
+     * Reset this Module.
+     */
+    public void reset();
 }
