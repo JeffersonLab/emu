@@ -693,6 +693,52 @@ System.out.println("\nRocSim: hit event number limit of " + endLimit + ", quitti
    }
 
 
+    /** {@inheritDoc} */
+    public void reset() {
+        Date theDate = new Date();
+        State previousState = state;
+        state = CODAState.CONFIGURED;
+
+        eventRate = wordRate = 0F;
+        eventCountTotal = wordCountTotal = 0L;
+
+        if (watcher != null) watcher.interrupt();
+        watcher = null;
+
+        if (eventGeneratingThread != null) {
+            try {
+                // Kill this thread before thread pool threads to avoid exception.
+//System.out.println("          RocSim RESET: try joining ev-gen thread ...");
+                eventGeneratingThread.join();
+//System.out.println("          RocSim RESET: done");
+            }
+            catch (InterruptedException e) {
+            }
+
+            try {
+//System.out.println("          RocSim RESET: try joining thread pool threads ...");
+                eventGeneratingThread.getWriteThreadPool().shutdown();
+                eventGeneratingThread.getWriteThreadPool().awaitTermination(100L, TimeUnit.MILLISECONDS);
+//System.out.println("          RocSim RESET: done");
+            }
+            catch (InterruptedException e) {
+            }
+        }
+        eventGeneratingThread = null;
+
+        paused = false;
+
+        if (previousState.equals(CODAState.ACTIVE)) {
+            // set end-of-run time in local XML config / debug GUI
+            try {
+                Configurer.setValue(emu.parameters(), "status/run_end_time", theDate.toString());
+            } catch (DataNotFoundException e) {
+                e.printStackTrace();
+            }
+        }
+    }
+
+
 
     public void execute(Command cmd) {
         Date theDate = new Date();
@@ -731,21 +777,21 @@ System.out.println("\nRocSim: hit event number limit of " + endLimit + ", quitti
             paused = false;
 
             // Put in END event
-            try {
-//System.out.println("          RocSim: Putting in END control event");
-                EvioEvent controlEvent = Evio.createControlEvent(EventType.END, 0, 0,
-                                                                 (int)eventCountTotal, 0);
-                PayloadBank bank = new PayloadBank(controlEvent);
-                bank.setType(EventType.END);
-                outputChannels.get(0).getQueue().put(bank);
-            }
-            catch (InterruptedException e) {
-                //e.printStackTrace();
-            }
-            catch (EvioException e) {
-                e.printStackTrace();
-                /* never happen */
-            }
+//            try {
+////System.out.println("          RocSim: Putting in END control event");
+//                EvioEvent controlEvent = Evio.createControlEvent(EventType.END, 0, 0,
+//                                                                 (int)eventCountTotal, 0);
+//                PayloadBank bank = new PayloadBank(controlEvent);
+//                bank.setType(EventType.END);
+//                outputChannels.get(0).getQueue().put(bank);
+//            }
+//            catch (InterruptedException e) {
+//                //e.printStackTrace();
+//            }
+//            catch (EvioException e) {
+//                e.printStackTrace();
+//                /* never happen */
+//            }
 
             // set end-of-run time in local XML config / debug GUI
             try {

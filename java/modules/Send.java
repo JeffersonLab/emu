@@ -81,6 +81,11 @@ public class Send implements EmuModule {
         state = s;
     }
 
+    /** {@inheritDoc} */
+    public void reset() {
+    }
+
+    /** {@inheritDoc} */
     public void execute(Command cmd) {
 
         CODACommand emuCmd = cmd.getCodaCommand();

@@ -1058,6 +1058,40 @@ if (debug) System.out.println("gotValidControlEvents: found control event of typ
 
 
     /** {@inheritDoc} */
+    public void reset() {
+        Date theDate = new Date();
+        State previousState = state;
+        state = CODAState.CONFIGURED;
+
+        eventRate = wordRate = 0F;
+        eventCountTotal = wordCountTotal = 0L;
+
+        if (watcher  != null) watcher.interrupt();
+
+        // Build & QFiller & QCollector threads must be immediately ended
+        endBuildAndFillerAndCollectorThreads(null, false);
+
+        watcher    = null;
+        qFillers   = null;
+        qCollector = null;
+        buildingThreadList.clear();
+
+        inputOrder = 0;
+        outputOrder = 0;
+        outputOrderPhysics = 0;
+        paused = false;
+
+        if (previousState.equals(CODAState.ACTIVE)) {
+            try {
+                // set end-of-run time in local XML config / debug GUI
+                Configurer.setValue(emu.parameters(), "status/run_end_time", theDate.toString());
+            } catch (DataNotFoundException e) {
+                e.printStackTrace();
+            }
+        }
+    }
+
+    /** {@inheritDoc} */
     public void execute(Command cmd) {
         Date theDate = new Date();
 

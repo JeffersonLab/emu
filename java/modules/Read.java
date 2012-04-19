@@ -82,6 +82,10 @@ public class Read implements EmuModule {
         state = s;
     }
 
+    /** {@inheritDoc} */
+    public void reset() {
+    }
+
     public void execute(Command cmd) {
 
         CODACommand emuCmd = cmd.getCodaCommand();

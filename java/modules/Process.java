@@ -253,6 +253,10 @@ System.out.println("Process: put bank on output Q");
         return last_error;
     }
 
+    /** {@inheritDoc} */
+    public void reset() {
+    }
+
     public void execute(Command cmd) {
         Date theDate = new Date();
 

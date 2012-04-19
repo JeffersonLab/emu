@@ -291,6 +291,30 @@ System.out.println("Process: Added bank's children to built event, event = " + c
         return last_error;
     }
 
+    /** {@inheritDoc} */
+    public void reset() {
+        Date theDate = new Date();
+        State previousState = state;
+        state = CODAState.BOOTED;
+
+        eventRate = wordRate = 0F;
+        eventCountTotal = wordCountTotal = 0L;
+
+        if (actionThread != null) actionThread.interrupt();
+        actionThread = null;
+        if (watcher != null) watcher.interrupt();
+        watcher = null;
+
+        if (previousState.equals(CODAState.ACTIVE)) {
+            try {
+                // set end-of-run time in local XML config / debug GUI
+                Configurer.setValue(emu.parameters(), "status/run_end_time", theDate.toString());
+            } catch (DataNotFoundException e) {
+                e.printStackTrace();
+            }
+        }
+    }
+
     public void execute(Command cmd) {
         Date theDate = new Date();
 

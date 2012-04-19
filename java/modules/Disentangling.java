@@ -29,6 +29,7 @@ import java.nio.ByteOrder;
 import java.util.*;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.PriorityBlockingQueue;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.ReentrantLock;
 
 import static org.jlab.coda.emu.support.codaComponent.CODACommand.*;
@@ -1099,6 +1100,41 @@ if (debug) System.out.println("gotValidControlEvents: found control event of typ
     public Throwable getError() {
         return lastError;
     }
+
+
+    /** {@inheritDoc} */
+    public void reset() {
+        Date theDate = new Date();
+        State previousState = state;
+        state = CODAState.CONFIGURED;
+
+        eventRate = wordRate = 0F;
+        eventCountTotal = wordCountTotal = 0L;
+
+        if (watcher  != null) watcher.interrupt();
+
+        // Build & QFiller threads must be immediately ended
+        endBuildAndQFillerThreads(null, false);
+
+        watcher    = null;
+        qFillers   = null;
+        buildingThreadList.clear();
+
+        if (inputOrders  != null) Arrays.fill(inputOrders, 0);
+        if (outputOrders != null) Arrays.fill(outputOrders, 0);
+
+        paused = false;
+
+        if (previousState.equals(CODAState.ACTIVE)) {
+            try {
+                // Set end-of-run time in local XML config / debug GUI
+                Configurer.setValue(emu.parameters(), "status/run_end_time", theDate.toString());
+            } catch (DataNotFoundException e) {
+                e.printStackTrace();
+            }
+        }
+    }
+
 
 
     /** {@inheritDoc} */

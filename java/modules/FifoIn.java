@@ -208,6 +208,10 @@ System.out.println("Got int = " + i);
         return last_error;
     }
 
+    /** {@inheritDoc} */
+    public void reset() {
+    }
+
     public void execute(Command cmd) {
         Date theDate = new Date();
         

@@ -241,6 +241,12 @@ System.out.println("FifoOut: put bank on output Q");
     }
 
     /** {@inheritDoc} */
+    public void reset() {
+    }
+
+
+
+    /** {@inheritDoc} */
     public void execute(Command cmd) {
         Date theDate = new Date();
         
