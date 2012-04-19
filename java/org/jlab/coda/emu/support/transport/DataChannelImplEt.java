@@ -556,25 +556,34 @@ logger.info("      DataChannel Et : creating channel " + name);
         // Don't close ET system until helper threads are done
         if (dataInputThreads != null) {
             for (int i=0; i < inputThreadCount; i++) {
-//System.out.println("        interrupt input thread #" + i + " ...");
+System.out.println("        interrupt input thread #" + i + " ...");
                 dataInputThreads[i].interrupt();
-//System.out.println("        in thread done");
+                // Make sure the thread is done, otherwise you risk
+                // killing the ET system while a getEvents() call is
+                // still in progress which may give you a seg fault
+                // in the JNI code.
+                try {dataInputThreads[i].join();}
+                catch (InterruptedException e) {}
+System.out.println("        input thread done");
             }
         }
 
         if (dataOutputThreads != null) {
             for (int i=0; i < outputThreadCount; i++) {
-//System.out.println("        interrupt output thread #" + i + " ...");
+System.out.println("        interrupt output thread #" + i + " ...");
                 dataOutputThreads[i].interrupt();
-//System.out.println("        out thread done");
+                try {dataOutputThreads[i].join();}
+                catch (InterruptedException e) {}
+System.out.println("        output thread done");
             }
         }
-//System.out.println("      helper thds interrupted");
 
         // At this point all threads should be done
         try {
+System.out.println("        detach from ET");
             etSystem.detach(attachment);
             if (!stationName.equals("GRAND_CENTRAL")) {
+System.out.println("        remove " + station.getName() + " station");
                 etSystem.removeStation(station);
             }
             etSystem.close();

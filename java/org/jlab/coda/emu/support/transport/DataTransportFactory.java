@@ -13,6 +13,7 @@ package org.jlab.coda.emu.support.transport;
 
 import org.jlab.coda.emu.Emu;
 import org.jlab.coda.emu.EmuClassLoader;
+import org.jlab.coda.emu.EmuModule;
 import org.jlab.coda.emu.support.codaComponent.CODACommand;
 
 import static org.jlab.coda.emu.support.codaComponent.CODAState.*;
@@ -144,6 +145,24 @@ public class DataTransportFactory implements StatedObject {
     }
 
     
+    /**
+     * This method executes a RESET command.
+     * RESET must always have top priority and therefore its own means of execution.
+     */
+    public void reset() {
+        // reset (hard close) transport objects for RESET transition
+        for (DataTransport t : transports) {
+            logger.debug("  DataTransportFactory.execute RESET : reset " + t.name());
+            t.reset();
+        }
+
+        // reset Fifos
+        fifoTransport.reset();
+        transports.clear();
+        // state set by EmuModuleFactory after this returns
+    }
+
+
     /**
      * This method is only called by the EmuModuleFactory's (a singleton used by Emu)
      * execute method.

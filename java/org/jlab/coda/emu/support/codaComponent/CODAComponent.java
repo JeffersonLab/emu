@@ -123,4 +123,9 @@ public interface CODAComponent extends Runnable, CommandAcceptor {
      */
     public void setCodaid(int codaid);
 
+    /**
+     * Reset this CODA component.
+     */
+    public void reset();
+
 }

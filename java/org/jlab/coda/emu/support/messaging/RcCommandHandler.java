@@ -70,6 +70,14 @@ class RcCommandHandler extends GenericCallback implements cMsgCallbackInterface 
                 return;
             }
 
+            // RESET commands have no accompanying metadata and are of
+            // the highest priority. We don't want them stuck in a Q
+            // somewhere so treat them separately.
+            if (codaCmd == CODACommand.RESET) {
+                cmsgPortal.comp.reset();
+                return;
+            }
+
             // Get the emuCmd - which is a STATIC CODACommand enum object - and
             // wrap it with and Command object which is not static and allows
             // us to attach all manner of mutable data to it. Thus we can now

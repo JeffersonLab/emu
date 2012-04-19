@@ -340,6 +340,22 @@ public class DataTransportImplEt extends DataTransportCore implements DataTransp
     public void close() {}
 
 
+    public DataChannel createChannel(String name, Map<String,String> attributeMap,
+                                     boolean isInput, Emu emu) throws DataTransportException {
+        DataChannel c = new DataChannelImplEt(name, this, attributeMap, isInput, emu);
+
+        allChannels().put(name, c);
+        if (isInput) {
+            inChannels().put(name, c);
+        }
+        else {
+            outChannels().put(name, c);
+        }
+
+        return c;
+    }
+
+
     /**
      * Reset or hard close this DataTransport object.
      * The resetting of channels is done in
@@ -347,6 +363,15 @@ public class DataTransportImplEt extends DataTransportCore implements DataTransp
      * All this method does is remove any created ET system.
      */
     public void reset() {
+        setConnected(false);
+
+        // reset channels
+        if (!allChannels.isEmpty()) {
+            for (DataChannel c : allChannels.values()) {
+                c.reset();
+            }
+        }
+
         // kill any ET system this object started
         if (processET != null && createdET) {
 logger.debug("    DataTransport Et: tell the ET system process to die - " + openConfig.getEtName());
@@ -361,21 +386,6 @@ logger.debug("    DataTransport Et: ET is dead");
             File etFile = new File(openConfig.getEtName());
             etFile.delete();
         }
-    }
-
-    public DataChannel createChannel(String name, Map<String,String> attributeMap,
-                                     boolean isInput, Emu emu) throws DataTransportException {
-        DataChannel c = new DataChannelImplEt(name, this, attributeMap, isInput, emu);
-
-        allChannels().put(name, c);
-        if (isInput) {
-            inChannels().put(name, c);
-        }
-        else {
-            outChannels().put(name, c);
-        }
-
-        return c;
     }
 
 

@@ -229,20 +229,14 @@ public class DataTransportCore {
 //System.out.println("Transport Core's close() being called");
         setConnected(false);
 
-//        if (logger != null) {
-//            logger.debug("close transport " + name());
-//        }
-
         // close channels
         if (!allChannels().isEmpty()) {
-            //synchronized (allChannels()) {
-                for (DataChannel c : allChannels().values()) {
-                    c.close();
-                }
-                allChannels.clear();
-                outChannels.clear();
-                inChannels.clear();
-            //}
+            for (DataChannel c : allChannels().values()) {
+                c.close();
+            }
+            allChannels.clear();
+            outChannels.clear();
+            inChannels.clear();
         }
     }
 
@@ -251,20 +245,14 @@ public class DataTransportCore {
 //System.out.println("Transport Core's reset() being called");
         setConnected(false);
 
-//        if (logger != null) {
-//            logger.debug("reset transport " + name());
-//        }
-
         // close channels
         if (!allChannels().isEmpty()) {
-            //synchronized (allChannels()) {
-                for (DataChannel c : allChannels().values()) {
-                    c.reset();
-                }
-                allChannels.clear();
-                outChannels.clear();
-                inChannels.clear();
-            //}
+            for (DataChannel c : allChannels().values()) {
+                c.reset();
+            }
+            allChannels.clear();
+            outChannels.clear();
+            inChannels.clear();
         }
     }
 
