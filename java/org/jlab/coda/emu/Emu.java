@@ -77,6 +77,9 @@ public class Emu implements CODAComponent {
     /** Maximum time to wait when commanded to END but no END event received. */
     private long endingTimeLimit = 60000;
 
+    /** If true, stop executing commands coming from run control. Used while resetting. */
+    private volatile boolean stopExecutingCmds;
+
     /**
      * Commands from cMsg are converted into objects of
      * class Command that are then posted in this mailbox queue.
@@ -608,7 +611,14 @@ public class Emu implements CODAComponent {
         do {
 
             try {
-                // do NOT block forever here
+                // While resetting, stop executing rc commands.
+                // Wait for a bit then check flag again.
+                if (stopExecutingCmds) {
+                    Thread.sleep(200);
+                    continue;
+                }
+
+                // Do NOT block forever here
                 Command cmd = mailbox.poll(1, TimeUnit.SECONDS);
 
                 if (!Thread.interrupted()) {
@@ -653,9 +663,6 @@ System.out.println("Emu: state changed to " + state.name());
                         }
                         oldState = state;
                     }
-//                    else {
-//                        System.out.println("Emu: state did NOT change, still in " + state.name());
-//                    }
                 }
 
             } catch (InterruptedException e) {
@@ -675,11 +682,17 @@ System.out.println("Emu: state changed to " + state.name());
      * This method executes a RESET command.
      * Do not use {@link #execute(Command)} to do a reset since we
      * don't want to have it queued up and possibly waiting like a regular command.
-     * RESET must always have top priority and therefore its own means of execution.
+     * RESET must always have top priority and therefore its own thread of execution.
      */
     synchronized public void reset() {
-        // RESET is passed down to the modules here.
+        // Stop any more run control commands from being executed
+        stopExecutingCmds = true;
+        // Clear out any existing, unexecuted commands
+        mailbox.clear();
+        // RESET is passed down to the modules & transports
         moduleFactory.reset();
+        // Allow run control commands to be executed once again
+        stopExecutingCmds = false;
     }
 
 
