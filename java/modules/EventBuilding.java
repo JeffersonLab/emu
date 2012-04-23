@@ -1254,9 +1254,6 @@ if (debug) System.out.println("Building thread is ending !!!");
         State previousState = state;
         state = CODAState.CONFIGURED;
 
-        eventRate = wordRate = 0F;
-        eventCountTotal = wordCountTotal = 0L;
-
         if (watcher != null) watcher.interrupt();
 
         // Build & QFiller threads must be immediately ended
@@ -1316,37 +1313,6 @@ if (debug) System.out.println("Building thread is ending !!!");
             }
         }
 
-        else if (emuCmd == RESET) {
-            State previousState = state;
-            state = CODAState.CONFIGURED;
-
-            eventRate = wordRate = 0F;
-            eventCountTotal = wordCountTotal = 0L;
-
-            if (watcher  != null) watcher.interrupt();
-
-            // Build & QFiller threads must be immediately ended
-            endBuildAndQFillerThreads(null, false);
-
-            watcher    = null;
-            qFillers   = null;
-            buildingThreadList.clear();
-
-            if (inputOrders  != null) Arrays.fill(inputOrders, 0);
-            if (outputOrders != null) Arrays.fill(outputOrders, 0);
-
-            paused = false;
-
-            if (previousState.equals(CODAState.ACTIVE)) {
-                try {
-                    // Set end-of-run time in local XML config / debug GUI
-                    Configurer.setValue(emu.parameters(), "status/run_end_time", theDate.toString());
-                } catch (DataNotFoundException e) {
-                    e.printStackTrace();
-                }
-            }
-        }
-
         else if (emuCmd == PRESTART) {
             // Make sure each input channel is associated with a unique rocId
             for (int i=0; i < inputChannels.size(); i++) {
@@ -1384,7 +1350,6 @@ if (debug) System.out.println("Building thread is ending !!!");
             }
 
             int qCount = payloadBankQueues.size();
-System.out.println("Have " + qCount + " payload bank Qs");
 
             // Clear all payload bank queues, associate each one with source ID, reset record ID
             for (int i=0; i < qCount; i++) {
@@ -1442,9 +1407,6 @@ System.out.println("Have " + qCount + " payload bank Qs");
 
         else if (emuCmd == GO) {
             state = CODAState.ACTIVE;
-
-//            startThreads();
-
             paused = false;
 
             try {
