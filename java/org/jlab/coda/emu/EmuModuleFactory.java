@@ -67,6 +67,9 @@ public class EmuModuleFactory implements StatedObject {
     /** State of the emu. */
     private volatile State state = BOOTED;
 
+    /** What was this emu's previous state? Useful when doing RESET transition. */
+    State previousState;
+
     /** Object which creates and manages transport (data movement) objects. */
     private final DataTransportFactory transportFactory;
 
@@ -122,7 +125,7 @@ public class EmuModuleFactory implements StatedObject {
             module.reset();
         }
 
-        if (emu.previousState() == ERROR || emu.previousState() == BOOTED) {
+        if (previousState == ERROR || previousState == BOOTED) {
             state = BOOTED;
         }
         else {
@@ -593,6 +596,17 @@ logger.info("EmuModuleFactory.execute : transition NOT successful, state = " + s
         return null;
     }
 
+
+    /**
+     * This method returns the previous state of the modules in this EMU.
+     * If the EMU has not undergone any transitions yet, it returns null.
+     *
+     * @return state before last transition
+     * @return null if no transitions undergone yet
+     */
+    public State previousState() {
+        return previousState;
+    }
 
     /**
      * This method checks that all of the modules created by this

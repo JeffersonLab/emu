@@ -71,9 +71,6 @@ public class Emu implements CODAComponent {
     /** The Emu monitors it's own status via a thread. */
     private Thread statusMonitor;
 
-    /** What was this emu's previous state? Useful when doing RESET transition. */
-    private State previousState;
-
     /** Maximum time to wait when commanded to END but no END event received. */
     private long endingTimeLimit = 60000;
 
@@ -225,17 +222,6 @@ public class Emu implements CODAComponent {
      */
     public State state() {
         return moduleFactory.state();
-    }
-
-    /**
-     * This method returns the previous state of the modules in this EMU.
-     * If the EMU has not undergone any transitions yet, it returns null.
-     *
-     * @return state before last transition
-     * @return null if no transitions undergone yet
-     */
-    public State previousState() {
-        return previousState;
     }
 
     /**
@@ -718,7 +704,7 @@ System.out.println("DONE EXECUTING RESET");
 
         // save the current state if attempting a transition
         if (codaCommand.isTransition()) {
-            previousState = moduleFactory.state();
+            moduleFactory.previousState = moduleFactory.state();
         }
 
 
