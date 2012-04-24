@@ -68,10 +68,10 @@ public class DataChannelImplEt implements DataChannel {
     private final BlockingQueue<EvioBank> queue;
 
     /** Array of threads used to input data. */
-    private Thread[] dataInputThreads;
+    private DataInputHelper[] dataInputThreads;
 
     /** Array of threads used output data. */
-    private Thread[] dataOutputThreads;
+    private DataOutputHelper[] dataOutputThreads;
 
     /** Byte order of output data (input data's order is specified in msg). */
     private ByteOrder byteOrder;
@@ -155,7 +155,7 @@ public class DataChannelImplEt implements DataChannel {
 
     /** Time in microseconds to wait for the ET system to deliver requested events
      *  before throwing an EtTimeoutException. */
-    private int etWaitTime = 1000000;
+    private int etWaitTime = 500000;
 
 
 
@@ -487,7 +487,7 @@ logger.info("      DataChannel Et : creating channel " + name);
         gotResetCmd = false;
 
         // Do NOT interrupt threads which are communicating with the ET server.
-        // This will mess up all future communications !!!
+        // This will mess up future communications !!!
 
         // How long do we wait for each input or output thread
         // to end before we just terminate them?
@@ -515,8 +515,9 @@ logger.info("      DataChannel Et : creating channel " + name);
                 for (int i=0; i < outputThreadCount; i++) {
 //System.out.println("        try joining output thread #" + i + " for " + (waitTime/1000) + " sec");
                     dataOutputThreads[i].join(waitTime);
-                    // kill it if not already dead since we waited as long as possible
+                    // kill everything since we waited as long as possible
                     dataOutputThreads[i].interrupt();
+                    dataOutputThreads[i].shutdown();
 //System.out.println("        out thread done");
                 }
             }
@@ -548,7 +549,7 @@ logger.info("      DataChannel Et : creating channel " + name);
      */
     @Override
     public void reset() {
-        logger.warn("      DataChannel Et reset() : " + name + " - closing this channel (close ET system)");
+logger.debug("      DataChannel Et reset() : " + name + " - closing this channel (close ET system)");
 
         gotEndCmd   = false;
         gotResetCmd = true;
@@ -561,8 +562,8 @@ System.out.println("        interrupt input thread #" + i + " ...");
                 // Make sure the thread is done, otherwise you risk
                 // killing the ET system while a getEvents() call is
                 // still in progress which may give you a seg fault
-                // in the JNI code.
-                try {dataInputThreads[i].join();}
+                // in the JNI code. Give it 25% more time than the wait.
+                try {dataInputThreads[i].join(etWaitTime/800);}
                 catch (InterruptedException e) {}
 System.out.println("        input thread done");
             }
@@ -572,7 +573,12 @@ System.out.println("        input thread done");
             for (int i=0; i < outputThreadCount; i++) {
 System.out.println("        interrupt output thread #" + i + " ...");
                 dataOutputThreads[i].interrupt();
-                try {dataOutputThreads[i].join();}
+                dataOutputThreads[i].shutdown();
+                // Make sure all threads are done, otherwise you risk
+                // killing the ET system while a new/put/dumpEvents() call
+                // is still in progress which may give you a seg fault
+                // in the JNI code. Give it 25% more time than the wait.
+                try {dataOutputThreads[i].join(1000);}
                 catch (InterruptedException e) {}
 System.out.println("        output thread done");
             }
@@ -593,6 +599,7 @@ System.out.println("        remove " + station.getName() + " station");
         }
 
         queue.clear();
+logger.debug("      DataChannel Et reset() : " + name + " - done");
     }
 
 
@@ -601,7 +608,7 @@ System.out.println("        remove " + station.getName() + " station");
      * Class used to get ET events, parse them into Evio banks,
      * and put them onto a Q.
      */
-    private class DataInputHelper implements Runnable {
+    private class DataInputHelper extends Thread {
 
         /** Array of ET events to be gotten from ET system. */
         private EtEvent[] events;
@@ -614,7 +621,9 @@ System.out.println("        remove " + station.getName() + " station");
 
 
         /** Constructor. */
-        DataInputHelper () {}
+        DataInputHelper (ThreadGroup group, String name) {
+            super(group, name);
+        }
 
         /** A single waiter can call this method which returns when thread was started. */
         private void waitUntilStarted() {
@@ -804,7 +813,7 @@ logger.info("      DataChannel Et : found END event");
      * Class used to take Evio banks from Q, write them into ET events
      * and put them into an ET system.
      */
-    private class DataOutputHelper implements Runnable {
+    private class DataOutputHelper extends Thread {
 
         /** Used to sync things before putting new ET events. */
         private CountDownLatch latch;
@@ -830,7 +839,9 @@ logger.info("      DataChannel Et : found END event");
 
 
          /** Constructor. */
-        DataOutputHelper() {
+        DataOutputHelper(ThreadGroup group, String name) {
+            super(group, name);
+
             // Thread pool with "writeThreadCount" number of threads & queue.
             writeThreadPool = Executors.newFixedThreadPool(writeThreadCount);
 
@@ -853,8 +864,39 @@ logger.info("      DataChannel Et : found END event");
         }
 
 
-        /** Shutdown all the thread pools. */
+        /** Stop all this object's threads. */
         private void shutdown() {
+            // Cancel queued jobs and call interrupt on executing threads
+            getThreadPool.shutdown();
+            writeThreadPool.shutdown();
+
+            // If any EvGetter thread is stuck on etSystem.newEvents(), unstuck it
+            try {
+                etSystem.wakeUpAttachment(attachment);
+                // It may take 0.2 sec to detach
+                Thread.sleep(250);
+            }
+            catch (InterruptedException e) {
+            }
+            catch (IOException e) {
+            }
+            catch (EtException e) {
+            }
+
+            // May be blocked on getBarrier.await(), unblock it
+            getBarrier.reset();
+
+            // Only wait for threads to terminate if shutting
+            // down gracefully for an END command.
+            if (gotEndCmd) {
+                try { writeThreadPool.awaitTermination(100L, TimeUnit.MILLISECONDS); }
+                catch (InterruptedException e) {}
+            }
+        }
+
+
+        /** Shutdown all the thread pools. */
+        private void shutdownOrig() {
             getThreadPool.shutdown();
             writeThreadPool.shutdown();
 
@@ -862,7 +904,7 @@ logger.info("      DataChannel Et : found END event");
             try {
                 boolean success = getThreadPool.awaitTermination(100L, TimeUnit.MILLISECONDS);
                 if (!success) {
-                    // may be blocked on getBarrier.await()
+                    // May be blocked on getBarrier.await()
                     getBarrier.reset();
                 }
             }
@@ -1229,7 +1271,6 @@ System.out.println("Ending");
                 }
 
             } catch (InterruptedException e) {
-                e.printStackTrace();
             } catch (Exception e) {
                 e.printStackTrace();
                 logger.warn("      DataChannel Et DataOutputHelper : exit " + e.getMessage());
@@ -1301,10 +1342,7 @@ System.out.println("Ending");
                     evWriter = new EventWriter(buffer, 550000, 200, null, bitInfo, emu.getCodaid());
                     evWriter.setStartingBlockNumber(myRecordId);
                 }
-                catch (EvioException e) {
-                /* never happen */
-                    e.printStackTrace();
-                }
+                catch (EvioException e) {/* never happen */}
             }
 
 
@@ -1383,7 +1421,7 @@ System.out.println("Ending");
                     // may happen when ending or resetting
                 }
                 catch (InterruptedException e) {
-                    // told to quit
+                    // told to quit when in barrier.await()
                 }
                 catch (Exception e) {
                     // ET system problem - run will come to an end
@@ -1404,23 +1442,23 @@ System.out.println("Ending");
      */
     public void startHelper() {
         if (input) {
-            dataInputThreads = new Thread[inputThreadCount];
+            dataInputThreads = new DataInputHelper[inputThreadCount];
 
             for (int i=0; i < inputThreadCount; i++) {
-                DataInputHelper helper = new DataInputHelper();
-                dataInputThreads[i] = new Thread(emu.getThreadGroup(), helper,
+                DataInputHelper helper = new DataInputHelper(emu.getThreadGroup(),
                                                  getName() + " data in" + i);
+                dataInputThreads[i] = helper;
                 dataInputThreads[i].start();
                 helper.waitUntilStarted();
             }
         }
         else {
-            dataOutputThreads = new Thread[outputThreadCount];
+            dataOutputThreads = new DataOutputHelper[outputThreadCount];
 
             for (int i=0; i < outputThreadCount; i++) {
-                DataOutputHelper helper = new DataOutputHelper();
-                dataOutputThreads[i] = new Thread(emu.getThreadGroup(), helper,
-                                                  getName() + " data out" + i);
+                DataOutputHelper helper = new DataOutputHelper(emu.getThreadGroup(),
+                                                               getName() + " data out" + i);
+                dataOutputThreads[i] = helper;
                 dataOutputThreads[i].start();
                 helper.waitUntilStarted();
             }
