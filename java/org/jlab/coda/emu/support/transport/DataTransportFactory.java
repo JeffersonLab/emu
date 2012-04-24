@@ -133,7 +133,8 @@ public class DataTransportFactory implements StatedObject {
         state = transports.get(0).state();
 
         for (DataTransport transport : transports) {
-            //System.out.println("check state : " + transport.name() + " " + transport.state());
+//logger.debug("  DataTransportFactory.state() : transport " + transport.name() + " is in state " +
+//                transport.state());
             s = transport.state();
 
             if (s == ERROR) {
@@ -159,7 +160,9 @@ public class DataTransportFactory implements StatedObject {
         // reset Fifos
         fifoTransport.reset();
         transports.clear();
-        // state set by EmuModuleFactory after this returns
+
+        // set the transport factory state
+        state = CONFIGURED;
     }
 
 

@@ -368,6 +368,7 @@ public class DataTransportImplEt extends DataTransportCore implements DataTransp
         // reset channels
         if (!allChannels.isEmpty()) {
             for (DataChannel c : allChannels.values()) {
+logger.debug("    DataTransport Et: try resetting channel " + c.getName());
                 c.reset();
             }
         }
@@ -386,6 +387,8 @@ logger.debug("    DataTransport Et: ET is dead");
             File etFile = new File(openConfig.getEtName());
             etFile.delete();
         }
+
+        state = CODAState.CONFIGURED;
     }
 
 

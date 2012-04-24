@@ -28,7 +28,6 @@ import java.util.Map;
  * this class.
  * @author heyes
  */
-@SuppressWarnings({"WeakerAccess", "SameReturnValue", "SameReturnValue", "SameReturnValue", "SameReturnValue", "SameReturnValue", "SameReturnValue"})
 public class DataTransportCore {
 
     /** State of this DataTransport object. */
@@ -254,6 +253,7 @@ public class DataTransportCore {
             outChannels.clear();
             inChannels.clear();
         }
+        state = CODAState.CONFIGURED;
     }
 
     /**
