@@ -888,7 +888,7 @@ System.out.println("DONE EXECUTING RESET");
                     // the configuration, or if rc send a filename which this
                     // emu read and loaded, then reconfigure.
                     if (configSource != Emu.ConfigSource.RC_STRING || isNewConfig) {
-System.out.println("LOADING NEW string config = \n" + rcConfigString);
+System.out.println("Emu configure: loading new string config = \n" + rcConfigString);
                         Configurer.setLogger(logger);
                         // Parse XML config string into Document object.
                         loadedConfig = Configurer.parseString(rcConfigString);
@@ -896,7 +896,7 @@ System.out.println("LOADING NEW string config = \n" + rcConfigString);
                         newConfigLoaded = true;
                     }
                     else {
-System.out.println("NO CHANGE to string config");
+System.out.println("Emu configure: no change to string config");
                     }
                     configSource = Emu.ConfigSource.RC_STRING;
                 }
@@ -922,7 +922,7 @@ System.out.println("NO CHANGE to string config");
 
                     // reload
                     if (loadFile) {
-System.out.println("LOADING FILE " + rcConfigFile);
+System.out.println("Emu configure: loading file " + rcConfigFile);
                         Configurer.setLogger(logger);
                         // Parse XML config file into Document object.
                         loadedConfig = Configurer.parseFile(rcConfigFile);
@@ -933,7 +933,7 @@ System.out.println("LOADING FILE " + rcConfigFile);
                         newConfigLoaded = true;
                     }
 //                    else {
-System.out.println("ALREADY LOADED " + rcConfigFile);
+System.out.println("Emu configure: already loaded " + rcConfigFile);
 //                    }
 
                     if (cmd.isFromDebugGui()) {
@@ -966,10 +966,10 @@ System.out.println("ALREADY LOADED " + rcConfigFile);
                     }
 
                     if (!loadFile) {
-System.out.println("ALREADY LOADED CMD LINE FILE " + cmdLineConfigFile);
+System.out.println("Emu configure: already loaded cmd line file " + cmdLineConfigFile);
                     }
                     else {
-System.out.println("LOADING CMD LINE FILE " + cmdLineConfigFile);
+System.out.println("Emu configure: loading cmd line file " + cmdLineConfigFile);
                         Configurer.setLogger(logger);
                         // Parse XML config file and turn it into Document object.
                         loadedConfig = Configurer.parseFile(cmdLineConfigFile);
@@ -990,7 +990,7 @@ System.out.println("LOADING CMD LINE FILE " + cmdLineConfigFile);
                             throw new DataNotFoundException("No \"name\" attr in component element of config file");
                         }
 
-System.out.println("Cmd line config: found component " + attr.getNodeValue());
+//System.out.println("Cmd line config: found component " + attr.getNodeValue());
                         // Get name in config file and compare to our name - should be same.
                         if (!attr.getNodeValue().equals(name)) {
                             throw new DataNotFoundException("Name in config file (" + attr.getNodeValue() +
@@ -1023,7 +1023,7 @@ System.out.println("Cmd line config: found component " + attr.getNodeValue());
             }
             // parsing XML error
             catch (DataNotFoundException e) {
-logger.error("CONFIGURE FAILED", e.getMessage());
+logger.error("Emu: CONFIGURE failed", e.getMessage());
                 //e.printStackTrace();
                 causes.add(e);
                 moduleFactory.ERROR();
@@ -1279,7 +1279,7 @@ logger.error("CONFIGURE FAILED", e.getMessage());
 
                 }
                 catch (DataNotFoundException e) {
-                    logger.error("CONFIGURE FAILED", e.getMessage());
+                    logger.error("Emu: CONFIGURE failed", e.getMessage());
                     causes.add(e);
                     moduleFactory.ERROR();
                     return;
