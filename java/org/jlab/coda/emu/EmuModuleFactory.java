@@ -128,6 +128,7 @@ public class EmuModuleFactory implements StatedObject {
         else {
             state = CONFIGURED;
         }
+logger.info("EmuModuleFactory.execute : RESET executed, setting state to " + state);
 
         emu.getCauses().clear();
         return;
@@ -483,19 +484,6 @@ logger.info("EmuModuleFactory.execute : END thru output transport " + trans.name
         }
 
 
-        // RESET command
-        if (emuCmd == RESET) {
-//logger.info("EmuModuleFactory.execute : RESET");
-            if (emu.previousState() == ERROR || emu.previousState() == BOOTED) {
-                state = BOOTED;
-            }
-            else {
-                state = CONFIGURED;
-            }
-            emu.getCauses().clear();
-            return;
-        }
-
         if (cmd.success() != null && state != ERROR) {
             state = cmd.success();
 logger.info("EmuModuleFactory.execute : transition success, setting state to " + state);
@@ -617,6 +605,7 @@ logger.info("EmuModuleFactory.execute : transition NOT successful, state = " + s
     public State state() {
 
         if (state == ERROR) {
+            System.out.println("State of module factory is ERROR!!!!!!!!!");
             return state;
         }
 
@@ -625,12 +614,14 @@ logger.info("EmuModuleFactory.execute : transition NOT successful, state = " + s
         synchronized(modules) {
             for (StatedObject module : modules) {
                 if (module.state() == ERROR) {
+                    System.out.println("State of module " + module.name() + " is ERROR!!!!!!!!!");
                     state = ERROR;
                 }
             }
         }
 
         if (transportFactory.state() == ERROR) {
+            System.out.println("State of transport factory is ERROR!!!!!!!!!");
             state = ERROR;
         }
 
