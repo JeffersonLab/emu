@@ -186,6 +186,9 @@ logger.info("      DataChannel File: try opening input file of " + fileName);
                 helper.waitUntilStarted();
             } else {
 logger.info("      DataChannel File: try opening output file of " + fileName);
+                // Tell emu what that output name is for stat reporting
+                emu.setOutputDestination(fileName);
+
                 evioFileWriter = new EventWriter(fileName);
                 DataOutputHelper helper = new DataOutputHelper();
                 dataThread = new Thread(emu.getThreadGroup(), helper, getName() + " data out");

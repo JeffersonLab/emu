@@ -361,6 +361,7 @@ public class Emu implements CODAComponent {
     //-----------------------------------------------------
     //              status reporting stuff
     //-----------------------------------------------------
+    private String outputDestination;
 
     /** Thread which reports the EMU status to Run Control. */
     private Thread statusReportingThread;
@@ -371,7 +372,15 @@ public class Emu implements CODAComponent {
     /** If true, the status reporting thread is actively reporting status to Run Control. */
     private volatile boolean statusReportingOn;
 
-    
+    /**
+     * Set the output destination name, like a file or et system name, or
+     * a string like "cMsg".
+     * @param outputDestination name of this emu's output data destination
+     */
+    public void setOutputDestination(String outputDestination) {
+        this.outputDestination = outputDestination;
+    }
+
     /** Class defining thread which reports the EMU status to Run Control. */
     class StatusReportingThread extends Thread {
 
@@ -423,6 +432,7 @@ public class Emu implements CODAComponent {
                         reportMsg.addPayloadItem(new cMsgPayloadItem(RCConstants.numberOfLongs, wordCount));
                         // in kBytes/sec
                         reportMsg.addPayloadItem(new cMsgPayloadItem(RCConstants.dataRate, (double)wordRate));
+                        reportMsg.addPayloadItem(new cMsgPayloadItem(RCConstants.filename, outputDestination));
 
                         // send msg
 //System.out.println("Emu " + name + " sending STATUS REPORTING Msg:");

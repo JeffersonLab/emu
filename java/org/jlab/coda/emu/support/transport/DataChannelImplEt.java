@@ -370,6 +370,9 @@ logger.info("      DataChannel Et : creating channel " + name);
         // if OUTPUT channel
         else {
 
+            // Tell emu what that output name is for stat reporting
+            emu.setOutputDestination(transport.getOpenConfig().getEtName());
+
             // set endianness of data
             byteOrder = ByteOrder.BIG_ENDIAN;
             try {

@@ -329,6 +329,9 @@ System.out.println("\n\nDataChannel: subscribe to subject = " + subject + ", typ
             }
         }
         else {
+            // Tell emu what that output name is for stat reporting
+            emu.setOutputDestination("cMsg");
+
             // set endianness of data
             byteOrder = ByteOrder.BIG_ENDIAN;
             try {
