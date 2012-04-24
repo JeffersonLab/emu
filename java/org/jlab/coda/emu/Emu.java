@@ -458,11 +458,11 @@ public class Emu implements CODAComponent {
                     Thread.sleep(statusReportingPeriod);
                 }
                 catch (InterruptedException e) {
-//System.out.println("STATUS REPORTING THREAD: DONE xxx");
+//System.out.println("STATUS REPORTING THREAD: DONE");
                     return;
                 }
             }
-//System.out.println("STATUS REPORTING THREAD: DONE xxx");
+//System.out.println("STATUS REPORTING THREAD: DONE");
 
         }
 
@@ -685,6 +685,7 @@ System.out.println("Emu: state changed to " + state.name());
      * RESET must always have top priority and therefore its own thread of execution.
      */
     synchronized public void reset() {
+System.out.println("START EXECUTING RESET");
         // Stop any more run control commands from being executed
         stopExecutingCmds = true;
         // Clear out any existing, unexecuted commands
@@ -693,6 +694,7 @@ System.out.println("Emu: state changed to " + state.name());
         moduleFactory.reset();
         // Allow run control commands to be executed once again
         stopExecutingCmds = false;
+System.out.println("DONE EXECUTING RESET");
     }
 
 
