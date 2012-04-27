@@ -11,6 +11,9 @@
 
 package org.jlab.coda.emu.support.transport;
 
+import org.jlab.coda.cMsg.cMsgException;
+import org.jlab.coda.cMsg.cMsgMessage;
+import org.jlab.coda.cMsg.cMsgPayloadItem;
 import org.jlab.coda.emu.support.codaComponent.CODACommand;
 import org.jlab.coda.emu.support.control.Command;
 import org.jlab.coda.et.*;
@@ -23,12 +26,11 @@ import org.jlab.coda.emu.support.codaComponent.CODAState;
 import static org.jlab.coda.emu.support.codaComponent.CODACommand.*;
 import org.jlab.coda.emu.support.logger.Logger;
 
+import java.io.*;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Collection;
 import java.util.Arrays;
-import java.io.IOException;
-import java.io.File;
 
 /**
  * @author timmer
@@ -357,6 +359,68 @@ public class DataTransportImplEt extends DataTransportCore implements DataTransp
 
 
     /**
+     * Get the output of a process - either error or regular output
+     * depending on the input stream.
+     *
+     * @param inputStream get process output from this stream
+     * @return String of process output
+     */
+    private String getProcessOutput(InputStream inputStream) {
+        String line;
+        StringBuilder sb = new StringBuilder(300);
+        BufferedReader brErr = new BufferedReader(new InputStreamReader(inputStream));
+
+        try {
+            // read each line of output
+            while ((line = brErr.readLine()) != null) {
+                sb.append(line);
+                sb.append("\n");
+            }
+        }
+        catch (IOException e) {
+            // probably best to ignore this error
+        }
+
+        if (sb.length() > 0) {
+            // take off last \n we put in buffer
+            sb.deleteCharAt(sb.length()-1);
+            return sb.toString();
+        }
+
+        return null;
+    }
+
+
+    /**
+     * Get regular output (if monitor true) and error output
+     * of Process and return both as strings.
+     *
+     * @param monitor <code>true</code> if we store regular output, else <code>false</code>.
+     * @return array with both regular output (first element) and error output (second).
+     */
+    private String[] gatherAllOutput(Process process, boolean monitor) {
+        String output;
+        String[] strs = new String[2];
+
+        // Grab regular output if requested.
+        if (monitor) {
+            output = getProcessOutput(process.getInputStream());
+            if (output != null) {
+                strs[0] = output;
+            }
+        }
+
+        // Always grab error output.
+        output = getProcessOutput(process.getErrorStream());
+        if (output != null) {
+            strs[1] = output;
+        }
+
+        return strs;
+    }
+
+
+    /**
      * Reset or hard close this DataTransport object.
      * The resetting of channels is done in
      * {@link #execute(org.jlab.coda.emu.support.control.Command, boolean)}.
@@ -507,12 +571,38 @@ logger.debug("    DataTransport Et execute DOWNLOAD: incompatible ET system exis
 logger.debug("    DataTransport Et: create ET system, " + openConfig.getEtName() + " with cmd \n" + etCmd);
                         processET = Runtime.getRuntime().exec(etCmd);
 
-                        // There is no feedback mechanism to tell if this ET system
+                        // Allow process a chance to run before testing if its terminated.
+                        Thread.yield();
+                        try {Thread.sleep(1000);}
+                        catch (InterruptedException e) {}
+
+                        // Figure out if process has already terminated.
+                        boolean terminated = true;
+                        try { processET.exitValue(); }
+                        catch (Exception e) {terminated = false;}
+
+                        if (terminated) {
+                            String errorOut = "    DataTransport Et: ";
+                            // grab any output
+                            String[] retStrings = gatherAllOutput(processET, true);
+                            if (retStrings[0] != null) {
+                                errorOut += retStrings[0];
+                            }
+                            if (retStrings[1] != null) {
+                                errorOut += "\n" + retStrings[0];
+                            }
+                            logger.debug(errorOut);
+                            state = CODAState.ERROR;
+                            return;
+                        }
+
+                        // There is no feedback mechanism to tell if
+                        // this ET system
                         // actually started. So try for a few seconds to connect to
                         // it. If we can't, then there must have been an error trying
                         // to start it up (like another ET system using the same ports).
-logger.debug("    DataTransport Et: try for 3 secs to connect to it");
-                        openConfig.setWaitTime(3000);
+logger.debug("    DataTransport Et: try for 2 secs to connect to it");
+                        openConfig.setWaitTime(2000);
                         try {
                             etSystem = new EtSystem(openConfig);
                             etSystem.open();
