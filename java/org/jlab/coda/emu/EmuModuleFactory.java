@@ -619,7 +619,6 @@ logger.info("EmuModuleFactory.execute : transition NOT successful, state = " + s
     public State state() {
 
         if (state == ERROR) {
-            System.out.println("State of module factory is ERROR!!!!!!!!!");
             return state;
         }
 
@@ -628,14 +627,12 @@ logger.info("EmuModuleFactory.execute : transition NOT successful, state = " + s
         synchronized(modules) {
             for (StatedObject module : modules) {
                 if (module.state() == ERROR) {
-                    System.out.println("State of module " + module.name() + " is ERROR!!!!!!!!!");
                     state = ERROR;
                 }
             }
         }
 
         if (transportFactory.state() == ERROR) {
-            System.out.println("State of transport factory is ERROR!!!!!!!!!");
             state = ERROR;
         }
 
