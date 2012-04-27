@@ -427,6 +427,7 @@ public class Emu implements CODAComponent {
                         reportMsg.addPayloadItem(new cMsgPayloadItem(RCConstants.state, state));
                         reportMsg.addPayloadItem(new cMsgPayloadItem(RCConstants.codaClass, codaClass.name()));
                         reportMsg.addPayloadItem(new cMsgPayloadItem(RCConstants.eventNumber, (int)eventCount));
+                        reportMsg.addPayloadItem(new cMsgPayloadItem(RCConstants.objectType, "coda3"));
                         // in Hz
                         reportMsg.addPayloadItem(new cMsgPayloadItem(RCConstants.eventRate, eventRate));
                         reportMsg.addPayloadItem(new cMsgPayloadItem(RCConstants.numberOfLongs, wordCount));
