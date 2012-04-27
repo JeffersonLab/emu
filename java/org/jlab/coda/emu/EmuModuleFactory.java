@@ -68,7 +68,7 @@ public class EmuModuleFactory implements StatedObject {
     private volatile State state = BOOTED;
 
     /** What was this emu's previous state? Useful when doing RESET transition. */
-    State previousState;
+    State previousState = BOOTED;
 
     /** Object which creates and manages transport (data movement) objects. */
     private final DataTransportFactory transportFactory;
