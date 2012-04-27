@@ -436,7 +436,7 @@ System.out.println("EventBuilding constr: " + buildingThreadCount +
 
                             prevEventCount = eventCountTotal;
                             prevWordCount  = wordCountTotal;
-                        System.out.println("evRate = " + eventRate + ", byteRate = " + 4*wordRate);
+//                        System.out.println("evRate = " + eventRate + ", byteRate = " + 4*wordRate);
 //                        }
                         t1 = t2;
 

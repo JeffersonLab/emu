@@ -343,7 +343,7 @@ System.out.println("                                      SET ROCID TO " + rocId
                         t1 = t2;
                         prevEventCount = eventCountTotal;
                         prevWordCount  = wordCountTotal;
-System.out.println("evRate = " + eventRate + ", byteRate = " + 4*wordRate + ", avg = " + avgByteRate);
+//System.out.println("evRate = " + eventRate + ", byteRate = " + 4*wordRate + ", avg = " + avgByteRate);
                     }
 
                 } catch (InterruptedException e) {
