@@ -432,8 +432,9 @@ public class Emu implements CODAComponent {
                         reportMsg.addPayloadItem(new cMsgPayloadItem(RCConstants.numberOfLongs, wordCount));
                         // in kBytes/sec
                         reportMsg.addPayloadItem(new cMsgPayloadItem(RCConstants.dataRate, (double)wordRate));
-                        reportMsg.addPayloadItem(new cMsgPayloadItem(RCConstants.filename, outputDestination));
-
+                        if (outputDestination != null) {
+                            reportMsg.addPayloadItem(new cMsgPayloadItem(RCConstants.filename, outputDestination));
+                        }
                         // send msg
 //System.out.println("Emu " + name + " sending STATUS REPORTING Msg:");
 //                        System.out.println("   " + RCConstants.state + " = " + state);
