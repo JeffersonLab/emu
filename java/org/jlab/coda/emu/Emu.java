@@ -847,6 +847,7 @@ System.out.println("DONE EXECUTING RESET");
                     // Should have run type
                     pItem = cmd.getArg(RCConstants.prestartPayloadRunType);
                     if (pItem != null) {
+System.out.println("EMU: setting run type to " + pItem.getInt());
                         setRunType(pItem.getInt());
                     }
                 }

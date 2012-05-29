@@ -818,13 +818,15 @@ if (debug) System.out.println("gotValidControlEvents: got " + controlEventCount 
                     if (prestartData[1] != runNumber) {
 if (debug) System.out.println("gotValidControlEvents: warning, PRESTART event bad run #, " +
                                       prestartData[1] + ", should be " + runNumber);
-                        throw new EmuException("PRESTART event bad run #, " + prestartData[1]);
+                        throw new EmuException("PRESTART event bad run # = " + prestartData[1] +
+                                                       ", should be " + runNumber);
                     }
 
                     if (prestartData[2] != runType) {
 if (debug) System.out.println("gotValidControlEvents: warning, PRESTART event bad run type, " +
                                       prestartData[2] + ", should be " + runType);
-                        throw new EmuException("PRESTART event bad run type, " + prestartData[2]);
+                        throw new EmuException("PRESTART event bad run type = " + prestartData[2]+
+                                                       ", should be " + runType);
                     }
                 }
 
