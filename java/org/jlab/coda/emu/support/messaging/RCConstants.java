@@ -103,7 +103,7 @@ public class RCConstants {
     public static final String configPayloadFileChanged = "fileChanged";
 
     /** String used as payload name for item holding run type int. */
-    public static final String prestartPayloadRunType = "codaId";
+    public static final String prestartPayloadRunType = "configId";
     /** String used as payload name for item holding run number. */
     public static final String prestartPayloadRunNumber = "runNumber";
 
