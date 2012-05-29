@@ -844,15 +844,11 @@ System.out.println("DONE EXECUTING RESET");
                         setRunNumber(pItem.getInt());
                     }
 
-                    // Should have run type
-                    pItem = cmd.getArg(RCConstants.prestartPayloadRunType);
-                    if (pItem != null) {
-System.out.println("EMU (in prestart): setting (from RC) run type to " + pItem.getInt());
-                        setRunType(pItem.getInt());
-                    }
-                    else {
-System.out.println("EMU (in prestart): got no run type from RC");
-                    }
+//                    // Should have run type
+//                    pItem = cmd.getArg(RCConstants.prestartPayloadRunType);
+//                    if (pItem != null) {
+//                        setRunType(pItem.getInt());
+//                    }
                 }
                 catch (cMsgException e) {/* never happen */}
             }
@@ -878,15 +874,10 @@ System.out.println("EMU (in prestart): got no run type from RC");
                 try {
                     pItem = cmd.getArg(RCConstants.prestartPayloadRunType);
                     if (pItem != null) {
-                        System.out.println("EMU (in configure): setting (from RC) run type to " + pItem.getInt());
                         setRunType(pItem.getInt());
                     }
-                    else {
-                        System.out.println("EMU (in configure): got no run type from RC");
-                    }
                 }
-                catch (cMsgException e) {
-                }
+                catch (cMsgException e) { }
 
                 if (msg != null) {
                     try {
