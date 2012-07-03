@@ -18,7 +18,7 @@
     <property name="jar.dest" value="${env.INSTALL_DIR}/lib"/>
 
     <!-- Destination for documentation files generated or not -->
-    <property name="doc" value="doc"/>
+    <property name="doc" value="doc/javadoc"/>
 
     <target name="usage">
         <echo>
@@ -30,6 +30,7 @@
 
             clean - delete the dist directory
             javadoc - build project javadoc files
+            developdoc - build project javadoc files for developers
 
             emu_jar - build jar files
             
@@ -55,24 +56,50 @@
         <mkdir dir="${doc}"/>
     </target>
 
+    <!-- Set Classpath, ignore caller's classpath -->
+    <property name="build.sysclasspath" value="ignore" />
+    <path id="coda.classpath">
+       <fileset dir="${javac.dest}">
+            <include name="*.class"/>
+        </fileset>
+        <fileset dir="external_lib">
+            <include name="*.jar"/>
+        </fileset>
+        <fileset dir="java/jars">
+            <include name="*.jar"/>
+        </fileset>
+        <fileset dir="${jar.dest}">
+            <include name="cMsg-3.3.jar"/>
+            <include name="jevio-4.0.jar"/>
+        </fileset>
+    </path>
+
+    <!-- Javadoc -->
+    <target name="javadoc" description="Create javadoc.">
+        <mkdir dir="${doc}" />
+        <javadoc packagenames="org.jlab.coda.emu"
+                 sourcepath="java"
+                 access="public"
+                 destdir="${doc}"
+                 use="true" >
+            <classpath refid="coda.classpath" />
+        </javadoc>
+    </target>
+    
+    <!-- Javadoc for developers -->
+    <target name="developdoc" description="Create javadoc for developer.">
+        <mkdir dir="${doc}" />
+        <javadoc packagenames="org.jlab.coda.emu"
+                 sourcepath="java"
+                 access="package"
+                 destdir="${doc}"
+                 use="true" >
+            <classpath refid="classpath" />
+        </javadoc>
+    </target>
+    
     <target name="build" depends="dirs">
         <mkdir dir="${javac.dest}"/>
-
-        <path id="coda.classpath">
-            <fileset dir="${javac.dest}">
-                <include name="*.class"/>
-            </fileset>
-            <fileset dir="external_lib">
-                <include name="*.jar"/>
-            </fileset>
-            <fileset dir="java/jars">
-                <include name="*.jar"/>
-            </fileset>
-            <fileset dir="${jar.dest}">
-                <include name="cMsg-3.2.jar"/>
-                <include name="jevio-4.0.jar"/>
-            </fileset>
-        </path>
 
         <javac srcdir="${java.source.dir}"
                debug="off"
