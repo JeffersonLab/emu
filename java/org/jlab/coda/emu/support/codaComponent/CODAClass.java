@@ -31,10 +31,10 @@ public enum CODAClass {
     /** Data concentrator (first level) type of event builder. */
     DC("data concentrator", 800),
 
-    /** Single event builder. */
+    /** Secondary (second level) type of event builder - to be used with DC's. */
     SEB("event builder", 700),
 
-    /** Parallel event builder. */
+    /** Primary event builder (one and only one event builder). */
     PEB("event builder", 600),
 
     /** Analysis application. */
