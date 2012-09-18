@@ -245,6 +245,8 @@ logger.info("EmuModuleFactory.execute : " + emuCmd);
                 //                System.gc();
                 //                System.runFinalization();
 
+
+                // Create transport objects
                 transportFactory.execute(cmd, false);
 
                 Node n = modulesConfig.getFirstChild();
