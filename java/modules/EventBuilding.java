@@ -220,6 +220,10 @@ public class EventBuilding implements EmuModule {
     /** If <code>true</code>, get debug print out. */
     private boolean debug = false;
 
+    /** If <code>true</code>, this module's statistics
+     * accurately represent the statistics of the EMU. */
+    private boolean representStatistics;
+
     /** If <code>true</code>, check timestamps for consistency. */
     private boolean checkTimestamps;
 
@@ -308,6 +312,7 @@ public class EventBuilding implements EmuModule {
 
         try {
             ebId = Integer.parseInt(attributeMap.get("id"));
+            if (ebId < 0)  ebId = 0;
         }
         catch (NumberFormatException e) { /* default to 0 */ }
 
@@ -315,15 +320,27 @@ public class EventBuilding implements EmuModule {
         buildingThreadCount = 3;
         try {
             buildingThreadCount = Integer.parseInt(attributeMap.get("threads"));
+            if (buildingThreadCount < 1)  buildingThreadCount = 1;
+            if (buildingThreadCount > 10) buildingThreadCount = 10;
         }
         catch (NumberFormatException e) {}
 System.out.println("EventBuilding constr: " + buildingThreadCount +
                            " number of event building threads");
 
+        // Does this module accurately represent the whole EMU's stats?
+        String str = attributeMap.get("statistics");
+        if (str != null) {
+            if (str.equalsIgnoreCase("true") ||
+                str.equalsIgnoreCase("on")   ||
+                str.equalsIgnoreCase("yes"))   {
+                representStatistics = true;
+            }
+        }
+
         // default is to swap data if necessary -
         // assume 32 bit ints
         swapData = true;
-        String str = attributeMap.get("swap");
+        str = attributeMap.get("swap");
         if (str != null) {
             if (str.equalsIgnoreCase("false") ||
                 str.equalsIgnoreCase("off")   ||
@@ -394,8 +411,7 @@ System.out.println("EventBuilding constr: " + buildingThreadCount +
 
     /** {@inheritDoc} */
     public boolean representsEmuStatistics() {
-        String stats = attributeMap.get("statistics");
-        return (stats != null && stats.equalsIgnoreCase("on"));
+        return representStatistics;
     }
 
 
@@ -951,22 +967,24 @@ if (debug && nonFatalError) System.out.println("\nERROR 1\n");
                     if (haveControlEvents) {
 if (true) System.out.println("Have CONTROL event");
 
-                        // Take one of the control events and update
-                        // it with the latest event builder data.
-                        Evio.updateControlEvent(buildingBanks[0], runNumber,
-                                                runType, (int)eventCountTotal,
-                                                (int)(eventNumber - eventNumberAtLastSync));
+                        if (outputChannelCount > 0) {
+                            // Take one of the control events and update
+                            // it with the latest event builder data.
+                            Evio.updateControlEvent(buildingBanks[0], runNumber,
+                                                    runType, (int)eventCountTotal,
+                                                    (int)(eventNumber - eventNumberAtLastSync));
 
-                        // We must copy the newly-updated control event
-                        // and make sure one is placed on each output channel.
-                        buildingBanks[0].setAttachment(controlEventOrders[0]);
-                        bankToOutputChannel(buildingBanks[0]);
-                        for (int j=1; j < outputChannelCount; j++) {
-                            // Copy first control event
-                            PayloadBank bb = new PayloadBank(buildingBanks[0]);
-                            bb.setAttachment(controlEventOrders[j]);
-                            // Write to other output Q's
-                            bankToOutputChannel(bb);
+                            // We must copy the newly-updated control event
+                            // and make sure one is placed on each output channel.
+                            buildingBanks[0].setAttachment(controlEventOrders[0]);
+                            bankToOutputChannel(buildingBanks[0]);
+                            for (int j=1; j < outputChannelCount; j++) {
+                                // Copy first control event
+                                PayloadBank bb = new PayloadBank(buildingBanks[0]);
+                                bb.setAttachment(controlEventOrders[j]);
+                                // Write to other output Q's
+                                bankToOutputChannel(bb);
+                            }
                         }
 
                         // If this is a sync event, keep track of the next event # to be sent
