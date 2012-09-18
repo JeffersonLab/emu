@@ -228,6 +228,17 @@ public class DataTransportImplEt extends DataTransportCore implements DataTransp
                 catch (NumberFormatException e) {}
             }
 
+            // TCP NODELAY parameter (if not "true" then false)
+            boolean noDelay = false;
+            str = attrib.get("noDelay");
+            if (str != null) {
+                if (str.equalsIgnoreCase("true") ||
+                    str.equalsIgnoreCase("on")   ||
+                    str.equalsIgnoreCase("yes"))   {
+                    noDelay = true;
+                }
+            }
+
             // groups of events
             int groups = 1;
             str = attrib.get("groups");
@@ -246,6 +257,7 @@ public class DataTransportImplEt extends DataTransportCore implements DataTransp
                 systemConfig.setMulticastPort(uport);
                 systemConfig.setTcpSendBufSize(tcpSendBuf);
                 systemConfig.setTcpRecvBufSize(tcpRecvBuf);
+                systemConfig.setNoDelay(noDelay);
                 if (maddr != null) {
                     systemConfig.addMulticastAddr(maddr);
                 }
