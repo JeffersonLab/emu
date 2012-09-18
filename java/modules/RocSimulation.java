@@ -67,23 +67,14 @@ public class RocSimulation implements EmuModule, Runnable {
     /** User hit pause button if <code>true</code>. */
     private boolean paused;
 
-    /** Delay, in milliseconds, between creating each data transport record. */
-    private int delay;
-
     /** Type of trigger sent from trigger supervisor. */
     private int triggerType;
 
     /** Is this ROC in single event mode? */
     private boolean isSingleEventMode;
 
-    /** Size of events in ET system (bytes). */
-    private int eventSize;
-
     /** Number of events in each ROC raw record. */
     private int eventBlockSize;
-
-    /** Number of ROC Raw records in each data transport record. */
-    private int numPayloadBanks;
 
     /** The id of the detector which produced the data in block banks of the ROC raw records. */
     private int detectorId;
@@ -164,56 +155,45 @@ public class RocSimulation implements EmuModule, Runnable {
         if (attributeMap == null) return;
         logger = emu.getLogger();
 
-
+        // CODA id of this ROC
         try { rocId = Integer.parseInt(attributeMap.get("id")); }
         catch (NumberFormatException e) { /* defaults to 0 */ }
 System.out.println("                                      SET ROCID TO " + rocId);
         emu.setCodaid(rocId);
 
-        delay = 0;
-        try { delay = Integer.parseInt(attributeMap.get("delay")); }
-        catch (NumberFormatException e) { /* defaults to 0 */ }
-        if (delay < 0) delay = 0;
-
+        // Value for trigger type from trigger supervisor
         triggerType = 15;
         try { triggerType = Integer.parseInt(attributeMap.get("triggerType")); }
         catch (NumberFormatException e) { /* defaults to 15 */ }
         if (triggerType <  0) triggerType = 0;
         else if (triggerType > 15) triggerType = 15;
 
+        // Id of detector producing data
         detectorId = 111;
         try { detectorId = Integer.parseInt(attributeMap.get("detectorId")); }
         catch (NumberFormatException e) { /* defaults to 111 */ }
         if (detectorId < 0) detectorId = 0;
 
+        // How many entangled events in one data block?
         eventBlockSize = 1;
         try { eventBlockSize = Integer.parseInt(attributeMap.get("blockSize")); }
         catch (NumberFormatException e) { /* defaults to 1 */ }
         if (eventBlockSize <   1) eventBlockSize = 1;
         else if (eventBlockSize > 255) eventBlockSize = 255;
 
-        numPayloadBanks = 1;
-        try { numPayloadBanks = Integer.parseInt(attributeMap.get("numRecords")); }
-        catch (NumberFormatException e) { /* defaults to 1 */ }
-        if (numPayloadBanks <   1) numPayloadBanks = 1;
-        else if (numPayloadBanks > 255) numPayloadBanks = 255;
-
         // Number of data generating threads at a time
         writeThreads = 5;
         try { writeThreads = Integer.parseInt(attributeMap.get("threads")); }
         catch (NumberFormatException e) { /* defaults to 5 */ }
-        if (writeThreads < 1) writeThreads = 5;
+        if (writeThreads < 1) writeThreads = 1;
         else if (writeThreads > 20) writeThreads = 20;
 
-        // size of events
-        eventSize = 32000;
-        try { eventSize = Integer.parseInt(attributeMap.get("eventSize")); }
-        catch (NumberFormatException e) { /* defaults to 32000 */ }
-        if (eventSize < 2000) eventSize = 2000;
-
+        // Is this ROC in single-event-mode?
         s = attributeMap.get("SEMode");
         if (s != null) {
-            if (s.equalsIgnoreCase("on") || s.equalsIgnoreCase("true")) {
+            if (s.equalsIgnoreCase("true") ||
+                s.equalsIgnoreCase("on")   ||
+                s.equalsIgnoreCase("yes"))   {
                 isSingleEventMode = true;
             }
         }
@@ -222,15 +202,11 @@ System.out.println("                                      SET ROCID TO " + rocId
             eventBlockSize = 1;
         }
 
-        String end = System.getProperty("end");
-        if (end != null) {
-            try {
-                endLimit = Integer.parseInt(end);
-                if (endLimit < 1) endLimit = 0;
-            }
-            catch (NumberFormatException e) { /* defaults to 25M */ }
-        }
-
+        // How many events to generate before sending END event, defaults to 0 (no limit)
+        endLimit = 0;
+        try { endLimit = Integer.parseInt(attributeMap.get("end")); }
+        catch (NumberFormatException e) { /* defaults to 0 */ }
+        if (endLimit < 0) endLimit = 0;
 
         // the module sets the type of CODA class it is.
         emu.setCodaClass(CODAClass.ROC);
