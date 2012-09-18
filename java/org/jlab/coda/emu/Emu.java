@@ -573,6 +573,9 @@ public class Emu implements CODAComponent {
         // Need the following info for this object's getter methods
         String tmp = System.getProperty("expid");
         if (tmp != null) expid = tmp;
+        if (expid == null) {
+            expid = System.getenv("EXPID");
+        }
 
         tmp = System.getProperty("session");
         if (tmp != null) session = tmp;
@@ -906,7 +909,7 @@ System.out.println("DONE EXECUTING RESET");
                 if (rcConfigString != null) {
                     // If it was NOT loaded before, load it now.
                     // If we have a debug GUI and it was used to last load
-                    // the configuration, or if rc send a filename which this
+                    // the configuration, or if rc sent a filename which this
                     // emu read and loaded, then reconfigure.
                     if (configSource != Emu.ConfigSource.RC_STRING || isNewConfig) {
 System.out.println("Emu configure: loading new string config = \n" + rcConfigString);
@@ -1060,7 +1063,7 @@ logger.error("Emu: CONFIGURE failed", e.getMessage());
                 debugGUI.addDocument(loadedConfig);
             }
 
-            // We need to look carefully at the newly loaded configuration.
+            // WE NEED TO LOOK CAREFULLY AT THE NEWLY LOADED CONFIGURATION.
             // Each EMU may contain only ONE (1) data path. A data path may start
             // with a set of transport input channels (or none at all). The data
             // go through the channels to a single module which uses those channels.
