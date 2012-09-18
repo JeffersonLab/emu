@@ -19,6 +19,7 @@ import org.jlab.coda.emu.support.data.PayloadBank;
 import org.jlab.coda.emu.support.logger.Logger;
 import org.jlab.coda.jevio.*;
 
+import java.nio.ByteOrder;
 import java.util.Map;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
@@ -78,6 +79,9 @@ public class DataChannelImplFile implements DataChannel {
     /** Is this channel an input (true) or output (false) channel? */
     private boolean input;
 
+    /** Byte order of output data. */
+    private ByteOrder byteOrder;
+
 
 
     /**
@@ -102,17 +106,28 @@ public class DataChannelImplFile implements DataChannel {
         this.emu  = emu;
         logger = emu.getLogger();
 
+        // Set option whether or not to enforce evio block header
+        // numbers to be sequential (throw an exception if not).
+        boolean blockNumberChecking = false;
+        String attribString = attrib.get("blockNumCheck");
+        if (attribString != null) {
+            if (attribString.equalsIgnoreCase("true") ||
+                attribString.equalsIgnoreCase("on")   ||
+                attribString.equalsIgnoreCase("yes"))   {
+                blockNumberChecking = true;
+            }
+        }
 
         // Default output file name =   <session>_<run#>.dat<seq#>
         String session = emu.getSession();
         int runNumber  = emu.getRunNumber();
         outputFilePrefix = session + "_" + runNumber + ".dat";
-        String outputFileName = String.format("%s%06d", outputFilePrefix, fileCount);
+        String outputFileName = outputFilePrefix + "000000"; // fileCount = 000000
         String defaultInputFileName = "codaDataFile.evio";
 
         // Set id number. Use any defined in config file else use default (0)
         id = 0;
-        String attribString = attrib.get("id");
+        attribString = attrib.get("id");
         if (attribString != null) {
             try {
                 id = Integer.parseInt(attribString);
@@ -133,6 +148,7 @@ public class DataChannelImplFile implements DataChannel {
             fileName = attrib.get("fileName");
             // scan for %d which must be replaced by the run number
             fileName = fileName.replace("%d", ""+runNumber);
+            outputFilePrefix = fileName;
 //logger.info("      DataChannel File: config file name = " + fileName);
         } catch (Exception e) {
         }
@@ -150,6 +166,13 @@ public class DataChannelImplFile implements DataChannel {
             String splitStr = attrib.get("split");
             if (splitStr != null) {
                 split = Long.parseLong(splitStr);
+                // Ignore negative values
+                if (split < 0L) split = 0L;
+
+                // If were splitting files with a given name, add fileCount on end of name
+                if (split > 0L && fileName != null) {
+                    fileName += "000000";
+                }
 //logger.info("      DataChannel File: split = " + split);
             }
         } catch (Exception e) {
@@ -157,8 +180,10 @@ public class DataChannelImplFile implements DataChannel {
 
         if (fileName == null) {
             if (prefix != null) {
-                outputFilePrefix = prefix + "_" + runNumber + ".dat";
-                outputFileName = String.format("%s%06d", outputFilePrefix, fileCount);
+                outputFileName = outputFilePrefix = prefix + "_" + runNumber + ".dat";
+                if (split > 0L) {
+                    outputFileName += "000000";
+                }
             }
 
             if (input) {
@@ -173,29 +198,47 @@ public class DataChannelImplFile implements DataChannel {
             fileName = directory + "/" + fileName;
         }
 
+        // set queue capacity
         int capacity = 40;
+        try {
+            capacity = dataTransport.getIntAttr("capacity");
+            if (capacity < 1) capacity = 40;
+        } catch (Exception e) {
+            logger.info("      DataChannel File : " +  e.getMessage() + ", default to " + capacity + " records.");
+        }
         queue = new ArrayBlockingQueue<EvioBank>(capacity);
 
         try {
             if (input) {
 logger.info("      DataChannel File: try opening input file of " + fileName);
-                evioFile = new EvioReader(fileName);
+                evioFile = new EvioReader(fileName, blockNumberChecking);
                 DataInputHelper helper = new DataInputHelper();
                 dataThread = new Thread(emu.getThreadGroup(), helper, getName() + " data input");
                 dataThread.start();
                 helper.waitUntilStarted();
+
             } else {
+                // set endianness of data
+                byteOrder = ByteOrder.BIG_ENDIAN;
+                try {
+                    String order = attrib.get("endian");
+                    if (order != null && order.equalsIgnoreCase("little")) {
+                        byteOrder = ByteOrder.LITTLE_ENDIAN;
+                    }
+                } catch (Exception e) {
+                    logger.info("      DataChannel File: no output data endianness specified, default to big.");
+                }
+
 logger.info("      DataChannel File: try opening output file of " + fileName);
                 // Tell emu what that output name is for stat reporting
                 emu.setOutputDestination(fileName);
 
-                evioFileWriter = new EventWriter(fileName);
+                evioFileWriter = new EventWriter(fileName, false, byteOrder);
                 DataOutputHelper helper = new DataOutputHelper();
                 dataThread = new Thread(emu.getThreadGroup(), helper, getName() + " data out");
                 dataThread.start();
                 helper.waitUntilStarted();
             }
-
 
         } catch (Exception e) {
             if (input) {
