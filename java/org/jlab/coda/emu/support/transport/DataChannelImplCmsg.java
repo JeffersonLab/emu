@@ -67,10 +67,10 @@ public class DataChannelImplCmsg implements DataChannel {
     private EvioReader parser;
 
     /** Byte order of output data (input data's order is specified in msg). */
-    ByteOrder byteOrder;
+    private ByteOrder byteOrder;
 
     /** Enforce evio block header numbers to be sequential? */
-    boolean blockNumberChecking;
+    private boolean blockNumberChecking;
 
     /** Read END event from input queue. */
     private volatile boolean haveInputEndEvent;
@@ -88,10 +88,10 @@ public class DataChannelImplCmsg implements DataChannel {
     private cMsgSubscriptionHandle sub;
 
     /** Map of config file attributes. */
-    Map<String, String> attributeMap;
+    private Map<String, String> attributeMap;
 
     /** Is this channel an input (true) or output (false) channel? */
-    boolean input;
+    private boolean input;
 
     private Logger logger;
 
@@ -129,11 +129,7 @@ public class DataChannelImplCmsg implements DataChannel {
 
 
             try {
-                reader = new EvioReader(buffer);
-
-                // Have reader throw an exception if evio
-                // block numbers are not sequential.
-                if (blockNumberChecking) reader.checkBlockNumberSequence(true);
+                reader = new EvioReader(buffer, blockNumberChecking);
 
                 // Speed things up since no EvioListeners are used - doesn't do much
                 reader.getParser().setNotificationActive(false);
@@ -293,6 +289,7 @@ public class DataChannelImplCmsg implements DataChannel {
         int capacity = 40;
         try {
             capacity = dataTransport.getIntAttr("capacity");
+            if (capacity < 1) capacity = 40;
         } catch (Exception e) {
             logger.info("      DataChannelImplCmsg.const : " +  e.getMessage() + ", default to " + capacity + " records.");
         }
@@ -340,7 +337,7 @@ System.out.println("\n\nDataChannel: subscribe to subject = " + subject + ", typ
                     byteOrder = ByteOrder.LITTLE_ENDIAN;
                 }
             } catch (Exception e) {
-                logger.info("      DataChannelImplCmsg.const : no output data endianness specifed, default to big.");
+                logger.info("      DataChannelImplCmsg.const : no output data endianness specified, default to big.");
             }
 
             startOutputHelper();
