@@ -22,7 +22,7 @@ import java.util.LinkedHashSet;
 import java.util.LinkedList;
 
 /**
- * Since there can be multiple EMUs defined in a config file or running in a JVM,
+ * Since there can be multiple EMUs running in a JVM,
  * this class handles their creation and configuration.
  *
  * @author timmer
@@ -67,11 +67,11 @@ public class EmuFactory {
     /** Method to print out correct program command line usage. */
     private static void usage() {
         System.out.println("\nUsage:\n\n" +
-                "   java Emu\n" +
+                "   java EmuFactory\n" +
                 "        [-h]                 print this help\n" +
                 "        [-help]              print this help\n" +
                 "        [-Dname=xxx]         set name of EMU\n"+
-                "        [-Dtype=xxx]         set CODA component type (eg. CDEB, ER)\n"+
+                "        [-Dtype=xxx]         set CODA component type (eg. PEB, ER)\n"+
                 "        [-Dconfig=xxx]       set config file name to be loaded at configuration\n"+
                 "        [-Dlconfig=xxx]      set local config file name for loading static info\n"+
                 "        [-Dexpid=xxx]        set experiment ID\n"+
@@ -207,26 +207,6 @@ public class EmuFactory {
             // If we're here, component names exist, but no config files were given.
             // Run Control will pass config files to the emus during the "configure"
             // transition.
-
-
-//            // If we're here, component names exist, but no config file was given.
-//            // Since config files are not explicitly given, the INSTALL_DIR
-//            // environmental variable must be defined in order to find them.
-//            String coolHome = System.getenv("COOL_HOME");
-//            if (coolHome == null) {
-//                System.out.println("EMUFactory exit - COOL_HOME env. variable is not set");
-//                System.exit(-1);
-//            }
-//
-//System.out.println("Look for a config file for each component:");
-//            String fileName;
-//            for (String name : names) {
-//                fileName = coolHome + File.separator + "emu/conf" +
-//                                      File.separator + name + ".xml";
-//                configFileNames.add(fileName);
-//
-//System.out.println("- " + fileName);
-//            }
         }
 
         // If we've identified some config files, try to load them
