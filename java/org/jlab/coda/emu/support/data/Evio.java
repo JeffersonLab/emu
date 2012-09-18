@@ -647,6 +647,7 @@ System.out.println("checkPayloadBank: record ID out of sequence, got " + recordI
                   (payloadQueue.getRecordId()+1) + ", type = " + eventType);
                 nonFatalRecordIdError = true;
             }
+            // Store the current value here as a convenience for the next comparison
             payloadQueue.setRecordId(recordId);
 
             header = pBank.getHeader();
@@ -813,6 +814,7 @@ if (debug) System.out.println("gotValidControlEvents: got " + controlEventCount 
                     prestartData = bank.getIntData();
                     if (prestartData == null) {
                         throw new EmuException("PRESTART event does not have data");
+
                     }
 
                     if (prestartData[1] != runNumber) {
