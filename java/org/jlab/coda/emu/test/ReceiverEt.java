@@ -242,26 +242,8 @@ System.out.println("pri = " + mev.getPriority());
                 }
 
             }
-            catch (IOException e) {
-                e.printStackTrace();  //To change body of catch statement use File | Settings | File Templates.
-            }
-            catch (EtException e) {
-                e.printStackTrace();  //To change body of catch statement use File | Settings | File Templates.
-            }
-            catch (EtDeadException e) {
-                e.printStackTrace();  //To change body of catch statement use File | Settings | File Templates.
-            }
-            catch (EtEmptyException e) {
-                e.printStackTrace();  //To change body of catch statement use File | Settings | File Templates.
-            }
-            catch (EtBusyException e) {
-                e.printStackTrace();  //To change body of catch statement use File | Settings | File Templates.
-            }
-            catch (EtTimeoutException e) {
-                e.printStackTrace();  //To change body of catch statement use File | Settings | File Templates.
-            }
-            catch (EtWakeUpException e) {
-                e.printStackTrace();  //To change body of catch statement use File | Settings | File Templates.
+            catch (Exception e) {
+                e.printStackTrace();
             }
         }
 
