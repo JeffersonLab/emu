@@ -256,8 +256,8 @@ logger.info("      DataChannel Et : creating channel " + name);
             throw new DataTransportException("", e);
         }
 
-        // How may data writing threads at a time?
-        writeThreadCount = 1;
+        // How may Et buffer filling threads for each data output thread?
+        writeThreadCount = 2;
         attribString = attrib.get("wthreads");
         if (attribString != null) {
             try {
@@ -269,8 +269,8 @@ logger.info("      DataChannel Et : creating channel " + name);
         }
 //logger.info("      DataChannel Et : write threads = " + writeThreadCount);
 
-        // How may groups of data writing threads at a time?
-        inputThreadCount = 1;
+        // How may data reading threads?
+        inputThreadCount = 3;
         attribString = attrib.get("ithreads");
         if (attribString != null) {
             try {
@@ -282,7 +282,7 @@ logger.info("      DataChannel Et : creating channel " + name);
         }
 //logger.info("      DataChannel Et : input threads = " + inputThreadCount);
 
-        // How may groups of data writing threads at a time?
+        // How may data writing threads?
         outputThreadCount = 1;
         attribString = attrib.get("othreads");
         if (attribString != null) {
@@ -643,7 +643,7 @@ logger.debug("      DataChannel Et reset() : " + name + " - done");
          * threads so that event order is preserved.
          *
          * @param banks a list of payload banks to put on the queue
-         * @param order the record Id of the DTR bank taken from the ET event
+         * @param order the record Id of the bank taken from the ET event
          * @throws InterruptedException if put or wait interrupted
          */
         private void writeEvents(List<PayloadBank> banks, int order)
@@ -655,7 +655,7 @@ logger.debug("      DataChannel Et reset() : " + name + " - done");
                     lockOut2.wait();
                 }
 
-                // put events back in ET system
+                // put banks in our Q, for module
                 for (PayloadBank bank : banks) {
                     queue.put(bank);
                 }
@@ -679,7 +679,7 @@ logger.debug("      DataChannel Et reset() : " + name + " - done");
                 EvioBank bank;
                 PayloadBank payloadBank;
                 LinkedList<PayloadBank> payloadBanks = new LinkedList<PayloadBank>();
-                int myInputOrder, evioVersion, payloadCount, sourceId;
+                int myInputOrder, evioVersion, sourceId, recordId;
                 BlockHeaderV4 header4;
                 EventType type, bankType;
 
@@ -704,6 +704,8 @@ logger.warn("      DataChannel Et : " + name + " - PAUSED");
                             // in order to preserve event order with multiple threads.
                             myInputOrder = inputOrderIn;
                             inputOrderIn = (inputOrderIn + events.length) % Integer.MAX_VALUE;
+//System.out.println("\n      DataChannel Et : Got " + events.length +
+// " events from ET, inputOrder = " + myInputOrder);
                         }
                         catch (EtTimeoutException e) {
                             if (haveInputEndEvent) {
@@ -714,6 +716,7 @@ System.out.println("      DataChannel Et : " + name + " have END, quitting");
 System.out.println("      DataChannel Et : " + name + " got RESET, quitting");
                                 return;
                             }
+
                             Thread.sleep(5);
                             continue;
                         }
@@ -732,22 +735,28 @@ System.out.println("      DataChannel Et : " + name + " got RESET, quitting");
                             if (evioVersion < 4) {
                                 throw new EvioException("Evio data needs to be written in version 4+ format");
                             }
-                            header4      = (BlockHeaderV4)blockHeader;
-                            type         = EventType.getEventType(header4.getEventType());
-                            sourceId     = header4.getReserved1();
-                            payloadCount = header4.getEventCount();
-
-//logger.info("      DataChannel Et : " + name + " block header, data type " + type +
-//            ", src id = " + sourceId + ", payld count = " + payloadCount +
-//            ", recd id = " + header4.getNumber());
+                            header4  = (BlockHeaderV4)blockHeader;
+                            type     = EventType.getEventType(header4.getEventType());
+                            sourceId = header4.getReserved1();
+                            // Only the first block header # is significant. It is set sequentially
+                            // by the evWriter object & incremented once per ET event with physics
+                            // or ROC data (set to -1 for other data types). Copy it into each bank.
+                            // Even though many banks will have the same number, it should only
+                            // increment by one. This should work just fine as all evio events in
+                            // a single ET event should always be there (not possible to skip any)
+                            // since it is transferred all together.
+                            //
+                            // When the QFiller thread of the event builder gets a physics or ROC
+                            // evio event, it checks to make sure this number is in sequence and
+                            // prints a warning if it isn't.
+                            recordId = header4.getNumber();
 
                             payloadBanks.clear();
 
-                            while ((bank = reader.parseNextEvent()) != null) {
-                                if (payloadCount < 1) {
-                                    throw new EvioException("Evio header inconsistency");
-                                }
+//logger.info("      DataChannel Et : " + name + " block header, data type " + type +
+//            ", src id = " + sourceId + ", recd id = " + recordId);
 
+                            while ((bank = reader.parseNextEvent()) != null) {
                                 // Complication: from the ROC, we'll be receiving USER events
                                 // mixed in with and labeled as ROC Raw events. Check for that
                                 // and fix it.
@@ -761,8 +770,8 @@ System.out.println("      DataChannel Et : " + name + " got RESET, quitting");
                                 // Not a real copy, just points to stuff in bank
                                 payloadBank = new PayloadBank(bank);
                                 // Add vital info from block header.
-                                payloadBank.setRecordId(blockHeader.getNumber());
                                 payloadBank.setType(bankType);
+                                payloadBank.setRecordId(recordId);
                                 payloadBank.setSourceId(sourceId);
 
                                 // add bank to list for later writing
@@ -777,17 +786,18 @@ logger.info("      DataChannel Et : found END event");
                                     haveInputEndEvent = true;
                                     break;
                                 }
-
-                                payloadCount--;
                             }
 
                             // Write any existing banks
-                            writeEvents(payloadBanks, myInputOrder);
+                            writeEvents(payloadBanks, myInputOrder++);
 
-                            if (haveInputEndEvent) break;
+                            if (haveInputEndEvent) {
+                                break;
+                            }
                         }
                         catch (EvioException e) {
                             // if ET event data NOT in evio format, skip over it
+                            e.printStackTrace();
                             logger.error("        DataChannel Et : " + name +
                                          " ET event data is NOT (latest) evio format, skip");
                         }
@@ -797,7 +807,7 @@ logger.info("      DataChannel Et : found END event");
                     etSystem.putEvents(attachment, events);
 
                     if (haveInputEndEvent) {
-//logger.info("      DataChannel Et : have END, " + name + " quit input helping thread");
+logger.info("      DataChannel Et : have END, " + name + " quit input helping thread");
                         return;
                     }
                 }
@@ -983,7 +993,7 @@ logger.info("      DataChannel Et : found END event");
                 int events2Write, eventArrayLen, myInputOrder=0;
                 int[] recordIds = new int[chunk];
 
-                // Create an array of list of PayloadBank objects by 2-step
+                // Create an array of lists of PayloadBank objects by 2-step
                 // initialization to avoid "generic array creation" error.
                 // Create one list for every possible ET event.
                 LinkedList<PayloadBank>[] bankListArray = new LinkedList[chunk];
@@ -1060,7 +1070,7 @@ logger.info("      DataChannel Et : found END event");
                             do {
                                 // Get bank off of Q.
                                 pBank = (PayloadBank) queue.poll(100L, TimeUnit.MILLISECONDS);
-                                // If wait longer than 100ms, and there are thing to write,
+                                // If wait longer than 100ms, and there are things to write,
                                 // send them to the ET system.
                                 if (pBank == null) {
                                     if (gotNothingYet) {
@@ -1205,7 +1215,7 @@ logger.info("      DataChannel Et : found END event");
 
                     // For each ET event that can be filled with something ...
                     for (int i=0; i < etEventsIndex; i++) {
-                        // Get list of banks to put into this ET event
+                        // Get one of the list of banks to put into this ET event
                         bankList = bankListArray[i];
 
                         if (bankList.size() < 1) {
@@ -1418,6 +1428,7 @@ System.out.println("Ending");
                     events = null;
                     events = etSystem.newEvents(attachment, Mode.SLEEP, false, 0,
                                                 chunk, (int)etSystem.getEventSize(), group);
+//System.out.println("I got " + events.length + " new events");
                     barrier.await();
                 }
                 catch (BrokenBarrierException e) {
@@ -1428,6 +1439,7 @@ System.out.println("Ending");
                 }
                 catch (Exception e) {
                     // ET system problem - run will come to an end
+System.out.println(e.getMessage());
                 }
             }
         }
