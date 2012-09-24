@@ -122,9 +122,9 @@ public class DataChannelImplCmsg implements DataChannel {
 
             EvioBank bank;
             PayloadBank payloadBank;
-            int evioVersion, payloadCount, sourceId;
+            int evioVersion, sourceId, recordId;
             BlockHeaderV4 header4;
-            EventType  type;
+            EventType  type, bankType;
             EvioReader reader;
 
 
@@ -142,19 +142,43 @@ public class DataChannelImplCmsg implements DataChannel {
                 header4      = (BlockHeaderV4)blockHeader;
                 type         = EventType.getEventType(header4.getEventType());
                 sourceId     = header4.getReserved1();
-                payloadCount = header4.getEventCount();
+                // The recordId associated with each bank is taken from the first
+                // evio block header in a single ET data buffer. For a physics or
+                // ROC raw type, it should start at zero and increase by one in the
+                // first evio block header of the next ET data buffer.
+                // There may be multiple banks from the same ET buffer and
+                // they will all have the same recordId.
+                //
+                // Thus, only the first block header # is significant. It is set sequentially
+                // by the evWriter object & incremented once per ET event with physics
+                // or ROC data (set to -1 for other data types). Copy it into each bank.
+                // Even though many banks will have the same number, it should only
+                // increment by one. This should work just fine as all evio events in
+                // a single ET event should always be there (not possible to skip any)
+                // since it is transferred all together.
+                //
+                // When the QFiller thread of the event builder gets a physics or ROC
+                // evio event, it checks to make sure this number is in sequence and
+                // prints a warning if it isn't.
+                recordId = header4.getNumber();
 
                 while ((bank = reader.parseNextEvent()) != null) {
-                    if (payloadCount < 1) {
-                        throw new EvioException("Evio header inconsistency");
+                    // Complication: from the ROC, we'll be receiving USER events
+                    // mixed in with and labeled as ROC Raw events. Check for that
+                    // and fix it.
+                    bankType = type;
+                    if (type == EventType.ROC_RAW) {
+                        if (Evio.isUserEvent(bank)) {
+                            bankType = EventType.USER;
+                        }
                     }
 
                     // Not a real copy, just points to stuff in bank
                     payloadBank = new PayloadBank(bank);
                     // Add vital info from block header.
-                    payloadBank.setRecordId(blockHeader.getNumber());
-                    payloadBank.setType(type);
+                    payloadBank.setType(bankType);
                     payloadBank.setSourceId(sourceId);
+                    payloadBank.setRecordId(recordId);
 
                     // Put evio bank (payload bank) on Q if it parses
                     queue.put(bank);
@@ -165,15 +189,8 @@ public class DataChannelImplCmsg implements DataChannel {
                         // go ahead write out existing events and then shut this
                         // thread down.
 //logger.info("      DataChannel cMsg : found END event");
-                        haveInputEndEvent = true;
-                        break;
+                        return;
                     }
-
-                    payloadCount--;
-                }
-
-                if (haveInputEndEvent) {
-                    // TODO: do something!!!
                 }
             }
             catch (EvioException e) {
