@@ -738,7 +738,14 @@ System.out.println("      DataChannel Et : " + name + " got RESET, quitting");
                             header4  = (BlockHeaderV4)blockHeader;
                             type     = EventType.getEventType(header4.getEventType());
                             sourceId = header4.getReserved1();
-                            // Only the first block header # is significant. It is set sequentially
+                            // The recordId associated with each bank is taken from the first
+                            // evio block header in a single ET data buffer. For a physics or
+                            // ROC raw type, it should start at zero and increase by one in the
+                            // first evio block header of the next ET data buffer.
+                            // There may be multiple banks from the same ET buffer and
+                            // they will all have the same recordId.
+                            //
+                            // Thus, only the first block header # is significant. It is set sequentially
                             // by the evWriter object & incremented once per ET event with physics
                             // or ROC data (set to -1 for other data types). Copy it into each bank.
                             // Even though many banks will have the same number, it should only
