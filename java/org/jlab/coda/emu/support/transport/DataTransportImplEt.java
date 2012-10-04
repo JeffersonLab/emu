@@ -228,7 +228,7 @@ public class DataTransportImplEt extends DataTransportCore implements DataTransp
                 catch (NumberFormatException e) {}
             }
 
-            // TCP NODELAY parameter (if not "true" then false)
+            // TCP NODELAY parameter (false by default)
             boolean noDelay = false;
             str = attrib.get("noDelay");
             if (str != null) {
@@ -495,16 +495,14 @@ logger.debug("    DataTransport Et execute : " + cmd.name());
 //System.out.println("  ET system " + openConfig.getEtName() + " already exists");
                 }
                 catch (EtException e) {
-//System.out.println("  Cannot open ET system, config is not self consistent");
+//System.out.println("  Cannot open ET system, config is not self-consistent");
                     logger.debug("    DataTransport Et execute DOWNLOAD: self-contradictory ET system config : " + name() + " " + myInstance);
                     state = CODAState.ERROR;
                     return;
                 }
                 catch (Exception e) {
-//                    e.printStackTrace();
                     // Any existing local ET might be different name or TCP port, or isn't local.
                     // A name conflict will spell doom for us later when we try to create it.
-//System.out.println("  Cannot open ET system " + openConfig.getEtName() + ", not there?");
                 }
 
                 // If one exists, see if it's compatible
@@ -613,7 +611,7 @@ logger.debug("    DataTransport Et: create ET system, " + openConfig.getEtName()
                         // actually started. So try for a few seconds to connect to
                         // it. If we can't, then there must have been an error trying
                         // to start it up (like another ET system using the same ports).
-logger.debug("    DataTransport Et: try for 2 secs to connect to it");
+//logger.debug("    DataTransport Et: try for 2 secs to connect to it");
                         openConfig.setWaitTime(2000);
                         try {
                             etSystem = new EtSystem(openConfig);
@@ -621,7 +619,7 @@ logger.debug("    DataTransport Et: try for 2 secs to connect to it");
                             try {etSystem.close();} catch (Exception e) {}
                         }
                         catch (Exception e) {
-logger.debug("    Cannot open ET system " + openConfig.getEtName() + ", not there?");
+logger.debug("    DataTransport Et: created system " + openConfig.getEtName() + " may not be running, cannot connect ...");
                             state = CODAState.ERROR;
                             return;
                         }
