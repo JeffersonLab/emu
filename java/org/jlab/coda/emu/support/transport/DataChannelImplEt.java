@@ -70,7 +70,7 @@ public class DataChannelImplEt implements DataChannel {
     /** Array of threads used to input data. */
     private DataInputHelper[] dataInputThreads;
 
-    /** Array of threads used output data. */
+    /** Array of threads used to output data. */
     private DataOutputHelper[] dataOutputThreads;
 
     /** Byte order of output data (input data's order is specified in msg). */
@@ -88,7 +88,8 @@ public class DataChannelImplEt implements DataChannel {
     private Object lockIn  = new Object();
     /** Synchronize putting new ET events into ET system for multiple DataOutputHelpers. */
     private Object lockOut = new Object();
-
+    /** Place to store a bank off the queue for the next event out. */
+    private PayloadBank firstBankFromQueue;
 
     // INPUT
 
@@ -438,8 +439,32 @@ logger.info("      DataChannel Et : creating channel " + name);
     public void openEtSystem() throws DataTransportException {
         try {
 //System.out.println("      DataChannel Et: try to open" + dataTransport.getOpenConfig().getEtName() );
+// TODO: why is this delay here ?????
+            Thread.sleep(1000);
             etSystem.open();
+        }
+        catch (Exception e) {
+            EtSystemOpenConfig config = etSystem.getConfig();
+            String errString = "cannot connect to " + config.getEtName();
+            int method = config.getNetworkContactMethod();
+            if (method == EtConstants.direct) {
+                errString += " direct to " + config.getHost() + " on port " + config.getTcpPort();
+            }
+            else if (method == EtConstants.multicast) {
+                errString += " multicasting to port " + config.getUdpPort();
+            }
+            else if (method == EtConstants.broadcast) {
+                errString += " broadcasting to port " + config.getUdpPort();
+            }
+            else if (method == EtConstants.broadAndMulticast) {
+                errString += " multi/broadcasting to port " + config.getUdpPort();
+            }
 
+            logger.error("      DataChannel Et : " + errString);
+            throw new DataTransportException(errString, e);
+        }
+
+        try {
             if (stationName.equals("GRAND_CENTRAL")) {
                 station = etSystem.stationNameToObject(stationName);
             }
@@ -453,14 +478,12 @@ logger.info("      DataChannel Et : creating channel " + name);
                     etSystem.setStationPosition(station, stationPosition, 0);
                 }
             }
-//logger.info("      DataChannel Et: created or found station = " + stationName);
 
             // attach to station
             attachment = etSystem.attach(station);
-//logger.info("      DataChannel Et: attached to station " + stationName);
         }
         catch (Exception e) {
-            throw new DataTransportException("cannot open ET system", e);
+            throw new DataTransportException("cannot create/attach to station " + stationName, e);
         }
     }
 
@@ -552,7 +575,7 @@ logger.info("      DataChannel Et : creating channel " + name);
      */
     @Override
     public void reset() {
-logger.debug("      DataChannel Et reset() : " + name + " - closing this channel (close ET system)");
+logger.debug("      DataChannel Et reset() : " + name + " - resetting this channel (close ET system)");
 
         gotEndCmd   = false;
         gotResetCmd = true;
@@ -560,7 +583,7 @@ logger.debug("      DataChannel Et reset() : " + name + " - closing this channel
         // Don't close ET system until helper threads are done
         if (dataInputThreads != null) {
             for (int i=0; i < inputThreadCount; i++) {
-System.out.println("        interrupt input thread #" + i + " ...");
+//System.out.println("        interrupt input thread #" + i + " ...");
                 dataInputThreads[i].interrupt();
                 // Make sure the thread is done, otherwise you risk
                 // killing the ET system while a getEvents() call is
@@ -568,13 +591,13 @@ System.out.println("        interrupt input thread #" + i + " ...");
                 // in the JNI code. Give it 25% more time than the wait.
                 try {dataInputThreads[i].join(etWaitTime/800);}
                 catch (InterruptedException e) {}
-System.out.println("        input thread done");
+//System.out.println("        input thread done");
             }
         }
 
         if (dataOutputThreads != null) {
             for (int i=0; i < outputThreadCount; i++) {
-System.out.println("        interrupt output thread #" + i + " ...");
+//System.out.println("        interrupt output thread #" + i + " ...");
                 dataOutputThreads[i].interrupt();
                 dataOutputThreads[i].shutdown();
                 // Make sure all threads are done, otherwise you risk
@@ -583,16 +606,16 @@ System.out.println("        interrupt output thread #" + i + " ...");
                 // in the JNI code. Give it 25% more time than the wait.
                 try {dataOutputThreads[i].join(1000);}
                 catch (InterruptedException e) {}
-System.out.println("        output thread done");
+//System.out.println("        output thread done");
             }
         }
 
         // At this point all threads should be done
         try {
-System.out.println("        detach from ET");
+//System.out.println("        detach from ET");
             etSystem.detach(attachment);
             if (!stationName.equals("GRAND_CENTRAL")) {
-System.out.println("        remove " + station.getName() + " station");
+//System.out.println("        remove " + station.getName() + " station");
                 etSystem.removeStation(station);
             }
             etSystem.close();
@@ -602,7 +625,7 @@ System.out.println("        remove " + station.getName() + " station");
         }
 
         queue.clear();
-logger.debug("      DataChannel Et reset() : " + name + " - done");
+//logger.debug("      DataChannel Et reset() : " + name + " - done");
     }
 
 
@@ -996,7 +1019,7 @@ logger.info("      DataChannel Et : have END, " + name + " quit input helping th
                 PayloadBank pBank;
                 LinkedList<PayloadBank> bankList;
                 boolean gotNothingYet;
-                int etEventsIndex, pBankSize, banksTotalSize, etSize;
+                int nextEventIndex, thisEventIndex, pBankSize, listTotalSizeMax, etSize;
                 int events2Write, eventArrayLen, myInputOrder=0;
                 int[] recordIds = new int[chunk];
 
@@ -1052,11 +1075,11 @@ logger.info("      DataChannel Et : have END, " + name + " quit input helping th
 
                     // Init variables
                     events2Write = 0;
-                    etEventsIndex = 0;
-                    banksTotalSize = 0;
+                    nextEventIndex = thisEventIndex = 0;
+                    listTotalSizeMax = 32;   // first (or last) block header
                     previousType = null;
                     gotNothingYet = true;
-                    bankList = bankListArray[etEventsIndex];
+                    bankList = bankListArray[nextEventIndex];
 
                     // If more than 1 output thread, need to sync things
                     if (dataOutputThreads.length > 1) {
@@ -1075,8 +1098,15 @@ logger.info("      DataChannel Et : have END, " + name + " quit input helping th
                             // checking occasionally to see if we got an
                             // RESET command or someone found an END event.
                             do {
-                                // Get bank off of Q.
-                                pBank = (PayloadBank) queue.poll(100L, TimeUnit.MILLISECONDS);
+                                // Get bank off of Q, unless we already did so in a previous loop
+                                if (firstBankFromQueue != null) {
+                                    pBank = firstBankFromQueue;
+                                    firstBankFromQueue = null;
+                                }
+                                else {
+                                    pBank = (PayloadBank) queue.poll(100L, TimeUnit.MILLISECONDS);
+                                }
+
                                 // If wait longer than 100ms, and there are things to write,
                                 // send them to the ET system.
                                 if (pBank == null) {
@@ -1089,48 +1119,68 @@ logger.info("      DataChannel Et : have END, " + name + " quit input helping th
                                 gotNothingYet = false;
                                 pBanktype = pBank.getType();
                                 pBankSize = pBank.getTotalBytes();
-                                // assume worst case of one block header / banks
-                                banksTotalSize += pBankSize + 32;
+                                // Assume worst case of one block header / bank
+                                listTotalSizeMax += pBankSize + 32;
+
+                                // This the first time through the while loop
+                                if (previousType == null) {
+                                    // Add bank to the list since there's always room for one
+                                    bankList.add(pBank);
+
+                                    // First time thru loop nextEventIndex = thisEventIndex,
+                                    // at least until it gets incremented below.
+                                    //
+                                    // Set recordId depending on what type this bank is
+                                    if (pBanktype.isAnyPhysics() || pBanktype.isROCRaw()) {
+                                        recordIds[thisEventIndex] = recordId++;
+                                    }
+                                    else {
+                                        recordIds[thisEventIndex] = -1;
+                                    }
+
+                                    // Index of next list
+                                    nextEventIndex++;
+                                }
 
                                 // Is this bank a diff type as previous bank?
-                                // Or if it's the same type, will it not fit in
-                                // the ET event? In any case start using a new list.
-                                if (previousType != null &&
-                                   (previousType != pBanktype || etSize < banksTotalSize)) {
+                                // Will it not fit into the et buffer?
+                                // In both these cases start using a new list.
+                                else if ((previousType != pBanktype) ||
+                                        (listTotalSizeMax >= etSize)) {
 
-                                    bankList = bankListArray[etEventsIndex];
+//                                    if (listTotalSizeMax >= etSize) {
+//                                        System.out.println("LIST IS TOO BIG, start another");
+//                                    }
+
+                                    // If we've already used up all the events,
+                                    // write things out first. Be sure to store what we just
+                                    // pulled off the Q to be the next bank!
+                                    if (nextEventIndex >= eventArrayLen) {
+//System.out.println("Used up " + nextEventIndex + " events, store bank for next round");
+                                        firstBankFromQueue = pBank;
+                                        break;
+                                    }
+
+                                    // Get new list
+                                    bankList = bankListArray[nextEventIndex];
                                     // Add bank to new list
                                     bankList.add(pBank);
-                                    // 64 -> take possible ending header into account
-                                    banksTotalSize = pBankSize + 64;
-                                    // Set recordId depending on what type this bank is
-                                    if (pBanktype.isAnyPhysics() || pBanktype.isROCRaw()) {
-                                        recordIds[etEventsIndex] = recordId++;
-                                    }
-                                    else {
-                                        recordIds[etEventsIndex] = -1;
-                                    }
-                                    etEventsIndex++;
-                                }
-                                // This the first time through the while loop
-                                else if (previousType == null) {
-                                    // Add bank to the list since there's
-                                    // always room for one.
-                                    bankList.add(pBank);
 
                                     // Set recordId depending on what type this bank is
                                     if (pBanktype.isAnyPhysics() || pBanktype.isROCRaw()) {
-                                        recordIds[etEventsIndex] = recordId++;
+                                        recordIds[nextEventIndex] = recordId++;
                                     }
                                     else {
-                                        recordIds[etEventsIndex] = -1;
+                                        recordIds[nextEventIndex] = -1;
                                     }
-                                    etEventsIndex++;
+
+                                    // Index of this & next lists
+                                    thisEventIndex++;
+                                    nextEventIndex++;
                                 }
                                 // It's OK to add this bank to the existing list.
                                 else {
-                                    // Add bank to the list since there's
-                                    // room and it's the right type.
+                                    // Add bank to list since there's room and it's the right type
                                     bankList.add(pBank);
                                 }
 
@@ -1145,7 +1195,7 @@ logger.info("      DataChannel Et : have END, " + name + " quit input helping th
                                 previousType = pBanktype;
                                 pBank.setAttachment(Boolean.FALSE);
 
-                            } while (!gotResetCmd && (etEventsIndex < eventArrayLen));
+                            } while (!gotResetCmd && (thisEventIndex < eventArrayLen));
 
                             // If I've been told to RESET ...
                             if (gotResetCmd) {
@@ -1159,7 +1209,14 @@ logger.info("      DataChannel Et : have END, " + name + " quit input helping th
                     }
                     else {
                         do {
-                            pBank = (PayloadBank) queue.poll(100L, TimeUnit.MILLISECONDS);
+                            if (firstBankFromQueue != null) {
+                                pBank = firstBankFromQueue;
+                                firstBankFromQueue = null;
+                            }
+                            else {
+                                pBank = (PayloadBank) queue.poll(100L, TimeUnit.MILLISECONDS);
+                            }
+
                             if (pBank == null) {
                                 if (gotNothingYet) {
                                     continue;
@@ -1170,32 +1227,40 @@ logger.info("      DataChannel Et : have END, " + name + " quit input helping th
                             gotNothingYet = false;
                             pBanktype = pBank.getType();
                             pBankSize = pBank.getTotalBytes();
-                            banksTotalSize += pBankSize + 32;
+                            listTotalSizeMax += pBankSize + 32;
 
-                            if (previousType != null &&
-                                    (previousType != pBanktype || etSize < banksTotalSize)) {
-
-                                bankList = bankListArray[etEventsIndex];
+                            if (previousType == null) {
                                 bankList.add(pBank);
-                                banksTotalSize = pBankSize + 64;
+
                                 if (pBanktype.isAnyPhysics() || pBanktype.isROCRaw()) {
-                                    recordIds[etEventsIndex] = recordId++;
+                                    recordIds[thisEventIndex] = recordId++;
                                 }
                                 else {
-                                    recordIds[etEventsIndex] = -1;
+                                    recordIds[thisEventIndex] = -1;
                                 }
-                                etEventsIndex++;
+
+                                nextEventIndex++;
                             }
-                            else if (previousType == null) {
+                            else if ((previousType != pBanktype) ||
+                                     (listTotalSizeMax >= etSize)) {
+
+                                if (nextEventIndex >= eventArrayLen) {
+                                    firstBankFromQueue = pBank;
+                                    break;
+                                }
+
+                                bankList = bankListArray[nextEventIndex];
                                 bankList.add(pBank);
 
                                 if (pBanktype.isAnyPhysics() || pBanktype.isROCRaw()) {
-                                    recordIds[etEventsIndex] = recordId++;
+                                    recordIds[nextEventIndex] = recordId++;
                                 }
                                 else {
-                                    recordIds[etEventsIndex] = -1;
+                                    recordIds[nextEventIndex] = -1;
                                 }
-                                etEventsIndex++;
+
+                                thisEventIndex++;
+                                nextEventIndex++;
                             }
                             else {
                                 bankList.add(pBank);
@@ -1210,7 +1275,7 @@ logger.info("      DataChannel Et : have END, " + name + " quit input helping th
                             previousType = pBanktype;
                             pBank.setAttachment(Boolean.FALSE);
 
-                        } while (!gotResetCmd && (etEventsIndex < eventArrayLen));
+                        } while (!gotResetCmd && (thisEventIndex < eventArrayLen));
 
                         if (gotResetCmd) {
                             shutdown();
@@ -1218,10 +1283,13 @@ logger.info("      DataChannel Et : have END, " + name + " quit input helping th
                         }
                     }
 
-                    latch = new CountDownLatch(etEventsIndex);
+logger.info("      DataChannel Et DataOutputHelper : nextEvIndx = " + nextEventIndex +
+                    ", evArrayLen = " + eventArrayLen);
+
+                    latch = new CountDownLatch(nextEventIndex);
 
                     // For each ET event that can be filled with something ...
-                    for (int i=0; i < etEventsIndex; i++) {
+                    for (int i=0; i < nextEventIndex; i++) {
                         // Get one of the list of banks to put into this ET event
                         bankList = bankListArray[i];
 
@@ -1232,7 +1300,7 @@ logger.info("      DataChannel Et : have END, " + name + " quit input helping th
                         // Check to see if not enough room in ET event to hold bank.
                         // In this case, list will only contain 1 (big) bank.
                         if (bankList.size() == 1) {
-                            // Minimum # of bytes to write this bank into buffer
+                            // Max # of bytes to write this bank into buffer
                             int bankWrittenSize = bankList.getFirst().getTotalBytes() + 64;
                             if (bankWrittenSize > etSize) {
 logger.warn("      DataChannel Et DataOutputHelper : " + name + " ET event too small to contain built event");
@@ -1338,6 +1406,7 @@ System.out.println("Ending");
              * Constructor.
              * @param bankList list of banks to be written into a single ET event
              * @param event ET event in which to place the banks
+             * @param myRecordId value of starting block header's block number
              */
             EvWriter(LinkedList<PayloadBank> bankList, EtEvent event, int myRecordId) {
                 this.event = event;
