@@ -1420,7 +1420,9 @@ System.out.println("Timestamps are NOT consistent !!!");
         //    in the format given below. This is a segment of unsigned 16 bit
         //    integers containing the event type of each event.
         //
-        //    MSB(31)                    LSB(0)    Big Endian,  higher mem  -->
+        //    higher mem  -->
+        //    |
+        //    V
         //    __________________________________
         //    |  event1 type  |  event2 type   |
         //    |        .      |        .       |
@@ -1482,8 +1484,8 @@ System.out.println("                           " + (firstEvNum+i) + " != " + (tr
                 // If they exist, store all timestamp related
                 // values so consistency can be checked below
                 if (checkTimestamps && triggerData.length > 2) {
-                    ts = (    (0xffffL & (long)triggerData[1] << 32) |
-                          (0xffffffffL & (long)triggerData[2]));
+                    ts = (    (0xffffL & (long)triggerData[2] << 32) |
+                          (0xffffffffL & (long)triggerData[1]));
                     timestampsAvg[i] += ts;
                     timestampsMax[i]  = ts > timestampsMax[i] ? ts : timestampsMax[i];
                     timestampsMin[i]  = ts < timestampsMin[i] ? ts : timestampsMin[i];
@@ -1973,8 +1975,8 @@ System.out.println("Timestamps are NOT consistent !!!");
 
         // if single event mode, put in timestamp
         if (isSEM) {
-            data[index++] = (int) (timestamp >>> 32 & 0xFFFF); // high 16 of 48 bits
             data[index++] = (int)  timestamp; // low 32 bits
+            data[index++] = (int) (timestamp >>> 32 & 0xFFFF); // high 16 of 48 bits
         }
 
         // Put in data module-by-module
@@ -2033,8 +2035,8 @@ System.out.println("Timestamps are NOT consistent !!!");
 //        // First is event #, then timestamp, then data
 //        int[] data = new int[4];
 //        data[0] = eventNumber;
-//        data[1] = (int) (timestamp >>> 32 & 0xFFFF); // high 16 of 48 bits
-//        data[2] = (int) timestamp; // low 32 bits
+//        data[1] = (int) timestamp; // low 32 bits
+//        data[2] = (int) (timestamp >>> 32 & 0xFFFF); // high 16 of 48 bits
 //        data[3] = 10000;
 
         // Put some data into event (10 modules worth)
@@ -2093,8 +2095,8 @@ System.out.println("Timestamps are NOT consistent !!!");
             // Generate 3 segments per event (no miscellaneous data)
             int[] segmentData = new int[3];
             segmentData[0] = eventNumber++;
-            segmentData[1] = (int) (timestamp >>> 32 & 0xFFFF); // high 16 of 48 bits
-            segmentData[2] = (int)  timestamp; // low 32 bits
+            segmentData[1] = (int)  timestamp; // low 32 bits
+            segmentData[2] = (int) (timestamp >>> 32 & 0xFFFF); // high 16 of 48 bits
 //            if (rocID == 1 && onlyOnce) {
 //                // bad timestamp for Roc1
 //                timestamp += 9;
