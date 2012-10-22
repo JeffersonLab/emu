@@ -1086,33 +1086,31 @@ if (debug) System.out.println("gotValidControlEvents: found control event of typ
         //    in the format given below. This is a segment of unsigned 64 bit
         //    integers containing the first event number followed by timestamps
         //    IF the config is set for checking timestamps. That is followed by
-        //    the run number (32 bits) and the run type (32 bits) If the config
-        //    is set for adding runData.
+        //    the run number (high 32 bits) and the run type (low 32 bits) IF
+        //    the config is set for adding runData.
         //
-        //    MSB(31)                          LSB(0)    Big Endian,  higher mem  -->
-        //    _______________________________________
-        //    | first event number (high 32 bits)   |
-        //    | first event number (low  32 bits)   |
-        //    |       timestamp1   (high 32 bits)   |
-        //    |       timestamp1   (low  32 bits)   |
-        //    |                      ...            |
-        //    |       timestampM   (high 32 bits)   |
-        //    |       timestampM   (low  32 bits)   |
-        //    |       run   number (high 32 bits)   |
-        //    |       run   type   (low  32 bits)   |
-        //    _______________________________________
+        //    MSB(64)                LSB(0)
+        //    _____________________________
+        //    |     first event number    |
+        //    |        timestamp1         |
+        //    |            ...            |
+        //    |        timestampM         |
+        //    | run number  |  run type   |
+        //    _____________________________
         //
         //
         // 2) The second segment in each built trigger bank contains common data
         //    in the format given below. This is a segment of unsigned 16 bit
         //    integers containing the event type of each event.
         //
-        //    MSB(31)                    LSB(0)    Big Endian,  higher mem  -->
+        //    higher mem  -->
+        //    |
+        //    V
         //    __________________________________
         //    |  event1 type  |  event2 type   |
         //    |        .      |        .       |
         //    |        .      |        .       |
-        //    | eventN-1 type |  eventN type   |
+        //    | eventM-1 type |  eventM type   |
         //    __________________________________
         //
 
@@ -1656,30 +1654,26 @@ System.out.println("Timestamps are NOT consistent!!!");
         //    in the format given below. This is a segment of unsigned 64 bit
         //    integers containing the event number followed by the timestamp
         //    IF the config is set for checking timestamps. That is followed by
-        //    the run number (32 bits) and the run type (32 bits) If the config
-        //    is set for adding runData.
+        //    the run number (high 32 bits) and the run type (low 32 bits) IF
+        //    the config is set for adding runData.
         //
-        //    MSB(31)                          LSB(0)    Big Endian,  higher mem  -->
-        //    _______________________________________
-        //    |       event number (high 32 bits)   |
-        //    |       event number (low  32 bits)   |
-        //    |       timestamp    (high 32 bits)   |
-        //    |       timestamp    (low  32 bits)   |
-        //    |       run   number (high 32 bits)   |
-        //    |       run   type   (low  32 bits)   |
-        //    _______________________________________
+        //    MSB(64)                LSB(0)
+        //    _____________________________
+        //    |       event number        |
+        //    |        timestamp          |
+        //    | run number  |  run type   |
+        //    _____________________________
         //
         //
         // 2) The second segment in each built trigger bank contains common data
         //    in the format given below. This is a segment of unsigned 16 bit
-        //    integers containing the event type of each event.
+        //    integers containing the event type of the event.
         //
-        //    MSB(31)                    LSB(0)    Big Endian,  higher mem  -->
+        //    higher mem  -->
         //    __________________________________
-        //    | event1 type  |    (nothing)    |
-        //    _________________________________
+        //    |  event1 type  |   (padding)    |
+        //    __________________________________
         //
-
 
         // Extract needed event type from Data Block banks (pick first in list)
         // for checking type consistency.
@@ -1711,8 +1705,8 @@ System.out.println("Timestamps are NOT consistent!!!");
 
             // store timestamp related values so consistency can be checked later
             if (checkTimestamps && data.length > 2) {
-                ts = (    (0xffffL & (long)data[1] << 32) |
-                      (0xffffffffL & (long)data[2]));
+                ts = (    (0xffffL & (long)data[2] << 32) |
+                      (0xffffffffL & (long)data[1]));
                 timestampsAvg += ts;
                 timestampsMax  = ts > timestampsMax ? ts : timestampsMax;
                 timestampsMin  = ts < timestampsMin ? ts : timestampsMin;
