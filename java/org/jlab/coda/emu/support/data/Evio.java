@@ -1399,21 +1399,17 @@ System.out.println("Timestamps are NOT consistent !!!");
         //    in the format given below. This is a segment of unsigned 64 bit
         //    integers containing the first event number followed by timestamps
         //    IF the config is set for checking timestamps. That is followed by
-        //    the run number (32 bits) and the run type (32 bits) If the config
-        //    is set for adding runData.
+        //    the run number (high 32 bits) and the run type (low 32 bits) IF
+        //    the config is set for adding runData.
         //
-        //    MSB(31)                          LSB(0)    Big Endian,  higher mem  -->
-        //    _______________________________________
-        //    | first event number (high 32 bits)   |
-        //    | first event number (low  32 bits)   |
-        //    |       timestamp1   (high 32 bits)   |
-        //    |       timestamp1   (low  32 bits)   |
-        //    |                      ...            |
-        //    |       timestampM   (high 32 bits)   |
-        //    |       timestampM   (low  32 bits)   |
-        //    |       run   number (high 32 bits)   |
-        //    |       run   type   (low  32 bits)   |
-        //    _______________________________________
+        //    MSB(64)                LSB(0)
+        //    _____________________________
+        //    |     first event number    |
+        //    |        timestamp1         |
+        //    |            ...            |
+        //    |        timestampM         |
+        //    | run number  |  run type   |
+        //    _____________________________
         //
         //
         // 2) The second segment in each built trigger bank contains common data
