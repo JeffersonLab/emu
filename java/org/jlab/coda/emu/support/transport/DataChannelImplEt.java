@@ -439,13 +439,14 @@ logger.info("      DataChannel Et : creating channel " + name);
     public void openEtSystem() throws DataTransportException {
         try {
 //System.out.println("      DataChannel Et: try to open" + dataTransport.getOpenConfig().getEtName() );
-// TODO: why is this delay here ?????
-            Thread.sleep(1000);
             etSystem.open();
         }
         catch (Exception e) {
+            // Send error msg that ends up in run control gui's list of messages.
+            // This allows the user to quickly identify the ET problem
+            // and fix it in the config file or wherever.
             EtSystemOpenConfig config = etSystem.getConfig();
-            String errString = "cannot connect to " + config.getEtName();
+            String errString = "cannot connect to ET " + config.getEtName() + ", ";
             int method = config.getNetworkContactMethod();
             if (method == EtConstants.direct) {
                 errString += " direct to " + config.getHost() + " on port " + config.getTcpPort();
@@ -459,8 +460,8 @@ logger.info("      DataChannel Et : creating channel " + name);
             else if (method == EtConstants.broadAndMulticast) {
                 errString += " multi/broadcasting to port " + config.getUdpPort();
             }
+            emu.getCmsgPortal().rcGuiErrorMessage(errString);
 
-            logger.error("      DataChannel Et : " + errString);
             throw new DataTransportException(errString, e);
         }
 
@@ -1283,8 +1284,8 @@ logger.info("      DataChannel Et : have END, " + name + " quit input helping th
                         }
                     }
 
-logger.info("      DataChannel Et DataOutputHelper : nextEvIndx = " + nextEventIndex +
-                    ", evArrayLen = " + eventArrayLen);
+//logger.info("      DataChannel Et DataOutputHelper : nextEvIndx = " + nextEventIndex +
+//                    ", evArrayLen = " + eventArrayLen);
 
                     latch = new CountDownLatch(nextEventIndex);
 
