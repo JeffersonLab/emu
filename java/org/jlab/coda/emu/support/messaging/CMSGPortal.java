@@ -190,11 +190,43 @@ public class CMSGPortal implements LoggerAppender {
         return server;
     }
 
+    /**
+     * Send an error message that ends up on the run control gui.
+     * @param text text of message
+     */
+    public void rcGuiErrorMessage(String text) {
+
+        if ((server != null) && server.isConnected()) {
+
+            try {
+                cMsgMessage msg = new cMsgMessage();
+                msg.setSubject(comp.name());
+                msg.setType(RCConstants.dalogMsg);
+                msg.setText(text);
+                msg.setUserInt(2);  // 0=info, 1=warning, 2=error, 3=severe; < 2 is ignored by rc gui
+                msg.addPayloadItem(new cMsgPayloadItem("severity", "error"));
+                DateFormat format = new SimpleDateFormat("HH:mm:ss.SSS ");
+                msg.addPayloadItem(new cMsgPayloadItem("tod", format.format(new Date())));
+                if (server != null) {
+                    server.send(msg);
+                }
+
+            } catch (cMsgException e) {
+                try {
+                    if (server.isConnected()) server.disconnect();
+                } catch (cMsgException e1) {
+                    // ignore
+                }
+                server = null;
+            }
+        }
+    }
 
     /**
      * Send a cmlog message using the cMsg system.
      * @param event event to be logged
      */
+    @Override
     public void append(LoggingEvent event) {
 
         if ((server != null) && server.isConnected()) {
