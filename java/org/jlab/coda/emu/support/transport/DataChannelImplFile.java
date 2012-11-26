@@ -24,6 +24,8 @@ import java.util.Map;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CountDownLatch;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * Implementation of a DataChannel reading/writing from/to a file in EVIO format.
@@ -146,8 +148,28 @@ public class DataChannelImplFile implements DataChannel {
         // Filename given in config file?
         try {
             fileName = attrib.get("fileName");
-            // scan for %d which must be replaced by the run number
-            fileName = fileName.replace("%d", ""+runNumber);
+
+            // Scan for %d which must be replaced by the run number
+            fileName = fileName.replace("%d", "" + runNumber);
+
+            // Scan for environmental variables of the form $(xxx)
+            // and substitute the values for them (blank string if not found)
+            if (fileName.contains("$(")) {
+                Pattern pattern = Pattern.compile("\\$\\((.*?)\\)");
+                Matcher matcher = pattern.matcher(fileName);
+                StringBuffer result = new StringBuffer(100);
+
+                while (matcher.find()) {
+                    String envVar = matcher.group(1);
+                    String envVal = System.getenv(envVar);
+                    if (envVal == null) envVal = "";
+//System.out.println("replacing " + envVar + " with " + envVal);
+                    matcher.appendReplacement(result, envVal);
+                }
+                matcher.appendTail(result);
+//System.out.println("Resulting string = " + result);
+                fileName = result.toString();
+            }
             outputFilePrefix = fileName;
 //logger.info("      DataChannel File: config file name = " + fileName);
         } catch (Exception e) {
