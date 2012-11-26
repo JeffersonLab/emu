@@ -50,6 +50,8 @@ public class RCConstants {
 
     /** String used as type of status message periodically sent to rcServer. */
     public static final String reportStatus = "rc/report/status";
+    /** String used as type of dalog message periodically sent to rcServer. */
+    public static final String dalogMsg = "rc/report/dalog";
 
     // Types in messages received in session/control/* callback
 
