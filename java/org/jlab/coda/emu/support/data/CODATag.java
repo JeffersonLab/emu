@@ -11,41 +11,73 @@
 
 package org.jlab.coda.emu.support.data;
 
+import java.util.HashMap;
+
 /**
  * This enum specifies values associated with tags used in CODA online components.
  * @author timmer
  */
 public enum CODATag {
+    // ROC
+    RAW_TRIGGER                 (0xFF10),
+    RAW_TRIGGER_TS              (0xFF11),
 
-    RAW_TRIGGER            (0xFF10),
-    RAW_TRIGGER_TS         (0xFF11),
-    BUILT_TRIGGER_BANK     (0xFF20),
-    BUILT_TRIGGER_TS       (0xFF21),
-    BUILT_TRIGGER_RUN      (0xFF22),
-    BUILT_TRIGGER_TS_RUN   (0xFF23),
-    DISENTANGLED_BANK      (0xFF30),
+    // Trigger bank
+    BUILT_TRIGGER_BANK          (0xFF20),
+    BUILT_TRIGGER_TS            (0xFF21),
+    BUILT_TRIGGER_RUN           (0xFF22),
+    BUILT_TRIGGER_TS_RUN        (0xFF23),
+    BUILT_TRIGGER_SPARSIFY      (0xFF24),
+    BUILT_TRIGGER_RUN_SPARSIFY  (0xFF25),
+
+    // Physics event
+    DISENTANGLED_BANK           (0xFF30),
+    BUILT_BY_PEB                (0xFF50),
+    BUILT_BY_SEB                (0xFF70),
     ;
 
     private int value;
 
-    private CODATag(int value) {
-        this.value = value;
+    /** Faster way to convert integer values into names. */
+    private static HashMap<Integer, String> names = new HashMap<Integer, String>(32);
+
+    /** Faster way to convert integer values into CODATag objects. */
+    private static HashMap<Integer, CODATag> tags = new HashMap<Integer, CODATag>(32);
+
+
+    // Fill static hashmaps after all enum objects created
+    static {
+        for (CODATag item : CODATag.values()) {
+            tags.put(item.value, item);
+            names.put(item.value, item.name());
+        }
     }
 
+
+	/**
+	 * Obtain the enum from the value.
+	 *
+	 * @param val the value to match.
+	 * @return the matching enum, or <code>null</code>.
+	 */
+    public static CODATag getTagType(int val) {
+        return tags.get(val);
+    }
+
+
     /**
-     * Obtain the enum from the value.
+     * Obtain the name from the value.
      *
-     * @param value the value to match.
-     * @return the matching enum, or <code>null</code>.
+     * @param val the value to match.
+     * @return the name, or <code>null</code>.
      */
-    public static CODATag getTagType(int value) {
-        CODATag tagTypes[] = CODATag.values();
-        for (CODATag dt : tagTypes) {
-            if (dt.value == value) {
-                return dt;
-            }
-        }
-        return null;
+    public static String getName(int val) {
+        return names.get(val);
+    }
+
+
+    private CODATag(int value) {
+        this.value = value;
     }
 
     /**

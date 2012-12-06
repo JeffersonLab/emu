@@ -11,6 +11,8 @@
 
 package org.jlab.coda.emu.support.data;
 
+import java.util.HashMap;
+
 /**
  * This enum specifies values associated with evio event types used in CODA online components.
  * @author timmer
@@ -33,25 +35,48 @@ public enum EventType {
 
     private int value;
 
+    /** Faster way to convert integer values into names. */
+    private static HashMap<Integer, String> names = new HashMap<Integer, String>(32);
+
+    /** Faster way to convert integer values into EventType objects. */
+    private static HashMap<Integer, EventType> types = new HashMap<Integer, EventType>(32);
+
+
+    // Fill static hashmaps after all enum objects created
+    static {
+        for (EventType item : EventType.values()) {
+            types.put(item.value, item);
+            names.put(item.value, item.name());
+        }
+    }
+
+
+	/**
+	 * Obtain the enum from the value.
+	 *
+	 * @param val the value to match.
+	 * @return the matching enum, or <code>null</code>.
+	 */
+    public static EventType getEventType(int val) {
+        return types.get(val);
+    }
+
+
+    /**
+     * Obtain the name from the value.
+     *
+     * @param val the value to match.
+     * @return the name, or <code>null</code>.
+     */
+    public static String getName(int val) {
+        return names.get(val);
+    }
+
+
     private EventType(int value) {
         this.value   = value;
     }
 
-    /**
-     * Obtain the enum from the value.
-     *
-     * @param value the value to match.
-     * @return the matching enum, or <code>null</code>.
-     */
-    public static EventType getEventType(int value) {
-        EventType eventypes[] = EventType.values();
-        for (EventType dt : eventypes) {
-            if (dt.value == value) {
-                return dt;
-            }
-        }
-        return null;
-    }
 
     /**
      * Get the integer value of this enum.

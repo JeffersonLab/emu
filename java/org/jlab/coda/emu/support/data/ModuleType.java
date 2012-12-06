@@ -1,5 +1,7 @@
 package org.jlab.coda.emu.support.data;
 
+import java.util.HashMap;
+
 /**
  * This enum specifies values associated with data acquisition
  * module types used in CODA online components.
@@ -12,6 +14,44 @@ public enum ModuleType {
     TDC      (2);
 
     private int value;
+
+    /** Faster way to convert integer values into names. */
+    private static HashMap<Integer, String> names = new HashMap<Integer, String>(32);
+
+    /** Faster way to convert integer values into ModuleType objects. */
+    private static HashMap<Integer, ModuleType> types = new HashMap<Integer, ModuleType>(32);
+
+
+    // Fill static hashmaps after all enum objects created
+    static {
+        for (ModuleType item : ModuleType.values()) {
+            types.put(item.value, item);
+            names.put(item.value, item.name());
+        }
+    }
+
+
+	/**
+	 * Obtain the enum from the value.
+	 *
+	 * @param val the value to match.
+	 * @return the matching enum, or <code>null</code>.
+	 */
+    public static ModuleType getTagType(int val) {
+        return types.get(val);
+    }
+
+
+    /**
+     * Obtain the name from the value.
+     *
+     * @param val the value to match.
+     * @return the name, or <code>null</code>.
+     */
+    public static String getName(int val) {
+        return names.get(val);
+    }
+
 
     private ModuleType(int value) {
         this.value   = value;
