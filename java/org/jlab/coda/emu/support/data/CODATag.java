@@ -93,8 +93,9 @@ public enum CODATag {
      * @return <code>true</code> if built trigger tag, else <code>false</code>
      */
     public boolean isBuiltTrigger() {
-        return (this == BUILT_TRIGGER_BANK || this == BUILT_TRIGGER_TS ||
-                this == BUILT_TRIGGER_RUN  || this == BUILT_TRIGGER_TS_RUN);
+        return (this == BUILT_TRIGGER_BANK     || this == BUILT_TRIGGER_TS ||
+                this == BUILT_TRIGGER_RUN      || this == BUILT_TRIGGER_TS_RUN ||
+                this == BUILT_TRIGGER_SPARSIFY || this == BUILT_TRIGGER_RUN_SPARSIFY);
     }
 
     /**
@@ -106,8 +107,9 @@ public enum CODATag {
          CODATag cTag = getTagType(value);
          if (cTag == null) return false;
 
-         return (cTag == BUILT_TRIGGER_BANK || cTag == BUILT_TRIGGER_TS ||
-                 cTag == BUILT_TRIGGER_RUN  || cTag == BUILT_TRIGGER_TS_RUN);
+         return (cTag == BUILT_TRIGGER_BANK     || cTag == BUILT_TRIGGER_TS ||
+                 cTag == BUILT_TRIGGER_RUN      || cTag == BUILT_TRIGGER_TS_RUN ||
+                 cTag == BUILT_TRIGGER_SPARSIFY || cTag == BUILT_TRIGGER_RUN_SPARSIFY);
     }
 
     /**
@@ -117,30 +119,6 @@ public enum CODATag {
      public boolean isRawTrigger() {
          return (this == RAW_TRIGGER || this == RAW_TRIGGER_TS);
      }
-
-    /**
-     * Is this any kind of a trigger tag?
-     * @param value the tag value to check
-     * @return <code>true</code> if any kind of trigger tag, else <code>false</code>
-     */
-     public static boolean isTrigger(int value) {
-         CODATag cTag = getTagType(value);
-         if (cTag == null) return false;
-
-         return (cTag == RAW_TRIGGER || cTag == RAW_TRIGGER_TS ||
-                 cTag == BUILT_TRIGGER_BANK || cTag == BUILT_TRIGGER_TS ||
-                 cTag == BUILT_TRIGGER_RUN  || cTag == BUILT_TRIGGER_TS_RUN);
-     }
-
-    /**
-     * Is this any kind of a trigger tag?
-     * @return <code>true</code> if any kind of trigger tag, else <code>false</code>
-     */
-     public boolean isTrigger() {
-         return (this == RAW_TRIGGER || this == RAW_TRIGGER_TS ||
-                 this == BUILT_TRIGGER_BANK || this == BUILT_TRIGGER_TS ||
-                 this == BUILT_TRIGGER_RUN  || this == BUILT_TRIGGER_TS_RUN);
-      }
 
     /**
      * Is this a raw trigger tag?
@@ -153,6 +131,32 @@ public enum CODATag {
 
          return (cTag == RAW_TRIGGER || cTag == RAW_TRIGGER_TS);
      }
+
+    /**
+     * Is this any kind of a trigger tag?
+     * @param value the tag value to check
+     * @return <code>true</code> if any kind of trigger tag, else <code>false</code>
+     */
+     public static boolean isTrigger(int value) {
+         CODATag cTag = getTagType(value);
+         if (cTag == null) return false;
+
+         return (cTag == RAW_TRIGGER            || cTag == RAW_TRIGGER_TS ||
+                 cTag == BUILT_TRIGGER_BANK     || cTag == BUILT_TRIGGER_TS ||
+                 cTag == BUILT_TRIGGER_RUN      || cTag == BUILT_TRIGGER_TS_RUN ||
+                 cTag == BUILT_TRIGGER_SPARSIFY || cTag == BUILT_TRIGGER_RUN_SPARSIFY);
+     }
+
+    /**
+     * Is this any kind of a trigger tag?
+     * @return <code>true</code> if any kind of trigger tag, else <code>false</code>
+     */
+     public boolean isTrigger() {
+         return (this == RAW_TRIGGER            || this == RAW_TRIGGER_TS ||
+                 this == BUILT_TRIGGER_BANK     || this == BUILT_TRIGGER_TS ||
+                 this == BUILT_TRIGGER_RUN      || this == BUILT_TRIGGER_TS_RUN ||
+                 this == BUILT_TRIGGER_SPARSIFY || this == BUILT_TRIGGER_RUN_SPARSIFY);
+      }
 
     /**
      * Does this tag indicate a timestamp is present?
@@ -198,6 +202,30 @@ public enum CODATag {
          if (cTag == null) return false;
 
          return (cTag == BUILT_TRIGGER_RUN || cTag == BUILT_TRIGGER_TS_RUN);
+     }
+
+    /**
+     * Does this tag indicate the trigger bank is sparsified
+     * (no timestamps and no roc-specific segments present)?
+     * @return <code>true</code> if this tag indicates trigger bank is sparsified,
+     *          else <code>false</code>
+     */
+     public boolean isSparsified() {
+         return (this == BUILT_TRIGGER_SPARSIFY || this == BUILT_TRIGGER_RUN_SPARSIFY);
+     }
+
+    /**
+     * Does this tag indicate the trigger bank is sparsified
+     * (no timestamps and no roc-specific segments present)?
+     * @param value the tag value to check
+     * @return <code>true</code> if this tag indicates trigger bank is sparsified,
+     *          else <code>false</code>
+     */
+     public static boolean isSparsified(int value) {
+         CODATag cTag = getTagType(value);
+         if (cTag == null) return false;
+
+         return (cTag == BUILT_TRIGGER_SPARSIFY || cTag == BUILT_TRIGGER_RUN_SPARSIFY);
      }
 
 }
