@@ -16,10 +16,10 @@ public enum ModuleType {
     private int value;
 
     /** Faster way to convert integer values into names. */
-    private static HashMap<Integer, String> names = new HashMap<Integer, String>(32);
+    private static HashMap<Integer, String> names = new HashMap<Integer, String>(16);
 
     /** Faster way to convert integer values into ModuleType objects. */
-    private static HashMap<Integer, ModuleType> types = new HashMap<Integer, ModuleType>(32);
+    private static HashMap<Integer, ModuleType> types = new HashMap<Integer, ModuleType>(16);
 
 
     // Fill static hashmaps after all enum objects created

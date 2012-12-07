@@ -36,10 +36,10 @@ public enum EventType {
     private int value;
 
     /** Faster way to convert integer values into names. */
-    private static HashMap<Integer, String> names = new HashMap<Integer, String>(32);
+    private static HashMap<Integer, String> names = new HashMap<Integer, String>(16);
 
     /** Faster way to convert integer values into EventType objects. */
-    private static HashMap<Integer, EventType> types = new HashMap<Integer, EventType>(32);
+    private static HashMap<Integer, EventType> types = new HashMap<Integer, EventType>(16);
 
 
     // Fill static hashmaps after all enum objects created
