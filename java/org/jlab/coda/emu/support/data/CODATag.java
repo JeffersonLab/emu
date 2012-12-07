@@ -39,10 +39,10 @@ public enum CODATag {
     private int value;
 
     /** Faster way to convert integer values into names. */
-    private static HashMap<Integer, String> names = new HashMap<Integer, String>(32);
+    private static HashMap<Integer, String> names = new HashMap<Integer, String>(16);
 
     /** Faster way to convert integer values into CODATag objects. */
-    private static HashMap<Integer, CODATag> tags = new HashMap<Integer, CODATag>(32);
+    private static HashMap<Integer, CODATag> tags = new HashMap<Integer, CODATag>(16);
 
 
     // Fill static hashmaps after all enum objects created
