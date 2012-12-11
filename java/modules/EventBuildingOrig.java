@@ -713,6 +713,9 @@ if (debug) System.out.println("Found END event in build thread");
                         // single-event-mode, and identical (physics or ROC raw) event types
                         nonFatalError |= checkConsistency(buildingBanks);
 
+                        // Are events in single event mode?
+                        boolean eventsInSEM = buildingBanks[0].isSingleEventMode();
+
 if (debug && nonFatalError) System.out.println("\nERROR 2\n");
 
                         //--------------------------------------------------------------------
@@ -731,14 +734,14 @@ if (debug && nonFatalError) System.out.println("\nERROR 2\n");
                             // combine the trigger banks of input events into one (same if single event mode)
 //if (debug) System.out.println("BuildingThread: create trigger bank from built banks");
                             nonFatalError |= Evio.makeTriggerBankFromPhysics(buildingBanks, builder, ebId,
-                                                                             runNumber, runType,
-                                                                             includeRunData,
-                                                                             checkTimestamps, timestampSlop);
+                                                                   runNumber, runType, includeRunData,
+                                                                   eventsInSEM, false,
+                                                                   checkTimestamps, timestampSlop);
                         }
                         // else if building with ROC raw records ...
                         else {
                             // if in single event mode, build trigger bank differently
-                            if (buildingBanks[0].isSingleEventMode()) {
+                            if (eventsInSEM) {
                                 // create a trigger bank from data in Data Block banks
 //if (debug) System.out.println("BuildingThread: create trigger bank in SEM");
                                 nonFatalError |= Evio.makeTriggerBankFromSemRocRaw(buildingBanks, builder,
@@ -754,7 +757,7 @@ if (debug && nonFatalError) System.out.println("\nERROR 2\n");
                                 nonFatalError |= Evio.makeTriggerBankFromRocRaw(buildingBanks, builder,
                                                                                 ebId, firstEventNumber,
                                                                                 runNumber, runType,
-                                                                                includeRunData,
+                                                                                includeRunData, false,
                                                                                 checkTimestamps,
                                                                                 timestampSlop);
                             }

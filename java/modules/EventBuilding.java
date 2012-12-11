@@ -14,6 +14,7 @@ package modules;
 import org.jlab.coda.emu.Emu;
 import org.jlab.coda.emu.EmuException;
 import org.jlab.coda.emu.EmuModule;
+import org.jlab.coda.emu.support.codaComponent.CODAClass;
 import org.jlab.coda.emu.support.codaComponent.CODACommand;
 import org.jlab.coda.emu.support.codaComponent.CODAState;
 import org.jlab.coda.emu.support.configurer.Configurer;
@@ -150,15 +151,6 @@ public class EventBuilding implements EmuModule {
     /** User hit PAUSE button if <code>true</code>. */
     private boolean paused;
 
-    /**
-     * If true, swap data if necessary when building event
-     * Assume data is all 32 bit integers.
-     */
-    private boolean swapData;
-
-    /** If true, include run number & type in built trigger bank. */
-    private boolean includeRunData;
-
     /** END event detected by one of the building threads. */
     private volatile boolean haveEndEvent;
 
@@ -195,10 +187,13 @@ public class EventBuilding implements EmuModule {
     /** Targeted time period in milliseconds over which instantaneous rates will be calculated. */
     private static final int statGatheringPeriod = 2000;
 
-    // ---------------------------------------------------
-
     /** Thread to update statistics. */
     private Thread watcher;
+
+    // ---------------------------------------------------
+
+    /** Comparator which tells priority queue how to sort elements. */
+    private BankComparator<EvioBank> comparator = new BankComparator<EvioBank>();
 
     /** Logger used to log messages to debug console. */
     private Logger logger;
@@ -220,6 +215,10 @@ public class EventBuilding implements EmuModule {
     /** If <code>true</code>, get debug print out. */
     private boolean debug = false;
 
+    // ---------------------------------------------------
+    // Configuration parameters
+    // ---------------------------------------------------
+
     /** If <code>true</code>, this module's statistics
      * accurately represent the statistics of the EMU. */
     private boolean representStatistics;
@@ -234,8 +233,19 @@ public class EventBuilding implements EmuModule {
      */
     private int timestampSlop;
 
-    /** Comparator which tells priority queue how to sort elements. */
-    private BankComparator<EvioBank> comparator = new BankComparator<EvioBank>();
+    /**
+     * If true, swap data if necessary when building event
+     * Assume data is all 32 bit integers.
+     */
+    private boolean swapData;
+
+    /** If true, include run number & type in built trigger bank. */
+    private boolean includeRunData;
+
+    /** If true, do not include empty roc-specific segments in trigger bank. */
+    private boolean sparsify;
+
+    // ---------------------------------------------------
 
 
     /** Keep some data together and store as an event attachment. */
@@ -357,6 +367,17 @@ System.out.println("EventBuilding constr: " + buildingThreadCount +
                 str.equalsIgnoreCase("on")   ||
                 str.equalsIgnoreCase("yes"))   {
                 includeRunData = true;
+            }
+        }
+
+        // default is NOT to sparsify roc-specific segments in trigger bank
+        sparsify = false;
+        str = attributeMap.get("sparsify");
+        if (str != null) {
+            if (str.equalsIgnoreCase("true") ||
+                str.equalsIgnoreCase("on")   ||
+                str.equalsIgnoreCase("yes"))   {
+                sparsify = true;
             }
         }
 
@@ -1012,33 +1033,36 @@ if (true) System.out.println("Found END event in build thread");
                     // and the same # of events in each bank
                     nonFatalError |= Evio.checkConsistency(buildingBanks);
 
+                    // Are events in single event mode?
+                    boolean eventsInSEM = buildingBanks[0].isSingleEventMode();
+
 if (debug && nonFatalError) System.out.println("\nERROR 2\n");
 
                     //--------------------------------------------------------------------
                     // Build trigger bank, number of ROCs given by number of buildingBanks
                     //--------------------------------------------------------------------
-                    // The tag will be finally set this trigger bank is fully created
+                    // The tag will be finally set when this trigger bank is fully created
                     combinedTrigger = new EvioEvent(CODATag.BUILT_TRIGGER_BANK.getValue(),
                                                     DataType.SEGMENT,
-                                                    buildingBanks.length + 2);
+                                                    buildingBanks.length);
                     builder.setEvent(combinedTrigger);
 
                     // If building with Physics events ...
                     if (havePhysicsEvents) {
                         //-----------------------------------------------------------------------------------
-                        // The actual number of rocs + 2 will replace num in combinedTrigger definition above
+                        // The actual number of rocs will replace num in combinedTrigger definition above
                         //-----------------------------------------------------------------------------------
                         // Combine the trigger banks of input events into one (same if single event mode)
 //if (debug) System.out.println("BuildingThread: create trigger bank from built banks");
                         nonFatalError |= Evio.makeTriggerBankFromPhysics(buildingBanks, builder, ebId,
-                                                                         runNumber, runType,
-                                                                         includeRunData,
-                                                                         checkTimestamps, timestampSlop);
+                                                                    runNumber, runType, includeRunData,
+                                                                    eventsInSEM, sparsify,
+                                                                    checkTimestamps, timestampSlop);
                     }
                     // else if building with ROC raw records ...
                     else {
                         // If in single event mode, build trigger bank differently
-                        if (buildingBanks[0].isSingleEventMode()) {
+                        if (eventsInSEM) {
                             // Create a trigger bank from data in Data Block banks
 //if (debug) System.out.println("BuildingThread: create trigger bank in SEM");
                             nonFatalError |= Evio.makeTriggerBankFromSemRocRaw(buildingBanks, builder,
@@ -1054,7 +1078,7 @@ if (debug) System.out.println("BuildingThread: create trigger bank");
                             nonFatalError |= Evio.makeTriggerBankFromRocRaw(buildingBanks, builder,
                                                                             ebId, firstEventNumber,
                                                                             runNumber, runType,
-                                                                            includeRunData,
+                                                                            includeRunData, sparsify,
                                                                             checkTimestamps,
                                                                             timestampSlop);
                         }
@@ -1073,7 +1097,32 @@ if (debug && nonFatalError) System.out.println("\nERROR 3\n");
 if (debug && nonFatalError) System.out.println("\nERROR 4\n");
 
                     // Create a physics event from payload banks and combined trigger bank
-                    int tag = Evio.createCodaTag(buildingBanks[0].isSync(),
+                    // First create the tag:
+                    //   -if I'm a data concentrator or DC, the tag has 4 status bits and the ebId
+                    //   -if I'm a primary event builder or PEB, the tag is 0xFF50 (or 0xFF51 if SEM)
+                    //   -if I'm a secondary event builder or SEB, the tag is 0xFF70 (or 0xFF71 if SEM)
+                    int tag;
+                    CODAClass myClass = CODAClass.get(emu.getCodaClass());
+                    switch (myClass) {
+                        case SEB:
+                            if (eventsInSEM) {
+                                tag = CODATag.BUILT_BY_SEB_IN_SEM.getValue();
+                            }
+                            else {
+                                tag = CODATag.BUILT_BY_SEB.getValue();
+                            }
+                            break;
+                        case PEB:
+                            if (eventsInSEM) {
+                                tag = CODATag.BUILT_BY_PEB_IN_SEM.getValue();
+                            }
+                            else {
+                                tag = CODATag.BUILT_BY_PEB.getValue();
+                            }
+                            break;
+                        //case DC:
+                        default:
+                            tag = Evio.createCodaTag(buildingBanks[0].isSync(),
                                                  buildingBanks[0].hasError() || nonFatalError,
                                                  buildingBanks[0].isReserved(),
                                                  buildingBanks[0].isSingleEventMode(),
@@ -1082,6 +1131,8 @@ if (debug && nonFatalError) System.out.println("\nERROR 4\n");
 //                   ", has error = " + (buildingBanks[0].hasError() || nonFatalError) +
 //                   ", is reserved = " + buildingBanks[0].isReserved() +
 //                   ", is single mode = " + buildingBanks[0].isSingleEventMode());
+                    }
+
 
                     physicsEvent = new PayloadBank(tag, DataType.BANK, totalNumberEvents);
                     builder.setEvent(physicsEvent);
