@@ -19,21 +19,41 @@ import java.util.HashMap;
  */
 public enum CODATag {
     // ROC
+    /** Trigger bank from ROC with no timestamps. */
     RAW_TRIGGER                 (0xFF10),
+    /** Trigger bank from ROC with timestamps. */
     RAW_TRIGGER_TS              (0xFF11),
 
-    // Trigger bank
+    // Trigger banks with roc-specific data
+    /** No timestamp and no run data. */
     BUILT_TRIGGER_BANK          (0xFF20),
+    /** Only timestamp data. */
     BUILT_TRIGGER_TS            (0xFF21),
+    /** Only run data. */
     BUILT_TRIGGER_RUN           (0xFF22),
+    /** Both timestamp and run data. */
     BUILT_TRIGGER_TS_RUN        (0xFF23),
-    BUILT_TRIGGER_SPARSIFY      (0xFF24),
-    BUILT_TRIGGER_RUN_SPARSIFY  (0xFF25),
+
+    // Trigger banks without roc-specific data
+    /** No timestamp, no run and no roc-specific data. */
+    BUILT_TRIGGER_NRSD           (0xFF24),
+    /** Timestamp and no roc-specific data. */
+    BUILT_TRIGGER_TS_NRSD        (0xFF25),
+    /** Run and no roc-specific data. */
+    BUILT_TRIGGER_RUN_NRSD       (0xFF26),
+    /** Timestamp and run, but no roc-specific data. */
+    BUILT_TRIGGER_TS_RUN_NRSD    (0xFF27),
 
     // Physics event
     DISENTANGLED_BANK           (0xFF30),
+    /** Event built by primary event builder. */
     BUILT_BY_PEB                (0xFF50),
+    /** Event built by primary event builder in single event mode. */
+    BUILT_BY_PEB_IN_SEM         (0xFF51),
+    /** Event built by secondary event builder. */
     BUILT_BY_SEB                (0xFF70),
+    /** Event built by secondary event builder in single event mode. */
+    BUILT_BY_SEB_IN_SEM         (0xFF71),
     ;
 
     private int value;
@@ -95,7 +115,8 @@ public enum CODATag {
     public boolean isBuiltTrigger() {
         return (this == BUILT_TRIGGER_BANK     || this == BUILT_TRIGGER_TS ||
                 this == BUILT_TRIGGER_RUN      || this == BUILT_TRIGGER_TS_RUN ||
-                this == BUILT_TRIGGER_SPARSIFY || this == BUILT_TRIGGER_RUN_SPARSIFY);
+                this == BUILT_TRIGGER_NRSD     || this == BUILT_TRIGGER_RUN_NRSD ||
+                this == BUILT_TRIGGER_TS_NRSD  || this == BUILT_TRIGGER_TS_RUN_NRSD);
     }
 
     /**
@@ -109,7 +130,8 @@ public enum CODATag {
 
          return (cTag == BUILT_TRIGGER_BANK     || cTag == BUILT_TRIGGER_TS ||
                  cTag == BUILT_TRIGGER_RUN      || cTag == BUILT_TRIGGER_TS_RUN ||
-                 cTag == BUILT_TRIGGER_SPARSIFY || cTag == BUILT_TRIGGER_RUN_SPARSIFY);
+                 cTag == BUILT_TRIGGER_NRSD     || cTag == BUILT_TRIGGER_RUN_NRSD ||
+                 cTag == BUILT_TRIGGER_TS_NRSD  || cTag == BUILT_TRIGGER_TS_RUN_NRSD);
     }
 
     /**
@@ -144,7 +166,8 @@ public enum CODATag {
          return (cTag == RAW_TRIGGER            || cTag == RAW_TRIGGER_TS ||
                  cTag == BUILT_TRIGGER_BANK     || cTag == BUILT_TRIGGER_TS ||
                  cTag == BUILT_TRIGGER_RUN      || cTag == BUILT_TRIGGER_TS_RUN ||
-                 cTag == BUILT_TRIGGER_SPARSIFY || cTag == BUILT_TRIGGER_RUN_SPARSIFY);
+                 cTag == BUILT_TRIGGER_NRSD     || cTag == BUILT_TRIGGER_RUN_NRSD ||
+                 cTag == BUILT_TRIGGER_TS_NRSD  || cTag == BUILT_TRIGGER_TS_RUN_NRSD);
      }
 
     /**
@@ -155,7 +178,8 @@ public enum CODATag {
          return (this == RAW_TRIGGER            || this == RAW_TRIGGER_TS ||
                  this == BUILT_TRIGGER_BANK     || this == BUILT_TRIGGER_TS ||
                  this == BUILT_TRIGGER_RUN      || this == BUILT_TRIGGER_TS_RUN ||
-                 this == BUILT_TRIGGER_SPARSIFY || this == BUILT_TRIGGER_RUN_SPARSIFY);
+                 this == BUILT_TRIGGER_NRSD     || this == BUILT_TRIGGER_RUN_NRSD ||
+                 this == BUILT_TRIGGER_TS_NRSD  || this == BUILT_TRIGGER_TS_RUN_NRSD);
       }
 
     /**
@@ -164,8 +188,9 @@ public enum CODATag {
      *          else <code>false</code>
      */
      public boolean hasTimestamp() {
-         return (this == RAW_TRIGGER_TS || this == BUILT_TRIGGER_TS ||
-                 this == BUILT_TRIGGER_TS_RUN);
+         return (this == RAW_TRIGGER_TS        || this == BUILT_TRIGGER_TS ||
+                 this == BUILT_TRIGGER_TS_RUN  ||
+                 this == BUILT_TRIGGER_TS_NRSD || this == BUILT_TRIGGER_TS_RUN_NRSD);
      }
 
     /**
@@ -178,8 +203,9 @@ public enum CODATag {
          CODATag cTag = getTagType(value);
          if (cTag == null) return false;
 
-         return (cTag == RAW_TRIGGER_TS || cTag == BUILT_TRIGGER_TS ||
-                 cTag == BUILT_TRIGGER_TS_RUN);
+         return (cTag == RAW_TRIGGER_TS        || cTag == BUILT_TRIGGER_TS ||
+                 cTag == BUILT_TRIGGER_TS_RUN  ||
+                 cTag == BUILT_TRIGGER_TS_NRSD || cTag == BUILT_TRIGGER_TS_RUN_NRSD);
      }
 
     /**
@@ -188,7 +214,8 @@ public enum CODATag {
      *          else <code>false</code>
      */
      public boolean hasRunData() {
-         return (this == BUILT_TRIGGER_RUN || this == BUILT_TRIGGER_TS_RUN);
+         return (this == BUILT_TRIGGER_RUN      || this == BUILT_TRIGGER_TS_RUN ||
+                 this == BUILT_TRIGGER_RUN_NRSD || this == BUILT_TRIGGER_TS_RUN_NRSD);
      }
 
     /**
@@ -201,31 +228,86 @@ public enum CODATag {
          CODATag cTag = getTagType(value);
          if (cTag == null) return false;
 
-         return (cTag == BUILT_TRIGGER_RUN || cTag == BUILT_TRIGGER_TS_RUN);
+         return (cTag == BUILT_TRIGGER_RUN      || cTag == BUILT_TRIGGER_TS_RUN ||
+                 cTag == BUILT_TRIGGER_RUN_NRSD || cTag == BUILT_TRIGGER_TS_RUN_NRSD);
      }
 
+
     /**
-     * Does this tag indicate the trigger bank is sparsified
-     * (no timestamps and no roc-specific segments present)?
-     * @return <code>true</code> if this tag indicates trigger bank is sparsified,
-     *          else <code>false</code>
+     * Does this tag indicate the trigger bank has roc-specific data
+     * segments present?
+     * @return <code>true</code> if this tag indicates trigger bank
+     *         has roc-specific data segments present, else <code>false</code>
      */
-     public boolean isSparsified() {
-         return (this == BUILT_TRIGGER_SPARSIFY || this == BUILT_TRIGGER_RUN_SPARSIFY);
+     public boolean hasRocSpecificData() {
+         return (this == BUILT_TRIGGER_NRSD     || this == BUILT_TRIGGER_TS_NRSD ||
+                 this == BUILT_TRIGGER_RUN_NRSD || this == BUILT_TRIGGER_TS_RUN_NRSD);
      }
 
     /**
-     * Does this tag indicate the trigger bank is sparsified
-     * (no timestamps and no roc-specific segments present)?
+     * Does this tag indicate the trigger bank has roc-specific data
+     * segments present?
      * @param value the tag value to check
-     * @return <code>true</code> if this tag indicates trigger bank is sparsified,
-     *          else <code>false</code>
+     * @return <code>true</code> if this tag indicates trigger bank
+     *         has roc-specific data segments present, else <code>false</code>
      */
-     public static boolean isSparsified(int value) {
+     public static boolean hasRocSpecificData(int value) {
          CODATag cTag = getTagType(value);
          if (cTag == null) return false;
 
-         return (cTag == BUILT_TRIGGER_SPARSIFY || cTag == BUILT_TRIGGER_RUN_SPARSIFY);
+         return (cTag == BUILT_TRIGGER_NRSD     || cTag == BUILT_TRIGGER_TS_NRSD ||
+                 cTag == BUILT_TRIGGER_RUN_NRSD || cTag == BUILT_TRIGGER_TS_RUN_NRSD);
      }
+
+
+    /**
+     * Does this tag indicate the trigger bank was built from event in
+     * single event mode?
+     * @return <code>true</code> if this tag indicates trigger bank was
+     *         built from event in single event mode, else <code>false</code>
+     */
+     public boolean eventInSEM() {
+         return (this == BUILT_BY_PEB_IN_SEM || this == BUILT_BY_SEB_IN_SEM);
+     }
+
+    /**
+     * Does this tag indicate the trigger bank was built from event in
+     * single event mode?
+     * @param value the tag value to check
+     * @return <code>true</code> if this tag indicates trigger bank was
+     *         built from event in single event mode, else <code>false</code>
+     */
+     public static boolean eventInSEM(int value) {
+         CODATag cTag = getTagType(value);
+         if (cTag == null) return false;
+
+         return (cTag == BUILT_BY_PEB_IN_SEM || cTag == BUILT_BY_SEB_IN_SEM);
+     }
+
+
+
+//    /**
+//     * Does this tag indicate the trigger bank is sparsified
+//     * (no timestamps and no roc-specific segments present)?
+//     * @return <code>true</code> if this tag indicates trigger bank is sparsified,
+//     *          else <code>false</code>
+//     */
+//     public boolean isSparsified() {
+//         return (this == BUILT_TRIGGER_SPARSIFY || this == BUILT_TRIGGER_RUN_SPARSIFY);
+//     }
+//
+//    /**
+//     * Does this tag indicate the trigger bank is sparsified
+//     * (no timestamps and no roc-specific segments present)?
+//     * @param value the tag value to check
+//     * @return <code>true</code> if this tag indicates trigger bank is sparsified,
+//     *          else <code>false</code>
+//     */
+//     public static boolean isSparsified(int value) {
+//         CODATag cTag = getTagType(value);
+//         if (cTag == null) return false;
+//
+//         return (cTag == BUILT_TRIGGER_SPARSIFY || cTag == BUILT_TRIGGER_RUN_SPARSIFY);
+//     }
 
 }
