@@ -1003,15 +1003,24 @@ if (debug) System.out.println("gotValidControlEvents: found control event of typ
      * If run number and run type data are included in all input banks, then they will be
      * checked for consistency. A non-fatal error will be returned if they are not.<p>
      *
+     * If sparsify flag is <code>true</code>, then no roc-specific data is included.
+     * The trigger bank is not sparsified if timestamps exist.
+     * Note that if incoming trigger banks are from events built in single event mode,
+     * then there will be no roc-specific data in that case as well. If roc-specific
+     * data is missing from any of the trigger banks, then it will be missing in the
+     * final trigger bank as well.<p>
+     *
      * @param inputPayloadBanks array containing a bank (Physics event) from each channel's
      *                          payload bank queue that will be built into one event
-     * @param builder   object used to build trigger bank
-     * @param ebId      id of event builder calling this method
-     * @param runNumber run number to place in trigger bank
-     * @param runType   run type to place in trigger bank
+     * @param builder         object used to build trigger bank
+     * @param ebId            id of event builder calling this method
+     * @param runNumber       run number to place in trigger bank
+     * @param runType         run type to place in trigger bank
      * @param includeRunData  if <code>true</code>, add run number and run type
+     * @param eventsInSEM     if <code>true</code>, events are in single event mode
+     * @param sparsify        if <code>true</code>, do not add roc specific segments if no relevant data
      * @param checkTimestamps if <code>true</code>, check timestamp consistency and
-     *                        return false if inconsistent
+     *                        return false if inconsistent, include them in trigger bank
      * @param timestampSlop maximum number of timestamp ticks that timestamps can differ
      *                      for a single event before the error bit is set in a bank's
      *                      status. Only used when checkTimestamps arg is <code>true</code>
@@ -1023,6 +1032,8 @@ if (debug) System.out.println("gotValidControlEvents: found control event of typ
                                                      EventBuilder builder, int ebId,
                                                      int runNumber, int runType,
                                                      boolean includeRunData,
+                                                     boolean eventsInSEM,
+                                                     boolean sparsify,
                                                      boolean checkTimestamps,
                                                      int timestampSlop)
             throws EmuException {
@@ -1034,13 +1045,25 @@ if (debug) System.out.println("gotValidControlEvents: found control event of typ
         int index, rocCount;
         int totalRocCount = 0;
         int numInputBanks = inputPayloadBanks.length;
-        // number of events in each payload bank
-        int numEvents = inputPayloadBanks[0].getHeader().getNumber();
         EvioBank[] triggerBanks = new EvioBank[numInputBanks];
         CODATag[] tags = new CODATag[numInputBanks];
         boolean nonFatalError = false;
-        boolean allRunDataPresent = true;
-        boolean allTimestampsPresent = true;
+        boolean haveRunData = true;
+        boolean haveTimestamps=true, isTimstamped;
+        boolean haveTrigWithNoRocSpecificData=false, hasRocSpecificData;
+
+        // If in single event mode ...
+        if (eventsInSEM) {
+            haveTrigWithNoRocSpecificData = true;
+        }
+
+        //-------------------------------------
+        // Parameters of the first trigger bank
+        //-------------------------------------
+        // Number of events in each payload bank
+        int numEvents = inputPayloadBanks[0].getHeader().getNumber();
+        boolean firstTrigTimestamped = CODATag.hasTimestamp(inputPayloadBanks[0].getHeader().getTag());
+
 
         // In each payload bank (of banks) is a built trigger bank. Extract them all.
         for (int i=0; i < numInputBanks; i++) {
@@ -1057,24 +1080,98 @@ if (debug) System.out.println("gotValidControlEvents: found control event of typ
                 }
             } while (!Evio.isBuiltTriggerBank(triggerBanks[i])); // check to see if it really is a built trigger bank
 
-            // Number of trigger bank children must = # rocs + 2
-            rocCount = triggerBanks[i].getHeader().getNumber() - 2;
-            if (triggerBanks[i].getChildCount() != rocCount + 2) {
-                throw new EmuException("Trigger bank does not have correct number of segments (" +
-                        (rocCount + 2) + "), it has " + triggerBanks[i].getChildCount());
-            }
 
-            // Track total number of rocs
+            // Number of rocs in this trigger bank
+            rocCount = triggerBanks[i].getHeader().getNumber();
+
+            // Total number of rocs
             totalRocCount += rocCount;
 
-            // Check to see if all trigger banks have timestamp data
-            if (checkTimestamps) {
-                allTimestampsPresent &= CODATag.hasTimestamp(tags[i].getValue());
+            //--------------------------------
+            // run specific and timestamp data
+            //--------------------------------
+
+            // Do all trigger banks have run number & type data?
+            haveRunData = haveRunData && tags[i].hasRunData();
+
+            // Does this trigger have timestamps?
+            isTimstamped = tags[i].hasTimestamp();
+
+            // Do all trigger banks have timestamp data?
+            haveTimestamps = haveTimestamps && isTimstamped;
+
+            // If one has a timestamp, all must
+            if (firstTrigTimestamped != isTimstamped) {
+                throw new EmuException("If 1 trigger bank has timestamps, all must");
             }
 
-            // Check to see if all trigger banks have run number & type data
-            allRunDataPresent &= CODATag.hasRunData(tags[i].getValue());
+
+            //--------------------------------
+            // roc specific data
+            //--------------------------------
+            if (!eventsInSEM) {
+                // Does this trigger have roc-specific data?
+                hasRocSpecificData = tags[i].hasRocSpecificData();
+
+                // Is there at least one trigger bank without run specific data?
+                if (!hasRocSpecificData) haveTrigWithNoRocSpecificData = true;
+
+                // Sanity check
+                if (hasRocSpecificData) {
+                    // Number of trigger bank children must = # rocs + 2
+                    if (triggerBanks[i].getChildCount() != rocCount + 2) {
+                        throw new EmuException("Trigger bank does not have correct # of segments (" +
+                                (rocCount + 2) + "), it has " + triggerBanks[i].getChildCount());
+                    }
+                }
+                else {
+                    // If sparsified, there are no segments for roc-specific data
+                    // so the number of trigger bank children must = 2
+                    if (triggerBanks[i].getChildCount() != 2) {
+                        throw new EmuException("Trigger bank does not have correct # of segments (2), it has " +
+                                                       triggerBanks[i].getChildCount());
+                    }
+                }
+            }
+            else {
+                // If single event mode, # of trigger bank children must = 2
+                if (triggerBanks[i].getChildCount() != 2) {
+                    throw new EmuException("Trigger bank does not have correct # of segments (2), it has " +
+                                                   triggerBanks[i].getChildCount());
+                }
+            }
+
         }
+
+
+        // Can only include run data if you got it
+        if (includeRunData && !haveRunData) {
+            nonFatalError   = true;
+            includeRunData = false;
+//System.out.println("Roc(s) missing run # and run type info!");
+        }
+
+        // Can only check timestamps if you got 'em
+        if (checkTimestamps && !haveTimestamps) {
+            nonFatalError   = true;
+            checkTimestamps = false;
+//System.out.println("Roc(s) missing timestamp info!");
+        }
+
+        // If we've been told to sparsify ...
+        if (sparsify) {
+            // If there is timestamp data, ignore it
+            if (haveTimestamps) sparsify = false;
+        }
+        // else we've been told NOT to sparsify ...
+        else {
+            // If sparsified trigger banks are coming in, ignore it
+            if (haveTrigWithNoRocSpecificData) sparsify = true;
+        }
+
+        // Don't worry about sparsification if in single event mode
+        // since it is already sparsified.
+        if (eventsInSEM) sparsify = false;
 
         //    Merging built banks should NOT change anything in the 2 common data banks.
         //    However, all merging built trigger banks must have identical contents in
@@ -1103,14 +1200,14 @@ if (debug) System.out.println("gotValidControlEvents: found control event of typ
         //    in the format given below. This is a segment of unsigned 16 bit
         //    integers containing the event type of each event.
         //
-        //    higher mem  -->
-        //    |
-        //    V
+        //                        <-- higher mem
+        //                                     |
+        //                                     V
         //    __________________________________
-        //    |  event1 type  |  event2 type   |
+        //    |  event2 type  |  event1 type   |
         //    |        .      |        .       |
         //    |        .      |        .       |
-        //    | eventM-1 type |  eventM type   |
+        //    |  eventM type  | eventM-1 type  |
         //    __________________________________
         //
 
@@ -1134,20 +1231,10 @@ if (debug) System.out.println("gotValidControlEvents: found control event of typ
         long[] timestampsMax = null;
         long[] timestampsMin = null;
         if (checkTimestamps) {
-            // If timestamp info is NOT all here ...
-            if (!allTimestampsPresent) {
-                // Set error bit
-                nonFatalError = true;
-                // Don't bother checking ts consistency
-                checkTimestamps = false;
-System.out.println("Roc(s) missing timestamp info!");
-            }
-            else {
-                timestampsAvg = new long[numEvents];
-                timestampsMax = new long[numEvents];
-                timestampsMin = new long[numEvents];
-                Arrays.fill(timestampsMin, Long.MAX_VALUE);
-            }
+            timestampsAvg = new long[numEvents];
+            timestampsMax = new long[numEvents];
+            timestampsMin = new long[numEvents];
+            Arrays.fill(timestampsMin, Long.MAX_VALUE);
         }
 
         // check consistency of common data across events
@@ -1173,7 +1260,7 @@ System.out.println("Roc(s) missing timestamp info!");
                 }
 
                 // check run number & type if all such data is present
-                if (allRunDataPresent) {
+                if (haveRunData) {
                     if (longCommonData.length == 2+numEvents &&
                             commonLong.length == 2+numEvents)  {
                         // if run # and/or type are different ...
@@ -1228,9 +1315,9 @@ System.out.println("Timestamps are NOT consistent !!!");
             }
         }
 
-        // Bank we are trying to build. Need to update the num which = (# rocs + 2)
+        // Bank we are trying to build. Need to update the num which = # rocs
         EvioEvent combinedTrigger = builder.getEvent();
-        combinedTrigger.getHeader().setNumber(totalRocCount + 2);
+        combinedTrigger.getHeader().setNumber(totalRocCount);
 
         // 1) Create common data segment of longs, with first event #,
         //    avg timestamps, and possibly run number & run type in it.
@@ -1240,12 +1327,22 @@ System.out.println("Timestamps are NOT consistent !!!");
                 longData = new long[2];
                 longData[0] = firstEventNumber;
                 longData[1] = (((long)runNumber) << 32) | (runType & 0xffffffffL);
-                combinedTrigger.getHeader().setTag(CODATag.BUILT_TRIGGER_RUN.getValue());
+                if (sparsify) {
+                    combinedTrigger.getHeader().setTag(CODATag.BUILT_TRIGGER_RUN_NRSD.getValue());
+                }
+                else {
+                    combinedTrigger.getHeader().setTag(CODATag.BUILT_TRIGGER_RUN.getValue());
+                }
             }
             else {
                 longData = new long[1];
                 longData[0] = firstEventNumber;
-                combinedTrigger.getHeader().setTag(CODATag.BUILT_TRIGGER_BANK.getValue());
+                if (sparsify) {
+                    combinedTrigger.getHeader().setTag(CODATag.BUILT_TRIGGER_NRSD.getValue());
+                }
+                else {
+                    combinedTrigger.getHeader().setTag(CODATag.BUILT_TRIGGER_BANK.getValue());
+                }
             }
         }
         // Put avg timestamps in if doing timestamp checking
@@ -1285,13 +1382,16 @@ System.out.println("Timestamps are NOT consistent !!!");
 
         // 2) Now put all ROC-specific segments into bank.
         //    If we're in single event mode, there will be NO such segments.
+        //    If we're sparsifying, do NOT include such segments.
 
-        // for each trigger bank (from previous level EBs) ...
-        for (EvioBank trBank : triggerBanks) {
-            // copy over each roc segment in trigger bank to combined trigger bank
-            for (int j=2; j < trBank.getChildCount(); j++) {
-                try { builder.addChild(combinedTrigger, (EvioSegment)trBank.getChildAt(j)); }
-                catch (EvioException e) { /* never happen */ }
+        if (!sparsify) {
+            // for each trigger bank (from previous level EBs) ...
+            for (EvioBank trBank : triggerBanks) {
+                // copy over each roc segment in trigger bank to combined trigger bank
+                for (int j=2; j < trBank.getChildCount(); j++) {
+                    try { builder.addChild(combinedTrigger, (EvioSegment)trBank.getChildAt(j)); }
+                    catch (EvioException e) { /* never happen */ }
+                }
             }
         }
 
@@ -1310,6 +1410,9 @@ System.out.println("Timestamps are NOT consistent !!!");
      * min timestamps cannot exceed the argument timestampSlop. If it does for any event,
      * this method returns <code>true</code>.<p>
      *
+     * If sparsify flag is <code>true</code>, then no roc-specific data is included.
+     * The trigger bank is not sparsified if timestamps and/or roc misc data exist.<p>
+     *
      * @param inputPayloadBanks array containing a bank (ROC Raw) from each channel's
      *                          payload bank queue that will be built into one event
      * @param builder object used to build trigger bank
@@ -1318,8 +1421,9 @@ System.out.println("Timestamps are NOT consistent !!!");
      * @param runNumber run number to place in trigger bank
      * @param runType   run type to place in trigger bank
      * @param includeRunData if <code>true</code>, add run number and run type
+     * @param sparsify if <code>true</code>, do not add roc specific segments if no such data
      * @param checkTimestamps if <code>true</code>, check timestamp consistency and
-     *                        return false if inconsistent
+     *                        return false if inconsistent, include them in trigger bank
      * @param timestampSlop maximum number of timestamp ticks that timestamps can differ
      *                      for a single event before the error bit is set in a bank's
      *                      status. Only used when checkTimestamps arg is <code>true</code>
@@ -1332,6 +1436,7 @@ System.out.println("Timestamps are NOT consistent !!!");
                                                     long firstEventNumber,
                                                     int runNumber, int runType,
                                                     boolean includeRunData,
+                                                    boolean sparsify,
                                                     boolean checkTimestamps,
                                                     int timestampSlop)
             throws EmuException {
@@ -1340,13 +1445,13 @@ System.out.println("Timestamps are NOT consistent !!!");
             throw new EmuException("arguments are null or zero-length");
         }
 
-        int tag, index;
+        int tag, firstTrigTag=0, index;
         int numROCs = inputPayloadBanks.length;
         int numEvents = inputPayloadBanks[0].getHeader().getNumber();
         EvioSegment segment;
         EvioBank[] triggerBanks = new EvioBank[numROCs];
-        boolean nonFatalError = false;
-        boolean allTimestampsPresent = true;
+        boolean haveTimestamps, haveMiscData=false, nonFatalError=false;
+        CODATag trigTag;
 
 
         // In each payload bank (of banks) is a trigger bank. Extract them all.
@@ -1356,7 +1461,12 @@ System.out.println("Timestamps are NOT consistent !!!");
             index = 0;
             do {
                 try {
-                    triggerBanks[i] = (EvioBank)inputPayloadBanks[i].getChildAt(index++);
+                    triggerBanks[i] = (EvioBank)inputPayloadBanks[i].getChildAt(index);
+                    // Get the first trigger bank's tag
+                    if (index == 0) {
+                        firstTrigTag = triggerBanks[i].getHeader().getTag();
+                    }
+                    index++;
                 }
                 catch (Exception e) {
                     throw new EmuException("No trigger bank in ROC raw record", e);
@@ -1379,11 +1489,18 @@ System.out.println("Timestamps are NOT consistent !!!");
                 throw new EmuException("Trigger bank does not have correct number of segments");
             }
 
-            // Check to see if all trigger banks have timestamp data
-            if (checkTimestamps) {
-                tag = triggerBanks[i].getHeader().getTag();
-                allTimestampsPresent &= CODATag.hasTimestamp(tag);
+            // Check to see if all trigger bank tags are the same
+            tag = triggerBanks[i].getHeader().getTag();
+            if (tag != firstTrigTag) {
+                throw new EmuException("Trigger banks have different tags");
             }
+        }
+
+        // We check timestamps if told to in configuration AND if timestamps are present
+        haveTimestamps = CODATag.hasTimestamp(firstTrigTag);
+        if (checkTimestamps && !haveTimestamps) {
+            nonFatalError   = true;
+            checkTimestamps = false;
         }
 
         // bank we are trying to build
@@ -1414,14 +1531,14 @@ System.out.println("Timestamps are NOT consistent !!!");
         //    in the format given below. This is a segment of unsigned 16 bit
         //    integers containing the event type of each event.
         //
-        //    higher mem  -->
-        //    |
-        //    V
+        //                        <-- higher mem
+        //                                     |
+        //                                     V
         //    __________________________________
-        //    |  event1 type  |  event2 type   |
+        //    |  event2 type  |  event1 type   |
         //    |        .      |        .       |
         //    |        .      |        .       |
-        //    | eventM-1 type |  eventM type   |
+        //    |  eventM type  | eventM-1 type  |
         //    __________________________________
         //
 
@@ -1433,25 +1550,15 @@ System.out.println("Timestamps are NOT consistent !!!");
         }
 
         // Check the consistency of timestamps if desired/possible
-        long ts;
+        long   ts;
         long[] timestampsAvg = null;
         long[] timestampsMax = null;
         long[] timestampsMin = null;
         if (checkTimestamps) {
-            // If timestamp info is NOT all here ...
-            if (!allTimestampsPresent) {
-                // Set error bit
-                nonFatalError = true;
-                // Don't bother checking ts consistency
-                checkTimestamps = false;
-System.out.println("Roc(s) missing timestamp info!");
-            }
-            else {
-                timestampsAvg = new long[numEvents];
-                timestampsMax = new long[numEvents];
-                timestampsMin = new long[numEvents];
-                Arrays.fill(timestampsMin, Long.MAX_VALUE);
-            }
+            timestampsAvg = new long[numEvents];
+            timestampsMax = new long[numEvents];
+            timestampsMin = new long[numEvents];
+            Arrays.fill(timestampsMin, Long.MAX_VALUE);
         }
 
         // It is convenient at this point to check and see if for a given event,
@@ -1461,18 +1568,24 @@ System.out.println("Roc(s) missing timestamp info!");
         for (int i=0; i < numEvents; i++) {
             for (int j=0; j < numROCs; j++) {
                 segment = (EvioSegment) (triggerBanks[j].getChildAt(i));
-                // check event type consistency
+                // Check event type consistency
                 if (evData[i] != (short) (segment.getHeader().getTag())) {
 System.out.println("makeTriggerBankFromRocRaw: event type differs across ROCs");
                     nonFatalError = true;
                 }
 
-                // check event number consistency
+                // Check event number consistency
                 triggerData = segment.getIntData();
                 if (firstEvNum + i != triggerData[0]) {
 System.out.println("makeTriggerBankFromRocRaw: event number differs across ROCs");
 System.out.println("                           " + (firstEvNum+i) + " != " + (triggerData[0]));
                     nonFatalError = true;
+                }
+
+                // Check for misc data (if we have no timestamps) in at least one place
+                // so we know if we can sparsify or not.
+                if (!haveMiscData && !haveTimestamps && triggerData.length > 1) {
+                    haveMiscData = true;
                 }
 
                 // If they exist, store all timestamp related
@@ -1502,19 +1615,21 @@ System.out.println("Timestamps are NOT consistent!!!");
             }
         }
 
+        //----------------------------
         // 1) Add segment of long data
+        //----------------------------
         long[] longData;
         if (!checkTimestamps) {
             if (includeRunData) {
                 longData = new long[2];
                 longData[0] = firstEventNumber;
                 longData[1] = (((long)runNumber) << 32) | (runType & 0xffffffffL);
-                combinedTrigger.getHeader().setTag(CODATag.BUILT_TRIGGER_RUN.getValue());
+                trigTag = CODATag.BUILT_TRIGGER_RUN;
             }
             else {
                 longData = new long[1];
                 longData[0] = firstEventNumber;
-                combinedTrigger.getHeader().setTag(CODATag.BUILT_TRIGGER_BANK.getValue());
+                trigTag = CODATag.BUILT_TRIGGER_BANK;
             }
         }
         // Put avg timestamps in if doing timestamp checking
@@ -1526,7 +1641,7 @@ System.out.println("Timestamps are NOT consistent!!!");
                     longData[i+1] = timestampsAvg[i];
                 }
                 longData[numEvents+1] = (((long)runNumber) << 32) | (runType & 0xffffffffL);
-                combinedTrigger.getHeader().setTag(CODATag.BUILT_TRIGGER_TS_RUN.getValue());
+                trigTag = CODATag.BUILT_TRIGGER_TS_RUN;
             }
             else {
                 longData = new long[1+numEvents];
@@ -1534,7 +1649,7 @@ System.out.println("Timestamps are NOT consistent!!!");
                 for (int i=0; i < numEvents; i++) {
                     longData[i+1] = timestampsAvg[i];
                 }
-                combinedTrigger.getHeader().setTag(CODATag.BUILT_TRIGGER_TS.getValue());
+                trigTag = CODATag.BUILT_TRIGGER_TS;
             }
         }
 
@@ -1545,7 +1660,9 @@ System.out.println("Timestamps are NOT consistent!!!");
         }
         catch (EvioException e) { /* never happen */ }
 
+        //----------------------------
         // 2) Add segment of event types
+        //----------------------------
         ebSeg = new EvioSegment(ebId, DataType.USHORT16);
         try {
             ebSeg.appendShortData(evData);
@@ -1553,41 +1670,63 @@ System.out.println("Timestamps are NOT consistent!!!");
         }
         catch (EvioException e) { /* never happen */ }
 
-        // now add one segment for each ROC with ROC-specific data in it
-        int intCount, dataLenFromEachSeg;
-        EvioSegment newRocSeg, oldRocSeg;
+        //-------------------------------------------------------
+        // 3) Add ROC-specific segments if not sparsifying
+        //-------------------------------------------------------
 
-        // for each ROC ...
-        for (int i=0; i < triggerBanks.length; i++) {
-            newRocSeg = new EvioSegment(inputPayloadBanks[i].getSourceId(), DataType.INT32);
-            // copy over all ints except the first which is the event Number and is stored in common
+        // We sparsify if told to in configuration AND
+        // if timestamps & roc misc. data do not exist.
+        sparsify = sparsify && !haveTimestamps && !haveMiscData;
 
-            // assume, for now, that each ROC segment in the trigger bank has the same amount of data
-            oldRocSeg = (EvioSegment)triggerBanks[i].getChildAt(0);
-            // (- 1) forget about event # that we already took care of
-            dataLenFromEachSeg = oldRocSeg.getHeader().getLength() - 1;
-
-            // total amount of new data for a new (ROC) segment
-            intCount = numEvents * dataLenFromEachSeg;
-            int[] newData = new int[intCount];
-
-            int[] oldData;
-            int position = 0;
-            for (int j=0; j < numEvents; j++) {
-                oldData = ((EvioSegment)triggerBanks[i].getChildAt(j)).getIntData();
-                if (oldData.length != dataLenFromEachSeg + 1) {
-                    throw new EmuException("Trigger segments contain different amounts of data");
-                }
-                System.arraycopy(oldData, 1, newData, position, dataLenFromEachSeg);
-                position += dataLenFromEachSeg;
+        if (sparsify) {
+            // Reset the trigger bank's tag if sparsifying
+            if (trigTag.hasRunData()) {
+                trigTag = CODATag.BUILT_TRIGGER_RUN_NRSD;
             }
-
-            try {
-                newRocSeg.appendIntData(newData);
-                builder.addChild(combinedTrigger, newRocSeg);
+            else {
+                trigTag = CODATag.BUILT_TRIGGER_NRSD;
             }
-            catch (EvioException e) { /* never happen */ }
         }
+        else {
+            // now add one segment for each ROC with ROC-specific data in it
+            int intCount, dataLenFromEachSeg;
+            EvioSegment newRocSeg, oldRocSeg;
+
+            // for each ROC ...
+            for (int i=0; i < triggerBanks.length; i++) {
+                newRocSeg = new EvioSegment(inputPayloadBanks[i].getSourceId(), DataType.INT32);
+                // copy over all ints except the first which is the event Number and is stored in common
+
+                // assume, for now, that each ROC segment in the trigger bank has the same amount of data
+                oldRocSeg = (EvioSegment)triggerBanks[i].getChildAt(0);
+                // (- 1) forget about event # that we already took care of
+                dataLenFromEachSeg = oldRocSeg.getHeader().getLength() - 1;
+
+                // total amount of new data for a new (ROC) segment
+                intCount = numEvents * dataLenFromEachSeg;
+                int[] newData = new int[intCount];
+
+                int[] oldData;
+                int position = 0;
+                for (int j=0; j < numEvents; j++) {
+                    oldData = ((EvioSegment)triggerBanks[i].getChildAt(j)).getIntData();
+                    if (oldData.length != dataLenFromEachSeg + 1) {
+                        throw new EmuException("Trigger segments contain different amounts of data");
+                    }
+                    System.arraycopy(oldData, 1, newData, position, dataLenFromEachSeg);
+                    position += dataLenFromEachSeg;
+                }
+
+                try {
+                    newRocSeg.appendIntData(newData);
+                    builder.addChild(combinedTrigger, newRocSeg);
+                }
+                catch (EvioException e) { /* never happen */ }
+            }
+        }
+
+        // Finally set the trigger bank's tag
+        combinedTrigger.getHeader().setTag(trigTag.getValue());
 
         return nonFatalError;
     }
@@ -1613,7 +1752,7 @@ System.out.println("Timestamps are NOT consistent!!!");
      * @param runType   run type to place in trigger bank
      * @param includeRunData if <code>true</code>, add run number and run type
      * @param checkTimestamps if <code>true</code>, check timestamp consistency and
-     *                        return false if inconsistent
+     *                        return false if inconsistent, include them in trigger bank
      * @param timestampSlop maximum number of timestamp ticks that timestamps can differ
      *                      for a single event before the error bit is set in a bank's
      *                      status. Only used when checkTimestamps arg is <code>true</code>
@@ -1669,9 +1808,9 @@ System.out.println("Timestamps are NOT consistent!!!");
         //    in the format given below. This is a segment of unsigned 16 bit
         //    integers containing the event type of the event.
         //
-        //    higher mem  -->
+        //                       <--  higher mem
         //    __________________________________
-        //    |  event1 type  |   (padding)    |
+        //    |   (padding)    |  event1 type  |
         //    __________________________________
         //
 
@@ -1680,6 +1819,16 @@ System.out.println("Timestamps are NOT consistent!!!");
         EvioBank blockBank = (EvioBank)inputPayloadBanks[0].getChildAt(0);
         short[] evData = new short[1];
         evData[0] = (short) (blockBank.getHeader().getNumber());  // event type
+
+        // Extract tag too. Low 8 bits = roc id, 9th bit = yes/no timestamps
+        int firstTag = blockBank.getHeader().getTag();
+        boolean haveTs, haveTimestamps = (0x100 & firstTag) > 0;
+
+        // Can only check timestamps if we have any
+        if (checkTimestamps && !haveTimestamps) {
+            nonFatalError   = true;
+            checkTimestamps = false;
+        }
 
         // This method is a convenient time to check the consistency of timestamps
         long ts, timestampsAvg = 0L, timestampsMax = 0L, timestampsMin = Long.MAX_VALUE;
@@ -1701,6 +1850,12 @@ System.out.println("Timestamps are NOT consistent!!!");
             data = blockBank.getIntData();
             if ((int)firstEventNumber != data[0]) {
                 nonFatalError = true;
+            }
+
+            // check timestamp consistency
+            haveTs = (blockBank.getHeader().getTag() & 0x100) > 0;
+            if (haveTs != haveTimestamps) {
+                throw new EmuException("Some rocs have timestamps, some don't");
             }
 
             // store timestamp related values so consistency can be checked later
