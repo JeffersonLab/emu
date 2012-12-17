@@ -24,13 +24,13 @@ public enum EventType {
     PARTIAL_PHYSICS      (2),
     DISENTANGLED_PHYSICS (3),
     USER                 (4),
-    // Control Event Types:
-    CONTROL              (5), // prestart, go, pause or end
-    PRESTART             (6),
-    GO                   (7),
-    PAUSE                (8),
-    END                  (9),
-    SYNC                (10),
+    CONTROL              (5),
+    // Control Event Types: prestart, go, pause or end
+//    PRESTART             (6),
+//    GO                   (7),
+//    PAUSE                (8),
+//    END                  (9),
+//    SYNC                (10),
     OTHER               (15);
 
     private int value;
@@ -74,7 +74,7 @@ public enum EventType {
 
 
     private EventType(int value) {
-        this.value   = value;
+        this.value = value;
     }
 
 
@@ -91,57 +91,58 @@ public enum EventType {
      * @return <code>true</code> if control event type, else <code>false</code>
      */
     public boolean isControl() {
-        return (this.equals(PRESTART) || this.equals(GO) ||
-                this.equals(PAUSE)    || this.equals(END) ||
-                this.equals(SYNC)     || this.equals(CONTROL));
+        return (this == CONTROL);
+//        return (this == PRESTART || this == GO  ||
+//                this == PAUSE    || this == END ||
+//                this == SYNC     || this == CONTROL);
     }
 
-    /**
-     * Is this a prestart control event type?
-     * @return <code>true</code> if prestart control event type, else <code>false</code>
-     */
-    public boolean isPrestart() {
-        return this.equals(PRESTART);
-    }
-
-    /**
-     * Is this a go control event type?
-     * @return <code>true</code> if go control event type, else <code>false</code>
-     */
-    public boolean isGo() {
-        return this.equals(GO);
-    }
-
-    /**
-     * Is this a pause control event type?
-     * @return <code>true</code> if pause control event type, else <code>false</code>
-     */
-    public boolean isPause() {
-        return this.equals(PAUSE);
-    }
-
-    /**
-     * Is this an end control event type?
-     * @return <code>true</code> if end control event type, else <code>false</code>
-     */
-    public boolean isEnd() {
-        return this.equals(END);
-    }
-
-    /**
-     * Is this an sync control event type?
-     * @return <code>true</code> if sync control event type, else <code>false</code>
-     */
-    public boolean isSync() {
-        return this.equals(SYNC);
-    }
-
+//    /**
+//     * Is this a prestart control event type?
+//     * @return <code>true</code> if prestart control event type, else <code>false</code>
+//     */
+//    public boolean isPrestart() {
+//        return this == PRESTART;
+//    }
+//
+//    /**
+//     * Is this a go control event type?
+//     * @return <code>true</code> if go control event type, else <code>false</code>
+//     */
+//    public boolean isGo() {
+//        return this == GO;
+//    }
+//
+//    /**
+//     * Is this a pause control event type?
+//     * @return <code>true</code> if pause control event type, else <code>false</code>
+//     */
+//    public boolean isPause() {
+//        return this == PAUSE;
+//    }
+//
+//    /**
+//     * Is this an end control event type?
+//     * @return <code>true</code> if end control event type, else <code>false</code>
+//     */
+//    public boolean isEnd() {
+//        return this == END;
+//    }
+//
+//    /**
+//     * Is this an sync control event type?
+//     * @return <code>true</code> if sync control event type, else <code>false</code>
+//     */
+//    public boolean isSync() {
+//        return this == SYNC;
+//    }
+//
     /**
      * Is this a data event type?
      * @return <code>true</code> if data event type, else <code>false</code>
      */
     public boolean isROCRaw() {
-        return this.equals(ROC_RAW);
+        return this == ROC_RAW;
     }
 
     /**
@@ -149,8 +150,8 @@ public enum EventType {
      * @return <code>true</code> if any kind of a physics event type, else <code>false</code>
      */
     public boolean isAnyPhysics() {
-        return (this.equals(PHYSICS) || this.equals(PARTIAL_PHYSICS) ||
-                this.equals(DISENTANGLED_PHYSICS));
+        return (this == PHYSICS || this == PARTIAL_PHYSICS ||
+                this == DISENTANGLED_PHYSICS);
     }
 
     /**
@@ -158,7 +159,7 @@ public enum EventType {
      * @return <code>true</code> if complete, but entangled physics event type, else <code>false</code>
      */
     public boolean isPhysics() {
-        return this.equals(PHYSICS);
+        return this == PHYSICS;
     }
 
     /**
@@ -167,7 +168,7 @@ public enum EventType {
      * @return <code>true</code> if partially-built physics event type, else <code>false</code>
      */
     public boolean isPartialPhysics() {
-        return this.equals(PARTIAL_PHYSICS);
+        return this == PARTIAL_PHYSICS;
     }
 
     /**
@@ -175,7 +176,7 @@ public enum EventType {
      * @return <code>true</code> if complete & disentangled physics event type, else <code>false</code>
      */
     public boolean isDisentangledPhysics() {
-        return this.equals(DISENTANGLED_PHYSICS);
+        return this == DISENTANGLED_PHYSICS;
     }
 
     /**
@@ -183,7 +184,7 @@ public enum EventType {
      * @return <code>true</code> if appropriate for the event builder, else <code>false</code>
      */
     public boolean isEbFriendly() {
-        return (isBuildable()  || this.equals(USER));
+        return (isBuildable()  || this == USER);
     }
 
     /**
@@ -191,8 +192,8 @@ public enum EventType {
      * @return <code>true</code> if buildable by the event builder, else <code>false</code>
      */
     public boolean isBuildable() {
-        return (isControl() || this.equals(ROC_RAW) ||
-                this.equals(PHYSICS) || this.equals(PARTIAL_PHYSICS));
+        return (this == CONTROL || this == ROC_RAW ||
+                this == PHYSICS || this == PARTIAL_PHYSICS);
     }
 
     /**
@@ -200,7 +201,7 @@ public enum EventType {
      * @return <code>true</code> if user event type, else <code>false</code>
      */
     public boolean isUser() {
-        return this.equals(USER);
+        return this == USER;
     }
 
 
