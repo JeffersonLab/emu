@@ -562,7 +562,7 @@ if (debug) System.out.println("Qfiller: Roc raw or physics event in wrong format
                             // will BLOCK here waiting for payload bank if none available
                             storage.buildingBanks[i] = payloadBankQueues.get(i).take();
 
-                            eventType = storage.buildingBanks[i].getType();
+                            eventType = storage.buildingBanks[i].getEventType();
 
                             // If event needs to be built ...
                             if (eventType.isROCRaw() || eventType.isPhysics()) {
@@ -895,7 +895,7 @@ if (debug) System.out.println("Have CONTROL event");
 
                         // If it is an END event, interrupt other build threads
                         // then quit this one.
-                        if (storage.buildingBanks[0].getType().isEnd()) {
+                        if (storage.buildingBanks[0].getControlType() == ControlType.END) {
 if (debug) System.out.println("Found END event in build thread");
                             haveEndEvent = true;
                             endBuildAndQFillerThreads(this, true);
@@ -906,7 +906,7 @@ if (debug) System.out.println("Found END event in build thread");
                     }
 
                     // At this point there are only physics or ROC raw events, which do we have?
-                    havePhysicsEvents = storage.buildingBanks[0].getType().isPhysics();
+                    havePhysicsEvents = storage.buildingBanks[0].getEventType().isPhysics();
 
                     // Check for identical syncs, uniqueness of ROC ids,
                     // single-event-mode, and identical (physics or ROC raw) event types
@@ -1001,7 +1001,7 @@ if (debug && nonFatalError) System.out.println("\nERROR 4\n");
                     physicsEvent.setAllHeaderLengths();
 
                     physicsEvent.setAttachment(storage.eventOrder); // store its input order info
-                    physicsEvent.setType(EventType.PHYSICS);
+                    physicsEvent.setEventType(EventType.PHYSICS);
                     physicsEvent.setEventCount(storage.totalNumberEvents);
                     physicsEvent.setFirstEventNumber(storage.firstEventNumber);
 
@@ -1093,7 +1093,7 @@ if (debug) System.out.println("Building thread is ending !!!");
                 singleEventModeBankCount++;
             }
 
-            if (buildingBanks[i].getType().isPhysics()) {
+            if (buildingBanks[i].getEventType().isPhysics()) {
                 physicsEventCount++;
             }
 
@@ -1150,7 +1150,7 @@ if (debug) System.out.println("Building thread is ending !!!");
         // Count control events
         for (PayloadBank bank : buildingBanks) {
             // Might be a ROC Raw, Physics, or Control Event
-            eventType = bank.getType();
+            eventType = bank.getEventType();
             if (eventType.isControl()) {
                 controlEventCount++;
             }

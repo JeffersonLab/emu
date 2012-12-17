@@ -482,7 +482,7 @@ public class EventBuildingOrig implements EmuModule {
 
                         if (!hasOutputs) {
                             // Just keep stats and pull stuff off & discard if no outputs.
-                            eventType = banks[i].getType();
+                            eventType = banks[i].getEventType();
                             if (eventType.isPhysics()) {
                                 eventCountTotal += banks[i].getEventCount();              // event count
                                 wordCountTotal  += banks[i].getHeader().getLength() + 1;  //  word count
@@ -493,7 +493,7 @@ public class EventBuildingOrig implements EmuModule {
                         // Is the bank we grabbed next to be output? If so ...
                         else if ((Integer)(banks[i].getAttachment()) == outputOrder) {
                             // wrap event-to-be-sent in Data Transport Record for next EB or ER
-                            eventType = banks[i].getType();
+                            eventType = banks[i].getEventType();
 
                             if (eventType.isPhysics()) {
                                 outputChannels.get(outputOrderPhysics % outputChannels.size()).getQueue().put(banks[i]);
@@ -617,7 +617,7 @@ public class EventBuildingOrig implements EmuModule {
                                     // will BLOCK here waiting for payload bank if none available
                                     buildingBanks[i] = payloadBankQueues.get(i).take();
 
-                                    eventType = buildingBanks[i].getType();
+                                    eventType = buildingBanks[i].getEventType();
 
                                     // Check immediately if it is a user event.
                                     // If it is, stick it in a list and get another.
@@ -696,7 +696,7 @@ if (debug) System.out.println("Have CONTROL event");
 
                             // If it is an END event, interrupt other build threads
                             // then quit this one.
-                            if (buildingBanks[0].getType().isEnd()) {
+                            if (buildingBanks[0].getControlType() == ControlType.END) {
 if (debug) System.out.println("Found END event in build thread");
                                 haveEndEvent = true;
                                 endBuildAndFillerAndCollectorThreads(this, true);
@@ -707,7 +707,7 @@ if (debug) System.out.println("Found END event in build thread");
                         }
 
                         // At this point there are only physics or ROC raw events, which do we have?
-                        havePhysicsEvents = buildingBanks[0].getType().isPhysics();
+                        havePhysicsEvents = buildingBanks[0].getEventType().isPhysics();
 
                         // Check for identical syncs, uniqueness of ROC ids,
                         // single-event-mode, and identical (physics or ROC raw) event types
@@ -799,7 +799,7 @@ if (debug && nonFatalError) System.out.println("\nERROR 4\n");
                         physicsEvent.setAllHeaderLengths();
 
                         physicsEvent.setAttachment(myInputOrder); // store its output order
-                        physicsEvent.setType(EventType.PHYSICS);
+                        physicsEvent.setEventType(EventType.PHYSICS);
                         physicsEvent.setEventCount(totalNumberEvents);
                         physicsEvent.setFirstEventNumber(firstEventNumber);
 
@@ -867,7 +867,7 @@ if (debug) System.out.println("Building thread is ending !!!");
                 singleEventModeBankCount++;
             }
 
-            if (buildingBanks[i].getType().isPhysics()) {
+            if (buildingBanks[i].getEventType().isPhysics()) {
                 physicsEventCount++;
             }
 
@@ -924,7 +924,7 @@ if (debug) System.out.println("Building thread is ending !!!");
         // Count control events
         for (PayloadBank bank : buildingBanks) {
             // Might be a ROC Raw, Physics, or Control Event
-            eventType = bank.getType();
+            eventType = bank.getEventType();
             if (eventType.isControl()) {
                 controlEventCount++;
             }

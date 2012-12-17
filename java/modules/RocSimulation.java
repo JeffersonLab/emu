@@ -22,6 +22,7 @@ import org.jlab.coda.emu.support.configurer.Configurer;
 import org.jlab.coda.emu.support.configurer.DataNotFoundException;
 import org.jlab.coda.emu.support.control.Command;
 import org.jlab.coda.emu.support.control.State;
+import org.jlab.coda.emu.support.data.ControlType;
 import org.jlab.coda.emu.support.data.EventType;
 import org.jlab.coda.emu.support.data.Evio;
 import org.jlab.coda.emu.support.data.PayloadBank;
@@ -755,10 +756,11 @@ System.out.println("\nRocSim: hit event number limit of " + endLimit + ", quitti
             // Put in END event
             try {
 //System.out.println("          RocSim: Putting in END control event");
-                EvioEvent controlEvent = Evio.createControlEvent(EventType.END, 0, 0,
+                EvioEvent controlEvent = Evio.createControlEvent(ControlType.END, 0, 0,
                                                                  (int)eventCountTotal, 0);
                 PayloadBank bank = new PayloadBank(controlEvent);
-                bank.setType(EventType.END);
+                bank.setEventType(EventType.CONTROL);
+                bank.setControlType(ControlType.END);
                 outputChannels.get(0).getQueue().put(bank);
             }
             catch (InterruptedException e) {
@@ -840,10 +842,11 @@ System.out.println("\nRocSim: hit event number limit of " + endLimit + ", quitti
             // Put in PRESTART event
             try {
 //System.out.println("          RocSim: Putting in PRESTART control event");
-                EvioEvent controlEvent = Evio.createControlEvent(EventType.PRESTART, emu.getRunNumber(),
+                EvioEvent controlEvent = Evio.createControlEvent(ControlType.PRESTART, emu.getRunNumber(),
                                                                  emu.getRunType(), 0, 0);
                 PayloadBank bank = new PayloadBank(controlEvent);
-                bank.setType(EventType.PRESTART);
+                bank.setEventType(EventType.CONTROL);
+                bank.setControlType(ControlType.PRESTART);
                 outputChannels.get(0).getQueue().put(bank);
             }
             catch (InterruptedException e) {
@@ -870,10 +873,11 @@ System.out.println("\nRocSim: hit event number limit of " + endLimit + ", quitti
             // Put in PAUSE event
             try {
 //System.out.println("          RocSim: Putting in PAUSE control event");
-                EvioEvent controlEvent = Evio.createControlEvent(EventType.PAUSE, 0, 0,
+                EvioEvent controlEvent = Evio.createControlEvent(ControlType.PAUSE, 0, 0,
                                                                  (int)eventCountTotal, 0);
                 PayloadBank bank = new PayloadBank(controlEvent);
-                bank.setType(EventType.PAUSE);
+                bank.setEventType(EventType.CONTROL);
+                bank.setControlType(ControlType.PAUSE);
                 outputChannels.get(0).getQueue().put(bank);
             }
             catch (InterruptedException e) {
@@ -893,10 +897,11 @@ System.out.println("\nRocSim: hit event number limit of " + endLimit + ", quitti
             // Put in GO event
             try {
 //System.out.println("          RocSim: Putting in GO control event");
-                EvioEvent controlEvent = Evio.createControlEvent(EventType.GO, 0, 0,
+                EvioEvent controlEvent = Evio.createControlEvent(ControlType.GO, 0, 0,
                                                                  (int)eventCountTotal, 0);
                 PayloadBank bank = new PayloadBank(controlEvent);
-                bank.setType(EventType.GO);
+                bank.setEventType(EventType.CONTROL);
+                bank.setControlType(ControlType.GO);
                 outputChannels.get(0).getQueue().put(bank);
             }
             catch (InterruptedException e) {

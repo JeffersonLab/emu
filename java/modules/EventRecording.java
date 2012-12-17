@@ -537,7 +537,7 @@ System.out.println("Running runMultipleThreads()");
                     }
 
                     // If END event, interrupt other record threads then quit this one.
-                    if (recordingBank.getType().isEnd()) {
+                    if (recordingBank.getControlType() == ControlType.END) {
 if (true) System.out.println("Found END event in record thread");
                         haveEndEvent = true;
                         endRecordThreads(this, false);
@@ -584,7 +584,7 @@ System.out.println("Running runOneThread()");
                     }
 
                     // If END event, quit this one & only recording thread
-                    if (recordingBank.getType().isEnd()) {
+                    if (recordingBank.getControlType() == ControlType.END) {
 if (true) System.out.println("Found END event in record thread");
                         haveEndEvent = true;
                         return;
