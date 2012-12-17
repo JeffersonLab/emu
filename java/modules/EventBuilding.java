@@ -26,15 +26,13 @@ import org.jlab.coda.emu.support.logger.Logger;
 import org.jlab.coda.emu.support.transport.DataChannel;
 import org.jlab.coda.jevio.*;
 
+import java.nio.ByteOrder;
 import java.util.*;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.PriorityBlockingQueue;
 import java.util.concurrent.locks.ReentrantLock;
 
 import static org.jlab.coda.emu.support.codaComponent.CODACommand.*;
-import static org.jlab.coda.emu.support.codaComponent.CODAState.BOOTED;
-import static org.jlab.coda.emu.support.codaComponent.CODAState.CONFIGURED;
-import static org.jlab.coda.emu.support.codaComponent.CODAState.ERROR;
 
 /**
  * <pre><code>
@@ -812,7 +810,7 @@ if (debug && printQSizes) {
                                 // will BLOCK here waiting for payload bank if none available
                                 buildingBanks[i] = payloadBankQueues.get(i).take();
 
-                                eventType = buildingBanks[i].getType();
+                                eventType = buildingBanks[i].getEventType();
 
                                 // If event needs to be built ...
                                 if (!eventType.isControl() && !eventType.isUser()) {
@@ -1015,7 +1013,7 @@ if (true) System.out.println("Have CONTROL event");
 
                         // If it is an END event, interrupt other build threads
                         // then quit this one.
-                        if (buildingBanks[0].getType().isEnd()) {
+                        if (buildingBanks[0].getControlType() == ControlType.END) {
 if (true) System.out.println("Found END event in build thread");
                             haveEndEvent = true;
                             endBuildAndQFillerThreads(this, false);
@@ -1026,7 +1024,7 @@ if (true) System.out.println("Found END event in build thread");
                     }
 
                     // At this point there are only physics or ROC raw events, which do we have?
-                    havePhysicsEvents = buildingBanks[0].getType().isAnyPhysics();
+                    havePhysicsEvents = buildingBanks[0].getEventType().isAnyPhysics();
 
                     // Check for identical syncs, uniqueness of ROC ids,
                     // single-event-mode, identical (physics or ROC raw) event types,
@@ -1124,12 +1122,12 @@ if (debug && nonFatalError) System.out.println("\nERROR 4\n");
                         default:
                             tag = Evio.createCodaTag(buildingBanks[0].isSync(),
                                                  buildingBanks[0].hasError() || nonFatalError,
-                                                 buildingBanks[0].isReserved(),
+                                                 buildingBanks[0].getByteOrder() == ByteOrder.BIG_ENDIAN,
                                                  buildingBanks[0].isSingleEventMode(),
                                                  ebId);
 //if (debug) System.out.println("tag = " + tag + ", is sync = " + buildingBanks[0].isSync() +
 //                   ", has error = " + (buildingBanks[0].hasError() || nonFatalError) +
-//                   ", is reserved = " + buildingBanks[0].isReserved() +
+//                   ", is big endian = " + buildingBanks[0].getByteOrder() == ByteOrder.BIG_ENDIAN +
 //                   ", is single mode = " + buildingBanks[0].isSingleEventMode());
                     }
 
@@ -1141,7 +1139,7 @@ if (debug && nonFatalError) System.out.println("\nERROR 4\n");
                         Evio.buildPhysicsEventWithPhysics(combinedTrigger, buildingBanks, builder);
                     }
                     else {
-if (debug) System.out.println("BuildingThread: build physics event with ROC raw banks");
+//if (debug) System.out.println("BuildingThread: build physics event with ROC raw banks");
                         Evio.buildPhysicsEventWithRocRaw(combinedTrigger, buildingBanks,
                                                          builder, swapData);
                     }
@@ -1150,7 +1148,7 @@ if (debug) System.out.println("BuildingThread: build physics event with ROC raw 
                     physicsEvent.setAllHeaderLengths();
 
                     physicsEvent.setAttachment(evOrder); // store its input order info
-                    physicsEvent.setType(EventType.PHYSICS);
+                    physicsEvent.setEventType(EventType.PHYSICS);
                     physicsEvent.setEventCount(totalNumberEvents);
                     physicsEvent.setFirstEventNumber(firstEventNumber);
 
@@ -1166,7 +1164,7 @@ if (debug) System.out.println("BuildingThread: build physics event with ROC raw 
                     }
                     else {
                         try {
-                            EvioEvent controlEvent = Evio.createControlEvent(EventType.SYNC,
+                            EvioEvent controlEvent = Evio.createControlEvent(ControlType.SYNC,
                                                                              0, 0, (int)eventCountTotal,
                                                     (int)(eventNumber - eventNumberAtLastSync));
                             PayloadBank controlPBank = new PayloadBank(controlEvent);
