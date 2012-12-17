@@ -11,6 +11,7 @@
 
 package org.jlab.coda.emu.support.transport;
 
+import org.jlab.coda.emu.support.data.ControlType;
 import org.jlab.coda.emu.support.data.EventType;
 import org.jlab.coda.emu.support.data.Evio;
 import org.jlab.coda.emu.support.data.PayloadBank;
@@ -159,7 +160,8 @@ public class DataChannelImplCmsg implements DataChannel {
             PayloadBank payloadBank;
             int evioVersion, sourceId, recordId;
             BlockHeaderV4 header4;
-            EventType  type, bankType;
+            EventType eventType, bankType;
+            ControlType controlType;
             EvioReader reader;
 
 
@@ -174,9 +176,10 @@ public class DataChannelImplCmsg implements DataChannel {
                 if (evioVersion < 4) {
                     throw new EvioException("Evio data needs to be written in version 4+ format");
                 }
-                header4      = (BlockHeaderV4)blockHeader;
-                type         = EventType.getEventType(header4.getEventType());
-                sourceId     = header4.getReserved1();
+                header4     = (BlockHeaderV4)blockHeader;
+                eventType   = EventType.getEventType(header4.getEventType());
+                controlType = null;
+                sourceId    = header4.getReserved1();
                 // The recordId associated with each bank is taken from the first
                 // evio block header in a single data buffer. For a physics or
                 // ROC raw type, it should start at zero and increase by one in the
@@ -201,17 +204,27 @@ public class DataChannelImplCmsg implements DataChannel {
                     // Complication: from the ROC, we'll be receiving USER events
                     // mixed in with and labeled as ROC Raw events. Check for that
                     // and fix it.
-                    bankType = type;
-                    if (type == EventType.ROC_RAW) {
+                    bankType = eventType;
+                    if (eventType == EventType.ROC_RAW) {
                         if (Evio.isUserEvent(bank)) {
                             bankType = EventType.USER;
+                        }
+                    }
+                    else if (eventType == EventType.CONTROL) {
+                        // Find out exactly what type of control event it is
+                        // (May be null if there is an error)
+                        // TODO: It may NOT be enough just to check the tag
+                        controlType = ControlType.getControlType(bank.getHeader().getTag());
+                        if (controlType == null) {
+                            throw new EvioException("Found unidentified control event");
                         }
                     }
 
                     // Not a real copy, just points to stuff in bank
                     payloadBank = new PayloadBank(bank);
                     // Add vital info from block header.
-                    payloadBank.setType(bankType);
+                    payloadBank.setEventType(bankType);
+                    payloadBank.setControlType(controlType);
                     payloadBank.setSourceId(sourceId);
                     payloadBank.setRecordId(recordId);
 
@@ -219,7 +232,7 @@ public class DataChannelImplCmsg implements DataChannel {
                     queue.put(bank);
 
                     // Handle end event ...
-                    if (Evio.isEndEvent(bank)) {
+                    if (controlType == ControlType.END) {
                         // There should be no more events coming down the pike so
                         // go ahead write out existing events and then shut this
                         // thread down.
@@ -643,7 +656,7 @@ logger.debug("      DataChannel cMsg reset() : " + name + " - resetting this cha
                     try {
                         // encode the event type into bits
                         BitSet bitInfo = new BitSet(24);
-                        BlockHeaderV4.setEventType(bitInfo, bank.getType().getValue());
+                        BlockHeaderV4.setEventType(bitInfo, bank.getEventType().getValue());
 
                         evWriter = new EventWriter(buffer, 128000, 10, null, bitInfo, emu.getCodaid());
                     }
@@ -868,7 +881,7 @@ System.out.println("singlethreaded put: array len = " + msgs.length + ", send " 
                                 }
 
                                 gotNothingYet = false;
-                                pBanktype = pBank.getType();
+                                pBanktype = pBank.getEventType();
                                 pBankSize = pBank.getTotalBytes();
                                 // Assume worst case of one block-header/bank when finding max size
                                 listTotalSizeMax += pBankSize + 32;
@@ -993,7 +1006,7 @@ System.out.println("singlethreaded put: array len = " + msgs.length + ", send " 
                             }
 
                             gotNothingYet = false;
-                            pBanktype = pBank.getType();
+                            pBanktype = pBank.getEventType();
                             pBankSize = pBank.getTotalBytes();
                             listTotalSizeMax += pBankSize + 32;
 
@@ -1177,7 +1190,7 @@ System.out.println("Ending");
 
                 // Encode the event type into bits
                 BitSet bitInfo = new BitSet(24);
-                setEventType(bitInfo, bankList.getFirst().getType().getValue());
+                setEventType(bitInfo, bankList.getFirst().getEventType().getValue());
 
                 try {
                     // Create object to write evio banks into message buffer
