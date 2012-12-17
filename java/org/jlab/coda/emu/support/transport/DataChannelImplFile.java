@@ -13,6 +13,7 @@ package org.jlab.coda.emu.support.transport;
 
 import org.jlab.coda.emu.Emu;
 import org.jlab.coda.emu.support.codaComponent.CODAState;
+import org.jlab.coda.emu.support.data.ControlType;
 import org.jlab.coda.emu.support.data.EventType;
 import org.jlab.coda.emu.support.data.Evio;
 import org.jlab.coda.emu.support.data.PayloadBank;
@@ -73,7 +74,7 @@ public class DataChannelImplFile implements DataChannel {
     private String fileName;
 
     /** Evio data file. */
-    private EvioReader evioFile;
+    private EvioReader evioFileReader;
 
     /** Object to write evio file. */
     private EventWriter evioFileWriter;
@@ -233,7 +234,9 @@ public class DataChannelImplFile implements DataChannel {
         try {
             if (input) {
 logger.info("      DataChannel File: try opening input file of " + fileName);
-                evioFile = new EvioReader(fileName, blockNumberChecking);
+                evioFileReader = new EvioReader(fileName, blockNumberChecking);
+                // Speed things up since no EvioListeners are used - doesn't do much
+                evioFileReader.getParser().setNotificationActive(false);
                 DataInputHelper helper = new DataInputHelper();
                 dataThread = new Thread(emu.getThreadGroup(), helper, getName() + " data input");
                 dataThread.start();
@@ -297,24 +300,64 @@ logger.info("      DataChannel File: try opening output file of " + fileName);
         @Override
         public void run() {
 
-            int counter = 0;
+            int sourceId, recordId, counter = 0;
+            IBlockHeader blockHeader;
+            BlockHeaderV4 header4;
+            EventType eventType, bankType;
+            ControlType controlType;
+            PayloadBank payloadBank;
 
             // I've started
             latch.countDown();
 
             try {
                 while (!dataThread.isInterrupted()) {
-                    EvioBank bank = evioFile.parseNextEvent();
+                    EvioBank bank = evioFileReader.parseNextEvent();
                     if (bank == null) {
                         break;
                     }
 
-                    queue.put(bank);  // will block
+                    // First block header in ET buffer
+                    blockHeader = evioFileReader.getCurrentBlockHeader();
+                    header4     = (BlockHeaderV4)blockHeader;
+                    eventType   = EventType.getEventType(header4.getEventType());
+                    controlType = null;
+                    sourceId    = header4.getReserved1();
+                    recordId    = header4.getNumber();
+
+                    bankType = eventType;
+                    // Unlikely that a file has roc raw data, but accommodate it anyway
+                    if (eventType == EventType.ROC_RAW) {
+                        if (Evio.isUserEvent(bank)) {
+                            bankType = EventType.USER;
+                        }
+                    }
+                    else if (eventType == EventType.CONTROL) {
+                        // Find out exactly what type of control event it is
+                        // (May be null if there is an error).
+                        controlType = ControlType.getControlType(bank.getHeader().getTag());
+                        if (controlType == null) {
+                            throw new EvioException("Found unidentified control event");
+                        }
+                    }
+
+                    // Not a real copy, just points to stuff in bank
+                    payloadBank = new PayloadBank(bank);
+                    // Add vital info from block header.
+                    payloadBank.setEventType(bankType);
+                    payloadBank.setControlType(controlType);
+                    payloadBank.setRecordId(recordId);
+                    payloadBank.setSourceId(sourceId);
+
+                    queue.put(payloadBank);  // will block
                     counter++;
                 }
 
                 // Put in END event
-                EvioEvent controlEvent = Evio.createControlEvent(EventType.END, 0, 0, counter, 0);
+                EvioEvent controlEvent = Evio.createControlEvent(ControlType.END, 0, 0, counter, 0);
+                PayloadBank bank = new PayloadBank(controlEvent);
+                bank.setEventType(EventType.CONTROL);
+                bank.setControlType(ControlType.END);
                 queue.put(controlEvent);  // will block
 
             } catch (InterruptedException e) {
@@ -365,19 +408,22 @@ logger.info("      DataChannel File: try opening output file of " + fileName);
             try {
 
                 while (!dataThread.isInterrupted()) {
-                    // This bank is a data transport record (DTR)
+
                     bank = (PayloadBank)queue.take(); // will block
 
-                    if (bank.getType() == EventType.END) {
-                        gotEnd = true;
-logger.info("      DataChannel File (" + name + "): got END, close file " + fileName);
-                    }
-                    else if (bank.getType() == EventType.PRESTART) {
-logger.info("      DataChannel File (" + name + "): got PRESTART");
-                        gotPrestart = true;
+                    if (bank.getEventType() == EventType.CONTROL) {
+                        ControlType cType = bank.getControlType();
+                        if (cType == ControlType.END) {
+                            gotEnd = true;
+                            logger.info("      DataChannel File (" + name + "): got END, close file " + fileName);
+                        }
+                        else if (cType == ControlType.PRESTART) {
+                            gotPrestart = true;
+                            logger.info("      DataChannel File (" + name + "): got PRESTART");
+                        }
                     }
                     else {
-//logger.info("      DataChannel File (" + name + "): got bank of type " + bank.getType());
+//logger.info("      DataChannel File (" + name + "): got bank of type " + bank.getEventType());
                     }
 
                     // Don't start writing to file until we get PRESTART
@@ -470,7 +516,7 @@ logger.warn("      DataChannel File (" + name + "): got event but NO PRESTART, g
     public void close() {
         if (dataThread != null) dataThread.interrupt();
         try {
-            if (evioFile != null) evioFile.close();
+            if (evioFileReader != null) evioFileReader.close();
         } catch (Exception e) {
             //ignore
         }
