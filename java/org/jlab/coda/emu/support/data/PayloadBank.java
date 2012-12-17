@@ -11,7 +11,9 @@ import org.jlab.coda.jevio.*;
  */
 public class PayloadBank extends EvioEvent {
 
-    private EventType type;
+    private EventType eventType;
+
+    private ControlType controlType;
 
     private int sourceId;
 
@@ -63,12 +65,20 @@ public class PayloadBank extends EvioEvent {
         super(new BankHeader(tag, dataType, num));
     }
 
-    public EventType getType() {
-        return type;
+    public EventType getEventType() {
+        return eventType;
     }
 
-    public void setType(EventType type) {
-        this.type = type;
+    public void setEventType(EventType type) {
+        this.eventType = type;
+    }
+
+    public ControlType getControlType() {
+        return controlType;
+    }
+
+    public void setControlType(ControlType type) {
+        this.controlType = type;
     }
 
     public int getSourceId() {
