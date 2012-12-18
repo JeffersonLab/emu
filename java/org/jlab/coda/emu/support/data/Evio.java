@@ -19,31 +19,38 @@ import java.util.Arrays;
 
 /**
  * This class is used as a layer on top of evio to handle CODA3 specific details.
- * The EMU will received evio data as Data Transport Records which contain
- * ROC Raw Records and Physics Events all of which are in formats given below.<p>
+ * The EMU will received evio data in standard CODA3 output (same as file format)
+ * which contains banks - in this case, ROC Raw Records and Physics Events all of
+ * which are in formats given below.<p>
  *
  * <code><pre>
- * ############################
- * Data Transport Record (DTR):
- * ############################
+ * ####################################
+ * Network Transfer Evio Output Format:
+ * ####################################
  *
  * MSB(31)                          LSB(0)
  * <---  32 bits ------------------------>
  * _______________________________________
- * |           Record Length             |
+ * |           Block Length              |
  * |_____________________________________|
- * | T |  Source ID   |  0x10  |   RID   |
+ * |           Block Number              |
  * |_____________________________________|
- * |                 2                   |
+ * |         Header Length = 8           |
  * |_____________________________________|
- * |    0x0F00        |  0x01  |   PBs   |
+ * |            Event Count              |
  * |_____________________________________|
- * |        Record ID (counter)          |
+ * |             Reserved 1              |
+ * |_____________________________________|
+ * |        Bit Info          | Version  |
+ * |_____________________________________|
+ * |             Reserved 2              |
+ * |_____________________________________|
+ * |            Magic Number             |
  * |_____________________________________|
  * |                                     |
  * |           Payload Bank              |
- * |       (ROCRaw, Physics, or          |
- * |        other type of event)         |
+ * |       (ROC Raw, Physics,            |
+ * |        Control or User event)       |
  * |_____________________________________|
  * |                                     |
  * |           Payload Bank              |
@@ -56,20 +63,7 @@ import java.util.Arrays;
  * |_____________________________________|
  *
  *
- *      RID = the lowest 8 bits of the Record ID.
- *      PBs = number of payload banks
- *   0x0F00 = the Record ID bank identifier.
- *        T = type of event contained in payload bank:
- *              0 = ROC Raw
- *              1 = Physics
- *              2 = User
- *              3 = Sync
- *              4 = Prestart
- *              5 = Go
- *              6 = Pause
- *              7 = End
  *
- * 
  *
  * ############################
  * ROC Raw Record:
@@ -84,13 +78,17 @@ import java.util.Arrays;
  * |_____________________________________| ------
  * |        Trigger Bank Length          |      ^
  * |_____________________________________|      |
- * |    0x0F01        |  0x20  |    M    |      |
+ * |    0xFF1X        |  0x20  |    M    |      |
  * |_____________________________________|      |
  * | ID 1   |  0x01   |     ID len 1     |   Trigger Bank
  * |_____________________________________|      |
  * |           Event Number 1            |      |
  * |_____________________________________|      |
- * |           Timestamp 1 (?)           |      |
+ * |       Timestamp1 (bits 31-0)        |      |
+ * |_____________________________________|      |
+ * |       Timestamp1 (bits 47-32)       |      |
+ * |_____________________________________|      |
+ * |             Misc. 1 (?)             |      |
  * |_____________________________________|      |
  * |                  ...                |      |
  * |_____________________________________|      |
@@ -102,35 +100,37 @@ import java.util.Arrays;
  * |_____________________________________|      |
  * |           Event Number M            |      |
  * |_____________________________________|      |
- * |           Timestamp M (?)           |      |
+ * |________   Timestamp M (?)   ________|      |
  * |_____________________________________|      |
- * |                  ...                |      V
+ * |             Misc. M (?)             |      V
  * |_____________________________________| ------
  * |                                     |
- * |            Data Block               |
- * |     (opaque data of M events        |
- * |      from 1 to multiple modules)    |
+ * |         Data Block Bank 1           |
+ * |        (data of M events from       |
+ * |         1 to multiple modules)      |
  * |                                     |
  * |_____________________________________|
+ * |                  ...                |
+ * |_____________________________________|
  * |                                     |
- * |            Data Block               |
+ * |         Data Block Last             |
  * |   (there will be only 1 block       |
  * |   unless user used multiple DMAs)   |
  * |                                     |
  * |_____________________________________|
  *
  *
- *      M is the number of events.
+ * M = number of events (0 = user event).
  * 0x0F01 is the Trigger Bank identifier.
  *
  * S is the 4-bit status:
  * |_____________________________________|
- * | Single|   Data   |  Error |  Sync   |
+ * | Single|   Big    |  Error |  Sync   |
  * | Event |  Endian  |        |  Event  |
  * |  Mode |          |        |         |
  * |_____________________________________|
  *
- *  Data Endian bit is set if data is big endian
+ *  Endian bit is set if data is big endian
  *
  *
  * ############################
@@ -142,14 +142,14 @@ import java.util.Arrays;
  * _______________________________________
  * |           Event Length              |
  * |_____________________________________|
- * | S |  Event Type  |  0x10  |    ?    |
+ * | builder = 0xFFXX |  0x10  |    M    |
  * |_____________________________________| ------
  * |     Built Trigger Bank Length       |      ^
  * |_____________________________________|      |
- * |    0x0F02        |  0x20  |   N+1   |      |
+ * |    0xFF2X        |  0x20  |    N    |      |
  * |_____________________________________|     Built
- * |        EB (Common) Segment          |   Trigger Bank
- * |_____________________________________|      |
+ * |     2  EB (Common) Segments         |   Trigger Bank
+ * |_____________________________________|   (see below)
  * |           ROC 1 Segment             |      |
  * |_____________________________________|      |
  * |                  ...                |      |
@@ -166,12 +166,14 @@ import java.util.Arrays;
  * |_____________________________________|
  * |                                     |
  * |            Data Bank N              |
- * |                                     |
+ * |      (One bank for each roc)        |
  * |_____________________________________|
  *
  *
+ *      M = number of events.
  *      N is the number of ROCs.
- * 0x0F02 is the Built Trigger Bank identifier.
+ * 0xFFXX is the id of the event builder
+ * 0xFF2X is the Built Trigger Bank identifier
  *
  *
  *
@@ -182,44 +184,50 @@ import java.util.Arrays;
  * MSB(31)                          LSB(0)
  * <---  32 bits ------------------------>
  * _______________________________________
- * |        Trigger Bank Length          |
+ * |     Built Trigger Bank Length       |
  * |_____________________________________|
- * |    0x0F02        |  0x20  |   N+2   |
+ * |    0xFF2X        |  0x20  |    N    |
  * |_____________________________________| --------
  * | EB id  |   0xa   |        4         |    ^
  * |_____________________________________|    |
  * |________ First Event Number _________|    |
  * |_____________________________________|    |
- * |____________ Run Number _____________|    |
+ * |__________ Avg Timestamp 1 __________|    |
+ * |_____________________________________|    |
+ * |__________       ...       __________|    |
+ * |_____________________________________|    |
+ * |__________ Avg Timestamp M __________|    |
+ * |_____________________________________|    |
+ * |______ Run Number & Run Type ________|    |
  * |_____________________________________|    |
  * | EB id  |  0x05   |       Len        |    |
  * |_____________________________________|    |
- * |   Event Type 1   |  Event Type 2    |  Common Data
+ * |   Event Type 2   |  Event Type 1    |  Common Data
  * |_____________________________________|    |
  * |                  ...                |    |
  * |_____________________________________|    |
- * |  Event Type M-1  |  Event Type M    |    V
+ * |  Event Type M    |  Event Type M-1  |    V
  * |_____________________________________| -------
- * |roc1 id |  0x05   |        Len       |    ^
+ * |roc1 id |  0x01   |        Len       |    ^
  * |_____________________________________|    |
- * |             Timestamp (?)           |    |
+ * |         Timestamp for ev 1          |    |
  * |_____________________________________|    |
- * |              Misc. (?)              |  ROC Data
+ * |           Misc. 1 for ev 1          |  ROC Data
+ * |_____________________________________|  (missing if single event mode,
+ * |                ...                  |   or sparsified & no timestamp
+ * |_____________________________________|   data available)
+ * |             Timestamp M             |    |
+ * |_____________________________________|    |
+ * |               Misc. M               |    |
  * |_____________________________________|    |
  * |                                     |    |
- * |                  ...                |    |
- * |_____________________________________|    |
- * |rocN id |  0x05   |        Len       |    |
- * |_____________________________________|    |
- * |             Timestamp (?)           |    |
- * |_____________________________________|    |
- * |              Misc. (?)              |    V
- * |_____________________________________| -------
+ * |     (one for each ROC, to ROC N)    |    |
+ * |_____________________________________|    V
  *
  *
  *      N is the number of ROCs.
  *      M is the number of events.
- * 0x0F02 is the Built Trigger Bank identifier.
+ * 0xFF2X is the Built Trigger Bank identifier.
  *
  *
  *
@@ -386,28 +394,25 @@ public class Evio {
 
 
     /**
-     * Get the event type's numerical value in Data Transport Records or the status in
-     * other types of records/events which is the upper 4 bits of the CODA-format tag.
+     * Get the given CODA-format tag's status which is the upper 4 bits.
      *
      * @param codaTag tag from evio bank.
-     * @return the event type or status from various records/events.
+     * @return the status from various records/events/banks.
      */
-    public static int getTagEventTypeOrStatus(int codaTag) {
+    public static int getTagStatus(int codaTag) {
         return (codaTag >>> 12);
     }
 
-    
+    // TODO: this method may need to disappear
     /**
-     * Get the event type of a bank for Data Transport Records.
+     * Get the given bank's CODA-format tag's status which is the upper 4 bits.
      * 
      * @param bank bank to analyze
-     * @return event type for bank, null if none found
+     * @return the status from given bank or -1 if bank arg is null.
      */
-    public static EventType getEventType(EvioBank bank) {
-        if (bank == null) return null;
-
-        int type = getTagEventTypeOrStatus(bank.getHeader().getTag());
-        return EventType.getEventType(type);
+    public static int getTagStatus(EvioBank bank) {
+        if (bank == null) return -1;
+        return getTagStatus(bank.getHeader().getTag());
     }
 
 
@@ -420,14 +425,20 @@ public class Evio {
     public static boolean isAnyPhysicsEvent(EvioBank bank) {
         if (bank == null)  return false;
 
-        // must be bank of banks
+        // Tag of fully built event is in range of (0xFF50 - 0xFF8F) inclusive
+        int tag = bank.getHeader().getTag();
+        if (tag >= 0xFF50 && tag <= 0xFF8F) return true;
+
+        // Partially built event is best identified by its trigger bank
+
+        // Must be bank of banks
         BaseStructureHeader header = bank.getHeader();
         if (header.getDataType() != DataType.BANK ||
             header.getDataType() != DataType.ALSOBANK) {
             return false;
         }
 
-        // get first bank which should be built trigger bank
+        // Get first bank, which should be built trigger bank, and look at the tag
         try {
             EvioBank kid = (EvioBank)bank.getChildAt(0);
             if (!CODATag.isBuiltTrigger(kid.getHeader().getTag())) {
@@ -454,7 +465,7 @@ public class Evio {
         BaseStructureHeader header = bank.getHeader();
 
         // Look inside to see if it is an END event.
-        return (header.getTag() == 20 &&
+        return (header.getTag() == ControlType.END.getValue() &&
                 header.getNumber() == 0xCC &&
                 header.getDataTypeValue() == 1 &&
                 header.getLength() == 4);
@@ -473,7 +484,7 @@ public class Evio {
          BaseStructureHeader header = bank.getHeader();
 
          // Look inside to see if it is a GO event.
-         return (header.getTag() == 18 &&
+         return (header.getTag() == ControlType.GO.getValue() &&
                  header.getNumber() == 0xCC &&
                  header.getDataTypeValue() == 1 &&
                  header.getLength() == 4);
@@ -492,7 +503,7 @@ public class Evio {
          BaseStructureHeader header = bank.getHeader();
 
          // Look inside to see if it is an END event.
-         return (header.getTag() == 17 &&
+         return (header.getTag() == ControlType.PRESTART.getValue() &&
                  header.getNumber() == 0xCC &&
                  header.getDataTypeValue() == 1 &&
                  header.getLength() == 4);
@@ -511,7 +522,7 @@ public class Evio {
          BaseStructureHeader header = bank.getHeader();
 
          // Look inside to see if it is an END event.
-         return (header.getTag() == 19 &&
+         return (header.getTag() == ControlType.PAUSE.getValue() &&
                  header.getNumber() == 0xCC &&
                  header.getDataTypeValue() == 1 &&
                  header.getLength() == 4);
@@ -530,7 +541,7 @@ public class Evio {
          BaseStructureHeader header = bank.getHeader();
 
          // Look inside to see if it is an END event.
-         return (header.getTag() == 16 &&
+         return (header.getTag() == ControlType.SYNC.getValue() &&
                  header.getNumber() == 0xCC &&
                  header.getDataTypeValue() == 1 &&
                  header.getLength() == 4);
@@ -538,10 +549,10 @@ public class Evio {
 
 
     /**
-      * Determine whether a bank is a PAUSE control event or not.
+      * Determine whether a bank is a control event or not.
       *
       * @param bank input bank
-      * @return <code>true</code> if arg is PAUSE event, else <code>false</code>
+      * @return <code>true</code> if arg is control event, else <code>false</code>
       */
      public static boolean isControlEvent(EvioBank bank) {
          if (bank == null)  return false;
@@ -550,10 +561,22 @@ public class Evio {
          int tag = header.getTag();
 
          // Look inside to see if it is an END event.
-         return ((tag == 20 || tag == 19 || tag == 18 || tag == 17) &&
+         return (ControlType.isControl(tag) &&
                  header.getNumber() == 0xCC &&
                  header.getDataTypeValue() == 1 &&
                  header.getLength() == 4);
+     }
+
+
+    /**
+      * If the given bank is a control event, return its ControlType object, else null.
+      *
+      * @param bank input bank
+      * @return corresponding ControlType object if arg is control event, else null
+      */
+     public static ControlType getControlType(EvioBank bank) {
+         if (bank == null)  return null;
+         return ControlType.getControlType(bank.getHeader().getTag());
      }
 
 
@@ -624,7 +647,7 @@ public class Evio {
 
         // See what type of event this is
         // Only interested in known types such as physics, roc raw, control, and user events.
-        EventType eventType = pBank.getType();
+        EventType eventType = pBank.getEventType();
         if (eventType == null || !eventType.isEbFriendly()) {
 System.out.println("checkPayloadBank: unknown type, dump payload bank");
             return;
@@ -682,7 +705,8 @@ System.out.println("checkPayloadBank: DTR bank source Id (" + sourceId + ") != p
      * <li>if there are any sync bits set, all must be sync banks
      * <li>the ROC ids of the banks must be unique
      * <li>if any banks are in single-event-mode, all need to be in that mode
-     * <li>at this point all banks are either physics events or ROC raw record, but must be identical types
+     * <li>at this point all banks are either physics events or ROC raw records,
+     *     but must be identical types
      * <li>there are the same number of events in each bank
      * </ol>
      *
@@ -717,7 +741,7 @@ System.out.println("checkPayloadBank: DTR bank source Id (" + sourceId + ") != p
                 singleEventModeBankCount++;
             }
 
-            if (buildingBanks[i].getType().isAnyPhysics()) {
+            if (buildingBanks[i].getEventType().isAnyPhysics()) {
                 physicsEventCount++;
             }
 
@@ -776,17 +800,17 @@ System.out.println("checkPayloadBank: DTR bank source Id (" + sourceId + ") != p
         int controlEventCount = 0;
         int numberOfBanks = buildingBanks.length;
         EventType eventType;
-        EventType[] types = new EventType[numberOfBanks];
+        ControlType[] types = new ControlType[numberOfBanks];
         boolean debug = false;
 
         // Count control events
         for (PayloadBank bank : buildingBanks) {
             // Might be a ROC Raw, Physics, or Control Event
-            eventType = bank.getType();
+            eventType = bank.getEventType();
             if (eventType.isControl()) {
                 controlEventCount++;
+                types[counter++] = ControlType.getControlType(bank.getHeader().getTag());
             }
-            types[counter++] = eventType;
         }
 
         // If one is a control event, all must be identical control events.
@@ -799,16 +823,16 @@ if (debug) System.out.println("gotValidControlEvents: got " + controlEventCount 
             }
 
             // Make sure all are the same type of control event
-            eventType = types[0];
+            ControlType controlType = types[0];
             for (int i=1; i < types.length; i++) {
-                if (eventType != types[i]) {
+                if (controlType != types[i]) {
                     throw new EmuException("different type control events on each channel");
                 }
             }
 
             // Prestart events require an additional check,
             // run #'s and run types must be identical
-            if (eventType == EventType.PRESTART) {
+            if (controlType == ControlType.PRESTART) {
                 int[] prestartData;
                 for (PayloadBank bank : buildingBanks) {
                     prestartData = bank.getIntData();
@@ -831,11 +855,8 @@ if (debug) System.out.println("gotValidControlEvents: warning, PRESTART event ba
                                                        ", should be " + runType);
                     }
                 }
-
-
-
             }
-if (debug) System.out.println("gotValidControlEvents: found control event of type " + eventType.name());
+if (debug) System.out.println("gotValidControlEvents: found control event of type " + controlType.name());
 
             return true;
         }
@@ -865,23 +886,28 @@ if (debug) System.out.println("gotValidControlEvents: found control event of typ
         // Current time in seconds since Jan 1, 1970 GMT
         int time = (int) (System.currentTimeMillis()/1000L);
 
-        if (isGoEvent(controlEvent)   ||
-            isEndEvent(controlEvent)  ||
-            isPauseEvent(controlEvent)  ) {
+        ControlType type = getControlType(controlEvent);
+        if (type == null) return false;
 
-            int[] newData = new int[] {time, 0, eventsInRun};
-            controlEvent.setIntData(newData);
-        }
-        else if (isPrestartEvent(controlEvent)) {
-            int[] newData = new int[] {time, runNumber, runType};
-            controlEvent.setIntData(newData);
-        }
-        else if (isSyncEvent(controlEvent)) {
-            int[] newData = new int[] {time, eventsSinceSync, eventsInRun};
-            controlEvent.setIntData(newData);
-        }
-        else {
-            return false;
+        int[] newData;
+
+        switch (type) {
+            case SYNC:
+                newData = new int[] {time, eventsSinceSync, eventsInRun};
+                controlEvent.setIntData(newData);
+                break;
+            case PRESTART:
+                newData = new int[] {time, runNumber, runType};
+                controlEvent.setIntData(newData);
+                break;
+            case GO:
+            case PAUSE:
+            case END:
+                newData = new int[] {time, 0, eventsInRun};
+                controlEvent.setIntData(newData);
+                break;
+            default:
+                return false;
         }
 
         return true;
@@ -896,7 +922,7 @@ if (debug) System.out.println("gotValidControlEvents: found control event of typ
      * _______________________________________
      * |          Event Length = 4           |
      * |_____________________________________|
-     * |    type = 16     |  0x1   |  0xCC   |
+     * |   type = 0xFFD0  |  0x1   |  0xCC   |
      * |_____________________________________|
      * |                time                 |
      * |_____________________________________|
@@ -909,7 +935,7 @@ if (debug) System.out.println("gotValidControlEvents: found control event of typ
      * _______________________________________
      * |          Event Length = 4           |
      * |_____________________________________|
-     * |    type = 17     |  0x1   |  0xCC   |
+     * |   type = 0xFFD1  |  0x1   |  0xCC   |
      * |_____________________________________|
      * |                time                 |
      * |_____________________________________|
@@ -919,11 +945,12 @@ if (debug) System.out.println("gotValidControlEvents: found control event of typ
      * |_____________________________________|
      *
      *
-     * Go (type = 18), Pause (type = 19) or End (type = 20) event:
+     * Go  (type = 0xFFD2), Pause (type = 0xFFD3) or
+     * End (type = 0xFFD4) event:
      * _______________________________________
      * |          Event Length = 4           |
      * |_____________________________________|
-     * |    type = 20     |  0x1   |  0xCC   |
+     * |       type       |  0x1   |  0xCC   |
      * |_____________________________________|
      * |                time                 |
      * |_____________________________________|
@@ -933,7 +960,7 @@ if (debug) System.out.println("gotValidControlEvents: found control event of typ
      * |_____________________________________|
      * </pre></code>
      *
-     * @param type event type, must be PRESTART, GO, PAUSE, or END
+     * @param type            control type, must be SYNC, PRESTART, GO, PAUSE, or END
      * @param runNumber       current run number for prestart event
      * @param runType         current run type for prestart event
      * @param eventsInRun     number of events so far in run for all except prestart event
@@ -942,7 +969,7 @@ if (debug) System.out.println("gotValidControlEvents: found control event of typ
      * @return created Control event (EvioEvent object)
      * @throws EvioException if bad event type
      */
-    public static EvioEvent createControlEvent(EventType type, int runNumber, int runType,
+    public static EvioEvent createControlEvent(ControlType type, int runNumber, int runType,
                                                int eventsInRun, int eventsSinceSync)
             throws EvioException {
 
@@ -956,26 +983,20 @@ if (debug) System.out.println("gotValidControlEvents: found control event of typ
         switch (type) {
             case SYNC:
                 data = new int[] {time, eventsSinceSync, eventsInRun};
-                eventBuilder = new EventBuilder(16, DataType.UINT32, 0xcc);
+                eventBuilder = new EventBuilder(type.getValue(), DataType.UINT32, 0xcc);
                 break;
             case PRESTART:
                 data = new int[] {time, runNumber, runType};
-                eventBuilder = new EventBuilder(17, DataType.UINT32, 0xcc);
+                eventBuilder = new EventBuilder(type.getValue(), DataType.UINT32, 0xcc);
                 break;
             case GO:
-                data = new int[] {time, 0, eventsInRun};
-                eventBuilder = new EventBuilder(18, DataType.UINT32, 0xcc);
-                break;
             case PAUSE:
-                data = new int[] {time, 0, eventsInRun};
-                eventBuilder = new EventBuilder(19, DataType.UINT32, 0xcc);
-                break;
             case END:
                 data = new int[] {time, 0, eventsInRun};
-                eventBuilder = new EventBuilder(20, DataType.UINT32, 0xcc);
+                eventBuilder = new EventBuilder(type.getValue(), DataType.UINT32, 0xcc);
                 break;
             default:
-                throw new EvioException("bad EventType arg");
+                throw new EvioException("bad ControlType arg");
         }
 
         EvioEvent ev = eventBuilder.getEvent();
@@ -2222,7 +2243,6 @@ System.out.println("Timestamps are NOT consistent !!!");
             throws EvioException {
 
         // Create a ROC Raw Data Record event/bank with numEvents physics events in it
-        int firstEvNum = eventNumber;
         int rocTag = createCodaTag(status, rocID);
         EventBuilder eventBuilder = new EventBuilder(rocTag, DataType.ALSOBANK, numEvents);
         EvioEvent rocRawEvent = eventBuilder.getEvent();
@@ -2321,7 +2341,7 @@ System.out.println("Timestamps are NOT consistent !!!");
                                            eventNumber, numEvents, recordId, timestamp);
             }
             pBanks[i] = new PayloadBank(ev);
-            pBanks[i].setType(EventType.ROC_RAW);
+            pBanks[i].setEventType(EventType.ROC_RAW);
 
             eventNumber += numEvents;
             timestamp   += 4*numEvents;
