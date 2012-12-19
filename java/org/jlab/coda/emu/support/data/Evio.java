@@ -891,23 +891,28 @@ if (debug) System.out.println("gotValidControlEvents: found control event of typ
 
         int[] newData;
 
-        switch (type) {
-            case SYNC:
-                newData = new int[] {time, eventsSinceSync, eventsInRun};
-                controlEvent.setIntData(newData);
-                break;
-            case PRESTART:
-                newData = new int[] {time, runNumber, runType};
-                controlEvent.setIntData(newData);
-                break;
-            case GO:
-            case PAUSE:
-            case END:
-                newData = new int[] {time, 0, eventsInRun};
-                controlEvent.setIntData(newData);
-                break;
-            default:
-                return false;
+        try {
+            switch (type) {
+                case SYNC:
+                    newData = new int[] {time, eventsSinceSync, eventsInRun};
+                    controlEvent.setIntData(newData);
+                    break;
+                case PRESTART:
+                    newData = new int[] {time, runNumber, runType};
+                    controlEvent.setIntData(newData);
+                    break;
+                case GO:
+                case PAUSE:
+                case END:
+                    newData = new int[] {time, 0, eventsInRun};
+                    controlEvent.setIntData(newData);
+                    break;
+                default:
+                    return false;
+            }
+        }
+        catch (EvioException e) {
+            return false;
         }
 
         return true;
