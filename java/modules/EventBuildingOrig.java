@@ -796,7 +796,7 @@ if (debug && nonFatalError) System.out.println("\nERROR 4\n");
                         }
 
                         // setting header lengths done in Evio.buildPhysicsEventWith* methods
-                        physicsEvent.setAllHeaderLengths();
+//                        physicsEvent.setAllHeaderLengths();
 
                         physicsEvent.setAttachment(myInputOrder); // store its output order
                         physicsEvent.setEventType(EventType.PHYSICS);

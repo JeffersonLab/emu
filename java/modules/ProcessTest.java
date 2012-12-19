@@ -232,7 +232,13 @@ System.out.println("Process: Added bank's children to built event, event = " + c
                     eventCountTotal++;                        // event count
                     wordCountTotal += bank.getTotalBytes()/4; // word count
                 }
-                event.setAllHeaderLengths();
+
+                try {
+                    event.setAllHeaderLengths();
+                }
+                catch (EvioException e) {
+                   // very unlikely
+                }
 
 
                 if (hasOutputs) {

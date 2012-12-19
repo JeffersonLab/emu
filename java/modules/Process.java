@@ -212,7 +212,13 @@ System.out.println("Process: Added bank to built event");
                         }
                         catch (EvioException e) { /* problems only if not adding banks */ }
                     }
-                    event.setAllHeaderLengths();
+
+                    try {
+                        event.setAllHeaderLengths();
+                    }
+                    catch (EvioException e) {
+                        // very unlikely
+                    }
 
                     wordCount += event.getHeader().getLength();
                     eventCount++;
