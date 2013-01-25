@@ -497,6 +497,7 @@ public class Emu implements CODAComponent {
                 codaClass = cc;
             }
         }
+System.out.println("Emu created, name = " + name + ", type = " + codaClass);
 
         this.name = name;
         this.cmsgUDL = cmsgUDL;  // may be null
