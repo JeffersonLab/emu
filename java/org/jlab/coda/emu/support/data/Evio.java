@@ -1720,7 +1720,7 @@ System.out.println("Timestamps are NOT consistent!!!");
 
             // for each ROC ...
             for (int i=0; i < triggerBanks.length; i++) {
-                newRocSeg = new EvioSegment(inputPayloadBanks[i].getSourceId(), DataType.INT32);
+                newRocSeg = new EvioSegment(inputPayloadBanks[i].getSourceId(), DataType.UINT32);
                 // copy over all ints except the first which is the event Number and is stored in common
 
                 // assume, for now, that each ROC segment in the trigger bank has the same amount of data
@@ -2217,7 +2217,7 @@ System.out.println("Timestamps are NOT consistent !!!");
         // create a single data block bank (of ints)
         int eventType = 33;
         int dataTag = createCodaTag(status, detectorId);
-        EvioBank dataBank = new EvioBank(dataTag, DataType.INT32, eventType);
+        EvioBank dataBank = new EvioBank(dataTag, DataType.UINT32, eventType);
         eventBuilder.appendIntData(dataBank, data);
         eventBuilder.addChild(rocRawEvent, dataBank);
 
