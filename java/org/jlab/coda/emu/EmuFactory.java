@@ -186,7 +186,7 @@ public class EmuFactory {
                 strs[0] = configF;
             }
 
-            System.out.println("Look for config files:");
+System.out.println("Look for config files:");
             for (String s : strs) {
                 // TODO: file comparison can be more complicated
                 if (configFileNames.contains(s)) {
@@ -326,6 +326,7 @@ System.out.println("Found component " + attr.getNodeValue());
                 }
             }
 
+System.out.println("Found types:");
             for (int i=0; i<strs.length; i++) {
                 if (CODAClass.get(strs[i]) == null) {
                     System.out.println("EMUFactory exit - all types must be valid, \"" + strs[i] + "\" is not");
@@ -343,6 +344,9 @@ System.out.println("Found component " + attr.getNodeValue());
             if (configFileNames.size() > 0) {
                 new Emu(names.get(i), types.get(i), configFileNames.get(i),
                         loadedConfigs.get(i), cmsgUDL, debugUI);
+            }
+            else if (types.size() > 0) {
+                new Emu(names.get(i), types.get(i), null, null, cmsgUDL, debugUI);
             }
             else {
                 new Emu(names.get(i), null, null, null, cmsgUDL, debugUI);
