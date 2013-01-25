@@ -1096,14 +1096,35 @@ logger.error("Emu: CONFIGURE failed", e.getMessage());
             // of the data path so this EMU can distribute RC's commands in the proper
             // sequence to its components.
             if (newConfigLoaded) {
-                // We find the data paths by finding the modules
-                // which have at least one non-fifo input channel.
-                EmuDataPath dataPath = null;
-                int moduleCount = 0, usedModules = 0;
-                int  inputFifoCount = 0,  inputChannelCount = 0,
-                    outputFifoCount = 0, outputChannelCount = 0;
 
                 try {
+                    // Before we look at data flow through the module,
+                    // it's possible the emu's type has not been defined yet.
+                    // Look through the new config to find the type and set it.
+
+                    // get the config info
+                    Node componentConfig = Configurer.getNode(loadedConfig, "component");
+
+                    // get attributes of the top ("component") node
+                    NamedNodeMap nm = componentConfig.getAttributes();
+
+                    // get type of component from node
+                    Node attr = nm.getNamedItem("type");
+                    if (attr != null) {
+                        CODAClass myClass = CODAClass.get(attr.getNodeValue());
+                        if (myClass != null) {
+                            codaClass = myClass;
+                        }
+                    }
+
+                    // Now, on to the modules.
+                    // We find the data paths by finding the modules
+                    // which have at least one non-fifo input channel.
+                    EmuDataPath dataPath = null;
+                    int moduleCount = 0, usedModules = 0;
+                    int inputFifoCount = 0,  inputChannelCount = 0,
+                        outputFifoCount = 0, outputChannelCount = 0;
+
                     // Look in module section of config file ...
                     Node modulesConfig = Configurer.getNode(loadedConfig, "component/modules");
 
