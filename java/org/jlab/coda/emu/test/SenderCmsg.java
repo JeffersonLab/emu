@@ -215,7 +215,7 @@ System.out.println("Send thread started");
                         EvioEvent event = eventBuilder.getEvent();
 
                         // add a bank of ints
-                        EvioBank bank = new EvioBank(0x22, DataType.INT32, 0); // tag, type, num
+                        EvioBank bank = new EvioBank(0x22, DataType.UINT32, 0); // tag, type, num
                         int[] iarray = {counter++};
                         eventBuilder.appendIntData(bank, iarray);
                         eventBuilder.addChild(event, bank);
