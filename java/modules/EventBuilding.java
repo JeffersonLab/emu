@@ -1101,7 +1101,6 @@ if (debug && nonFatalError) System.out.println("\nERROR 4\n");
                     //   -if I'm a secondary event builder or SEB, the tag is 0xFF70 (or 0xFF71 if SEM)
                     int tag;
                     CODAClass myClass = CODAClass.get(emu.getCodaClass());
- System.out.println("EventBuilding module is EMU of type " + myClass);
                     switch (myClass) {
                         case SEB:
                             if (eventsInSEM) {
