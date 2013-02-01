@@ -778,6 +778,10 @@ if (debug && printQSizes) {
             Object myOutputLock = null;
             DataChannel myOutputChannel = null;
 
+            int endEventCount;
+            int controlEventCount;
+
+
             while (state == CODAState.ACTIVE || paused) {
 
                 try {
@@ -792,8 +796,11 @@ if (debug && printQSizes) {
                     // Put null into buildingBanks array elements
                     Arrays.fill(buildingBanks, null);
 
-                    // reset flag
+                    // reset flags
+                    haveControlEvents = false;
                     gotFirstBuildEvent = false;
+                    endEventCount = 0;
+                    controlEventCount = 0;
 
                     // Fill array with actual banks
                     try {
@@ -889,8 +896,13 @@ if (debug) System.out.println("BuildingThread: Got user event");
                                     continue;
                                 }
 
+                                // If we're here, we've got a CONTROL event. Count them.
+                                haveControlEvents = true;
+                                controlEventCount++;
 
-                                // If we're here, we've got a control event.
+                                // How many are END events?
+                                if (buildingBanks[i].getControlType().isEnd()) endEventCount++;
+
                                 // We want one EventOrder object for each output channel
                                 // since we want one control event placed on each.
                                 if (!gotFirstBuildEvent) {
@@ -928,11 +940,39 @@ if (debug) System.out.println("BuildingThread: Got user event");
                                 break;
                             }
                         }
+
+                        // Do some initial CONTROL events checks here, more later
+                        if (haveControlEvents) {
+                            // Do a check on END events before we release the mutex
+                            if (endEventCount > 0) {
+                                // If there is at least one end event, then we need to
+                                // clear all input channels as there should be nothing
+                                // coming after an END event.
+                                // This is done so other building threads have nothing
+                                // to build when we release the mutex - even if we have
+                                // a mismatch. Avoids unnecessary generation of errors.
+                                for (int i=0; i < payloadBankQueues.size(); i++) {
+                                    payloadBankQueues.get(i).clear();
+                                }
+
+                                // Throw exception if not all banks are END events
+                                if (endEventCount != buildingBanks.length) {
+                                    throw new EmuException("not all channels have an END event");
+                                }
+                            }
+
+                            // Do a quick check on the # of CONTROL events
+                            if (controlEventCount !=  buildingBanks.length) {
+                                throw new EmuException("not all channels have control events");
+                            }
+
+                            // Prestart creates & clears payloadBankQueues below in execute()
+                        }
+
                     }
                     finally {
                         getLock.unlock();
                     }
-
 
                     // store all channel & order info here
                     EventOrder evOrder = new EventOrder();
@@ -978,14 +1018,14 @@ if (debug) System.out.println("queue source id = " + payloadBankQueues.get(i).ge
 
 if (debug && nonFatalError) System.out.println("\nERROR 1\n");
 
-                    // All or none must be control events, else throw exception.
-                    haveControlEvents = Evio.gotValidControlEvents(buildingBanks, runNumber, runType);
-
-                    // If they are all control events, just store their
-                    // input order object and put 1 event on each output Q.
+                    // If we have all control events ...
                     if (haveControlEvents) {
-if (true) System.out.println("Have CONTROL event");
+                        // Throw exception if inconsistent
+                        Evio.gotConsistentControlEvents(buildingBanks, runNumber, runType);
 
+if (true) System.out.println("Have consistent CONTROL event(s)");
+
+                        // Put 1 event on each output Q.
                         if (outputChannelCount > 0) {
                             // Take one of the control events and update
                             // it with the latest event builder data.
