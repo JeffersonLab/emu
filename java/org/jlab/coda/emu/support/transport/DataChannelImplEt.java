@@ -410,25 +410,21 @@ logger.info("      DataChannel Et : creating channel " + name);
 
 
     /** {@inheritDoc} */
-    @Override
     public String getName() {
         return name;
     }
 
     /** {@inheritDoc} */
-    @Override
     public int getID() {
         return id;
     }
 
     /** {@inheritDoc} */
-    @Override
     public boolean isInput() {
         return input;
     }
 
     /** {@inheritDoc} */
-    @Override
     public DataTransportImplEt getDataTransport() {
         return dataTransport;
     }
@@ -490,13 +486,11 @@ logger.info("      DataChannel Et : creating channel " + name);
     }
 
     /** {@inheritDoc} */
-    @Override
     public EvioBank receive() throws InterruptedException {
         return queue.take();
     }
 
     /** {@inheritDoc} */
-    @Override
     public void send(EvioBank bank) {
         try {
             queue.put(bank);   // blocks if capacity reached
@@ -507,7 +501,6 @@ logger.info("      DataChannel Et : creating channel " + name);
     }
 
     /** {@inheritDoc} */
-    @Override
     public void close() {
         logger.warn("      DataChannel Et close() : " + name + " - closing this channel (close ET system)");
 
@@ -575,7 +568,6 @@ logger.info("      DataChannel Et : creating channel " + name);
      * {@inheritDoc}
      * Reset this channel by interrupting the data sending threads and closing ET system.
      */
-    @Override
     public void reset() {
 logger.debug("      DataChannel Et reset() : " + name + " - resetting this channel (close ET system)");
 
@@ -1453,7 +1445,6 @@ System.out.println("Ending");
              * {@inheritDoc}<p>
              * Write bank into et event buffer.
              */
-            @Override
             public void run() {
                 try {
                     // Write banks into ET buffer
@@ -1512,7 +1503,6 @@ System.out.println("Ending");
              * {@inheritDoc}<p>
              * Get the ET events.
              */
-            @Override
             public void run() {
                 try {
                     events = null;
@@ -1581,7 +1571,6 @@ System.out.println(e.getMessage());
     }
 
     /** {@inheritDoc} */
-    @Override
     public BlockingQueue<EvioBank> getQueue() {
         return queue;
     }
