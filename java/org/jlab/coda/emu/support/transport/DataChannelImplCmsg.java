@@ -526,7 +526,6 @@ System.out.println("\n\nDataChannel: subscribe to subject = " + subject + ", typ
 
 
     /** {@inheritDoc} */
-    @Override
     public void close() {
         logger.warn("      DataChannel cMsg close() : " + name + " - closing this channel");
 
@@ -578,7 +577,6 @@ System.out.println("\n\nDataChannel: subscribe to subject = " + subject + ", typ
      * {@inheritDoc}
      * Reset this channel by interrupting the message sending threads and unsubscribing.
      */
-    @Override
     public void reset() {
 logger.debug("      DataChannel cMsg reset() : " + name + " - resetting this channel");
 
@@ -1205,7 +1203,6 @@ System.out.println("Ending");
              * {@inheritDoc}<p>
              * Write bank into cMsg message buffer.
              */
-            @Override
             public void run() {
                 try {
                     // Write banks into message buffer
