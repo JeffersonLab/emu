@@ -781,6 +781,62 @@ System.out.println("checkPayloadBank: DTR bank source Id (" + sourceId + ") != p
 
 
     /**
+     * When this is called all channels had control events.
+     * Check to see if all are identical.
+     *
+     * @param buildingBanks array containing events that will be built together
+     * @param runNumber check this (correct) run # against the one in the control event
+     * @param runType   check this (correct) run type against the one in the control event
+     * @throws EmuException if events contain mixture of different control types;
+     *                      if prestart events contain bad data
+     */
+    public static void gotConsistentControlEvents(PayloadBank[] buildingBanks,
+                                                  int runNumber, int runType)
+            throws EmuException {
+
+        boolean debug = false;
+
+        // Make sure all are the same type of control event
+        ControlType firstControlType = buildingBanks[0].getControlType();
+        for (PayloadBank bank : buildingBanks) {
+            if (bank.getControlType() != firstControlType) {
+                throw new EmuException("different type control events on each channel");
+            }
+        }
+
+        // Prestart events require an additional check,
+        // run #'s and run types must be identical
+        if (firstControlType == ControlType.PRESTART) {
+            int[] prestartData;
+            for (PayloadBank bank : buildingBanks) {
+                prestartData = bank.getIntData();
+                if (prestartData == null) {
+                    throw new EmuException("PRESTART event does not have data");
+
+                }
+
+                if (prestartData[1] != runNumber) {
+                    if (debug) System.out.println("gotValidControlEvents: warning, PRESTART event bad run #, " +
+                                                          prestartData[1] + ", should be " + runNumber);
+                    throw new EmuException("PRESTART event bad run # = " + prestartData[1] +
+                                                   ", should be " + runNumber);
+                }
+
+                if (prestartData[2] != runType) {
+                    if (debug) System.out.println("gotValidControlEvents: warning, PRESTART event bad run type, " +
+                                                          prestartData[2] + ", should be " + runType);
+                    throw new EmuException("PRESTART event bad run type = " + prestartData[2]+
+                                                   ", should be " + runType);
+                }
+            }
+        }
+if (debug) System.out.println("gotValidControlEvents: found control event of type " +
+                                      firstControlType.name());
+
+    }
+
+
+    /**
      * Check each payload bank - one from each input channel - to see if there are any
      * control events. A valid control event requires all channels to have identical
      * control events. If only some are control events, throw exception as it must
@@ -796,7 +852,6 @@ System.out.println("checkPayloadBank: DTR bank source Id (" + sourceId + ") != p
     public static boolean gotValidControlEvents(PayloadBank[] buildingBanks, int runNumber, int runType)
             throws EmuException {
 
-        int counter = 0;
         int controlEventCount = 0;
         int numberOfBanks = buildingBanks.length;
         EventType eventType;
@@ -808,8 +863,7 @@ System.out.println("checkPayloadBank: DTR bank source Id (" + sourceId + ") != p
             // Might be a ROC Raw, Physics, or Control Event
             eventType = bank.getEventType();
             if (eventType.isControl()) {
-                controlEventCount++;
-                types[counter++] = ControlType.getControlType(bank.getHeader().getTag());
+                types[controlEventCount++] = ControlType.getControlType(bank.getHeader().getTag());
             }
         }
 
