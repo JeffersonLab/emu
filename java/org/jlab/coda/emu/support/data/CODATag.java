@@ -240,8 +240,8 @@ public enum CODATag {
      *         has roc-specific data segments present, else <code>false</code>
      */
      public boolean hasRocSpecificData() {
-         return (this == BUILT_TRIGGER_NRSD     || this == BUILT_TRIGGER_TS_NRSD ||
-                 this == BUILT_TRIGGER_RUN_NRSD || this == BUILT_TRIGGER_TS_RUN_NRSD);
+         return !(this == BUILT_TRIGGER_NRSD     || this == BUILT_TRIGGER_TS_NRSD ||
+                  this == BUILT_TRIGGER_RUN_NRSD || this == BUILT_TRIGGER_TS_RUN_NRSD);
      }
 
     /**
@@ -255,8 +255,8 @@ public enum CODATag {
          CODATag cTag = getTagType(value);
          if (cTag == null) return false;
 
-         return (cTag == BUILT_TRIGGER_NRSD     || cTag == BUILT_TRIGGER_TS_NRSD ||
-                 cTag == BUILT_TRIGGER_RUN_NRSD || cTag == BUILT_TRIGGER_TS_RUN_NRSD);
+         return !(cTag == BUILT_TRIGGER_NRSD     || cTag == BUILT_TRIGGER_TS_NRSD ||
+                  cTag == BUILT_TRIGGER_RUN_NRSD || cTag == BUILT_TRIGGER_TS_RUN_NRSD);
      }
 
 
