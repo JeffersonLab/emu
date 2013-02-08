@@ -1154,6 +1154,7 @@ if (debug) System.out.println("gotValidControlEvents: found control event of typ
                 try {
                     triggerBanks[i] = (EvioBank)inputPayloadBanks[i].getChildAt(index++);
                     tags[i] = CODATag.getTagType(triggerBanks[i].getHeader().getTag());
+//System.out.println("makeTriggerBankFromPhysics: tag from trig bank " + i + " = " + tags[i]);
                 }
                 catch (Exception e) {
                     throw new EmuException("No built trigger bank in physics event", e);
@@ -1163,7 +1164,6 @@ if (debug) System.out.println("gotValidControlEvents: found control event of typ
 
             // Number of rocs in this trigger bank
             rocCount = triggerBanks[i].getHeader().getNumber();
-System.out.println("makeTriggerBankFromPhysics: # Rocs = " + rocCount);
 
             // Total number of rocs
             totalRocCount += rocCount;
@@ -1186,7 +1186,6 @@ System.out.println("makeTriggerBankFromPhysics: # Rocs = " + rocCount);
                 throw new EmuException("If 1 trigger bank has timestamps, all must");
             }
 
-
             //--------------------------------
             // roc specific data
             //--------------------------------
@@ -1194,6 +1193,11 @@ System.out.println("makeTriggerBankFromPhysics: # Rocs = " + rocCount);
                 // Does this trigger have roc-specific data?
                 hasRocSpecificData = tags[i].hasRocSpecificData();
 
+//                System.out.println("makeTriggerBankFromPhysics: # Rocs = " + rocCount +
+//                                           ", haveRunData = " + haveRunData +
+//                                           ", hasRocSpecific data = " + hasRocSpecificData +
+//                                   ", isTimeStamped = " + isTimstamped);
+//
                 // Is there at least one trigger bank without run specific data?
                 if (!hasRocSpecificData) haveTrigWithNoRocSpecificData = true;
 

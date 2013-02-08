@@ -1080,7 +1080,8 @@ if (debug && nonFatalError) System.out.println("\nERROR 2\n");
                     // Build trigger bank, number of ROCs given by number of buildingBanks
                     //--------------------------------------------------------------------
                     // The tag will be finally set when this trigger bank is fully created
-if (true) System.out.println("Create combined trigger w/ num (# Rocs) = " + buildingBanks.length);
+if (debug && havePhysicsEvents)
+    System.out.println("BuildingThread: create combined trig w/ num (# Rocs) = " + buildingBanks.length);
                     combinedTrigger = new EvioEvent(CODATag.BUILT_TRIGGER_BANK.getValue(),
                                                     DataType.SEGMENT,
                                                     buildingBanks.length);
@@ -1092,7 +1093,7 @@ if (true) System.out.println("Create combined trigger w/ num (# Rocs) = " + buil
                         // The actual number of rocs will replace num in combinedTrigger definition above
                         //-----------------------------------------------------------------------------------
                         // Combine the trigger banks of input events into one (same if single event mode)
-if (true) System.out.println("BuildingThread: create trigger bank from built banks, sparsify = " + sparsify);
+if (debug) System.out.println("BuildingThread: create trig bank from built banks, sparsify = " + sparsify);
                         nonFatalError |= Evio.makeTriggerBankFromPhysics(buildingBanks, builder, ebId,
                                                                     runNumber, runType, includeRunData,
                                                                     eventsInSEM, sparsify,
@@ -1113,7 +1114,7 @@ if (true) System.out.println("BuildingThread: create trigger bank from built ban
                         }
                         else {
                             // Combine the trigger banks of input events into one
-if (true) System.out.println("BuildingThread: create trigger bank from Rocs, sparsify = " + sparsify);
+if (debug) System.out.println("BuildingThread: create trigger bank from Rocs, sparsify = " + sparsify);
                             nonFatalError |= Evio.makeTriggerBankFromRocRaw(buildingBanks, builder,
                                                                             ebId, firstEventNumber,
                                                                             runNumber, runType,
