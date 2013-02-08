@@ -1080,6 +1080,7 @@ if (debug && nonFatalError) System.out.println("\nERROR 2\n");
                     // Build trigger bank, number of ROCs given by number of buildingBanks
                     //--------------------------------------------------------------------
                     // The tag will be finally set when this trigger bank is fully created
+if (true) System.out.println("Create combined trigger w/ num (# Rocs) = " + buildingBanks.length);
                     combinedTrigger = new EvioEvent(CODATag.BUILT_TRIGGER_BANK.getValue(),
                                                     DataType.SEGMENT,
                                                     buildingBanks.length);
@@ -1091,7 +1092,7 @@ if (debug && nonFatalError) System.out.println("\nERROR 2\n");
                         // The actual number of rocs will replace num in combinedTrigger definition above
                         //-----------------------------------------------------------------------------------
                         // Combine the trigger banks of input events into one (same if single event mode)
-//if (debug) System.out.println("BuildingThread: create trigger bank from built banks");
+if (true) System.out.println("BuildingThread: create trigger bank from built banks, sparsify = " + sparsify);
                         nonFatalError |= Evio.makeTriggerBankFromPhysics(buildingBanks, builder, ebId,
                                                                     runNumber, runType, includeRunData,
                                                                     eventsInSEM, sparsify,
@@ -1112,7 +1113,7 @@ if (debug && nonFatalError) System.out.println("\nERROR 2\n");
                         }
                         else {
                             // Combine the trigger banks of input events into one
-if (debug) System.out.println("BuildingThread: create trigger bank");
+if (true) System.out.println("BuildingThread: create trigger bank from Rocs, sparsify = " + sparsify);
                             nonFatalError |= Evio.makeTriggerBankFromRocRaw(buildingBanks, builder,
                                                                             ebId, firstEventNumber,
                                                                             runNumber, runType,

@@ -1163,6 +1163,7 @@ if (debug) System.out.println("gotValidControlEvents: found control event of typ
 
             // Number of rocs in this trigger bank
             rocCount = triggerBanks[i].getHeader().getNumber();
+System.out.println("makeTriggerBankFromPhysics: # Rocs = " + rocCount);
 
             // Total number of rocs
             totalRocCount += rocCount;
