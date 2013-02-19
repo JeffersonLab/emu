@@ -478,7 +478,7 @@ logger.info("EmuModuleFactory.execute : END thru output transport " + trans.name
             // Currently TransportFactory does nothing with GO
         }
 
-        // Other commands (PAUSE, RESET) are passed down to transport
+        // Other commands (PAUSE) are passed down to transport
         // layer first, then to modules
         else {
             transportFactory.execute(cmd, false);
