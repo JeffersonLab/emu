@@ -444,7 +444,7 @@ public class DataTransportImplEt extends DataTransportCore implements DataTransp
         // reset channels
         if (!allChannels.isEmpty()) {
             for (DataChannel c : allChannels.values()) {
-logger.debug("    DataTransport Et: try resetting channel " + c.getName());
+logger.debug("    DataTransport Et: try resetting channel " + c.getName() + " for " + emu.name());
                 c.reset();
             }
         }
@@ -462,6 +462,7 @@ logger.debug("    DataTransport Et: ET is dead");
             // remove the ET system file
             File etFile = new File(openConfig.getEtName());
             etFile.delete();
+logger.debug("    DataTransport Et: File deleted");
         }
 
         state = CODAState.CONFIGURED;
@@ -695,29 +696,6 @@ logger.debug("    DataTransport Et: created system " + openConfig.getEtName() + 
                         allChannels.remove(c.getName());
                     }
                     channels.clear();
-                //}
-            }
-
-            state = cmd.success();
-            return;
-        }
-        else if (emuCmd == RESET) {
-            setConnected(false);
-
-//            if (logger != null) {
-//                logger.debug("reset transport " + name());
-//            }
-
-            // reset channels
-            if (!allChannels.isEmpty()) {
-                //synchronized (allChannels) {
-                    for (DataChannel c : allChannels.values()) {
-                        c.reset();
-                    }
-                // all transport objects are closed and removed so don't bother clearing maps
-                    //allChannels.clear();
-                    //inChannels.clear();
-                    //outChannels.clear();
                 //}
             }
 
