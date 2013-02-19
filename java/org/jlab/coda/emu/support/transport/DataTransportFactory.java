@@ -151,9 +151,9 @@ public class DataTransportFactory implements StatedObject {
      * RESET must always have top priority and therefore its own means of execution.
      */
     public void reset() {
-        // reset (hard close) transport objects for RESET transition
+        // reset (hard close) transport objects for RESET command
         for (DataTransport t : transports) {
-            logger.debug("  DataTransportFactory.execute RESET : reset " + t.name());
+logger.debug("  DataTransportFactory reset(): " + t.name() + " for " + emu.name());
             t.reset();
         }
 
@@ -287,7 +287,7 @@ logger.warn("  DataTransportFactory.execute DOWN : transport section missing/inc
 
         }  // end of DOWNLOAD
 
-        // Pass commands down to all transport objects: DOWNLOAD, PRESTART, PAUSE, & RESET.
+        // Pass commands down to all transport objects: DOWNLOAD, PRESTART, PAUSE.
         if (emuCmd != END && emuCmd != GO) {
             for (DataTransport transport : transports) {
 logger.debug("  DataTransportFactory.execute : pass " + emuCmd + " down to " + transport.name());
@@ -306,19 +306,6 @@ logger.debug("  DataTransportFactory.execute : close " + t.name());
             // clear Fifos (not included in "transports" vector)
 //System.out.println("CLOSE FIFOs");
             fifoTransport.close();
-        }
-
-        // reset (hard close) transport objects for RESET transition
-        if (emuCmd == RESET) {
-            for (DataTransport t : transports) {
-logger.debug("  DataTransportFactory.execute RESET : reset " + t.name());
-                t.reset();
-            }
-            // reset Fifos
-//System.out.println("RESET FIFOs");
-            fifoTransport.reset();
-            transports.clear();
-            state = cmd.success();
         }
 
     }
