@@ -123,10 +123,10 @@ public class DataTransportImplCmsg extends DataTransportCore implements DataTran
                 }
             }
         }
-        else if ((emuCmd == END) || (emuCmd == RESET)) {
+        else if (emuCmd == END) {
 
             try {
-                logger.debug("    DataTransportImplCmsg.execute END/RESET: cmsg disconnect : " + name() + " " + myInstance);
+                logger.debug("    DataTransportImplCmsg.execute END: cmsg disconnect : " + name() + " " + myInstance);
                 cmsgConnection.disconnect();
 
             } catch (Exception e) {
