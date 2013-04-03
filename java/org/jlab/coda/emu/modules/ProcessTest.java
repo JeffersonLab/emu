@@ -1,4 +1,4 @@
-package modules;
+package org.jlab.coda.emu.modules;
 
 import org.jlab.coda.emu.support.codaComponent.CODACommand;
 import org.jlab.coda.emu.support.control.State;
@@ -123,8 +123,8 @@ System.out.println("ProcessTest module: quitting watcher thread");
         this.attributeMap = attributeMap;
         logger = emu.getLogger();
 
-//System.out.println("**** HEY, HEY someone created one of ME (modules.ProcessTest object) ****");
-        System.out.println("**** LOADED NEW CLASS, DUDE!!! (modules.ProcessTest object) ****");
+//System.out.println("**** HEY, HEY someone created one of ME (org.jlab.coda.emu.modules.ProcessTest object) ****");
+        System.out.println("**** LOADED NEW CLASS, DUDE!!! (org.jlab.coda.emu.modules.ProcessTest object) ****");
     }
 
     public String name() {

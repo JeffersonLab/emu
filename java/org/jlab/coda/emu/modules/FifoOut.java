@@ -9,7 +9,7 @@
  *
  */
 
-package modules;
+package org.jlab.coda.emu.modules;
 
 import org.jlab.coda.emu.Emu;
 import org.jlab.coda.emu.EmuModule;

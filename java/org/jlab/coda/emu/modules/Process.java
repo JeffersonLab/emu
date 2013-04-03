@@ -9,7 +9,7 @@
  *
  */
 
-package modules;
+package org.jlab.coda.emu.modules;
 
 import org.jlab.coda.emu.Emu;
 import org.jlab.coda.emu.EmuModule;
@@ -127,8 +127,8 @@ System.out.println("Process module: quitting watcher thread");
         this.attributeMap = attributeMap;
         logger = emu.getLogger();
 
-//System.out.println("**** HEY, HEY someone created one of ME (modules.Process object) ****");
-        System.out.println("**** LOADED NEW CLASS, DUDE!!! (modules.Process object) ****");
+//System.out.println("**** HEY, HEY someone created one of ME (org.jlab.coda.emu.modules.Process object) ****");
+        System.out.println("**** LOADED NEW CLASS, DUDE!!! (org.jlab.coda.emu.modules.Process object) ****");
     }
 
 
