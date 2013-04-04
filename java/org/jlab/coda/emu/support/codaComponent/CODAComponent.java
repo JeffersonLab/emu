@@ -82,10 +82,9 @@ public interface CODAComponent extends Runnable, CommandAcceptor {
 
     /**
      * Get the class of this CODA component (e.g. "EMU", "ROC", "ER").
-     *  TODO: enum???
      * @return the class of this CODA component (e.g. "EMU", "ROC", "ER")
      */
-    public String getCodaClass();
+    public CODAClass getCodaClass();
 
     /**
      * Get the run number of this CODA component.
