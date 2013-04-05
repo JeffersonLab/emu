@@ -12,6 +12,7 @@
 package org.jlab.coda.emu.support.transport;
 
 
+import org.jlab.coda.emu.support.data.QueueItem;
 import org.jlab.coda.jevio.EvioBank;
 
 import java.util.concurrent.BlockingQueue;
@@ -51,17 +52,17 @@ public interface DataChannel {
     public DataTransport getDataTransport();
 
     /**
-     * Take a bank of data off the queue.
-     * @return bank of data.
+     * Take a item of data off the queue.
+     * @return item of data.
      * @throws InterruptedException on wakeup without data.
      */
-    public EvioBank receive() throws InterruptedException;
+    public QueueItem receive() throws InterruptedException;
     
     /**
-     * Send a bank of data.
-     * @param data bank of data.
+     * Send a item of data.
+     * @param data item of data.
      */
-    public void send(EvioBank data);
+    public void send(QueueItem data);
 
     /**
      * Close this data channel gracefully, waiting if necessary.
@@ -79,10 +80,10 @@ public interface DataChannel {
 
     /**
      * Get the queue of this data channel which contains
-     * banks of data.
+     * QueueItems of data.
      *
-     * @return the queue of data banks sent to this data channel (type BlockingQueue&lt;EvioBank&gt;).
+     * @return the queue of data banks sent to this data channel (type BlockingQueue&lt;QueueItem&gt;).
      */
-    public BlockingQueue<EvioBank> getQueue();
+    public BlockingQueue<QueueItem> getQueue();
 
 }

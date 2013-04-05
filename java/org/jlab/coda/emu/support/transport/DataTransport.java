@@ -16,6 +16,7 @@ import org.jlab.coda.emu.support.configurer.DataNotFoundException;
 import org.jlab.coda.emu.support.control.CmdExecException;
 import org.jlab.coda.emu.support.codaComponent.StatedObject;
 import org.jlab.coda.emu.support.control.Command;
+import org.jlab.coda.emu.support.data.QueueItem;
 import org.jlab.coda.jevio.EvioBank;
 
 import java.util.HashMap;
@@ -128,12 +129,12 @@ public interface DataTransport extends StatedObject {
     public boolean isConnected();
 
     /**
-     * This method sends a EvioBank object to some output (fifo, another process, etc.)
+     * This method sends a QueueItem object to some output (fifo, another process, etc.)
      *
      * @param channel DataChannel to send data through
-     * @param data EvioBank to send, containing data
+     * @param item QueueItem to send, containing data
      */
-    public void send(DataChannel channel, EvioBank data);
+    public void send(DataChannel channel, QueueItem item);
 
     /**
      * This method returns true if this DataTransport object

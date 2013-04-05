@@ -11,9 +11,7 @@
 
 package org.jlab.coda.emu.support.transport;
 
-import org.jlab.coda.cMsg.cMsgException;
-import org.jlab.coda.cMsg.cMsgMessage;
-import org.jlab.coda.cMsg.cMsgPayloadItem;
+
 import org.jlab.coda.emu.support.codaComponent.CODACommand;
 import org.jlab.coda.emu.support.control.Command;
 import org.jlab.coda.et.*;

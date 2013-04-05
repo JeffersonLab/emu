@@ -115,9 +115,9 @@ public class EventBuilding implements EmuModule {
      * each of which stores built events until their turn to go over the
      * output channel has arrived.
      */
-    private PriorityBlockingQueue<EvioBank> waitingLists[];
+    private PriorityBlockingQueue<PayloadBank> waitingLists[];
 
-    /** Container for queues used to hold payload banks taken from Data Transport Records. */
+    /** Container for queues used to hold QueueItems taken from Data Transport channels. */
     private LinkedList<PayloadBankQueue<PayloadBank>> payloadBankQueues =
             new LinkedList<PayloadBankQueue<PayloadBank>>();
 
@@ -492,17 +492,15 @@ System.out.println("EventBuilding constr: " + buildingThreadCount +
 
 
     /**
-     * This class takes banks from a queue (an input channel, eg. ROC),
+     * This class takes items from a queue (an input channel, eg. ROC),
      * and dumps them.
      */
     private class QfillerDump extends Thread {
 
-        BlockingQueue<EvioBank> channelQ;
-        PayloadBankQueue<PayloadBank> payloadBankQ;
+        BlockingQueue<QueueItem> channelQ;
 
-        QfillerDump(PayloadBankQueue<PayloadBank> payloadBankQ, BlockingQueue<EvioBank> channelQ) {
+        QfillerDump(PayloadBankQueue<PayloadBank> payloadBankQ, BlockingQueue<QueueItem> channelQ) {
             this.channelQ = channelQ;
-            this.payloadBankQ = payloadBankQ;
         }
 
         @Override
@@ -510,7 +508,7 @@ System.out.println("EventBuilding constr: " + buildingThreadCount +
             while (state == CODAState.ACTIVE || paused) {
                 try {
                     while (state == CODAState.ACTIVE || paused) {
-                        // block waiting for the next DTR from ROC.
+                        // block waiting for the next data from ROC.
                         channelQ.take();  // blocks, throws InterruptedException
                     }
                 } catch (InterruptedException e) {
@@ -523,30 +521,32 @@ System.out.println("EventBuilding constr: " + buildingThreadCount +
 
 
     /**
-     * This class takes payload banks from a queue (an input channel, eg. ROC),
+     * This class takes QueueItems from a queue (an input channel, eg. ROC),
      * and places the them in a payload bank queue associated with that channel.
      * All other types of events are ignored.
      * Nothing in this class depends on single event mode status.
      */
     private class Qfiller extends Thread {
 
-        BlockingQueue<EvioBank> channelQ;
+        BlockingQueue<QueueItem> channelQ;
         PayloadBankQueue<PayloadBank> payloadBankQ;
 
-        Qfiller(PayloadBankQueue<PayloadBank> payloadBankQ, BlockingQueue<EvioBank> channelQ) {
+        Qfiller(PayloadBankQueue<PayloadBank> payloadBankQ, BlockingQueue<QueueItem> channelQ) {
             this.channelQ = channelQ;
             this.payloadBankQ = payloadBankQ;
         }
 
         @Override
         public void run() {
+            QueueItem qItem;
             PayloadBank pBank;
 
             while (state == CODAState.ACTIVE || paused) {
                 try {
                     while (state == CODAState.ACTIVE || paused) {
                         // Block waiting for the next bank from ROC
-                        pBank = (PayloadBank)channelQ.take();  // blocks, throws InterruptedException
+                        qItem = channelQ.take();  // blocks, throws InterruptedException
+                        pBank = qItem.getPayloadBank();
                         // Check this bank's format. If bad, ignore it
                         Evio.checkPayloadBank(pBank, payloadBankQ);
                     }
@@ -581,7 +581,7 @@ if (debug) System.out.println("Qfiller: Roc raw or physics event in wrong format
             return;
         }
 
-        EvioBank bank;
+        PayloadBank bank;
         EventOrder evOrder;
         EventOrder eo = (EventOrder)bankOut.getAttachment();
 
@@ -593,7 +593,7 @@ if (debug) System.out.println("Qfiller: Roc raw or physics event in wrong format
                 }
                 // Place bank on output channel
 //System.out.println("Put bank on output channel");
-                eo.outputChannel.getQueue().put(bankOut);
+                eo.outputChannel.getQueue().put(new QueueItem(bankOut));
                 outputOrders[eo.index] = ++outputOrders[eo.index] % Integer.MAX_VALUE;
                 eo.lock.notifyAll();
             }
@@ -618,11 +618,12 @@ if (debug) System.out.println("Qfiller: Roc raw or physics event in wrong format
                 }
 
                 // Place bank on output channel
-                eo.outputChannel.getQueue().put(bankOut);
+                eo.outputChannel.getQueue().put(new QueueItem(bankOut));
                 outputOrders[eo.index] = ++outputOrders[eo.index] % Integer.MAX_VALUE;
 //if (debug) System.out.println("placing = " + eo.inputOrder);
 
                 // Take a look on the waiting list without removing ...
+// TODO: Is this really an EvioBank or is it a PayloadBank ????
                 bank = waitingLists[eo.index].peek();
                 while (bank != null) {
                     evOrder = (EventOrder) bank.getAttachment();
@@ -633,7 +634,7 @@ if (debug) System.out.println("Qfiller: Roc raw or physics event in wrong format
                     // Remove from waiting list permanently
                     bank = waitingLists[eo.index].take();
                     // Place bank on output channel
-                    eo.outputChannel.getQueue().put(bank);
+                    eo.outputChannel.getQueue().put(new QueueItem(bank));
                     outputOrders[eo.index] = ++outputOrders[eo.index] % Integer.MAX_VALUE;
                     bank = waitingLists[eo.index].peek();
 //if (debug) System.out.println("placing = " + evOrder.inputOrder);
@@ -667,7 +668,7 @@ if (debug && printQSizes) {
             return;
         }
 
-        EvioBank bank;
+        PayloadBank bank;
         EventOrder evOrder;
         EventOrder eo = (EventOrder)banksOut.get(0).getAttachment();
 
@@ -680,7 +681,7 @@ if (debug && printQSizes) {
                 // Place banks on output channel
 //System.out.println("Put banks on output channel");
                 for (PayloadBank bBank : banksOut) {
-                    eo.outputChannel.getQueue().put(bBank);
+                    eo.outputChannel.getQueue().put(new QueueItem(bBank));
                 }
                 outputOrders[eo.index] = ++outputOrders[eo.index] % Integer.MAX_VALUE;
                 eo.lock.notifyAll();
@@ -704,7 +705,7 @@ if (debug && printQSizes) {
 
                 // Place banks on output channel
                 for (PayloadBank bBank : banksOut) {
-                    eo.outputChannel.getQueue().put(bBank);
+                    eo.outputChannel.getQueue().put(new QueueItem(bBank));
                 }
                 outputOrders[eo.index] = ++outputOrders[eo.index] % Integer.MAX_VALUE;
 
@@ -719,7 +720,7 @@ if (debug && printQSizes) {
                     // Remove from waiting list permanently
                     bank = waitingLists[eo.index].take();
                     // Place banks on output channel
-                    eo.outputChannel.getQueue().put(bank);
+                    eo.outputChannel.getQueue().put(new QueueItem(bank));
                     outputOrders[eo.index] = ++outputOrders[eo.index] % Integer.MAX_VALUE;
                     bank = waitingLists[eo.index].peek();
                 }
@@ -1482,7 +1483,7 @@ if (debug) System.out.println("Building thread is ending !!!");
 
                 waitingLists = new PriorityBlockingQueue[outputChannelCount];
                 for (int i=0; i < outputChannelCount; i++) {
-                    waitingLists[i] = new PriorityBlockingQueue<EvioBank>(100, comparator);
+                    waitingLists[i] = new PriorityBlockingQueue<PayloadBank>(100, comparator);
                 }
             }
 

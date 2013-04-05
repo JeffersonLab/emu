@@ -22,10 +22,7 @@ import org.jlab.coda.emu.support.configurer.Configurer;
 import org.jlab.coda.emu.support.configurer.DataNotFoundException;
 import org.jlab.coda.emu.support.control.Command;
 import org.jlab.coda.emu.support.control.State;
-import org.jlab.coda.emu.support.data.ControlType;
-import org.jlab.coda.emu.support.data.EventType;
-import org.jlab.coda.emu.support.data.Evio;
-import org.jlab.coda.emu.support.data.PayloadBank;
+import org.jlab.coda.emu.support.data.*;
 import org.jlab.coda.emu.support.logger.Logger;
 import org.jlab.coda.emu.support.transport.DataChannel;
 import org.jlab.coda.jevio.*;
@@ -368,7 +365,7 @@ System.out.println("RocSimulation module: quitting watcher thread");
 
             // create event with jevio package
             EventBuilder eventBuilder = new EventBuilder(tag, DataType.BANK, rocRecordId);
-            EvioEvent dtrEvent = eventBuilder.getEvent();
+            EvioBank event = eventBuilder.getEvent();
 
             // add a bank with no meaningful data in it - just to take up some size
             EvioBank intBank = new EvioBank(1, DataType.INT32, 0 /* updated later */);
@@ -376,7 +373,7 @@ System.out.println("RocSimulation module: quitting watcher thread");
             //int[] fakeData = new int[49928-4];
             try {
                 eventBuilder.appendIntData(intBank, fakeData);
-                eventBuilder.addChild(dtrEvent, intBank);
+                eventBuilder.addChild(event, intBank);
             }
             catch (EvioException e) { }
 
@@ -387,7 +384,7 @@ System.out.println("RocSimulation module: quitting watcher thread");
 
                 try {
                     // Stick it on the output Q.
-                    outputChannels.get(0).getQueue().put(dtrEvent);
+                    outputChannels.get(0).getQueue().put(new QueueItem(event));
 
                     // stats
                     rocRecordId++;
@@ -442,7 +439,7 @@ System.out.println("INTERRUPTED thread " + Thread.currentThread().getName());
             }
 
             // Place Data Transport Record on output channel
-            outputChannels.get(0).getQueue().put(bank);
+            outputChannels.get(0).getQueue().put(new QueueItem(bank));
 
             // next one to be put on output channel
             outputOrder = ++outputOrder % Integer.MAX_VALUE;
@@ -476,7 +473,7 @@ System.out.println("INTERRUPTED thread " + Thread.currentThread().getName());
 
             // Place banks on output channel
             for (PayloadBank bank : banks) {
-                outputChannels.get(0).getQueue().put(bank);
+                outputChannels.get(0).getQueue().put(new QueueItem(bank));
             }
 
             // next group to be put on output channel
@@ -761,7 +758,7 @@ System.out.println("\nRocSim: hit event number limit of " + endLimit + ", quitti
                 PayloadBank bank = new PayloadBank(controlEvent);
                 bank.setEventType(EventType.CONTROL);
                 bank.setControlType(ControlType.END);
-                outputChannels.get(0).getQueue().put(bank);
+                outputChannels.get(0).getQueue().put(new QueueItem(bank));
             }
             catch (InterruptedException e) {
                 //e.printStackTrace();
@@ -847,7 +844,7 @@ System.out.println("\nRocSim: hit event number limit of " + endLimit + ", quitti
                 PayloadBank bank = new PayloadBank(controlEvent);
                 bank.setEventType(EventType.CONTROL);
                 bank.setControlType(ControlType.PRESTART);
-                outputChannels.get(0).getQueue().put(bank);
+                outputChannels.get(0).getQueue().put(new QueueItem(bank));
             }
             catch (InterruptedException e) {
                 //e.printStackTrace();
@@ -878,7 +875,7 @@ System.out.println("\nRocSim: hit event number limit of " + endLimit + ", quitti
                 PayloadBank bank = new PayloadBank(controlEvent);
                 bank.setEventType(EventType.CONTROL);
                 bank.setControlType(ControlType.PAUSE);
-                outputChannels.get(0).getQueue().put(bank);
+                outputChannels.get(0).getQueue().put(new QueueItem(bank));
             }
             catch (InterruptedException e) {
                 //e.printStackTrace();
@@ -902,7 +899,7 @@ System.out.println("\nRocSim: hit event number limit of " + endLimit + ", quitti
                 PayloadBank bank = new PayloadBank(controlEvent);
                 bank.setEventType(EventType.CONTROL);
                 bank.setControlType(ControlType.GO);
-                outputChannels.get(0).getQueue().put(bank);
+                outputChannels.get(0).getQueue().put(new QueueItem(bank));
             }
             catch (InterruptedException e) {
                 //e.printStackTrace();

@@ -226,7 +226,6 @@ public class CMSGPortal implements LoggerAppender {
      * Send a cmlog message using the cMsg system.
      * @param event event to be logged
      */
-    @Override
     public void append(LoggingEvent event) {
 
         if ((server != null) && server.isConnected()) {
@@ -242,7 +241,7 @@ public class CMSGPortal implements LoggerAppender {
                     msg.addPayloadItem(new cMsgPayloadItem("userName",  comp.getUserName()));
                     msg.addPayloadItem(new cMsgPayloadItem("runNumber", comp.getRunNumber()));
                     msg.addPayloadItem(new cMsgPayloadItem("runType",   comp.getRunType()));
-                    msg.addPayloadItem(new cMsgPayloadItem("codaClass", comp.getCodaClass()));
+                    msg.addPayloadItem(new cMsgPayloadItem("codaClass", comp.getCodaClass().name()));
                     // config is not implemented
                     msg.addPayloadItem(new cMsgPayloadItem("config", "unknown"));
                     msg.addPayloadItem(new cMsgPayloadItem("severity", event.getFormatedLevel()));

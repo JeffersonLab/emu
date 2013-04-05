@@ -14,6 +14,7 @@ package org.jlab.coda.emu.support.data;
 import org.jlab.coda.jevio.*;
 import org.jlab.coda.emu.EmuException;
 
+import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.Arrays;
 
@@ -565,6 +566,56 @@ public class Evio {
                  header.getNumber() == 0xCC &&
                  header.getDataTypeValue() == 1 &&
                  header.getLength() == 4);
+     }
+
+
+    /**
+     * Determine whether a buffer containing bytes representing an
+     * evio bank/event contains a control event or not. If so what type?
+     *
+     * @param buffer buffer representing an evio bank/event
+     * @return corresponding ControlType object if arg is control event, else null
+     */
+     public static ControlType getControlType(ByteBuffer buffer) {
+
+         if (buffer == null) return null;
+         if (buffer.remaining() < 8) return null;
+
+         int len = buffer.getInt();
+         if (len < 1) {
+             return null;
+         }
+
+         int tag, num, type;
+         if (buffer.order() == ByteOrder.BIG_ENDIAN) {
+             tag = ByteDataTransformer.shortBitsToInt(buffer.getShort());
+
+             int dt = ByteDataTransformer.byteBitsToInt(buffer.get());
+             type = dt & 0x3f;
+             if (dt == 0x40) {
+                 type = DataType.TAGSEGMENT.getValue();
+             }
+
+             num = ByteDataTransformer.byteBitsToInt(buffer.get());
+         }
+         else {
+             num = ByteDataTransformer.byteBitsToInt(buffer.get());
+
+             int dt = ByteDataTransformer.byteBitsToInt(buffer.get());
+             type = dt & 0x3f;
+             if (dt == 0x40) {
+                 type = DataType.TAGSEGMENT.getValue();
+             }
+
+             tag = ByteDataTransformer.shortBitsToInt(buffer.getShort());
+         }
+
+         // Is it a control event?
+         if ( !(ControlType.isControl(tag) && num == 0xCC && type == 1 && len == 4) ) {
+             return null;
+         }
+
+         return ControlType.getControlType(tag);
      }
 
 

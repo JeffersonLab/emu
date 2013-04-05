@@ -11,10 +11,7 @@
 
 package org.jlab.coda.emu.support.transport;
 
-import org.jlab.coda.emu.support.data.ControlType;
-import org.jlab.coda.emu.support.data.EventType;
-import org.jlab.coda.emu.support.data.Evio;
-import org.jlab.coda.emu.support.data.PayloadBank;
+import org.jlab.coda.emu.support.data.*;
 import org.jlab.coda.emu.support.logger.Logger;
 import org.jlab.coda.emu.Emu;
 import org.jlab.coda.cMsg.*;
@@ -55,7 +52,7 @@ public class DataChannelImplCmsg implements DataChannel {
     private String type;
 
     /** Field queue - filled buffer queue */
-    private final BlockingQueue<EvioBank> queue;
+    private final BlockingQueue<QueueItem> queue;
 
     /** Do we pause the dataThread? */
     private boolean pause;
@@ -229,7 +226,7 @@ public class DataChannelImplCmsg implements DataChannel {
                     payloadBank.setRecordId(recordId);
 
                     // Put evio bank (payload bank) on Q if it parses
-                    queue.put(bank);
+                    queue.put(new QueueItem(payloadBank));
 
                     // Handle end event ...
                     if (controlType == ControlType.END) {
@@ -363,7 +360,7 @@ public class DataChannelImplCmsg implements DataChannel {
         } catch (Exception e) {
             logger.info("      DataChannelImplCmsg.const : " +  e.getMessage() + ", default to " + capacity + " records.");
         }
-        queue = new ArrayBlockingQueue<EvioBank>(capacity);
+        queue = new ArrayBlockingQueue<QueueItem>(capacity);
 
         // Set subject & type for either subscription (incoming msgs) or for outgoing msgs.
         // Use any defined in config file else use defaults.
@@ -457,15 +454,15 @@ System.out.println("\n\nDataChannel: subscribe to subject = " + subject + ", typ
         return dataTransport;
     }
 
-    public EvioBank receive() throws InterruptedException {
+    public QueueItem receive() throws InterruptedException {
         return queue.take();
     }
 
-    public void send(EvioBank bank) {
-        //queue.add(bank);   // throws exception if capacity reached
-        //queue.offer(bank); // returns false if capacity reached
+    public void send(QueueItem item) {
+        //queue.add(item);   // throws exception if capacity reached
+        //queue.offer(item); // returns false if capacity reached
         try {
-            queue.put(bank); // blocks if capacity reached
+            queue.put(item); // blocks if capacity reached
         }
         catch (InterruptedException e) {
             // ignore
@@ -608,84 +605,6 @@ logger.debug("      DataChannel cMsg reset() : " + name + " - resetting this cha
     }
 
 
-
-
-    /**
-     * <pre>
-     * Class <b>DataOutputHelper</b>
-     * </pre>
-     * Handles sending data.
-     */
-    private class DataOutputHelperOrig implements Runnable {
-
-
-        public void run() {
-            try {
-                int size;
-                PayloadBank bank;
-                cMsgMessage msg = new cMsgMessage();
-                msg.setSubject(subject);
-                msg.setType(type);
-                // TODO: set the proper size of the buffer later ...
-                ByteBuffer buffer = ByteBuffer.allocate(2048); // allocateDirect does(may) NOT have backing array
-                // by default ByteBuffer is big endian
-                buffer.order(byteOrder);
-                EventWriter evWriter = null;
-
-                while ( dataTransport.getCmsgConnection().isConnected() ) {
-
-                    if (pause) {
-//logger.warn("      DataChannelImplCmsg.DataOutputHelper : " + name + " - PAUSED");
-                        Thread.sleep(5);
-                        continue;
-                    }
-
-                    bank = (PayloadBank)queue.take();  // blocks
-
-                    size = bank.getTotalBytes();
- // TODO: bug bug !!! need to account for block headers!!!
-                    if (buffer.capacity() < size) {
-//logger.warn("      DataChannelImplCmsg.DataOutputHelper : increasing buffer size to " + (size + 1000));
-                        buffer = ByteBuffer.allocate(size + 1000);
-                        buffer.order(byteOrder);
-                    }
-                    buffer.clear();
-
-                    try {
-                        // encode the event type into bits
-                        BitSet bitInfo = new BitSet(24);
-                        BlockHeaderV4.setEventType(bitInfo, bank.getEventType().getValue());
-
-                        evWriter = new EventWriter(buffer, 128000, 10, null, bitInfo, emu.getCodaid());
-                    }
-                    catch (EvioException e) {e.printStackTrace();/* never happen */}
-
-                    evWriter.writeEvent(bank);
-                    evWriter.close();
-                    buffer.flip();
-
-                    // put data into cmsg message
-                    msg.setByteArrayNoCopy(buffer.array(), 0, buffer.limit());
-                    msg.setByteArrayEndian(byteOrder == ByteOrder.BIG_ENDIAN ? cMsgConstants.endianBig :
-                                                                               cMsgConstants.endianLittle);
-                    dataTransport.getCmsgConnection().send(msg);
-                }
-
-                logger.warn("      DataChannelImplCmsg.DataOutputHelper : " + name + " - disconnected from cmsg server");
-
-            } catch (InterruptedException e) {
-                logger.warn("      DataChannelImplCmsg.DataOutputHelper : interrupted, exiting");
-            } catch (Exception e) {
-                e.printStackTrace();
-                logger.warn("      DataChannelImplCmsg.DataOutputHelper : exit " + e.getMessage());
-            }
-        }
-
-    }
-
-
-
-
     /**
      * Class used to take Evio banks from Q, write them into cMsg messages.
      */
@@ -794,6 +713,7 @@ System.out.println("singlethreaded put: array len = " + msgs.length + ", send " 
 
             try {
                 EventType previousType, pBanktype;
+                QueueItem qItem;
                 PayloadBank pBank;
                 LinkedList<PayloadBank> bankList;
                 boolean gotNothingYet;
@@ -866,7 +786,8 @@ System.out.println("singlethreaded put: array len = " + msgs.length + ", send " 
                                     firstBankFromQueue = null;
                                 }
                                 else {
-                                    pBank = (PayloadBank) queue.poll(100L, TimeUnit.MILLISECONDS);
+                                    qItem = queue.poll(100L, TimeUnit.MILLISECONDS);
+                                    pBank = qItem.getPayloadBank();
                                 }
 
                                 // If wait longer than 100ms, and there are things to write,
@@ -993,7 +914,8 @@ System.out.println("singlethreaded put: array len = " + msgs.length + ", send " 
                                 firstBankFromQueue = null;
                             }
                             else {
-                                pBank = (PayloadBank) queue.poll(100L, TimeUnit.MILLISECONDS);
+                                qItem = queue.poll(100L, TimeUnit.MILLISECONDS);
+                                pBank = qItem.getPayloadBank();
                             }
 
                             if (pBank == null) {
@@ -1265,7 +1187,7 @@ System.out.println("Ending");
         pause = false;
     }
 
-    public BlockingQueue<EvioBank> getQueue() {
+    public BlockingQueue<QueueItem> getQueue() {
         return queue;
     }
 

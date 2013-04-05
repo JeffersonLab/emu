@@ -85,7 +85,7 @@ public class EventRecording implements EmuModule {
     private DataChannel inputChannel;
 
     /** Input channel's queue. */
-    private BlockingQueue<EvioBank> channelQ;
+    private BlockingQueue<QueueItem> channelQ;
 
     /** ArrayList of DataChannel objects that are outputs. */
     private ArrayList<DataChannel> outputChannels = new ArrayList<DataChannel>();
@@ -95,7 +95,7 @@ public class EventRecording implements EmuModule {
      * each of which stores built events until their turn to go over the
      * output channel has arrived.
      */
-    private PriorityBlockingQueue<EvioBank> waitingLists[];
+    private PriorityBlockingQueue<PayloadBank> waitingLists[];
 
     /** The number of RecordThread objects. */
     private int recordingThreadCount;
@@ -368,7 +368,7 @@ System.out.println("EventRecording constr: " + recordingThreadCount +
             return;
         }
 
-        EvioBank bank;
+        PayloadBank bank;
         EventOrder evOrder;
         EventOrder eo = (EventOrder)bankOut.getAttachment();
 
@@ -380,7 +380,7 @@ System.out.println("EventRecording constr: " + recordingThreadCount +
                 }
                 // Place bank on output channel
 //System.out.println("Put bank on output channel");
-                eo.outputChannel.getQueue().put(bankOut);
+                eo.outputChannel.getQueue().put(new QueueItem(bankOut));
                 outputOrders[eo.index] = ++outputOrders[eo.index] % Integer.MAX_VALUE;
                 eo.lock.notifyAll();
             }
@@ -405,7 +405,7 @@ System.out.println("EventRecording constr: " + recordingThreadCount +
                 }
 
                 // Place bank on output channel
-                eo.outputChannel.getQueue().put(bankOut);
+                eo.outputChannel.getQueue().put(new QueueItem(bankOut));
                 outputOrders[eo.index] = ++outputOrders[eo.index] % Integer.MAX_VALUE;
 //if (debug) System.out.println("placing = " + eo.inputOrder);
 
@@ -420,7 +420,7 @@ System.out.println("EventRecording constr: " + recordingThreadCount +
                     // Remove from waiting list permanently
                     bank = waitingLists[eo.index].take();
                     // Place bank on output channel
-                    eo.outputChannel.getQueue().put(bank);
+                    eo.outputChannel.getQueue().put(new QueueItem(bank));
                     outputOrders[eo.index] = ++outputOrders[eo.index] % Integer.MAX_VALUE;
                     bank = waitingLists[eo.index].peek();
 //if (debug) System.out.println("placing = " + evOrder.inputOrder);
@@ -469,6 +469,7 @@ System.out.println("EventRecording constr: " + recordingThreadCount +
 System.out.println("Running runMultipleThreads()");
             // initialize
             int totalNumberEvents=1;
+            QueueItem qItem;
             PayloadBank recordingBank;
             EventOrder[] eventOrders = new EventOrder[outputChannelCount];
 
@@ -487,7 +488,8 @@ System.out.println("Running runMultipleThreads()");
                         getLock.lock();
 
                         // Will BLOCK here waiting for payload bank if none available
-                        recordingBank = (PayloadBank)channelQ.take();  // blocks, throws InterruptedException
+                        qItem = channelQ.take();  // blocks, throws InterruptedException
+                        recordingBank = qItem.getPayloadBank();
 
                         // If we're here, we've got an event.
                         // We want one EventOrder object for each output channel
@@ -565,21 +567,23 @@ System.out.println("Running runOneThread()");
 
             // initialize
             int totalNumberEvents=1;
+            QueueItem qItem;
             PayloadBank recordingBank;
 
             while (state == CODAState.ACTIVE || paused) {
 
                 try {
                     // Will BLOCK here waiting for payload bank if none available
-                    recordingBank = (PayloadBank)channelQ.take();  // blocks, throws InterruptedException
+                    qItem = channelQ.take();  // blocks, throws InterruptedException
+                    recordingBank = qItem.getPayloadBank();
 
                     if (outputChannelCount > 0) {
                         // Place bank on first output channel queue
-                        outputChannels.get(0).getQueue().put(recordingBank);
+                        outputChannels.get(0).getQueue().put(qItem);
 
                         // Copy bank & write to other output channels' Q's
                         for (int j=1; j < outputChannelCount; j++) {
-                            outputChannels.get(j).getQueue().put(new PayloadBank(recordingBank));
+                            outputChannels.get(j).getQueue().put(new QueueItem(new PayloadBank(recordingBank)));
                         }
                     }
 
@@ -776,7 +780,7 @@ if (true) System.out.println("Found END event in record thread");
 
                 waitingLists = new PriorityBlockingQueue[outputChannelCount];
                 for (int i=0; i < outputChannelCount; i++) {
-                    waitingLists[i] = new PriorityBlockingQueue<EvioBank>(100, comparator);
+                    waitingLists[i] = new PriorityBlockingQueue<PayloadBank>(100, comparator);
                 }
             }
 

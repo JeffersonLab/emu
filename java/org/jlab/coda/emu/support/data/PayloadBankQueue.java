@@ -9,7 +9,7 @@ import java.util.concurrent.LinkedBlockingQueue;
  * @author: timmer
  * Date: Jan 29, 2010
  */
-public class PayloadBankQueue<PayloadBank> extends LinkedBlockingQueue<PayloadBank> {
+public class PayloadBankQueue<E> extends LinkedBlockingQueue<E> {
 
     private int sourceId;
     

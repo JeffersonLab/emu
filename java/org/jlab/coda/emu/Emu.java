@@ -307,8 +307,13 @@ public class Emu implements CODAComponent {
     }
 
     /** {@inheritDoc} */
-    public String getCodaClass() {
-        return codaClass.name();
+    public CODAClass getCodaClass() {
+        return codaClass;
+    }
+
+    /** {@inheritDoc} */
+    public CODAClass getCodaClassObject() {
+        return codaClass;
     }
 
     /**
@@ -783,7 +788,7 @@ System.out.println("DONE EXECUTING RESET");
                 cMsgMessage msg = new cMsgMessage();
                 msg.setSubject(name);
                 msg.setType(RCConstants.rcGetCodaClassResponse);
-                msg.setText(getCodaClass());  // CODA class set in module constructors
+                msg.setText(getCodaClass().name());  // CODA class set in module constructors
 
                 try {
                     cmsgPortal.getServer().send(msg);

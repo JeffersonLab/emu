@@ -15,6 +15,7 @@ import org.jlab.coda.emu.Emu;
 import org.jlab.coda.emu.support.codaComponent.CODAState;
 import org.jlab.coda.emu.support.configurer.DataNotFoundException;
 import org.jlab.coda.emu.support.control.State;
+import org.jlab.coda.emu.support.data.QueueItem;
 import org.jlab.coda.emu.support.logger.Logger;
 import org.jlab.coda.jevio.EvioBank;
 
@@ -265,23 +266,23 @@ public class DataTransportCore {
     }
 
     /**
-     * This method receives or gets EvioBank objects from the given DataChannel object.
+     * This method receives or gets QueueItem objects from the given DataChannel object.
      *
-     * @return EvioBank object containing data
+     * @return QueueItem object containing data
      * @throws InterruptedException on wakeup with no data.
      */
-    public EvioBank receive(DataChannel channel) throws InterruptedException {
+    public QueueItem receive(DataChannel channel) throws InterruptedException {
         return channel.getQueue().take();
     }
 
     /**
-     * This method sends a EvioBank object to the given DataChannel object.
+     * This method sends a QueueItem object to the given DataChannel object.
      *
      * @param channel DataChannel to send data through
-     * @param data EvioBank to send, containing data
+     * @param item QueueItem to send, containing data
      */
-    public void send(DataChannel channel, EvioBank data) {
-        channel.getQueue().add(data);
+    public void send(DataChannel channel, QueueItem item) {
+        channel.getQueue().add(item);
     }
 
     //---------------------------------------------------------------------------------------

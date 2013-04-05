@@ -12,10 +12,7 @@
 package org.jlab.coda.emu.support.transport;
 
 
-import org.jlab.coda.emu.support.data.ControlType;
-import org.jlab.coda.emu.support.data.EventType;
-import org.jlab.coda.emu.support.data.Evio;
-import org.jlab.coda.emu.support.data.PayloadBank;
+import org.jlab.coda.emu.support.data.*;
 import org.jlab.coda.emu.support.logger.Logger;
 import org.jlab.coda.emu.Emu;
 import org.jlab.coda.et.*;
@@ -66,7 +63,7 @@ public class DataChannelImplEt implements DataChannel {
     private int inputThreadCount;
 
     /** Field queue - filled buffer queue */
-    private final BlockingQueue<EvioBank> queue;
+    private final BlockingQueue<QueueItem> queue;
 
     /** Array of threads used to input data. */
     private DataInputHelper[] dataInputThreads;
@@ -193,7 +190,7 @@ logger.info("      DataChannel Et : creating channel " + name);
             capacity = dataTransport.getIntAttr("capacity");
         } catch (Exception e) {
         }
-        queue = new LinkedBlockingQueue<EvioBank>(capacity);
+        queue = new LinkedBlockingQueue<QueueItem>(capacity);
 
 
         // Set id number. Use any defined in config file else use default (0)
@@ -486,16 +483,16 @@ logger.info("      DataChannel Et : creating channel " + name);
     }
 
     /** {@inheritDoc} */
-    public EvioBank receive() throws InterruptedException {
+    public QueueItem receive() throws InterruptedException {
         return queue.take();
     }
 
     /** {@inheritDoc} */
-    public void send(EvioBank bank) {
+    public void send(QueueItem item) {
         try {
-            queue.put(bank);   // blocks if capacity reached
-            //queue.add(bank);   // throws exception if capacity reached
-            //queue.offer(bank); // returns false if capacity reached
+            queue.put(item);   // blocks if capacity reached
+            //queue.add(item);   // throws exception if capacity reached
+            //queue.offer(item); // returns false if capacity reached
         }
         catch (InterruptedException e) {/* ignore */}
     }
@@ -674,7 +671,7 @@ logger.debug("      DataChannel Et reset() : " + name + " - done");
 
                 // put banks in our Q, for module
                 for (PayloadBank bank : banks) {
-                    queue.put(bank);
+                    queue.put(new QueueItem(bank));
                 }
 
                 // next one to be put on output channel
@@ -1026,6 +1023,7 @@ logger.info("      DataChannel Et in helper: have END, " + name + " quit thd");
             try {
                 EtEvent[] events;
                 EventType previousType, pBanktype;
+                QueueItem qItem;
                 PayloadBank pBank;
                 LinkedList<PayloadBank> bankList;
                 boolean gotNothingYet;
@@ -1116,7 +1114,8 @@ System.out.println("      DataChannel Et out helper: " + name + " some thd got E
                                     firstBankFromQueue = null;
                                 }
                                 else {
-                                    pBank = (PayloadBank) queue.poll(100L, TimeUnit.MILLISECONDS);
+                                    qItem = queue.poll(100L, TimeUnit.MILLISECONDS);
+                                    pBank = qItem.getPayloadBank();
                                 }
 
                                 // If wait longer than 100ms, and there are things to write,
@@ -1228,7 +1227,8 @@ System.out.println("      DataChannel Et out helper: " + name + " got RESET cmd,
                                 firstBankFromQueue = null;
                             }
                             else {
-                                pBank = (PayloadBank) queue.poll(100L, TimeUnit.MILLISECONDS);
+                                qItem = queue.poll(100L, TimeUnit.MILLISECONDS);
+                                pBank = qItem.getPayloadBank();
                             }
 
                             if (pBank == null) {
@@ -1584,7 +1584,7 @@ System.out.println(e.getMessage());
     }
 
     /** {@inheritDoc} */
-    public BlockingQueue<EvioBank> getQueue() {
+    public BlockingQueue<QueueItem> getQueue() {
         return queue;
     }
 

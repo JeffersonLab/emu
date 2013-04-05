@@ -12,6 +12,7 @@
 package org.jlab.coda.emu.support.transport;
 
 import org.jlab.coda.emu.Emu;
+import org.jlab.coda.emu.support.data.QueueItem;
 import org.jlab.coda.emu.support.logger.Logger;
 import org.jlab.coda.jevio.EvioBank;
 
@@ -36,7 +37,7 @@ public class DataChannelImplFifo implements DataChannel {
     private int id;
 
     /** Field full - filled buffer queue */
-    private final BlockingQueue<EvioBank> queue;
+    private final BlockingQueue<QueueItem> queue;
 
     /** Is this channel an input (true) or output (false) channel? */
     private boolean input;
@@ -75,7 +76,7 @@ public class DataChannelImplFifo implements DataChannel {
             emu.getLogger().info(e.getMessage() + " default to " + size + " byte records.");
         }
 
-        queue = new ArrayBlockingQueue<EvioBank>(capacity);
+        queue = new ArrayBlockingQueue<QueueItem>(capacity);
 
         // Set id number. Use any defined in config file else use default (0)
         id = 0;
@@ -106,22 +107,22 @@ public class DataChannelImplFifo implements DataChannel {
     }
 
     /**
-     * This method receives or gets EvioBank objects from this object's queue.
+     * This method receives or gets QueueItem objects from this object's queue.
      *
-     * @return EvioBank object containing data
+     * @return QueueItem object containing data
      * @throws InterruptedException on wakeup of fifo with no data
      */
-    public EvioBank receive() throws InterruptedException {
+    public QueueItem receive() throws InterruptedException {
         return queue.take();
     }
 
     /**
      * {@inheritDoc}
-     * EvioBank is sent to this object's queue.
-     * @param data {@inheritDoc}
+     * QueueItem is sent to this object's queue.
+     * @param item {@inheritDoc}
      */
-    public void send(EvioBank data) {
-        queue.add(data);
+    public void send(QueueItem item) {
+        queue.add(item);
     }
 
     /** {@inheritDoc} */
@@ -138,7 +139,7 @@ public class DataChannelImplFifo implements DataChannel {
      * {@inheritDoc}
      * @return {@inheritDoc}
      */
-    public BlockingQueue<EvioBank> getQueue() {
+    public BlockingQueue<QueueItem> getQueue() {
         return queue;
     }
 

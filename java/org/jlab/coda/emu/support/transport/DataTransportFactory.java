@@ -13,7 +13,6 @@ package org.jlab.coda.emu.support.transport;
 
 import org.jlab.coda.emu.Emu;
 import org.jlab.coda.emu.EmuClassLoader;
-import org.jlab.coda.emu.EmuModule;
 import org.jlab.coda.emu.support.codaComponent.CODACommand;
 
 import static org.jlab.coda.emu.support.codaComponent.CODAState.*;

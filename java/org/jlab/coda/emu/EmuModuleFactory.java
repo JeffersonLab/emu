@@ -12,6 +12,10 @@ package org.jlab.coda.emu;
 
 import static org.jlab.coda.emu.support.codaComponent.CODAState.*;
 
+import org.jlab.coda.emu.modules.EventBuilding;
+import org.jlab.coda.emu.modules.EventRecording;
+import org.jlab.coda.emu.modules.RocSimulation;
+import org.jlab.coda.emu.support.codaComponent.CODAClass;
 import org.jlab.coda.emu.support.codaComponent.CODACommand;
 import org.jlab.coda.emu.support.codaComponent.StatedObject;
 import static org.jlab.coda.emu.support.codaComponent.CODACommand.*;
@@ -28,10 +32,8 @@ import org.w3c.dom.NamedNodeMap;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
 
-import java.io.File;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
-import java.net.URL;
 import java.util.*;
 
 /**
@@ -60,9 +62,6 @@ public class EmuModuleFactory implements StatedObject {
     private final Vector<EmuModule> modules = new Vector<EmuModule>(10);
 
     private EmuDataPath dataPath;
-
-    /** This object is used to dynamically load modules (actually their classes). */
-    private EmuClassLoader classLoader;
 
     /** State of the emu. */
     private volatile State state = BOOTED;
@@ -161,9 +160,6 @@ logger.info("EmuModuleFactory.execute : " + emuCmd);
         if (emuCmd == DOWNLOAD) {
 
             try {
-                // There are no modules loaded so we need to load some
-                URL[] locations;
-
                 // Get the config info again since it may have changed
                 Node modulesConfig = Configurer.getNode(emu.configuration(), "component/modules");
 
@@ -178,99 +174,72 @@ logger.info("EmuModuleFactory.execute : " + emuCmd);
                     throw new DataNotFoundException("modules section present in config, but no modules");
                 }
 
-                // Get attributes of top ("component/modules") node, like names of needed jar files
-                NamedNodeMap nm = modulesConfig.getAttributes();
-                // Get name of jar file containing source for standard, CODA-supplied modules
-                Node srcAttr    = nm.getNamedItem("src");
-                // Get name of jar file (including full path) containing user's modules' source
-                Node usrSrcAttr = nm.getNamedItem("usr_src");
-
-                // Set name of file containing standard modules, default = modules.jar
-                String src = "modules.jar";
-                if (srcAttr != null) src = srcAttr.getNodeValue();
-
-                // Change file name into full path by looking in dir $INSTALL_DIR/lib/
-                src = System.getenv("INSTALL_DIR") + "/lib/" + src;
-
-                // If NO user source, look only in standard location for standard modules
-                if (usrSrcAttr == null) {
-//logger.info("Loading modules from " + src);
-                    locations = new URL[] {(new File(src)).toURI().toURL()};
-                }
-                // If user has source, look for that file as well as for standard modules
-                else {
-                    String usrSrc = usrSrcAttr.getNodeValue();
-
-//logger.info("Load system modules from " + src);
-//logger.info("Load user modules from " + usrSrc);
-
-                    locations = new URL[] {(new File(src)).toURI().toURL(),
-                                           (new File(usrSrc)).toURI().toURL()};
-                }
-
-                // Create object for loading "untrusted" java code from URLs -
-                // each of which represents a directory or JAR file to search.
-                classLoader = new EmuClassLoader(locations);
-
                 // Remove all existing modules from collection
                 modules.clear();
-
-                //------------------------------------------------------------------------------
-                // NOTE:
-                //
-                // To unload previously used modules (classes) there are 3 necessary conditions:
-                //    1) all references to the classes must be gone,
-                //    2) all references to their classLoader must be gone, and finally
-                //    3) the garbage collector must collect them all.
-                //
-                // That is irrelevant since we now use a custom classLoader (see ModuleClassLoader)
-                // and use a new one each time.
-                //
-                // I, timmer, have discovered that the following (commented out) means
-                // to reload a class never worked. It worked by accident because the of
-                // the way the Emu was run:
-                //       java -jar emu.jar
-                // It turns out, this sets the internal classpath to ONLY the jar file.
-                // Thus any new classloader would ask its parent to load the file, but the
-                // parent (system classloader) would never be able to see the modules.jar
-                // in the classpath (set by -cp option or in CLASSPATH env variable)
-                // so it would always delegate the loading back to the new classloader.
-                // And things worked fine. However, if the emu was run like:
-                //       java -cp ...... org.jlab.coda.emu.Emu
-                // then the system class loader would find the modules in the classpath and
-                // not reload them. Hope that makes sense.
-                //
-                //------------------------------------------------------------------------------
-                //                System.gc();
-                //                System.gc();
-                //                System.runFinalization();
-
 
                 // Create transport objects
                 transportFactory.execute(cmd, false);
 
+                // Create modules
                 Node n = modulesConfig.getFirstChild();
                 do {
                     if (n.getNodeType() == Node.ELEMENT_NODE) {
                         NamedNodeMap nm2 = n.getAttributes();
 
-                        Node typeAttr = nm2.getNamedItem("class");
-                        if (typeAttr == null) throw new DataNotFoundException("module " + n.getNodeName() + " has no class attribute");
-
-                        // store all attributes in a hashmap to pass to channel
+                        // Store all attributes in a hashmap to pass to module
                         Map<String, String> attributeMap = new HashMap<String, String>();
                         for (int j=0; j < nm2.getLength(); j++) {
                             Node a = nm2.item(j);
-//System.out.println("Put (" + a.getNodeName() + "," + a.getNodeValue() + ") into attribute map for module " + n.getNodeName());
                             attributeMap.put(a.getNodeName(), a.getNodeValue());
                         }
 
-                        String moduleClassName = "modules." + typeAttr.getNodeValue();
-//logger.info("EmuModuleFactory.execute DOWN : load module " + moduleClassName);
+                        // What type of module are we creating?
+                        EmuModule module;
+                        switch (emu.getCodaClass()) {
+                            case DC:
+                            case PEB:
+                            case SEB:
+                                module = new EventBuilding(n.getNodeName(), attributeMap, emu);
+                                break;
 
-                        // Use classLoader to load module. The name of
-                        // the module is the first arg (node name).
-                        loadModule(n.getNodeName(), moduleClassName, attributeMap);
+                            case ER:
+                                module = new EventRecording(n.getNodeName(), attributeMap, emu);
+                                break;
+
+                            case ROC:
+                                module = new RocSimulation(n.getNodeName(), attributeMap, emu);
+                                break;
+
+                            default:
+                                Node typeAttr = nm2.getNamedItem("class");
+                                if (typeAttr == null) {
+                                    throw new DataNotFoundException("module " + n.getNodeName() +
+                                                                            " has no class attribute");
+                                }
+                                String moduleClassName = typeAttr.getNodeValue();
+
+                                logger.info("EmuModuleFactory loads module - " + moduleClassName +
+                                                    " - to create a module of name " + n.getNodeName() +
+                                                    "\n  in classpath = " +
+                                                    System.getProperty("java.class.path"));
+
+                                // Load the class using the JVM's standard class loader
+                                Class c = Class.forName(moduleClassName);
+
+                                // Constructor required to have a string, a map, and an emu as args
+                                Class[] parameterTypes = {String.class, Map.class, Emu.class};
+                                Constructor co = c.getConstructor(parameterTypes);
+
+                                // Create an instance
+                                Object[] args = {n.getNodeName(), attributeMap, emu};
+                                module = (EmuModule) co.newInstance(args);
+//logger.info("EmuModuleFactory.execute DOWN : load module " + moduleClassName);
+                                break;
+
+                        }
+
+                        dataPath.associateModule(module);
+                        modules.add(module);
                     }
 
                 } while ((n = n.getNextSibling()) != null);
@@ -281,6 +250,7 @@ logger.info("EmuModuleFactory.execute : " + emuCmd);
                     module.execute(cmd);
                 }
 
+            // This includes ClassNotFoundException
             } catch (Exception e) {
                 e.printStackTrace();
                 emu.getCauses().add(e);
@@ -497,56 +467,6 @@ logger.info("EmuModuleFactory.execute : transition success, setting state to " +
 logger.info("EmuModuleFactory.execute : transition NOT successful, state = " + state);
         }
 
-    }
-
-    /**
-     * This method loads the class for a module (moduleClassName) and
-     * creates an instance with name "name".
-     *
-     * @param name            name of module
-     * @param moduleClassName name of java class defining module
-     * @param attributeMap    map containing attributes of module
-     *
-     * @return the created module object
-     * 
-     * @throws InstantiationException    when
-     * @throws IllegalAccessException    when
-     * @throws ClassNotFoundException    when
-     * @throws SecurityException         when
-     * @throws NoSuchMethodException     when
-     * @throws IllegalArgumentException  when
-     * @throws InvocationTargetException when
-     */
-    private EmuModule loadModule(String name, String moduleClassName,
-                                 Map<String,String> attributeMap) throws InstantiationException,
-                                                                         IllegalAccessException,
-                                                                         ClassNotFoundException,
-                                                                         SecurityException,
-                                                                         NoSuchMethodException,
-                                                                         IllegalArgumentException,
-                                                                         InvocationTargetException {
-        logger.info("EmuModuleFactory loads module - " + moduleClassName +
-                     " to create a module of name " + name);
-//System.out.println("classpath = " + System.getProperty("java.class.path"));
-
-        // Tell the custom class-loader to ONLY load the named class
-        // and relegate all other loading to the system class-loader.
-        classLoader.setClassesToLoad(new String[] {moduleClassName});
-
-        // Load the class
-        Class c = classLoader.loadClass(moduleClassName);
-
-        // Constructor required to have a string, a map, and an emu as args
-        Class[] parameterTypes = {String.class, Map.class, Emu.class};
-        Constructor co = c.getConstructor(parameterTypes);
-
-        // Create an instance
-        Object[] args = {name, attributeMap, emu};
-        EmuModule thing = (EmuModule) co.newInstance(args);
-
-        dataPath.associateModule(thing);
-        modules.add(thing);
-        return thing;
     }
 
 

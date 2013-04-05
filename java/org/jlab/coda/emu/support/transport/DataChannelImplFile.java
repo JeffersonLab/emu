@@ -13,10 +13,7 @@ package org.jlab.coda.emu.support.transport;
 
 import org.jlab.coda.emu.Emu;
 import org.jlab.coda.emu.support.codaComponent.CODAState;
-import org.jlab.coda.emu.support.data.ControlType;
-import org.jlab.coda.emu.support.data.EventType;
-import org.jlab.coda.emu.support.data.Evio;
-import org.jlab.coda.emu.support.data.PayloadBank;
+import org.jlab.coda.emu.support.data.*;
 import org.jlab.coda.emu.support.logger.Logger;
 import org.jlab.coda.jevio.*;
 
@@ -25,6 +22,7 @@ import java.util.Map;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -68,7 +66,7 @@ public class DataChannelImplFile implements DataChannel {
     private String directory;
 
     /** Field queue - filled buffer queue */
-    private final BlockingQueue<EvioBank> queue;
+    private final BlockingQueue<QueueItem> queue;
 
     /** Name of file currently being written to. */
     private String fileName;
@@ -229,7 +227,7 @@ public class DataChannelImplFile implements DataChannel {
         } catch (Exception e) {
             logger.info("      DataChannel File : " +  e.getMessage() + ", default to " + capacity + " records.");
         }
-        queue = new ArrayBlockingQueue<EvioBank>(capacity);
+        queue = new ArrayBlockingQueue<QueueItem>(capacity);
 
         try {
             if (input) {
@@ -297,7 +295,6 @@ logger.info("      DataChannel File: try opening output file of " + fileName);
         }
 
         /** {@inheritDoc} */
-        @Override
         public void run() {
 
             int sourceId, recordId, counter = 0;
@@ -348,8 +345,8 @@ logger.info("      DataChannel File: try opening output file of " + fileName);
                     payloadBank.setControlType(controlType);
                     payloadBank.setRecordId(recordId);
                     payloadBank.setSourceId(sourceId);
-
-                    queue.put(payloadBank);  // will block
+// TODO: put control type into constructor and avoid using CPU time, like below
+                    queue.put(new QueueItem(payloadBank));  // will block
                     counter++;
                 }
 
@@ -358,7 +355,7 @@ logger.info("      DataChannel File: try opening output file of " + fileName);
                 PayloadBank bank = new PayloadBank(controlEvent);
                 bank.setEventType(EventType.CONTROL);
                 bank.setControlType(ControlType.END);
-                queue.put(controlEvent);  // will block
+                queue.put(new QueueItem(bank, ControlType.END));  // will block
 
             } catch (InterruptedException e) {
                 // time to quit
@@ -394,12 +391,12 @@ logger.info("      DataChannel File: try opening output file of " + fileName);
         }
 
         /** {@inheritDoc} */
-        @Override
         public void run() {
 
             // I've started
             latch.countDown();
 
+            QueueItem qItem;
             PayloadBank bank;
             int bankBytes;
             long numBytesWritten = 0L;
@@ -409,7 +406,8 @@ logger.info("      DataChannel File: try opening output file of " + fileName);
 
                 while (!dataThread.isInterrupted()) {
 
-                    bank = (PayloadBank)queue.take(); // will block
+                    qItem = queue.take(); // will block
+                    bank = qItem.getPayloadBank();
 
                     if (bank.getEventType() == EventType.CONTROL) {
                         ControlType cType = bank.getControlType();
@@ -476,43 +474,36 @@ logger.warn("      DataChannel File (" + name + "): got event but NO PRESTART, g
 
 
     /** {@inheritDoc} */
-    @Override
     public String getName() {
         return name;
     }
 
     /** {@inheritDoc} */
-    @Override
     public int getID() {
         return id;
     }
 
     /** {@inheritDoc} */
-    @Override
     public boolean isInput() {
         return input;
     }
 
     /** {@inheritDoc} */
-    @Override
     public DataTransport getDataTransport() {
         return dataTransport;
     }
 
     /** {@inheritDoc} */
-    @Override
-    public EvioBank receive() throws InterruptedException {
+    public QueueItem receive() throws InterruptedException {
         return queue.take();
     }
 
     /** {@inheritDoc} */
-    @Override
-    public void send(EvioBank data) {
+    public void send(QueueItem data) {
         queue.add(data);
     }
 
     /** {@inheritDoc} */
-    @Override
     public void close() {
         if (dataThread != null) dataThread.interrupt();
         try {
@@ -524,14 +515,12 @@ logger.warn("      DataChannel File (" + name + "): got event but NO PRESTART, g
     }
 
     /** {@inheritDoc} */
-    @Override
     public void reset() {
         close();
     }
 
     /** {@inheritDoc} */
-    @Override
-    public BlockingQueue<EvioBank> getQueue() {
+    public BlockingQueue<QueueItem> getQueue() {
         return queue;
     }
 
