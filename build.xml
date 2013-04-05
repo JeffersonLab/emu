@@ -1,5 +1,5 @@
 <!-- This file is an ANT build script. ANT is a Java based build tool. -->
-<!-- It is availale from http://jakarta.apache.org/ant/                -->
+<!-- It is available from http://jakarta.apache.org/ant/                -->
 
 
 <!-- ================================================================= -->
@@ -32,9 +32,7 @@
             javadoc - build project javadoc files
             developdoc - build project javadoc files for developers
 
-            emu_jar - build jar files
-            
-            mod_jar - build module files
+            jar - build jar files
 
             dist - will create a complete distribution in dist/
         </echo>
@@ -70,7 +68,7 @@
         </fileset>
         <fileset dir="${jar.dest}">
             <include name="cMsg-3.3.jar"/>
-            <include name="jevio-4.0.jar"/>
+            <include name="jevio-4.1.jar"/>
         </fileset>
     </path>
 
@@ -94,7 +92,7 @@
                  access="package"
                  destdir="${doc}"
                  use="true" >
-            <classpath refid="classpath" />
+            <classpath refid="coda.classpath" />
         </javadoc>
     </target>
     
@@ -124,7 +122,7 @@
     </target>
 
     <!-- Build a jar file containing the emu  -->
-    <target name="emu_jar" depends="build">
+    <target name="jar" depends="build">
         <!-- The manifest makes this jar runnable via "java -jar lib/coda.jar"    -->
         <delete file="${jar.dest}/emu.jar"/>
         <jar jarfile="${jar.dest}/emu.jar" manifest="${java.source.dir}/org/jlab/coda/emu/manifest.mf">
@@ -141,25 +139,8 @@
 
     </target>
 
-    <!-- Build a jar file containing the emu  -->
-    <target name="mod_jar" depends="build">
-        <!-- The manifest makes this jar runnable via "java -jar lib/coda.jar"    -->
-        <delete file="${jar.dest}/modules.jar"/>
-        <jar jarfile="${jar.dest}/modules.jar">
-            <fileset dir="${javac.dest}">
-                <include name="modules/*.class"/>
-            </fileset>
-        </jar>
-        <delete file="${jar.dest}/user_modules.jar"/>
-        <jar jarfile="${jar.dest}/user_modules.jar">
-            <fileset dir="${javac.dest}">
-                <include name="modules/Process.class"/>
-            </fileset>
-        </jar>
 
-    </target>
-
-    <target name="all" depends="emu_jar, mod_jar">
+    <target name="all" depends="jar">
         <copy overwrite="false" todir="${jar.dest}">
             <fileset dir="external_lib">
             </fileset>
