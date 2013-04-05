@@ -395,23 +395,25 @@ public class EventBuildingOrig implements EmuModule {
       */
      private class Qfiller extends Thread {
 
-         BlockingQueue<EvioBank> channelQ;
+         BlockingQueue<QueueItem> channelQ;
          PayloadBankQueue<PayloadBank> payloadBankQ;
 
-         Qfiller(PayloadBankQueue<PayloadBank> payloadBankQ, BlockingQueue<EvioBank> channelQ) {
+         Qfiller(PayloadBankQueue<PayloadBank> payloadBankQ, BlockingQueue<QueueItem> channelQ) {
              this.channelQ = channelQ;
              this.payloadBankQ = payloadBankQ;
          }
 
          @Override
          public void run() {
+             QueueItem qItem;
              PayloadBank pBank;
 
              while (state == CODAState.ACTIVE || paused) {
                  try {
                      while (state == CODAState.ACTIVE || paused) {
                          // Block waiting for the next bank from ROC
-                         pBank = (PayloadBank)channelQ.take();  // blocks, throws InterruptedException
+                         qItem = channelQ.take();  // blocks, throws InterruptedException
+                         pBank = qItem.getPayloadBank();
                          // Check this bank's format. If bad, ignore it
                          Evio.checkPayloadBank(pBank, payloadBankQ);
                      }
@@ -496,7 +498,8 @@ public class EventBuildingOrig implements EmuModule {
                             eventType = banks[i].getEventType();
 
                             if (eventType.isPhysics()) {
-                                outputChannels.get(outputOrderPhysics % outputChannels.size()).getQueue().put(banks[i]);
+                                outputChannels.get(outputOrderPhysics % outputChannels.size()).
+                                        getQueue().put(new QueueItem(banks[i]));
                                 // stats
                                 eventCountTotal += banks[i].getEventCount();              // event count
                                 wordCountTotal  += banks[i].getHeader().getLength() + 1;  //  word count
@@ -509,13 +512,13 @@ public class EventBuildingOrig implements EmuModule {
                                 for (DataChannel outChannel : outputChannels) {
                                     // As far as I can tell, the EvioWriter write to an ET
                                     // buffer is thread safe. Guess we'll find out.
-                                    outChannel.getQueue().put(banks[i]);
+                                    outChannel.getQueue().put(new QueueItem(banks[i]));
                                 }
                             }
                             else {
                                 // User events are not part of the round-robin output,
                                 // put on first output channel.
-                                outputChannels.get(0).getQueue().put(banks[i]);
+                                outputChannels.get(0).getQueue().put(new QueueItem(banks[i]));
                             }
 
                             // Get another built bank from this Q

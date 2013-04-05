@@ -126,7 +126,7 @@ public class EventBuilding2 implements EmuModule {
      * each of which stores built events until their turn to go over the
      * output channel has arrived.
      */
-    private PriorityBlockingQueue<EvioBank> waitingLists[];
+    private PriorityBlockingQueue<PayloadBank> waitingLists[];
 
     /** Container for queues used to hold payload banks taken from Data Transport Records. */
     private LinkedList<PayloadBankQueue<PayloadBank>> payloadBankQueues =
@@ -460,23 +460,25 @@ public class EventBuilding2 implements EmuModule {
      */
     private class Qfiller extends Thread {
 
-        BlockingQueue<EvioBank> channelQ;
+        BlockingQueue<QueueItem> channelQ;
         PayloadBankQueue<PayloadBank> payloadBankQ;
 
-        Qfiller(PayloadBankQueue<PayloadBank> payloadBankQ, BlockingQueue<EvioBank> channelQ) {
+        Qfiller(PayloadBankQueue<PayloadBank> payloadBankQ, BlockingQueue<QueueItem> channelQ) {
             this.channelQ = channelQ;
             this.payloadBankQ = payloadBankQ;
         }
 
         @Override
         public void run() {
+            QueueItem qItem;
             PayloadBank pBank;
 
             while (state == CODAState.ACTIVE || paused) {
                 try {
                     while (state == CODAState.ACTIVE || paused) {
                         // Block waiting for the next bank from ROC
-                        pBank = (PayloadBank)channelQ.take();  // blocks, throws InterruptedException
+                        qItem = channelQ.take();  // blocks, throws InterruptedException
+                        pBank = qItem.getPayloadBank();
                         // Check this bank's format. If bad, ignore it
                         Evio.checkPayloadBank(pBank, payloadBankQ);
                     }
@@ -720,7 +722,7 @@ if (debug) System.out.println("BuildingThread: Got user event");
             return;
         }
 
-        EvioBank bank;
+        PayloadBank bank;
         EventOrder evOrder;
         EventOrder eo = (EventOrder)bankOut.getAttachment();
 
@@ -732,7 +734,7 @@ if (debug) System.out.println("BuildingThread: Got user event");
                 }
                 // Place Data Transport Record on output channel
 //System.out.println("Put bank on output channel");
-                eo.outputChannel.getQueue().put(bankOut);
+                eo.outputChannel.getQueue().put(new QueueItem(bankOut));
                 outputOrders[eo.index] = ++outputOrders[eo.index] % Integer.MAX_VALUE;
                 eo.lock.notifyAll();
             }
@@ -757,7 +759,7 @@ if (debug) System.out.println("BuildingThread: Got user event");
                 }
 
                 // Place bank on output channel
-                eo.outputChannel.getQueue().put(bankOut);
+                eo.outputChannel.getQueue().put(new QueueItem(bankOut));
                 outputOrders[eo.index] = ++outputOrders[eo.index] % Integer.MAX_VALUE;
 //if (debug) System.out.println("placing = " + eo.inputOrder);
 
@@ -772,7 +774,7 @@ if (debug) System.out.println("BuildingThread: Got user event");
                     // Remove from waiting list permanently
                     bank = waitingLists[eo.index].take();
                     // Place Data Transport Record on output channel
-                    eo.outputChannel.getQueue().put(bank);
+                    eo.outputChannel.getQueue().put(new QueueItem(bank));
                     outputOrders[eo.index] = ++outputOrders[eo.index] % Integer.MAX_VALUE;
                     bank = waitingLists[eo.index].peek();
 //if (debug) System.out.println("placing = " + evOrder.inputOrder);
@@ -1443,7 +1445,7 @@ if (debug) System.out.println("gotValidControlEvents: found control event of typ
 
                 waitingLists = new PriorityBlockingQueue[outputChannelCount];
                 for (int i=0; i < outputChannelCount; i++) {
-                    waitingLists[i] = new PriorityBlockingQueue<EvioBank>(100, comparator);
+                    waitingLists[i] = new PriorityBlockingQueue<PayloadBank>(100, comparator);
                 }
             }
 
