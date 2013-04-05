@@ -1,160 +1,203 @@
-<!-- This file is an ANT build script. ANT is a Java based build tool. -->
-<!-- It is available from http://jakarta.apache.org/ant/                -->
+<?xml version="1.0" encoding="UTF-8"?>
+
+<project name="EMU" default="compile" basedir=".">
 
 
-<!-- ================================================================= -->
-<project name="EMU" default="all">
-
-    <property name="version" value="0.01"/>
+    <!-- environmental variables -->
     <property environment="env"/>
-
-    <!-- The directory where source files are stored. -->
-    <property name="java.source.dir" value="java"/>
-
-    <!-- Destination for compiled files -->
-    <property name="javac.dest" value="classes"/>
-
-    <!-- Destination for generated jar files -->
-    <property name="jar.dest" value="${env.INSTALL_DIR}/lib"/>
-
-    <!-- Destination for documentation files generated or not -->
-    <property name="doc" value="doc/javadoc"/>
-
-    <target name="usage">
-        <echo>
-
-            These are the targets supported by this ANT build scpript:
-
-            build - compile all project files, if a certain library is missing,
-            then the compilation of its dependents are skipped.
-
-            clean - delete the dist directory
-            javadoc - build project javadoc files
-            developdoc - build project javadoc files for developers
-
-            jar - build jar files
-
-            dist - will create a complete distribution in dist/
-        </echo>
-    </target>
-
-    <!-- ================================================================= -->
-    <target name="init">
-        <tstamp/>
-    </target>
-
-    <target name="clean">
-        <delete dir="${javac.dest}"/>
-        <delete dir="${doc}"/>
-    </target>
-
-    <!-- make the toplevel directories -->
-    <target name="dirs">
-        <mkdir dir="${javac.dest}"/>
-        <mkdir dir="${doc}"/>
-    </target>
-
+    
+    <!-- Version -->
+    <property name="emu.version" value="2.0" />
+    
+    <!-- Debug -->
+    <property name="javac.debug" value="on" />
+    
+    <!-- Directories/Files -->
+    <property name="src.dir"       value="java" />
+    <property name="build.dir"     value="build" />
+    <property name="build.classes" value="${build.dir}/classes" />
+    <property name="build.lib"     value="${build.dir}/lib" />
+    <property name="doc.dir"       value="doc/javadoc" />
+    <property name="jarName"       value="${build.lib}/emu-${emu.version}.jar" />
+    
     <!-- Set Classpath, ignore caller's classpath -->
     <property name="build.sysclasspath" value="ignore" />
-    <path id="coda.classpath">
-       <fileset dir="${javac.dest}">
+    <path id="classpath">
+        <fileset dir="${build.classes}">
             <include name="*.class"/>
         </fileset>
-        <fileset dir="external_lib">
-            <include name="*.jar"/>
-        </fileset>
         <fileset dir="java/jars">
-            <include name="*.jar"/>
-        </fileset>
-        <fileset dir="${jar.dest}">
-            <include name="cMsg-3.3.jar"/>
-            <include name="jevio-4.1.jar"/>
+            <include name="**/*.jar" />
         </fileset>
     </path>
+    
+    
+    <!-- Targets -->
+    
+    <!-- Help -->
+    <target name="help">
+        <echo message="Usage: ant [ant options] &lt;target1&gt; [target2 | target3 | ...]" />
+        <echo message="" />
+        <echo message="       targets:" />
+        <echo message="       help       - print out usage" />
+        <echo message="       env        - print out build file variables' values" />
+        <echo message="       compile    - compile java files" />
+        <echo message="       clean      - remove class files" />
+        <echo message="       cleanall   - remove all generated files" />
+        <echo message="       jar        - compile and create jar file" />
+        <echo message="       install    - create jar file and install into 'prefix'" />
+        <echo message="                    if given on command line by -Dprefix=dir'," />
+        <echo message="                    else install into INSTALL_DIR or CODA_HOME" />
+        <echo message="                    if defined (in that order)" />
+        <echo message="       all        - clean, compile and create jar file" />
+        <echo message="       javadoc    - create javadoc documentation" />
+        <echo message="       developdoc - create javadoc documentation for developer" />
+        <echo message="       prepare    - create necessary directories" />
+    </target>
+    
+    <!-- Environment -->
+    <target name="env">
+        <echo message="Ant environment:" />
+        <echo message="" />
+        <echo message="    src.dir       = ${src.dir}" />
+        <echo message="    build.dir     = ${build.dir}" />
+        <echo message="    build.lib     = ${build.lib}" />
+        <echo message="    build.classes = ${build.classes}" />
+        <echo message="    doc.dir       = ${doc.dir}" />
+        <echo message="    javac.debug   = ${javac.debug}" />
+    </target>
+    
+    <!-- Prepare things by creating directories -->
+    <target name="prepare">
+        <mkdir dir="${build.dir}" />
+        <mkdir dir="${build.classes}" />
+        <mkdir dir="${build.lib}" />
+    </target>
+    
+    <!-- Clean by removing class files -->
+    <target name="clean" description="Remove all class files">
+        <delete failonerror="no" >
+            <fileset dir="${build.classes}" includes="**/*.class" />
+        </delete>
+    </target>
+    
+    <!-- Clean by removing build & doc directories -->
+    <target name="cleanall" depends="clean" description="Remove all generated files.">
+        <delete dir="${build.dir}" failonerror="no" />
+        <delete dir="${doc.dir}"   failonerror="no" />
+    </target>
+    
+    <!-- Compile all source -->
+    <target name="compile" depends="prepare" description="Compiles all source code.">
+        <javac destdir="${build.classes}" debug="${javac.debug}" optimize="yes" >
+            <src path="${src.dir}" />
+            <classpath refid="classpath" />
+        </javac>
 
+        <copy overwrite="true" todir="${build.classes}">
+            <fileset dir="${src.dir}">
+                <include name="**/*.properties"/>
+                <include name="**/*.png"/>
+                <include name="**/*.jpg"/>
+                <include name="**/*.gif"/>
+                <include name="**/*.xml"/>
+            </fileset>
+        </copy>
+    </target>
+    
     <!-- Javadoc -->
     <target name="javadoc" description="Create javadoc.">
-        <mkdir dir="${doc}" />
+        <mkdir dir="${doc.dir}" />
         <javadoc packagenames="org.jlab.coda.emu"
                  sourcepath="java"
                  access="public"
-                 destdir="${doc}"
+                 destdir="${doc.dir}"
                  use="true" >
-            <classpath refid="coda.classpath" />
+            <classpath refid="classpath" />
         </javadoc>
     </target>
     
-    <!-- Javadoc for developers -->
+    <!-- Javadoc for developer -->
     <target name="developdoc" description="Create javadoc for developer.">
-        <mkdir dir="${doc}" />
+        <mkdir dir="${doc.dir}" />
         <javadoc packagenames="org.jlab.coda.emu"
                  sourcepath="java"
                  access="package"
-                 destdir="${doc}"
+                 destdir="${doc.dir}"
                  use="true" >
-            <classpath refid="coda.classpath" />
+            <classpath refid="classpath" />
         </javadoc>
     </target>
     
-    <target name="build" depends="dirs">
-        <mkdir dir="${javac.dest}"/>
-
-        <javac srcdir="${java.source.dir}"
-               debug="off"
-               verbose="no"
-               failonerror="yes"
-               listfiles="yes"
-               optimize="yes"
-               destdir="${javac.dest}">
-            <classpath refid="coda.classpath"/>
-            <include name="**/*.java"/>
-        </javac>
-
-        <copy overwrite="true" todir="${javac.dest}">
-            <fileset dir="${java.source.dir}">
+    <!-- Create Jar file -->
+    <target name="jar" depends="compile" description="Generates jar file.">
+        <delete file="${jarName}"/>
+        <jar jarfile="${jarName}" manifest="${src.dir}/org/jlab/coda/emu/manifest.mf">
+            <fileset dir="${build.classes}" excludes="*.class" >
+                <include name="org/jlab/coda/**/*.class"/>
                 <include name="**/*.properties"/>
                 <include name="**/*.png"/>
                 <include name="**/*.jpg"/>
                 <include name="**/*.gif"/>
                 <include name="**/*.xml"/>
             </fileset>
-        </copy>
-    </target>
-
-    <!-- Build a jar file containing the emu  -->
-    <target name="jar" depends="build">
-        <!-- The manifest makes this jar runnable via "java -jar lib/coda.jar"    -->
-        <delete file="${jar.dest}/emu.jar"/>
-        <jar jarfile="${jar.dest}/emu.jar" manifest="${java.source.dir}/org/jlab/coda/emu/manifest.mf">
-            <fileset dir="${javac.dest}">
-                <include name="org/jlab/**/*.class"/>
-                <include name="**/*.properties"/>
-                <include name="**/*.png"/>
-                <include name="**/*.jpg"/>
-                <include name="**/*.gif"/>
-                <include name="**/*.xml"/>
-            </fileset>
-
         </jar>
-
     </target>
-
-
-    <target name="all" depends="jar">
-        <copy overwrite="false" todir="${jar.dest}">
-            <fileset dir="external_lib">
-            </fileset>
-        </copy>
-        <copy overwrite="true" todir="../install/conf">
-            <fileset dir="conf">
-            </fileset>
-        </copy>
+    
+    <!-- Clean, compile, and create jar -->
+    <target name="all" depends="clean,jar" description="Cleans, compile, then builds jar file." />
+    
+    <!-- Install Jar file -->
+    <target name="install" depends="jar" description="Installs jar file.">
+        <antcall target="-nested-if"/>
     </target>
-
-    <target name="install" depends="all"/>
-
-    <target name="allclean " depends="clean, all"/>
-
-
+    
+    <!-- Look for places to install the jar file (simulated if-then-else constructs) -->
+    <target name="-nested-if">
+        <condition property="prefixDefined">
+            <isset property="prefix"/>
+        </condition>
+        <antcall target="-then"/>
+        <antcall target="-else"/>
+    </target>
+    
+    <target name="-then" if="prefixDefined">
+        <echo>Install ${jarName} into ${prefix}</echo>
+        <copy file="${jarName}" todir="${prefix}/jar"/>
+    </target>
+    
+    <target name="-else" unless="prefixDefined">
+        <echo>Prefix is not defined, so look for INSTALL_DIR environmental variable</echo>
+        <condition property="installDirDefined">
+            <isset property="env.INSTALL_DIR"/>
+        </condition>
+        <antcall target="-inner.then"/>
+        <antcall target="-inner.else"/>
+    </target>
+    
+    <target name="-inner.then" if="installDirDefined">
+        <echo>Install ${jarName} into ${env.INSTALL_DIR}/jar and ${env.INSTALL_DIR}/lib</echo>
+        <copy file="${jarName}" todir="${env.INSTALL_DIR}/jar"/>
+        <copy file="${jarName}" todir="${env.INSTALL_DIR}/lib"/>
+    </target>
+    
+    <target name="-inner.else" unless="installDirDefined">
+        <echo>INSTALL_DIR is not defined, so look for CODA_HOME environmental variable</echo>
+        <condition property="codaHomeDefined">
+            <isset property="env.CODA_HOME"/>
+        </condition>
+        <antcall target="-inner.inner.then"/>
+        <antcall target="-inner.inner.else"/>
+    </target>
+    
+    <target name="-inner.inner.then" if="codaHomeDefined">
+        <echo>Install ${jarName} into ${env.CODA_HOME}/jar and ${env.CODA_HOME}/lib</echo>
+        <copy file="${jarName}" todir="${env.CODA_HOME}/jar"/>
+        <copy file="${jarName}" todir="${env.CODA_HOME}/lib"/>
+    </target>
+    
+    <target name="-inner.inner.else" unless="codaHomeDefined">
+        <echo>No install directory given for jarfile</echo>
+    </target>
+    
 </project>
-
