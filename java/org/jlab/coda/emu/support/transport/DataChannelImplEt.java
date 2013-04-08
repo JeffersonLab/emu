@@ -981,10 +981,12 @@ logger.info("      DataChannel Et in helper: have END, " + name + " quit thd");
          * @throws IOException ET communication error
          * @throws EtException will not happen
          * @throws EtDeadException ET system is dead
+         * @throws EtClosedException ET connection was closed
          */
         private void writeEvents(EtEvent[] events, int inputOrder,
                                  int offset, int events2Write)
-                throws InterruptedException, IOException, EtException, EtDeadException {
+                throws InterruptedException, IOException, EtException,
+                        EtDeadException, EtClosedException {
 
             if (dataOutputThreads.length > 1) {
                 synchronized (lockOut) {
@@ -1115,16 +1117,15 @@ System.out.println("      DataChannel Et out helper: " + name + " some thd got E
                                 }
                                 else {
                                     qItem = queue.poll(100L, TimeUnit.MILLISECONDS);
-                                    pBank = qItem.getPayloadBank();
-                                }
-
-                                // If wait longer than 100ms, and there are things to write,
-                                // send them to the ET system.
-                                if (pBank == null) {
-                                    if (gotNothingYet) {
-                                        continue;
+                                    // If wait longer than 100ms, and there are things to write,
+                                    // send them to the ET system.
+                                    if (qItem == null) {
+                                        if (gotNothingYet) {
+                                            continue;
+                                        }
+                                        break;
                                     }
-                                    break;
+                                    pBank = qItem.getPayloadBank();
                                 }
 
                                 gotNothingYet = false;
@@ -1228,14 +1229,13 @@ System.out.println("      DataChannel Et out helper: " + name + " got RESET cmd,
                             }
                             else {
                                 qItem = queue.poll(100L, TimeUnit.MILLISECONDS);
-                                pBank = qItem.getPayloadBank();
-                            }
-
-                            if (pBank == null) {
-                                if (gotNothingYet) {
-                                    continue;
+                                if (qItem == null) {
+                                    if (gotNothingYet) {
+                                        continue;
+                                    }
+                                    break;
                                 }
-                                break;
+                                pBank = qItem.getPayloadBank();
                             }
 
                             gotNothingYet = false;

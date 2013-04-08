@@ -787,16 +787,17 @@ System.out.println("singlethreaded put: array len = " + msgs.length + ", send " 
                                 }
                                 else {
                                     qItem = queue.poll(100L, TimeUnit.MILLISECONDS);
-                                    pBank = qItem.getPayloadBank();
-                                }
 
-                                // If wait longer than 100ms, and there are things to write,
-                                // send them to the cMsg server.
-                                if (pBank == null) {
-                                    if (gotNothingYet) {
-                                        continue;
+                                    // If wait longer than 100ms, and there are things to write,
+                                    // send them to the cMsg server.
+                                    if (qItem == null) {
+                                        if (gotNothingYet) {
+                                            continue;
+                                        }
+                                        break;
                                     }
-                                    break;
+
+                                    pBank = qItem.getPayloadBank();
                                 }
 
                                 gotNothingYet = false;
@@ -915,14 +916,13 @@ System.out.println("singlethreaded put: array len = " + msgs.length + ", send " 
                             }
                             else {
                                 qItem = queue.poll(100L, TimeUnit.MILLISECONDS);
-                                pBank = qItem.getPayloadBank();
-                            }
-
-                            if (pBank == null) {
-                                if (gotNothingYet) {
-                                    continue;
+                                if (qItem == null) {
+                                    if (gotNothingYet) {
+                                        continue;
+                                    }
+                                    break;
                                 }
-                                break;
+                                pBank = qItem.getPayloadBank();
                             }
 
                             gotNothingYet = false;
