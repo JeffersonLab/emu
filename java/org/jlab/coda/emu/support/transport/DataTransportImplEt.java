@@ -494,7 +494,6 @@ logger.debug("    DataTransport Et execute : " + cmd.name());
 //System.out.println("  ET system " + openConfig.getEtName() + " already exists");
                 }
                 catch (EtException e) {
-//System.out.println("  Cannot open ET system, config is not self-consistent");
                     logger.debug("    DataTransport Et execute DOWNLOAD: self-contradictory ET system config : " + name() + " " + myInstance);
                     state = CODAState.ERROR;
                     return;
@@ -502,6 +501,11 @@ logger.debug("    DataTransport Et execute : " + cmd.name());
                 catch (Exception e) {
                     // Any existing local ET might be different name or TCP port, or isn't local.
                     // A name conflict will spell doom for us later when we try to create it.
+//System.out.println("  Cannot open ET system, because:\n    " + e.getMessage());
+//                    Throwable cause = e.getCause();
+//                    if (cause != null)  {
+//System.out.println("      - caused by " + e.getCause());
+//                    }
                 }
 
                 // If one exists, see if it's compatible
@@ -581,6 +585,7 @@ logger.debug("    DataTransport Et: create ET system, " + openConfig.getEtName()
                         processET = Runtime.getRuntime().exec(etCmd);
 
                         // Allow process a chance to run before testing if its terminated.
+//logger.debug("    DataTransport Et: will wait 1 sec");
                         Thread.yield();
                         try {Thread.sleep(1000);}
                         catch (InterruptedException e) {}
@@ -588,7 +593,10 @@ logger.debug("    DataTransport Et: create ET system, " + openConfig.getEtName()
                         // Figure out if process has already terminated.
                         boolean terminated = true;
                         try { processET.exitValue(); }
-                        catch (Exception e) {terminated = false;}
+                        catch (IllegalThreadStateException e) {
+//logger.debug("    DataTransport Et: ET system has NOT terminated yet");
+                            terminated = false;
+                        }
 
                         if (terminated) {
                             String errorOut = "    DataTransport Et: ";
@@ -610,8 +618,9 @@ logger.debug("    DataTransport Et: create ET system, " + openConfig.getEtName()
                         // actually started. So try for a few seconds to connect to
                         // it. If we can't, then there must have been an error trying
                         // to start it up (like another ET system using the same ports).
-//logger.debug("    DataTransport Et: try for 2 secs to connect to it");
                         openConfig.setWaitTime(2000);
+//logger.debug("    DataTransport Et: try for 2 secs to connect to it with config = \n" +
+//                     openConfig.toString());
                         try {
                             etSystem = new EtSystem(openConfig);
                             etSystem.open();
