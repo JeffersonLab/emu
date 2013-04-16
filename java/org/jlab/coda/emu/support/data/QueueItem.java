@@ -19,11 +19,10 @@ public class QueueItem {
     /** If item is EvioBank, store it here. */
     private EvioBank    bank;
     private ByteBuffer  buffer;
-
     private PayloadBank payloadBank;
 
     /** Type of item contained. */
-    private QueueItemType qItemtype;
+    private QueueItemType qItemType;
 
     /** If control event contained, what type is it? */
     private ControlType controlType;
@@ -31,7 +30,7 @@ public class QueueItem {
 
     public QueueItem(EvioBank bank) {
         this.bank = bank;
-        qItemtype = QueueItemType.EvioBank;
+        qItemType = QueueItemType.EvioBank;
         if (Evio.isControlEvent(bank)) {
             controlType = Evio.getControlType(bank);
         }
@@ -39,22 +38,26 @@ public class QueueItem {
 
     public QueueItem(ByteBuffer buffer) {
         this.buffer = buffer;
-        qItemtype = QueueItemType.ByteBuffer;
+        qItemType = QueueItemType.ByteBuffer;
         controlType = Evio.getControlType(buffer);
     }
 
     public QueueItem(PayloadBank payloadBank) {
         this.payloadBank = payloadBank;
-        qItemtype = QueueItemType.PayloadBank;
+        qItemType = QueueItemType.PayloadBank;
         controlType = payloadBank.getControlType();
     }
 
     public QueueItem(PayloadBank payloadBank, ControlType controlType) {
         this.payloadBank = payloadBank;
-        qItemtype = QueueItemType.PayloadBank;
+        qItemType = QueueItemType.PayloadBank;
         this.controlType = controlType;
     }
 
+
+    public QueueItemType getQueueItemType() {
+        return qItemType;
+    }
 
     public boolean isControlEvent() {
         return controlType != null;
@@ -64,6 +67,14 @@ public class QueueItem {
         return controlType;
     }
 
+
+    public EvioBank getBank() {
+        return bank;
+    }
+
+    public ByteBuffer getBuffer() {
+        return buffer;
+    }
 
     public PayloadBank getPayloadBank() {
         return payloadBank;
