@@ -594,7 +594,7 @@ System.out.println("ROC SIM write thds = " + writeThreads);
                            bank.setEventType(EventType.CONTROL);
                            bank.setControlType(ControlType.END);
                            outputChannels.get(0).getQueue().put(new QueueItem(bank));
-                           if (endCallback != null) endCallback.callback(null);
+                           if (endCallback != null) endCallback.endWait();
                        }
                        catch (InterruptedException e) {
                        }

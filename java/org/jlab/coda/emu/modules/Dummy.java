@@ -247,7 +247,7 @@ System.out.println("Dummy: running event moving thread");
                     // If END event, quit this one & only recording thread
                     if (payloadBank != null && payloadBank.getControlType() == ControlType.END) {
 System.out.println("Dummy: found END event");
-                        if (endCallback != null) endCallback.callback(null);
+                        if (endCallback != null) endCallback.endWait();
                         return;
                     }
                 }

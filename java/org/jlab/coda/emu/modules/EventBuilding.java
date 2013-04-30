@@ -1067,7 +1067,7 @@ if (true) System.out.println("Have consistent CONTROL event(s)");
 if (true) System.out.println("Found END event in build thread");
                             haveEndEvent = true;
                             endBuildAndQFillerThreads(this, false);
-                            if (endCallback != null) endCallback.callback(null);
+                            if (endCallback != null) endCallback.endWait();
                             return;
                         }
 

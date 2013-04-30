@@ -571,7 +571,7 @@ System.out.println("Running runMultipleThreads()");
 if (true) System.out.println("Found END event in record thread");
                         haveEndEvent = true;
                         endRecordThreads(this, false);
-                        if (endCallback != null) endCallback.callback(null);
+                        if (endCallback != null) endCallback.endWait();
                         return;
                     }
 
@@ -620,7 +620,7 @@ System.out.println("Running runOneThread()");
                     if (recordingBank.getControlType() == ControlType.END) {
 if (true) System.out.println("Found END event in record thread");
                         haveEndEvent = true;
-                        if (endCallback != null) endCallback.callback(null);
+                        if (endCallback != null) endCallback.endWait();
                         return;
                     }
 
