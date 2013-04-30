@@ -1,3 +1,14 @@
+/*
+ * Copyright (c) 2010, Jefferson Science Associates
+ *
+ * Thomas Jefferson National Accelerator Facility
+ * Data Acquisition Group
+ *
+ * 12000, Jefferson Ave, Newport News, VA 23606
+ * Phone : (757)-269-7100
+ *
+ */
+
 package org.jlab.coda.emu;
 
 /**
@@ -9,7 +20,7 @@ public class EmuException extends Exception {
 
     /**
      * Constructs a new exception with <code>null</code> as its detail message.
-     * The cause is not initialized, and may subsequently be initialized by a
+     * The cause is not initialized and may subsequently be initialized by a
      * call to {@link #initCause}.
      */
     public EmuException() {
