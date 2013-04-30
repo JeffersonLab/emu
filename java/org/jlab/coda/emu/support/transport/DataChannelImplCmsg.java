@@ -11,8 +11,8 @@
 
 package org.jlab.coda.emu.support.transport;
 
+import org.jlab.coda.emu.EmuEventNotify;
 import org.jlab.coda.emu.support.data.*;
-import org.jlab.coda.emu.support.logger.Logger;
 import org.jlab.coda.emu.Emu;
 import org.jlab.coda.cMsg.*;
 import org.jlab.coda.jevio.*;
@@ -31,19 +31,16 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 
 /**
+ * This class implement a data channel which gets data from
+ * or sends data to a cMsg server.
+ *
  * @author timmer
  * Dec 2, 2009
  */
-public class DataChannelImplCmsg implements DataChannel {
+public class DataChannelImplCmsg extends DataChannelAdapter {
 
     /** Field transport */
-    private final DataTransportImplCmsg dataTransport;
-
-    /** Field name */
-    private final String name;
-
-    /** ID of this channel (corresponds to sourceId of ROCs for CODA event building). */
-    private int id;
+    private final DataTransportImplCmsg dataTransportImplCmsg;
 
     /** Subject of either subscription or outgoing messages. */
     private String subject;
@@ -51,14 +48,8 @@ public class DataChannelImplCmsg implements DataChannel {
     /** Type of either subscription or outgoing messages. */
     private String type;
 
-    /** Field queue - filled buffer queue */
-    private final BlockingQueue<QueueItem> queue;
-
     /** Do we pause the dataThread? */
     private boolean pause;
-
-    /** Byte order of output data (input data's order is specified in msg). */
-    private ByteOrder byteOrder;
 
     /** Enforce evio block header numbers to be sequential? */
     private boolean blockNumberChecking;
@@ -75,18 +66,10 @@ public class DataChannelImplCmsg implements DataChannel {
     /** Got RESET command from Run Control. */
     private volatile boolean gotResetCmd;
 
+    // INPUT
+
     /** cMsg subscription for receiving messages with data. */
     private cMsgSubscriptionHandle sub;
-
-    /** Map of config file attributes. */
-    private Map<String, String> attributeMap;
-
-    /** Is this channel an input (true) or output (false) channel? */
-    private boolean input;
-
-    private Logger logger;
-
-    private Emu emu;
 
     // OUTPUT
 
@@ -177,6 +160,7 @@ public class DataChannelImplCmsg implements DataChannel {
                 eventType   = EventType.getEventType(header4.getEventType());
                 controlType = null;
                 sourceId    = header4.getReserved1();
+
                 // The recordId associated with each bank is taken from the first
                 // evio block header in a single data buffer. For a physics or
                 // ROC raw type, it should start at zero and increase by one in the
@@ -322,26 +306,25 @@ public class DataChannelImplCmsg implements DataChannel {
      * which is only used during PRESTART in the EmuModuleFactory.
      *
      * @param name          the name of this channel
-     * @param dataTransport the DataTransport object that this channel belongs to
+     * @param transport     the DataTransport object that this channel belongs to
      * @param attributeMap  the hashmap of config file attributes for this channel
      * @param input         true if this is an input data channel, otherwise false
      * @param emu           emu this channel belongs to
      *
      * @throws DataTransportException - unable to create buffers or socket.
      */
-    DataChannelImplCmsg(String name, DataTransportImplCmsg dataTransport,
+    DataChannelImplCmsg(String name, DataTransportImplCmsg transport,
                         Map<String, String> attributeMap, boolean input,
                         Emu emu)
             throws DataTransportException {
 
-        this.dataTransport = dataTransport;
-        this.attributeMap  = attributeMap;
-        this.input = input;
-        this.name = name;
-        this.emu = emu;
-        logger = emu.getLogger();
+        // constructor of super class
+        super(name, transport, attributeMap, input, emu);
 
-        // set option whether or not to enforce evio
+        dataTransportImplCmsg = transport;
+
+
+        // Set option whether or not to enforce evio
         // block header numbers to be sequential
         String attribString = attributeMap.get("blockNumCheck");
         if (attribString != null) {
@@ -352,16 +335,6 @@ public class DataChannelImplCmsg implements DataChannel {
             }
         }
 
-        // set queue capacity
-        int capacity = 40;
-        try {
-            capacity = dataTransport.getIntAttr("capacity");
-            if (capacity < 1) capacity = 40;
-        } catch (Exception e) {
-            logger.info("      DataChannelImplCmsg.const : " +  e.getMessage() + ", default to " + capacity + " records.");
-        }
-        queue = new ArrayBlockingQueue<QueueItem>(capacity);
-
         // Set subject & type for either subscription (incoming msgs) or for outgoing msgs.
         // Use any defined in config file else use defaults.
         subject = attributeMap.get("subject");
@@ -370,22 +343,12 @@ public class DataChannelImplCmsg implements DataChannel {
         type = attributeMap.get("type");
         if (type == null) type = "data";
 System.out.println("\n\nDataChannel: subscribe to subject = " + subject + ", type = " + type + "\n\n");
-        
-        // Set id number. Use any defined in config file else use default (0)
-        id = 0;
-        String idVal = attributeMap.get("id");
-        if (idVal != null) {
-            try {
-                id = Integer.parseInt(idVal);
-            }
-            catch (NumberFormatException e) {  }
-        }
 
         if (input) {
             try {
                 // create subscription for receiving messages containing data
                 ReceiveMsgCallback cb = new ReceiveMsgCallback();
-                sub = dataTransport.getCmsgConnection().subscribe(subject, type, cb, null);
+                sub = dataTransportImplCmsg.getCmsgConnection().subscribe(subject, type, cb, null);
             }
             catch (cMsgException e) {
                 logger.info("      DataChannelImplCmsg.const : " + e.getMessage());
@@ -395,17 +358,6 @@ System.out.println("\n\nDataChannel: subscribe to subject = " + subject + ", typ
         else {
             // Tell emu what that output name is for stat reporting
             emu.setOutputDestination("cMsg");
-
-            // set endianness of data
-            byteOrder = ByteOrder.BIG_ENDIAN;
-            try {
-                String order = attributeMap.get("endian");
-                if (order != null && order.equalsIgnoreCase("little")) {
-                    byteOrder = ByteOrder.LITTLE_ENDIAN;
-                }
-            } catch (Exception e) {
-                logger.info("      DataChannelImplCmsg.const : no output data endianness specified, default to big.");
-            }
 
             // How may cMsg message buffer filling threads for each data output thread?
             writeThreadCount = 1;
@@ -432,40 +384,7 @@ System.out.println("\n\nDataChannel: subscribe to subject = " + subject + ", typ
                 catch (NumberFormatException e) {}
             }
 //logger.info("      DataChannel cMsg : output threads = " + outputThreadCount);
-
-
             startOutputHelper();
-        }
-    }
-
-    public String getName() {
-        return name;
-    }
-
-    public int getID() {
-        return id;
-    }
-
-    public boolean isInput() {
-        return input;
-    }
-
-    public DataTransport getDataTransport() {
-        return dataTransport;
-    }
-
-    public QueueItem receive() throws InterruptedException {
-        return queue.take();
-    }
-
-    public void send(QueueItem item) {
-        //queue.add(item);   // throws exception if capacity reached
-        //queue.offer(item); // returns false if capacity reached
-        try {
-            queue.put(item); // blocks if capacity reached
-        }
-        catch (InterruptedException e) {
-            // ignore
         }
     }
 
@@ -492,38 +411,29 @@ System.out.println("\n\nDataChannel: subscribe to subject = " + subject + ", typ
         }
     }
 
-    /**
-     * {@inheritDoc}
-     * Close this channel by unsubscribing from cmsg server and ending the data sending thread.
-     * cMsg.disconnect() is done in the cMsg transport object.
-     */
-    public void closeOrig() {
-        logger.warn("      DataChannelImplCmsg.close : " + name + " - closing this channel");
-//        if (dataThread != null) dataThread.interrupt();
-        try {
-            if (sub != null) {
-                dataTransport.getCmsgConnection().unsubscribe(sub);
-            }
-        } catch (cMsgException e) {
-            // ignore
+    /** {@inheritDoc} */
+    public void go() {
+        if (input) {
+            sub.pause();
         }
-        queue.clear();
+        else {
+            pause = false;
+        }
     }
-
-    // TODO: make close() end things more gracefully with cMsg server
-    /**
-     * {@inheritDoc}
-     * Kill/close this channel by unsubscribing from cmsg server and ending the data sending thread.
-     */
-    public void resetOrig() {
-        close();
-    }
-
-
-
 
     /** {@inheritDoc} */
-    public void close() {
+    public void pause() {
+        if (input) {
+            sub.restart();
+        }
+        else {
+            pause = true;
+        }
+    }
+
+    /** {@inheritDoc} */
+    public void end() {
+
         logger.warn("      DataChannel cMsg close() : " + name + " - closing this channel");
 
         gotEndCmd = true;
@@ -561,17 +471,18 @@ System.out.println("\n\nDataChannel: subscribe to subject = " + subject + ", typ
         // At this point all threads should be done
         if (sub != null) {
             try {
-                dataTransport.getCmsgConnection().unsubscribe(sub);
+                dataTransportImplCmsg.getCmsgConnection().unsubscribe(sub);
             } catch (cMsgException e) {/* ignore */}
         }
 
         queue.clear();
 //System.out.println("      close() is done");
+
+
     }
 
-
     /**
-     * {@inheritDoc}
+     * {@inheritDoc}.
      * Reset this channel by interrupting the message sending threads and unsubscribing.
      */
     public void reset() {
@@ -596,12 +507,30 @@ logger.debug("      DataChannel cMsg reset() : " + name + " - resetting this cha
         // At this point all threads should be done
         if (sub != null) {
             try {
-                dataTransport.getCmsgConnection().unsubscribe(sub);
+                dataTransportImplCmsg.getCmsgConnection().unsubscribe(sub);
             } catch (cMsgException e) {/* ignore */}
         }
 
         queue.clear();
 //logger.debug("      DataChannel cMsg reset() : " + name + " - done");
+    }
+
+
+
+    /**
+     * Start the startOutputHelper thread which takes a bank from
+     * the queue, puts it in a message, and sends it.
+     */
+    public void startOutputHelper() {
+        dataOutputThreads = new DataOutputHelper[outputThreadCount];
+
+        for (int i=0; i < outputThreadCount; i++) {
+            DataOutputHelper helper = new DataOutputHelper(emu.getThreadGroup(),
+                                                           getName() + " data out" + i);
+            dataOutputThreads[i] = helper;
+            dataOutputThreads[i].start();
+            helper.waitUntilStarted();
+        }
     }
 
 
@@ -686,7 +615,7 @@ System.out.println("multithreaded put: array len = " + msgs.length + ", send " +
 
                     // Send all cMsg messages
                     for (cMsgMessage msg : msgs) {
-                        dataTransport.getCmsgConnection().send(msg);
+                        dataTransportImplCmsg.getCmsgConnection().send(msg);
                     }
 
                     // Next one to be put on output channel
@@ -698,7 +627,7 @@ System.out.println("multithreaded put: array len = " + msgs.length + ", send " +
 System.out.println("singlethreaded put: array len = " + msgs.length + ", send " + messages2Write +
  " # of messages to cMsg server");
                 for (cMsgMessage msg : msgs) {
-                    dataTransport.getCmsgConnection().send(msg);
+                    dataTransportImplCmsg.getCmsgConnection().send(msg);
                 }
             }
         }
@@ -736,7 +665,7 @@ System.out.println("singlethreaded put: array len = " + msgs.length + ", send " 
                 }
 
 
-                while ( dataTransport.getCmsgConnection().isConnected() ) {
+                while ( dataTransportImplCmsg.getCmsgConnection().isConnected() ) {
 
                     if (pause) {
                         if (pauseCounter++ % 400 == 0) Thread.sleep(5);
@@ -888,6 +817,7 @@ System.out.println("singlethreaded put: array len = " + msgs.length + ", send " 
                                 if (Evio.isEndEvent(pBank)) {
                                     pBank.setAttachment(Boolean.TRUE);
                                     haveOutputEndEvent = true;
+                                    if (endCallback != null) endCallback.callback(null);
                                     break;
                                 }
 
@@ -977,6 +907,7 @@ System.out.println("singlethreaded put: array len = " + msgs.length + ", send " 
                             if (Evio.isEndEvent(pBank)) {
                                 pBank.setAttachment(Boolean.TRUE);
                                 haveOutputEndEvent = true;
+                                if (endCallback != null) endCallback.callback(null);
                                 break;
                             }
 
@@ -1152,43 +1083,6 @@ System.out.println("Ending");
                 }
             }
         }
-    }
-
-
-    /**
-     * Start the startOutputHelper thread which takes a bank from
-     * the queue, puts it in a message, and sends it.
-     */
-    public void startOutputHelper() {
-        dataOutputThreads = new DataOutputHelper[outputThreadCount];
-
-        for (int i=0; i < outputThreadCount; i++) {
-            DataOutputHelper helper = new DataOutputHelper(emu.getThreadGroup(),
-                                                           getName() + " data out" + i);
-            dataOutputThreads[i] = helper;
-            dataOutputThreads[i].start();
-            helper.waitUntilStarted();
-        }
-    }
-
-    /**
-     * Pause the startOutputHelper thread which takes a bank from
-     * the queue, puts it in a message, and sends it.
-     */
-    public void pauseOutputHelper() {
-        pause = true;
-    }
-
-    /**
-     * Resume the startOutputHelper thread which takes a bank from
-     * the queue, puts it in a message, and sends it.
-     */
-    public void resumeOutputHelper() {
-        pause = false;
-    }
-
-    public BlockingQueue<QueueItem> getQueue() {
-        return queue;
     }
 
 }

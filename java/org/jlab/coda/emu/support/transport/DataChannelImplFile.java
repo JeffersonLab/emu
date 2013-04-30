@@ -12,7 +12,8 @@
 package org.jlab.coda.emu.support.transport;
 
 import org.jlab.coda.emu.Emu;
-import org.jlab.coda.emu.support.codaComponent.CODAState;
+import org.jlab.coda.emu.EmuEventNotify;
+import org.jlab.coda.emu.EmuStateMachineAdapter;
 import org.jlab.coda.emu.support.data.*;
 import org.jlab.coda.emu.support.logger.Logger;
 import org.jlab.coda.jevio.*;
@@ -22,7 +23,6 @@ import java.util.Map;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -33,7 +33,7 @@ import java.util.regex.Pattern;
  * @author timmer
  * @date Nov 10, 2008
  */
-public class DataChannelImplFile implements DataChannel {
+public class DataChannelImplFile extends EmuStateMachineAdapter implements DataChannel {
 
     /** EMU object that created this channel. */
     private Emu emu;
@@ -82,6 +82,9 @@ public class DataChannelImplFile implements DataChannel {
 
     /** Byte order of output data. */
     private ByteOrder byteOrder;
+
+    /** Object used by Emu to be notified of END event arrival. */
+    private EmuEventNotify endCallback;
 
 
 
@@ -356,6 +359,7 @@ logger.info("      DataChannel File: try opening output file of " + fileName);
                 bank.setEventType(EventType.CONTROL);
                 bank.setControlType(ControlType.END);
                 queue.put(new QueueItem(bank, ControlType.END));  // will block
+                if (endCallback != null) endCallback.callback(null);
 
             } catch (InterruptedException e) {
                 // time to quit
@@ -363,7 +367,6 @@ logger.info("      DataChannel File: try opening output file of " + fileName);
 //logger.warn("      DataChannel File (" + name + "): close file");
 //logger.warn("      DataChannel File (" + name + "): exit " + e.getMessage());
                 emu.getCauses().add(e);
-                dataTransport.state = CODAState.ERROR;
             }
 
         }
@@ -413,6 +416,7 @@ logger.info("      DataChannel File: try opening output file of " + fileName);
                         ControlType cType = bank.getControlType();
                         if (cType == ControlType.END) {
                             gotEnd = true;
+                            if (endCallback != null) endCallback.callback(null);
                             logger.info("      DataChannel File (" + name + "): got END, close file " + fileName);
                         }
                         else if (cType == ControlType.PRESTART) {
@@ -463,7 +467,6 @@ logger.warn("      DataChannel File (" + name + "): got event but NO PRESTART, g
             } catch (Exception e) {
 //logger.warn("      DataChannel File (" + name + "): exit, " + e.getMessage());
                 emu.getCauses().add(e);
-                dataTransport.state = CODAState.ERROR;
             }
 
             try { evioFileWriter.close(); }
@@ -499,8 +502,10 @@ logger.warn("      DataChannel File (" + name + "): got event but NO PRESTART, g
     }
 
     /** {@inheritDoc} */
-    public void send(QueueItem data) {
-        queue.add(data);
+    public void send(QueueItem item) throws InterruptedException {
+        queue.put(item);   // blocks if capacity reached
+        //queue.add(item);   // throws exception if capacity reached
+        //queue.offer(item); // returns false if capacity reached
     }
 
     /** {@inheritDoc} */
@@ -523,5 +528,11 @@ logger.warn("      DataChannel File (" + name + "): got event but NO PRESTART, g
     public BlockingQueue<QueueItem> getQueue() {
         return queue;
     }
+
+    public void registerEndCallback(EmuEventNotify callback) {
+        endCallback = callback;
+    };
+
+    public EmuEventNotify getEndCallback() {return endCallback;};
 
 }

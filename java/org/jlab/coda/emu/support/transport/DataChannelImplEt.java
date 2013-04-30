@@ -12,8 +12,8 @@
 package org.jlab.coda.emu.support.transport;
 
 
+import org.jlab.coda.emu.EmuEventNotify;
 import org.jlab.coda.emu.support.data.*;
-import org.jlab.coda.emu.support.logger.Logger;
 import org.jlab.coda.emu.Emu;
 import org.jlab.coda.et.*;
 import org.jlab.coda.et.enums.Mode;
@@ -26,7 +26,6 @@ import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.*;
 import java.nio.ByteBuffer;
-import java.nio.ByteOrder;
 
 /**
  * This class implement a data channel which gets data from
@@ -35,81 +34,16 @@ import java.nio.ByteOrder;
  * @author timmer
  * Dec 2, 2009
  */
-public class DataChannelImplEt implements DataChannel {
+public class DataChannelImplEt extends DataChannelAdapter {
 
-
-    /** EMU object that created this channel. */
-    private Emu emu;
-
-    /** Logger associated with this EMU. */
-    private Logger logger;
-
-    /** Transport object that created this channel. */
-    private final DataTransportImplEt dataTransport;
-
-    /** Channel name */
-    private final String name;
-
-    /** Channel id (corresponds to sourceId of ROCs for CODA event building). */
-    private int id;
-
-    /** Number of writing threads to ask for in copying data from banks to ET events. */
-    private int writeThreadCount;
-
-    /** Number of data output helper threads each of which has a pool of writeThreadCount. */
-    private int outputThreadCount;
-
-    /** Number of data input helper threads. */
-    private int inputThreadCount;
-
-    /** Field queue - filled buffer queue */
-    private final BlockingQueue<QueueItem> queue;
-
-    /** Array of threads used to input data. */
-    private DataInputHelper[] dataInputThreads;
-
-    /** Array of threads used to output data. */
-    private DataOutputHelper[] dataOutputThreads;
-
-    /** Byte order of output data (input data's order is specified in msg). */
-    private ByteOrder byteOrder;
-
-    // OUTPUT
-
-    /** Order number of next array of new ET events (containing
-     *  bank lists) to be put back into ET system. */
-    private int outputOrder;
-    /** Order of array of bank lists (to be put
-     *  into array of ET events) taken off Q. */
-    private int inputOrder;
-    /** Synchronize getting banks off Q for multiple DataOutputHelpers. */
-    private Object lockIn  = new Object();
-    /** Synchronize putting new ET events into ET system for multiple DataOutputHelpers. */
-    private Object lockOut = new Object();
-    /** Place to store a bank off the queue for the next event out. */
-    private PayloadBank firstBankFromQueue;
-
-    // INPUT
-
-    /** Order number of next list of evio banks to be put onto Q. */
-    private int outputOrderIn;
-    /** Order of array of ET events read from the ET system. */
-    private int inputOrderIn;
-    /** Synchronize getting ET events for multiple DataInputHelpers. */
-    private Object lockIn2  = new Object();
-    /** Synchronize putting evio banks onto Q for multiple DataInputHelpers. */
-    private Object lockOut2 = new Object();
-
-    // ----
+    /** Data transport subclass object for Et. */
+    private DataTransportImplEt dataTransportImplEt;
 
     /** Use the evio block header's block number as a record id. */
     private int recordId;
 
     /** Do we pause the dataThread? */
     private volatile boolean pause;
-
-    /** Is this channel an input (true) or output (false) channel? */
-    private boolean input;
 
     /** Read END event from input queue. */
     private volatile boolean haveInputEndEvent;
@@ -123,6 +57,53 @@ public class DataChannelImplEt implements DataChannel {
     /** Got RESET command from Run Control. */
     private volatile boolean gotResetCmd;
 
+    // OUTPUT
+
+    /** Number of writing threads to ask for when copying data from banks to ET events. */
+    private int writeThreadCount;
+
+    /** Number of data output helper threads each of which has a pool of writeThreadCount. */
+    private int outputThreadCount;
+
+    /** Array of threads used to output data. */
+    private DataOutputHelper[] dataOutputThreads;
+
+    /** Order number of next array of new ET events (containing
+     *  bank lists) to be put back into ET system. */
+    private int outputOrder;
+
+    /** Order of array of bank lists (to be put
+     *  into array of ET events) taken off Q. */
+    private int inputOrder;
+
+    /** Synchronize getting banks off Q for multiple DataOutputHelpers. */
+    private Object lockIn  = new Object();
+
+    /** Synchronize putting new ET events into ET system for multiple DataOutputHelpers. */
+    private Object lockOut = new Object();
+
+    /** Place to store a bank off the queue for the next event out. */
+    private PayloadBank firstBankFromQueue;
+
+    // INPUT
+
+    /** Number of data input helper threads. */
+    private int inputThreadCount;
+
+    /** Array of threads used to input data. */
+    private DataInputHelper[] dataInputThreads;
+
+    /** Order number of next list of evio banks to be put onto Q. */
+    private int outputOrderIn;
+
+    /** Order of array of ET events read from the ET system. */
+    private int inputOrderIn;
+
+    /** Synchronize getting ET events for multiple DataInputHelpers. */
+    private Object lockIn2  = new Object();
+
+    /** Synchronize putting evio banks onto Q for multiple DataInputHelpers. */
+    private Object lockOut2 = new Object();
 
     //-------------------------------------------
     // ET Stuff
@@ -161,51 +142,31 @@ public class DataChannelImplEt implements DataChannel {
     /**
      * Constructor to create a new DataChannelImplEt instance.
      * Used only by {@link DataTransportImplEt#createChannel(String, java.util.Map, boolean, org.jlab.coda.emu.Emu)}
-     * which is only used during PRESTART in {@link org.jlab.coda.emu.EmuModuleFactory}.
+     * which is only used during PRESTART in {@link org.jlab.coda.emu.Emu}.
      *
-     * @param name        the name of this channel
-     * @param transport   the DataTransport object that this channel belongs to
-     * @param attrib      the hashmap of config file attributes for this channel
-     * @param input       true if this is an input data channel, otherwise false
-     * @param emu         emu this channel belongs to
+     * @param name         the name of this channel
+     * @param transport    the DataTransport object that this channel belongs to
+     * @param attributeMap the hashmap of config file attributes for this channel
+     * @param input        true if this is an input data channel, otherwise false
+     * @param emu          emu this channel belongs to
      *
      * @throws DataTransportException - unable to create buffers or socket.
      */
     DataChannelImplEt(String name, DataTransportImplEt transport,
-                      Map<String, String> attrib, boolean input,
+                      Map<String, String> attributeMap, boolean input,
                       Emu emu)
             throws DataTransportException {
 
-        this.emu = emu;
-        this.name = name;
-        this.input = input;
-        this.dataTransport = transport;
-        logger = emu.getLogger();
+        // constructor of super class
+        super(name, transport, attributeMap, input, emu);
+
+        dataTransportImplEt = transport;
 
 logger.info("      DataChannel Et : creating channel " + name);
 
-        // set queue capacity
-        int capacity = 100;    // 100 buffers * 100 events/buf * 220 bytes/Roc/ev =  2.2Mb/Roc
-        try {
-            capacity = dataTransport.getIntAttr("capacity");
-        } catch (Exception e) {
-        }
-        queue = new LinkedBlockingQueue<QueueItem>(capacity);
-
-
-        // Set id number. Use any defined in config file else use default (0)
-        id = 0;
-        String attribString = attrib.get("id");
-        if (attribString != null) {
-            try {
-                id = Integer.parseInt(attribString);
-            }
-            catch (NumberFormatException e) {  }
-        }
-
         // size of TCP send buffer (0 means use operating system default)
         int tcpSendBuf = 0;
-        attribString = attrib.get("sendBuf");
+        String attribString = attributeMap.get("sendBuf");
         if (attribString != null) {
             try {
                 tcpSendBuf = Integer.parseInt(attribString);
@@ -218,7 +179,7 @@ logger.info("      DataChannel Et : creating channel " + name);
 
         // size of TCP receive buffer (0 means use operating system default)
         int tcpRecvBuf = 0;
-        attribString = attrib.get("recvBuf");
+        attribString = attributeMap.get("recvBuf");
         if (attribString != null) {
             try {
                 tcpRecvBuf = Integer.parseInt(attribString);
@@ -231,7 +192,7 @@ logger.info("      DataChannel Et : creating channel " + name);
 
         // set TCP_NODELAY option on
         boolean noDelay = false;
-        attribString = attrib.get("noDelay");
+        attribString = attributeMap.get("noDelay");
         if (attribString != null) {
             if (attribString.equalsIgnoreCase("true") ||
                 attribString.equalsIgnoreCase("on")   ||
@@ -243,7 +204,7 @@ logger.info("      DataChannel Et : creating channel " + name);
         // create ET system object & info
         try {
             // copy transport's config
-            EtSystemOpenConfig openConfig = new EtSystemOpenConfig(dataTransport.getOpenConfig());
+            EtSystemOpenConfig openConfig = new EtSystemOpenConfig(dataTransportImplEt.getOpenConfig());
             // set TCP options specific to this client only
             openConfig.setTcpRecvBufSize(tcpRecvBuf);
             openConfig.setTcpSendBufSize(tcpSendBuf);
@@ -257,7 +218,7 @@ logger.info("      DataChannel Et : creating channel " + name);
 
         // How may Et buffer filling threads for each data output thread?
         writeThreadCount = 2;
-        attribString = attrib.get("wthreads");
+        attribString = attributeMap.get("wthreads");
         if (attribString != null) {
             try {
                 writeThreadCount = Integer.parseInt(attribString);
@@ -270,7 +231,7 @@ logger.info("      DataChannel Et : creating channel " + name);
 
         // How may data reading threads?
         inputThreadCount = 3;
-        attribString = attrib.get("ithreads");
+        attribString = attributeMap.get("ithreads");
         if (attribString != null) {
             try {
                 inputThreadCount = Integer.parseInt(attribString);
@@ -283,7 +244,7 @@ logger.info("      DataChannel Et : creating channel " + name);
 
         // How may data writing threads?
         outputThreadCount = 1;
-        attribString = attrib.get("othreads");
+        attribString = attributeMap.get("othreads");
         if (attribString != null) {
             try {
                 outputThreadCount = Integer.parseInt(attribString);
@@ -296,7 +257,7 @@ logger.info("      DataChannel Et : creating channel " + name);
 
         // How may buffers do we grab at a time?
         chunk = 100;
-        attribString = attrib.get("chunk");
+        attribString = attributeMap.get("chunk");
         if (attribString != null) {
             try {
                 chunk = Integer.parseInt(attribString);
@@ -308,7 +269,7 @@ logger.info("      DataChannel Et : creating channel " + name);
 
         // From which group do we grab new events? (default = 1)
         group = 1;
-        attribString = attrib.get("group");
+        attribString = attributeMap.get("group");
         if (attribString != null) {
             try {
                 group = Integer.parseInt(attribString);
@@ -322,12 +283,12 @@ logger.info("      DataChannel Et : creating channel " + name);
 
         // Set station name. Use any defined in config file else use
         // "station"+id for input and "GRAND_CENTRAL" for output.
-        stationName = attrib.get("stationName");
+        stationName = attributeMap.get("stationName");
 //logger.info("      DataChannel Et : station name = " + stationName);
 
 
         // Set station position. Use any defined in config file else use default (1)
-        attribString = attrib.get("position");
+        attribString = attributeMap.get("position");
         if (attribString != null) {
             try {
                 stationPosition = Integer.parseInt(attribString);
@@ -347,7 +308,7 @@ logger.info("      DataChannel Et : creating channel " + name);
                 }
                 catch (EtException e) { /* never happen */}
 
-                String filter = attrib.get("idFilter");
+                String filter = attributeMap.get("idFilter");
                 if (filter != null && filter.equalsIgnoreCase("on")) {
                     // Create filter for station so only events from a particular ROC
                     // (id as defined in config file) make it in.
@@ -372,17 +333,6 @@ logger.info("      DataChannel Et : creating channel " + name);
             // Tell emu what that output name is for stat reporting
             emu.setOutputDestination(transport.getOpenConfig().getEtName());
 
-            // set endianness of data
-            byteOrder = ByteOrder.BIG_ENDIAN;
-            try {
-                String order = attrib.get("endian");
-                if (order != null && order.equalsIgnoreCase("little")) {
-                    byteOrder = ByteOrder.LITTLE_ENDIAN;
-                }
-            } catch (Exception e) {
-                logger.info("      DataChannel Et : no output data endianness specified, default to big.");
-            }
-
             if (stationName == null) {
                 stationName = "GRAND_CENTRAL";
             }
@@ -398,33 +348,13 @@ logger.info("      DataChannel Et : creating channel " + name);
                  }
                 catch (Exception e) {/* never happen */}
             }
-       }
+        }
 
-        // start up thread to help with input or output
         openEtSystem();
+        // Start up threads to help with input or output
         startHelper();
     }
 
-
-    /** {@inheritDoc} */
-    public String getName() {
-        return name;
-    }
-
-    /** {@inheritDoc} */
-    public int getID() {
-        return id;
-    }
-
-    /** {@inheritDoc} */
-    public boolean isInput() {
-        return input;
-    }
-
-    /** {@inheritDoc} */
-    public DataTransportImplEt getDataTransport() {
-        return dataTransport;
-    }
 
     /**
      * Get the ET sytem object.                                                                         , e
@@ -432,7 +362,7 @@ logger.info("      DataChannel Et : creating channel " + name);
      */
     public void openEtSystem() throws DataTransportException {
         try {
-//System.out.println("      DataChannel Et: try to open" + dataTransport.getOpenConfig().getEtName() );
+//System.out.println("      DataChannel Et: try to open" + dataTransportImplEt.getOpenConfig().getEtName() );
             etSystem.open();
         }
         catch (Exception e) {
@@ -482,23 +412,40 @@ logger.info("      DataChannel Et : creating channel " + name);
         }
     }
 
-    /** {@inheritDoc} */
-    public QueueItem receive() throws InterruptedException {
-        return queue.take();
-    }
 
-    /** {@inheritDoc} */
-    public void send(QueueItem item) {
+    private void closeEtSystem() throws DataTransportException {
         try {
-            queue.put(item);   // blocks if capacity reached
-            //queue.add(item);   // throws exception if capacity reached
-            //queue.offer(item); // returns false if capacity reached
+System.out.println("closeEtSystem: detach from station " + attachment.getStation().getName());
+            etSystem.detach(attachment);
         }
-        catch (InterruptedException e) {/* ignore */}
+        catch (Exception e) {
+            // Might be detached already or cannot communicate with ET
+        }
+
+        try {
+            if (!stationName.equals("GRAND_CENTRAL")) {
+System.out.println("closeEtSystem: remove station " + stationName);
+                etSystem.removeStation(station);
+            }
+        }
+        catch (Exception e) {
+            // Station may not exist, may still have attachments, or
+            // cannot communicate with ET
+        }
+
+System.out.println("closeEtSystem: close ET connection");
+        etSystem.close();
     }
 
+
     /** {@inheritDoc} */
-    public void close() {
+    public void go() {pause = false;}
+
+    /** {@inheritDoc} */
+    public void pause() {pause = true;}
+
+    /** {@inheritDoc}. Formerly this code was the close() method. */
+    public void end() {
         logger.warn("      DataChannel Et close() : " + name + " - closing this channel (close ET system)");
 
         gotEndCmd = true;
@@ -547,17 +494,15 @@ logger.info("      DataChannel Et : creating channel " + name);
 
         // At this point all threads should be done
         try {
-            etSystem.detach(attachment);
-            if (!stationName.equals("GRAND_CENTRAL")) {
-                etSystem.removeStation(station);
-            }
-            etSystem.close();
+            closeEtSystem();
         }
-        catch (Exception e) {
+        catch (DataTransportException e) {
             e.printStackTrace();
         }
+
         queue.clear();
-//System.out.println("      close() is done");
+System.out.println("      close() is done");
+
     }
 
 
@@ -578,8 +523,8 @@ logger.debug("      DataChannel Et reset() : " + name + " channel, in threads = 
                 dataInputThreads[i].interrupt();
                 // Make sure the thread is done, otherwise you risk
                 // killing the ET system while a getEvents() call is
-                // still in progress which may give you a seg fault
-                // in the JNI code. Give it 25% more time than the wait.
+                // still in progress (with et-14.0 this is OK).
+                // Give it 25% more time than the wait.
                 try {dataInputThreads[i].join(400);}  // 625
                 catch (InterruptedException e) {}
 //System.out.println("        input thread done");
@@ -593,8 +538,8 @@ logger.debug("      DataChannel Et reset() : " + name + " channel, in threads = 
                 dataOutputThreads[i].shutdown();
                 // Make sure all threads are done, otherwise you risk
                 // killing the ET system while a new/put/dumpEvents() call
-                // is still in progress which may give you a seg fault
-                // in the JNI code. Give it 25% more time than the wait.
+                // is still in progress (with et-14.0 this is OK).
+                // Give it 25% more time than the wait.
                 try {dataOutputThreads[i].join(1000);}
                 catch (InterruptedException e) {}
 //System.out.println("        output thread done");
@@ -603,21 +548,49 @@ logger.debug("      DataChannel Et reset() : " + name + " channel, in threads = 
 
         // At this point all threads should be done
         try {
-            etSystem.detach(attachment);
-System.out.println("        " + attachment.getId() + "in, detached from ET");
-            if (!stationName.equals("GRAND_CENTRAL")) {
-//System.out.println("        remove " + station.getName() + " station");
-                etSystem.removeStation(station);
-            }
-            etSystem.close();
+            closeEtSystem();
         }
-        catch (Exception e) {
+        catch (DataTransportException e) {
             e.printStackTrace();
         }
 
         queue.clear();
 logger.debug("      DataChannel Et reset() : " + name + " - done");
     }
+
+
+
+    /**
+      * For input channel, start the DataInputHelper thread which takes ET events,
+      * parses each, puts the events back into the ET system, and puts the parsed
+      * evio banks onto the queue.<p>
+      * For output channel, start the DataOutputHelper thread which takes a bank from
+      * the queue, puts it into a new ET event and puts that into the ET system.
+      */
+     public void startHelper() {
+         if (input) {
+             dataInputThreads = new DataInputHelper[inputThreadCount];
+
+             for (int i=0; i < inputThreadCount; i++) {
+                 DataInputHelper helper = new DataInputHelper(emu.getThreadGroup(),
+                                                  getName() + " data in" + i);
+                 dataInputThreads[i] = helper;
+                 dataInputThreads[i].start();
+                 helper.waitUntilStarted();
+             }
+         }
+         else {
+             dataOutputThreads = new DataOutputHelper[outputThreadCount];
+
+             for (int i=0; i < outputThreadCount; i++) {
+                 DataOutputHelper helper = new DataOutputHelper(emu.getThreadGroup(),
+                                                                getName() + " data out" + i);
+                 dataOutputThreads[i] = helper;
+                 dataOutputThreads[i].start();
+                 helper.waitUntilStarted();
+             }
+         }
+     }
 
 
 
@@ -818,6 +791,8 @@ System.out.println("      DataChannel Et in helper: " + name + " got RESET cmd, 
                                     // thread down.
 logger.info("      DataChannel Et in helper: found END event");
                                     haveInputEndEvent = true;
+                                    // run callback saying we got end event
+                                    if (endCallback != null) endCallback.callback(null);
                                     break;
                                 }
                             }
@@ -924,11 +899,7 @@ logger.info("      DataChannel Et in helper: have END, " + name + " quit thd");
                 // It may take 0.2 sec to detach
                 Thread.sleep(250);
             }
-            catch (InterruptedException e) {
-            }
-            catch (IOException e) {
-            }
-            catch (EtException e) {
+            catch (Exception e) {
             }
 
             // May be blocked on getBarrier.await(), unblock it
@@ -1201,6 +1172,8 @@ System.out.println("      DataChannel Et out helper: " + name + " some thd got E
                                     pBank.setAttachment(Boolean.TRUE);
                                     haveOutputEndEvent = true;
 System.out.println("      DataChannel Et out helper: " + name + " I got END event, quitting 2");
+                                    // run callback saying we got end event
+                                    if (endCallback != null) endCallback.callback(null);
                                     break;
                                 }
 
@@ -1284,6 +1257,7 @@ System.out.println("      DataChannel Et out helper: " + name + " got RESET cmd,
                                 pBank.setAttachment(Boolean.TRUE);
                                 haveOutputEndEvent = true;
 System.out.println("      DataChannel Et out helper: " + name + " I got END event, quitting 3");
+                                if (endCallback != null) endCallback.callback(null);
                                 break;
                             }
 
@@ -1540,53 +1514,6 @@ System.out.println(e.getMessage());
 
     }
 
-
-    /**
-     * For input channel, start the DataInputHelper thread which takes ET events,
-     * parses each, puts the events back into the ET system, and puts the parsed
-     * evio banks onto the queue.<p>
-     * For output channel, start the DataOutputHelper thread which takes a bank from
-     * the queue, puts it into a new ET event and puts that into the ET system.
-     */
-    public void startHelper() {
-        if (input) {
-            dataInputThreads = new DataInputHelper[inputThreadCount];
-
-            for (int i=0; i < inputThreadCount; i++) {
-                DataInputHelper helper = new DataInputHelper(emu.getThreadGroup(),
-                                                 getName() + " data in" + i);
-                dataInputThreads[i] = helper;
-                dataInputThreads[i].start();
-                helper.waitUntilStarted();
-            }
-        }
-        else {
-            dataOutputThreads = new DataOutputHelper[outputThreadCount];
-
-            for (int i=0; i < outputThreadCount; i++) {
-                DataOutputHelper helper = new DataOutputHelper(emu.getThreadGroup(),
-                                                               getName() + " data out" + i);
-                dataOutputThreads[i] = helper;
-                dataOutputThreads[i].start();
-                helper.waitUntilStarted();
-            }
-        }
-    }
-
-    /** Pause the DataInputHelper or DataOutputHelper thread. */
-    public void pauseHelper() {
-        pause = true;
-    }
-
-    /** Resume running the DataInputHelper or DataOutputHelper thread. */
-    public void resumeHelper() {
-        pause = false;
-    }
-
-    /** {@inheritDoc} */
-    public BlockingQueue<QueueItem> getQueue() {
-        return queue;
-    }
 
 
 }
