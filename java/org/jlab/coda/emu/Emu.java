@@ -14,27 +14,37 @@ package org.jlab.coda.emu;
 import org.jlab.coda.cMsg.cMsgException;
 import org.jlab.coda.cMsg.cMsgPayloadItem;
 import org.jlab.coda.cMsg.cMsgMessage;
+
+import org.jlab.coda.emu.modules.EventBuilding;
+import org.jlab.coda.emu.modules.EventRecording;
+import org.jlab.coda.emu.modules.RocSimulation;
+
 import org.jlab.coda.emu.support.codaComponent.*;
 import org.jlab.coda.emu.support.configurer.Configurer;
 import org.jlab.coda.emu.support.configurer.DataNotFoundException;
 import org.jlab.coda.emu.support.control.CmdExecException;
 import org.jlab.coda.emu.support.control.Command;
-
-import static org.jlab.coda.emu.support.codaComponent.CODACommand.*;
-
 import org.jlab.coda.emu.support.control.State;
 import org.jlab.coda.emu.support.logger.Logger;
 import org.jlab.coda.emu.support.messaging.CMSGPortal;
 import org.jlab.coda.emu.support.messaging.RCConstants;
+import org.jlab.coda.emu.support.transport.*;
 import org.jlab.coda.emu.support.ui.DebugFrame;
+
+import static org.jlab.coda.emu.support.codaComponent.CODACommand.*;
+import static org.jlab.coda.emu.support.codaComponent.CODAState.BOOTED;
+import static org.jlab.coda.emu.support.codaComponent.CODAState.CONFIGURED;
+import static org.jlab.coda.emu.support.codaComponent.CODAState.ERROR;
+
 import org.w3c.dom.Document;
 import org.w3c.dom.NamedNodeMap;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
 
 import java.io.File;
+import java.lang.reflect.Constructor;
 import java.net.InetAddress;
-import java.util.Vector;
+import java.util.*;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 
@@ -57,13 +67,6 @@ public class Emu implements CODAComponent {
 
     /** The Emu starts all of it's threads in one thread group. */
     private final ThreadGroup threadGroup;
-
-    /**
-     * Most of the data manipulation in the Emu is done by plug-in modules.
-     * The modules are specified in an XML configuration file and managed
-     * by an object of the EmuModuleFactory class.
-     */
-    private final EmuModuleFactory moduleFactory;
 
     /** Name of the Emu, initially "booted". */
     private String name = "booted";
@@ -169,6 +172,58 @@ public class Emu implements CODAComponent {
     private String installDir;
 
 
+    /**
+     * This object is a Vector and thus is synchronized for insertions and deletions.
+     * This vector is only modified in the
+     * {@link #execute(org.jlab.coda.emu.support.control.Command)} method and then only by
+     * the main EMU thread. However, it is possible that other threads (such as the EMU's
+     * statistics reporting thread) may call methods which use its iterator
+     * ({@link #check()}, {@link #state()}, {@link #findModule(String)},
+     * and {@link #getStatisticsModule()}) and therefore need to be synchronized.
+     */
+    private final Vector<EmuModule> modules = new Vector<EmuModule>(10);
+
+    private EmuDataPath dataPath;
+
+    /** State of the emu. */
+    private volatile State state = BOOTED;
+
+    /** What was this emu's previous state? Useful when doing RESET transition. */
+    State previousState = BOOTED;
+
+
+    /** Vector containing all DataTransport objects. */
+    private final Vector<DataTransport> transports = new Vector<DataTransport>();
+
+
+    /**
+     * The Fifo transport object is special and is handled separately
+     * from the other transports.
+     */
+    private DataTransportImplFifo fifoTransport;
+
+//     // Create 1 fifo data transport to allow communication between Emus seamlessly.
+//    static {
+//        try {
+//            HashMap<String, String> attrs = new HashMap<String, String>();
+//            attrs.put("class", "Fifo");
+//            attrs.put("server", "false");
+//            fifoTransport = new DataTransportImplFifo("Fifo", attrs, null);
+//        }
+//        catch (DataNotFoundException e) {/* never happen */ }
+//    }
+
+
+    /** List of input channels. */
+    protected final LinkedList<DataChannel> inChannels = new LinkedList<DataChannel>();
+
+    /** List of output channels. */
+    protected final LinkedList<DataChannel> outChannels = new LinkedList<DataChannel>();
+
+    /** List of Fifo (input & output) channels. */
+    protected final LinkedList<DataChannel> fifoChannels = new LinkedList<DataChannel>();
+
+
 
     /** Exit this Emu and the whole JVM. */ // TODO: only quit EMU threads?
     void quit() {
@@ -185,7 +240,7 @@ public class Emu implements CODAComponent {
 
     /** This method sends the loaded XML configuration to the logger. */
     public void list() {
-        if (moduleFactory.state() != CODAState.BOOTED) {
+        if (state() != CODAState.BOOTED) {
             logger.info("Dump of configuration", Configurer.serialize(loadedConfig));
         }
         else logger.warn("cannot list configuration, not configured");
@@ -216,11 +271,117 @@ public class Emu implements CODAComponent {
     }
 
     /**
+     * Get the data path object that directs how the run control
+     * commands are distributed among the EMU parts.
+     *
+     * @return the data path object
+     */
+    EmuDataPath getDataPath() {
+        return dataPath;
+    }
+
+
+    /**
+     * Set the data path object that directs how the run control
+     * commands are distributed among the EMU parts.
+     *
+     * @param dataPath the data path object
+     */
+    void setDataPath(EmuDataPath dataPath) {
+        this.dataPath = dataPath;
+    }
+
+    /**
+     * This method returns the previous state of the modules in this EMU.
+     * If the EMU has not undergone any transitions yet, it returns null.
+     *
+     * @return state before last transition
+     * @return null if no transitions undergone yet
+     */
+    public State previousState() {
+        return previousState;
+    }
+
+    /**
      * {@inheritDoc}
-     * This method actually returns the state of the modules in this EMU.
+     * This method checks that all of the modules created by this
+     * factory "agree" on the state and returns that state or the
+     * ERROR state.
+     *
+     * @return the state of the emu
+     * @see EmuModule#state()
      */
     public State state() {
-        return moduleFactory.state();
+
+        boolean debug = false;
+
+        if (state == ERROR) {
+            if (debug) System.out.println("Emu.state(): in error");
+            return state;
+        }
+
+        if (modules.size() == 0) {
+            if (debug) System.out.println("Emu.state(): no modules, state = " + state);
+            return state;
+        }
+
+        synchronized(modules) {
+            for (StatedObject module : modules) {
+                if (debug) System.out.println("Emu.state(): module" + module.name() + " is in state " + module.state());
+                if (module.state() == ERROR) {
+                    if (debug) System.out.println("Emu.state(): module in error state, " + module.name());
+                    state = ERROR;
+                }
+            }
+        }
+
+        if (debug) System.out.println("Emu.state(): state = " + state);
+
+        return state;
+    }
+
+    /** This method sets the emu state to ERROR. */
+    public void ERROR() {
+        state = ERROR;
+    }
+
+    /**
+     * This method returns the state of each module in a vector.
+     *
+     * @return vector of State objects - each one the state of a module
+     */
+    public Vector<State> check() {
+        Vector<State> sv = new Vector<State>();
+
+        synchronized(modules) {
+            for (EmuModule module : modules) {
+                sv.add(module.state());
+            }
+        }
+
+        return sv;
+    }
+
+    /**
+     * Get the module from which we gather statistics.
+     * Used to report statistics to Run Control.
+     *
+     * @return the module from which statistics are gathered.
+     */
+    EmuModule getStatisticsModule() {
+        synchronized(modules) {
+            if (modules.size() < 1) return null;
+
+            // Return first module that says its statistics represents EMU statistics
+            for (EmuModule module : modules) {
+                if (module.representsEmuStatistics()) {
+                    return module;
+                }
+            }
+
+            // If no modules claim to speak for EMU, choose last module in config file
+            return modules.lastElement();
+        }
     }
 
     /**
@@ -406,14 +567,14 @@ public class Emu implements CODAComponent {
                    (cmsgPortal.getServer() != null) &&
                    (cmsgPortal.getServer().isConnected())) {
                     
-                    String state = moduleFactory.state().name().toLowerCase();
+                    String state = state().name().toLowerCase();
 
                     // clear stats
                     long  eventCount=0L, wordCount=0L;
                     float eventRate=0.F, wordRate=0.F;
 
                     // get new statistics from a single representative module
-                    EmuModule statsModule = moduleFactory.getStatisticsModule();
+                    EmuModule statsModule = getStatisticsModule();
                     if (statsModule != null) {
                         Object[] stats = statsModule.getStatistics();
                         if (stats != null) {
@@ -513,11 +674,17 @@ System.out.println("Emu created, name = " + name + ", type = " + codaClass);
         logger = new Logger();
         Configurer.setLogger(logger);
 
+        // Create the FIFO transport object
+        HashMap<String, String> attrs = new HashMap<String, String>();
+        attrs.put("class", "Fifo");
+        attrs.put("server", "false");
+        try {
+            fifoTransport = new DataTransportImplFifo("Fifo", attrs, null);
+        }
+        catch (DataNotFoundException e) {/* never happen */}
+
         // Define thread group so all threads can be handled together
         threadGroup = new ThreadGroup(name);
-
-        // Create object which manages all modules
-        moduleFactory = new EmuModuleFactory(this);
 
         // Start up a GUI to control the EMU
         if (debugUI) {
@@ -635,7 +802,7 @@ System.out.println("Emu created, name = " + name + ", type = " + codaClass);
                     // If modules are not loaded then our state is either
                     // booted, configured, or error.
 
-                    state = moduleFactory.state();
+                    state = state();
 
                     if ((state != null) && (state != oldState)) {
 System.out.println("Emu: state changed to " + state.name());
@@ -687,13 +854,106 @@ System.out.println("Emu: state changed to " + state.name());
 System.out.println("START EXECUTING RESET");
         // Stop any more run control commands from being executed
         stopExecutingCmds = true;
+
         // Clear out any existing, unexecuted commands
         mailbox.clear();
-        // RESET is passed down to the modules & transports
-        moduleFactory.reset();
+
+        // Reset channels first
+        if (inChannels.size() > 0) {
+            for (DataChannel chan : inChannels) {
+logger.info("Emu.reset(): reset to in chan " + chan.getName());
+                chan.reset();
+            }
+        }
+
+        if (outChannels.size() > 0) {
+            for (DataChannel chan : outChannels) {
+logger.info("Emu.reset(): reset to out chan " + chan.getName());
+                chan.reset();
+            }
+        }
+
+        // Reset transport objects
+        for (DataTransport t : transports) {
+logger.debug("  Emu.reset(): reset transport " + t.name());
+            t.reset();
+        }
+
+        // reset Fifos
+        fifoTransport.reset();
+
+        // No transports/channels left
+        transports.clear();
+        inChannels.clear();
+        outChannels.clear();
+        fifoChannels.clear();
+
+        // Reset all modules
+        for (EmuModule module : modules) {
+logger.debug("  Emu.reset(): reset modules " + module.name());
+            module.reset();
+        }
+
+        // Set state
+        if (previousState == ERROR || previousState == BOOTED) {
+            state = BOOTED;
+        }
+        else {
+            state = CONFIGURED;
+        }
+logger.info("Emu.reset(): done, setting state to " + state);
+
+        getCauses().clear();
+
         // Allow run control commands to be executed once again
         stopExecutingCmds = false;
-System.out.println("DONE EXECUTING RESET");
+    }
+
+
+
+    /**
+     * This method finds the DataTransport object corresponding to the given name.
+     *
+     * @param name name of transport object
+     * @return DataTransport object corresponding to given name
+     * @throws DataNotFoundException when no transport object of that name can be found
+     */
+    public DataTransport findNamedTransport(String name) throws DataNotFoundException {
+        DataTransport t;
+
+        // first look in non-fifo transports
+        if (!transports.isEmpty()) {
+            for (DataTransport transport : transports) {
+                t = transport;
+                if (t.name().equals(name)) return t;
+            }
+        }
+
+        // now look at fifo transport
+        if (fifoTransport.name().equals(name)) {
+            return fifoTransport;
+        }
+
+        throw new DataNotFoundException("Data Transport not found");
+    }
+
+
+
+    /**
+     * This method locates a module given it's name.
+     *
+     * @param name of module
+     * @return EmuModule object
+     */
+    public EmuModule findModule(String name) {
+        synchronized(modules) {
+            for (EmuModule module : modules) {
+                if (module.name().equals(name)) {
+                    return module;
+                }
+            }
+        }
+        return null;
     }
 
 
@@ -701,10 +961,9 @@ System.out.println("DONE EXECUTING RESET");
      * This method takes a Command object and attempts to execute it.
      *
      * @param cmd of type Command
-     * @see EmuModule#execute(org.jlab.coda.emu.support.control.Command)
      */
     synchronized void execute(Command cmd) {
-//System.out.println("EXECUTING cmd = " + cmd.name());
+System.out.println("Emu: executing cmd = " + cmd.name());
 
         CODACommand codaCommand = cmd.getCodaCommand();
 
@@ -717,7 +976,7 @@ System.out.println("DONE EXECUTING RESET");
 
         // save the current state if attempting a transition
         if (codaCommand.isTransition()) {
-            moduleFactory.previousState = moduleFactory.state();
+            previousState = state();
         }
 
 
@@ -736,7 +995,7 @@ System.out.println("DONE EXECUTING RESET");
             // get the new session and store it
             String txt = cmd.getMessage().getText();
             if (txt != null) {
-//System.out.println("SET Session to " + txt);
+System.out.println("SET Session to " + txt);
                 session = txt;
             }
             else {
@@ -759,7 +1018,7 @@ System.out.println("DONE EXECUTING RESET");
                     msg = rcMsg.response();
                 }
                 catch (cMsgException e) {/* never happen */}
-                String state = moduleFactory.state().name().toLowerCase();
+                String state = state().name().toLowerCase();
 //System.out.println("     send STATE text field = " + state);
                 msg.setText(state);
                 try {
@@ -814,33 +1073,10 @@ System.out.println("DONE EXECUTING RESET");
         }
 
 
-        if (codaCommand == PRESTART) {
-            // Run Control tells us our run number & runType.
-            // Get and store them.
-            cMsgMessage msg = cmd.getMessage();
-            cMsgPayloadItem pItem;
-
-            if (msg != null) {
-                try {
-                    // Should have run number
-                    pItem = cmd.getArg(RCConstants.prestartPayloadRunNumber);
-                    if (pItem != null) {
-                        setRunNumber(pItem.getInt());
-                    }
-
-//                    // Should have run type
-//                    pItem = cmd.getArg(RCConstants.prestartPayloadRunType);
-//                    if (pItem != null) {
-//                        setRunType(pItem.getInt());
-//                    }
-                }
-                catch (cMsgException e) {/* never happen */}
-            }
-        }
         // When we are told to CONFIGURE, the EMU handles this even though
         // this command is still passed on down to the modules. Read the
         // (if any) config file and update debug GUI.
-        else if (codaCommand == CONFIGURE) {
+        if (codaCommand == CONFIGURE) {
             // save a reference to any previously used config
             Document oldConfig = loadedConfig;
             boolean newConfigLoaded = false;
@@ -959,7 +1195,7 @@ System.out.println("Emu configure: loading file " + rcConfigFile);
 logger.error("Emu: CONFIGURE failed", e.getMessage());
                 //e.printStackTrace();
                 causes.add(e);
-                moduleFactory.ERROR();
+                ERROR();
                 return;
             }
             finally {
@@ -1034,8 +1270,8 @@ System.out.println("Got config type = " + myClass + ", I was " + codaClass);
                                 codaClass != myClass) {
 
                                 causes.add(new EmuException("Conflicting CODA types: rc says " +
-                                                             myClass + ", emu cmd line has " + codaClass));
-                                moduleFactory.ERROR();
+                                                                    myClass + ", emu cmd line has " + codaClass));
+                                state = ERROR;
                                 lastConfigHadError = true;
                                 return;
                             }
@@ -1046,7 +1282,7 @@ System.out.println("Got config type = " + myClass + ", I was " + codaClass);
                     // Now, on to the modules.
                     // We find the data paths by finding the modules
                     // which have at least one non-fifo input channel.
-                    EmuDataPath dataPath = null;
+                    dataPath = null;
                     int moduleCount = 0, usedModules = 0;
                     int inputFifoCount = 0,  inputChannelCount = 0,
                         outputFifoCount = 0, outputChannelCount = 0;
@@ -1060,6 +1296,8 @@ System.out.println("Got config type = " + myClass + ", I was " + codaClass);
                     }
 
                     int dataPathCount = 0;
+
+                    // List of modules
                     NodeList childList = modulesConfig.getChildNodes();
 
                     // Look through all modules ...
@@ -1133,12 +1371,12 @@ System.out.println("Got config type = " + myClass + ", I was " + codaClass);
                         // 2) 1 fifo together with a non-fifo channel - either in or out
                         if ( inputFifoCount > 1 || ( inputFifoCount == 1 &&  inputChannelCount > 1) ||
                             outputFifoCount > 1 || (outputFifoCount == 1 && outputChannelCount > 1))   {
-                            throw new DataNotFoundException("CODAComponent exit - only 1 input/output channel allowed with fifo in/out");
+                            throw new DataNotFoundException("Emu configure: only 1 input/output channel allowed with fifo in/out");
                         }
                         // 3) input and output fifos must be different
                         else if ((inputFifoCount == 1 && outputFifoCount == 1) &&
                                   inputFifoName.equals(outputFifoName)) {
-                            throw new DataNotFoundException("CODAComponent exit - input & output fifos for " +
+                            throw new DataNotFoundException("Emu configure: input & output fifos for " +
                                                                    moduleName + " must be different");
                         }
 
@@ -1154,18 +1392,18 @@ System.out.println("Got config type = " + myClass + ", I was " + codaClass);
 
                         // If there is more than one data path, reject the configuration.
                         if (dataPathCount > 1) {
-                            throw new DataNotFoundException("CODAComponent exit - only 1 data path allowed");
+                            throw new DataNotFoundException("Emu configure: only 1 data path allowed");
                         }
                     }
 
                     // A fifo may not start a data path
                     if (dataPathCount < 1 && inputFifoCount > 0) {
-                        throw new DataNotFoundException("CODAComponent exit - fifo not allowed to start data path");
+                        throw new DataNotFoundException("Emu configure: fifo not allowed to start data path");
                     }
 
                     // No data path (should not happen)
                     if (dataPath == null) {
-                        throw new DataNotFoundException("CODAComponent exit - no data path found");
+                        throw new DataNotFoundException("Emu configure: no data path found");
                     }
 
                     // Now that we have the starting point of the data path
@@ -1178,6 +1416,7 @@ System.out.println("Got config type = " + myClass + ", I was " + codaClass);
                     again:
                     while (true) {
 
+                        // Iterate through all modules
                         for (int j=0; j < childList.getLength(); j++) {
                             Node moduleNode = childList.item(j);
                             if (moduleNode.getNodeType() != Node.ELEMENT_NODE) continue;
@@ -1195,8 +1434,10 @@ System.out.println("Got config type = " + myClass + ", I was " + codaClass);
                             String channelTransName = null, channelName = null,
                                     inputFifoName = null, outputFifoName = null;
 
+                            // List of channels in this module
                             NodeList childChannelList = moduleNode.getChildNodes();
 
+                            // Go through list of channels to pick out fifos
                             for (int i=0; i < childChannelList.getLength(); i++) {
 
                                 Node channelNode = childChannelList.item(i);
@@ -1217,7 +1458,7 @@ System.out.println("Got config type = " + myClass + ", I was " + codaClass);
 
                                 // If it's an input channel ...
                                 if (channelNode.getNodeName().equalsIgnoreCase("inchannel")) {
-                                    // Count Fifo type input channels
+                                    // Remember Fifo type input channels
                                     if (channelTransName.equals("Fifo")) {
                                         inputFifoName = channelName;
                                     }
@@ -1242,10 +1483,15 @@ System.out.println("Got config type = " + myClass + ", I was " + codaClass);
 
                     // Check for any unused/stranded modules (have fifo input)
                     if (moduleCount != usedModules) {
-                        throw new DataNotFoundException("CODAComponent exit - not all modules in data path");
+                        throw new DataNotFoundException("Emu configure: not all modules in data path");
                     }
 
-                    moduleFactory.setDataPath(dataPath);
+                    // Check to see is last module's output is to a fifo (bad)
+                    if (dataPath.getModules().getLast().hasOutputFifo) {
+                        throw new DataNotFoundException("Emu configure: last module cannot have output fifo");
+                    }
+
+                    setDataPath(dataPath);
 
 //System.out.println("DataPath -> " + dataPath);
 
@@ -1253,7 +1499,7 @@ System.out.println("Got config type = " + myClass + ", I was " + codaClass);
                 catch (DataNotFoundException e) {
                     logger.error("Emu: CONFIGURE failed", e.getMessage());
                     causes.add(e);
-                    moduleFactory.ERROR();
+                    ERROR();
                     lastConfigHadError = true;
                     return;
                 }
@@ -1261,21 +1507,620 @@ System.out.println("Got config type = " + myClass + ", I was " + codaClass);
                 // Successfully loaded new configuration
                 lastConfigHadError = false;
             }
-        }
-
-
-        // All *** TRANSITION *** commands are passed down to the modules here.
-        // Note: the "CODACommand.CONFIGURE" command does nothing in the MODULE_FACTORY
-        // except to set its state to "CODAState.CONFIGURED".
-        try {
-            if (codaCommand.isTransition()) {
-                moduleFactory.execute(cmd);
+            if (state != ERROR) {
+System.out.println("CHANGE STATE TO CONFIGURED !!!!!!!!!!!");
+                state = CONFIGURED;
             }
-//logger.info("command " + codaCommand + " executed, state " + cmd.success());
-        } catch (CmdExecException e) {
-            causes.add(e);
-            moduleFactory.ERROR();
+            else {
+System.out.println("ERROR in CONFIGURE !!!!!!!!!!!");
+            }
+            return;
+
         }
+
+
+        //---------------------------------------
+        // DOWNLOAD
+        //---------------------------------------
+        else if (codaCommand == DOWNLOAD) {
+
+            try {
+                // Get the config info again since it may have changed
+                Node modulesConfig = Configurer.getNode(configuration(), "component/modules");
+
+                // Check for config problems
+                if (modulesConfig == null) {
+                    // Only happens if  emu.configuration() is null
+                    throw new DataNotFoundException("config never loaded");
+                }
+
+                // Need modules to create an emu
+                if (!modulesConfig.hasChildNodes()) {
+                    throw new DataNotFoundException("modules section present in config, but no modules");
+                }
+
+                //--------------------------
+                // Create transport objects
+                //--------------------------
+
+                try {
+                    // If doing a download from the downloaded state,
+                    // close the existing transport objects first
+                    // (this step is normally done from RESET).
+                    for (DataTransport t : transports) {
+                        logger.debug("  DOWNLOAD : " + t.name() + " close");
+                        t.reset();
+                    }
+
+                    // Remove all current data transport objects
+                    transports.removeAllElements();
+
+                    Node m = Configurer.getNode(configuration(), "component/transports");
+                    if (!m.hasChildNodes()) {
+                        logger.warn("transport section present in config but no transports");
+                        return;
+                    }
+
+                    NodeList l = m.getChildNodes();
+
+                    //****************************************************
+                    // TODO: only create transports if used by a channel!!
+                    //****************************************************
+
+                    // for each child node (under component/transports) ...
+                    for (int ix = 0; ix < l.getLength(); ix++) {
+                        Node n = l.item(ix);
+
+                        if (n.getNodeType() == Node.ELEMENT_NODE) {
+                            // type is "server" (send data to) or "client" (get data from)
+                            String transportType = n.getNodeName();
+
+                            // store all attributes in a hashmap
+                            Map<String, String> attrib = new HashMap<String, String>();
+                            if (n.hasAttributes()) {
+                                NamedNodeMap attr = n.getAttributes();
+
+                                for (int jx = 0; jx < attr.getLength(); jx++) {
+                                    Node a = attr.item(jx);
+                                    attrib.put(a.getNodeName(), a.getNodeValue());
+                                }
+                            }
+
+                            if (transportType.equalsIgnoreCase("server")) attrib.put("server", "true");
+                            else attrib.put("server", "false");
+
+                            // get the name used to access transport
+                            String transportName = attrib.get("name");
+                            if (transportName == null) throw new DataNotFoundException("transport name attribute missing in config");
+logger.info("  Emu.execute(DOWNLOAD): creating " + transportName);
+
+                            // Generate a name for the implementation of this transport
+                            // from the name passed from the configuration.
+                            String transportClass = attrib.get("class");
+                            if (transportClass == null) throw new DataNotFoundException("transport class attribute missing in config");
+                            String implName = "org.jlab.coda.emu.support.transport.DataTransportImpl" + transportClass;
+
+                            // Fifos are created internally, not by an Emu
+                            if (transportClass.equals("Fifo")) {
+//logger.warn("  Emu.execute(DOWNLOAD): Emu does not need to specify FIFOs in transport section of config");
+                                state = cmd.success();
+                                continue;
+                            }
+
+                            try {
+                                Class c = Emu.class.getClassLoader().loadClass(implName);
+//logger.info("  Emu.execute(DOWNLOAD): loaded class = " + c);
+
+                                // 2 constructor args
+                                Class[] parameterTypes = {String.class, Map.class, Emu.class};
+                                Constructor co = c.getConstructor(parameterTypes);
+
+                                // create an instance & store reference
+                                Object[] args = {transportName, attrib, this};
+                                transports.add((DataTransport) co.newInstance(args));
+
+//logger.info("  Emu.execute(DOWNLOAD): created " + transportName + " of protocol " + transportClass);
+
+                            } catch (Exception e) {
+                                state = ERROR;
+                                getCauses().add(e);
+                                throw new CmdExecException("cannot load transport class", e);
+                            }
+                        } // if node is element
+                    } // for each child node
+                }
+                catch (DataNotFoundException e) {
+                    // If we're here, the transport section is missing from the config file.
+                    // This is permissible if and only if Fifo is the only transport used.
+
+                    // state = ERROR;
+                    // ERROR.getCauses().add(e);
+                    // throw new CmdExecException("transport section missing/incomplete from config", e);
+logger.warn("  Emu.execute(DOWNLOAD): transport section missing/incomplete from config");
+                }
+
+                // Pass command down to all transport objects
+                for (DataTransport transport : transports) {
+logger.debug("  Emu.execute(DOWNLOAD): pass download down to " + transport.name());
+                    transport.download();
+                }
+
+                //--------------------------
+                // Create modules
+                //--------------------------
+
+                // Remove all existing modules from collection
+                modules.clear();
+
+                Node n = modulesConfig.getFirstChild();
+                do {
+                    if (n.getNodeType() == Node.ELEMENT_NODE) {
+                        NamedNodeMap nm2 = n.getAttributes();
+
+                        // Store all attributes in a hashmap to pass to module
+                        Map<String, String> attributeMap = new HashMap<String, String>();
+                        for (int j=0; j < nm2.getLength(); j++) {
+                            Node a = nm2.item(j);
+                            attributeMap.put(a.getNodeName(), a.getNodeValue());
+                        }
+
+                        Node typeAttr = nm2.getNamedItem("class");
+                        if (typeAttr == null) {
+                            throw new DataNotFoundException("module " + n.getNodeName() +
+                                                                    " has no class attribute");
+                        }
+                        String moduleClassName = typeAttr.getNodeValue();
+
+                        // What type of module are we creating?
+                        EmuModule module;
+
+                        if (moduleClassName.equals("EventBuilding")) {
+                                module = new EventBuilding(n.getNodeName(), attributeMap, this);
+                        }
+                        else if (moduleClassName.equals("EventRecording")) {
+                                module = new EventRecording(n.getNodeName(), attributeMap, this);
+                        }
+                        else if (moduleClassName.equals("RocSimulation")) {
+                                module = new RocSimulation(n.getNodeName(), attributeMap, this);
+                        }
+                        else {
+                            moduleClassName = "org.jlab.coda.emu.modules." + moduleClassName;
+
+                            logger.info("  Emu.execute(DOWNLOAD): load module class " + moduleClassName +
+                                                " to create a module of name " + n.getNodeName() +
+                                                "\n  in classpath = " +
+                                                System.getProperty("java.class.path"));
+
+                            // Load the class using the JVM's standard class loader
+                            Class c = Class.forName(moduleClassName);
+
+                            // Constructor required to have a string, a map, and an emu as args
+                            Class[] parameterTypes = {String.class, Map.class, Emu.class};
+                            Constructor co = c.getConstructor(parameterTypes);
+
+                            // Create an instance
+                            Object[] args = {n.getNodeName(), attributeMap, this};
+                            module = (EmuModule) co.newInstance(args);
+//logger.info("Emu.execute DOWN : load module " + moduleClassName);
+                        }
+
+                        logger.info("Emu.execute DOWN : create module " + module.name());
+
+                        // Give it object to notify Emu when END event comes through
+                        module.registerEndCallback(new EmuEventNotify());
+
+                        dataPath.associateModule(module);
+                        modules.add(module);
+                    }
+
+                } while ((n = n.getNextSibling()) != null);
+
+                // Pass DOWNLOAD to all the modules. "modules" is only
+                // changed in this method so no synchronization is necessary.
+                for (EmuModule module : modules) {
+logger.info("Emu.execute DOWN : pass download to module " + module.name());
+                    module.download();
+                }
+
+                state = cmd.success();
+System.out.println("  Emu.execute(DOWNLOAD): final state = " + state);
+
+            // This includes ClassNotFoundException
+            } catch (Exception e) {
+                e.printStackTrace();
+                getCauses().add(e);
+                state = ERROR;
+                return;
+            }
+logger.info("Emu.execute DOWN : DONE");
+        }
+
+
+        //--------------------------
+        // PRESTART
+        //--------------------------
+        else if (codaCommand == PRESTART) {
+logger.debug("Emu.execute(PRESTART): Very beginning ...");
+
+            // Run Control tells us our run number & runType.
+            // Get and store them.
+            cMsgMessage msg = cmd.getMessage();
+            cMsgPayloadItem pItem;
+
+            if (msg != null) {
+                try {
+                    // Should have run number
+                    pItem = cmd.getArg(RCConstants.prestartPayloadRunNumber);
+                    if (pItem != null) {
+                        setRunNumber(pItem.getInt());
+                    }
+                }
+                catch (cMsgException e) {/* never happen */}
+            }
+
+            try {
+
+                //------------------------------------------------
+                // PRESTART to transport objects first
+                //------------------------------------------------
+                // TODO: cMsg connect is all, really. Can this be done in download??
+                for (DataTransport transport : transports) {
+logger.debug("Emu.execute(PRESTART): PRESTART to " + transport.name());
+                    transport.prestart();
+                }
+
+                //------------------------------------------------
+                // Create transportation channels for all modules
+                //------------------------------------------------
+                inChannels.clear();
+                outChannels.clear();
+                fifoChannels.clear();
+
+                Node modulesConfig = Configurer.getNode(configuration(), "component/modules");
+                Node moduleNode = modulesConfig.getFirstChild();
+                // For each module in the list of modules ...
+                do {
+                    // Modules section present in config (no modules if no children)
+                    if ((moduleNode.getNodeType() == Node.ELEMENT_NODE) && moduleNode.hasChildNodes()) {
+
+                        // Find module object associated with this config node
+                        EmuModule module = findModule(moduleNode.getNodeName());
+
+                        // Clear out all channels created in previous PRESTART
+                        module.clearChannels();
+
+                        if (module != null) {
+                            ArrayList<DataChannel> in  = new ArrayList<DataChannel>();
+                            ArrayList<DataChannel> out = new ArrayList<DataChannel>();
+                            ArrayList<DataChannel> inFifo  = new ArrayList<DataChannel>();
+                            ArrayList<DataChannel> outFifo = new ArrayList<DataChannel>();
+
+                            // For each channel in (children of) the module ...
+                            NodeList childList = moduleNode.getChildNodes();
+                            for (int i=0; i < childList.getLength(); i++) {
+                                Node channelNode = childList.item(i);
+                                if (channelNode.getNodeType() != Node.ELEMENT_NODE) continue;
+
+//System.out.println("Emu.execute(PRESTART) : looking at channel node = " + channelNode.getNodeName());
+                                // Get attributes of channel node
+                                NamedNodeMap nnm = channelNode.getAttributes();
+                                if (nnm == null) {
+//System.out.println("Emu.execute(PRESTART) : junk in config file (no attributes), skip " + channelNode.getNodeName());
+                                    continue;
+                                }
+
+                                // Get "name" attribute node from map
+                                Node channelNameNode = nnm.getNamedItem("name");
+
+                                // If none (junk in config file) go to next channel
+                                if (channelNameNode == null) {
+//System.out.println("Emu.execute(PRESTART) : junk in config file (no name attr), skip " + channelNode.getNodeName());
+                                    continue;
+                                }
+//System.out.println("Emu.execute(PRESTART) : channel node of attribute \"name\" = " + channelNameNode.getNodeName());
+                                // Get name of this channel
+                                String channelName = channelNameNode.getNodeValue();
+//System.out.println("Emu.execute(PRESTART) : found channel of name " + channelName);
+                                // Get "transp" attribute node from map
+                                Node channelTranspNode = nnm.getNamedItem("transp");
+                                if (channelTranspNode == null) {
+//System.out.println("Emu.execute(PRESTART) : junk in config file (no transp attr), skip " + channelNode.getNodeName());
+                                    continue;
+                                }
+                                // Get name of transport
+                                String channelTransName = channelTranspNode.getNodeValue();
+//System.out.println("Emu.execute(PRESTART) : module = " + module.name() + ", channel = " + channelName + ", transp = " + channelTransName);
+                                // Look up transport object from name
+                                DataTransport trans = findNamedTransport(channelTransName);
+
+                                // Store all attributes in a hashmap to pass to channel
+                                Map<String, String> attributeMap = new HashMap<String, String>();
+                                for (int j=0; j < nnm.getLength(); j++) {
+                                    Node a = nnm.item(j);
+//System.out.println("Emu.execute(PRESTART) : Put (" + a.getNodeName() + "," + a.getNodeValue() + ") into attribute map for channel " + channelName);
+                                    attributeMap.put(a.getNodeName(), a.getNodeValue());
+                                }
+
+                                // If it's an input channel ...
+                                if (channelNode.getNodeName().equalsIgnoreCase("inchannel")) {
+                                    // Create channel
+                                    DataChannel channel = trans.createChannel(channelName, attributeMap, true, this);
+                                    // Add to list while keeping fifos separate
+                                    if (channelTransName.equals("Fifo")) {
+                                        // Fifo does NOT notify Emu when END event comes through
+                                        channel.registerEndCallback(null);
+                                        inFifo.add(channel);
+                                    }
+                                    else {
+                                        // Give it object to notify Emu when END event comes through
+                                        channel.registerEndCallback(new EmuEventNotify());
+                                        in.add(channel);
+                                    }
+                                }
+                                // If it's an output channel ...
+                                else if (channelNode.getNodeName().equalsIgnoreCase("outchannel")) {
+                                    DataChannel channel = trans.createChannel(channelName, attributeMap, false, this);
+                                    if (channelTransName.equals("Fifo")) {
+                                        channel.registerEndCallback(null);
+                                        outFifo.add(channel);
+                                    }
+                                    else {
+                                        channel.registerEndCallback(new EmuEventNotify());
+                                        out.add(channel);
+                                    }
+                                }
+                                else {
+//System.out.println("Emu.execute(PRESTART) : channel type \"" + channelNode.getNodeName() + "\" is unknown");
+                                }
+                            }
+
+                            // Set input and output channels of each module
+                            module.addInputChannels(in);
+                            module.addInputChannels(inFifo);
+
+                            module.addOutputChannels(out);
+                            module.addOutputChannels(outFifo);
+
+                            // Keep local track of all channels created
+                            inChannels.addAll(in);
+                            outChannels.addAll(out);
+
+                            fifoChannels.addAll(inFifo);
+                            fifoChannels.addAll(outFifo);
+                        }
+                    }
+                } while ((moduleNode = moduleNode.getNextSibling()) != null);  // while another module exists ...
+
+                //-------------------------
+                // PRESTART to all:
+                //-------------------------
+
+                // Output channels
+                for (DataChannel chan : outChannels) {
+logger.debug("Emu.execute(PRESTART): PRESTART to OUT chan " + chan.getName());
+                    chan.prestart();
+                }
+
+                // Modules
+                for (EmuModule module : modules) {
+                    // Reset the notification latch as it may have been used
+                    // if previous transition was "END"
+                    module.getEndCallback().reset();
+
+logger.debug("Emu.execute(PRESTART): PRESTART to module " + module.name());
+                    module.prestart();
+                }
+
+                // Input channels
+                for (DataChannel chan : inChannels) {
+logger.debug("Emu.execute(PRESTART): PRESTART to IN chan " + chan.getName());
+                    chan.prestart();
+                }
+
+            } catch (Exception e) {
+logger.error("PRESTART threw " + e.getMessage());
+                e.printStackTrace();
+                getCauses().add(e);
+                state = ERROR;
+                return;
+            }
+        }
+
+        //--------------------------
+        // GO
+        //--------------------------
+        else if (codaCommand == GO) {
+            try {
+                LinkedList<EmuModule> mods = dataPath.getEmuModules();
+
+                if (mods.size() < 1) {
+logger.error("Emu.execute(GO): no modules in data path");
+                    state = ERROR;
+                    throw new CmdExecException("no modules in data path");
+                }
+
+                // (1) GO to transport objects
+                for (DataTransport transport : transports) {
+logger.debug("Emu.execute(GO): GO to transport " + transport.name());
+                    transport.go();
+                }
+
+                // (2) GO to output channels (of LAST module)
+                if (outChannels.size() > 0) {
+                    for (DataChannel chan : outChannels) {
+logger.info("Emu.execute(GO): GO to out chan " + chan.getName());
+                        chan.go();
+                    }
+                }
+
+                // (3) GO to all modules in reverse order (starting with last)
+                for (int i=mods.size()-1; i >= 0; i--) {
+logger.info("Emu.execute(GO): GO to module " + mods.get(i).name());
+                    mods.get(i).go();
+                }
+
+                // (4) GO to input channels (of FIRST module)
+                if (inChannels.size() > 0) {
+                    for (DataChannel chan : inChannels) {
+logger.info("Emu.execute(GO): GO to in chan " + chan.getName());
+                        chan.go();
+                    }
+                }
+            }
+            catch (CmdExecException e) {
+                logger.error("GO threw " + e.getMessage());
+                e.printStackTrace();
+                getCauses().add(e);
+                state = ERROR;
+                return;
+            }
+        }
+
+        //--------------------------
+        // END
+        //--------------------------
+        else if (codaCommand == END) {
+            try {
+                LinkedList<EmuModule> mods = dataPath.getEmuModules();
+
+                if (mods.size() < 1) {
+logger.error("EmuModuleFactory.execute() : no modules in data path");
+                    state = ERROR;
+                    throw new CmdExecException("no modules in data path");
+                }
+
+                //--------------------------------------------------------
+                // (1) Wait for END event to make its way through the Emu.
+                // Look at the end of the chain of channels & modules.
+                //--------------------------------------------------------
+ // TODO: do we look at ALL channels? or just one?
+                // If we have output channels, look there first
+                if (outChannels.size() > 0) {
+System.out.println("Looking for END event in output channels");
+                    for (DataChannel chan : outChannels) {
+                        try {
+logger.info("Emu.execute(END): waiting for END event in output chan " + chan.getName());
+                            chan.getEndCallback().waitForEvent();
+logger.info("Emu.execute(END): END event found in output chan " + chan.getName());
+                        }
+                        catch (InterruptedException e) {}
+                    }
+System.out.println("Done looking for END event in output channels");
+                }
+                // look at the last module next
+                else if (mods.size() > 0) {
+System.out.println("Looking for END event in last module");
+                    try {
+                        mods.getLast().getEndCallback().waitForEvent();
+logger.info("Emu.execute(END): END event found in module " + mods.getLast().name());
+                    }
+                    catch (InterruptedException e) {}
+System.out.println("Done looking for END event in last module");
+                }
+                // look at the input channels as the last option
+                else if (inChannels.size() > 0) {
+System.out.println("Looking for END event in input channels");
+                    for (DataChannel chan : inChannels) {
+                        try {
+                            chan.getEndCallback().waitForEvent();
+logger.info("Emu.execute(END): END event found in input chan " + chan.getName());
+                        }
+                        catch (InterruptedException e) {}
+                    }
+System.out.println("Done looking for END event in input channels");
+                }
+
+                // (2) END to input channels (of FIRST module)
+                if (inChannels.size() > 0) {
+                    for (DataChannel chan : inChannels) {
+logger.info("Emu.execute(END): END to in chan " + chan.getName());
+                        chan.end();
+                    }
+                }
+
+                // (3) END to all modules in normal order (starting with first)
+                for (int i=0; i < mods.size(); i++) {
+logger.info("Emu.execute(END): END to module " + mods.get(i).name());
+                    mods.get(i).end();
+                }
+
+                // (4) GO to output channels (of LAST module)
+                if (outChannels.size() > 0) {
+                    for (DataChannel chan : outChannels) {
+logger.info("Emu.execute(END): END to out chan " + chan.getName());
+                        chan.end();
+                    }
+                }
+
+                // (5) END to transport objects
+                for (DataTransport transport : transports) {
+logger.debug("Emu.execute(END): END to transport " + transport.name());
+                    transport.end();
+                }
+                fifoTransport.end();
+
+            }
+            catch (CmdExecException e) {
+                logger.error("END threw " + e.getMessage());
+                e.printStackTrace();
+                getCauses().add(e);
+                state = ERROR;
+                return;
+            }
+        }
+
+        //--------------------------
+        // PAUSE
+        //--------------------------
+        else if (codaCommand == PAUSE) {
+            try {
+                // (1) PAUSE to transport objects
+                for (DataTransport transport : transports) {
+logger.debug("Emu.execute(PAUSE): PAUSE to transport " + transport.name());
+                    transport.pause();
+                }
+
+                // (2) PAUSE to input channels
+                if (inChannels.size() > 0) {
+                    for (DataChannel chan : inChannels) {
+logger.info("Emu.execute(PAUSE): PAUSE to in chan " + chan.getName());
+                        chan.pause();
+                    }
+                }
+
+                // (3) PAUSE to all modules in normal order (starting with first)
+                LinkedList<EmuModule> mods = dataPath.getEmuModules();
+                for (int i=0; i < mods.size(); i++) {
+logger.info("Emu.execute(PAUSE): PAUSE to module " + mods.get(i).name());
+                    mods.get(i).pause();
+                }
+
+                // (4) PAUSE to output channels
+                if (outChannels.size() > 0) {
+                    for (DataChannel chan : outChannels) {
+logger.info("Emu.execute(PAUSE): PAUSE to out chan " + chan.getName());
+                        chan.end();
+                    }
+                }
+            }
+            catch (CmdExecException e) {
+                logger.error("PAUSE threw " + e.getMessage());
+                e.printStackTrace();
+                getCauses().add(e);
+                state = ERROR;
+                return;
+            }
+        }
+
+
+        if (cmd.success() != null && state != ERROR) {
+            state = cmd.success();
+logger.info("transition success, setting state to " + state);
+        }
+        else {
+logger.info("transition NOT successful, state = " + state);
+        }
+
 
         // If given the "exit" command, do that after the modules have exited
         if (codaCommand == EXIT) {
