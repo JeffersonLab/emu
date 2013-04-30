@@ -15,8 +15,8 @@ import org.jlab.coda.emu.support.codaComponent.CODAClass;
 import java.util.LinkedList;
 
 /**
- * Since there can be multiple EMUs running in a JVM,
- * this class handles their creation and configuration.
+ * This class handles the creation of one or more EMUs
+ * that are to be run in a single Java JVM.
  *
  * @author timmer
  */
@@ -83,9 +83,9 @@ public class EmuFactory {
     }
 
     /**
-     * Constructor.
+     * Method to construct EMUs.
      * A thread is started to monitor the state field.
-     * Java system properties are read and if required a debug GUI is started.
+     * Java system properties are read and, if required, a debug GUI is started.
      * <p/>
      * The emu is named from the "name" property.
      * <p/>
@@ -93,7 +93,7 @@ public class EmuFactory {
      * <p/>
      * The emu starts up a connection to the cMsg server.
      * <p/>
-     * By the end of the constructor several threads have been started and the static
+     * By the end of this method, several threads have been started and the static
      * method main will not exit while they are running.
      */
     public void createEmus() throws EmuException {
