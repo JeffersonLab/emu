@@ -33,8 +33,9 @@ public class EmuDataPath {
     /** This is a doubly linked list of all EMU modules. */
     private final LinkedList<EmuModule> emuModules = new LinkedList<EmuModule>();
 
+
     /** Class to store module-related data. */
-    private class Module {
+    class Module {
         /** Is this module the head of this data path? */
         boolean isHead;
         /** Does this module have a fifo input channel? */
@@ -110,6 +111,9 @@ public class EmuDataPath {
         return true;
     }
 
+
+
+
     /**
      * Clear all existing modules from data path.
      */
@@ -134,11 +138,21 @@ public class EmuDataPath {
         return false;
     }
 
+
+    /**
+     * Get the linked list of the Modules in this path.
+     * @return linked list of the Modules in this path.
+     */
+    synchronized public LinkedList<Module> getModules() {
+        return modules;
+    }
+
+
     /**
      * Get the linked list of the EmuModules in this path.
      * @return linked list of the EmuModules in this path.
      */
-    synchronized public LinkedList<EmuModule> getModules() {
+    synchronized public LinkedList<EmuModule> getEmuModules() {
         emuModules.clear();
         for (Module mod : modules) {
             emuModules.add(mod.module);
@@ -171,7 +185,7 @@ public class EmuDataPath {
      */
     synchronized public boolean containsModule(EmuModule module) {
         if (emuModules == null) {
-            getModules();
+            getEmuModules();
         }
         return emuModules.contains(module);
     }
