@@ -12,71 +12,51 @@
 package org.jlab.coda.emu.support.transport;
 
 import org.jlab.coda.emu.Emu;
+import org.jlab.coda.emu.EmuStateMachine;
 import org.jlab.coda.emu.support.configurer.DataNotFoundException;
-import org.jlab.coda.emu.support.control.CmdExecException;
-import org.jlab.coda.emu.support.codaComponent.StatedObject;
-import org.jlab.coda.emu.support.control.Command;
-import org.jlab.coda.emu.support.data.QueueItem;
-import org.jlab.coda.jevio.EvioBank;
 
-import java.util.HashMap;
 import java.util.Map;
 
 /**
- * This interface refers to how data is transported
+ * This interface defines how data is transported
  * and does <b>not</b> refer to a particular data connection.
  *
  * @author heyes
+ * @author timmer
  *         Created on Sep 17, 2008
  */
-@SuppressWarnings({"RedundantThrows"})
-public interface DataTransport extends StatedObject {
-    /**
-     * Get the name of the transport implementation class implementing this class.
-     * @return the name of the transport implementation class implementing this class
-     */
-    public String getTransportClass();
+public interface DataTransport extends EmuStateMachine {
 
-    // public State state(); from StatedObject
-    // public String name(); from StatedObject
+    /**
+     * This method gets the name of this DataTransport object.
+     *
+     * @return the name of this DataTransport object.
+     */
+    public String name();
 
     /**
      * This method sets the name of this DataTransport object.
-     * @param pname the name of this DataTransport object.
-     */
-    public void setName(String pname);
-
-    /**
-     * This method is run when passed a Command object
-     * in the context of the receiving module.
      *
-     * @param cmd of type Command
-     * @param forInput <code>true</code> if the command applicable only to the
-     *                 input channels of a transport, else <code>false</code>
-     *                 if applicable to output channels. Used only for commands
-     *                 GO & END in which data flow order in EMU subcomponents
-     *                 is important.
-     * @throws CmdExecException if exception processing command
+     * @param name the name of this DataTransport object.
      */
-    @SuppressWarnings({"RedundantThrows"})
-    public void execute(Command cmd, boolean forInput) throws CmdExecException;
+    public void setName(String name);
 
     /**
      * This method sets an attribute.
      *
-     * @param pname name of attribute (key)
+     * @param name  name  of attribute (key)
      * @param value value of attribute (val)
      */
-    public void setAttr(String pname, String value);
+    public void setAttr(String name, String value);
 
     /**
      * This method gets an attribute as a String object.
      *
-     * @param pname name of attribute
+     * @param name name of attribute
      * @return value of attribute
-     * @throws DataNotFoundException if couldn't find named attribute
+     * @throws DataNotFoundException if cannot find named attribute
      */
-    public String getAttr(String pname) throws DataNotFoundException;
+    public String getAttr(String name) throws DataNotFoundException;
 
     /**
      * This method gets an attribute as an int.
@@ -92,7 +72,7 @@ public interface DataTransport extends StatedObject {
      *
      * @param name name of DataChannel
      * @param attributeMap hashmap of attriubtes taken from XML config file
-     * @param isInput true if this channel reads data into the Emu, else false
+     * @param isInput true if this channel puts data into the Emu, else false
      * @return DataChannel object
      * @throws DataTransportException if transport problem
      */
@@ -101,40 +81,11 @@ public interface DataTransport extends StatedObject {
             throws DataTransportException;
 
     /**
-     * This method gets all the DataChannel objects contained in a DataTransport object.
-     *
-     * @return hashmap containing the data channels (HashMap<String, DataChannel>)
-     */
-    public HashMap<String, DataChannel> allChannels();
-
-    /**
-     * This method gets all the input DataChannel objects contained in a DataTransport object.
-     *
-     * @return hashmap containing the input data channels (HashMap<String, DataChannel>)
-     */
-    public HashMap<String, DataChannel> inChannels();
-
-    /**
-     * This method gets all the output DataChannel objects contained in a DataTransport object.
-     *
-     * @return hashmap containing the output data channels (HashMap<String, DataChannel>)
-     */
-    public HashMap<String, DataChannel> outChannels();
-
-    /**
      * This method tells if this DataTransport object is connected.
      *
      * @return true if this object is connected, else false
      */
     public boolean isConnected();
-
-    /**
-     * This method sends a QueueItem object to some output (fifo, another process, etc.)
-     *
-     * @param channel DataChannel to send data through
-     * @param item QueueItem to send, containing data
-     */
-    public void send(DataChannel channel, QueueItem item);
 
     /**
      * This method returns true if this DataTransport object
@@ -146,18 +97,8 @@ public interface DataTransport extends StatedObject {
     public boolean isServer();
 
     /**
-     * Close this DataTransport object and all its channels.
-     * Channels are closed gracefully, waiting if necessary.
+     * This method gets the name of the transport class implementing this interface.
+     * @return the name of the transport class implementing this interface
      */
-    public void close();
-
-    /**
-     * Close this DataTransport object and all its channels.
-     * Threads are interrupted - no waiting done. Called when
-     * undergoing the "RESET" transition.
-     */
-    public void reset();
-
-    /** Close this DataTransport object's channels. */
- //   public void closeChannels();
+    public String getTransportClass();
 }
