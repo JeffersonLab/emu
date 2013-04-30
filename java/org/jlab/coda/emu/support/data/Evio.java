@@ -728,7 +728,7 @@ System.out.println("checkPayloadBank: record ID out of sequence, got " + recordI
             tag    = header.getTag();
 
             if (sourceId != getTagCodaId(tag)) {
-System.out.println("checkPayloadBank: DTR bank source Id (" + sourceId + ") != payload bank's id (" + getTagCodaId(tag) + ")");
+System.out.println("checkPayloadBank: bank source Id (" + sourceId + ") != bank's id from tag (" + getTagCodaId(tag) + ")");
                 nonFatalError = true;
             }
 
