@@ -12,77 +12,69 @@
 package org.jlab.coda.emu.support.transport;
 
 
+import org.jlab.coda.emu.EmuStateMachine;
 import org.jlab.coda.emu.support.data.QueueItem;
-import org.jlab.coda.jevio.EvioBank;
 
 import java.util.concurrent.BlockingQueue;
 
 /**
  * This interface defines an object that can send and
- * receive banks of data in the CODA evio format. It
- * refers to a particular connection (eg. a single socket
- * or cMsg connection id).
+ * receive data in any format listed in the
+ * {@link org.jlab.coda.emu.support.data.QueueItemType} enum.
+ * It refers to a particular connection (eg. a single socket
+ * or cMsg connection object).
  *
  * @author heyes
- *         Created on Sep 12, 2008
+ * @author timmer
+ * Created on Sep 12, 2008
  */
-public interface DataChannel {
+public interface DataChannel extends EmuStateMachine {
 
     /**
-     * Get the name of the data channel.
-     * @return the name of the data channel.
-     */
-    public String getName();
-
-    /**
-     * Get the ID number of the data channel.
+     * Get the ID number of this data channel.
      * In CODA event building, this is used, for example, to contain the ROC
      * id for input channels which allows consistency checks of incoming data.
-     * @return the ID number of the data channel.
+     * @return the ID number of this data channel.
      */
     public int getID();
 
     /**
-     * Get whether this channel is an input channel (returns true),
-     * or it is an output channel (returns false).
+     * Get the name of this data channel.
+     * @return the name of this data channel.
+     */
+    public String getName();
+
+    /**
+     * Get whether this channel is an input channel (true),
+     * or it is an output channel (false).
      * @return <code>true</code> if input channel, else <code>false</code>
      */
     public boolean isInput();
 
+    /**
+     * Get the DataTransport object used to create this data channel.
+     * @return the DataTransport object used to create this data channel.
+     */
     public DataTransport getDataTransport();
 
     /**
-     * Take a item of data off the queue.
+     * Take an item of data off this channel's queue.
      * @return item of data.
      * @throws InterruptedException on wakeup without data.
      */
     public QueueItem receive() throws InterruptedException;
     
     /**
-     * Send a item of data.
-     * @param data item of data.
+     * Place a data item on this channel's queue.
+     * @param item item of data.
+     * @throws InterruptedException possible while waiting to place item on queue.
      */
-    public void send(QueueItem data);
-
-    /**
-     * Close this data channel gracefully, waiting if necessary.
-     * For an "END" transition, any data sending or receiving
-     * threads will wait for an "END"  event to come through before
-     * closing.
-     */
-    public void close();
-
-    /**
-     * Close this data channel immediately, interrupting all threads.
-     * Called during "RESET" transition.
-     */
-    public void reset();
+    public void send(QueueItem item) throws InterruptedException;
 
     /**
      * Get the queue of this data channel which contains
-     * QueueItems of data.
-     *
-     * @return the queue of data banks sent to this data channel (type BlockingQueue&lt;QueueItem&gt;).
+     * QueueItem objects of data for either receiving or sending data.
+     * @return the queue of QueueItem objects for either receiving or sending data.
      */
     public BlockingQueue<QueueItem> getQueue();
 
