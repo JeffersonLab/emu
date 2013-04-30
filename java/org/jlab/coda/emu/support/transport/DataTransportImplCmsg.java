@@ -13,12 +13,9 @@ package org.jlab.coda.emu.support.transport;
 
 import org.jlab.coda.cMsg.*;
 import org.jlab.coda.emu.Emu;
-import org.jlab.coda.emu.support.codaComponent.CODACommand;
 import org.jlab.coda.emu.support.configurer.DataNotFoundException;
-import org.jlab.coda.emu.support.codaComponent.CODAState;
 
-import static org.jlab.coda.emu.support.codaComponent.CODACommand.*;
-import org.jlab.coda.emu.support.control.Command;
+import org.jlab.coda.emu.support.control.CmdExecException;
 import org.jlab.coda.emu.support.logger.Logger;
 
 import java.util.Map;
@@ -27,7 +24,7 @@ import java.util.Map;
  * @author timmer
  * Dec 2, 2009
  */
-public class DataTransportImplCmsg extends DataTransportCore implements DataTransport {
+public class DataTransportImplCmsg extends DataTransportAdapter {
 
     /** Connection to cmsg server. */
     private cMsg cmsgConnection;
@@ -71,75 +68,44 @@ public class DataTransportImplCmsg extends DataTransportCore implements DataTran
 
 
     public DataChannel createChannel(String name, Map<String,String> attributeMap, boolean isInput, Emu emu) throws DataTransportException {
-        DataChannel c = new DataChannelImplCmsg(name, this, attributeMap, isInput, emu);
-        allChannels().put(name, c);
-        if (isInput) {
-            inChannels().put(name, c);
-        }
-        else {
-            outChannels().put(name, c);
-        }
-        return c;
+        return new DataChannelImplCmsg(name, this, attributeMap, isInput, emu);
     }
 
-    public void execute(Command cmd, boolean forInput) {
-        CODACommand emuCmd = cmd.getCodaCommand();
-        logger.debug("    DataTransportImplCmsg.execute : " + emuCmd);
+    public void reset() {
+        try {
+logger.debug("    DataTransportImplCmsg.reset(): cmsg disconnect : " + name());
+            cmsgConnection.disconnect();
+        } catch (Exception e) {}
+    };
 
-        if (emuCmd == PRESTART) {
 
-            try {
-                logger.debug("    DataTransportImplCmsg.execute PRESTART: cmsg connect : " + name() + " " + myInstance);
-                cmsgConnection.connect();
+    public void prestart() throws CmdExecException {
 
-            } catch (cMsgException e) {
-                emu.getCauses().add(e);
-                state = CODAState.ERROR;
-                return;
-            }
+        try {
+            logger.debug("    DataTransportImplCmsg.execute PRESTART: cmsg connect : " + name());
+            cmsgConnection.connect();
 
-            state = cmd.success();
-            return;
-        }
-        else if (emuCmd == GO) {
-            cmsgConnection.start(); // allow message flow to callbacks
-
-            if (!allChannels.isEmpty()) {
-                synchronized (allChannels) {
-                    for (DataChannel c : allChannels.values()) {
-                        ((DataChannelImplCmsg)c).resumeOutputHelper();
-                    }
-                }
-            }
-        }
-        else if (emuCmd == PAUSE) {
-            cmsgConnection.stop(); // stop message flow to callbacks
-
-            if (!allChannels.isEmpty()) {
-                synchronized (allChannels) {
-                    for (DataChannel c : allChannels.values()) {
-                        ((DataChannelImplCmsg)c).pauseOutputHelper();
-                    }
-                }
-            }
-        }
-        else if (emuCmd == END) {
-
-            try {
-                logger.debug("    DataTransportImplCmsg.execute END: cmsg disconnect : " + name() + " " + myInstance);
-                cmsgConnection.disconnect();
-
-            } catch (Exception e) {
-                // ignore
-            }
-            state = cmd.success();
-            return;
+        } catch (cMsgException e) {
+            throw new CmdExecException("cannot connect to cMsg server", e);
         }
 
-        // We don't implement other commands so assume success.
-        if (state != CODAState.ERROR) state = cmd.success();
-System.out.println("    DataTransportImplCmsg.execute: final state = " + state);
+        return;
+    }
 
+
+    public void go() {
+        cmsgConnection.start(); // allow message flow to callbacks
+    }
+
+    public void pause() {
+        cmsgConnection.stop(); // stop message flow to callbacks
+    }
+
+    public void end() {
+        try {
+logger.debug("    DataTransportImplCmsg.end(): cmsg disconnect : " + name());
+            cmsgConnection.disconnect();
+        } catch (Exception e) { }
     }
 
  }

@@ -12,20 +12,17 @@
 package org.jlab.coda.emu.support.transport;
 
 
-import org.jlab.coda.emu.support.codaComponent.CODACommand;
-import org.jlab.coda.emu.support.control.Command;
+import org.jlab.coda.emu.support.control.CmdExecException;
 import org.jlab.coda.et.*;
+import org.jlab.coda.et.exception.EtClosedException;
 import org.jlab.coda.et.system.SystemConfig;
 import org.jlab.coda.et.exception.EtException;
 import org.jlab.coda.emu.Emu;
 import org.jlab.coda.emu.support.configurer.DataNotFoundException;
-import org.jlab.coda.emu.support.codaComponent.CODAState;
 
-import static org.jlab.coda.emu.support.codaComponent.CODACommand.*;
 import org.jlab.coda.emu.support.logger.Logger;
 
 import java.io.*;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Collection;
 import java.util.Arrays;
@@ -34,7 +31,7 @@ import java.util.Arrays;
  * @author timmer
  * Jun 4, 2010
  */
-public class DataTransportImplEt extends DataTransportCore implements DataTransport {
+public class DataTransportImplEt extends DataTransportAdapter {
 
     /** Does the ET system get created by this object if it does not already exist? */
     private boolean tryToCreateET;
@@ -344,9 +341,8 @@ public class DataTransportImplEt extends DataTransportCore implements DataTransp
 
     /**
      * Close this DataTransport object.
-     * This method does nothing as closing channels is handled
-     * in {@link #execute(org.jlab.coda.emu.support.control.Command, boolean)}
-     * and we don't shutdown the ET system for an
+     * This method does nothing as closing channels are handled
+     * in emu and we don't shutdown the ET system for an
      * "END" command (which calls this close() eventually).
      */
     public void close() {}
@@ -354,17 +350,7 @@ public class DataTransportImplEt extends DataTransportCore implements DataTransp
 
     public DataChannel createChannel(String name, Map<String,String> attributeMap,
                                      boolean isInput, Emu emu) throws DataTransportException {
-        DataChannel c = new DataChannelImplEt(name, this, attributeMap, isInput, emu);
-
-        allChannels().put(name, c);
-        if (isInput) {
-            inChannels().put(name, c);
-        }
-        else {
-            outChannels().put(name, c);
-        }
-
-        return c;
+        return new DataChannelImplEt(name, this, attributeMap, isInput, emu);
     }
 
 
@@ -432,20 +418,10 @@ public class DataTransportImplEt extends DataTransportCore implements DataTransp
 
     /**
      * Reset or hard close this DataTransport object.
-     * The resetting of channels is done in
-     * {@link #execute(org.jlab.coda.emu.support.control.Command, boolean)}.
      * All this method does is remove any created ET system.
      */
     public void reset() {
         setConnected(false);
-
-        // reset channels
-        if (!allChannels.isEmpty()) {
-            for (DataChannel c : allChannels.values()) {
-logger.debug("    DataTransport Et: try resetting channel " + c.getName() + " for " + emu.name());
-                c.reset();
-            }
-        }
 
         // kill any ET system this object started
         if (processET != null && createdET) {
@@ -463,15 +439,10 @@ logger.debug("    DataTransport Et: ET is dead");
 logger.debug("    DataTransport Et: File deleted");
         }
 
-        state = CODAState.CONFIGURED;
     }
 
 
-    public void execute(Command cmd, boolean forInput) {
-logger.debug("    DataTransport Et execute : " + cmd.name());
-        CODACommand emuCmd = cmd.getCodaCommand();
-
-        if (emuCmd == DOWNLOAD) {
+        public void download() throws CmdExecException {
             createdET = false;
             boolean existingET = false;
             boolean incompatibleET = false;
@@ -494,18 +465,12 @@ logger.debug("    DataTransport Et execute : " + cmd.name());
 //System.out.println("  ET system " + openConfig.getEtName() + " already exists");
                 }
                 catch (EtException e) {
-                    logger.debug("    DataTransport Et execute DOWNLOAD: self-contradictory ET system config : " + name() + " " + myInstance);
-                    state = CODAState.ERROR;
-                    return;
+logger.debug("    DataTransport Et execute DOWNLOAD: self-contradictory ET system config : " + name());
+                    throw new CmdExecException("Self-contradictory ET system config", e);
                 }
                 catch (Exception e) {
                     // Any existing local ET might be different name or TCP port, or isn't local.
                     // A name conflict will spell doom for us later when we try to create it.
-//System.out.println("  Cannot open ET system, because:\n    " + e.getMessage());
-//                    Throwable cause = e.getCause();
-//                    if (cause != null)  {
-//System.out.println("      - caused by " + e.getCause());
-//                    }
                 }
 
                 // If one exists, see if it's compatible
@@ -535,7 +500,7 @@ logger.debug("    DataTransport Et execute : " + cmd.name());
                                 }
                             }
                         }
-                        catch (EtException e) {
+                        catch (EtClosedException e) {
                             // not happening
                         }
                         catch (IOException e) {
@@ -549,9 +514,8 @@ logger.debug("    DataTransport Et execute : " + cmd.name());
 
                     // error if incompatible ET system exists
                     if (incompatibleET) {
-logger.debug("    DataTransport Et execute DOWNLOAD: incompatible ET system exists : " + name() + " " + myInstance);
-                        state = CODAState.ERROR;
-                        return;
+logger.debug("    DataTransport Et execute DOWNLOAD: incompatible ET system exists : " + name());
+                        throw new CmdExecException("Incompatible ET system exists");
                     }
                 }
                 // else try to create a new ET system
@@ -599,7 +563,7 @@ logger.debug("    DataTransport Et: create ET system, " + openConfig.getEtName()
                         }
 
                         if (terminated) {
-                            String errorOut = "    DataTransport Et: ";
+                            String errorOut = null;
                             // grab any output
                             String[] retStrings = gatherAllOutput(processET, true);
                             if (retStrings[0] != null) {
@@ -608,9 +572,9 @@ logger.debug("    DataTransport Et: create ET system, " + openConfig.getEtName()
                             if (retStrings[1] != null) {
                                 errorOut += "\n" + retStrings[0];
                             }
+
                             logger.debug(errorOut);
-                            state = CODAState.ERROR;
-                            return;
+                            throw new CmdExecException(errorOut);
                         }
 
                         // There is no feedback mechanism to tell if
@@ -628,91 +592,20 @@ logger.debug("    DataTransport Et: create ET system, " + openConfig.getEtName()
                         }
                         catch (Exception e) {
 logger.debug("    DataTransport Et: created system " + openConfig.getEtName() + " may not be running, cannot connect ...");
-                            state = CODAState.ERROR;
-                            return;
+                            throw new CmdExecException("created ET, " + openConfig.getEtName() +
+                                                               ", may not be running but cannot connect");
                         }
 
                         createdET = true;
                     }
                     catch (IOException e) {
                         e.printStackTrace();
+                        throw new CmdExecException("Cannot run ET system", e);
                     }
                 }
             }
         }
-        else if (emuCmd == PRESTART) {
-            // channels created by EmuModuleFactory in PRESTART
-            state = cmd.success();
-            return;
-        }
-        else if (emuCmd == GO) {
-            HashMap<String, DataChannel> channels;
-            if (forInput) {
-                channels = inChannels;
-            }
-            else {
-                channels = outChannels;
-            }
 
-            if (!channels.isEmpty()) {
-                //synchronized (channels) {
-                    for (DataChannel c : channels.values()) {
-                        ((DataChannelImplEt)c).resumeHelper();
-                    }
-                //}
-            }
-        }
-        else if (emuCmd == PAUSE) {
-            // The timing of pausing the input & output channels
-            // is not so critical.
-            if (!inChannels.isEmpty()) {
-                //synchronized (inChannels) {
-                    for (DataChannel c : inChannels.values()) {
-                        ((DataChannelImplEt)c).pauseHelper();
-                    }
-                //}
-            }
-            if (!outChannels.isEmpty()) {
-                //synchronized (outChannels) {
-                    for (DataChannel c : outChannels.values()) {
-                        ((DataChannelImplEt)c).pauseHelper();
-                    }
-                //}
-            }
-        }
-        else if (emuCmd == END) {
-            setConnected(false);
 
-//            if (logger != null) {
-//                logger.debug("close transport " + name());
-//            }
-
-            HashMap<String, DataChannel> channels;
-            if (forInput) {
-                channels = inChannels;
-            }
-            else {
-                channels = outChannels;
-            }
-
-            // close channels
-            if (!channels.isEmpty()) {
-                //synchronized (channels) {
-                    for (DataChannel c : channels.values()) {
-                        c.close();
-                        allChannels.remove(c.getName());
-                    }
-                    channels.clear();
-                //}
-            }
-
-            state = cmd.success();
-            return;
-        }
-
-        // We don't implement other commands so assume success.
-        if (state != CODAState.ERROR) state = cmd.success();
-
-    }
 
 }
