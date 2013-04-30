@@ -19,7 +19,7 @@ import java.util.LinkedList;
  * This class represents data flow through connected EMU modules.
  * It's constructed in 2 stages. First, the EMU config file is
  * parsed and a linked list of Modules from module names is made.
- * Later when EmuModule objects are constructed by the EmuModuleFactory,
+ * Later when EmuModule objects are constructed by the Emu,
  * they are placed in the existing list so proper distribution of run
  * control commands can be made.
  *
@@ -58,7 +58,7 @@ public class EmuDataPath {
      * Constructor.
      *
      * @param name name of module to create
-     * @param inputFifo  name of any input fifo, else null
+     * @param inputFifo  name of any  input fifo, else null
      * @param outputFifo name of any output fifo, else null
      */
     public EmuDataPath(String name, String inputFifo, String outputFifo) {
@@ -72,7 +72,7 @@ public class EmuDataPath {
      * EmuModule is attached later with a call to {@link #associateModule(EmuModule)}.
      *
      * @param name name of module to create and add
-     * @param inputFifo  name of any input fifo, else null
+     * @param inputFifo  name of any  input fifo, else null
      * @param outputFifo name of any output fifo, else null
      * @return <code>true</code> if module added, else <code>false</code>
      */
@@ -178,9 +178,9 @@ public class EmuDataPath {
 
 
     /**
-     * Does this path contain the given module?
+     * Does this path contain the given EmuModule object?
      *
-     * @param module module
+     * @param module EmuModule object
      * @return <code>true</code> if module in path, else <code>false</code>
      */
     synchronized public boolean containsModule(EmuModule module) {
