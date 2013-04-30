@@ -14,9 +14,9 @@ package org.jlab.coda.emu;
 import org.jlab.coda.emu.support.control.CmdExecException;
 
 /**
- * This interface is used when defining data transports and channels.
- * It encompasses all state machine functions and the ability to
- * notify others of an END event's arrival.
+ * This interface is used when defining data transports, data channels,
+ * and modules. It encompasses all state machine functions and the
+ * ability to notify others of an END event's arrival.
  *
  * @see org.jlab.coda.emu.support.codaComponent.CODATransition
  * @author timmer
