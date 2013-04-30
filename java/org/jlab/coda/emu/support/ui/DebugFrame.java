@@ -54,7 +54,9 @@ public class DebugFrame extends JFrame {
         logPanel.monitor(logQueueAppender);
         smartToolbar.configure(emu, 0);
         smartToolbar1.configure(emu, 1);
+        // not used
         smartToolbar2.configure(emu, 2);
+        // not used
         smartToolbar3.configure(emu, 3);
         splitPane1.setDividerLocation(.75);
 
