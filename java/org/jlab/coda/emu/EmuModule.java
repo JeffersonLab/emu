@@ -87,10 +87,4 @@ public interface EmuModule extends StatedObject, EmuStateMachine {
      * @return <coda>true</code> if this module's statistics represents the EMU, else <code>false</code>.
      */
     public boolean representsEmuStatistics();
-
-
-    /**
-     * Reset this Module.
-     */
-    public void reset();
 }
