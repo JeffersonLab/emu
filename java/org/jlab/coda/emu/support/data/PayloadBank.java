@@ -161,4 +161,14 @@ public class PayloadBank extends EvioEvent {
         this.nonFatalBuildingError = nonFatalBuildingError;
     }
 
+
+    /**
+     * EvioEvent has a clone method. The additional members of this
+     * class are primitives/enums so bitwise copies are fine.
+     */
+    public Object clone() {
+        return super.clone();
+    }
+
+
 }
