@@ -792,7 +792,7 @@ System.out.println("      DataChannel Et in helper: " + name + " got RESET cmd, 
 logger.info("      DataChannel Et in helper: found END event");
                                     haveInputEndEvent = true;
                                     // run callback saying we got end event
-                                    if (endCallback != null) endCallback.callback(null);
+                                    if (endCallback != null) endCallback.endWait();
                                     break;
                                 }
                             }
@@ -1173,7 +1173,7 @@ System.out.println("      DataChannel Et out helper: " + name + " some thd got E
                                     haveOutputEndEvent = true;
 System.out.println("      DataChannel Et out helper: " + name + " I got END event, quitting 2");
                                     // run callback saying we got end event
-                                    if (endCallback != null) endCallback.callback(null);
+                                    if (endCallback != null) endCallback.endWait();
                                     break;
                                 }
 
@@ -1257,7 +1257,7 @@ System.out.println("      DataChannel Et out helper: " + name + " got RESET cmd,
                                 pBank.setAttachment(Boolean.TRUE);
                                 haveOutputEndEvent = true;
 System.out.println("      DataChannel Et out helper: " + name + " I got END event, quitting 3");
-                                if (endCallback != null) endCallback.callback(null);
+                                if (endCallback != null) endCallback.endWait();
                                 break;
                             }
 

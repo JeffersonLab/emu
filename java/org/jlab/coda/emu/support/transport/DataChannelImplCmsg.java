@@ -817,7 +817,7 @@ System.out.println("singlethreaded put: array len = " + msgs.length + ", send " 
                                 if (Evio.isEndEvent(pBank)) {
                                     pBank.setAttachment(Boolean.TRUE);
                                     haveOutputEndEvent = true;
-                                    if (endCallback != null) endCallback.callback(null);
+                                    if (endCallback != null) endCallback.endWait();
                                     break;
                                 }
 
@@ -907,7 +907,7 @@ System.out.println("singlethreaded put: array len = " + msgs.length + ", send " 
                             if (Evio.isEndEvent(pBank)) {
                                 pBank.setAttachment(Boolean.TRUE);
                                 haveOutputEndEvent = true;
-                                if (endCallback != null) endCallback.callback(null);
+                                if (endCallback != null) endCallback.endWait();
                                 break;
                             }
 

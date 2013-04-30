@@ -359,7 +359,7 @@ logger.info("      DataChannel File: try opening output file of " + fileName);
                 bank.setEventType(EventType.CONTROL);
                 bank.setControlType(ControlType.END);
                 queue.put(new QueueItem(bank, ControlType.END));  // will block
-                if (endCallback != null) endCallback.callback(null);
+                if (endCallback != null) endCallback.endWait();
 
             } catch (InterruptedException e) {
                 // time to quit
@@ -416,7 +416,7 @@ logger.info("      DataChannel File: try opening output file of " + fileName);
                         ControlType cType = bank.getControlType();
                         if (cType == ControlType.END) {
                             gotEnd = true;
-                            if (endCallback != null) endCallback.callback(null);
+                            if (endCallback != null) endCallback.endWait();
                             logger.info("      DataChannel File (" + name + "): got END, close file " + fileName);
                         }
                         else if (cType == ControlType.PRESTART) {
