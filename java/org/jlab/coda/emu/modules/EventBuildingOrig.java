@@ -14,12 +14,14 @@ package org.jlab.coda.emu.modules;
 import org.jlab.coda.emu.Emu;
 import org.jlab.coda.emu.EmuException;
 import org.jlab.coda.emu.EmuModule;
+import org.jlab.coda.emu.EmuStateMachineAdapter;
 import org.jlab.coda.emu.support.codaComponent.CODACommand;
 import org.jlab.coda.emu.support.codaComponent.CODAState;
 import static org.jlab.coda.emu.support.codaComponent.CODACommand.*;
 
 import org.jlab.coda.emu.support.configurer.Configurer;
 import org.jlab.coda.emu.support.configurer.DataNotFoundException;
+import org.jlab.coda.emu.support.control.CmdExecException;
 import org.jlab.coda.emu.support.control.Command;
 import org.jlab.coda.emu.support.control.State;
 import org.jlab.coda.emu.support.data.*;
@@ -104,7 +106,7 @@ import java.util.concurrent.locks.ReentrantLock;
  * If no output channels are defined in the config file, this module's QCollector thread
  * pulls off all events and discards them.
  */
-public class EventBuildingOrig implements EmuModule {
+public class EventBuildingOrig extends EmuStateMachineAdapter implements EmuModule {
 
 
     /** Name of this event builder. */
@@ -1097,229 +1099,187 @@ if (debug) System.out.println("gotValidControlEvents: found control event of typ
         }
     }
 
-    /** {@inheritDoc} */
-    public void execute(Command cmd) {
-        Date theDate = new Date();
 
-        CODACommand emuCmd = cmd.getCodaCommand();
+    public void end() throws CmdExecException {
+        state = CODAState.DOWNLOADED;
 
-        if (emuCmd == END) {
-            state = CODAState.DOWNLOADED;
+        // The order in which these thread are shutdown does(should) not matter.
+        // Rocs should already have been shutdown, followed by the input transports,
+        // followed by this module (followed by the output transports).
+        if (watcher  != null) watcher.interrupt();
 
-            // The order in which these thread are shutdown does(should) not matter.
-            // Rocs should already have been shutdown, followed by the input transports,
-            // followed by this module (followed by the output transports).
-            if (watcher  != null) watcher.interrupt();
+        // Build & QFiller & QCollector threads should already be ended by END event
+        endBuildAndFillerAndCollectorThreads(null, true);
 
-            // Build & QFiller & QCollector threads should already be ended by END event
-            endBuildAndFillerAndCollectorThreads(null, true);
+        watcher    = null;
+        qFillers   = null;
+        qCollector = null;
+        buildingThreadList.clear();
 
-            watcher    = null;
-            qFillers   = null;
-            qCollector = null;
-            buildingThreadList.clear();
+        inputOrder = 0;
+        outputOrder = 0;
+        outputOrderPhysics = 0;
+        paused = false;
 
-            inputOrder = 0;
-            outputOrder = 0;
-            outputOrderPhysics = 0;
-            paused = false;
-
-            try {
-                // set end-of-run time in local XML config / debug GUI
-                Configurer.setValue(emu.parameters(), "status/run_end_time", theDate.toString());
-            } catch (DataNotFoundException e) {
-                e.printStackTrace();
-            }
+        try {
+            // Set end-of-run time in local XML config / debug GUI
+            Configurer.setValue(emu.parameters(), "status/run_end_time", (new Date()).toString());
+        } catch (DataNotFoundException e) {
+            state = CODAState.ERROR;
+            throw new CmdExecException("status/run_end_time entry not found in local config file");
         }
+    }
 
-        else if (emuCmd == RESET) {
-            State previousState = state;
-            state = CODAState.CONFIGURED;
 
-            eventRate = wordRate = 0F;
-            eventCountTotal = wordCountTotal = 0L;
-
-            if (watcher  != null) watcher.interrupt();
-
-            // Build & QFiller & QCollector threads must be immediately ended
-            endBuildAndFillerAndCollectorThreads(null, false);
-
-            watcher    = null;
-            qFillers   = null;
-            qCollector = null;
-            buildingThreadList.clear();
-
-            inputOrder = 0;
-            outputOrder = 0;
-            outputOrderPhysics = 0;
-            paused = false;
-
-            if (previousState.equals(CODAState.ACTIVE)) {
-                try {
-                    // set end-of-run time in local XML config / debug GUI
-                    Configurer.setValue(emu.parameters(), "status/run_end_time", theDate.toString());
-                } catch (DataNotFoundException e) {
-                    e.printStackTrace();
+    public void prestart() throws CmdExecException {
+        // Make sure each input channel is associated with a unique rocId
+        for (int i=0; i < inputChannels.size(); i++) {
+            for (int j=i+1; j < inputChannels.size(); j++) {
+                if (inputChannels.get(i).getID() == inputChannels.get(j).getID()) {
+                    state = CODAState.ERROR;
+                    throw new CmdExecException("input channels duplicate rocIDs");
                 }
             }
         }
 
-        else if (emuCmd == PRESTART) {
-            // Make sure each input channel is associated with a unique rocId
-            for (int i=0; i < inputChannels.size(); i++) {
-                for (int j=i+1; j < inputChannels.size(); j++) {
-                    if (inputChannels.get(i).getID() == inputChannels.get(j).getID()) {
-                        // TODO: forget this exception ??
-                        emu.getCauses().add(new EmuException("input channels duplicate rocIDs"));
-                        state = CODAState.ERROR;
-                        return;
-                    }
-                }
+        state = CODAState.PAUSED;
+
+        // Make sure we have the correct # of payload bank queues available.
+        // Each queue holds payload banks taken from Data Transport Records
+        // from a particular source (ROC).
+        int diff = inputChannels.size() - payloadBankQueues.size();
+        boolean add = true;
+        if (diff < 0) {
+            add  = false;
+            diff = -diff;
+        }
+
+        for (int i=0; i < diff; i++) {
+            // Add more queues
+            if (add) {
+                // Allow only 1000 items on the q at once
+                payloadBankQueues.add(new PayloadBankQueue<PayloadBank>(1000));
             }
-
-            state = CODAState.PAUSED;
-
-            // Make sure we have the correct # of payload bank queues available.
-            // Each queue holds payload banks taken from Data Transport Records
-            // from a particular source (ROC).
-            int diff = inputChannels.size() - payloadBankQueues.size();
-            boolean add = true;
-            if (diff < 0) {
-                add  = false;
-                diff = -diff;
+            // Remove excess queues
+            else {
+                payloadBankQueues.remove();
             }
+        }
 
-            for (int i=0; i < diff; i++) {
-                // Add more queues
-                if (add) {
-                    // Allow only 1000 items on the q at once
-                    payloadBankQueues.add(new PayloadBankQueue<PayloadBank>(1000));
-                }
-                // Remove excess queues
-                else {
-                    payloadBankQueues.remove();
-                }
-            }
+        int qCount = payloadBankQueues.size();
 
-            int qCount = payloadBankQueues.size();
+        // Clear all payload bank queues, associate each one with source ID, and reset record ID
+        for (int i=0; i < qCount; i++) {
+            payloadBankQueues.get(i).clear();
+            payloadBankQueues.get(i).setSourceId(inputChannels.get(i).getID());
+            payloadBankQueues.get(i).setRecordId(0);
+        }
 
-            // Clear all payload bank queues, associate each one with source ID, and reset record ID
-            for (int i=0; i < qCount; i++) {
-                payloadBankQueues.get(i).clear();
-                payloadBankQueues.get(i).setSourceId(inputChannels.get(i).getID());
-                payloadBankQueues.get(i).setRecordId(0);
-            }
+        // Reset some variables
+        eventRate = wordRate = 0F;
+        eventCountTotal = wordCountTotal = 0L;
+        runType = emu.getRunType();
+        runNumber = emu.getRunNumber();
+        ebRecordId = 0;
+        eventNumber = 1L;
+        lastEventNumberBuilt = 0L;
 
-            // Reset some variables
-            eventRate = wordRate = 0F;
-            eventCountTotal = wordCountTotal = 0L;
-            runType = emu.getRunType();
-            runNumber = emu.getRunNumber();
-            ebRecordId = 0;
-            eventNumber = 1L;
-            lastEventNumberBuilt = 0L;
+        // Create threads objects (but don't start them yet)
+        watcher = new Thread(emu.getThreadGroup(), new Watcher(), name+":watcher");
+        for (int i=0; i < buildingThreadCount; i++) {
+            BuildingThread thd1 = new BuildingThread(emu.getThreadGroup(), new BuildingThread(), name+":builder"+i);
+            buildingThreadList.add(thd1);
+        }
+        qCollector = new Thread(emu.getThreadGroup(), new QCollector(), name+":qcollector");
+        qFillers = new Thread[qCount];
+        for (int i=0; i < qCount; i++) {
+            qFillers[i] = new Thread(emu.getThreadGroup(),
+                                     new Qfiller(payloadBankQueues.get(i),
+                                                 inputChannels.get(i).getQueue()),
+                                     name+":qfiller"+i);
+        }
 
-            // Create threads objects (but don't start them yet)
+        try {
+            // Set start-of-run time in local XML config / debug GUI
+            Configurer.setValue(emu.parameters(), "status/run_start_time", "--prestart--");
+        } catch (DataNotFoundException e) {
+            state = CODAState.ERROR;
+            throw new CmdExecException("status/run_start_time entry not found in local config file");
+        }
+    }
+
+    public void pause() {
+        paused = true;
+    }
+
+
+    public void go() throws CmdExecException {
+        state = CODAState.ACTIVE;
+
+        // Start up all threads
+        if (watcher == null) {
             watcher = new Thread(emu.getThreadGroup(), new Watcher(), name+":watcher");
+        }
+        if (watcher.getState() == Thread.State.NEW) {
+            watcher.start();
+        }
+
+        if (buildingThreadList.size() < 1) {
             for (int i=0; i < buildingThreadCount; i++) {
                 BuildingThread thd1 = new BuildingThread(emu.getThreadGroup(), new BuildingThread(), name+":builder"+i);
                 buildingThreadList.add(thd1);
             }
+        }
+
+        for (BuildingThread thd : buildingThreadList) {
+            if (thd.getState() == Thread.State.NEW) {
+                thd.start();
+            }
+        }
+
+        if (qCollector == null) {
             qCollector = new Thread(emu.getThreadGroup(), new QCollector(), name+":qcollector");
-            qFillers = new Thread[qCount];
-            for (int i=0; i < qCount; i++) {
+        }
+
+        if (qCollector.getState() == Thread.State.NEW) {
+            qCollector.start();
+        }
+
+        if (qFillers == null) {
+            qFillers = new Thread[payloadBankQueues.size()];
+            for (int i=0; i < payloadBankQueues.size(); i++) {
                 qFillers[i] = new Thread(emu.getThreadGroup(),
                                          new Qfiller(payloadBankQueues.get(i),
-                                                        inputChannels.get(i).getQueue()),
+                                                     inputChannels.get(i).getQueue()),
                                          name+":qfiller"+i);
             }
-
-            try {
-                // Set end-of-run time in local XML config / debug GUI
-                Configurer.setValue(emu.parameters(), "status/run_start_time", "--prestart--");
-            } catch (DataNotFoundException e) {
-                emu.getCauses().add(e);
-                state = CODAState.ERROR;
-                return;
+        }
+        for (int i=0; i < payloadBankQueues.size(); i++) {
+            if (qFillers[i].getState() == Thread.State.NEW) {
+                qFillers[i].start();
             }
         }
 
-        // Currently NOT used
-        else if (emuCmd == PAUSE) {
-            System.out.println("EB: GOT PAUSE, DO NOTHING");
-            paused = true;
+        paused = false;
+
+        try {
+            // set start-of-run time in local XML config / debug GUI
+            Configurer.setValue(emu.parameters(), "status/run_start_time", (new Date()).toString());
+        } catch (DataNotFoundException e) {
+            state = CODAState.ERROR;
+            throw new CmdExecException("status/run_start_time entry not found in local config file");
         }
+    }
 
-        else if (emuCmd == GO) {
-            state = CODAState.ACTIVE;
 
-            // Start up all threads
-            if (watcher == null) {
-                watcher = new Thread(emu.getThreadGroup(), new Watcher(), name+":watcher");
-            }
-            if (watcher.getState() == Thread.State.NEW) {
-                watcher.start();
-            }
-
-            if (buildingThreadList.size() < 1) {
-                for (int i=0; i < buildingThreadCount; i++) {
-                    BuildingThread thd1 = new BuildingThread(emu.getThreadGroup(), new BuildingThread(), name+":builder"+i);
-                    buildingThreadList.add(thd1);
-                }
-            }
-
-            for (BuildingThread thd : buildingThreadList) {
-                if (thd.getState() == Thread.State.NEW) {
-                    thd.start();
-                }
-            }
-
-            if (qCollector == null) {
-                qCollector = new Thread(emu.getThreadGroup(), new QCollector(), name+":qcollector");
-            }
-
-            if (qCollector.getState() == Thread.State.NEW) {
-                qCollector.start();
-            }
-
-            if (qFillers == null) {
-                qFillers = new Thread[payloadBankQueues.size()];
-                for (int i=0; i < payloadBankQueues.size(); i++) {
-                    qFillers[i] = new Thread(emu.getThreadGroup(),
-                                             new Qfiller(payloadBankQueues.get(i),
-                                                            inputChannels.get(i).getQueue()),
-                                             name+":qfiller"+i);
-                }
-            }
-            for (int i=0; i < payloadBankQueues.size(); i++) {
-                if (qFillers[i].getState() == Thread.State.NEW) {
-                    qFillers[i].start();
-                }
-            }
-
-            paused = false;
-
-            try {
-                // Set end-of-run time in local XML config / debug GUI
-                Configurer.setValue(emu.parameters(), "status/run_start_time", theDate.toString());
-            } catch (DataNotFoundException e) {
-                emu.getCauses().add(e);
-                state = CODAState.ERROR;
-                return;
-            }
-        }
-
-        state = cmd.success();
+    /** {@inheritDoc} */
+    public void addInputChannels(ArrayList<DataChannel> input_channels) {
+        this.inputChannels.addAll(input_channels);
     }
 
     /** {@inheritDoc} */
-    public void setInputChannels(ArrayList<DataChannel> input_channels) {
-        this.inputChannels = input_channels;
-    }
-
-    /** {@inheritDoc} */
-    public void setOutputChannels(ArrayList<DataChannel> output_channels) {
-        this.outputChannels = output_channels;
+    public void addOutputChannels(ArrayList<DataChannel> output_channels) {
+        this.outputChannels.addAll(output_channels);
     }
 
     /** {@inheritDoc} */
@@ -1331,5 +1291,12 @@ if (debug) System.out.println("gotValidControlEvents: found control event of typ
     public ArrayList<DataChannel> getOutputChannels() {
         return outputChannels;
     }
+
+    /** {@inheritDoc} */
+    public void clearChannels() {
+        inputChannels.clear();
+        outputChannels.clear();
+    }
+
 
 }

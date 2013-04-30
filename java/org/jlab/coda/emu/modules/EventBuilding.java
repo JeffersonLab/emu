@@ -11,14 +11,13 @@
 
 package org.jlab.coda.emu.modules;
 
-import org.jlab.coda.emu.Emu;
-import org.jlab.coda.emu.EmuException;
-import org.jlab.coda.emu.EmuModule;
+import org.jlab.coda.emu.*;
 import org.jlab.coda.emu.support.codaComponent.CODAClass;
 import org.jlab.coda.emu.support.codaComponent.CODACommand;
 import org.jlab.coda.emu.support.codaComponent.CODAState;
 import org.jlab.coda.emu.support.configurer.Configurer;
 import org.jlab.coda.emu.support.configurer.DataNotFoundException;
+import org.jlab.coda.emu.support.control.CmdExecException;
 import org.jlab.coda.emu.support.control.Command;
 import org.jlab.coda.emu.support.control.State;
 import org.jlab.coda.emu.support.data.*;
@@ -89,7 +88,7 @@ import static org.jlab.coda.emu.support.codaComponent.CODACommand.*;
  * channel. Control & User events are not part of the round-robin output to each channel in turn.
  * If no output channels are defined in the config file, this module discards all events.
  */
-public class EventBuilding implements EmuModule {
+public class EventBuilding extends EmuStateMachineAdapter implements EmuModule {
 
 
     /** Name of this event builder. */
@@ -154,6 +153,9 @@ public class EventBuilding implements EmuModule {
 
     /** Maximum time to wait when commanded to END but no END event received. */
     private long endingTimeLimit = 60000;
+
+    /** Object used by Emu to be notified of END event arrival. */
+    private EmuEventNotify endCallback;
 
     /** The number of the experimental run. */
     private int runNumber;
@@ -404,6 +406,13 @@ System.out.println("EventBuilding constr: " + buildingThreadCount +
         return name;
     }
 
+
+
+    public void registerEndCallback(EmuEventNotify callback) {
+        endCallback = callback;
+    };
+
+    public EmuEventNotify getEndCallback() {return endCallback;};
 
     /** {@inheritDoc} */
     synchronized public Object[] getStatistics() {
@@ -1058,6 +1067,7 @@ if (true) System.out.println("Have consistent CONTROL event(s)");
 if (true) System.out.println("Found END event in build thread");
                             haveEndEvent = true;
                             endBuildAndQFillerThreads(this, false);
+                            if (endCallback != null) endCallback.callback(null);
                             return;
                         }
 
@@ -1389,148 +1399,142 @@ if (debug) System.out.println("Building thread is ending !!!");
     }
 
 
-    /** {@inheritDoc} */
-    public void execute(Command cmd) {
-        Date theDate = new Date();
+    public void end() throws CmdExecException {
 
-        CODACommand emuCmd = cmd.getCodaCommand();
+        state = CODAState.DOWNLOADED;
 
-        if (emuCmd == END) {
-            state = CODAState.DOWNLOADED;
+        // The order in which these thread are shutdown does(should) not matter.
+        // Rocs should already have been shutdown, followed by the input transports,
+        // followed by this module (followed by the output transports).
+        if (watcher != null) watcher.interrupt();
 
-            // The order in which these thread are shutdown does(should) not matter.
-            // Rocs should already have been shutdown, followed by the input transports,
-            // followed by this module (followed by the output transports).
-            if (watcher  != null) watcher.interrupt();
+        // Build & QFiller threads should already be ended by END event
+        endBuildAndQFillerThreads(null, true);
 
-            // Build & QFiller threads should already be ended by END event
-            endBuildAndQFillerThreads(null, true);
+        watcher  = null;
+        qFillers = null;
+        buildingThreadList.clear();
 
-            watcher    = null;
-            qFillers   = null;
-            buildingThreadList.clear();
+        if (inputOrders  != null) Arrays.fill(inputOrders, 0);
+        if (outputOrders != null) Arrays.fill(outputOrders, 0);
 
-            if (inputOrders  != null) Arrays.fill(inputOrders, 0);
-            if (outputOrders != null) Arrays.fill(outputOrders, 0);
+        paused = false;
 
-            paused = false;
-
-            try {
-                // Set end-of-run time in local XML config / debug GUI
-                Configurer.setValue(emu.parameters(), "status/run_end_time", theDate.toString());
-            } catch (DataNotFoundException e) {
-                e.printStackTrace();
-            }
+        try {
+            // Set end-of-run time in local XML config / debug GUI
+            Configurer.setValue(emu.parameters(), "status/run_end_time", (new Date()).toString());
+        } catch (DataNotFoundException e) {
+            state = CODAState.ERROR;
+            throw new CmdExecException("status/run_end_time entry not found in local config file");
         }
-
-        else if (emuCmd == PRESTART) {
-            // Make sure each input channel is associated with a unique rocId
-            for (int i=0; i < inputChannels.size(); i++) {
-                for (int j=i+1; j < inputChannels.size(); j++) {
-                    if (inputChannels.get(i).getID() == inputChannels.get(j).getID()) {
-                        emu.getCauses().add(new EmuException("input channels duplicate rocIDs"));
-                        state = CODAState.ERROR;
-                        return;
-                    }
-                }
-            }
-
-            state = CODAState.PAUSED;
-            paused = true;
-
-            // Make sure we have the correct # of payload bank queues available.
-            // Each queue holds payload banks taken from a particular source (ROC).
-            int diff = inputChannels.size() - payloadBankQueues.size();
-            boolean add = true;
-            if (diff < 0) {
-                add  = false;
-                diff = -diff;
-            }
-
-            for (int i=0; i < diff; i++) {
-                // Add more queues
-                if (add) {
-                    // Allow only payloadBankQueueSize items on the q at once
-                    payloadBankQueues.add(new PayloadBankQueue<PayloadBank>(payloadBankQueueSize));
-                }
-                // Remove excess queues (from head of linked list)
-                else {
-                    payloadBankQueues.remove();
-                }
-            }
-
-            int qCount = payloadBankQueues.size();
-
-            // Clear all payload bank queues, associate each one with source ID, reset record ID
-            for (int i=0; i < qCount; i++) {
-                payloadBankQueues.get(i).clear();
-                payloadBankQueues.get(i).setSourceId(inputChannels.get(i).getID());
-                payloadBankQueues.get(i).setRecordId(0);
-            }
-
-            // How many output channels do we have?
-            outputChannelCount = outputChannels.size();
-
-            // Allocate some arrays based on # of output channels
-            waitingLists = null;
-            if (outputChannelCount > 0) {
-                locks = new Object[outputChannelCount];
-                for (int i=0; i < outputChannelCount; i++) {
-                    locks[i] = new Object();
-                }
-                inputOrders  = new int[outputChannelCount];
-                outputOrders = new int[outputChannelCount];
-
-                waitingLists = new PriorityBlockingQueue[outputChannelCount];
-                for (int i=0; i < outputChannelCount; i++) {
-                    waitingLists[i] = new PriorityBlockingQueue<PayloadBank>(100, comparator);
-                }
-            }
-
-            // Reset some variables
-            eventRate = wordRate = 0F;
-            eventCountTotal = wordCountTotal = 0L;
-            runType = emu.getRunType();
-            runNumber = emu.getRunNumber();
-            ebRecordId = 0;
-            eventNumber = 1L;
-            eventNumberAtLastSync = eventNumber;
-
-            // Create & start threads
-            createThreads();
-            startThreads();
-
-            try {
-                // Set end-of-run time in local XML config / debug GUI
-                Configurer.setValue(emu.parameters(), "status/run_start_time", "--prestart--");
-            } catch (DataNotFoundException e) {
-                emu.getCauses().add(e);
-                state = CODAState.ERROR;
-                return;
-            }
-        }
-
-        // Currently NOT used
-        else if (emuCmd == PAUSE) {
-            paused = true;
-        }
-
-        else if (emuCmd == GO) {
-            state = CODAState.ACTIVE;
-            paused = false;
-
-            try {
-                // set end-of-run time in local XML config / debug GUI
-                Configurer.setValue(emu.parameters(), "status/run_start_time", theDate.toString());
-            } catch (DataNotFoundException e) {
-                emu.getCauses().add(e);
-                state = CODAState.ERROR;
-                return;
-            }
-        }
-
-        state = cmd.success();
     }
+
+
+    public void prestart() throws CmdExecException {
+
+        // Make sure each input channel is associated with a unique rocId
+        for (int i=0; i < inputChannels.size(); i++) {
+            for (int j=i+1; j < inputChannels.size(); j++) {
+                if (inputChannels.get(i).getID() == inputChannels.get(j).getID()) {
+                    state = CODAState.ERROR;
+                    throw new CmdExecException("input channels duplicate rocIDs");
+                }
+            }
+        }
+
+        state = CODAState.PAUSED;
+        paused = true;
+
+        // Make sure we have the correct # of payload bank queues available.
+        // Each queue holds payload banks taken from a particular source (ROC).
+        int diff = inputChannels.size() - payloadBankQueues.size();
+        boolean add = true;
+        if (diff < 0) {
+            add  = false;
+            diff = -diff;
+        }
+
+        for (int i=0; i < diff; i++) {
+            // Add more queues
+            if (add) {
+                // Allow only payloadBankQueueSize items on the q at once
+                payloadBankQueues.add(new PayloadBankQueue<PayloadBank>(payloadBankQueueSize));
+            }
+            // Remove excess queues (from head of linked list)
+            else {
+                payloadBankQueues.remove();
+            }
+        }
+
+        int qCount = payloadBankQueues.size();
+
+        // Clear all payload bank queues, associate each one with source ID, reset record ID
+        for (int i=0; i < qCount; i++) {
+            payloadBankQueues.get(i).clear();
+            payloadBankQueues.get(i).setSourceId(inputChannels.get(i).getID());
+            payloadBankQueues.get(i).setRecordId(0);
+        }
+
+        // How many output channels do we have?
+        outputChannelCount = outputChannels.size();
+
+        // Allocate some arrays based on # of output channels
+        waitingLists = null;
+        if (outputChannelCount > 0) {
+            locks = new Object[outputChannelCount];
+            for (int i=0; i < outputChannelCount; i++) {
+                locks[i] = new Object();
+            }
+            inputOrders  = new int[outputChannelCount];
+            outputOrders = new int[outputChannelCount];
+
+            waitingLists = new PriorityBlockingQueue[outputChannelCount];
+            for (int i=0; i < outputChannelCount; i++) {
+                waitingLists[i] = new PriorityBlockingQueue<PayloadBank>(100, comparator);
+            }
+        }
+
+        // Reset some variables
+        eventRate = wordRate = 0F;
+        eventCountTotal = wordCountTotal = 0L;
+        runType = emu.getRunType();
+        runNumber = emu.getRunNumber();
+        ebRecordId = 0;
+        eventNumber = 1L;
+        eventNumberAtLastSync = eventNumber;
+
+        // Create & start threads
+        createThreads();
+        startThreads();
+
+        try {
+            // Set start-of-run time in local XML config / debug GUI
+            Configurer.setValue(emu.parameters(), "status/run_start_time", "--prestart--");
+        } catch (DataNotFoundException e) {
+            state = CODAState.ERROR;
+            throw new CmdExecException("status/run_start_time entry not found in local config file");
+        }
+    }
+
+
+    public void pause() {
+        paused = true;
+    }
+
+
+    public void go() throws CmdExecException {
+        state = CODAState.ACTIVE;
+        paused = false;
+
+        try {
+            // set start-of-run time in local XML config / debug GUI
+            Configurer.setValue(emu.parameters(), "status/run_start_time", (new Date()).toString());
+        } catch (DataNotFoundException e) {
+            state = CODAState.ERROR;
+            throw new CmdExecException("status/run_start_time entry not found in local config file");
+        }
+    }
+
 
     /**
      * Method to create thread objects for stats, filling Qs and building events.
@@ -1607,13 +1611,13 @@ System.out.println("startThreads(): recreated " + payloadBankQueues.size() +
     }
 
     /** {@inheritDoc} */
-    public void setInputChannels(ArrayList<DataChannel> input_channels) {
-        this.inputChannels = input_channels;
+    public void addInputChannels(ArrayList<DataChannel> input_channels) {
+        this.inputChannels.addAll(input_channels);
     }
 
     /** {@inheritDoc} */
-    public void setOutputChannels(ArrayList<DataChannel> output_channels) {
-        this.outputChannels = output_channels;
+    public void addOutputChannels(ArrayList<DataChannel> output_channels) {
+        this.outputChannels.addAll(output_channels);
     }
 
     /** {@inheritDoc} */
@@ -1625,4 +1629,11 @@ System.out.println("startThreads(): recreated " + payloadBankQueues.size() +
     public ArrayList<DataChannel> getOutputChannels() {
         return outputChannels;
     }
+
+    /** {@inheritDoc} */
+    public void clearChannels() {
+        inputChannels.clear();
+        outputChannels.clear();
+    }
+
 }

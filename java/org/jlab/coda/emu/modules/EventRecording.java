@@ -11,13 +11,12 @@
 
 package org.jlab.coda.emu.modules;
 
-import org.jlab.coda.emu.Emu;
-import org.jlab.coda.emu.EmuException;
-import org.jlab.coda.emu.EmuModule;
+import org.jlab.coda.emu.*;
 import org.jlab.coda.emu.support.codaComponent.CODACommand;
 import org.jlab.coda.emu.support.codaComponent.CODAState;
 import org.jlab.coda.emu.support.configurer.Configurer;
 import org.jlab.coda.emu.support.configurer.DataNotFoundException;
+import org.jlab.coda.emu.support.control.CmdExecException;
 import org.jlab.coda.emu.support.control.Command;
 import org.jlab.coda.emu.support.control.State;
 import org.jlab.coda.emu.support.data.*;
@@ -66,7 +65,7 @@ import static org.jlab.coda.emu.support.codaComponent.CODACommand.*;
  * the output channels. If no output channels are defined in the config file,
  * this module discards all events.
  */
-public class EventRecording implements EmuModule {
+public class EventRecording extends EmuStateMachineAdapter implements EmuModule {
 
 
     /** Name of this event recorder. */
@@ -89,6 +88,9 @@ public class EventRecording implements EmuModule {
 
     /** ArrayList of DataChannel objects that are outputs. */
     private ArrayList<DataChannel> outputChannels = new ArrayList<DataChannel>();
+
+    private QueueItemType   inType = QueueItemType.PayloadBank;
+    private QueueItemType  outType = QueueItemType.PayloadBank;
 
     /**
      * There is one waiting list per output channel -
@@ -120,6 +122,9 @@ public class EventRecording implements EmuModule {
 
     /** Maximum time to wait when commanded to END but no END event received. */
     private long endingTimeLimit = 60000;
+
+    /** Object used by Emu to be notified of END event arrival. */
+    private EmuEventNotify endCallback;
 
     // The following members are for keeping statistics
 
@@ -267,6 +272,23 @@ System.out.println("EventRecording constr: " + recordingThreadCount +
                 representStatistics = true;
             }
         }
+
+        // Do we want ByteBuffer or EvioEvent input (EvioEvent is default)?
+        str = attributeMap.get("inType");
+        if (str != null) {
+            if (str.equalsIgnoreCase("ByteBuffer"))   {
+                inType = QueueItemType.ByteBuffer;
+            }
+        }
+
+        // Do we want ByteBuffer or EvioEvent output (EvioEvent is default)?
+        str = attributeMap.get("outType");
+        if (str != null) {
+            if (str.equalsIgnoreCase("ByteBuffer"))   {
+                outType = QueueItemType.ByteBuffer;
+            }
+        }
+
     }
 
 
@@ -274,6 +296,12 @@ System.out.println("EventRecording constr: " + recordingThreadCount +
     public String name() {
         return name;
     }
+
+    public void registerEndCallback(EmuEventNotify callback) {
+        endCallback = callback;
+    };
+
+    public EmuEventNotify getEndCallback() {return endCallback;};
 
 
     /** {@inheritDoc} */
@@ -543,6 +571,7 @@ System.out.println("Running runMultipleThreads()");
 if (true) System.out.println("Found END event in record thread");
                         haveEndEvent = true;
                         endRecordThreads(this, false);
+                        if (endCallback != null) endCallback.callback(null);
                         return;
                     }
 
@@ -591,6 +620,7 @@ System.out.println("Running runOneThread()");
                     if (recordingBank.getControlType() == ControlType.END) {
 if (true) System.out.println("Found END event in record thread");
                         haveEndEvent = true;
+                        if (endCallback != null) endCallback.callback(null);
                         return;
                     }
 
@@ -708,121 +738,113 @@ if (true) System.out.println("Found END event in record thread");
     }
 
 
-    /** {@inheritDoc} */
-    public void execute(Command cmd) {
-        Date theDate = new Date();
 
-        CODACommand emuCmd = cmd.getCodaCommand();
+    public void end() throws CmdExecException {
+        state = CODAState.DOWNLOADED;
 
-        if (emuCmd == END) {
-            state = CODAState.DOWNLOADED;
+        // The order in which these thread are shutdown does(should) not matter.
+        // Rocs should already have been shutdown, followed by the input transports,
+        // followed by this module (followed by the output transports).
+        if (watcher  != null) watcher.interrupt();
 
-            // The order in which these thread are shutdown does(should) not matter.
-            // Rocs should already have been shutdown, followed by the input transports,
-            // followed by this module (followed by the output transports).
-            if (watcher  != null) watcher.interrupt();
+        // Recording threads should already be ended by END event
+        endRecordThreads(null, true);
 
-            // Recording threads should already be ended by END event
-            endRecordThreads(null, true);
+        watcher = null;
+        recordingThreadList.clear();
 
-            watcher = null;
-            recordingThreadList.clear();
+        if (inputOrders  != null) Arrays.fill(inputOrders, 0);
+        if (outputOrders != null) Arrays.fill(outputOrders, 0);
 
-            if (inputOrders  != null) Arrays.fill(inputOrders, 0);
-            if (outputOrders != null) Arrays.fill(outputOrders, 0);
+        paused = false;
 
-            paused = false;
+        try {
+            // Set end-of-run time in local XML config / debug GUI
+            Configurer.setValue(emu.parameters(), "status/run_end_time", (new Date()).toString());
+        } catch (DataNotFoundException e) {
+            state = CODAState.ERROR;
+            throw new CmdExecException("status/run_end_time entry not found in local config file");
+        }
+    }
 
-            try {
-                // Set end-of-run time in local XML config / debug GUI
-                Configurer.setValue(emu.parameters(), "status/run_end_time", theDate.toString());
-            } catch (DataNotFoundException e) {
-                e.printStackTrace();
+
+    public void prestart() throws CmdExecException {
+        // Make sure each input channel is associated with a unique rocId
+        for (int i=0; i < inputChannels.size(); i++) {
+            for (int j=i+1; j < inputChannels.size(); j++) {
+                if (inputChannels.get(i).getID() == inputChannels.get(j).getID()) {;
+                    state = CODAState.ERROR;
+                    throw new CmdExecException("input channels duplicate rocIDs");
+                }
             }
         }
 
-        else if (emuCmd == PRESTART) {
-            // Make sure each input channel is associated with a unique rocId
-            for (int i=0; i < inputChannels.size(); i++) {
-                for (int j=i+1; j < inputChannels.size(); j++) {
-                    if (inputChannels.get(i).getID() == inputChannels.get(j).getID()) {
-                        emu.getCauses().add(new EmuException("input channels duplicate rocIDs"));
-                        state = CODAState.ERROR;
-                        return;
-                    }
-                }
-            }
+        state = CODAState.PAUSED;
+        paused = true;
 
-            state = CODAState.PAUSED;
-            paused = true;
+        // Make sure we have only one input channel
+        if (inputChannels.size() != 1) {
+            state = CODAState.ERROR;
+            return;
+        }
 
-            // Make sure we have only one input channel
-            if (inputChannels.size() != 1) {
-                state = CODAState.ERROR;
-                return;
-            }
+        // Clear input channel queue
+        channelQ.clear();
 
-            // Clear input channel queue
-            channelQ.clear();
-
-            // How many output channels do we have?
+        // How many output channels do we have?
 //            outputChannelCount = outputChannels.size();
 
-            // Allocate some arrays based on # of output channels
-            waitingLists = null;
-            if (outputChannelCount > 0 && recordingThreadCount > 1) {
-                locks = new Object[outputChannelCount];
-                for (int i=0; i < outputChannelCount; i++) {
-                    locks[i] = new Object();
-                }
-                inputOrders  = new int[outputChannelCount];
-                outputOrders = new int[outputChannelCount];
-
-                waitingLists = new PriorityBlockingQueue[outputChannelCount];
-                for (int i=0; i < outputChannelCount; i++) {
-                    waitingLists[i] = new PriorityBlockingQueue<PayloadBank>(100, comparator);
-                }
+        // Allocate some arrays based on # of output channels
+        waitingLists = null;
+        if (outputChannelCount > 0 && recordingThreadCount > 1) {
+            locks = new Object[outputChannelCount];
+            for (int i=0; i < outputChannelCount; i++) {
+                locks[i] = new Object();
             }
+            inputOrders  = new int[outputChannelCount];
+            outputOrders = new int[outputChannelCount];
 
-            // Reset some variables
-            eventRate = wordRate = 0F;
-            eventCountTotal = wordCountTotal = 0L;
-
-            // Create & start threads
-            createThreads();
-            startThreads();
-
-            try {
-                // Set end-of-run time in local XML config / debug GUI
-                Configurer.setValue(emu.parameters(), "status/run_start_time", "--prestart--");
-            } catch (DataNotFoundException e) {
-                emu.getCauses().add(e);
-                state = CODAState.ERROR;
-                return;
+            waitingLists = new PriorityBlockingQueue[outputChannelCount];
+            for (int i=0; i < outputChannelCount; i++) {
+                waitingLists[i] = new PriorityBlockingQueue<PayloadBank>(100, comparator);
             }
         }
 
-        // Currently NOT used
-        else if (emuCmd == PAUSE) {
-            paused = true;
+        // Reset some variables
+        eventRate = wordRate = 0F;
+        eventCountTotal = wordCountTotal = 0L;
+
+        // Create & start threads
+        createThreads();
+        startThreads();
+
+        try {
+            // Set start-of-run time in local XML config / debug GUI
+            Configurer.setValue(emu.parameters(), "status/run_start_time", "--prestart--");
+        } catch (DataNotFoundException e) {
+            state = CODAState.ERROR;
+            throw new CmdExecException("status/run_start_time entry not found in local config file");
         }
-
-        else if (emuCmd == GO) {
-            state = CODAState.ACTIVE;
-            paused = false;
-
-            try {
-                // set end-of-run time in local XML config / debug GUI
-                Configurer.setValue(emu.parameters(), "status/run_start_time", theDate.toString());
-            } catch (DataNotFoundException e) {
-                emu.getCauses().add(e);
-                state = CODAState.ERROR;
-                return;
-            }
-        }
-
-        state = cmd.success();
     }
+
+    public void pause() {
+        paused = true;
+    }
+
+
+    public void go() throws CmdExecException {
+        state = CODAState.ACTIVE;
+        paused = false;
+
+        try {
+            // set start-of-run time in local XML config / debug GUI
+            Configurer.setValue(emu.parameters(), "status/run_start_time", (new Date()).toString());
+        } catch (DataNotFoundException e) {
+            state = CODAState.ERROR;
+            throw new CmdExecException("status/run_start_time entry not found in local config file");
+        }
+    }
+
 
     /**
      * Method to create thread objects for stats, filling Qs and recording events.
@@ -873,17 +895,19 @@ System.out.println("startThreads(): recreated recording threads, # = " +
     }
 
     /** {@inheritDoc} */
-    public void setInputChannels(ArrayList<DataChannel> input_channels) {
-        this.inputChannels = input_channels;
-        if (input_channels != null && input_channels.size() > 0) {
-            inputChannel = input_channels.get(0);
+    public void addInputChannels(ArrayList<DataChannel> input_channels) {
+        if (input_channels == null) return;
+        this.inputChannels.addAll(input_channels);
+        if (inputChannels.size() > 0) {
+            inputChannel = inputChannels.get(0);
             channelQ = inputChannel.getQueue();
         }
     }
 
     /** {@inheritDoc} */
-    public void setOutputChannels(ArrayList<DataChannel> output_channels) {
-        this.outputChannels = output_channels;
+    public void addOutputChannels(ArrayList<DataChannel> output_channels) {
+        if (output_channels == null) return;
+        this.outputChannels.addAll(output_channels);
         outputChannelCount = outputChannels.size();
     }
 
@@ -903,5 +927,13 @@ System.out.println("startThreads(): recreated recording threads, # = " +
     /** {@inheritDoc} */
     public ArrayList<DataChannel> getOutputChannels() {
         return outputChannels;
+    }
+
+    /** {@inheritDoc} */
+    public void clearChannels() {
+        inputChannels.clear();
+        outputChannels.clear();
+        inputChannel = null;
+        channelQ = null;
     }
 }
