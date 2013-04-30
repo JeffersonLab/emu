@@ -14,11 +14,15 @@ import java.nio.ByteBuffer;
  * @author timmer
  * @Date 4/3/13
  */
-public class QueueItem {
+public class QueueItem implements Cloneable {
 
-    /** If item is EvioBank, store it here. */
-    private EvioBank    bank;
+    /** If item is an EvioBank, store it here. */
+    private EvioBank bank;
+
+    /** If item is a ByteBuffer, store it here. */
     private ByteBuffer  buffer;
+
+    /** If item is a PayloadBank, store it here. */
     private PayloadBank payloadBank;
 
     /** Type of item contained. */
@@ -80,10 +84,39 @@ public class QueueItem {
         return payloadBank;
     }
 
-//    public void setPayloadBank(PayloadBank payloadBank) {
-//        this.payloadBank = payloadBank;
-//    }
+    public Object clone() {
+        try {
+            // Creates a bit wise copy (including only
+            // references for bank, buffer, & payloadBank).
+            QueueItem item = (QueueItem) super.clone();
 
+            if (payloadBank != null)  {
+                item.payloadBank = (PayloadBank)payloadBank.clone();
+            }
+
+            if (bank != null)  {
+                item.bank = (EvioBank)bank.clone();
+            }
+
+            if (buffer != null)  {
+                // allocate memory
+                item.buffer = ByteBuffer.allocate(buffer.capacity());
+                // store current position and limit
+                int pos = buffer.position();
+                int lim = buffer.limit();
+                // copy all data
+                buffer.limit(buffer.capacity()).position(0);
+                item.buffer.put(buffer);
+                // restore original values
+                buffer.limit(lim).position(pos);
+            }
+
+            return item;
+        }
+        catch (CloneNotSupportedException e) {
+            return null;
+        }
+    }
 
 
 }
