@@ -167,9 +167,9 @@ public enum CODACommand {
      * @param description  description of command
      * @param cmdString    string from Run Control specifying this command
      * @param isTransition does this command represent a runcontrol transition?
-     * @param guiGroup     in debug GUI there are 4 gui groups that are used,
-     *                     0-3,each with one line of buttons.
-     *                     All commands with other gui group values are
+     * @param guiGroup     in debug GUI there are 2 gui groups that are used.
+     *                     Group values of 0 & 1 each have one line of buttons.
+     *                     All commands with other gui group values (-1) are
      *                     ignored in debug gui.
      * @param inputType    how is this command's input obtained from cMsg message:
      *                     getText, getUserInt, payload text or payload int?
