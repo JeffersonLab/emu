@@ -12,8 +12,6 @@
 package org.jlab.coda.emu;
 
 import org.jlab.coda.emu.support.codaComponent.StatedObject;
-import org.jlab.coda.emu.support.control.CmdExecException;
-import org.jlab.coda.emu.support.control.Command;
 import org.jlab.coda.emu.support.transport.DataChannel;
 
 import java.util.ArrayList;
@@ -23,9 +21,10 @@ import java.util.ArrayList;
  * the EMU.
  *
  * @author heyes
+ * @author timmer
  *         Created on Sep 17, 2008
  */
-public interface EmuModule extends StatedObject {
+public interface EmuModule extends StatedObject, EmuStateMachine {
     /**
      * The name of the module
      *
@@ -34,26 +33,16 @@ public interface EmuModule extends StatedObject {
     public String name();
 
     /**
-     * Method execute When passed a Command object executes the command
-     * in the context of the receiving module.
-     *
-     * @param cmd of type Command
-     * @throws CmdExecException
-     *
+     * Add the given input channels to this EmuModule object.
+     * @param input_channels the input channels to add to this EmuModule object
      */
-    public void execute(Command cmd) throws CmdExecException;
+    public void addInputChannels(ArrayList<DataChannel> input_channels);
 
     /**
-     * Set the input channels of this EmuModule object.
-     * @param input_channels the input channels of this EmuModule object
+     * Add the given output channels to this EmuModule object.
+     * @param output_channels the output channels to add to this EmuModule object
      */
-    public void setInputChannels(ArrayList<DataChannel> input_channels);
-
-    /**
-     * Set the output channels of this EmuModule object.
-     * @param output_channels the output channels of this EmuModule object
-     */
-    public void setOutputChannels(ArrayList<DataChannel> output_channels);
+    public void addOutputChannels(ArrayList<DataChannel> output_channels);
 
     /**
       * Set the input channels of this EmuModule object.
@@ -66,6 +55,11 @@ public interface EmuModule extends StatedObject {
       * @return ArrayList containing the output channels of this EmuModule object
       */
      public ArrayList<DataChannel> getOutputChannels();
+
+    /**
+     * Remove all channels from this EmuModule object.
+     */
+    public void clearChannels();
 
     /**
      * Get the <b>output</b> statistics of this EmuModule object. The output statistics
