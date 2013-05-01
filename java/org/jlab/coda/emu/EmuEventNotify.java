@@ -12,6 +12,7 @@
 package org.jlab.coda.emu;
 
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 
 /**
  * This class is designed for allowing the Emu to wait
@@ -25,18 +26,61 @@ import java.util.concurrent.CountDownLatch;
  * Date: 4/22/13
  */
 public class EmuEventNotify {
+
     /** Object to sync with. */
     private CountDownLatch latch = new CountDownLatch(1);
 
-    /** This method enables reuse of this object. Call this before endWait and waitForEvent. */
-    public void reset() { latch = new CountDownLatch(1);  }
+    /** How long do we wait for the event (in milliseconds)?
+     *  Defaults to 1 second. */
+    private long timeout = 1000;
 
-    /** Calling this method allows the waitForEvent() method to return immediately. */
-    public void endWait() { latch.countDown(); }
+    /** Unit of time for waiting is milliseconds. */
+    private TimeUnit timeUnits = TimeUnit.MILLISECONDS;
+
+
+
+    /** Constructor with default wait time of 1 seconds. */
+    public EmuEventNotify() {}
 
     /**
-     * This method waits for the endWait() method to be called before it returns.
-     * @throws InterruptedException
+     * Constructor will settable wait time.
+     * @param timeout max time in milliseconds to wait in waitForEvent()
+     *                before returning
      */
-    public void waitForEvent() throws InterruptedException { latch.await(); }
+    public EmuEventNotify(long timeout) {
+        setWaitTime(timeout);
+    }
+
+
+    /**
+     * This method sets the maximum time for the waitForEvent()
+     * method to wait before returning.
+     * @param timeout max time in milliseconds to wait in waitForEvent()
+     *                before returning
+     */
+    public void setWaitTime(long timeout) {
+        if (timeout < 0) return;
+        this.timeout = timeout;
+    }
+
+    /** This method enables reuse of this object. Call this before endWait and waitForEvent. */
+    public void reset() {
+        latch = new CountDownLatch(1);
+    }
+
+    /** This method allows the waitForEvent() method to return immediately. */
+    public void endWait() {
+        latch.countDown();
+    }
+
+    /**
+     * This method waits for the endWait() method to be called
+     * or for the timeout to expire before it returns.
+     * @throws InterruptedException if interrupted during wait
+     * @return {@code true} if endWait() called and {@code false}
+     *         if the waiting time elapsed before endWait() called
+     */
+    public boolean waitForEvent() throws InterruptedException {
+        return latch.await(timeout, timeUnits);
+    }
 }
