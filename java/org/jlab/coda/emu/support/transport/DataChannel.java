@@ -13,6 +13,7 @@ package org.jlab.coda.emu.support.transport;
 
 
 import org.jlab.coda.emu.EmuStateMachine;
+import org.jlab.coda.emu.support.codaComponent.StatedObject;
 import org.jlab.coda.emu.support.data.QueueItem;
 
 import java.util.concurrent.BlockingQueue;
@@ -28,7 +29,7 @@ import java.util.concurrent.BlockingQueue;
  * @author timmer
  * Created on Sep 12, 2008
  */
-public interface DataChannel extends EmuStateMachine {
+public interface DataChannel extends EmuStateMachine, StatedObject {
 
     /**
      * Get the ID number of this data channel.
@@ -42,7 +43,7 @@ public interface DataChannel extends EmuStateMachine {
      * Get the name of this data channel.
      * @return the name of this data channel.
      */
-    public String getName();
+    public String name();
 
     /**
      * Get whether this channel is an input channel (true),
