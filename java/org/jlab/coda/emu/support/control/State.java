@@ -14,9 +14,11 @@ package org.jlab.coda.emu.support.control;
 import org.jlab.coda.emu.support.codaComponent.CODATransition;
 
 import java.util.EnumSet;
-import java.util.Vector;
 
-/** @author heyes */
+/**
+ * This interface defines a state of an object.
+ * @author heyes
+ * */
 public interface State {
     /**
      * Get the state name.
@@ -31,8 +33,8 @@ public interface State {
     public String getDescription();
 
     /**
-     * This method returns a set of the allowed transitions from this state.
-     * @return a set of the allowed transitions from this state.
+     * Get the set of allowed transitions from this state.
+     * @return set of allowed transitions from this state.
      */
     public EnumSet<CODATransition> allowed();
 
