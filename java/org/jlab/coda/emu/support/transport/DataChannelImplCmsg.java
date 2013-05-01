@@ -11,7 +11,6 @@
 
 package org.jlab.coda.emu.support.transport;
 
-import org.jlab.coda.emu.EmuEventNotify;
 import org.jlab.coda.emu.support.data.*;
 import org.jlab.coda.emu.Emu;
 import org.jlab.coda.cMsg.*;
@@ -526,7 +525,7 @@ logger.debug("      DataChannel cMsg reset() : " + name + " - resetting this cha
 
         for (int i=0; i < outputThreadCount; i++) {
             DataOutputHelper helper = new DataOutputHelper(emu.getThreadGroup(),
-                                                           getName() + " data out" + i);
+                                                           name() + " data out" + i);
             dataOutputThreads[i] = helper;
             dataOutputThreads[i].start();
             helper.waitUntilStarted();
