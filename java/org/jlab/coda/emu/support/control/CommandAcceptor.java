@@ -11,14 +11,14 @@
 
 package org.jlab.coda.emu.support.control;
 
+import org.jlab.coda.emu.support.codaComponent.StatedObject;
+
 /**
- * Created by IntelliJ IDEA.
- * User: heyes
+ * @author heyes
+ * @author timmer
  * Date: Sep 24, 2008
- * Time: 11:06:37 AM
- * To change this template use File | Settings | File Templates.
  */
-public interface CommandAcceptor {
+public interface CommandAcceptor extends StatedObject {
     /**
      * This method puts a command object into a mailbox of a CODA
      * component that is periodically checked by that component.
@@ -27,10 +27,4 @@ public interface CommandAcceptor {
      * @throws InterruptedException
      */
     public void postCommand(Command cmd) throws InterruptedException;
-
-    /**
-     * Get the state of the CODA component.
-     * @return the state of the CODA component
-     */
-    public State state();
 }
