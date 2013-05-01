@@ -44,10 +44,10 @@ public class DataTransportImplFifo extends DataTransportAdapter {
         if (c == null) {
             c = new DataChannelImplFifo(channelName, this, attributeMap, isInput, emu);
             allChannels.put(channelName, c);
-System.out.println("    DataTransportImplFifo.createChannel() : create FIFO channel " + c.getName());
+System.out.println("    DataTransportImplFifo.createChannel() : create FIFO channel " + c.name());
         }
         else {
-System.out.println("    DataTransportImplFifo.createChannel() : return stored FIFO channel " + c.getName());
+System.out.println("    DataTransportImplFifo.createChannel() : return stored FIFO channel " + c.name());
         }
         return c;
     }
