@@ -14,6 +14,7 @@ package org.jlab.coda.emu.support.transport;
 import org.jlab.coda.emu.Emu;
 import org.jlab.coda.emu.EmuStateMachineAdapter;
 import org.jlab.coda.emu.support.configurer.DataNotFoundException;
+import org.jlab.coda.emu.support.control.State;
 import org.jlab.coda.emu.support.logger.Logger;
 
 import java.util.Map;
@@ -33,6 +34,9 @@ public abstract class DataTransportAdapter extends EmuStateMachineAdapter implem
 
     /** Name of this DataTransport object. */
     protected String name;
+
+    /** DataTransport object's state. */
+    protected State state;
 
     /** Emu object that created this transport. */
     protected Emu emu;
@@ -93,48 +97,22 @@ public abstract class DataTransportAdapter extends EmuStateMachineAdapter implem
 
     // createChannel needs to be defined in subclasses
 
-    /**
-     * Get the name of the transport implementation class extending this class.
-     * @return the name of the transport implementation class extending this class
-     */
-    public String getTransportClass() {
-        return transportClass;
-    }
+    /** {@inheritDoc} */
+    public String getTransportClass() {return transportClass;}
 
-    /**
-     * Set the name of this object.
-     * @param name the name of this object
-     */
-    public void setName(String name) {
-        this.name = name;
-    }
+    /** {@inheritDoc} */
+    public void setName(String name) {this.name = name;}
 
-    /**
-     * Get the name of this object.
-     * @return the name of this object
-     */
-    public String name() {
-        return name;
-    }
+    /** {@inheritDoc} */
+    public String name() {return name;}
 
-    /**
-     * This method sets an attribute.
-     *
-     * @param name name of attribute (key)
-     * @param value value of attribute (val)
-     */
-    public void setAttr(String name, String value) {
-        attr.put(name, value);
-    }
+    /** {@inheritDoc} */
+    public State state() {return state;}
 
-    /**
-     * This method gets an attribute as a String object.
-     * Includes: (queue)capacity, size, ...
-     *
-     * @param name name of attribute
-     * @return value of attribute
-     * @throws DataNotFoundException if couldn't find named attribute
-     */
+    /** {@inheritDoc} */
+    public void setAttr(String name, String value) {attr.put(name, value);}
+
+    /** {@inheritDoc} */
     public String getAttr(String name) throws DataNotFoundException {
         String attribute = attr.get(name);
 
@@ -142,34 +120,17 @@ public abstract class DataTransportAdapter extends EmuStateMachineAdapter implem
         return attribute;
     }
 
-    /**
-     * This method gets an attribute as an int.
-     * Includes: (queue)capacity, size, ...
-     *
-     * @param name name of attribute
-     * @return value of attribute
-     * @throws DataNotFoundException if couldn't find named attribute
-     */
+    /** {@inheritDoc} */
     public int getIntAttr(String name) throws DataNotFoundException {
         return Integer.valueOf(getAttr(name));
     }
 
-    /**
-     * This method returns true if this DataTransport object
-     * is a server (sends data) or false if it is a client
-     * (receives data).
-     *
-     * @return true if this DataTransport object sends data, else false
-     */
+    /** {@inheritDoc} */
     public boolean isServer() {
         return server;
     }
 
-    /**
-     * This method tells if this DataTransport object is connected.
-     *
-     * @return true if this object is connected, else false
-     */
+    /** {@inheritDoc} */
     public boolean isConnected() {
         return connected;
     }
@@ -184,7 +145,7 @@ public abstract class DataTransportAdapter extends EmuStateMachineAdapter implem
     }
 
 
-    /** Close this DataTransport object's channels.  */
+    /** {@inheritDoc} */
     public void reset() {
 //System.out.println("Transport Core's reset() being called");
         setConnected(false);
