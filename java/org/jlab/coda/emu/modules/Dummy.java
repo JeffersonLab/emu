@@ -60,7 +60,7 @@ public class Dummy extends EmuStateMachineAdapter implements EmuModule {
     /** ArrayList of DataChannel objects that are outputs. */
     private ArrayList<DataChannel> outputChannels = new ArrayList<DataChannel>();
 
-    /** User hit PAUSE button if <code>true</code>. */
+    /** User hit PAUSE button if {@code true}. */
     private boolean paused;
 
     /** Object used by Emu to be notified of END event arrival. */
