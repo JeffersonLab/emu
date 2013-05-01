@@ -11,8 +11,6 @@
 
 package org.jlab.coda.emu.support.codaComponent;
 
-import org.jlab.coda.emu.support.codaComponent.CODATransition;
-
 import java.util.EnumSet;
 
 /**
