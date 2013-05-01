@@ -15,7 +15,6 @@ import org.jlab.coda.emu.support.control.State;
 import static org.jlab.coda.emu.support.codaComponent.CODATransition.*;
 import java.util.EnumSet;
 import java.util.HashMap;
-import java.util.Vector;
 
 /**
  * This class is an enum which lists all the possible CODA Emu
