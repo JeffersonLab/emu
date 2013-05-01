@@ -29,7 +29,7 @@ import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.TimeUnit;
 
 /**
- * This class is the a bare bones module used for testing and as a template.
+ * This class is a bare bones module used for testing and as a template.
  * It's not designed to be a data producer, but will consume events through
  * input channels and pass each input item to each of the output channels.
  *
@@ -51,8 +51,6 @@ public class Dummy extends EmuStateMachineAdapter implements EmuModule {
     /** Logger used to log messages to debug console. */
     private Logger logger;
 
-
-
     /** State of this module. */
     private volatile State state = CODAState.BOOTED;
 
@@ -67,6 +65,12 @@ public class Dummy extends EmuStateMachineAdapter implements EmuModule {
 
     /** Object used by Emu to be notified of END event arrival. */
     private EmuEventNotify endCallback;
+
+    /** Thread which moves events from inputs to outputs. */
+    private EventMovingThread eventMovingThread;
+
+    /** Flag used to kill eventMovingThread. */
+    private volatile boolean killThread;
 
     // ---------------------------------------------------
 
@@ -93,14 +97,17 @@ System.out.println("Dummy: created object");
     }
 
 
+    /** {@inheritDoc} */
     public String name() {
         return name;
     }
 
+    /** {@inheritDoc} */
     public void registerEndCallback(EmuEventNotify callback) {
         endCallback = callback;
     }
 
+    /** {@inheritDoc} */
     public EmuEventNotify getEndCallback() {
         return endCallback;
     }
@@ -113,21 +120,25 @@ System.out.println("Dummy: created object");
     }
 
 
+    /** {@inheritDoc} */
     synchronized public Object[] getStatistics() {
         return new Object[] {0L, 0L, 0F, 0F};
     }
 
 
+    /** {@inheritDoc} */
     public State state() {
         return state;
     }
 
+    /** {@inheritDoc} */
     public void reset() {
 System.out.println("Dummy: reset");
         state = CODAState.CONFIGURED;
         paused = false;
     }
 
+    /** {@inheritDoc} */
     public void end() throws CmdExecException {
 System.out.println("Dummy: end");
         state = CODAState.DOWNLOADED;
@@ -135,6 +146,7 @@ System.out.println("Dummy: end");
         endThread();
     }
 
+    /** {@inheritDoc} */
     public void prestart() throws CmdExecException {
 System.out.println("Dummy: prestart");
         state = CODAState.PAUSED;
@@ -145,11 +157,13 @@ System.out.println("Dummy: create & start event moving thread");
         paused = true;
     }
 
+    /** {@inheritDoc} */
     public void pause() {
 System.out.println("Dummy: pause");
         paused = true;
     }
 
+    /** {@inheritDoc} */
     public void go() throws CmdExecException {
 System.out.println("Dummy: go");
         state = CODAState.ACTIVE;
@@ -182,10 +196,18 @@ System.out.println("Dummy: go");
         outputChannels.clear();
     }
 
-    EventMovingThread eventMovingThread;
-    volatile boolean killThread;
 
     /**
+      * End all record threads because an END cmd or event came through.
+      * The record thread calling this method is not interrupted.
+      */
+     private void endThread() {
+         // Interrupt the event moving thread
+         killThread = true;
+         eventMovingThread.interrupt();
+     }
+
+     /**
      * This thread is started by the GO transition and runs while the state
      * of the module is ACTIVE. When the state is ACTIVE, this thread pulls
      * one bank off an input DataChannel. That bank is copied and placed in
@@ -244,7 +266,7 @@ System.out.println("Dummy: running event moving thread");
                         }
                     }
 
-                    // If END event, quit this one & only recording thread
+                    // If END event, quit this thread
                     if (payloadBank != null && payloadBank.getControlType() == ControlType.END) {
 System.out.println("Dummy: found END event");
                         if (endCallback != null) endCallback.endWait();
@@ -260,18 +282,6 @@ System.out.println("Dummy: found END event");
         }
 
     }
-
-
-    /**
-     * End all record threads because an END cmd or event came through.
-     * The record thread calling this method is not interrupted.
-     */
-    private void endThread() {
-        // Interrupt the event moving thread
-        killThread = true;
-        eventMovingThread.interrupt();
-    }
-
 
 
 }
