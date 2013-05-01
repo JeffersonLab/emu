@@ -24,7 +24,7 @@ import org.jlab.coda.emu.support.configurer.Configurer;
 import org.jlab.coda.emu.support.configurer.DataNotFoundException;
 import org.jlab.coda.emu.support.control.CmdExecException;
 import org.jlab.coda.emu.support.control.Command;
-import org.jlab.coda.emu.support.control.State;
+import org.jlab.coda.emu.support.codaComponent.State;
 import org.jlab.coda.emu.support.logger.Logger;
 import org.jlab.coda.emu.support.messaging.CMSGPortal;
 import org.jlab.coda.emu.support.messaging.RCConstants;
@@ -326,7 +326,7 @@ public class Emu implements CODAComponent {
         }
 
         synchronized(modules) {
-            for (StatedObject module : modules) {
+            for (EmuModule module : modules) {
                 if (debug) System.out.println("Emu.state(): module" + module.name() + " is in state " + module.state());
                 if (module.state() == ERROR) {
                     if (debug) System.out.println("Emu.state(): module in error state, " + module.name());
@@ -861,14 +861,14 @@ System.out.println("START EXECUTING RESET");
         // Reset channels first
         if (inChannels.size() > 0) {
             for (DataChannel chan : inChannels) {
-logger.info("Emu.reset(): reset to in chan " + chan.getName());
+logger.info("Emu.reset(): reset to in chan " + chan.name());
                 chan.reset();
             }
         }
 
         if (outChannels.size() > 0) {
             for (DataChannel chan : outChannels) {
-logger.info("Emu.reset(): reset to out chan " + chan.getName());
+logger.info("Emu.reset(): reset to out chan " + chan.name());
                 chan.reset();
             }
         }
@@ -1897,7 +1897,7 @@ logger.debug("Emu.execute(PRESTART): PRESTART to " + transport.name());
 
                 // Output channels
                 for (DataChannel chan : outChannels) {
-logger.debug("Emu.execute(PRESTART): PRESTART to OUT chan " + chan.getName());
+logger.debug("Emu.execute(PRESTART): PRESTART to OUT chan " + chan.name());
                     chan.prestart();
                 }
 
@@ -1913,7 +1913,7 @@ logger.debug("Emu.execute(PRESTART): PRESTART to module " + module.name());
 
                 // Input channels
                 for (DataChannel chan : inChannels) {
-logger.debug("Emu.execute(PRESTART): PRESTART to IN chan " + chan.getName());
+logger.debug("Emu.execute(PRESTART): PRESTART to IN chan " + chan.name());
                     chan.prestart();
                 }
 
@@ -1948,7 +1948,7 @@ logger.debug("Emu.execute(GO): GO to transport " + transport.name());
                 // (2) GO to output channels (of LAST module)
                 if (outChannels.size() > 0) {
                     for (DataChannel chan : outChannels) {
-logger.info("Emu.execute(GO): GO to out chan " + chan.getName());
+logger.info("Emu.execute(GO): GO to out chan " + chan.name());
                         chan.go();
                     }
                 }
@@ -1962,7 +1962,7 @@ logger.info("Emu.execute(GO): GO to module " + mods.get(i).name());
                 // (4) GO to input channels (of FIRST module)
                 if (inChannels.size() > 0) {
                     for (DataChannel chan : inChannels) {
-logger.info("Emu.execute(GO): GO to in chan " + chan.getName());
+logger.info("Emu.execute(GO): GO to in chan " + chan.name());
                         chan.go();
                     }
                 }
@@ -1993,15 +1993,17 @@ logger.error("EmuModuleFactory.execute() : no modules in data path");
                 // (1) Wait for END event to make its way through the Emu.
                 // Look at the end of the chain of channels & modules.
                 //--------------------------------------------------------
+                boolean gotEndEvent;
  // TODO: do we look at ALL channels? or just one?
                 // If we have output channels, look there first
                 if (outChannels.size() > 0) {
 System.out.println("Looking for END event in output channels");
                     for (DataChannel chan : outChannels) {
                         try {
-logger.info("Emu.execute(END): waiting for END event in output chan " + chan.getName());
-                            chan.getEndCallback().waitForEvent();
-logger.info("Emu.execute(END): END event found in output chan " + chan.getName());
+logger.info("Emu.execute(END): waiting for END event in output chan " + chan.name());
+                            gotEndEvent = chan.getEndCallback().waitForEvent();
+                            if (!gotEndEvent) state = ERROR;
+logger.info("Emu.execute(END): END event found in output chan " + chan.name());
                         }
                         catch (InterruptedException e) {}
                     }
@@ -2011,7 +2013,8 @@ System.out.println("Done looking for END event in output channels");
                 else if (mods.size() > 0) {
 System.out.println("Looking for END event in last module");
                     try {
-                        mods.getLast().getEndCallback().waitForEvent();
+                        gotEndEvent = mods.getLast().getEndCallback().waitForEvent();
+                        if (!gotEndEvent) state = ERROR;
 logger.info("Emu.execute(END): END event found in module " + mods.getLast().name());
                     }
                     catch (InterruptedException e) {}
@@ -2022,8 +2025,9 @@ System.out.println("Done looking for END event in last module");
 System.out.println("Looking for END event in input channels");
                     for (DataChannel chan : inChannels) {
                         try {
-                            chan.getEndCallback().waitForEvent();
-logger.info("Emu.execute(END): END event found in input chan " + chan.getName());
+                            gotEndEvent = chan.getEndCallback().waitForEvent();
+                            if (!gotEndEvent) state = ERROR;
+logger.info("Emu.execute(END): END event found in input chan " + chan.name());
                         }
                         catch (InterruptedException e) {}
                     }
@@ -2033,7 +2037,7 @@ System.out.println("Done looking for END event in input channels");
                 // (2) END to input channels (of FIRST module)
                 if (inChannels.size() > 0) {
                     for (DataChannel chan : inChannels) {
-logger.info("Emu.execute(END): END to in chan " + chan.getName());
+logger.info("Emu.execute(END): END to in chan " + chan.name());
                         chan.end();
                     }
                 }
@@ -2047,7 +2051,7 @@ logger.info("Emu.execute(END): END to module " + mods.get(i).name());
                 // (4) GO to output channels (of LAST module)
                 if (outChannels.size() > 0) {
                     for (DataChannel chan : outChannels) {
-logger.info("Emu.execute(END): END to out chan " + chan.getName());
+logger.info("Emu.execute(END): END to out chan " + chan.name());
                         chan.end();
                     }
                 }
@@ -2083,7 +2087,7 @@ logger.debug("Emu.execute(PAUSE): PAUSE to transport " + transport.name());
                 // (2) PAUSE to input channels
                 if (inChannels.size() > 0) {
                     for (DataChannel chan : inChannels) {
-logger.info("Emu.execute(PAUSE): PAUSE to in chan " + chan.getName());
+logger.info("Emu.execute(PAUSE): PAUSE to in chan " + chan.name());
                         chan.pause();
                     }
                 }
@@ -2098,7 +2102,7 @@ logger.info("Emu.execute(PAUSE): PAUSE to module " + mods.get(i).name());
                 // (4) PAUSE to output channels
                 if (outChannels.size() > 0) {
                     for (DataChannel chan : outChannels) {
-logger.info("Emu.execute(PAUSE): PAUSE to out chan " + chan.getName());
+logger.info("Emu.execute(PAUSE): PAUSE to out chan " + chan.name());
                         chan.end();
                     }
                 }
