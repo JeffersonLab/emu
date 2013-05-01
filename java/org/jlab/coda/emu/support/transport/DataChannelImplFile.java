@@ -12,16 +12,10 @@
 package org.jlab.coda.emu.support.transport;
 
 import org.jlab.coda.emu.Emu;
-import org.jlab.coda.emu.EmuEventNotify;
-import org.jlab.coda.emu.EmuStateMachineAdapter;
 import org.jlab.coda.emu.support.data.*;
-import org.jlab.coda.emu.support.logger.Logger;
 import org.jlab.coda.jevio.*;
 
-import java.nio.ByteOrder;
 import java.util.Map;
-import java.util.concurrent.ArrayBlockingQueue;
-import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CountDownLatch;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -33,22 +27,7 @@ import java.util.regex.Pattern;
  * @author timmer
  * @date Nov 10, 2008
  */
-public class DataChannelImplFile extends EmuStateMachineAdapter implements DataChannel {
-
-    /** EMU object that created this channel. */
-    private Emu emu;
-
-    /** Logger associated with this EMU. */
-    private Logger logger;
-
-    /** Transport object that created this channel. */
-    private final DataTransportImplFile dataTransport;
-
-    /** Channel name */
-    private final String name;
-
-    /** Channel id (corresponds to sourceId of file). */
-    private int id;
+public class DataChannelImplFile extends DataChannelAdapter {
 
     /** Thread used to input or output data. */
     private Thread dataThread;
@@ -65,9 +44,6 @@ public class DataChannelImplFile extends EmuStateMachineAdapter implements DataC
     /** For input or output files, the directory. */
     private String directory;
 
-    /** Field queue - filled buffer queue */
-    private final BlockingQueue<QueueItem> queue;
-
     /** Name of file currently being written to. */
     private String fileName;
 
@@ -77,43 +53,30 @@ public class DataChannelImplFile extends EmuStateMachineAdapter implements DataC
     /** Object to write evio file. */
     private EventWriter evioFileWriter;
 
-    /** Is this channel an input (true) or output (false) channel? */
-    private boolean input;
-
-    /** Byte order of output data. */
-    private ByteOrder byteOrder;
-
-    /** Object used by Emu to be notified of END event arrival. */
-    private EmuEventNotify endCallback;
-
 
 
     /**
      * Constructor DataChannelImplFifo creates a new DataChannelImplFifo instance.
      *
      * @param name          name of file channel
-     * @param dataTransport DataTransport object that created this channel
-     * @param attrib        the hashmap of config file attributes for this channel
+     * @param transport     DataTransport object that created this channel
+     * @param attributeMap  the hashmap of config file attributes for this channel
      * @param input         true if this is an input
      * @param emu           emu this channel belongs to
      *
-     * @throws DataTransportException
-     *          - if unable to create fifo buffer.
+     * @throws DataTransportException if unable to create fifo buffer.
      */
-    DataChannelImplFile(String name, DataTransportImplFile dataTransport,
-                      Map<String, String> attrib, boolean input,
+    DataChannelImplFile(String name, DataTransportImplFile transport,
+                      Map<String, String> attributeMap, boolean input,
                       Emu emu) throws DataTransportException {
 
-        this.dataTransport = dataTransport;
-        this.input = input;
-        this.name = name;
-        this.emu  = emu;
-        logger = emu.getLogger();
+        // constructor of super class
+        super(name, transport, attributeMap, input, emu);
 
         // Set option whether or not to enforce evio block header
         // numbers to be sequential (throw an exception if not).
         boolean blockNumberChecking = false;
-        String attribString = attrib.get("blockNumCheck");
+        String attribString = attributeMap.get("blockNumCheck");
         if (attribString != null) {
             if (attribString.equalsIgnoreCase("true") ||
                 attribString.equalsIgnoreCase("on")   ||
@@ -129,27 +92,17 @@ public class DataChannelImplFile extends EmuStateMachineAdapter implements DataC
         String outputFileName = outputFilePrefix + "000000"; // fileCount = 000000
         String defaultInputFileName = "codaDataFile.evio";
 
-        // Set id number. Use any defined in config file else use default (0)
-        id = 0;
-        attribString = attrib.get("id");
-        if (attribString != null) {
-            try {
-                id = Integer.parseInt(attribString);
-            }
-            catch (NumberFormatException e) {  }
-        }
-//logger.info("      DataChannel File: id = " + id);
 
         // Directory given in config file?
         try {
-            directory = attrib.get("dir");
+            directory = attributeMap.get("dir");
 //logger.info("      DataChannel File: config file dir = " + directory);
-        } catch (Exception e) {
         }
+        catch (Exception e) {}
 
         // Filename given in config file?
         try {
-            fileName = attrib.get("fileName");
+            fileName = attributeMap.get("fileName");
 
             // Scan for %d which must be replaced by the run number
             fileName = fileName.replace("%d", "" + runNumber);
@@ -174,20 +127,20 @@ public class DataChannelImplFile extends EmuStateMachineAdapter implements DataC
             }
             outputFilePrefix = fileName;
 //logger.info("      DataChannel File: config file name = " + fileName);
-        } catch (Exception e) {
         }
+        catch (Exception e) {}
 
         // Filename given in config file?
         String prefix = null;
         try {
-            prefix = attrib.get("prefix");
+            prefix = attributeMap.get("prefix");
 //logger.info("      DataChannel File: config file prefix = " + prefix);
-        } catch (Exception e) {
         }
+        catch (Exception e) {}
 
         // Split parameter given in config file?
         try {
-            String splitStr = attrib.get("split");
+            String splitStr = attributeMap.get("split");
             if (splitStr != null) {
                 split = Long.parseLong(splitStr);
                 // Ignore negative values
@@ -199,8 +152,8 @@ public class DataChannelImplFile extends EmuStateMachineAdapter implements DataC
                 }
 //logger.info("      DataChannel File: split = " + split);
             }
-        } catch (Exception e) {
         }
+        catch (Exception e) {}
 
         if (fileName == null) {
             if (prefix != null) {
@@ -222,16 +175,6 @@ public class DataChannelImplFile extends EmuStateMachineAdapter implements DataC
             fileName = directory + "/" + fileName;
         }
 
-        // set queue capacity
-        int capacity = 40;
-        try {
-            capacity = dataTransport.getIntAttr("capacity");
-            if (capacity < 1) capacity = 40;
-        } catch (Exception e) {
-            logger.info("      DataChannel File : " +  e.getMessage() + ", default to " + capacity + " records.");
-        }
-        queue = new ArrayBlockingQueue<QueueItem>(capacity);
-
         try {
             if (input) {
 logger.info("      DataChannel File: try opening input file of " + fileName);
@@ -239,34 +182,23 @@ logger.info("      DataChannel File: try opening input file of " + fileName);
                 // Speed things up since no EvioListeners are used - doesn't do much
                 evioFileReader.getParser().setNotificationActive(false);
                 DataInputHelper helper = new DataInputHelper();
-                dataThread = new Thread(emu.getThreadGroup(), helper, getName() + " data input");
+                dataThread = new Thread(emu.getThreadGroup(), helper, name() + " data input");
                 dataThread.start();
                 helper.waitUntilStarted();
 
             } else {
-                // set endianness of data
-                byteOrder = ByteOrder.BIG_ENDIAN;
-                try {
-                    String order = attrib.get("endian");
-                    if (order != null && order.equalsIgnoreCase("little")) {
-                        byteOrder = ByteOrder.LITTLE_ENDIAN;
-                    }
-                } catch (Exception e) {
-                    logger.info("      DataChannel File: no output data endianness specified, default to big.");
-                }
-
 logger.info("      DataChannel File: try opening output file of " + fileName);
                 // Tell emu what that output name is for stat reporting
                 emu.setOutputDestination(fileName);
 
                 evioFileWriter = new EventWriter(fileName, false, byteOrder);
                 DataOutputHelper helper = new DataOutputHelper();
-                dataThread = new Thread(emu.getThreadGroup(), helper, getName() + " data out");
+                dataThread = new Thread(emu.getThreadGroup(), helper, name() + " data out");
                 dataThread.start();
                 helper.waitUntilStarted();
             }
-
-        } catch (Exception e) {
+        }
+        catch (Exception e) {
             if (input) {
                 throw new DataTransportException("DataChannelImplFile : Cannot open data file " + e.getMessage(), e);
             }
@@ -274,6 +206,18 @@ logger.info("      DataChannel File: try opening output file of " + fileName);
                 throw new DataTransportException("DataChannelImplFile : Cannot create data file" + e.getMessage(), e);
             }
         }
+    }
+
+
+    /** {@inheritDoc} */
+    public void reset() {
+        if (dataThread != null) dataThread.interrupt();
+        try {
+            if (evioFileReader != null) evioFileReader.close();
+        } catch (Exception e) {
+            //ignore
+        }
+        queue.clear();
     }
 
 
@@ -476,63 +420,5 @@ logger.warn("      DataChannel File (" + name + "): got event but NO PRESTART, g
     }
 
 
-    /** {@inheritDoc} */
-    public String getName() {
-        return name;
-    }
-
-    /** {@inheritDoc} */
-    public int getID() {
-        return id;
-    }
-
-    /** {@inheritDoc} */
-    public boolean isInput() {
-        return input;
-    }
-
-    /** {@inheritDoc} */
-    public DataTransport getDataTransport() {
-        return dataTransport;
-    }
-
-    /** {@inheritDoc} */
-    public QueueItem receive() throws InterruptedException {
-        return queue.take();
-    }
-
-    /** {@inheritDoc} */
-    public void send(QueueItem item) throws InterruptedException {
-        queue.put(item);   // blocks if capacity reached
-        //queue.add(item);   // throws exception if capacity reached
-        //queue.offer(item); // returns false if capacity reached
-    }
-
-    /** {@inheritDoc} */
-    public void close() {
-        if (dataThread != null) dataThread.interrupt();
-        try {
-            if (evioFileReader != null) evioFileReader.close();
-        } catch (Exception e) {
-            //ignore
-        }
-        queue.clear();
-    }
-
-    /** {@inheritDoc} */
-    public void reset() {
-        close();
-    }
-
-    /** {@inheritDoc} */
-    public BlockingQueue<QueueItem> getQueue() {
-        return queue;
-    }
-
-    public void registerEndCallback(EmuEventNotify callback) {
-        endCallback = callback;
-    };
-
-    public EmuEventNotify getEndCallback() {return endCallback;};
 
 }
