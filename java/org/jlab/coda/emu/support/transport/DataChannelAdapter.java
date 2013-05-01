@@ -15,6 +15,7 @@ package org.jlab.coda.emu.support.transport;
 import org.jlab.coda.emu.Emu;
 import org.jlab.coda.emu.EmuEventNotify;
 import org.jlab.coda.emu.EmuStateMachineAdapter;
+import org.jlab.coda.emu.support.control.State;
 import org.jlab.coda.emu.support.data.QueueItem;
 import org.jlab.coda.emu.support.logger.Logger;
 
@@ -36,6 +37,9 @@ public class DataChannelAdapter extends EmuStateMachineAdapter implements DataCh
 
     /** Channel id (corresponds to sourceId of ROCs for CODA event building). */
     protected int id;
+
+    /** Channel state. */
+    protected State state;
 
     /** Channel name */
     protected final String name;
@@ -109,7 +113,10 @@ public class DataChannelAdapter extends EmuStateMachineAdapter implements DataCh
     public int getID() {return id;}
 
     /** {@inheritDoc} */
-    public String getName() {return name;}
+    public State state() {return state;}
+
+    /** {@inheritDoc} */
+    public String name() {return name;}
 
     /** {@inheritDoc} */
     public boolean isInput() {return input;}
