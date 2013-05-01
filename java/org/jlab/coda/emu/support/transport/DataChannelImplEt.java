@@ -12,7 +12,6 @@
 package org.jlab.coda.emu.support.transport;
 
 
-import org.jlab.coda.emu.EmuEventNotify;
 import org.jlab.coda.emu.support.data.*;
 import org.jlab.coda.emu.Emu;
 import org.jlab.coda.et.*;
@@ -573,7 +572,7 @@ logger.debug("      DataChannel Et reset() : " + name + " - done");
 
              for (int i=0; i < inputThreadCount; i++) {
                  DataInputHelper helper = new DataInputHelper(emu.getThreadGroup(),
-                                                  getName() + " data in" + i);
+                                                  name() + " data in" + i);
                  dataInputThreads[i] = helper;
                  dataInputThreads[i].start();
                  helper.waitUntilStarted();
@@ -584,7 +583,7 @@ logger.debug("      DataChannel Et reset() : " + name + " - done");
 
              for (int i=0; i < outputThreadCount; i++) {
                  DataOutputHelper helper = new DataOutputHelper(emu.getThreadGroup(),
-                                                                getName() + " data out" + i);
+                                                                name() + " data out" + i);
                  dataOutputThreads[i] = helper;
                  dataOutputThreads[i].start();
                  helper.waitUntilStarted();
