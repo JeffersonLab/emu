@@ -18,7 +18,7 @@ import java.util.EnumSet;
 /**
  * This interface defines a state of an object.
  * @author heyes
- * */
+ */
 public interface State {
     /**
      * Get the state name.
