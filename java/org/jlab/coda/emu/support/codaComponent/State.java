@@ -9,7 +9,7 @@
  *
  */
 
-package org.jlab.coda.emu.support.control;
+package org.jlab.coda.emu.support.codaComponent;
 
 import org.jlab.coda.emu.support.codaComponent.CODATransition;
 

@@ -11,8 +11,6 @@
 
 package org.jlab.coda.emu.support.codaComponent;
 
-import org.jlab.coda.emu.support.control.State;
-
 /**
  * An object that implements this interface has a state.
  */
