@@ -11,7 +11,6 @@
 
 package org.jlab.coda.emu.support.codaComponent;
 
-import org.jlab.coda.emu.support.control.State;
 import static org.jlab.coda.emu.support.codaComponent.CODATransition.*;
 import java.util.EnumSet;
 import java.util.HashMap;

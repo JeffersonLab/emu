@@ -11,8 +11,6 @@
 
 package org.jlab.coda.emu.support.codaComponent;
 
-import org.jlab.coda.emu.support.control.State;
-
 
 /**
  * An enum which contains a list of possible transitions in CODA Emu state machine.
