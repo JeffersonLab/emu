@@ -13,6 +13,7 @@ package org.jlab.coda.emu.support.transport;
 
 import org.jlab.coda.emu.Emu;
 import org.jlab.coda.emu.EmuStateMachine;
+import org.jlab.coda.emu.support.codaComponent.StatedObject;
 import org.jlab.coda.emu.support.configurer.DataNotFoundException;
 
 import java.util.Map;
@@ -25,7 +26,7 @@ import java.util.Map;
  * @author timmer
  *         Created on Sep 17, 2008
  */
-public interface DataTransport extends EmuStateMachine {
+public interface DataTransport extends EmuStateMachine, StatedObject {
 
     /**
      * This method gets the name of this DataTransport object.
