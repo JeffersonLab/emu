@@ -17,7 +17,7 @@ import org.jlab.coda.emu.EmuModule;
 import org.jlab.coda.emu.EmuStateMachineAdapter;
 import org.jlab.coda.emu.support.codaComponent.CODAState;
 import org.jlab.coda.emu.support.control.CmdExecException;
-import org.jlab.coda.emu.support.control.State;
+import org.jlab.coda.emu.support.codaComponent.State;
 import org.jlab.coda.emu.support.data.ControlType;
 import org.jlab.coda.emu.support.data.PayloadBank;
 import org.jlab.coda.emu.support.data.QueueItem;
