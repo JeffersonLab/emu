@@ -18,6 +18,7 @@ import org.jlab.coda.emu.support.codaComponent.State;
 import org.jlab.coda.emu.support.logger.Logger;
 
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * This class provides an empty implementation of the DataTransport interface
@@ -37,6 +38,13 @@ public abstract class DataTransportAdapter extends EmuStateMachineAdapter implem
 
     /** DataTransport object's state. */
     protected State state;
+
+    /**
+     * Possible error message. reset() sets it back to null.
+     * Making this an atomically settable String ensures that only 1 thread
+     * at a time can change its value. That way it's only set once per error.
+     */
+    protected AtomicReference<String> errorMsg = new AtomicReference<String>();
 
     /** Emu object that created this transport. */
     protected Emu emu;
@@ -108,6 +116,9 @@ public abstract class DataTransportAdapter extends EmuStateMachineAdapter implem
 
     /** {@inheritDoc} */
     public State state() {return state;}
+
+    /** {@inheritDoc} */
+    public String getError() {return errorMsg.get();}
 
     /** {@inheritDoc} */
     public void setAttr(String name, String value) {attr.put(name, value);}

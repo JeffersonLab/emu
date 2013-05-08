@@ -23,6 +23,7 @@ import java.nio.ByteOrder;
 import java.util.Map;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * This interface defines an object that can send and
@@ -40,6 +41,13 @@ public class DataChannelAdapter extends EmuStateMachineAdapter implements DataCh
 
     /** Channel state. */
     protected State state;
+
+    /**
+     * Channel error message. reset() sets it back to null.
+     * Making this an atomically settable String ensures that only 1 thread
+     * at a time can change its value. That way it's only set once per error.
+     */
+    protected AtomicReference<String> errorMsg = new AtomicReference<String>();
 
     /** Channel name */
     protected final String name;
@@ -67,9 +75,20 @@ public class DataChannelAdapter extends EmuStateMachineAdapter implements DataCh
 
 
 
+    /**
+     * Constructor to create a new DataChannel instance.
+     * Used only by a transport's createChannel() method
+     * which is only called during PRESTART in the Emu.
+     *
+     * @param name         the name of this channel
+     * @param transport    the DataTransport object that this channel belongs to
+     * @param attributeMap the hashmap of config file attributes for this channel
+     * @param input        true if this is an input data channel, otherwise false
+     * @param emu          emu this channel belongs to
+     */
     public DataChannelAdapter(String name, DataTransport transport,
-                          Map<String, String> attrib, boolean input,
-                          Emu emu) {
+                              Map<String, String> attributeMap,
+                              boolean input, Emu emu) {
         this.emu = emu;
         this.name = name;
         this.input = input;
@@ -88,7 +107,7 @@ public class DataChannelAdapter extends EmuStateMachineAdapter implements DataCh
 
         // Set id number. Use any defined in config file, else use default = 0
         id = 0;
-        String attribString = attrib.get("id");
+        String attribString = attributeMap.get("id");
         if (attribString != null) {
             try {
                 id = Integer.parseInt(attribString);
@@ -100,13 +119,11 @@ public class DataChannelAdapter extends EmuStateMachineAdapter implements DataCh
         // Set endianness of output data
         byteOrder = ByteOrder.BIG_ENDIAN;
         try {
-            String order = attrib.get("endian");
+            String order = attributeMap.get("endian");
             if (order != null && order.equalsIgnoreCase("little")) {
                 byteOrder = ByteOrder.LITTLE_ENDIAN;
             }
         } catch (Exception e) {}
-
-
     }
 
     /** {@inheritDoc} */
@@ -114,6 +131,9 @@ public class DataChannelAdapter extends EmuStateMachineAdapter implements DataCh
 
     /** {@inheritDoc} */
     public State state() {return state;}
+
+    /** {@inheritDoc} */
+    public String getError() {return errorMsg.get();}
 
     /** {@inheritDoc} */
     public String name() {return name;}
