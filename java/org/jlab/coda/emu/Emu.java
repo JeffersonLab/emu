@@ -157,6 +157,7 @@ public class Emu implements CODAComponent {
     // Status reporting
     //-----------------------------------------------------
 
+    /** Destination of this emu's output (cMsg, ET name, or file name). */
     private String outputDestination;
 
     /** Thread which reports the EMU status to Run Control. */
@@ -242,7 +243,6 @@ public class Emu implements CODAComponent {
     private boolean lastConfigHadError;
 
     //------------------------------------------------
-
 
     /**
      * Constructor.
@@ -938,7 +938,7 @@ logger.info("Emu.reset(): done, setting state to " + state);
      * @return DataTransport object corresponding to given name
      * @throws DataNotFoundException when no transport object of that name can be found
      */
-    public DataTransport findNamedTransport(String name) throws DataNotFoundException {
+    private DataTransport findTransport(String name) throws DataNotFoundException {
         DataTransport t;
 
         // first look in non-fifo transports
@@ -958,14 +958,13 @@ logger.info("Emu.reset(): done, setting state to " + state);
     }
 
 
-
     /**
-     * This method locates a module given it's name.
+     * This method finds the EmuModule object corresponding to the given name.
      *
-     * @param name of module
-     * @return EmuModule object
+     * @param name of module object
+     * @return EmuModule object corresponding to given name; null if none
      */
-    public EmuModule findModule(String name) {
+    private EmuModule findModule(String name) {
         synchronized(modules) {
             for (EmuModule module : modules) {
                 if (module.name().equals(name)) {
@@ -1799,6 +1798,10 @@ logger.debug("Emu.execute(PRESTART): PRESTART to " + transport.name());
 
                         // Find module object associated with this config node
                         EmuModule module = findModule(moduleNode.getNodeName());
+                        if (module == null) {
+                            throw new DataNotFoundException("Module corresponding to " +
+                                                            moduleNode.getNodeName() + " not found");
+                        }
 
                         // Clear out all channels created in previous PRESTART
                         module.clearChannels();
@@ -1845,7 +1848,7 @@ logger.debug("Emu.execute(PRESTART): PRESTART to " + transport.name());
                                 String channelTransName = channelTranspNode.getNodeValue();
 //System.out.println("Emu.execute(PRESTART) : module = " + module.name() + ", channel = " + channelName + ", transp = " + channelTransName);
                                 // Look up transport object from name
-                                DataTransport trans = findNamedTransport(channelTransName);
+                                DataTransport trans = findTransport(channelTransName);
 
                                 // Store all attributes in a hashmap to pass to channel
                                 Map<String, String> attributeMap = new HashMap<String, String>();
