@@ -30,6 +30,7 @@ import java.nio.ByteOrder;
 import java.util.*;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.ReentrantLock;
 
 /**
@@ -117,6 +118,13 @@ public class EventBuildingOrig extends EmuStateMachineAdapter implements EmuModu
 
     /** State of the module. */
     private volatile State state = CODAState.BOOTED;
+
+    /**
+     * Possible error message. reset() sets it back to null.
+     * Making this an atomically settable String ensures that only 1 thread
+     * at a time can change its value. That way it's only set once per error.
+     */
+    protected AtomicReference<String> errorMsg = new AtomicReference<String>();
 
     /** InputChannels is an ArrayList of DataChannel objects that are inputs. */
     private ArrayList<DataChannel> inputChannels = new ArrayList<DataChannel>();
@@ -816,8 +824,12 @@ if (debug && printQSizes) {
                     }
                     catch (EmuException e) {
 if (debug) System.out.println("MAJOR ERROR building events");
-                        emu.getCauses().add(e);
+                        errorMsg.compareAndSet(null, e.getMessage());
+
+                        // set state
                         state = CODAState.ERROR;
+                        emu.sendStatusMessage();
+
                         e.printStackTrace();
                         return;
                     }
@@ -1039,27 +1051,11 @@ if (debug) System.out.println("gotValidControlEvents: found control event of typ
 
 
     /** {@inheritDoc} */
-    public State state() {
-        return state;
-    }
+    public State state() {return state;}
 
 
-    /**
-     * Set the state of this object.
-     * @param s the state of this Cobject
-     */
-    public void setState(State s) {
-        state = s;
-    }
-
-
-    /**
-     * Method getError returns the error of this EventBuildingOrig object.
-     * @return the error (type Throwable) of this EventBuildingOrig object.
-     */
-    public Throwable getError() {
-        return lastError;
-    }
+    /** {@inheritDoc} */
+    public String getError() {return errorMsg.get();}
 
 
     /** {@inheritDoc} */

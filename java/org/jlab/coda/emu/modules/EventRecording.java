@@ -73,6 +73,9 @@ public class EventRecording extends EmuStateMachineAdapter implements EmuModule 
     /** State of this module. */
     private volatile State state = CODAState.BOOTED;
 
+    /** Error message. */
+    private String errorMsg;
+
     /** ArrayList of DataChannel objects that are inputs. */
     private ArrayList<DataChannel> inputChannels = new ArrayList<DataChannel>();
 
@@ -681,27 +684,12 @@ if (true) System.out.println("Found END event in record thread");
 
 
     /** {@inheritDoc} */
-    public State state() {
-        return state;
-    }
+    public State state() {return state;}
 
 
-    /**
-     * Set the state of this object.
-     * @param s the state of this object
-     */
-    public void setState(State s) {
-        state = s;
-    }
+    /** {@inheritDoc} */
+    public String getError() {return errorMsg;}
 
-
-    /**
-     * This method returns the error of this EventRecording object.
-     * @return error (type Throwable) of this EventRecording object.
-     */
-    public Throwable getError() {
-        return lastError;
-    }
 
 
     /** {@inheritDoc} */

@@ -45,6 +45,9 @@ public class Dummy extends EmuStateMachineAdapter implements EmuModule {
     /** Name of this event recorder. */
     private final String name;
 
+    /** Error message. */
+    protected String errorMsg;
+
     /** Emu this module belongs to. */
     private Emu emu;
 
@@ -98,37 +101,26 @@ System.out.println("Dummy: created object");
 
 
     /** {@inheritDoc} */
-    public String name() {
-        return name;
-    }
+    public String name() {return name;}
 
     /** {@inheritDoc} */
-    public void registerEndCallback(EmuEventNotify callback) {
-        endCallback = callback;
-    }
+    public State state() {return state;}
 
     /** {@inheritDoc} */
-    public EmuEventNotify getEndCallback() {
-        return endCallback;
-    }
-
-
+    public String getError() {return errorMsg;}
 
     /** {@inheritDoc} */
-    public boolean representsEmuStatistics() {
-        return false;
-    }
+    public void registerEndCallback(EmuEventNotify callback) {endCallback = callback; }
 
+    /** {@inheritDoc} */
+    public EmuEventNotify getEndCallback() {return endCallback;}
+
+    /** {@inheritDoc} */
+    public boolean representsEmuStatistics() {return false;}
 
     /** {@inheritDoc} */
     synchronized public Object[] getStatistics() {
         return new Object[] {0L, 0L, 0F, 0F};
-    }
-
-
-    /** {@inheritDoc} */
-    public State state() {
-        return state;
     }
 
     /** {@inheritDoc} */

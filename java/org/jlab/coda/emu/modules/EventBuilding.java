@@ -27,6 +27,7 @@ import java.nio.ByteOrder;
 import java.util.*;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.PriorityBlockingQueue;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.ReentrantLock;
 
 /**
@@ -99,6 +100,13 @@ public class EventBuilding extends EmuStateMachineAdapter implements EmuModule {
     /** State of this module. */
     private volatile State state = CODAState.BOOTED;
 
+    /**
+     * Possible error message. reset() sets it back to null.
+     * Making this an atomically settable String ensures that only 1 thread
+     * at a time can change its value. That way it's only set once per error.
+     */
+    protected AtomicReference<String> errorMsg = new AtomicReference<String>();
+
     /** ArrayList of DataChannel objects that are inputs. */
     private ArrayList<DataChannel> inputChannels = new ArrayList<DataChannel>();
 
@@ -127,9 +135,6 @@ public class EventBuilding extends EmuStateMachineAdapter implements EmuModule {
 
     /** Map containing attributes of this module given in config file. */
     private Map<String,String> attributeMap;
-
-    /** Last error thrown by this module. */
-    private final Throwable lastError = null;
 
     /**
      * Array of threads used to take Data Transport Records from
@@ -398,17 +403,49 @@ System.out.println("EventBuilding constr: " + buildingThreadCount +
 
 
     /** {@inheritDoc} */
-    public String name() {
-        return name;
+    public String name() {return name;}
+
+    /** {@inheritDoc} */
+    public String getError() {return errorMsg.get();}
+
+    /** {@inheritDoc} */
+    public State state() {return state;}
+
+    /** {@inheritDoc} */
+    public void registerEndCallback(EmuEventNotify callback) {endCallback = callback;}
+
+    /** {@inheritDoc} */
+    public EmuEventNotify getEndCallback() {return endCallback;}
+
+    /** {@inheritDoc} */
+    public void addInputChannels(ArrayList<DataChannel> input_channels) {
+        this.inputChannels.addAll(input_channels);
     }
 
+    /** {@inheritDoc} */
+     public void addOutputChannels(ArrayList<DataChannel> output_channels) {
+         this.outputChannels.addAll(output_channels);
+     }
+
+     /** {@inheritDoc} */
+     public ArrayList<DataChannel> getInputChannels() {
+         return inputChannels;
+     }
+
+     /** {@inheritDoc} */
+     public ArrayList<DataChannel> getOutputChannels() {
+         return outputChannels;
+     }
+
+     /** {@inheritDoc} */
+     public void clearChannels() {
+         inputChannels.clear();
+         outputChannels.clear();
+     }
 
 
-    public void registerEndCallback(EmuEventNotify callback) {
-        endCallback = callback;
-    };
-
-    public EmuEventNotify getEndCallback() {return endCallback;};
+    /** {@inheritDoc} */
+    public boolean representsEmuStatistics() {return representStatistics;}
 
     /** {@inheritDoc} */
     synchronized public Object[] getStatistics() {
@@ -430,12 +467,6 @@ System.out.println("EventBuilding constr: " + buildingThreadCount +
         }
 
         return stats;
-    }
-
-
-    /** {@inheritDoc} */
-    public boolean representsEmuStatistics() {
-        return representStatistics;
     }
 
 
@@ -1236,8 +1267,13 @@ if (debug && nonFatalError) System.out.println("\nERROR 4\n");
                 }
                 catch (EmuException e) {
 if (debug) System.out.println("MAJOR ERROR building events");
-                    emu.getCauses().add(e);
+                    // If we haven't yet set the cause of error, do so now & inform run control
+                    errorMsg.compareAndSet(null, e.getMessage());
+
+                    // set state
                     state = CODAState.ERROR;
+                    emu.sendStatusMessage();
+
                     e.printStackTrace();
                     return;
                 }
@@ -1340,27 +1376,10 @@ if (debug) System.out.println("Building thread is ending !!!");
     }
 
 
+
     /** {@inheritDoc} */
-    public State state() {
-        return state;
-    }
-
-
-    /**
-     * Set the state of this object.
-     * @param s the state of this object
-     */
-    public void setState(State s) {
-        state = s;
-    }
-
-
-    /**
-     * This method returns the error of this EventBuilding object.
-     * @return error (type Throwable) of this EventBuilding object.
-     */
-    public Throwable getError() {
-        return lastError;
+    public void pause() {
+        paused = true;
     }
 
 
@@ -1395,6 +1414,7 @@ if (debug) System.out.println("Building thread is ending !!!");
     }
 
 
+    /** {@inheritDoc} */
     public void end() throws CmdExecException {
 
         state = CODAState.DOWNLOADED;
@@ -1426,6 +1446,7 @@ if (debug) System.out.println("Building thread is ending !!!");
     }
 
 
+    /** {@inheritDoc} */
     public void prestart() throws CmdExecException {
 
         // Make sure each input channel is associated with a unique rocId
@@ -1513,11 +1534,8 @@ if (debug) System.out.println("Building thread is ending !!!");
     }
 
 
-    public void pause() {
-        paused = true;
-    }
 
-
+    /** {@inheritDoc} */
     public void go() throws CmdExecException {
         state = CODAState.ACTIVE;
         paused = false;
@@ -1606,30 +1624,5 @@ System.out.println("startThreads(): recreated " + payloadBankQueues.size() +
         }
     }
 
-    /** {@inheritDoc} */
-    public void addInputChannels(ArrayList<DataChannel> input_channels) {
-        this.inputChannels.addAll(input_channels);
-    }
 
-    /** {@inheritDoc} */
-    public void addOutputChannels(ArrayList<DataChannel> output_channels) {
-        this.outputChannels.addAll(output_channels);
-    }
-
-    /** {@inheritDoc} */
-    public ArrayList<DataChannel> getInputChannels() {
-        return inputChannels;
-    }
-
-    /** {@inheritDoc} */
-    public ArrayList<DataChannel> getOutputChannels() {
-        return outputChannels;
-    }
-
-    /** {@inheritDoc} */
-    public void clearChannels() {
-        inputChannels.clear();
-        outputChannels.clear();
-    }
-
-}
+ }

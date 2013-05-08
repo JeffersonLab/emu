@@ -30,6 +30,7 @@ import java.util.*;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.PriorityBlockingQueue;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * <pre><code>
@@ -112,6 +113,13 @@ public class EventBuilding2 extends EmuStateMachineAdapter implements EmuModule 
 
     /** State of this module. */
     private volatile State state = CODAState.BOOTED;
+
+    /**
+     * Possible error message. reset() sets it back to null.
+     * Making this an atomically settable String ensures that only 1 thread
+     * at a time can change its value. That way it's only set once per error.
+     */
+    protected AtomicReference<String> errorMsg = new AtomicReference<String>();
 
     /** ArrayList of DataChannel objects that are inputs. */
     private ArrayList<DataChannel> inputChannels = new ArrayList<DataChannel>();
@@ -1019,8 +1027,13 @@ if (debug && nonFatalError) System.out.println("\nERROR 4\n");
                 }
                 catch (EmuException e) {
 if (debug) System.out.println("MAJOR ERROR building events");
-                    emu.getCauses().add(e);
+                    // If we haven't yet set the cause of error, do so now & inform run control
+                    errorMsg.compareAndSet(null, e.getMessage());
+
+                    // set state
                     state = CODAState.ERROR;
+                    emu.sendStatusMessage();
+
                     e.printStackTrace();
                     return;
                 }
@@ -1245,27 +1258,11 @@ if (debug) System.out.println("gotValidControlEvents: found control event of typ
 
 
     /** {@inheritDoc} */
-    public State state() {
-        return state;
-    }
+    public State state() {return state;}
 
+    /** {@inheritDoc} */
+    public String getError() {return errorMsg.get();}
 
-    /**
-     * Set the state of this object.
-     * @param s the state of this object
-     */
-    public void setState(State s) {
-        state = s;
-    }
-
-
-    /**
-     * This method returns the error of this EventBuilding object.
-     * @return error (type Throwable) of this EventBuilding object.
-     */
-    public Throwable getError() {
-        return lastError;
-    }
 
 
     /** {@inheritDoc} */

@@ -47,6 +47,9 @@ public class RocSimulation extends EmuStateMachineAdapter implements EmuModule, 
     /** State of the module. */
     private volatile State state = CODAState.BOOTED;
 
+    /** Error message. */
+    private String errorMsg;
+
     /** OutputChannels is an ArrayList of DataChannel objects that are outputs. */
     private ArrayList<DataChannel> outputChannels = new ArrayList<DataChannel>();
 
@@ -211,37 +214,17 @@ System.out.println("                                      SET ROCID TO " + rocId
     }
 
 
-    public String name() {
-        return name;
-    }
+    public String name() {return name;}
 
+    public State state() {return state;}
 
-    public State state() {
-        return state;
-    }
-
-    /**
-     * Set the state of this object.
-     * @param s the state of this Cobject
-     */
-    public void setState(State s) {
-        state = s;
-    }
-
-    public void registerEndCallback(EmuEventNotify callback) {
-        endCallback = callback;
-    };
+    public void registerEndCallback(EmuEventNotify callback) {endCallback = callback;};
 
     public EmuEventNotify getEndCallback() {return endCallback;};
 
-    /**
-     * Method getError returns the error of this RocSimulation object.
-     *
-     * @return the error (type Throwable) of this RocSimulation object.
-     */
-    public Throwable getError() {
-        return lastError;
-    }
+    /** {@inheritDoc} */
+    public String getError() {return errorMsg;}
+
 
     synchronized public Object[] getStatistics() {
         Object[] stats = new Object[4];
