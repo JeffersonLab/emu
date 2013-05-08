@@ -18,7 +18,7 @@ import org.jlab.coda.emu.support.codaComponent.CODACommand;
 import org.jlab.coda.emu.support.codaComponent.CODATransition;
 import org.jlab.coda.emu.support.control.Command;
 import org.jlab.coda.emu.support.control.CommandAcceptor;
-import org.jlab.coda.emu.support.control.State;
+import org.jlab.coda.emu.support.codaComponent.State;
 
 import javax.swing.*;
 import java.awt.*;
