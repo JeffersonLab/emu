@@ -11,6 +11,7 @@
 
 package org.jlab.coda.emu.support.transport;
 
+import org.jlab.coda.emu.support.codaComponent.CODAState;
 import org.jlab.coda.emu.support.data.*;
 import org.jlab.coda.emu.Emu;
 import org.jlab.coda.cMsg.*;
@@ -126,14 +127,6 @@ public class DataChannelImplCmsg extends DataChannelAdapter {
          *                   message.
          */
         public void callback(cMsgMessage msg, Object userObject) {
-//System.out.println("cmsg data channel " + name + ": got message in callback");
-            byte[] data = msg.getByteArray();
-            if (data == null) {
-                System.out.println("cmsg data channel " + name + ": ain't got no data!!!");
-                return;
-            }
-
-            ByteBuffer buffer = ByteBuffer.wrap(data);
 
             EvioBank bank;
             PayloadBank payloadBank;
@@ -143,8 +136,15 @@ public class DataChannelImplCmsg extends DataChannelAdapter {
             ControlType controlType;
             EvioReader reader;
 
-
             try {
+//System.out.println("cmsg data channel " + name + ": got message in callback");
+                byte[] data = msg.getByteArray();
+                if (data == null) {
+                    errorMsg.compareAndSet(null, "cMsg message data has no data");
+                    throw new EvioException("cMsg message data has no data");
+                }
+
+                ByteBuffer buffer = ByteBuffer.wrap(data);
                 reader = new EvioReader(buffer, blockNumberChecking);
 
                 // Speed things up since no EvioListeners are used - doesn't do much
@@ -153,6 +153,7 @@ public class DataChannelImplCmsg extends DataChannelAdapter {
                 IBlockHeader blockHeader = reader.getCurrentBlockHeader();
                 evioVersion = blockHeader.getVersion();
                 if (evioVersion < 4) {
+                    errorMsg.compareAndSet(null, "Evio data needs to be written in version 4+ format");
                     throw new EvioException("Evio data needs to be written in version 4+ format");
                 }
                 header4     = (BlockHeaderV4)blockHeader;
@@ -196,6 +197,7 @@ public class DataChannelImplCmsg extends DataChannelAdapter {
                         // TODO: It may NOT be enough just to check the tag
                         controlType = ControlType.getControlType(bank.getHeader().getTag());
                         if (controlType == null) {
+                            errorMsg.compareAndSet(null, "Found unidentified control event");
                             throw new EvioException("Found unidentified control event");
                         }
                     }
@@ -226,18 +228,15 @@ public class DataChannelImplCmsg extends DataChannelAdapter {
                     // TODO: do something?
                 }
             }
-            catch (EvioException e) {
-                // if message data NOT in evio format, skip over it
-                logger.error("        DataChannel cMsg : " + name +
-                                     " cMsg message data is NOT (latest) evio format, skip");
-            }
-            catch (IOException e) {
-                // if buffer read failure (bad data format ?)
-                logger.error("        DataChannel cMsg : " + name +
-                                     " cMsg message data is NOT (latest) evio format, skip");
-            }
             catch (InterruptedException e) {
-                e.printStackTrace();
+            }
+            catch (Exception e) {
+                // If we haven't yet set the cause of error, do so now & inform run control
+                errorMsg.compareAndSet(null, "cMsg message data has invalid format");
+
+                // set state
+                state = CODAState.ERROR;
+                emu.sendStatusMessage();
             }
 
 
@@ -475,9 +474,9 @@ System.out.println("\n\nDataChannel: subscribe to subject = " + subject + ", typ
         }
 
         queue.clear();
-//System.out.println("      close() is done");
-
-
+        errorMsg = null;
+        state = CODAState.CONFIGURED;
+//logger.debug("      DataChannel cMsg reset() : " + name + " - done");
     }
 
     /**
@@ -511,6 +510,9 @@ logger.debug("      DataChannel cMsg reset() : " + name + " - resetting this cha
         }
 
         queue.clear();
+        errorMsg = null;
+        state = CODAState.CONFIGURED;
+
 //logger.debug("      DataChannel cMsg reset() : " + name + " - done");
     }
 
@@ -960,10 +962,15 @@ System.out.println("singlethreaded put: array len = " + msgs.length + ", send " 
                         latch.await();
                     }
 
-                    // Write cMsg messages after gathering them all
+                    try {
 System.out.println("      DataChannel cMsg: write " + messages2Write + " messages");
-                    writeMessages(msgs, myInputOrder, messages2Write);
-
+                        // Write cMsg messages after gathering them all
+                        writeMessages(msgs, myInputOrder, messages2Write);
+                    }
+                    catch (cMsgException e) {
+                        errorMsg.compareAndSet(null, "Cannot communicate with cMsg server");
+                        throw e;
+                    }
 
                     if (haveOutputEndEvent) {
 System.out.println("Ending");
@@ -973,9 +980,19 @@ System.out.println("Ending");
                 }
 
             } catch (InterruptedException e) {
+                logger.warn("      DataChannel cMsg out helper: " + name + "  interrupted thd, exiting");
+
+            // only cMsgException thrown
             } catch (Exception e) {
+                // If we haven't yet set the cause of error, do so now & inform run control
+                errorMsg.compareAndSet(null, e.getMessage());
+
+                // set state
+                state = CODAState.ERROR;
+                emu.sendStatusMessage();
+
                 e.printStackTrace();
-                logger.warn("      DataChannel cMsg DataOutputHelper : exit " + e.getMessage());
+                logger.warn("      DataChannel cMsg out helper: " + name + " exit thd: " + e.getMessage());
             }
 
         }
