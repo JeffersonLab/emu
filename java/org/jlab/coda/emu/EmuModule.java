@@ -84,7 +84,7 @@ public interface EmuModule extends StatedObject, EmuStateMachine {
      * xml configuration file by including the attribute statistics="on" in the module
      * definition.
      *
-     * @return <coda>true</code> if this module's statistics represents the EMU, else <code>false</code>.
+     * @return <code>true</code> if this module's statistics represents the EMU, else <code>false</code>.
      */
     public boolean representsEmuStatistics();
 }
