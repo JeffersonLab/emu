@@ -12,6 +12,7 @@
 package org.jlab.coda.emu.support.transport;
 
 import org.jlab.coda.emu.Emu;
+import org.jlab.coda.emu.support.codaComponent.CODAState;
 import org.jlab.coda.emu.support.data.*;
 import org.jlab.coda.jevio.*;
 
@@ -217,7 +218,10 @@ logger.info("      DataChannel File: try opening output file of " + fileName);
         } catch (Exception e) {
             //ignore
         }
+
         queue.clear();
+        errorMsg = null;
+        state = CODAState.CONFIGURED;
     }
 
 
@@ -310,7 +314,12 @@ logger.info("      DataChannel File: try opening output file of " + fileName);
             } catch (Exception e) {
 //logger.warn("      DataChannel File (" + name + "): close file");
 //logger.warn("      DataChannel File (" + name + "): exit " + e.getMessage());
-                emu.getCauses().add(e);
+                // If we haven't yet set the cause of error, do so now & inform run control
+                errorMsg.compareAndSet(null, e.getMessage());
+
+                // set state
+                state = CODAState.ERROR;
+                emu.sendStatusMessage();
             }
 
         }
@@ -410,7 +419,12 @@ logger.warn("      DataChannel File (" + name + "): got event but NO PRESTART, g
                 // time to quit
             } catch (Exception e) {
 //logger.warn("      DataChannel File (" + name + "): exit, " + e.getMessage());
-                emu.getCauses().add(e);
+                // If we haven't yet set the cause of error, do so now & inform run control
+                errorMsg.compareAndSet(null, e.getMessage());
+
+                // set state
+                state = CODAState.ERROR;
+                emu.sendStatusMessage();
             }
 
             try { evioFileWriter.close(); }
