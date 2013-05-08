@@ -13,11 +13,21 @@ package org.jlab.coda.emu.support.codaComponent;
 
 /**
  * An object that implements this interface has a state.
+ * @author heyes
+ * @author timmer
  */
 public interface StatedObject {
+
     /**
      * Get the state of this object.
      * @return the state of this object
      */
     public State state();
+
+    /**
+     * Get any available error information.
+     * @return any available error information; null if none
+     */
+    public String getError();
+
 }
