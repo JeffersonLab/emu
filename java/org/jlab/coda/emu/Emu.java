@@ -189,9 +189,6 @@ public class Emu implements CODAComponent {
     /** List of output channels. */
     private final Vector<DataChannel> outChannels = new Vector<DataChannel>();
 
-    /** List of Fifo (input & output) channels. */
-    private final Vector<DataChannel> fifoChannels = new Vector<DataChannel>();
-
     /** Vector containing all DataTransport objects. */
     private final Vector<DataTransport> transports = new Vector<DataTransport>();
 
@@ -877,7 +874,7 @@ System.out.println("Emu " + name + " sending special RC display error Msg");
         // Stop any more run control commands from being executed
         stopExecutingCmds = true;
 
-        // Clear out any existing, unexecuted commands
+        // Clear out any existing, un-executed commands
         mailbox.clear();
 
         // Reset channels first
@@ -894,7 +891,11 @@ logger.info("Emu.reset(): reset to out chan " + chan.name());
                 chan.reset();
             }
         }
- // TODO: do we CLEAR the FIFO channels too?
+
+        // FIFO channels do *NOT* need to be reset since
+        // they run no threads and will all be cleared
+        // from the hash table in the FifoTransport object
+        // during DOWNLOAD.
 
         // Reset transport objects
         for (DataTransport t : transports) {
@@ -902,14 +903,8 @@ logger.debug("  Emu.reset(): reset transport " + t.name());
             t.reset();
         }
 
-        // Reset Fifos
+        // Reset Fifo transport (removes Fifo channels from its hash table)
         fifoTransport.reset();
-
-        // No transports/channels left
-        transports.clear();
-        inChannels.clear();
-        outChannels.clear();
-        fifoChannels.clear();
 
         // Reset all modules
         for (EmuModule module : modules) {
@@ -1573,7 +1568,7 @@ System.out.println("ERROR in CONFIGURE !!!!!!!!!!!");
                     }
 
                     // Remove all current data transport objects
-                    transports.removeAllElements();
+                    transports.clear();
 
                     Node m = Configurer.getNode(configuration(), "component/transports");
                     if (!m.hasChildNodes()) {
@@ -1787,7 +1782,6 @@ logger.debug("Emu.execute(PRESTART): PRESTART to " + transport.name());
                 //------------------------------------------------
                 inChannels.clear();
                 outChannels.clear();
-                fifoChannels.clear();
 
                 Node modulesConfig = Configurer.getNode(configuration(), "component/modules");
                 Node moduleNode = modulesConfig.getFirstChild();
@@ -1901,9 +1895,6 @@ logger.debug("Emu.execute(PRESTART): PRESTART to " + transport.name());
                             // Keep local track of all channels created
                             inChannels.addAll(in);
                             outChannels.addAll(out);
-
-                            fifoChannels.addAll(inFifo);
-                            fifoChannels.addAll(outFifo);
                         }
                     }
                 } while ((moduleNode = moduleNode.getNextSibling()) != null);  // while another module exists ...
