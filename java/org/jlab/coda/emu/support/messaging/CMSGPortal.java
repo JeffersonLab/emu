@@ -27,7 +27,7 @@ import java.util.Date;
 
 /**
  * This class creates a connection to a cMsg server for the
- * purposes of receiving run control commands and logging cmlog messages.
+ * purposes of receiving run control commands and logging dalog messages.
  */
 public class CMSGPortal implements LoggerAppender {
 
@@ -105,66 +105,57 @@ public class CMSGPortal implements LoggerAppender {
             // make sure we have a viable connection to the cMsg server.
             while (!monitorThread.isInterrupted()) {
 
-                if (server == null || !server.isConnected()) {
-                    try {
-                        // create connection to cMsg server
-//System.out.println("CMSGPortal creating cMsg object using UDL = " + UDL + "\n");
-                        server = new cMsg(UDL, comp.name(), "EMU called " + comp.name());
-//System.out.println("CMSGPortal created cMsg object");
-                        server.connect();
-//System.out.println("CMSGPortal CONNECTED");
-                        // allow receipt of messages
-                        server.start();
-                        // only need one callback
-                        RcCommandHandler handler = new RcCommandHandler(CMSGPortal.this);
-                        // install callback for download, prestart, go, etc
-//System.out.println("CMSGPortal subscribe to sub = *, type = " + RCConstants.transitionCommandType);
-                        server.subscribe("*", RCConstants.transitionCommandType, handler, null);
-                        // install callback for reset, configure, start, stop, getsession, setsession, etc
-//System.out.println("CMSGPortal subscribe to sub = *, type = " + RCConstants.runCommandType);
-                        server.subscribe("*", RCConstants.runCommandType, handler, null);
-                        // install callback for set/get run number, set/get run type
-//System.out.println("CMSGPortal subscribe to sub = *, type = " + RCConstants.sessionCommandType);
-                        server.subscribe("*", RCConstants.sessionCommandType, handler, null);
-                        // install callback for getting state, status, codaClass, & objectType
-//System.out.println("CMSGPortal subscribe to sub = *, type = " + RCConstants.infoCommandType);
-                        server.subscribe("*", RCConstants.infoCommandType, handler, null);
-                        // for future use
-//System.out.println("CMSGPortal subscribe to sub = *, type = " + RCConstants.setOptionType);
-                        server.subscribe("*", RCConstants.setOptionType, handler, null);
-
+                synchronized (this) {
+                    if (server == null || !server.isConnected()) {
+                        try {
+                            // create connection to cMsg server
+                            server = new cMsg(UDL, comp.name(), "EMU called " + comp.name());
+                            server.connect();
+                            // allow receipt of messages
+                            server.start();
+                            // only need one callback
+                            RcCommandHandler handler = new RcCommandHandler(CMSGPortal.this);
+                            // install callback for download, prestart, go, etc
+                            server.subscribe("*", RCConstants.transitionCommandType, handler, null);
+                            // install callback for reset, configure, start, stop, getsession, setsession, etc
+                            server.subscribe("*", RCConstants.runCommandType, handler, null);
+                            // install callback for set/get run number, set/get run type
+                            server.subscribe("*", RCConstants.sessionCommandType, handler, null);
+                            // install callback for getting state, status, codaClass, & objectType
+                            server.subscribe("*", RCConstants.infoCommandType, handler, null);
+                            // for future use
+                            server.subscribe("*", RCConstants.setOptionType, handler, null);
 //logger.info("cMSg server connected");
 
-                    } catch (cMsgException e) {
-                        logger.warn("cMSg server down, retry in 5 seconds");
-                        if (server != null) {
-                            try {
-                                if (server.isConnected()) server.disconnect();
-                            } catch (cMsgException e1) {
-                                // ignore
+                        } catch (cMsgException e) {
+                            logger.warn("cMsg server down, retry in 2 seconds");
+                            if (server != null) {
+                                try {
+                                    if (server.isConnected()) server.disconnect();
+                                } catch (cMsgException e1) {}
+                                server = null;
                             }
-                            server = null;
                         }
                     }
                 }
 
-                // wait for 5 seconds
+                // wait for 2 seconds
                 try {
-                    Thread.sleep(5000);
+                    Thread.sleep(2000);
                 } catch (InterruptedException e) {
                     break;
                 }
             }
 
             // We're here because we've been ordered to shutdown the connection
-            if (server != null) {
-                try { server.disconnect(); }
-                catch (cMsgException e) {
-                    // ignore
+            synchronized (this) {
+                if (server != null) {
+                    try { server.disconnect(); }
+                    catch (cMsgException e) {}
                 }
+                server = null;
             }
 
-            server = null;
             logger.warn("cMSg server monitor thread exit");
         }
     }
@@ -194,7 +185,7 @@ public class CMSGPortal implements LoggerAppender {
      * Send an error message that ends up on the run control gui.
      * @param text text of message
      */
-    public void rcGuiErrorMessage(String text) {
+    synchronized public void rcGuiErrorMessage(String text) {
 
         if ((server != null) && server.isConnected()) {
 
@@ -214,56 +205,69 @@ public class CMSGPortal implements LoggerAppender {
             } catch (cMsgException e) {
                 try {
                     if (server.isConnected()) server.disconnect();
-                } catch (cMsgException e1) {
-                    // ignore
-                }
+                } catch (cMsgException e1) {}
                 server = null;
             }
         }
     }
 
     /**
-     * Send a cmlog message using the cMsg system.
+     * Send a dalog message using the cMsg system.
      * @param event event to be logged
      */
-    public void append(LoggingEvent event) {
+    synchronized public void append(LoggingEvent event) {
 
-        if ((server != null) && server.isConnected()) {
-            cMsgMessage msg = new cMsgMessage();
-            msg.setSubject(comp.name());
-            msg.setType("cmlog");
-            msg.setText(event.getMessage());
-            msg.setUserInt(event.getLevel());
-
+        if ((server != null) && server.isConnected() && event != null) {
             try {
+                cMsgMessage msg = new cMsgMessage();
+                msg.setSubject(comp.name());
+                msg.setType(RCConstants.dalogMsg);
+                msg.setText(event.getMessage());
+
+                // 0=info, 1=warning, 2=error, 3=severe; < 2 is ignored by rc gui
+                // Default to info message
+                msg.setUserInt(0);
+                msg.addPayloadItem(new cMsgPayloadItem("severity", "info"));
+
                 if (event.hasData()) {
+                    // currently none of the payload items, except severity & tod, are used
                     msg.addPayloadItem(new cMsgPayloadItem("hostName",  comp.getHostName()));
                     msg.addPayloadItem(new cMsgPayloadItem("userName",  comp.getUserName()));
                     msg.addPayloadItem(new cMsgPayloadItem("runNumber", comp.getRunNumber()));
                     msg.addPayloadItem(new cMsgPayloadItem("runType",   comp.getRunType()));
                     msg.addPayloadItem(new cMsgPayloadItem("codaClass", comp.getCodaClass().name()));
-                    // config is not implemented
-                    msg.addPayloadItem(new cMsgPayloadItem("config", "unknown"));
-                    msg.addPayloadItem(new cMsgPayloadItem("severity", event.getFormatedLevel()));
+
+                    String errorLevel = event.getFormatedLevel();
+                    if (errorLevel.equalsIgnoreCase("WARN")) {
+                        msg.setUserInt(1);
+                        msg.addPayloadItem(new cMsgPayloadItem("severity", "warning"));
+                    }
+                    else if (errorLevel.equalsIgnoreCase("ERROR")) {
+                        msg.setUserInt(2);
+                        msg.addPayloadItem(new cMsgPayloadItem("severity", "error"));
+                    }
+                    else if (errorLevel.equalsIgnoreCase("BUG")) {
+                        msg.setUserInt(3);
+                        msg.addPayloadItem(new cMsgPayloadItem("severity", "severe"));
+                    }
+
                     if (comp.state() != null) msg.addPayloadItem(new cMsgPayloadItem("state", comp.state().toString()));
-                    msg.addPayloadItem(new cMsgPayloadItem("cmlogData", event.getFormatedData()));
+                    msg.addPayloadItem(new cMsgPayloadItem("dalogData", event.getFormatedData()));
+
                     DateFormat format = new SimpleDateFormat("HH:mm:ss.SSS ");
                     format.format(new Date(event.getEventTime()));
                     msg.addPayloadItem(new cMsgPayloadItem("tod", format.format(event.getEventTime())));
                 }
 
-                //System.out.println("cMsg Server : " + server.toString() + " " +server.isConnected());
-                if (server != null) server.send(msg);
+                server.send(msg);
 
             } catch (cMsgException e) {
                 try {
                     if (server.isConnected()) server.disconnect();
-                } catch (cMsgException e1) {
-                    // ignore
-                }
+                } catch (cMsgException e1) {}
                 server = null;
             }
         }
     }
-
 }
+
