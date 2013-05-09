@@ -846,17 +846,25 @@ System.out.println("Emu " + name + " sending special RC display error Msg");
     }
 
 
-    /** Exit this Emu and the whole JVM. */ // TODO: only quit EMU threads?
+    /** Exit this Emu (there still may be other threads running in the JVM). */
     void quit() {
+        // Shutdown all channel, module, & transport threads
+        reset();
+
+        // Get rid of thread watching cMsg connection
         try {
             cmsgPortal.shutdown();
-        } catch (cMsgException e) {
-            // ignore
         }
+        catch (cMsgException e) {}
 
+        // Get rid of any GUI
         if (debugGUI != null) debugGUI.dispose();
+
+        // Interrupt both of Emu's threads
+        statusReportingThread.interrupt();
+
+        // This thread is currently interrupting itself
         statusMonitor.interrupt();
-        System.exit(0);
     }
 
 
@@ -911,7 +919,7 @@ logger.debug("  Emu.reset(): reset transport " + t.name());
 logger.debug("  Emu.reset(): reset modules " + module.name());
             module.reset();
         }
-// TODO: do we CLEAR the modules too?
+
         // Set state
         if (previousState == ERROR || previousState == BOOTED) {
             setState(BOOTED);
