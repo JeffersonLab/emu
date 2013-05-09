@@ -9,8 +9,9 @@
  *
  */
 
-package org.jlab.coda.emu;
+package org.jlab.coda.emu.support.codaComponent;
 
+import org.jlab.coda.emu.EmuEventNotify;
 import org.jlab.coda.emu.support.control.CmdExecException;
 
 /**
@@ -18,11 +19,11 @@ import org.jlab.coda.emu.support.control.CmdExecException;
  * and modules. It encompasses all state machine functions and the
  * ability to notify others of an END event's arrival.
  *
- * @see org.jlab.coda.emu.support.codaComponent.CODATransition
+ * @see CODATransition
  * @author timmer
  * Date: 4/18/13
  */
-public interface EmuStateMachine {
+public interface CODAStateMachine {
 
     /**
      * This method implements the GO transition of the CODA run control state machine.

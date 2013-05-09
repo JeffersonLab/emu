@@ -9,19 +9,20 @@
  *
  */
 
-package org.jlab.coda.emu;
+package org.jlab.coda.emu.support.codaComponent;
 
+import org.jlab.coda.emu.EmuEventNotify;
 import org.jlab.coda.emu.support.control.CmdExecException;
 
 /**
- * This class provides empty implementations of the EmuStateMachine interface.
- * Extending this class implements the EmuStateMachine interface and frees
+ * This class provides empty implementations of the CODAStateMachine interface.
+ * Extending this class implements the CODAStateMachine interface and frees
  * any subclass from having to implement methods that aren't used.
  *
  * @author timmer
  * Date: 4/18/13
  */
-public class EmuStateMachineAdapter implements EmuStateMachine {
+public class CODAStateMachineAdapter implements CODAStateMachine {
 
     /** {@inheritDoc} */
     public void go()       throws CmdExecException {}
