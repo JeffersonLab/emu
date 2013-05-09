@@ -73,7 +73,8 @@ public abstract class DataTransportAdapter extends CODAStateMachineAdapter imple
      * @param attrib  Map of attributes of this transport
      * @param emu     emu that created this transport
      *
-     * @throws DataNotFoundException when
+     * @throws DataNotFoundException when "server" and "class" attributes
+     *                               are missing from attrib map.
      */
     public DataTransportAdapter(String name, Map<String, String> attrib, Emu emu)
             throws DataNotFoundException {
