@@ -13,6 +13,7 @@ package org.jlab.coda.emu.support.transport;
 
 import org.jlab.coda.cMsg.*;
 import org.jlab.coda.emu.Emu;
+import org.jlab.coda.emu.support.codaComponent.CODAState;
 import org.jlab.coda.emu.support.configurer.DataNotFoundException;
 
 import org.jlab.coda.emu.support.control.CmdExecException;
@@ -21,6 +22,9 @@ import org.jlab.coda.emu.support.logger.Logger;
 import java.util.Map;
 
 /**
+ * This class specifies a single cMsg server.
+ * Connects to and disconnects from the server.
+ *
  * @author timmer
  * Dec 2, 2009
  */
@@ -67,43 +71,51 @@ public class DataTransportImplCmsg extends DataTransportAdapter {
     }
 
 
+    /** {@inheritDoc} */
     public DataChannel createChannel(String name, Map<String,String> attributeMap, boolean isInput, Emu emu) throws DataTransportException {
         return new DataChannelImplCmsg(name, this, attributeMap, isInput, emu);
     }
 
+
+    /** {@inheritDoc}. Disconnect from cMsg server. */
     public void reset() {
         try {
-logger.debug("    DataTransportImplCmsg.reset(): cmsg disconnect : " + name());
+            logger.debug("    DataTransportImplCmsg.reset(): cmsg disconnect : " + name());
             cmsgConnection.disconnect();
         } catch (Exception e) {}
     };
 
 
+    /** {@inheritDoc}. Connect to cMsg server. */
     public void prestart() throws CmdExecException {
-
         try {
-            logger.debug("    DataTransportImplCmsg.execute PRESTART: cmsg connect : " + name());
+            logger.debug("    DataTransportImplCmsg.prestart(): cmsg connect : " + name());
             cmsgConnection.connect();
 
         } catch (cMsgException e) {
-            throw new CmdExecException("cannot connect to cMsg server", e);
+            errorMsg.compareAndSet(null, "cannot connect to cMsg server (bad UDL or network)");
+            state = CODAState.ERROR;
+            emu.sendStatusMessage();
+            logger.debug("    DataTransportImplCmsg.prestart(): cannot connect to cMsg server (bad UDL or network) : " + name());
+            throw new CmdExecException("cannot connect to cMsg server (bad UDL or network)", e);
         }
 
         return;
     }
 
 
-    public void go() {
-        cmsgConnection.start(); // allow message flow to callbacks
-    }
+    /** {@inheritDoc}. Allow sending messages to callbacks. */
+    public void go() {cmsgConnection.start();}
 
-    public void pause() {
-        cmsgConnection.stop(); // stop message flow to callbacks
-    }
 
+    /** {@inheritDoc}. Stop sending messages to callbacks. */
+    public void pause() {cmsgConnection.stop();}
+
+
+    /** {@inheritDoc}. Disconnect from cMsg server. */
     public void end() {
         try {
-logger.debug("    DataTransportImplCmsg.end(): cmsg disconnect : " + name());
+            logger.debug("    DataTransportImplCmsg.end(): cmsg disconnect : " + name());
             cmsgConnection.disconnect();
         } catch (Exception e) { }
     }
