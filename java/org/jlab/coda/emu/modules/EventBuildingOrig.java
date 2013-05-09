@@ -14,7 +14,7 @@ package org.jlab.coda.emu.modules;
 import org.jlab.coda.emu.Emu;
 import org.jlab.coda.emu.EmuException;
 import org.jlab.coda.emu.EmuModule;
-import org.jlab.coda.emu.EmuStateMachineAdapter;
+import org.jlab.coda.emu.support.codaComponent.CODAStateMachineAdapter;
 import org.jlab.coda.emu.support.codaComponent.CODAState;
 
 import org.jlab.coda.emu.support.configurer.Configurer;
@@ -104,7 +104,7 @@ import java.util.concurrent.locks.ReentrantLock;
  * If no output channels are defined in the config file, this module's QCollector thread
  * pulls off all events and discards them.
  */
-public class EventBuildingOrig extends EmuStateMachineAdapter implements EmuModule {
+public class EventBuildingOrig extends CODAStateMachineAdapter implements EmuModule {
 
 
     /** Name of this event builder. */

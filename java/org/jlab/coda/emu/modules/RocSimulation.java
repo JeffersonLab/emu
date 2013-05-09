@@ -15,6 +15,7 @@ import org.jlab.coda.emu.*;
 import org.jlab.coda.emu.support.codaComponent.CODAClass;
 import org.jlab.coda.emu.support.codaComponent.CODAState;
 
+import org.jlab.coda.emu.support.codaComponent.CODAStateMachineAdapter;
 import org.jlab.coda.emu.support.configurer.Configurer;
 import org.jlab.coda.emu.support.configurer.DataNotFoundException;
 import org.jlab.coda.emu.support.control.CmdExecException;
@@ -32,7 +33,7 @@ import java.util.concurrent.*;
  * to create events and send them to a single output channel.<p>
  * TODO: ET buffers have the number of events in them which varies from ROC to ROC.
  */
-public class RocSimulation extends EmuStateMachineAdapter implements EmuModule, Runnable {
+public class RocSimulation extends CODAStateMachineAdapter implements EmuModule, Runnable {
 
 
     /** Name of this ROC. */

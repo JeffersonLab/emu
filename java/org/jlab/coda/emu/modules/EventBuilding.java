@@ -14,6 +14,7 @@ package org.jlab.coda.emu.modules;
 import org.jlab.coda.emu.*;
 import org.jlab.coda.emu.support.codaComponent.CODAClass;
 import org.jlab.coda.emu.support.codaComponent.CODAState;
+import org.jlab.coda.emu.support.codaComponent.CODAStateMachineAdapter;
 import org.jlab.coda.emu.support.configurer.Configurer;
 import org.jlab.coda.emu.support.configurer.DataNotFoundException;
 import org.jlab.coda.emu.support.control.CmdExecException;
@@ -85,7 +86,7 @@ import java.util.concurrent.locks.ReentrantLock;
  * channel. Control & User events are not part of the round-robin output to each channel in turn.
  * If no output channels are defined in the config file, this module discards all events.
  */
-public class EventBuilding extends EmuStateMachineAdapter implements EmuModule {
+public class EventBuilding extends CODAStateMachineAdapter implements EmuModule {
 
 
     /** Name of this event builder. */

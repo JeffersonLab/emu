@@ -14,7 +14,7 @@ package org.jlab.coda.emu.modules;
 import org.jlab.coda.emu.Emu;
 import org.jlab.coda.emu.EmuEventNotify;
 import org.jlab.coda.emu.EmuModule;
-import org.jlab.coda.emu.EmuStateMachineAdapter;
+import org.jlab.coda.emu.support.codaComponent.CODAStateMachineAdapter;
 import org.jlab.coda.emu.support.codaComponent.CODAState;
 import org.jlab.coda.emu.support.control.CmdExecException;
 import org.jlab.coda.emu.support.codaComponent.State;
@@ -36,7 +36,7 @@ import java.util.concurrent.TimeUnit;
  * @author timmer
  * @date 4/26/2013
  */
-public class Dummy extends EmuStateMachineAdapter implements EmuModule {
+public class Dummy extends CODAStateMachineAdapter implements EmuModule {
 
 
     /** ID number of this event recorder obtained from config file. */
