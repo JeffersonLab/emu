@@ -46,8 +46,9 @@ public class DataTransportImplCmsg extends DataTransportAdapter {
     /**
      * Constructor.
      *
-     * @param pname  of type String
-     * @param attrib of type Map
+     * @param pname  name of transport
+     * @param attrib transport's attribute map from config file
+     * @param emu  emu object this transport belongs to
      *
      * @throws DataNotFoundException
      *          when udl not given or cannot connect to cmsg server
