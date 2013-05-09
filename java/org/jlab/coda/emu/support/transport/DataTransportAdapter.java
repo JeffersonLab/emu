@@ -137,29 +137,20 @@ public abstract class DataTransportAdapter extends CODAStateMachineAdapter imple
     }
 
     /** {@inheritDoc} */
-    public boolean isServer() {
-        return server;
-    }
+    public boolean isServer() {return server;}
 
     /** {@inheritDoc} */
-    public boolean isConnected() {
-        return connected;
-    }
+    public boolean isConnected() {return connected;}
 
     /**
      * This method sets if this DataTransport object is connected or not.
      *
      * @param connected boolean: true if connected else false
      */
-    public void setConnected(boolean connected) {
-        this.connected = connected;
-    }
+    public void setConnected(boolean connected) {this.connected = connected;}
 
 
     /** {@inheritDoc} */
-    public void reset() {
-//System.out.println("Transport Core's reset() being called");
-        setConnected(false);
-    }
+    public void reset() {setConnected(false);}
 
 }
