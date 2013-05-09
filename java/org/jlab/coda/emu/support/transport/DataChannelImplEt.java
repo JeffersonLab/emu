@@ -566,7 +566,7 @@ logger.debug("      DataChannel Et reset() : " + name + " channel, in threads = 
         }
 
         queue.clear();
-        errorMsg = null;
+        errorMsg.set(null);
         state = CODAState.CONFIGURED;
 logger.debug("      DataChannel Et reset() : " + name + " - done");
     }

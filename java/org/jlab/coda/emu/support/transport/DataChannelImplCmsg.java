@@ -474,7 +474,7 @@ System.out.println("\n\nDataChannel: subscribe to subject = " + subject + ", typ
         }
 
         queue.clear();
-        errorMsg = null;
+        errorMsg.set(null);
         state = CODAState.CONFIGURED;
 //logger.debug("      DataChannel cMsg reset() : " + name + " - done");
     }
@@ -510,7 +510,7 @@ logger.debug("      DataChannel cMsg reset() : " + name + " - resetting this cha
         }
 
         queue.clear();
-        errorMsg = null;
+        errorMsg.set(null);
         state = CODAState.CONFIGURED;
 
 //logger.debug("      DataChannel cMsg reset() : " + name + " - done");

@@ -16,6 +16,7 @@ import org.jlab.coda.emu.support.codaComponent.CODAState;
 import org.jlab.coda.emu.support.data.*;
 import org.jlab.coda.jevio.*;
 
+import java.io.IOException;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.regex.Matcher;
@@ -220,7 +221,7 @@ logger.info("      DataChannel File: try opening output file of " + fileName);
         }
 
         queue.clear();
-        errorMsg = null;
+        errorMsg.set(null);
         state = CODAState.CONFIGURED;
     }
 
@@ -260,7 +261,15 @@ logger.info("      DataChannel File: try opening output file of " + fileName);
 
             try {
                 while (!dataThread.isInterrupted()) {
-                    EvioBank bank = evioFileReader.parseNextEvent();
+                    EvioBank bank;
+                    try {
+                        bank = evioFileReader.parseNextEvent();
+                    }
+                    catch (Exception e) {
+                        errorMsg.compareAndSet(null, "File data is NOT evio v4 format");
+                        throw e;
+                    }
+
                     if (bank == null) {
                         break;
                     }
@@ -285,6 +294,7 @@ logger.info("      DataChannel File: try opening output file of " + fileName);
                         // (May be null if there is an error).
                         controlType = ControlType.getControlType(bank.getHeader().getTag());
                         if (controlType == null) {
+                            errorMsg.compareAndSet(null, "Found unidentified control event");
                             throw new EvioException("Found unidentified control event");
                         }
                     }
@@ -309,9 +319,11 @@ logger.info("      DataChannel File: try opening output file of " + fileName);
                 queue.put(new QueueItem(bank, ControlType.END));  // will block
                 if (endCallback != null) endCallback.endWait();
 
-            } catch (InterruptedException e) {
+            }
+            catch (InterruptedException e) {
                 // time to quit
-            } catch (Exception e) {
+            }
+            catch (Exception e) {
 //logger.warn("      DataChannel File (" + name + "): close file");
 //logger.warn("      DataChannel File (" + name + "): exit " + e.getMessage());
                 // If we haven't yet set the cause of error, do so now & inform run control
@@ -321,9 +333,7 @@ logger.info("      DataChannel File: try opening output file of " + fileName);
                 state = CODAState.ERROR;
                 emu.sendStatusMessage();
             }
-
         }
-
     }
 
 
@@ -392,32 +402,59 @@ logger.warn("      DataChannel File (" + name + "): got event but NO PRESTART, g
                     // If we're splitting the output file and writing the next bank
                     // would put it over the split size limit ...
                     if (split > 0L && (numBytesWritten + bankBytes > split)) {
-                        evioFileWriter.close();
+                        try {
+                            evioFileWriter.close();
+                        }
+                        catch (Exception e) {
+                            errorMsg.compareAndSet(null, "Cannot write to file");
+                            throw e;
+                        }
+
                         numBytesWritten = 0L;
                         fileName = String.format("%s%06d", outputFilePrefix, (++fileCount));
                         if (directory != null) {
                             fileName = directory + "/" + fileName;
                         }
 //logger.info("      DataChannel File (" + name + "): split, new file = " + fileName);
-                        evioFileWriter = new EventWriter(fileName);
+                        try {
+                            evioFileWriter = new EventWriter(fileName);
+                        }
+                        catch (EvioException e) {
+                            errorMsg.compareAndSet(null, "Cannot creat file " + fileName);
+                            throw e;
+                        }
                     }
 
 //logger.info("      DataChannel File (" + name + "): try writing into file" + fileName);
-                    evioFileWriter.writeEvent(bank);
+                    try {
+                        evioFileWriter.writeEvent(bank);
+                    }
+                    catch (Exception e) {
+                        errorMsg.compareAndSet(null, "Cannot write to file");
+                        throw e;
+                    }
+
                     numBytesWritten += bankBytes;
 
                     if (gotEnd) {
-                        try { evioFileWriter.close(); }
-                        catch (Exception e) {}
+                        try {
+                            evioFileWriter.close();
+                        }
+                        catch (Exception e) {
+                            errorMsg.compareAndSet(null, "Cannot write to file");
+                            throw e;
+                        }
                         return;
                     }
                 }
 
                 logger.info("      DataChannel File (" + name + "): close file " + fileName);
 
-            } catch (InterruptedException e) {
+            }
+            catch (InterruptedException e) {
                 // time to quit
-            } catch (Exception e) {
+            }
+            catch (Exception e) {
 //logger.warn("      DataChannel File (" + name + "): exit, " + e.getMessage());
                 // If we haven't yet set the cause of error, do so now & inform run control
                 errorMsg.compareAndSet(null, e.getMessage());
