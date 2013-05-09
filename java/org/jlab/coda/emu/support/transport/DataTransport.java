@@ -72,7 +72,7 @@ public interface DataTransport extends CODAStateMachine, StatedObject {
      * This method creates a DataChannel object.
      *
      * @param name name of DataChannel
-     * @param attributeMap hashmap of attriubtes taken from XML config file
+     * @param attributeMap hashmap of attributes taken from XML config file
      * @param isInput true if this channel puts data into the Emu, else false
      * @return DataChannel object
      * @throws DataTransportException if transport problem
