@@ -11,6 +11,7 @@
 
 package org.jlab.coda.emu;
 
+import org.jlab.coda.emu.support.codaComponent.CODAStateMachine;
 import org.jlab.coda.emu.support.codaComponent.StatedObject;
 import org.jlab.coda.emu.support.transport.DataChannel;
 
@@ -24,7 +25,7 @@ import java.util.ArrayList;
  * @author timmer
  *         Created on Sep 17, 2008
  */
-public interface EmuModule extends StatedObject, EmuStateMachine {
+public interface EmuModule extends StatedObject, CODAStateMachine {
     /**
      * The name of the module
      *
