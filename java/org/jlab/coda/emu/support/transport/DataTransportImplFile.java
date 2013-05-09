@@ -6,16 +6,27 @@ import org.jlab.coda.emu.support.configurer.DataNotFoundException;
 import java.util.Map;
 
 /**
- * Created by IntelliJ IDEA.
- * User: heyes
+ * Implement a DataTransport that uses DataChannels based on EVIO format files.
+ * This class does nothing besides provide a way to create file channels which
+ * do all the work.
+ *
+ * @author heyes
  * Date: Nov 10, 2008
- * Time: 1:18:47 PM
- * Implement a DataTransport that uses DataChannel based on EVIO format files.
  */
 public class DataTransportImplFile extends DataTransportAdapter {
 
-    public DataTransportImplFile(String pname, Map<String, String> attrib, Emu emu) throws DataNotFoundException {
-        super(pname, attrib, emu);
+    /**
+     * Constructor.
+     *
+     * @param name    name of this transport object
+     * @param attrib  Map of attributes of this transport
+     * @param emu     emu that created this transport
+     *
+     * @throws DataNotFoundException when "server" and "class" attributes
+     *                               are missing from attrib map.
+     */
+    public DataTransportImplFile(String name, Map<String, String> attrib, Emu emu) throws DataNotFoundException {
+        super(name, attrib, emu);
     }
 
     /** {@inheritDoc} */
