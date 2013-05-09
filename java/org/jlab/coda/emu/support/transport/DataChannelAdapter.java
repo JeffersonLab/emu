@@ -14,7 +14,7 @@ package org.jlab.coda.emu.support.transport;
 
 import org.jlab.coda.emu.Emu;
 import org.jlab.coda.emu.EmuEventNotify;
-import org.jlab.coda.emu.EmuStateMachineAdapter;
+import org.jlab.coda.emu.support.codaComponent.CODAStateMachineAdapter;
 import org.jlab.coda.emu.support.codaComponent.State;
 import org.jlab.coda.emu.support.data.QueueItem;
 import org.jlab.coda.emu.support.logger.Logger;
@@ -34,7 +34,7 @@ import java.util.concurrent.atomic.AtomicReference;
  * @author timmer
  *         Created on Apr 25, 2013
  */
-public class DataChannelAdapter extends EmuStateMachineAdapter implements DataChannel {
+public class DataChannelAdapter extends CODAStateMachineAdapter implements DataChannel {
 
     /** Channel id (corresponds to sourceId of ROCs for CODA event building). */
     protected int id;

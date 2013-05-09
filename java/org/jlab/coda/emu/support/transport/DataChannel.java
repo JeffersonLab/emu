@@ -12,7 +12,7 @@
 package org.jlab.coda.emu.support.transport;
 
 
-import org.jlab.coda.emu.EmuStateMachine;
+import org.jlab.coda.emu.support.codaComponent.CODAStateMachine;
 import org.jlab.coda.emu.support.codaComponent.StatedObject;
 import org.jlab.coda.emu.support.data.QueueItem;
 
@@ -29,7 +29,7 @@ import java.util.concurrent.BlockingQueue;
  * @author timmer
  * Created on Sep 12, 2008
  */
-public interface DataChannel extends EmuStateMachine, StatedObject {
+public interface DataChannel extends CODAStateMachine, StatedObject {
 
     /**
      * Get the ID number of this data channel.

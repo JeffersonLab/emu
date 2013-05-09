@@ -12,7 +12,7 @@
 package org.jlab.coda.emu.support.transport;
 
 import org.jlab.coda.emu.Emu;
-import org.jlab.coda.emu.EmuStateMachineAdapter;
+import org.jlab.coda.emu.support.codaComponent.CODAStateMachineAdapter;
 import org.jlab.coda.emu.support.configurer.DataNotFoundException;
 import org.jlab.coda.emu.support.codaComponent.State;
 import org.jlab.coda.emu.support.logger.Logger;
@@ -22,7 +22,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * This class provides an empty implementation of the DataTransport interface
- * (which includes the EmuStateMachine interface).
+ * (which includes the CODAStateMachine interface).
  * Extending this class implements the DataTransport interface and frees
  * any subclass from having to implement methods that aren't used.
  * The only exception is the abstract {@link DataTransport#createChannel} method
@@ -31,7 +31,7 @@ import java.util.concurrent.atomic.AtomicReference;
  * @author heyes
  * @author timmer
  */
-public abstract class DataTransportAdapter extends EmuStateMachineAdapter implements DataTransport {
+public abstract class DataTransportAdapter extends CODAStateMachineAdapter implements DataTransport {
 
     /** Name of this DataTransport object. */
     protected String name;
