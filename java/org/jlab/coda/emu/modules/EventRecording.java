@@ -432,6 +432,7 @@ System.out.println("EventRecording constr: " + recordingThreadCount +
         }
     }
 
+
     /**
      * End all record threads because an END cmd or event came through.
      * The record thread calling this method is not interrupted.
@@ -452,7 +453,7 @@ System.out.println("EventRecording constr: " + recordingThreadCount +
             // Wait up to endingTimeLimit millisec for events to
             // be processed & END event to arrive, then proceed
             while ((haveUnprocessedEvents || !haveEndEvent) &&
-                    (System.currentTimeMillis() - startTime < endingTimeLimit)) {
+                   (System.currentTimeMillis() - startTime < endingTimeLimit)) {
                 try {Thread.sleep(200);}
                 catch (InterruptedException e) {}
 
@@ -460,13 +461,15 @@ System.out.println("EventRecording constr: " + recordingThreadCount +
             }
 
             if (haveUnprocessedEvents || !haveEndEvent) {
-                if (debug) System.out.println("endRecordThreads: will end recording threads but no END event or Q not empty !!!");
+if (debug) System.out.println("endRecordThreads: will end threads but no END event or Q not empty!!!");
+                errorMsg.compareAndSet(null, "ending threads but no END event or Q not empty");
                 state = CODAState.ERROR;
+                emu.sendStatusMessage();
             }
         }
 
-        // NOTE: EMU has a command executing thread which calls this ER module's execute
-        // method which, in turn, calls this method when an END cmd is sent. In this case
+        // NOTE: the EMU calls this ER module's end() and reset()
+        // methods which, in turn, call this method. In this case,
         // all recording threads will be interrupted in the following code.
 
         // Interrupt all recording threads except the one calling this method
@@ -477,14 +480,14 @@ System.out.println("EventRecording constr: " + recordingThreadCount +
     }
 
 
-
     //---------------------------------------
     // Threads
     //---------------------------------------
 
+
     /**
      * This class defines a thread that makes instantaneous rate calculations
-     * once every few seconds. Rates are sent to runcontrol
+     * once every few seconds. Rates are sent to run control
      * (or stored in local xml config file).
      */
     private class Watcher extends Thread {
@@ -815,9 +818,8 @@ if (true) System.out.println("Found END event in record thread");
             try {
                 // Set end-of-run time in local XML config / debug GUI
                 Configurer.setValue(emu.parameters(), "status/run_end_time", theDate.toString());
-            } catch (DataNotFoundException e) {
-                e.printStackTrace();
             }
+            catch (DataNotFoundException e) {}
         }
     }
 
@@ -829,22 +831,20 @@ if (true) System.out.println("Found END event in record thread");
 
 
     /** {@inheritDoc} */
-    public void go() throws CmdExecException {
+    public void go() {
         state = CODAState.ACTIVE;
         paused = false;
 
         try {
             // set start-of-run time in local XML config / debug GUI
             Configurer.setValue(emu.parameters(), "status/run_start_time", (new Date()).toString());
-        } catch (DataNotFoundException e) {
-            state = CODAState.ERROR;
-            throw new CmdExecException("status/run_start_time entry not found in local config file");
         }
+        catch (DataNotFoundException e) {}
     }
 
 
     /** {@inheritDoc} */
-    public void end() throws CmdExecException {
+    public void end() {
         state = CODAState.DOWNLOADED;
 
         // The order in which these thread are shutdown does(should) not matter.
@@ -866,10 +866,8 @@ if (true) System.out.println("Found END event in record thread");
         try {
             // Set end-of-run time in local XML config / debug GUI
             Configurer.setValue(emu.parameters(), "status/run_end_time", (new Date()).toString());
-        } catch (DataNotFoundException e) {
-            state = CODAState.ERROR;
-            throw new CmdExecException("status/run_end_time entry not found in local config file");
         }
+        catch (DataNotFoundException e) {}
     }
 
 
@@ -879,7 +877,9 @@ if (true) System.out.println("Found END event in record thread");
         for (int i=0; i < inputChannels.size(); i++) {
             for (int j=i+1; j < inputChannels.size(); j++) {
                 if (inputChannels.get(i).getID() == inputChannels.get(j).getID()) {;
+                    errorMsg.compareAndSet(null, "input channels duplicate rocIDs");
                     state = CODAState.ERROR;
+                    emu.sendStatusMessage();
                     throw new CmdExecException("input channels duplicate rocIDs");
                 }
             }
@@ -927,10 +927,8 @@ if (true) System.out.println("Found END event in record thread");
         try {
             // Set start-of-run time in local XML config / debug GUI
             Configurer.setValue(emu.parameters(), "status/run_start_time", "--prestart--");
-        } catch (DataNotFoundException e) {
-            state = CODAState.ERROR;
-            throw new CmdExecException("status/run_start_time entry not found in local config file");
         }
+        catch (DataNotFoundException e) {}
     }
 
 
