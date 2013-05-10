@@ -32,7 +32,7 @@ import java.nio.ByteBuffer;
  * or sends data to an ET system.
  *
  * @author timmer
- * Dec 2, 2009
+ * (Dec 2, 2009)
  */
 public class DataChannelImplEt extends DataChannelAdapter {
 
@@ -365,7 +365,7 @@ logger.info("      DataChannel Et : creating channel " + name);
      * Get the ET sytem object.                                                                         , e
      * @return the ET system object.
      */
-    public void openEtSystem() throws DataTransportException {
+    private void openEtSystem() throws DataTransportException {
         try {
 //System.out.println("      DataChannel Et: try to open" + dataTransportImplEt.getOpenConfig().getEtName() );
             etSystem.open();
@@ -580,7 +580,7 @@ logger.debug("      DataChannel Et reset() : " + name + " - done");
       * For output channel, start the DataOutputHelper thread which takes a bank from
       * the queue, puts it into a new ET event and puts that into the ET system.
       */
-     public void startHelper() {
+     private void startHelper() {
          if (input) {
              dataInputThreads = new DataInputHelper[inputThreadCount];
 
