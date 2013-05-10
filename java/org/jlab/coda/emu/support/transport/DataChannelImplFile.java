@@ -26,7 +26,7 @@ import java.util.regex.Pattern;
  *
  * @author heyes
  * @author timmer
- * @date Nov 10, 2008
+ * (Nov 10, 2008)
  */
 public class DataChannelImplFile extends DataChannelAdapter {
 

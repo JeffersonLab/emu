@@ -16,9 +16,11 @@ import org.jlab.coda.emu.Emu;
 import java.util.Map;
 
 /**
+ * Implementation of a DataChannel reading/writing from/to a fifo.
+ *
  * @author heyes
  * @author timmer
- * Date: Nov 10, 2008
+ * (Nov 10, 2008)
  */
 public class DataChannelImplFifo extends DataChannelAdapter {
 
