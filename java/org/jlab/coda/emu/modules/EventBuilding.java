@@ -138,7 +138,7 @@ public class EventBuilding extends CODAStateMachineAdapter implements EmuModule 
     private Map<String,String> attributeMap;
 
     /**
-     * Array of threads used to take Data Transport Records from
+     * Array of threads used to take Evio data from
      * input channels, dissect them, and place resulting payload
      * banks onto payload queues.
      */
@@ -153,8 +153,8 @@ public class EventBuilding extends CODAStateMachineAdapter implements EmuModule 
     /** END event detected by one of the building threads. */
     private volatile boolean haveEndEvent;
 
-    /** Maximum time to wait when commanded to END but no END event received. */
-    private long endingTimeLimit = 60000;
+    /** Maximum time in milliseconds to wait when commanded to END but no END event received. */
+    private long endingTimeLimit = 30000;
 
     /** Object used by Emu to be notified of END event arrival. */
     private EmuEventNotify endCallback;
@@ -236,7 +236,7 @@ public class EventBuilding extends CODAStateMachineAdapter implements EmuModule 
     private int timestampSlop;
 
     /**
-     * If true, swap data if necessary when building event
+     * If true, swap data if necessary when building events.
      * Assume data is all 32 bit integers.
      */
     private boolean swapData;
@@ -312,8 +312,9 @@ public class EventBuilding extends CODAStateMachineAdapter implements EmuModule 
     /**
      * Constructor creates a new EventBuilding instance.
      *
-     * @param name name of module
+     * @param name         name of module
      * @param attributeMap map containing attributes of module
+     * @param emu          emu which created this module
      */
     public EventBuilding(String name, Map<String, String> attributeMap, Emu emu) {
         this.emu = emu;
@@ -429,21 +430,16 @@ System.out.println("EventBuilding constr: " + buildingThreadCount +
      }
 
      /** {@inheritDoc} */
-     public ArrayList<DataChannel> getInputChannels() {
-         return inputChannels;
-     }
+     public ArrayList<DataChannel> getInputChannels() {return inputChannels;}
 
      /** {@inheritDoc} */
-     public ArrayList<DataChannel> getOutputChannels() {
-         return outputChannels;
-     }
+     public ArrayList<DataChannel> getOutputChannels() {return outputChannels;}
 
      /** {@inheritDoc} */
      public void clearChannels() {
          inputChannels.clear();
          outputChannels.clear();
      }
-
 
     /** {@inheritDoc} */
     public boolean representsEmuStatistics() {return representStatistics;}
@@ -473,7 +469,7 @@ System.out.println("EventBuilding constr: " + buildingThreadCount +
 
     /**
      * This class defines a thread that makes instantaneous rate calculations
-     * once every few seconds. Rates are sent to runcontrol
+     * once every few seconds. Rates are sent to run control
      * (or stored in local xml config file).
      */
     private class Watcher extends Thread {
@@ -530,7 +526,7 @@ System.out.println("EventBuilding constr: " + buildingThreadCount +
 
     /**
      * This class takes items from a queue (an input channel, eg. ROC),
-     * and dumps them.
+     * and dumps them. Used for testing purposes only, in place of QFiller threads.
      */
     private class QfillerDump extends Thread {
 
@@ -554,7 +550,6 @@ System.out.println("EventBuilding constr: " + buildingThreadCount +
             }
         }
     }
-
 
 
     /**
@@ -591,7 +586,9 @@ System.out.println("EventBuilding constr: " + buildingThreadCount +
                     // EmuException from Evio.checkPayloadBank() if
                     // Roc raw or physics banks are in the wrong format
 if (debug) System.out.println("Qfiller: Roc raw or physics event in wrong format");
+                    errorMsg.compareAndSet(null, "Roc raw or physics banks are in the wrong format");
                     state = CODAState.ERROR;
+                    emu.sendStatusMessage();
                     return;
                 } catch (InterruptedException e) {
                     return;
@@ -601,11 +598,10 @@ if (debug) System.out.println("Qfiller: Roc raw or physics event in wrong format
     }
 
 
-
     /**
      * This method is called by a build thread and is used to place
      * a bank onto the queue of an output channel. If the event is
-     * not in next in line for the Q, it can be put in a waiting list.
+     * not next in line for the Q, it can be put in a waiting list.
      *
      * @param bankOut the built/control/user event to place on output channel queue
      * @throws InterruptedException if wait, put, or take interrupted
@@ -646,11 +642,13 @@ if (debug) System.out.println("Qfiller: Roc raw or physics event in wrong format
                     if (waitingLists[eo.index].size() > 9) {
                         eo.lock.wait();
                     }
-//if (debug) System.out.println("out of order = " + eo.inputOrder);
-//if (debug) System.out.println("waiting list = ");
-//                    for (EvioBank bk : waitingLists[eo.index]) {
-//                        if (debug) System.out.println("" + ((EventOrder)bk.getAttachment()).inputOrder);
-//                    }
+if (debug) {
+    System.out.println("out of order = " + eo.inputOrder);
+    System.out.println("waiting list = ");
+    for (EvioBank bk : waitingLists[eo.index]) {
+        System.out.println("" + ((EventOrder)bk.getAttachment()).inputOrder);
+    }
+}
                     return;
                 }
 
@@ -660,7 +658,6 @@ if (debug) System.out.println("Qfiller: Roc raw or physics event in wrong format
 //if (debug) System.out.println("placing = " + eo.inputOrder);
 
                 // Take a look on the waiting list without removing ...
-// TODO: Is this really an EvioBank or is it a PayloadBank ????
                 bank = waitingLists[eo.index].peek();
                 while (bank != null) {
                     evOrder = (EventOrder) bank.getAttachment();
@@ -688,11 +685,10 @@ if (debug && printQSizes) {
     }
 
 
-
     /**
      * This method is called by a build thread and is used to place
      * a list of banks onto the queue of an output channel. If the events
-     * are not in next in line for the Q, they can be put in a waiting list.
+     * are not next in line for the Q, they can be put in a waiting list.
      *
      * @param banksOut a list of the built/control/user events to place on output channel queue
      * @throws InterruptedException if wait, put, or take interrupted
@@ -768,7 +764,6 @@ if (debug && printQSizes) {
     }
 
 
-
     /**
      * This thread is started by the GO transition and runs while the state of the module is ACTIVE.
      * <p/>
@@ -828,17 +823,18 @@ if (debug && printQSizes) {
                     // The payload bank queues are filled by the QFiller thread.
 
                     // Here we have what we need to build:
-                    // ROC raw events from all ROCs, each with sequential record IDs.
+                    // ROC raw events from all ROCs (or partially built events from
+                    // each contributing EB) each with sequential record IDs.
                     // However, there are also user and control events on queues.
 
                     // Put null into buildingBanks array elements
                     Arrays.fill(buildingBanks, null);
 
-                    // reset flags
-                    haveControlEvents = false;
+                    // Set variables/flags
+                    haveControlEvents  = false;
                     gotFirstBuildEvent = false;
-                    endEventCount = 0;
-                    controlEventCount = 0;
+                    endEventCount      = 0;
+                    controlEventCount  = 0;
 
                     // Fill array with actual banks
                     try {
@@ -1408,15 +1404,14 @@ if (debug) System.out.println("Building thread is ending !!!");
             try {
                 // Set end-of-run time in local XML config / debug GUI
                 Configurer.setValue(emu.parameters(), "status/run_end_time", theDate.toString());
-            } catch (DataNotFoundException e) {
-                e.printStackTrace();
             }
+            catch (DataNotFoundException e) {}
         }
     }
 
 
     /** {@inheritDoc} */
-    public void end() throws CmdExecException {
+    public void end() {
 
         state = CODAState.DOWNLOADED;
 
@@ -1440,10 +1435,8 @@ if (debug) System.out.println("Building thread is ending !!!");
         try {
             // Set end-of-run time in local XML config / debug GUI
             Configurer.setValue(emu.parameters(), "status/run_end_time", (new Date()).toString());
-        } catch (DataNotFoundException e) {
-            state = CODAState.ERROR;
-            throw new CmdExecException("status/run_end_time entry not found in local config file");
         }
+        catch (DataNotFoundException e) {}
     }
 
 
@@ -1454,7 +1447,9 @@ if (debug) System.out.println("Building thread is ending !!!");
         for (int i=0; i < inputChannels.size(); i++) {
             for (int j=i+1; j < inputChannels.size(); j++) {
                 if (inputChannels.get(i).getID() == inputChannels.get(j).getID()) {
+                    errorMsg.compareAndSet(null, "input channels duplicate rocIDs");
                     state = CODAState.ERROR;
+                    emu.sendStatusMessage();
                     throw new CmdExecException("input channels duplicate rocIDs");
                 }
             }
@@ -1528,26 +1523,22 @@ if (debug) System.out.println("Building thread is ending !!!");
         try {
             // Set start-of-run time in local XML config / debug GUI
             Configurer.setValue(emu.parameters(), "status/run_start_time", "--prestart--");
-        } catch (DataNotFoundException e) {
-            state = CODAState.ERROR;
-            throw new CmdExecException("status/run_start_time entry not found in local config file");
         }
+        catch (DataNotFoundException e) {}
     }
 
 
 
     /** {@inheritDoc} */
-    public void go() throws CmdExecException {
+    public void go() {
         state = CODAState.ACTIVE;
         paused = false;
 
         try {
             // set start-of-run time in local XML config / debug GUI
             Configurer.setValue(emu.parameters(), "status/run_start_time", (new Date()).toString());
-        } catch (DataNotFoundException e) {
-            state = CODAState.ERROR;
-            throw new CmdExecException("status/run_start_time entry not found in local config file");
         }
+        catch (DataNotFoundException e) {}
     }
 
 
