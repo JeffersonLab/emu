@@ -210,7 +210,7 @@ System.out.println("Dummy: go");
      * one bank off an input DataChannel. That bank is copied and placed in
      * each output channel.
      */
-    class EventMovingThread extends Thread {
+    private class EventMovingThread extends Thread {
 
         EventMovingThread() {
             super();
