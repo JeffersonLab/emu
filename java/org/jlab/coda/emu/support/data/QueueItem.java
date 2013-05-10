@@ -1,3 +1,14 @@
+/*
+ * Copyright (c) 2013, Jefferson Science Associates
+ *
+ * Thomas Jefferson National Accelerator Facility
+ * Data Acquisition Group
+ *
+ * 12000, Jefferson Ave, Newport News, VA 23606
+ * Phone : (757)-269-7100
+ *
+ */
+
 package org.jlab.coda.emu.support.data;
 
 import org.jlab.coda.jevio.EvioBank;
@@ -9,10 +20,10 @@ import java.nio.ByteBuffer;
  * which may be passed to the EMU through its transport channels.
  * A single item and its type are stored in an object of this class.
  * This gives EMU modules some flexibility in the type of data they
- * receive.
+ * can handle.
  *
  * @author timmer
- * @Date 4/3/13
+ * (Apr 3 2013)
  */
 public class QueueItem implements Cloneable {
 
@@ -31,7 +42,10 @@ public class QueueItem implements Cloneable {
     /** If control event contained, what type is it? */
     private ControlType controlType;
 
-
+    /**
+     * Constructor that stores an EvioBank object.
+     * @param bank EvioBank data object.
+     */
     public QueueItem(EvioBank bank) {
         this.bank = bank;
         qItemType = QueueItemType.EvioBank;
@@ -40,18 +54,38 @@ public class QueueItem implements Cloneable {
         }
     }
 
+    /**
+     * Constructor that stores a ByteBuffer with data in evio file format.
+     * @param buffer ByteBuffer with data in evio file format.
+     */
     public QueueItem(ByteBuffer buffer) {
         this.buffer = buffer;
         qItemType = QueueItemType.ByteBuffer;
         controlType = Evio.getControlType(buffer);
     }
 
+    /**
+     * Constructor that stores a PayloadBank object (extended EvioEvent object).
+     * The payloadBank contains metadata along with data obtained from parsing
+     * an EvioBank.
+     * @param payloadBank PayloadBank data object (extended EvioEvent object).
+     */
     public QueueItem(PayloadBank payloadBank) {
         this.payloadBank = payloadBank;
         qItemType = QueueItemType.PayloadBank;
         controlType = payloadBank.getControlType();
     }
 
+    /**
+     * Constructor that stores a PayloadBank object (extended EvioEvent object)
+     * which represents a control event along with its control type .
+     * The payloadBank contains metadata along with data obtained from parsing
+     * an EvioBank.
+     *
+     * @param payloadBank PayloadBank object (extended EvioEvent object).
+     * @param controlType type of control event represented by payloadBank arg.
+     *                    Either sync, prestart, go, pause, or end.
+     */
     public QueueItem(PayloadBank payloadBank, ControlType controlType) {
         this.payloadBank = payloadBank;
         qItemType = QueueItemType.PayloadBank;
@@ -59,31 +93,57 @@ public class QueueItem implements Cloneable {
     }
 
 
+    /**
+     * Get the type of data item stored in this object -
+     * either an EvioBank, PayloadBank, or ByteBuffer.
+     * @return type of data item stored in this object.
+     */
     public QueueItemType getQueueItemType() {
         return qItemType;
     }
 
+    /**
+     * Is the stored data item a control event?
+     * @return {@code true} if control event, else {@code false}.
+     */
     public boolean isControlEvent() {
         return controlType != null;
     }
 
+    /**
+     * If a control event is store, this method returns the type of
+     * control event, otherwise it returns null.
+     * @return type of control event stored, else null.
+     */
     public ControlType getControlType() {
         return controlType;
     }
 
-
+    /**
+     * Get the stored EvioBank object. If none, null is returned.
+     * @return stored EvioBank object. If none, null is returned.
+     */
     public EvioBank getBank() {
         return bank;
     }
 
+    /**
+     * Get the stored ByteBuffer object. If none, null is returned.
+     * @return stored ByteBuffer object. If none, null is returned.
+     */
     public ByteBuffer getBuffer() {
         return buffer;
     }
 
+    /**
+     * Get the stored PayloadBank object. If none, null is returned.
+     * @return stored PayloadBank object. If none, null is returned.
+     */
     public PayloadBank getPayloadBank() {
         return payloadBank;
     }
 
+    /** Clones this object including any PayloadBank, EvioBank, or ByteBuffer contained. */
     public Object clone() {
         try {
             // Creates a bit wise copy (including only
