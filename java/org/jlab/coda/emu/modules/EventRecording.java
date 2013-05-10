@@ -62,6 +62,9 @@ import java.util.concurrent.locks.ReentrantLock;
  * Evio banks off of the 1 input channel and placing a copy of each bank into all of
  * the output channels. If no output channels are defined in the config file,
  * this module discards all events.
+ *
+ * @author timmer
+ * (2012)
  */
 public class EventRecording extends CODAStateMachineAdapter implements EmuModule {
 
@@ -82,19 +85,22 @@ public class EventRecording extends CODAStateMachineAdapter implements EmuModule
      */
     private AtomicReference<String> errorMsg = new AtomicReference<String>();
 
+    /** ArrayList of DataChannel objects that are outputs. */
+    private ArrayList<DataChannel> outputChannels = new ArrayList<DataChannel>();
+
     /** ArrayList of DataChannel objects that are inputs. */
     private ArrayList<DataChannel> inputChannels = new ArrayList<DataChannel>();
 
-    /** Should only be one input DataChannel. */
+    /** There should only be one input DataChannel. */
     private DataChannel inputChannel;
 
     /** Input channel's queue. */
     private BlockingQueue<QueueItem> channelQ;
 
-    /** ArrayList of DataChannel objects that are outputs. */
-    private ArrayList<DataChannel> outputChannels = new ArrayList<DataChannel>();
+    /** Type of object to expect for input. */
+    private QueueItemType  inType = QueueItemType.PayloadBank;
 
-    private QueueItemType   inType = QueueItemType.PayloadBank;
+    /** Type of object to place on output channels. */
     private QueueItemType  outType = QueueItemType.PayloadBank;
 
     /**
@@ -113,20 +119,17 @@ public class EventRecording extends CODAStateMachineAdapter implements EmuModule
     /** Map containing attributes of this module given in config file. */
     private Map<String,String> attributeMap;
 
-    /** Last error thrown by this module. */
-    private final Throwable lastError = null;
-
     /** Lock to ensure that a RecordingThread grabs the same positioned event from each Q.  */
     private ReentrantLock getLock = new ReentrantLock();
 
-    /** User hit PAUSE button if <code>true</code>. */
+    /** User hit PAUSE button if {@code true}. */
     private boolean paused;
 
     /** END event detected by one of the recording threads. */
     private volatile boolean haveEndEvent;
 
-    /** Maximum time to wait when commanded to END but no END event received. */
-    private long endingTimeLimit = 60000;
+    /** Maximum time in milliseconds to wait when commanded to END but no END event received. */
+    private long endingTimeLimit = 30000;
 
     /** Object used by Emu to be notified of END event arrival. */
     private EmuEventNotify endCallback;
@@ -161,17 +164,17 @@ public class EventRecording extends CODAStateMachineAdapter implements EmuModule
     private Emu emu;
 
     /**
-     * If <code>true</code>, then each event recording thread can put its event
+     * If {@code true}, then each event recording thread can put its event
      * onto a waiting list if it is not next in line for the Q. That allows it
      * to continue recording events instead of waiting for another thread to
      * record the event that is next in line.
      */
     private boolean useOutputWaitingList = false;
 
-    /** If <code>true</code>, get debug print out. */
+    /** If {@code true}, get debug print out. */
     private boolean debug = false;
 
-    /** If <code>true</code>, this module's statistics
+    /** If {@code true}, this module's statistics
      * accurately represent the statistics of the EMU. */
     private boolean representStatistics;
 
@@ -298,16 +301,59 @@ System.out.println("EventRecording constr: " + recordingThreadCount +
 
 
     /** {@inheritDoc} */
-    public String name() {
-        return name;
-    }
+    public String name() {return name;}
 
-    public void registerEndCallback(EmuEventNotify callback) {
-        endCallback = callback;
-    };
+    /** {@inheritDoc} */
+    public void registerEndCallback(EmuEventNotify callback) {endCallback = callback;};
 
+    /** {@inheritDoc} */
     public EmuEventNotify getEndCallback() {return endCallback;};
 
+    /** {@inheritDoc} */
+    public State state() {return state;}
+
+    /** {@inheritDoc} */
+    public String getError() {return errorMsg.get();}
+
+    /** {@inheritDoc} */
+    public void addInputChannels(ArrayList<DataChannel> input_channels) {
+        if (input_channels == null) return;
+        this.inputChannels.addAll(input_channels);
+        if (inputChannels.size() > 0) {
+            inputChannel = inputChannels.get(0);
+            channelQ = inputChannel.getQueue();
+        }
+    }
+
+    /** {@inheritDoc} */
+    public void addOutputChannels(ArrayList<DataChannel> output_channels) {
+        if (output_channels == null) return;
+        this.outputChannels.addAll(output_channels);
+        outputChannelCount = outputChannels.size();
+    }
+
+    /**
+     * Get the one input channel in use.
+     * @return  the one input channel in use.
+     */
+    public DataChannel getInputChannel() {return inputChannel;}
+
+    /** {@inheritDoc} */
+    public ArrayList<DataChannel> getInputChannels() {return inputChannels;}
+
+    /** {@inheritDoc} */
+    public ArrayList<DataChannel> getOutputChannels() {return outputChannels;}
+
+    /** {@inheritDoc} */
+    public void clearChannels() {
+        inputChannels.clear();
+        outputChannels.clear();
+        inputChannel = null;
+        channelQ = null;
+    }
+
+    /** {@inheritDoc} */
+    public boolean representsEmuStatistics() {return representStatistics;}
 
     /** {@inheritDoc} */
     synchronized public Object[] getStatistics() {
@@ -332,11 +378,109 @@ System.out.println("EventRecording constr: " + recordingThreadCount +
     }
 
 
-    /** {@inheritDoc} */
-    public boolean representsEmuStatistics() {
-        return representStatistics;
+    //---------------------------------------
+    // Start and end threads
+    //---------------------------------------
+
+
+    /**
+     * Method to create thread objects for stats, filling Qs and recording events.
+     */
+    private void createThreads() {
+        watcher = new Thread(emu.getThreadGroup(), new Watcher(), name+":watcher");
+
+        for (int i=0; i < recordingThreadCount; i++) {
+            RecordingThread thd1 = new RecordingThread(emu.getThreadGroup(), new RecordingThread(), name+":recorder"+i);
+            recordingThreadList.add(thd1);
+        }
+
+        // Sanity check
+        if (recordingThreadList.size() != recordingThreadCount) {
+            System.out.println("Have " + recordingThreadList.size() + " recording threads, but want " +
+                    recordingThreadCount);
+        }
     }
 
+
+    /**
+     * Method to start threads for stats, filling Qs, and recording events.
+     * It creates these threads if they don't exist yet.
+     */
+    private void startThreads() {
+        if (watcher == null) {
+            System.out.println("startThreads(): recreating watcher thread");
+            watcher = new Thread(emu.getThreadGroup(), new Watcher(), name+":watcher");
+        }
+
+        if (watcher.getState() == Thread.State.NEW) {
+            watcher.start();
+        }
+
+        if (recordingThreadList.size() < 1) {
+            for (int i=0; i < recordingThreadCount; i++) {
+                RecordingThread thd1 = new RecordingThread(emu.getThreadGroup(), new RecordingThread(), name+":recorder"+i);
+                recordingThreadList.add(thd1);
+            }
+            System.out.println("startThreads(): recreated recording threads, # = " +
+                    recordingThreadList.size());
+        }
+
+        for (RecordingThread thd : recordingThreadList) {
+            if (thd.getState() == Thread.State.NEW) {
+                thd.start();
+            }
+        }
+    }
+
+    /**
+     * End all record threads because an END cmd or event came through.
+     * The record thread calling this method is not interrupted.
+     *
+     * @param thisThread the record thread calling this method; if null,
+     *                   all record threads are interrupted
+     * @param wait if <code>true</code> check if END event has arrived and
+     *             if all the Qs are empty, if not, wait up to 1/2 second.
+     */
+    private void endRecordThreads(RecordingThread thisThread, boolean wait) {
+
+        if (wait) {
+            // Look to see if anything still on the input channel Q
+            long startTime = System.currentTimeMillis();
+
+            boolean haveUnprocessedEvents = channelQ.size() > 0;
+
+            // Wait up to endingTimeLimit millisec for events to
+            // be processed & END event to arrive, then proceed
+            while ((haveUnprocessedEvents || !haveEndEvent) &&
+                    (System.currentTimeMillis() - startTime < endingTimeLimit)) {
+                try {Thread.sleep(200);}
+                catch (InterruptedException e) {}
+
+                haveUnprocessedEvents = channelQ.size() > 0;
+            }
+
+            if (haveUnprocessedEvents || !haveEndEvent) {
+                if (debug) System.out.println("endRecordThreads: will end recording threads but no END event or Q not empty !!!");
+                state = CODAState.ERROR;
+            }
+        }
+
+        // NOTE: EMU has a command executing thread which calls this ER module's execute
+        // method which, in turn, calls this method when an END cmd is sent. In this case
+        // all recording threads will be interrupted in the following code.
+
+        // Interrupt all recording threads except the one calling this method
+        for (Thread thd : recordingThreadList) {
+            if (thd == thisThread) continue;
+            thd.interrupt();
+        }
+    }
+
+
+
+    //---------------------------------------
+    // Threads
+    //---------------------------------------
 
     /**
      * This class defines a thread that makes instantaneous rate calculations
@@ -472,7 +616,7 @@ System.out.println("EventRecording constr: " + recordingThreadCount +
      * pulls one bank off the input DataChannel. The bank is copied and placed in each output
      * channel. The count of outgoing banks and the count of data words are incremented.
      */
-    class RecordingThread extends Thread {
+    private class RecordingThread extends Thread {
 
         RecordingThread(ThreadGroup group, Runnable target, String name) {
             super(group, target, name);
@@ -497,7 +641,7 @@ System.out.println("EventRecording constr: " + recordingThreadCount +
          * When running more than 1 recording thread, things become
          *  more complex since they must play together nicely.
          */
-        public void runMultipleThreads() {
+        private void runMultipleThreads() {
 
 System.out.println("Running runMultipleThreads()");
             // initialize
@@ -596,7 +740,7 @@ if (true) System.out.println("Found END event in record thread");
 
 
         /** When running only 1 recording thread, things can be greatly simplified. */
-        public void runOneThread() {
+        private void runOneThread() {
 System.out.println("Running runOneThread()");
 
             // initialize
@@ -643,59 +787,9 @@ if (true) System.out.println("Found END event in record thread");
     }
 
 
-    /**
-     * End all record threads because an END cmd or event came through.
-     * The record thread calling this method is not interrupted.
-     *
-     * @param thisThread the record thread calling this method; if null,
-     *                   all record threads are interrupted
-     * @param wait if <code>true</code> check if END event has arrived and
-     *             if all the Qs are empty, if not, wait up to 1/2 second.
-     */
-    private void endRecordThreads(RecordingThread thisThread, boolean wait) {
-
-        if (wait) {
-            // Look to see if anything still on the input channel Q
-            long startTime = System.currentTimeMillis();
-
-            boolean haveUnprocessedEvents = channelQ.size() > 0;
-
-            // Wait up to endingTimeLimit millisec for events to
-            // be processed & END event to arrive, then proceed
-            while ((haveUnprocessedEvents || !haveEndEvent) &&
-                   (System.currentTimeMillis() - startTime < endingTimeLimit)) {
-                try {Thread.sleep(200);}
-                catch (InterruptedException e) {}
-
-                haveUnprocessedEvents = channelQ.size() > 0;
-            }
-
-            if (haveUnprocessedEvents || !haveEndEvent) {
-                if (debug) System.out.println("endRecordThreads: will end recording threads but no END event or Q not empty !!!");
-                state = CODAState.ERROR;
-            }
-        }
-
-        // NOTE: EMU has a command executing thread which calls this ER module's execute
-        // method which, in turn, calls this method when an END cmd is sent. In this case
-        // all recording threads will be interrupted in the following code.
-
-        // Interrupt all recording threads except the one calling this method
-        for (Thread thd : recordingThreadList) {
-            if (thd == thisThread) continue;
-            thd.interrupt();
-        }
-    }
-
-
-
-    /** {@inheritDoc} */
-    public State state() {return state;}
-
-
-    /** {@inheritDoc} */
-    public String getError() {return errorMsg.get();}
-
+    //---------------------------------------
+    // State machine
+    //---------------------------------------
 
 
     /** {@inheritDoc} */
@@ -728,7 +822,28 @@ if (true) System.out.println("Found END event in record thread");
     }
 
 
+    /** {@inheritDoc} */
+    public void pause() {
+        paused = true;
+    }
 
+
+    /** {@inheritDoc} */
+    public void go() throws CmdExecException {
+        state = CODAState.ACTIVE;
+        paused = false;
+
+        try {
+            // set start-of-run time in local XML config / debug GUI
+            Configurer.setValue(emu.parameters(), "status/run_start_time", (new Date()).toString());
+        } catch (DataNotFoundException e) {
+            state = CODAState.ERROR;
+            throw new CmdExecException("status/run_start_time entry not found in local config file");
+        }
+    }
+
+
+    /** {@inheritDoc} */
     public void end() throws CmdExecException {
         state = CODAState.DOWNLOADED;
 
@@ -758,6 +873,7 @@ if (true) System.out.println("Found END event in record thread");
     }
 
 
+    /** {@inheritDoc} */
     public void prestart() throws CmdExecException {
         // Make sure each input channel is associated with a unique rocId
         for (int i=0; i < inputChannels.size(); i++) {
@@ -817,113 +933,5 @@ if (true) System.out.println("Found END event in record thread");
         }
     }
 
-    public void pause() {
-        paused = true;
-    }
 
-
-    public void go() throws CmdExecException {
-        state = CODAState.ACTIVE;
-        paused = false;
-
-        try {
-            // set start-of-run time in local XML config / debug GUI
-            Configurer.setValue(emu.parameters(), "status/run_start_time", (new Date()).toString());
-        } catch (DataNotFoundException e) {
-            state = CODAState.ERROR;
-            throw new CmdExecException("status/run_start_time entry not found in local config file");
-        }
-    }
-
-
-    /**
-     * Method to create thread objects for stats, filling Qs and recording events.
-     */
-    private void createThreads() {
-        watcher = new Thread(emu.getThreadGroup(), new Watcher(), name+":watcher");
-
-        for (int i=0; i < recordingThreadCount; i++) {
-            RecordingThread thd1 = new RecordingThread(emu.getThreadGroup(), new RecordingThread(), name+":recorder"+i);
-            recordingThreadList.add(thd1);
-        }
-
-        // Sanity check
-        if (recordingThreadList.size() != recordingThreadCount) {
-            System.out.println("Have " + recordingThreadList.size() + " recording threads, but want " +
-                                       recordingThreadCount);
-        }
-    }
-
-    /**
-     * Method to start threads for stats, filling Qs, and recording events.
-     * It creates these threads if they don't exist yet.
-     */
-    private void startThreads() {
-        if (watcher == null) {
-System.out.println("startThreads(): recreating watcher thread");
-            watcher = new Thread(emu.getThreadGroup(), new Watcher(), name+":watcher");
-        }
-
-        if (watcher.getState() == Thread.State.NEW) {
-            watcher.start();
-        }
-
-        if (recordingThreadList.size() < 1) {
-            for (int i=0; i < recordingThreadCount; i++) {
-                RecordingThread thd1 = new RecordingThread(emu.getThreadGroup(), new RecordingThread(), name+":recorder"+i);
-                recordingThreadList.add(thd1);
-            }
-System.out.println("startThreads(): recreated recording threads, # = " +
-                               recordingThreadList.size());
-        }
-
-        for (RecordingThread thd : recordingThreadList) {
-            if (thd.getState() == Thread.State.NEW) {
-                thd.start();
-            }
-        }
-    }
-
-    /** {@inheritDoc} */
-    public void addInputChannels(ArrayList<DataChannel> input_channels) {
-        if (input_channels == null) return;
-        this.inputChannels.addAll(input_channels);
-        if (inputChannels.size() > 0) {
-            inputChannel = inputChannels.get(0);
-            channelQ = inputChannel.getQueue();
-        }
-    }
-
-    /** {@inheritDoc} */
-    public void addOutputChannels(ArrayList<DataChannel> output_channels) {
-        if (output_channels == null) return;
-        this.outputChannels.addAll(output_channels);
-        outputChannelCount = outputChannels.size();
-    }
-
-    /**
-     * Get the one input channel in use.
-     * @return  the one input channel in use.
-     */
-    public DataChannel getInputChannel() {
-        return inputChannel;
-    }
-
-    /** {@inheritDoc} */
-    public ArrayList<DataChannel> getInputChannels() {
-        return inputChannels;
-    }
-
-    /** {@inheritDoc} */
-    public ArrayList<DataChannel> getOutputChannels() {
-        return outputChannels;
-    }
-
-    /** {@inheritDoc} */
-    public void clearChannels() {
-        inputChannels.clear();
-        outputChannels.clear();
-        inputChannel = null;
-        channelQ = null;
-    }
 }
