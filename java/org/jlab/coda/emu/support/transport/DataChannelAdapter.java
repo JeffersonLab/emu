@@ -26,13 +26,17 @@ import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
- * This interface defines an object that can send and
+ * This class provides a bare-bones implementation of the DataChannel
+ * interface (which includes the CODAStateMachine interface).
+ * Extending this class implements the DataChannel interface and frees
+ * any subclass from having to implement common methods or those that aren't used.<p>
+ * This class defines an object that can send and
  * receive banks of data in the CODA evio format. It
  * refers to a particular connection (eg. a single socket
  * or cMsg connection id).
  *
  * @author timmer
- *         Created on Apr 25, 2013
+ *         (Apr 25, 2013)
  */
 public class DataChannelAdapter extends CODAStateMachineAdapter implements DataChannel {
 
@@ -144,11 +148,11 @@ public class DataChannelAdapter extends CODAStateMachineAdapter implements DataC
     /** {@inheritDoc} */
     public DataTransport getDataTransport() {return dataTransport;}
 
-    /** {@inheritDoc}.
+    /** {@inheritDoc}
      *  Will block until data item becomes available. */
     public QueueItem receive() throws InterruptedException {return queue.take();}
     
-    /** {@inheritDoc}.
+    /** {@inheritDoc}
      *  Will block until space is available in output queue. */
     public void send(QueueItem item) throws InterruptedException {
         queue.put(item);     // blocks if capacity reached

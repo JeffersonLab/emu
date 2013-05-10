@@ -21,10 +21,10 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
- * This class provides an empty implementation of the DataTransport interface
+ * This class provides a bare-bones implementation of the DataTransport interface
  * (which includes the CODAStateMachine interface).
  * Extending this class implements the DataTransport interface and frees
- * any subclass from having to implement methods that aren't used.
+ * any subclass from having to implement common methods or those that aren't used.
  * The only exception is the abstract {@link DataTransport#createChannel} method
  * which must be provided in subclasses.
  *
