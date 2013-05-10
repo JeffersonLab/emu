@@ -16,7 +16,6 @@ import org.jlab.coda.emu.support.codaComponent.CODAState;
 import org.jlab.coda.emu.support.data.*;
 import org.jlab.coda.jevio.*;
 
-import java.io.IOException;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.regex.Matcher;
