@@ -35,7 +35,7 @@ import java.nio.ByteOrder;
  * or sends data to a cMsg server.
  *
  * @author timmer
- * Dec 2, 2009
+ * (Dec 2, 2009)
  */
 public class DataChannelImplCmsg extends DataChannelAdapter {
 
@@ -522,7 +522,7 @@ logger.debug("      DataChannel cMsg reset() : " + name + " - resetting this cha
      * Start the startOutputHelper thread which takes a bank from
      * the queue, puts it in a message, and sends it.
      */
-    public void startOutputHelper() {
+    private void startOutputHelper() {
         dataOutputThreads = new DataOutputHelper[outputThreadCount];
 
         for (int i=0; i < outputThreadCount; i++) {
