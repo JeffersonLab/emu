@@ -26,6 +26,7 @@ import org.jlab.coda.jevio.*;
 import java.util.*;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.PriorityBlockingQueue;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.ReentrantLock;
 
 /**
@@ -74,8 +75,12 @@ public class EventRecording extends CODAStateMachineAdapter implements EmuModule
     /** State of this module. */
     private volatile State state = CODAState.BOOTED;
 
-    /** Error message. */
-    private String errorMsg;
+    /**
+     * Possible error message. reset() sets it back to null.
+     * Making this an atomically settable String ensures that only 1 thread
+     * at a time can change its value. That way it's only set once per error.
+     */
+    private AtomicReference<String> errorMsg = new AtomicReference<String>();
 
     /** ArrayList of DataChannel objects that are inputs. */
     private ArrayList<DataChannel> inputChannels = new ArrayList<DataChannel>();
@@ -689,7 +694,7 @@ if (true) System.out.println("Found END event in record thread");
 
 
     /** {@inheritDoc} */
-    public String getError() {return errorMsg;}
+    public String getError() {return errorMsg.get();}
 
 
 

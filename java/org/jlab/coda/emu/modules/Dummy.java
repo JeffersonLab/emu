@@ -27,6 +27,7 @@ import org.jlab.coda.emu.support.transport.DataChannel;
 import java.util.*;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * This class is a bare bones module used for testing and as a template.
@@ -45,8 +46,12 @@ public class Dummy extends CODAStateMachineAdapter implements EmuModule {
     /** Name of this event recorder. */
     private final String name;
 
-    /** Error message. */
-    protected String errorMsg;
+    /**
+     * Possible error message. reset() sets it back to null.
+     * Making this an atomically settable String ensures that only 1 thread
+     * at a time can change its value. That way it's only set once per error.
+     */
+    private AtomicReference<String> errorMsg = new AtomicReference<String>();
 
     /** Emu this module belongs to. */
     private Emu emu;
@@ -107,7 +112,7 @@ System.out.println("Dummy: created object");
     public State state() {return state;}
 
     /** {@inheritDoc} */
-    public String getError() {return errorMsg;}
+    public String getError() {return errorMsg.get();}
 
     /** {@inheritDoc} */
     public void registerEndCallback(EmuEventNotify callback) {endCallback = callback; }

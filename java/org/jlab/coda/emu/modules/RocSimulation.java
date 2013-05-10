@@ -27,6 +27,7 @@ import org.jlab.coda.jevio.*;
 
 import java.util.*;
 import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * This class simulates a Roc. It is a module which uses a single thread
@@ -48,8 +49,12 @@ public class RocSimulation extends CODAStateMachineAdapter implements EmuModule,
     /** State of the module. */
     private volatile State state = CODAState.BOOTED;
 
-    /** Error message. */
-    private String errorMsg;
+    /**
+     * Possible error message. reset() sets it back to null.
+     * Making this an atomically settable String ensures that only 1 thread
+     * at a time can change its value. That way it's only set once per error.
+     */
+    private AtomicReference<String> errorMsg = new AtomicReference<String>();
 
     /** OutputChannels is an ArrayList of DataChannel objects that are outputs. */
     private ArrayList<DataChannel> outputChannels = new ArrayList<DataChannel>();
@@ -224,7 +229,7 @@ System.out.println("                                      SET ROCID TO " + rocId
     public EmuEventNotify getEndCallback() {return endCallback;};
 
     /** {@inheritDoc} */
-    public String getError() {return errorMsg;}
+    public String getError() {return errorMsg.get();}
 
 
     synchronized public Object[] getStatistics() {

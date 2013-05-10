@@ -124,7 +124,7 @@ public class EventBuildingOrig extends CODAStateMachineAdapter implements EmuMod
      * Making this an atomically settable String ensures that only 1 thread
      * at a time can change its value. That way it's only set once per error.
      */
-    protected AtomicReference<String> errorMsg = new AtomicReference<String>();
+    private AtomicReference<String> errorMsg = new AtomicReference<String>();
 
     /** InputChannels is an ArrayList of DataChannel objects that are inputs. */
     private ArrayList<DataChannel> inputChannels = new ArrayList<DataChannel>();
