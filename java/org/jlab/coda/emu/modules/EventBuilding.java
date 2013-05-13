@@ -1373,6 +1373,11 @@ if (debug) System.out.println("Building thread is ending !!!");
     }
 
 
+    //---------------------------------------
+    // State machine
+    //---------------------------------------
+
+
 
     /** {@inheritDoc} */
     public void pause() {
