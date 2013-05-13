@@ -731,7 +731,7 @@ public class Emu implements CODAComponent {
      * @param error error message
      */
     public void sendRcErrorMessage(String error) {
-System.out.println("Emu " + name + " sending special RC display error Msg");
+System.out.println("Emu " + name + " sending special RC display error Msg:\n *** " + error + " ***");
         getCmsgPortal().rcGuiErrorMessage(error);
     }
 
@@ -1779,7 +1779,6 @@ logger.debug("Emu.execute(PRESTART): Very beginning ...");
                 //------------------------------------------------
                 // PRESTART to transport objects first
                 //------------------------------------------------
-                // TODO: cMsg connect is all, really. Can this be done in download??
                 for (DataTransport transport : transports) {
 logger.debug("Emu.execute(PRESTART): PRESTART to " + transport.name());
                     transport.prestart();
@@ -1809,8 +1808,8 @@ logger.debug("Emu.execute(PRESTART): PRESTART to " + transport.name());
                         module.clearChannels();
 
                         if (module != null) {
-                            ArrayList<DataChannel> in  = new ArrayList<DataChannel>();
-                            ArrayList<DataChannel> out = new ArrayList<DataChannel>();
+                            ArrayList<DataChannel> in      = new ArrayList<DataChannel>();
+                            ArrayList<DataChannel> out     = new ArrayList<DataChannel>();
                             ArrayList<DataChannel> inFifo  = new ArrayList<DataChannel>();
                             ArrayList<DataChannel> outFifo = new ArrayList<DataChannel>();
 
@@ -1982,7 +1981,7 @@ logger.info("Emu.execute(GO): GO to in chan " + chan.name());
                 }
             }
             catch (CmdExecException e) {
-                logger.error("GO threw " + e.getMessage());
+logger.error("GO threw " + e.getMessage());
                 errorMsg.compareAndSet(null, e.getMessage());
                 setState(ERROR);
                 return;
@@ -1997,54 +1996,89 @@ logger.info("Emu.execute(GO): GO to in chan " + chan.name());
                 LinkedList<EmuModule> mods = dataPath.getEmuModules();
 
                 if (mods.size() < 1) {
-logger.error("EmuModuleFactory.execute() : no modules in data path");
+logger.error("Emu.execute(END) : no modules in data path");
                     throw new CmdExecException("no modules in data path");
                 }
 
                 //--------------------------------------------------------
                 // (1) Wait for END event to make its way through the Emu.
-                // Look at the end of the chain of channels & modules.
+                //     Look at the end of the chain of channels & modules.
+                //
+                // Normally this is the correct behavior. However, in the
+                // case of the RocSimulation module, the END command needs
+                // to be sent to it FIRST in order for the END event to be
+                // generated at all.
                 //--------------------------------------------------------
+
+                // Look for the RocSimulation module. If it exists, send the END cmd.
+                for (int i=0; i < mods.size(); i++) {
+                    EmuModule mod = mods.get(i);
+                    Class c = mod.getClass();
+                    if (c.getName().equals("org.jlab.coda.emu.modules.RocSimulation")) {
+                        mod.end();
+                        break;
+                    }
+                }
+
                 boolean gotEndEvent;
- // TODO: do we look at ALL channels? or just one?
+
                 // If we have output channels, look there first
                 if (outChannels.size() > 0) {
-System.out.println("Looking for END event in output channels");
+logger.info("Emu.execute(END): Looking for END event in output channels");
                     for (DataChannel chan : outChannels) {
                         try {
 logger.info("Emu.execute(END): waiting for END event in output chan " + chan.name());
                             gotEndEvent = chan.getEndCallback().waitForEvent();
-                            if (!gotEndEvent) setState(ERROR);
+                            if (!gotEndEvent) {
+logger.info("Emu.execute(END): got FALSE waiting for output chan " + chan.name());
+                                errorMsg.compareAndSet(null, "timeout waiting for END event in output chan " + chan.name());
+                                setState(ERROR);
+                                sendStatusMessage();
+                            }
+                            else {
 logger.info("Emu.execute(END): END event found in output chan " + chan.name());
+                            }
                         }
                         catch (InterruptedException e) {}
                     }
-System.out.println("Done looking for END event in output channels");
+logger.info("Emu.execute(END): Done looking for END event in output channels");
                 }
-                // look at the last module next
+                // Look at the last module next
                 else if (mods.size() > 0) {
-System.out.println("Looking for END event in last module");
+logger.info("Emu.execute(END): Looking for END event in last module");
                     try {
                         gotEndEvent = mods.getLast().getEndCallback().waitForEvent();
-                        if (!gotEndEvent) setState(ERROR);
+                        if (!gotEndEvent) {
+                            errorMsg.compareAndSet(null, "timeout waiting for END event in module " + mods.getLast().name());
+                            setState(ERROR);
+                            sendStatusMessage();
+                        }
+                        else {
 logger.info("Emu.execute(END): END event found in module " + mods.getLast().name());
+                        }
                     }
                     catch (InterruptedException e) {}
-System.out.println("Done looking for END event in last module");
+logger.info("Emu.execute(END): Done looking for END event in last module");
                 }
-                // look at the input channels as the last option
+                // Look at the input channels as the last option
                 else if (inChannels.size() > 0) {
-System.out.println("Looking for END event in input channels");
+logger.info("Emu.execute(END): Looking for END event in input channels");
                     for (DataChannel chan : inChannels) {
                         try {
                             gotEndEvent = chan.getEndCallback().waitForEvent();
-                            if (!gotEndEvent) setState(ERROR);
+                            if (!gotEndEvent) {
+                                errorMsg.compareAndSet(null, "timeout waiting for END event in input chan " + chan.name());
+                                setState(ERROR);
+                                sendStatusMessage();
+                            }
+                            else {
 logger.info("Emu.execute(END): END event found in input chan " + chan.name());
+                            }
                         }
                         catch (InterruptedException e) {}
                     }
-System.out.println("Done looking for END event in input channels");
                 }
+logger.info("Emu.execute(END): Done looking for END event, send END command");
 
                 // (2) END to input channels (of FIRST module)
                 if (inChannels.size() > 0) {
@@ -2056,6 +2090,11 @@ logger.info("Emu.execute(END): END to in chan " + chan.name());
 
                 // (3) END to all modules in normal order (starting with first)
                 for (int i=0; i < mods.size(); i++) {
+                    // We already sent the END event to the RocSimulation module
+                    if (mods.get(i).getClass().getName().equals("org.jlab.coda.emu.modules.RocSimulation")) {
+                        continue;
+                    }
+
 logger.info("Emu.execute(END): END to module " + mods.get(i).name());
                     mods.get(i).end();
                 }
@@ -2077,7 +2116,7 @@ logger.debug("Emu.execute(END): END to transport " + transport.name());
 
             }
             catch (CmdExecException e) {
-                logger.error("END threw " + e.getMessage());
+logger.error("END threw " + e.getMessage());
                 errorMsg.compareAndSet(null, e.getMessage());
                 setState(ERROR);
                 return;
@@ -2119,7 +2158,7 @@ logger.info("Emu.execute(PAUSE): PAUSE to out chan " + chan.name());
                 }
             }
             catch (CmdExecException e) {
-                logger.error("PAUSE threw " + e.getMessage());
+logger.error("PAUSE threw " + e.getMessage());
                 errorMsg.compareAndSet(null, e.getMessage());
                 setState(ERROR);
                 return;
