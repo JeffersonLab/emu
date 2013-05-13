@@ -350,7 +350,9 @@ System.out.println("RocSimulation module: quitting watcher thread");
 
 
     /**
-     * This thread is started by the GO transition and runs while the state of the module is ACTIVE.
+     * This thread generates events with a bank of a single int array of junk - just to
+     * take up space.
+     * It is started by the GO transition and runs while the state of the module is ACTIVE.
      * <p/>
      * When the state is ACTIVE and the list of output DataChannels is not empty, this thread
      * selects an output by taking the next one from a simple iterator. This thread then creates
@@ -396,7 +398,7 @@ System.out.println("RocSimulation module: quitting watcher thread");
                 eventBuilder.appendIntData(intBank, fakeData);
                 eventBuilder.addChild(event, intBank);
             }
-            catch (EvioException e) { }
+            catch (EvioException e) {/* never happen */}
 
 
             while (state == CODAState.ACTIVE || paused) {
@@ -423,11 +425,13 @@ System.out.println("RocSimulation module: quitting watcher thread");
                     long now = System.currentTimeMillis();
                     long deltaT = now - start_time;
                     if (deltaT > 2000) {
+// TODO: DTR ? rate
                         System.out.println("DTR rate = " + String.format("%.3g", (counter*1000./deltaT) ) + " Hz");
                         start_time = now;
                         counter = 0;
                     }
                 }
+// TODO: problems here !!!!
                 catch (InterruptedException e) {
 System.out.println("INTERRUPTED thread " + Thread.currentThread().getName());
                     if (state == CODAState.DOWNLOADED) return;
@@ -507,7 +511,8 @@ System.out.println("INTERRUPTED thread " + Thread.currentThread().getName());
 
 
     /**
-     * This thread is started by the GO transition and runs while the state of the module is ACTIVE.
+     * This thread generates events with simulated FADC250 data in it.
+     * It is started by the GO transition and runs while the state of the module is ACTIVE.
      * <p/>
      * When the state is ACTIVE and the list of output DataChannels is not empty, this thread
      * selects an output by taking the next one from a simple iterator. This thread then creates
@@ -523,8 +528,8 @@ System.out.println("INTERRUPTED thread " + Thread.currentThread().getName());
             super(group, target, name);
             // Run thread pool with "writeThreads" number of threads & fixed-sized queue.
             writeThreadPool = new ThreadPoolExecutor(writeThreads, writeThreads,
-                                         0L, TimeUnit.MILLISECONDS,
-                                         new LinkedBlockingQueue<Runnable>(2*writeThreads));
+                                                     0L, TimeUnit.MILLISECONDS,
+                                                     new LinkedBlockingQueue<Runnable>(2*writeThreads));
 
             writeThreadPool.prestartAllCoreThreads();
 
@@ -533,8 +538,8 @@ System.out.println("INTERRUPTED thread " + Thread.currentThread().getName());
         EventGeneratingThread() {
             super();
             writeThreadPool = new ThreadPoolExecutor(writeThreads, writeThreads,
-                                         0L, TimeUnit.MILLISECONDS,
-                                         new LinkedBlockingQueue<Runnable>(2*writeThreads));
+                                                     0L, TimeUnit.MILLISECONDS,
+                                                     new LinkedBlockingQueue<Runnable>(2*writeThreads));
 
             writeThreadPool.prestartAllCoreThreads();
 
@@ -560,38 +565,24 @@ System.out.println("ROC SIM write thds = " + writeThreads);
                // don't use 1, cause you'll get single event mode
                numEvents = 2;
                PayloadBank[] evs = Evio.createRocDataEvents(rocId, triggerType,
-                                                     detectorId, status,
-                                                     0, eventBlockSize,
-                                                     0L, 0,
-                                                     numEvents,
-                                                     isSingleEventMode);
+                                                            detectorId, status,
+                                                            0, eventBlockSize,
+                                                            0L, 0,
+                                                            numEvents,
+                                                            isSingleEventMode);
                eventWordSize = evs[0].getHeader().getLength() + 1;
 //System.out.println("ROCSim: each generated event data = " + (4*(eventWordSize - 2)) +
 //                " bytes, words = " + (eventWordSize -2 ) + ", tag = " +
 //                evs[0].getHeader().getTag() + ", num = " + evs[0].getHeader().getNumber());
 //System.out.println("ROCSim: each generated event = " + evs[0].toXML());
 
-           }
-           catch (EvioException e) {
-               System.out.println("INTERRUPTED thread " + Thread.currentThread().getName());
-               // TODO: what is this state == stuff? How about the following?
-//               emu.getCauses().add(e);
-//               state = CODAState.ERROR;
-//               e.printStackTrace();
-//               return;
-               if (state == CODAState.DOWNLOADED) return;
-           }
+               while (state == CODAState.ACTIVE || paused) {
 
+                   numEvents = 2;
 
-           while (state == CODAState.ACTIVE || paused) {
-
-               numEvents = 2;
-
-               try {
                    semaphore.acquire();
 
-                   if (sentOneAlready && (endLimit > 0) &&
-                           (eventNumber + numEvents > endLimit)) {
+                   if (sentOneAlready && (endLimit > 0) && (eventNumber + numEvents > endLimit)) {
                        System.out.println("\nRocSim: hit event number limit of " + endLimit + ", quitting\n");
 
                        // Put in END event
@@ -605,20 +596,15 @@ System.out.println("ROC SIM write thds = " + writeThreads);
                            outputChannels.get(0).getQueue().put(new QueueItem(bank));
                            if (endCallback != null) endCallback.endWait();
                        }
-                       catch (InterruptedException e) {
-                       }
-                       catch (EvioException e) {
-                           e.printStackTrace();
-                            /* never happen */
-                       }
-
+                       catch (InterruptedException e) {}
+                       catch (EvioException e) {/* never happen */}
 
                        return;
                    }
                    sentOneAlready = true;
 
                    job = new DataGenerateJobNew(timestamp, status, rocRecordId, numEvents,
-                                                (int) eventNumber, inputOrder);
+                                               (int) eventNumber, inputOrder);
                    writeThreadPool.execute(job);
 
                    inputOrder   = ++inputOrder % Integer.MAX_VALUE;
@@ -634,13 +620,16 @@ System.out.println("ROC SIM write thds = " + writeThreads);
                        oldVal = eventNumber;
                    }
                }
-               catch (Exception e) {
-                   e.printStackTrace();
-                   // TODO: what is this state == stuff?
-                   if (state == CODAState.DOWNLOADED) return;
-               }
            }
-       }
+           catch (InterruptedException e) {}
+           catch (Exception e) {
+               // If we haven't yet set the cause of error, do so now & inform run control
+               errorMsg.compareAndSet(null, e.getMessage());
+               state = CODAState.ERROR;
+               emu.sendStatusMessage();
+               return;
+           }
+        }
 
 
 
@@ -669,7 +658,6 @@ System.out.println("ROC SIM write thds = " + writeThreads);
                 jobNum = jobNumber++;
             }
 
-
             // write bank into et event buffer
             public void run() {
                 try {
@@ -688,15 +676,8 @@ System.out.println("ROC SIM write thds = " + writeThreads);
                     eventToOutputQueue(evs);
 //System.out.println("RocSim("+jobNum + "): put evs on output Q");
                     semaphore.release();
-
-                    // TODO: error handling
                 }
-                catch (EvioException e) {
-                    e.printStackTrace();
-                }
-                catch (InterruptedException e) {
-                    e.printStackTrace();
-                }
+                catch (InterruptedException e) {}
             }
         }
 
@@ -727,8 +708,7 @@ System.out.println("ROC SIM write thds = " + writeThreads);
                 eventGeneratingThread.join();
 //System.out.println("          RocSim RESET: done");
             }
-            catch (InterruptedException e) {
-            }
+            catch (InterruptedException e) {}
 
             try {
 //System.out.println("          RocSim RESET: try joining thread pool threads ...");
@@ -736,8 +716,7 @@ System.out.println("ROC SIM write thds = " + writeThreads);
                 eventGeneratingThread.getWriteThreadPool().awaitTermination(100L, TimeUnit.MILLISECONDS);
 //System.out.println("          RocSim RESET: done");
             }
-            catch (InterruptedException e) {
-            }
+            catch (InterruptedException e) {}
         }
         eventGeneratingThread = null;
 
@@ -747,9 +726,8 @@ System.out.println("ROC SIM write thds = " + writeThreads);
             // set end-of-run time in local XML config / debug GUI
             try {
                 Configurer.setValue(emu.parameters(), "status/run_end_time", theDate.toString());
-            } catch (DataNotFoundException e) {
-                e.printStackTrace();
             }
+            catch (DataNotFoundException e) {}
         }
     }
 
@@ -770,8 +748,7 @@ System.out.println("ROC SIM write thds = " + writeThreads);
                 eventGeneratingThread.join();
 //System.out.println("          RocSim END: done");
             }
-            catch (InterruptedException e) {
-            }
+            catch (InterruptedException e) {}
 
             try {
 //System.out.println("          RocSim END: try joining thread pool threads ...");
@@ -779,8 +756,7 @@ System.out.println("ROC SIM write thds = " + writeThreads);
                 eventGeneratingThread.getWriteThreadPool().awaitTermination(100L, TimeUnit.MILLISECONDS);
 //System.out.println("          RocSim END: done");
             }
-            catch (InterruptedException e) {
-            }
+            catch (InterruptedException e) {}
         }
         eventGeneratingThread = null;
 
@@ -809,15 +785,13 @@ System.out.println("ROC SIM write thds = " + writeThreads);
         try {
             // Set end-of-run time in local XML config / debug GUI
             Configurer.setValue(emu.parameters(), "status/run_end_time", (new Date()).toString());
-        } catch (DataNotFoundException e) {
-            state = CODAState.ERROR;
-            throw new CmdExecException("status/run_end_time entry not found in local config file");
         }
+        catch (DataNotFoundException e) {}
     }
 
 
     /** {@inheritDoc} */
-    public void prestart() throws CmdExecException {
+    public void prestart() {
 
         state = CODAState.PAUSED;
 
@@ -838,28 +812,20 @@ System.out.println("ROC SIM write thds = " + writeThreads);
         try {
 //System.out.println("          RocSim: Putting in PRESTART control event");
             EvioEvent controlEvent = Evio.createControlEvent(ControlType.PRESTART, emu.getRunNumber(),
-                    emu.getRunType(), 0, 0);
+                                                             emu.getRunType(), 0, 0);
             PayloadBank bank = new PayloadBank(controlEvent);
             bank.setEventType(EventType.CONTROL);
             bank.setControlType(ControlType.PRESTART);
             outputChannels.get(0).getQueue().put(new QueueItem(bank));
         }
-        catch (InterruptedException e) {
-            //e.printStackTrace();
-        }
-        catch (EvioException e) {
-            e.printStackTrace();
-                /* never happen */
-        }
+        catch (InterruptedException e) {}
+        catch (EvioException e) {/* never happen */}
 
         try {
             // Set start-of-run time in local XML config / debug GUI
             Configurer.setValue(emu.parameters(), "status/run_start_time", "--prestart--");
-        } catch (DataNotFoundException e) {
-            state = CODAState.ERROR;
-            throw new CmdExecException("status/run_start_time entry not found in local config file");
         }
-
+        catch (DataNotFoundException e) {}
     }
 
 
@@ -872,23 +838,19 @@ System.out.println("ROC SIM write thds = " + writeThreads);
         try {
 //System.out.println("          RocSim: Putting in PAUSE control event");
             EvioEvent controlEvent = Evio.createControlEvent(ControlType.PAUSE, 0, 0,
-                    (int)eventCountTotal, 0);
+                                                             (int)eventCountTotal, 0);
             PayloadBank bank = new PayloadBank(controlEvent);
             bank.setEventType(EventType.CONTROL);
             bank.setControlType(ControlType.PAUSE);
             outputChannels.get(0).getQueue().put(new QueueItem(bank));
         }
-        catch (InterruptedException e) {
-        }
-        catch (EvioException e) {
-            e.printStackTrace();
-            /* never happen */
-        }
+        catch (InterruptedException e) {}
+        catch (EvioException e) {/* never happen */}
     }
 
 
     /** {@inheritDoc} */
-    public void go() throws CmdExecException {
+    public void go() {
         if (state == CODAState.ACTIVE) {
 //System.out.println("          RocSim: We musta hit go after PAUSE");
         }
@@ -897,18 +859,14 @@ System.out.println("ROC SIM write thds = " + writeThreads);
         try {
 //System.out.println("          RocSim: Putting in GO control event");
             EvioEvent controlEvent = Evio.createControlEvent(ControlType.GO, 0, 0,
-                    (int)eventCountTotal, 0);
+                                                             (int)eventCountTotal, 0);
             PayloadBank bank = new PayloadBank(controlEvent);
             bank.setEventType(EventType.CONTROL);
             bank.setControlType(ControlType.GO);
             outputChannels.get(0).getQueue().put(new QueueItem(bank));
         }
-        catch (InterruptedException e) {
-        }
-        catch (EvioException e) {
-            e.printStackTrace();
-            /* never happen */
-        }
+        catch (InterruptedException e) {}
+        catch (EvioException e) {/* never happen */}
 
         state = CODAState.ACTIVE;
 
@@ -940,10 +898,8 @@ System.out.println("ROC SIM write thds = " + writeThreads);
         try {
             // set start-of-run time in local XML config / debug GUI
             Configurer.setValue(emu.parameters(), "status/run_start_time", (new Date()).toString());
-        } catch (DataNotFoundException e) {
-            state = CODAState.ERROR;
-            throw new CmdExecException("status/run_start_time entry not found in local config file");
         }
+        catch (DataNotFoundException e) {}
 
     }
 
