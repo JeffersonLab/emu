@@ -290,6 +290,34 @@ System.out.println("                                      SET ROCID TO " + rocId
     //---------------------------------------
 
 
+    /** End all threads because a RESET/END cmd or END event came through.  */
+    private void endThreads() {
+        // The order in which these threads are shutdown does(should) not matter.
+        // Transport objects should already have been shutdown followed by this module.
+        if (watcher != null) watcher.interrupt();
+        watcher = null;
+
+        if (eventGeneratingThread != null) {
+            try {
+                // Kill this thread before thread pool threads to avoid exception.
+//System.out.println("          RocSim endThreads: try joining ev-gen thread ...");
+                eventGeneratingThread.join();
+//System.out.println("          RocSim endThreads: done");
+            }
+            catch (InterruptedException e) {}
+
+            try {
+//System.out.println("          RocSim endThreads: try joining thread pool threads ...");
+                eventGeneratingThread.getWriteThreadPool().shutdown();
+                eventGeneratingThread.getWriteThreadPool().awaitTermination(100L, TimeUnit.MILLISECONDS);
+//System.out.println("          RocSim endThreads: done");
+            }
+            catch (InterruptedException e) {}
+        }
+        eventGeneratingThread = null;
+    }
+
+
     /**
      * This class defines a thread that makes instantaneous rate calculations
      * once every few seconds. Rates are sent to run control.
@@ -698,27 +726,7 @@ System.out.println("ROC SIM write thds = " + writeThreads);
         eventRate = wordRate = 0F;
         eventCountTotal = wordCountTotal = 0L;
 
-        if (watcher != null) watcher.interrupt();
-        watcher = null;
-
-        if (eventGeneratingThread != null) {
-            try {
-                // Kill this thread before thread pool threads to avoid exception.
-//System.out.println("          RocSim RESET: try joining ev-gen thread ...");
-                eventGeneratingThread.join();
-//System.out.println("          RocSim RESET: done");
-            }
-            catch (InterruptedException e) {}
-
-            try {
-//System.out.println("          RocSim RESET: try joining thread pool threads ...");
-                eventGeneratingThread.getWriteThreadPool().shutdown();
-                eventGeneratingThread.getWriteThreadPool().awaitTermination(100L, TimeUnit.MILLISECONDS);
-//System.out.println("          RocSim RESET: done");
-            }
-            catch (InterruptedException e) {}
-        }
-        eventGeneratingThread = null;
+        endThreads();
 
         paused = false;
 
@@ -736,29 +744,7 @@ System.out.println("ROC SIM write thds = " + writeThreads);
     public void end() throws CmdExecException {
         state = CODAState.DOWNLOADED;
 
-        // The order in which these threads are shutdown does(should) not matter.
-        // Transport objects should already have been shutdown followed by this module.
-        if (watcher != null) watcher.interrupt();
-        watcher = null;
-
-        if (eventGeneratingThread != null) {
-            try {
-                // Kill this thread before thread pool threads to avoid exception.
-//System.out.println("          RocSim END: try joining ev-gen thread ...");
-                eventGeneratingThread.join();
-//System.out.println("          RocSim END: done");
-            }
-            catch (InterruptedException e) {}
-
-            try {
-//System.out.println("          RocSim END: try joining thread pool threads ...");
-                eventGeneratingThread.getWriteThreadPool().shutdown();
-                eventGeneratingThread.getWriteThreadPool().awaitTermination(100L, TimeUnit.MILLISECONDS);
-//System.out.println("          RocSim END: done");
-            }
-            catch (InterruptedException e) {}
-        }
-        eventGeneratingThread = null;
+        endThreads();
 
         paused = false;
 
@@ -805,8 +791,8 @@ System.out.println("ROC SIM write thds = " + writeThreads);
         // create threads objects (but don't start them yet)
         watcher = new Thread(emu.getThreadGroup(), new Watcher(), name+":watcher");
         eventGeneratingThread = new EventGeneratingThread(emu.getThreadGroup(),
-                new EventGeneratingThread(),
-                name+":generator");
+                                                          new EventGeneratingThread(),
+                                                          name+":generator");
 
         // Put in PRESTART event
         try {
@@ -876,7 +862,6 @@ System.out.println("ROC SIM write thds = " + writeThreads);
         }
 
         if (watcher.getState() == Thread.State.NEW) {
-//System.out.println("starting watcher thread");
             watcher.start();
         }
 
