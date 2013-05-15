@@ -726,13 +726,23 @@ logger.warn("      DataChannel Et in helper: " + name + " - PAUSED");
                             errorMsg.compareAndSet(null, "Et connection closed");
                             throw e;
                         }
+                        catch (EtWakeUpException e) {
+                            // Told to wake up because we're ending or resetting
+                            if (haveInputEndEvent) {
+System.out.println("      DataChannel Et in helper: " + name + " have END event, quitting");
+                            }
+                            else if (gotResetCmd) {
+System.out.println("      DataChannel Et in helper: " + name + " got RESET cmd, quitting");
+                            }
+                            return;
+                        }
                         catch (EtTimeoutException e) {
                             if (haveInputEndEvent) {
-                                System.out.println("      DataChannel Et in helper: " + name + " have END event, quitting");
+System.out.println("      DataChannel Et in helper: " + name + " have END event, quitting");
                                 return;
                             }
                             else if (gotResetCmd) {
-                                System.out.println("      DataChannel Et in helper: " + name + " got RESET cmd, quitting");
+System.out.println("      DataChannel Et in helper: " + name + " got RESET cmd, quitting");
                                 return;
                             }
 
@@ -957,6 +967,7 @@ logger.warn("      DataChannel Et in helper: " + name + " - PAUSED");
 
             // If any EvGetter thread is stuck on etSystem.newEvents(), unstuck it
             try {
+System.out.println("      DataChannel Et out helper: wake up attachment #" + attachment.getId());
                 etSystem.wakeUpAttachment(attachment);
                 // It may take 0.2 sec to detach
                 Thread.sleep(250);
@@ -1110,8 +1121,8 @@ System.out.println("      DataChannel Et out helper: " + name + " got RESET cmd,
                             // synchronized code, we can check for it upon entering.
                             // If found already, we can quit.
                             if (haveOutputEndEvent) {
-                                shutdown();
 System.out.println("      DataChannel Et out helper: " + name + " some thd got END event, quitting 1");
+                                shutdown();
                                 return;
                             }
 
@@ -1223,8 +1234,8 @@ System.out.println("      DataChannel Et out helper: " + name + " I got END even
 
                             // If I've been told to RESET ...
                             if (gotResetCmd) {
-                                shutdown();
 System.out.println("      DataChannel Et out helper: " + name + " got RESET cmd, quitting 2");
+                                shutdown();
                                 return;
                             }
 
@@ -1356,6 +1367,16 @@ logger.warn("      DataChannel Et DataOutputHelper : " + name + " ET event too s
                                 catch (EtClosedException e) {
                                     errorMsg.compareAndSet(null, "Et connection closed");
                                     throw e;
+                                }
+                                catch (EtWakeUpException e) {
+                                    // Told to wake up because we're ending or resetting
+                                    if (haveInputEndEvent) {
+System.out.println("      DataChannel Et out helper: " + name + " have END event, quitting");
+                                    }
+                                    else if (gotResetCmd) {
+System.out.println("      DataChannel Et out helper: " + name + " got RESET cmd, quitting");
+                                    }
+                                    return;
                                 }
                             }
                         }
@@ -1576,11 +1597,14 @@ logger.warn("      DataChannel Et out helper : exit thd: " + e.getMessage());
 //System.out.println("I got " + events.length + " new events");
                     barrier.await();
                 }
+                catch (EtWakeUpException e) {
+                    // Told to wake up because we're ending or resetting
+                }
                 catch (BrokenBarrierException e) {
-                    // may happen when ending or resetting
+                    // May happen when ending or resetting
                 }
                 catch (InterruptedException e) {
-                    // told to quit when in barrier.await()
+                    // Told to quit when in barrier.await()
                 }
                 catch (IOException e) {
                     gotError = true;
