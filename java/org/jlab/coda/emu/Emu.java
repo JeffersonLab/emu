@@ -2011,14 +2011,16 @@ logger.error("Emu.execute(END) : no modules in data path");
                 //--------------------------------------------------------
 
                 // Look for the RocSimulation module. If it exists, send the END cmd.
-                for (int i=0; i < mods.size(); i++) {
-                    EmuModule mod = mods.get(i);
-                    Class c = mod.getClass();
-                    if (c.getName().equals("org.jlab.coda.emu.modules.RocSimulation")) {
-                        mod.end();
-                        break;
-                    }
-                }
+                // Only use this code if there's 1 ROC and the run ends when hitting
+                // run control's END button.
+//                for (int i=0; i < mods.size(); i++) {
+//                    EmuModule mod = mods.get(i);
+//                    Class c = mod.getClass();
+//                    if (c.getName().equals("org.jlab.coda.emu.modules.RocSimulation")) {
+//                        mod.end();
+//                        break;
+//                    }
+//                }
 
                 boolean gotEndEvent;
 
@@ -2090,10 +2092,12 @@ logger.info("Emu.execute(END): END to in chan " + chan.name());
 
                 // (3) END to all modules in normal order (starting with first)
                 for (int i=0; i < mods.size(); i++) {
+                    // Only use this code if there's 1 ROC and the run ends when hitting
+                    // run control's END button.
                     // We already sent the END event to the RocSimulation module
-                    if (mods.get(i).getClass().getName().equals("org.jlab.coda.emu.modules.RocSimulation")) {
-                        continue;
-                    }
+//                    if (mods.get(i).getClass().getName().equals("org.jlab.coda.emu.modules.RocSimulation")) {
+//                        continue;
+//                    }
 
 logger.info("Emu.execute(END): END to module " + mods.get(i).name());
                     mods.get(i).end();
