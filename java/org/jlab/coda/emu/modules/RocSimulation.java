@@ -611,11 +611,11 @@ System.out.println("ROC SIM write thds = " + writeThreads);
                    semaphore.acquire();
 
                    if (sentOneAlready && (endLimit > 0) && (eventNumber + numEvents > endLimit)) {
-                       System.out.println("\nRocSim: hit event number limit of " + endLimit + ", quitting\n");
+System.out.println("\nRocSim: hit event number limit of " + endLimit + ", quitting\n");
 
                        // Put in END event
                        try {
-                           System.out.println("          RocSim: Putting in END control event");
+System.out.println("          RocSim: Putting in END control event");
                            EvioEvent controlEvent = Evio.createControlEvent(ControlType.END, 0, 0,
                                                                             (int)eventCountTotal, 0);
                            PayloadBank bank = new PayloadBank(controlEvent);
@@ -643,7 +643,7 @@ System.out.println("ROC SIM write thds = " + writeThreads);
                    long now = System.currentTimeMillis();
                    long deltaT = now - start_time;
                    if (deltaT > 2000) {
-                       System.out.println("event rate = " + String.format("%.3g", ((eventNumber-oldVal)*1000./deltaT) ) + " Hz");
+System.out.println("event rate = " + String.format("%.3g", ((eventNumber-oldVal)*1000./deltaT) ) + " Hz");
                        start_time = now;
                        oldVal = eventNumber;
                    }
@@ -757,15 +757,10 @@ System.out.println("ROC SIM write thds = " + writeThreads);
 //                bank.setEventType(EventType.CONTROL);
 //                bank.setControlType(ControlType.END);
 //                outputChannels.get(0).getQueue().put(new QueueItem(bank));
-//                if (endCallback != null) endCallback.callback(null);
+//                if (endCallback != null) endCallback.endWait();
 //            }
-//            catch (InterruptedException e) {
-//                //e.printStackTrace();
-//            }
-//            catch (EvioException e) {
-//                e.printStackTrace();
-//                /* never happen */
-//            }
+//            catch (InterruptedException e) {}
+//            catch (EvioException e) {/* never happen */}
 
         // set end-of-run time in local XML config / debug GUI
         try {
