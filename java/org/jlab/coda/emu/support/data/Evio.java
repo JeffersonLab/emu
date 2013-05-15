@@ -2411,9 +2411,7 @@ System.out.println("Timestamps are NOT consistent !!!");
 
 
     /**
-     * Create an array of Evio events with simulated ROC data
-     * to send to the event building EMU. <b>No</b>
-     * Data Transport Record wrapping is included.
+     * Create an array of Evio events with simulated ROC data.
      *
      * @param rocId       ROC id number
      * @param triggerType trigger type id number (0-15)
@@ -2426,16 +2424,14 @@ System.out.println("Timestamps are NOT consistent !!!");
      * @param numPayloadBanks number of payload banks to generate
      * @param singleEventMode true if creating events in single event mode
      *
-     * @return number of events in the generated Data Transport Record event
-     * @throws EvioException
+     * @return array of generated events
      */
     public static PayloadBank[] createRocDataEvents(int rocId, int triggerType,
                                                     int detectorId, int status,
                                                     int eventNumber, int numEvents,
                                                     long timestamp, int recordId,
                                                     int numPayloadBanks,
-                                                    boolean singleEventMode)
-            throws EvioException {
+                                                    boolean singleEventMode)  {
 
         if (singleEventMode) {
             numEvents = 1;
@@ -2444,23 +2440,26 @@ System.out.println("Timestamps are NOT consistent !!!");
         EvioEvent ev;
         PayloadBank[] pBanks =  new PayloadBank[numPayloadBanks];
 
-        // now add the rest of the records
-        for (int i=0; i < numPayloadBanks; i++)  {
-            // add ROC Raw Records as payload banks
-            if (singleEventMode) {
-                ev = createSingleEventModeRocRecord(rocId, detectorId, status,
-                                                       eventNumber, recordId, timestamp);
-            }
-            else {
-                ev = createRocRawRecord(rocId, triggerType, detectorId, status,
-                                           eventNumber, numEvents, recordId, timestamp);
-            }
-            pBanks[i] = new PayloadBank(ev);
-            pBanks[i].setEventType(EventType.ROC_RAW);
+        try {
+            // now add the rest of the records
+            for (int i=0; i < numPayloadBanks; i++)  {
+                // add ROC Raw Records as payload banks
+                if (singleEventMode) {
+                    ev = createSingleEventModeRocRecord(rocId, detectorId, status,
+                            eventNumber, recordId, timestamp);
+                }
+                else {
+                    ev = createRocRawRecord(rocId, triggerType, detectorId, status,
+                            eventNumber, numEvents, recordId, timestamp);
+                }
+                pBanks[i] = new PayloadBank(ev);
+                pBanks[i].setEventType(EventType.ROC_RAW);
 
-            eventNumber += numEvents;
-            timestamp   += 4*numEvents;
+                eventNumber += numEvents;
+                timestamp   += 4*numEvents;
+            }
         }
+        catch (EvioException e) {/* should not happen */}
 
         return pBanks;
     }
