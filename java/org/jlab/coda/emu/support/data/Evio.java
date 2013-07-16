@@ -465,11 +465,28 @@ public class Evio {
 
         BaseStructureHeader header = bank.getHeader();
 
-        // Look inside to see if it is an END event.
+        // Look inside to see if it is an END event
         return (header.getTag() == ControlType.END.getValue() &&
                 header.getNumber() == 0xCC &&
                 header.getDataTypeValue() == 1 &&
                 header.getLength() == 4);
+    }
+
+
+    /**
+     * Determine whether a bank is an END control event or not.
+     *
+     * @param node input bank node object
+     * @return <code>true</code> if arg is END event, else <code>false</code>
+     */
+    public static boolean isEndEvent(EvioNode node) {
+        if (node == null)  return false;
+
+        // Look to see if it is an END event
+        return (node.getTag() == ControlType.END.getValue() &&
+                node.getNum() == 0xCC &&
+                node.getDataType() == 1 &&
+                node.getLength() == 4);
     }
 
 
@@ -639,12 +656,28 @@ public class Evio {
      * @param bank input bank
      * @return <code>true</code> if arg is USER event, else <code>false</code>
      */
-     public static boolean isUserEvent(EvioBank bank) {
-         if (bank == null)  return false;
+    public static boolean isUserEvent(EvioBank bank) {
+        if (bank == null)  return false;
 
-         // Look inside to see if it is a USER event.
-         return (bank.getHeader().getNumber() == 0);
-     }
+        // Look inside to see if it is a USER event.
+        return (bank.getHeader().getNumber() == 0);
+    }
+
+
+    /**
+     * Determine whether an event is a USER event or not.
+     * Only called on events that were originally from the
+     * ROC and labeled as ROC Raw type.
+     *
+     * @param node input node
+     * @return <code>true</code> if arg is USER event, else <code>false</code>
+     */
+    public static boolean isUserEvent(EvioNode node) {
+        if (node == null)  return false;
+
+        // Look inside to see if it is a USER event.
+        return (node.getNum() == 0);
+    }
 
 
     /**
@@ -2117,12 +2150,13 @@ System.out.println("Timestamps are NOT consistent !!!");
      * @param inputPayloadBanks array containing ROC raw records that will be built together
      * @param builder object used to build trigger bank
      * @param swap swap the data to big endian if necessary by assuming all 32 bit ints
+     * @param semMode if {@code true}, input payload banks are in single event mode
      * @return bank final built event
      */
     public static EvioBank buildPhysicsEventWithRocRaw(EvioBank triggerBank,
                                                        EvioBank[] inputPayloadBanks,
                                                        EventBuilder builder,
-                                                       boolean swap) {
+                                                       boolean swap, boolean semMode) {
 
         int tag, childrenCount;
         int numPayloadBanks = inputPayloadBanks.length;
@@ -2156,14 +2190,19 @@ System.out.println("Timestamps are NOT consistent !!!");
                 // How many banks inside Roc Raw bank ?
                 childrenCount = inputPayloadBanks[i].getChildCount();
 
-                // Add Roc Raw's data block banks to our data bank
-                for (int j=0; j < childrenCount; j++) {
+                // Add Roc Raw's data block banks to our data bank.
+                // Ignore any trigger bank. If in SEM, there is no trigger bank.
+                // If not in SEM, the trigger bank is always the first one.
+                int j = 1;
+                if (semMode) j = 0;
+
+                for (; j < childrenCount; j++) {
                     blockBank = (EvioBank)inputPayloadBanks[i].getChildAt(j);
 
                     // Ignore the Roc Raw's trigger bank (should be first one)
-                    if (Evio.isRawTriggerBank(blockBank)) {
-                        continue;
-                    }
+                    //if (Evio.isRawTriggerBank(blockBank)) {
+                    //    continue;
+                    //}
 
                     // Here's where things can get tricky. There is a status bit
                     // telling us the data endianness which was set on the ROC
