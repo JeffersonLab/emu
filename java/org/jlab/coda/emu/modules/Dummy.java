@@ -21,6 +21,7 @@ import org.jlab.coda.emu.support.codaComponent.State;
 import org.jlab.coda.emu.support.data.ControlType;
 import org.jlab.coda.emu.support.data.PayloadBank;
 import org.jlab.coda.emu.support.data.QueueItem;
+import org.jlab.coda.emu.support.data.QueueItemType;
 import org.jlab.coda.emu.support.logger.Logger;
 import org.jlab.coda.emu.support.transport.DataChannel;
 
@@ -119,6 +120,12 @@ System.out.println("Dummy: created object");
 
     /** {@inheritDoc} */
     public EmuEventNotify getEndCallback() {return endCallback;}
+
+    /** {@inheritDoc} */
+    public QueueItemType getInputQueueItemType() {return QueueItemType.PayloadBank;}
+
+    /** {@inheritDoc} */
+    public QueueItemType getOutputQueueItemType() {return QueueItemType.PayloadBank;}
 
     /** {@inheritDoc} */
     public boolean representsEmuStatistics() {return false;}

@@ -258,6 +258,12 @@ System.out.println("                                      SET ROCID TO " + rocId
     public void clearChannels() {outputChannels.clear();}
 
     /** {@inheritDoc} */
+    public QueueItemType getInputQueueItemType() {return QueueItemType.PayloadBank;}
+
+    /** {@inheritDoc} */
+    public QueueItemType getOutputQueueItemType() {return QueueItemType.PayloadBank;}
+
+    /** {@inheritDoc} */
     public boolean representsEmuStatistics() {
         String stats = attributeMap.get("statistics");
         return (stats != null && stats.equalsIgnoreCase("on"));
@@ -435,7 +441,7 @@ System.out.println("RocSimulation module: quitting watcher thread");
 
                 try {
                     // Stick it on the output Q.
-                    outputChannels.get(0).getQueue().put(new QueueItem(event));
+                    outputChannels.get(0).getQueue().put(new QueueItem(new PayloadBank(event)));
 
                     // stats
                     rocRecordId++;
