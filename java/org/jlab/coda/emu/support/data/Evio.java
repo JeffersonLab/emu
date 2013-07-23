@@ -2143,31 +2143,32 @@ System.out.println("Timestamps are NOT consistent !!!");
 
     /**
      * Build a single physics event with the given trigger bank
-     * and the given array of ROC raw records. Swap data if necessary
-     * assuming it's all 32 bit integers.
+     * and the given array of ROC raw records.
+     * Currently, no swapping is done since the bank in question may
+     * contain anything.
      *
      * @param triggerBank bank containing merged trigger info
      * @param inputPayloadBanks array containing ROC raw records that will be built together
      * @param builder object used to build trigger bank
-     * @param swap swap the data to big endian if necessary by assuming all 32 bit ints
      * @param semMode if {@code true}, input payload banks are in single event mode
      * @return bank final built event
      */
     public static EvioBank buildPhysicsEventWithRocRaw(EvioBank triggerBank,
                                                        EvioBank[] inputPayloadBanks,
                                                        EventBuilder builder,
-                                                       boolean swap, boolean semMode) {
+                                                       boolean semMode) {
 
-        int tag, childrenCount;
+        int childrenCount;
         int numPayloadBanks = inputPayloadBanks.length;
-        boolean isBigE;
         BankHeader header;
         EvioBank dataBank, blockBank;
         EvioEvent finalEvent = builder.getEvent();
 
         try {
+//System.out.println("Build physics ev with " + numPayloadBanks + " rocs");
             // Add combined trigger bank to physics event
             builder.addChild(finalEvent, triggerBank);
+//System.out.println("  add trigger bank to final event");
 
             // Wrap and add data block banks (from payload banks).
             // Use the same header to wrap data blocks as used for payload bank.
@@ -2175,79 +2176,41 @@ System.out.println("Timestamps are NOT consistent !!!");
                 // Get Roc Raw header
                 header = (BankHeader)inputPayloadBanks[i].getHeader();
 
-                // What is the endianness of the Roc data?
-                // Find it by looking at status bit in tag.
-                tag = header.getTag();
-                isBigE = Evio.isTagBigEndian(tag);
-                // Reset it to big endian if swapping
-                if (swap) {
-                    tag = Evio.setTagEndian(tag, true);
-                }
-
                 // Create physics data bank with same tag & num as Roc Raw bank
-                dataBank = new EvioBank(tag, DataType.BANK, header.getNumber());
+                dataBank = new EvioBank(header.getTag(), DataType.BANK, header.getNumber());
+//System.out.println("    created a wrapping data-bank");
 
                 // How many banks inside Roc Raw bank ?
                 childrenCount = inputPayloadBanks[i].getChildCount();
 
+//System.out.println("    roc raw ev #" + i + " has " + childrenCount + " banks");
                 // Add Roc Raw's data block banks to our data bank.
                 // Ignore any trigger bank. If in SEM, there is no trigger bank.
                 // If not in SEM, the trigger bank is always the first one.
                 int j = 1;
-                if (semMode) j = 0;
+                if (semMode) {
+                    j = 0;
+//System.out.println("    in SEM so NO trigger bank expected");
+                }
 
                 for (; j < childrenCount; j++) {
                     blockBank = (EvioBank)inputPayloadBanks[i].getChildAt(j);
-
-                    // Ignore the Roc Raw's trigger bank (should be first one)
-                    //if (Evio.isRawTriggerBank(blockBank)) {
-                    //    continue;
-                    //}
-
-                    // Here's where things can get tricky. There is a status bit
-                    // telling us the data endianness which was set on the ROC
-                    // (see above). However, when reading evio events over the
-                    // network, the emu knows the endianness of the host it came from.
-                    // It is possible these are not the same if some crazy user
-                    // stored big endian data on a little endian host or vice versa.
-
-                    // If data is big endian or we don't want to swap, just add bank
-                    if (isBigE || !swap) {
-                        if (blockBank.getByteOrder() != ByteOrder.BIG_ENDIAN) {
-                            blockBank.setByteOrder(ByteOrder.BIG_ENDIAN);
-                        }
-                        builder.addChild(dataBank, blockBank);
+                    // Pretend data is big endian so we can add the blockBank
+                    // to out dataBank without an exception. No swapping done.
+                    if (blockBank.getByteOrder() != ByteOrder.BIG_ENDIAN) {
+                        blockBank.setByteOrder(ByteOrder.BIG_ENDIAN);
                     }
-                    // Otherwise, read, swap and rewrite data.
-                    else {
-                        if (blockBank.getByteOrder() != ByteOrder.LITTLE_ENDIAN) {
-                            blockBank.setByteOrder(ByteOrder.LITTLE_ENDIAN);
-                        }
-                        // Get the data (swapped in this method call)
-                        int[] dat = blockBank.getIntData();
-                        // Create a new bank to put it in
-                        header = (BankHeader)blockBank.getHeader();
-                        tag = header.getTag();
-                        // make it say we have big endian data
-                        tag = Evio.setTagEndian(tag, true);
-                        blockBank = new EvioBank(tag, DataType.UINT32, header.getNumber());
-                        blockBank.appendIntData(dat);
-                        // Add new block bank with swapped data to data bank
-                        builder.addChild(dataBank, blockBank);
-                        // Now we must change the status bit saying we have big endian data.
-                        // Do this for physics event (as we just did for the data & block banks).
-                        BankHeader bh = (BankHeader)builder.getEvent().getHeader();
-                        tag = bh.getTag();
-                        tag = Evio.setTagEndian(tag, true);
-                        bh.setTag(tag);
-                    }
+                    // Don't mess with user data banks since don't know what's inside
+                    builder.addChild(dataBank, blockBank);
+//System.out.println("    get data-block-bank & add to wrapping data-bank");
                 }
 
                 // Add our data bank to physics event
                 builder.addChild(finalEvent, dataBank);
+//System.out.println("  add data-bank to final event");
             }
         } catch (EvioException e) {
-            // never happen
+            e.printStackTrace();
         }
 
         return null;
