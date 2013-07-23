@@ -376,6 +376,14 @@ public class EventBuilding2 extends CODAStateMachineAdapter implements EmuModule
 
 
     /** {@inheritDoc} */
+    public QueueItemType getInputQueueItemType() {return QueueItemType.PayloadBank;}
+
+
+    /** {@inheritDoc} */
+    public QueueItemType getOutputQueueItemType() {return QueueItemType.PayloadBank;}
+
+
+    /** {@inheritDoc} */
     synchronized public Object[] getStatistics() {
         Object[] stats = new Object[4];
 
@@ -1002,7 +1010,7 @@ if (debug && nonFatalError) System.out.println("\nERROR 4\n");
                     else {
 //if (debug) System.out.println("BuildingThread: build physics event with ROC raw banks");
                         Evio.buildPhysicsEventWithRocRaw(combinedTrigger, storage.buildingBanks,
-                                                         builder, swapData);
+                                                         builder, eventsInSEM);
                     }
 
                     // setting header lengths done in Evio.buildPhysicsEventWith* methods
@@ -1060,7 +1068,7 @@ if (debug) System.out.println("Building thread is ending !!!");
 //        catch (XMLStreamException e) {
 //            e.printStackTrace();
 //        }
-//        ByteBuffer bbuf = ByteBuffer.allocate(2048);
+//        PayloadBuffer bbuf = PayloadBuffer.allocate(2048);
 //        bank.write(bbuf);
 //        bbuf.flip();
 //        for (int j = 0; j < bbuf.asIntBuffer().limit(); j++) {
