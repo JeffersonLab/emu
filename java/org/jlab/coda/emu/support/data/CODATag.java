@@ -21,8 +21,10 @@ public enum CODATag {
     // ROC
     /** Trigger bank from ROC with no timestamps. */
     RAW_TRIGGER                 (0xFF10),
-    /** Trigger bank from ROC with timestamps. */
+    /** Trigger bank from ROC with 32 bit timestamps. */
     RAW_TRIGGER_TS              (0xFF11),
+    /** Trigger bank from ROC with 64 bit timestamps. */
+    RAW_TRIGGER_TS_BIG          (0xFF12),
 
     // Trigger banks with roc-specific data
     /** No timestamp and no run data. */
@@ -139,7 +141,7 @@ public enum CODATag {
      * @return <code>true</code> if raw trigger tag, else <code>false</code>
      */
      public boolean isRawTrigger() {
-         return (this == RAW_TRIGGER || this == RAW_TRIGGER_TS);
+         return (this == RAW_TRIGGER || this == RAW_TRIGGER_TS || this == RAW_TRIGGER_TS_BIG);
      }
 
     /**
@@ -151,7 +153,7 @@ public enum CODATag {
          CODATag cTag = getTagType(value);
          if (cTag == null) return false;
 
-         return (cTag == RAW_TRIGGER || cTag == RAW_TRIGGER_TS);
+         return (cTag == RAW_TRIGGER || cTag == RAW_TRIGGER_TS || cTag == RAW_TRIGGER_TS_BIG);
      }
 
     /**
@@ -163,7 +165,7 @@ public enum CODATag {
          CODATag cTag = getTagType(value);
          if (cTag == null) return false;
 
-         return (cTag == RAW_TRIGGER            || cTag == RAW_TRIGGER_TS ||
+         return (cTag == RAW_TRIGGER || cTag == RAW_TRIGGER_TS || cTag == RAW_TRIGGER_TS_BIG ||
                  cTag == BUILT_TRIGGER_BANK     || cTag == BUILT_TRIGGER_TS ||
                  cTag == BUILT_TRIGGER_RUN      || cTag == BUILT_TRIGGER_TS_RUN ||
                  cTag == BUILT_TRIGGER_NRSD     || cTag == BUILT_TRIGGER_RUN_NRSD ||
@@ -175,7 +177,7 @@ public enum CODATag {
      * @return <code>true</code> if any kind of trigger tag, else <code>false</code>
      */
      public boolean isTrigger() {
-         return (this == RAW_TRIGGER            || this == RAW_TRIGGER_TS ||
+         return (this == RAW_TRIGGER || this == RAW_TRIGGER_TS || this == RAW_TRIGGER_TS_BIG ||
                  this == BUILT_TRIGGER_BANK     || this == BUILT_TRIGGER_TS ||
                  this == BUILT_TRIGGER_RUN      || this == BUILT_TRIGGER_TS_RUN ||
                  this == BUILT_TRIGGER_NRSD     || this == BUILT_TRIGGER_RUN_NRSD ||
@@ -188,8 +190,8 @@ public enum CODATag {
      *          else <code>false</code>
      */
      public boolean hasTimestamp() {
-         return (this == RAW_TRIGGER_TS        || this == BUILT_TRIGGER_TS ||
-                 this == BUILT_TRIGGER_TS_RUN  ||
+         return (this == RAW_TRIGGER_TS        || this == RAW_TRIGGER_TS_BIG    ||
+                 this == BUILT_TRIGGER_TS      || this == BUILT_TRIGGER_TS_RUN  ||
                  this == BUILT_TRIGGER_TS_NRSD || this == BUILT_TRIGGER_TS_RUN_NRSD);
      }
 
@@ -203,8 +205,8 @@ public enum CODATag {
          CODATag cTag = getTagType(value);
          if (cTag == null) return false;
 
-         return (cTag == RAW_TRIGGER_TS        || cTag == BUILT_TRIGGER_TS ||
-                 cTag == BUILT_TRIGGER_TS_RUN  ||
+         return (cTag == RAW_TRIGGER_TS        || cTag == RAW_TRIGGER_TS_BIG    ||
+                 cTag == BUILT_TRIGGER_TS      || cTag == BUILT_TRIGGER_TS_RUN  ||
                  cTag == BUILT_TRIGGER_TS_NRSD || cTag == BUILT_TRIGGER_TS_RUN_NRSD);
      }
 
