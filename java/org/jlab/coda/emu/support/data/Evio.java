@@ -1475,7 +1475,7 @@ System.out.println("Timestamp data is missing!");
                 timestampsAvg[j] /= numInputBanks;
 
                 if (timestampsMax[j] - timestampsMin[j] > 0)  {
-System.out.println("Timestamps differing by " + (timestampsMax[j] - timestampsMin[j]));
+//System.out.println("Timestamps differing by " + (timestampsMax[j] - timestampsMin[j]));
                 }
                 if (timestampsMax[j] - timestampsMin[j] > timestampSlop)  {
                     nonFatalError = true;
@@ -1621,7 +1621,7 @@ System.out.println("Timestamps are NOT consistent !!!");
         EvioBank[] triggerBanks = new EvioBank[numROCs];
         boolean haveTimestamps, haveMiscData=false, nonFatalError=false;
         CODATag trigTag;
-
+// TODO: allow for 32 bit timestamps & check differences between ROCs' TS info
 
         // In each payload bank (of banks) is a trigger bank. Extract them all.
         for (int i=0; i < numROCs; i++) {
@@ -1760,7 +1760,7 @@ System.out.println("                           " + (firstEvNum+i) + " != " + (tr
                 // If they exist, store all timestamp related
                 // values so consistency can be checked below
                 if (checkTimestamps && triggerData.length > 2) {
-                    ts = (    (0xffffL & (long)triggerData[2] << 32) |
+                    ts = (   ((0xffffL & (long)triggerData[2]) << 32) |
                           (0xffffffffL & (long)triggerData[1]));
                     timestampsAvg[i] += ts;
                     timestampsMax[i]  = ts > timestampsMax[i] ? ts : timestampsMax[i];
@@ -1775,7 +1775,7 @@ System.out.println("                           " + (firstEvNum+i) + " != " + (tr
         if (checkTimestamps) {
             for (int i=0; i < numEvents; i++) {
                 if (timestampsMax[i] - timestampsMin[i] > 0)  {
-System.out.println("Timestamps differing by " + (timestampsMax[i] - timestampsMin[i]));
+//System.out.println("Timestamps differing by " + (timestampsMax[i] - timestampsMin[i]));
                 }
                 if (timestampsMax[i] - timestampsMin[i] > timestampSlop)  {
                     nonFatalError = true;
@@ -2029,7 +2029,7 @@ System.out.println("Timestamps are NOT consistent!!!");
 
             // store timestamp related values so consistency can be checked later
             if (checkTimestamps && data.length > 2) {
-                ts = (    (0xffffL & (long)data[2] << 32) |
+                ts = (   ((0xffffL & (long)data[2]) << 32) |
                       (0xffffffffL & (long)data[1]));
                 timestampsAvg += ts;
                 timestampsMax  = ts > timestampsMax ? ts : timestampsMax;
