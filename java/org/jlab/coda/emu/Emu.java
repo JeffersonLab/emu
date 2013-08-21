@@ -1105,6 +1105,9 @@ System.out.println("SET Session to " + txt);
             Document oldConfig = loadedConfig;
             boolean newConfigLoaded = false;
 
+            // Clear out old data
+            setOutputDestination(null);
+
             try {
                 // A msg from RC or a press of a debug GUI button can
                 // both create a CONFIGURE command. In one case we have a
@@ -1862,7 +1865,8 @@ logger.debug("Emu.execute(PRESTART): PRESTART to " + transport.name());
                                 // If it's an input channel ...
                                 if (channelNode.getNodeName().equalsIgnoreCase("inchannel")) {
                                     // Create channel
-                                    DataChannel channel = trans.createChannel(channelName, attributeMap, true, this);
+                                    DataChannel channel = trans.createChannel(channelName, attributeMap, true, this,
+                                                                              module.getInputQueueItemType());
                                     // Add to list while keeping fifos separate
                                     if (channelTransName.equals("Fifo")) {
                                         // Fifo does NOT notify Emu when END event comes through
@@ -1877,7 +1881,8 @@ logger.debug("Emu.execute(PRESTART): PRESTART to " + transport.name());
                                 }
                                 // If it's an output channel ...
                                 else if (channelNode.getNodeName().equalsIgnoreCase("outchannel")) {
-                                    DataChannel channel = trans.createChannel(channelName, attributeMap, false, this);
+                                    DataChannel channel = trans.createChannel(channelName, attributeMap, false, this,
+                                                                              module.getOutputQueueItemType());
                                     if (channelTransName.equals("Fifo")) {
                                         channel.registerEndCallback(null);
                                         outFifo.add(channel);
