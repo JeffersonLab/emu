@@ -17,6 +17,7 @@ import org.jlab.coda.emu.support.codaComponent.CODAState;
 import org.jlab.coda.emu.support.configurer.DataNotFoundException;
 
 import org.jlab.coda.emu.support.control.CmdExecException;
+import org.jlab.coda.emu.support.data.QueueItemType;
 import org.jlab.coda.emu.support.logger.Logger;
 
 import java.util.Map;
@@ -73,8 +74,12 @@ public class DataTransportImplCmsg extends DataTransportAdapter {
 
 
     /** {@inheritDoc} */
-    public DataChannel createChannel(String name, Map<String,String> attributeMap, boolean isInput, Emu emu) throws DataTransportException {
-        return new DataChannelImplCmsg(name, this, attributeMap, isInput, emu);
+    public DataChannel createChannel(String name, Map<String,String> attributeMap,
+                                     boolean isInput, Emu emu,
+                                     QueueItemType queueItemType)
+                throws DataTransportException {
+
+        return new DataChannelImplCmsg(name, this, attributeMap, isInput, emu, queueItemType);
     }
 
 

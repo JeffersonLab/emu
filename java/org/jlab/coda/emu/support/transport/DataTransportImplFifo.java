@@ -13,6 +13,7 @@ package org.jlab.coda.emu.support.transport;
 
 import org.jlab.coda.emu.Emu;
 import org.jlab.coda.emu.support.configurer.DataNotFoundException;
+import org.jlab.coda.emu.support.data.QueueItemType;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -57,7 +58,8 @@ public class DataTransportImplFifo extends DataTransportAdapter {
 
     /** {@inheritDoc} */
     synchronized public DataChannel createChannel(String name, Map<String,String> attributeMap,
-                                                  boolean isInput, Emu emu) {
+                                                  boolean isInput, Emu emu,
+                                                  QueueItemType queueItemType) {
 //System.out.println("    DataTransportImplFifo.createChannel : create channel " + name);
         String channelName = name() + ":" + name;
 
@@ -66,7 +68,8 @@ public class DataTransportImplFifo extends DataTransportAdapter {
 
         // if not, create it
         if (c == null) {
-            c = new DataChannelImplFifo(channelName, this, attributeMap, isInput, emu);
+            c = new DataChannelImplFifo(channelName, this, attributeMap, isInput,
+                                        emu, queueItemType);
             allChannels.put(channelName, c);
 System.out.println("    DataTransportImplFifo.createChannel() : create FIFO channel " + c.name());
         }

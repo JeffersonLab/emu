@@ -15,6 +15,7 @@ import org.jlab.coda.emu.Emu;
 import org.jlab.coda.emu.support.codaComponent.CODAStateMachine;
 import org.jlab.coda.emu.support.codaComponent.StatedObject;
 import org.jlab.coda.emu.support.configurer.DataNotFoundException;
+import org.jlab.coda.emu.support.data.QueueItemType;
 
 import java.util.Map;
 
@@ -71,14 +72,17 @@ public interface DataTransport extends CODAStateMachine, StatedObject {
     /**
      * This method creates a DataChannel object.
      *
-     * @param name name of DataChannel
-     * @param attributeMap hashmap of attributes taken from XML config file
-     * @param isInput true if this channel puts data into the Emu, else false
+     * @param name          name of DataChannel
+     * @param attributeMap  hashmap of attributes taken from XML config file
+     * @param isInput       true if this channel puts data into the Emu, else false
+     * @param queueItemType type of object to expect in queue item
+     *
      * @return DataChannel object
      * @throws DataTransportException if transport problem
      */
     public DataChannel createChannel(String name, Map<String, String> attributeMap,
-                                     boolean isInput, Emu emu)
+                                     boolean isInput, Emu emu,
+                                     QueueItemType queueItemType)
             throws DataTransportException;
 
     /**
