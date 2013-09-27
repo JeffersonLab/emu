@@ -1746,8 +1746,9 @@ System.out.println("makeTriggerBankFromRocRaw: event type differs across ROCs");
                 // Check event number consistency
                 triggerData = segment.getIntData();
                 if (firstEvNum + i != triggerData[0]) {
-System.out.println("makeTriggerBankFromRocRaw: event number differs across ROCs");
-System.out.println("                           " + (firstEvNum+i) + " != " + (triggerData[0]));
+System.out.println("makeTriggerBankFromRocRaw: EB event # differs from ROC id#" +
+                    getTagCodaId(inputPayloadBanks[j].getHeader().getTag()) + "'s, " +
+                    (firstEvNum+i) + " != " + (triggerData[0]));
                     nonFatalError = true;
                 }
 
