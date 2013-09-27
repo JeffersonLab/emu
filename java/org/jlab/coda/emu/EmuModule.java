@@ -13,6 +13,7 @@ package org.jlab.coda.emu;
 
 import org.jlab.coda.emu.support.codaComponent.CODAStateMachine;
 import org.jlab.coda.emu.support.codaComponent.StatedObject;
+import org.jlab.coda.emu.support.data.QueueItemType;
 import org.jlab.coda.emu.support.transport.DataChannel;
 
 import java.util.ArrayList;
@@ -56,6 +57,18 @@ public interface EmuModule extends StatedObject, CODAStateMachine {
       * @return ArrayList containing the output channels of this EmuModule object
       */
      public ArrayList<DataChannel> getOutputChannels();
+
+    /**
+     * Get the type of items this EmuModule object expects in its input queue.
+     * @return type of items this EmuModule object expects in its input queue.
+     */
+    public QueueItemType getInputQueueItemType();
+
+    /**
+     * Get the type of items this EmuModule object expects in its output queue.
+     * @return type of items this EmuModule object expects in its output queue.
+     */
+    public QueueItemType getOutputQueueItemType();
 
     /**
      * Remove all channels from this EmuModule object.
