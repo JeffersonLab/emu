@@ -98,17 +98,18 @@ public class EventRecording extends CODAStateMachineAdapter implements EmuModule
     private BlockingQueue<QueueItem> channelQ;
 
     /** Type of object to expect for input. */
-    private QueueItemType  inType = QueueItemType.PayloadBank;
+    private QueueItemType inputType = QueueItemType.PayloadBank;
 
     /** Type of object to place on output channels. */
-    private QueueItemType  outType = QueueItemType.PayloadBank;
+    private QueueItemType outputType = QueueItemType.PayloadBank;
 
     /**
      * There is one waiting list per output channel -
      * each of which stores built events until their turn to go over the
      * output channel has arrived.
      */
-    private PriorityBlockingQueue<PayloadBank> waitingLists[];
+    private PriorityBlockingQueue<PayloadBank>   waitingListOfBanks[];
+    private PriorityBlockingQueue<PayloadBuffer> waitingListOfBuffers[];
 
     /** The number of RecordThread objects. */
     private int recordingThreadCount;
@@ -196,14 +197,14 @@ public class EventRecording extends CODAStateMachineAdapter implements EmuModule
 
     /**
      * Class defining comparator which tells priority queue how to sort elements.
-     * @param <T> Must be EvioBank in this case
+     * @param <T> Must be PayloadBank or PayloadBuffer in this case
      */
     private class BankComparator<T> implements Comparator<T> {
         public int compare(T o1, T o2) throws ClassCastException {
-            EvioBank bank1 = (EvioBank) o1;
-            EvioBank bank2 = (EvioBank) o2;
-            EventOrder eo1 = (EventOrder) (bank1.getAttachment());
-            EventOrder eo2 = (EventOrder) (bank2.getAttachment());
+            Attached a1 = (Attached) o1;
+            Attached a2 = (Attached) o2;
+            EventOrder eo1 = (EventOrder) (a1.getAttachment());
+            EventOrder eo2 = (EventOrder) (a2.getAttachment());
 
             if (eo1 == null || eo2 == null) {
                 return 0;
@@ -281,19 +282,19 @@ System.out.println("EventRecording constr: " + recordingThreadCount +
             }
         }
 
-        // Do we want ByteBuffer or EvioEvent input (EvioEvent is default)?
-        str = attributeMap.get("inType");
+        // Do we want PayloadBuffer or EvioEvent input (EvioEvent is default)?
+        str = attributeMap.get("inputType");
         if (str != null) {
             if (str.equalsIgnoreCase("ByteBuffer"))   {
-                inType = QueueItemType.ByteBuffer;
+                inputType = QueueItemType.PayloadBuffer;
             }
         }
 
-        // Do we want ByteBuffer or EvioEvent output (EvioEvent is default)?
-        str = attributeMap.get("outType");
+        // Do we want PayloadBuffer or EvioEvent output (EvioEvent is default)?
+        str = attributeMap.get("outputType");
         if (str != null) {
             if (str.equalsIgnoreCase("ByteBuffer"))   {
-                outType = QueueItemType.ByteBuffer;
+                outputType = QueueItemType.PayloadBuffer;
             }
         }
 
@@ -351,6 +352,12 @@ System.out.println("EventRecording constr: " + recordingThreadCount +
         inputChannel = null;
         channelQ = null;
     }
+
+    /** {@inheritDoc} */
+    public QueueItemType getInputQueueItemType() {return inputType;}
+
+    /** {@inheritDoc} */
+    public QueueItemType getOutputQueueItemType() {return outputType;}
 
     /** {@inheritDoc} */
     public boolean representsEmuStatistics() {return representStatistics;}
@@ -535,7 +542,7 @@ if (debug) System.out.println("endRecordThreads: will end threads but no END eve
     /**
      * This method is called by a recording thread and is used to place
      * a bank onto the queue of an output channel. If the event is
-     * not in next in line for the Q, it can be put in a waiting list.
+     * not next in line for the Q, it can be put in a waiting list.
      *
      * @param bankOut the built/control/user event to place on output channel queue
      * @throws InterruptedException if wait, put, or take interrupted
@@ -570,15 +577,15 @@ if (debug) System.out.println("endRecordThreads: will end threads but no END eve
                 // If not, put in waiting list and return.
                 if (eo.inputOrder != outputOrders[eo.index]) {
                     bankOut.setAttachment(eo);
-                    waitingLists[eo.index].add(bankOut);
+                    waitingListOfBanks[eo.index].add(bankOut);
 
                     // If the waiting list gets too big, just wait here
-                    if (waitingLists[eo.index].size() > 9) {
+                    if (waitingListOfBanks[eo.index].size() > 9) {
                         eo.lock.wait();
                     }
 //if (debug) System.out.println("out of order = " + eo.inputOrder);
 //if (debug) System.out.println("waiting list = ");
-//                    for (EvioBank bk : waitingLists[eo.index]) {
+//                    for (EvioBank bk : waitingListOfBanks[eo.index]) {
 //                        if (debug) System.out.println("" + ((EventOrder)bk.getAttachment()).inputOrder);
 //                    }
                     return;
@@ -590,7 +597,7 @@ if (debug) System.out.println("endRecordThreads: will end threads but no END eve
 //if (debug) System.out.println("placing = " + eo.inputOrder);
 
                 // Take a look on the waiting list without removing ...
-                bank = waitingLists[eo.index].peek();
+                bank = waitingListOfBanks[eo.index].peek();
                 while (bank != null) {
                     evOrder = (EventOrder) bank.getAttachment();
                     // If it's not next to be output, skip this waiting list
@@ -598,11 +605,92 @@ if (debug) System.out.println("endRecordThreads: will end threads but no END eve
                         break;
                     }
                     // Remove from waiting list permanently
-                    bank = waitingLists[eo.index].take();
+                    bank = waitingListOfBanks[eo.index].take();
                     // Place bank on output channel
                     eo.outputChannel.getQueue().put(new QueueItem(bank));
                     outputOrders[eo.index] = ++outputOrders[eo.index] % Integer.MAX_VALUE;
-                    bank = waitingLists[eo.index].peek();
+                    bank = waitingListOfBanks[eo.index].peek();
+//if (debug) System.out.println("placing = " + evOrder.inputOrder);
+                }
+                eo.lock.notifyAll();
+            }
+        }
+
+    }
+
+
+
+    /**
+     * This method is called by a recording thread and is used to place
+     * a buffer onto the queue of an output channel. If the event is
+     * not next in line for the Q, it can be put in a waiting list.
+     *
+     * @param bufferOut the built/control/user evio buffer to place on output channel queue
+     * @throws InterruptedException if wait, put, or take interrupted
+     */
+    private void bankToOutputChannel(PayloadBuffer bufferOut)
+            throws InterruptedException {
+
+        // Have output channels?
+        if (outputChannelCount < 1) {
+            return;
+        }
+
+        PayloadBuffer buffer;
+        EventOrder evOrder;
+        EventOrder eo = (EventOrder)bufferOut.getAttachment();
+
+        synchronized (eo.lock) {
+            if (!useOutputWaitingList) {
+                // Is the buf we grabbed next to be output? If not, wait.
+                while (eo.inputOrder != outputOrders[eo.index]) {
+                    eo.lock.wait();
+                }
+                // Place buf on output channel
+//System.out.println("Put buf on output channel");
+                eo.outputChannel.getQueue().put(new QueueItem(bufferOut));
+                outputOrders[eo.index] = ++outputOrders[eo.index] % Integer.MAX_VALUE;
+                eo.lock.notifyAll();
+            }
+            // else if we're using waiting lists
+            else {
+                // Is the buf we grabbed next to be output?
+                // If not, put in waiting list and return.
+                if (eo.inputOrder != outputOrders[eo.index]) {
+                    bufferOut.setAttachment(eo);
+                    waitingListOfBuffers[eo.index].add(bufferOut);
+
+                    // If the waiting list gets too big, just wait here
+                    if (waitingListOfBuffers[eo.index].size() > 9) {
+                        eo.lock.wait();
+                    }
+//if (debug) System.out.println("out of order = " + eo.inputOrder);
+//if (debug) System.out.println("waiting list = ");
+//                    for (EvioBank bk : waitingListOfBuffers[eo.index]) {
+//                        if (debug) System.out.println("" + ((EventOrder)bk.getAttachment()).inputOrder);
+//                    }
+                    return;
+                }
+
+                // Place buf on output channel
+                eo.outputChannel.getQueue().put(new QueueItem(bufferOut));
+                outputOrders[eo.index] = ++outputOrders[eo.index] % Integer.MAX_VALUE;
+//if (debug) System.out.println("placing = " + eo.inputOrder);
+
+                // Take a look on the waiting list without removing ...
+                buffer = waitingListOfBuffers[eo.index].peek();
+                while (buffer != null) {
+                    evOrder = (EventOrder) buffer.getAttachment();
+                    // If it's not next to be output, skip this waiting list
+                    if (evOrder.inputOrder != outputOrders[eo.index]) {
+                        break;
+                    }
+                    // Remove from waiting list permanently
+                    buffer = waitingListOfBuffers[eo.index].take();
+                    // Place buffer on output channel
+                    eo.outputChannel.getQueue().put(new QueueItem(buffer));
+                    outputOrders[eo.index] = ++outputOrders[eo.index] % Integer.MAX_VALUE;
+                    buffer = waitingListOfBuffers[eo.index].peek();
 //if (debug) System.out.println("placing = " + evOrder.inputOrder);
                 }
                 eo.lock.notifyAll();
@@ -653,11 +741,11 @@ System.out.println("Running runMultipleThreads()");
             PayloadBank recordingBank;
             EventOrder[] eventOrders = new EventOrder[outputChannelCount];
 
-            int myInputOrder = -1;
-            int myOutputChannelIndex = 0;
-            Object myOutputLock = null;
+            int myInputOrder;
+            int myOutputChannelIndex;
+            Object myOutputLock;
 
-            DataChannel myOutputChannel = null;
+            DataChannel myOutputChannel;
 
             while (state == CODAState.ACTIVE || paused) {
 
@@ -901,7 +989,7 @@ if (true) System.out.println("Found END event in record thread");
 //            outputChannelCount = outputChannels.size();
 
         // Allocate some arrays based on # of output channels
-        waitingLists = null;
+        waitingListOfBanks = null;
         if (outputChannelCount > 0 && recordingThreadCount > 1) {
             locks = new Object[outputChannelCount];
             for (int i=0; i < outputChannelCount; i++) {
@@ -910,9 +998,9 @@ if (true) System.out.println("Found END event in record thread");
             inputOrders  = new int[outputChannelCount];
             outputOrders = new int[outputChannelCount];
 
-            waitingLists = new PriorityBlockingQueue[outputChannelCount];
+            waitingListOfBanks = new PriorityBlockingQueue[outputChannelCount];
             for (int i=0; i < outputChannelCount; i++) {
-                waitingLists[i] = new PriorityBlockingQueue<PayloadBank>(100, comparator);
+                waitingListOfBanks[i] = new PriorityBlockingQueue<PayloadBank>(100, comparator);
             }
         }
 
