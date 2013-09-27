@@ -17,6 +17,7 @@ import org.jlab.coda.emu.EmuEventNotify;
 import org.jlab.coda.emu.support.codaComponent.CODAStateMachineAdapter;
 import org.jlab.coda.emu.support.codaComponent.State;
 import org.jlab.coda.emu.support.data.QueueItem;
+import org.jlab.coda.emu.support.data.QueueItemType;
 import org.jlab.coda.emu.support.logger.Logger;
 
 import java.nio.ByteOrder;
@@ -74,6 +75,9 @@ public class DataChannelAdapter extends CODAStateMachineAdapter implements DataC
     /** Object used by Emu to create this channel. */
     protected final DataTransport dataTransport;
 
+    /** Type of object to expect in each queue item. */
+    protected QueueItemType queueItemType;
+
     /** Queue used to hold data for either input or output depending on {@link #input}. */
     protected final BlockingQueue<QueueItem> queue;
 
@@ -84,18 +88,21 @@ public class DataChannelAdapter extends CODAStateMachineAdapter implements DataC
      * Used only by a transport's createChannel() method
      * which is only called during PRESTART in the Emu.
      *
-     * @param name         the name of this channel
-     * @param transport    the DataTransport object that this channel belongs to
-     * @param attributeMap the hashmap of config file attributes for this channel
-     * @param input        true if this is an input data channel, otherwise false
-     * @param emu          emu this channel belongs to
-     */
+     * @param name          the name of this channel
+     * @param transport     the DataTransport object that this channel belongs to
+     * @param attributeMap  the hashmap of config file attributes for this channel
+     * @param input         true if this is an input data channel, otherwise false
+     * @param emu           emu this channel belongs to
+     * @param queueItemType type of object to expect in queue item
+    */
     public DataChannelAdapter(String name, DataTransport transport,
                               Map<String, String> attributeMap,
-                              boolean input, Emu emu) {
+                              boolean input, Emu emu,
+                              QueueItemType queueItemType) {
         this.emu = emu;
         this.name = name;
         this.input = input;
+        this.queueItemType = queueItemType;
         this.dataTransport = transport;
         logger = emu.getLogger();
 

@@ -54,6 +54,9 @@ public class DataChannelImplFile extends DataChannelAdapter {
     /** Object to write evio file. */
     private EventWriter evioFileWriter;
 
+    /** Object to write evio file. */
+    private EvioCompactEventWriter evioFileCompactWriter;
+
 
 
     /**
@@ -64,15 +67,17 @@ public class DataChannelImplFile extends DataChannelAdapter {
      * @param attributeMap  the hashmap of config file attributes for this channel
      * @param input         true if this is an input
      * @param emu           emu this channel belongs to
+     * @param queueItemType type of object to expect in queue item
      *
      * @throws DataTransportException if unable to create fifo buffer.
      */
     DataChannelImplFile(String name, DataTransportImplFile transport,
-                      Map<String, String> attributeMap, boolean input,
-                      Emu emu) throws DataTransportException {
+                        Map<String, String> attributeMap, boolean input, Emu emu,
+                        QueueItemType queueItemType)
+            throws DataTransportException {
 
         // constructor of super class
-        super(name, transport, attributeMap, input, emu);
+        super(name, transport, attributeMap, input, emu, queueItemType);
 
         // Set option whether or not to enforce evio block header
         // numbers to be sequential (throw an exception if not).
@@ -192,7 +197,14 @@ logger.info("      DataChannel File: try opening output file of " + fileName);
                 // Tell emu what that output name is for stat reporting
                 emu.setOutputDestination(fileName);
 
-                evioFileWriter = new EventWriter(fileName, false, byteOrder);
+                if (queueItemType == QueueItemType.PayloadBank) {
+                    evioFileWriter = new EventWriter(fileName, false, byteOrder);
+                }
+                else if (queueItemType == QueueItemType.PayloadBuffer) {
+//TODO: fix this
+//                    evioFileCompactWriter = new EvioCompactEventWriter(fileName, false, byteOrder);
+                }
+
                 DataOutputHelper helper = new DataOutputHelper();
                 dataThread = new Thread(emu.getThreadGroup(), helper, name() + " data out");
                 dataThread.start();
@@ -355,8 +367,19 @@ logger.info("      DataChannel File: try opening output file of " + fileName);
             }
         }
 
+
         /** {@inheritDoc} */
         public void run() {
+            if (queueItemType == QueueItemType.PayloadBank) {
+                runBanks();
+            }
+            else if  (queueItemType == QueueItemType.PayloadBuffer) {
+                runBuffers();
+            }
+        }
+
+
+        private void runBanks() {
 
             // I've started
             latch.countDown();
@@ -405,6 +428,8 @@ logger.warn("      DataChannel File (" + name + "): got event but NO PRESTART, g
                             evioFileWriter.close();
                         }
                         catch (Exception e) {
+
+
                             errorMsg.compareAndSet(null, "Cannot write to file");
                             throw e;
                         }
@@ -467,8 +492,118 @@ logger.warn("      DataChannel File (" + name + "): got event but NO PRESTART, g
             catch (Exception e) {}
         }
 
+
+        private void runBuffers() {
+
+            // I've started
+            latch.countDown();
+
+            QueueItem qItem;
+            PayloadBuffer buf;
+            int bankBytes;
+            long numBytesWritten = 0L;
+            boolean gotPrestart = false, gotEnd = false;
+
+            try {
+
+                while (!dataThread.isInterrupted()) {
+
+                    qItem = queue.take(); // will block
+                    buf = qItem.getBuffer();
+
+                    if (buf.getEventType() == EventType.CONTROL) {
+                        ControlType cType = buf.getControlType();
+                        if (cType == ControlType.END) {
+                            gotEnd = true;
+                            if (endCallback != null) endCallback.endWait();
+                            logger.info("      DataChannel File (" + name + "): got END, close file " + fileName);
+                        }
+                        else if (cType == ControlType.PRESTART) {
+                            gotPrestart = true;
+                            logger.info("      DataChannel File (" + name + "): got PRESTART");
+                        }
+                    }
+                    else {
+//logger.info("      DataChannel File (" + name + "): got bank of type " + bank.getEventType());
+                    }
+
+                    // Don't start writing to file until we get PRESTART
+                    if (!gotPrestart) {
+                        logger.warn("      DataChannel File (" + name + "): got event but NO PRESTART, get another off Q");
+                        continue;
+                    }
+
+                    bankBytes = buf.getTotalBytes();
+
+                    // If we're splitting the output file and writing the next bank
+                    // would put it over the split size limit ...
+                    if (split > 0L && (numBytesWritten + bankBytes > split)) {
+                        try {
+                            evioFileWriter.close();
+                        }
+                        catch (Exception e) {
+                            errorMsg.compareAndSet(null, "Cannot write to file");
+                            throw e;
+                        }
+
+                        numBytesWritten = 0L;
+                        fileName = String.format("%s%06d", outputFilePrefix, (++fileCount));
+                        if (directory != null) {
+                            fileName = directory + "/" + fileName;
+                        }
+//logger.info("      DataChannel File (" + name + "): split, new file = " + fileName);
+                        try {
+                            evioFileWriter = new EventWriter(fileName);
+                        }
+                        catch (EvioException e) {
+                            errorMsg.compareAndSet(null, "Cannot creat file " + fileName);
+                            throw e;
+                        }
+                    }
+
+//logger.info("      DataChannel File (" + name + "): try writing into file" + fileName);
+                    try {
+//TODO: fix this
+//                        evioFileWriter.writeEvent(buf);
+                    }
+                    catch (Exception e) {
+                        errorMsg.compareAndSet(null, "Cannot write to file");
+                        throw e;
+                    }
+
+                    numBytesWritten += bankBytes;
+
+                    if (gotEnd) {
+                        try {
+                            evioFileWriter.close();
+                        }
+                        catch (Exception e) {
+                            errorMsg.compareAndSet(null, "Cannot write to file");
+                            throw e;
+                        }
+                        return;
+                    }
+                }
+
+                logger.info("      DataChannel File (" + name + "): close file " + fileName);
+
+            }
+            catch (InterruptedException e) {
+                // time to quit
+            }
+            catch (Exception e) {
+//logger.warn("      DataChannel File (" + name + "): exit, " + e.getMessage());
+                // If we haven't yet set the cause of error, do so now & inform run control
+                errorMsg.compareAndSet(null, e.getMessage());
+
+                // set state
+                state = CODAState.ERROR;
+                emu.sendStatusMessage();
+            }
+
+            try { evioFileWriter.close(); }
+            catch (Exception e) {}
+        }
     }
-
-
 
 }

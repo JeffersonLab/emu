@@ -249,8 +249,8 @@ public class DataChannelImplCmsg extends DataChannelAdapter {
 ////                    byteOrder = ByteOrder.LITTLE_ENDIAN;
 ////                }
 ////
-////                buffer = ByteBuffer.wrap(data).order(byteOrder);
-//                buffer = ByteBuffer.wrap(data);
+////                buffer = PayloadBuffer.wrap(data).order(byteOrder);
+//                buffer = PayloadBuffer.wrap(data);
 //                parser = new EvioReader(buffer);
 //                EvioBank bank = parser.parseNextEvent();
 ////System.out.println("cmsg data channel ("+ name +"): got bank over cmsg, try putting into channel Q");
@@ -259,7 +259,7 @@ public class DataChannelImplCmsg extends DataChannelAdapter {
 //
 ////                System.out.println("\nReceiving msg:\n" + bank.toString());
 ////
-////                ByteBuffer bbuf = ByteBuffer.allocate(1000);
+////                PayloadBuffer bbuf = PayloadBuffer.allocate(1000);
 ////                bbuf.clear();
 ////                bank.write(bbuf);
 ////
@@ -300,7 +300,7 @@ public class DataChannelImplCmsg extends DataChannelAdapter {
 
     /**
      * Constructor to create a new DataChannelImplCmsg instance. Used only by
-     * {@link DataTransportImplCmsg#createChannel(String, Map, boolean, Emu)}
+     * {@link DataTransportImplCmsg#createChannel(String, Map, boolean, Emu, QueueItemType)}
      * which is only used during PRESTART in the EmuModuleFactory.
      *
      * @param name          the name of this channel
@@ -308,16 +308,17 @@ public class DataChannelImplCmsg extends DataChannelAdapter {
      * @param attributeMap  the hashmap of config file attributes for this channel
      * @param input         true if this is an input data channel, otherwise false
      * @param emu           emu this channel belongs to
+     * @param queueItemType type of object to expect in queue item
      *
      * @throws DataTransportException - unable to create buffers or socket.
      */
     DataChannelImplCmsg(String name, DataTransportImplCmsg transport,
-                        Map<String, String> attributeMap, boolean input,
-                        Emu emu)
-            throws DataTransportException {
+                      Map<String, String> attributeMap, boolean input, Emu emu,
+                      QueueItemType queueItemType)
+                throws DataTransportException {
 
         // constructor of super class
-        super(name, transport, attributeMap, input, emu);
+        super(name, transport, attributeMap, input, emu, queueItemType);
 
         dataTransportImplCmsg = transport;
 
