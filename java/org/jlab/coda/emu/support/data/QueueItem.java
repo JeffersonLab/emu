@@ -13,8 +13,6 @@ package org.jlab.coda.emu.support.data;
 
 import org.jlab.coda.jevio.EvioBank;
 
-import java.nio.ByteBuffer;
-
 /**
  * The class contains one of the multiple possible types of items
  * which may be passed to the EMU through its transport channels.
@@ -27,11 +25,11 @@ import java.nio.ByteBuffer;
  */
 public class QueueItem implements Cloneable {
 
-    /** If item is an EvioBank, store it here. */
-    private EvioBank bank;
+//    /** If item is an EvioBank, store it here. */
+//    private EvioBank bank;
 
-    /** If item is a ByteBuffer, store it here. */
-    private ByteBuffer  buffer;
+    /** If item is a PayloadBuffer, store it here. */
+    private PayloadBuffer payloadBuffer;
 
     /** If item is a PayloadBank, store it here. */
     private PayloadBank payloadBank;
@@ -42,26 +40,27 @@ public class QueueItem implements Cloneable {
     /** If control event contained, what type is it? */
     private ControlType controlType;
 
-    /**
-     * Constructor that stores an EvioBank object.
-     * @param bank EvioBank data object.
-     */
-    public QueueItem(EvioBank bank) {
-        this.bank = bank;
-        qItemType = QueueItemType.EvioBank;
-        if (Evio.isControlEvent(bank)) {
-            controlType = Evio.getControlType(bank);
-        }
-    }
+
+//    /**
+//     * Constructor that stores an EvioBank object.
+//     * @param bank EvioBank data object.
+//     */
+//    public QueueItem(EvioBank bank) {
+//        this.bank = bank;
+//        qItemType = QueueItemType.EvioBank;
+//        if (Evio.isControlEvent(bank)) {
+//            controlType = Evio.getControlType(bank);
+//        }
+//    }
 
     /**
-     * Constructor that stores a ByteBuffer with data in evio file format.
-     * @param buffer ByteBuffer with data in evio file format.
+     * Constructor that stores a PayloadBuffer with data in evio file format.
+     * @param payloadBuffer PayloadBuffer with data in evio file format.
      */
-    public QueueItem(ByteBuffer buffer) {
-        this.buffer = buffer;
-        qItemType = QueueItemType.ByteBuffer;
-        controlType = Evio.getControlType(buffer);
+    public QueueItem(PayloadBuffer payloadBuffer) {
+        this.payloadBuffer = payloadBuffer;
+        qItemType   = QueueItemType.PayloadBuffer;
+        controlType = Evio.getControlType(payloadBuffer.getBuffer());
     }
 
     /**
@@ -72,7 +71,7 @@ public class QueueItem implements Cloneable {
      */
     public QueueItem(PayloadBank payloadBank) {
         this.payloadBank = payloadBank;
-        qItemType = QueueItemType.PayloadBank;
+        qItemType   = QueueItemType.PayloadBank;
         controlType = payloadBank.getControlType();
     }
 
@@ -95,7 +94,7 @@ public class QueueItem implements Cloneable {
 
     /**
      * Get the type of data item stored in this object -
-     * either an EvioBank, PayloadBank, or ByteBuffer.
+     * either a PayloadBank, or PayloadBuffer.
      * @return type of data item stored in this object.
      */
     public QueueItemType getQueueItemType() {
@@ -119,20 +118,20 @@ public class QueueItem implements Cloneable {
         return controlType;
     }
 
-    /**
-     * Get the stored EvioBank object. If none, null is returned.
-     * @return stored EvioBank object. If none, null is returned.
-     */
-    public EvioBank getBank() {
-        return bank;
-    }
+//    /**
+//     * Get the stored EvioBank object. If none, null is returned.
+//     * @return stored EvioBank object. If none, null is returned.
+//     */
+//    public EvioBank getBank() {
+//        return bank;
+//    }
 
     /**
-     * Get the stored ByteBuffer object. If none, null is returned.
-     * @return stored ByteBuffer object. If none, null is returned.
+     * Get the stored PayloadBuffer object. If none, null is returned.
+     * @return stored PayloadBuffer object. If none, null is returned.
      */
-    public ByteBuffer getBuffer() {
-        return buffer;
+    public PayloadBuffer getBuffer() {
+        return payloadBuffer;
     }
 
     /**
@@ -143,32 +142,23 @@ public class QueueItem implements Cloneable {
         return payloadBank;
     }
 
-    /** Clones this object including any PayloadBank, EvioBank, or ByteBuffer contained. */
+    /** Clones this object including any PayloadBank or PayloadBuffer contained. */
     public Object clone() {
         try {
             // Creates a bit wise copy (including only
-            // references for bank, buffer, & payloadBank).
+            // references for payloadBuffer & payloadBank).
             QueueItem item = (QueueItem) super.clone();
 
             if (payloadBank != null)  {
                 item.payloadBank = (PayloadBank)payloadBank.clone();
             }
 
-            if (bank != null)  {
-                item.bank = (EvioBank)bank.clone();
-            }
+//            if (bank != null)  {
+//                item.bank = (EvioBank)bank.clone();
+//            }
 
-            if (buffer != null)  {
-                // allocate memory
-                item.buffer = ByteBuffer.allocate(buffer.capacity());
-                // store current position and limit
-                int pos = buffer.position();
-                int lim = buffer.limit();
-                // copy all data
-                buffer.limit(buffer.capacity()).position(0);
-                item.buffer.put(buffer);
-                // restore original values
-                buffer.limit(lim).position(pos);
+            if (payloadBuffer != null)  {
+                item.payloadBuffer = (PayloadBuffer)payloadBuffer.clone();
             }
 
             return item;
