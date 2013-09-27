@@ -9,7 +9,7 @@ import org.jlab.coda.jevio.*;
  * @author: timmer
  * Date: Jan 29, 2010
  */
-public class PayloadBank extends EvioEvent {
+public class PayloadBank extends EvioEvent implements Attached {
 
     private EventType eventType;
 
