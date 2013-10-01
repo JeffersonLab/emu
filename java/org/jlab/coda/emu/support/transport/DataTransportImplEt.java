@@ -26,6 +26,7 @@ import org.jlab.coda.emu.support.configurer.DataNotFoundException;
 import org.jlab.coda.emu.support.logger.Logger;
 
 import java.io.*;
+import java.util.ArrayList;
 import java.util.Map;
 import java.util.Collection;
 import java.util.Arrays;
@@ -44,6 +45,9 @@ public class DataTransportImplEt extends DataTransportAdapter {
 
     /** Did this object actually create the ET system? */
     private boolean createdET;
+
+    /** ET system this object created. */
+    private EtSystem etSystem;
 
     /** Configuration for opening the associated ET system. */
     private EtSystemOpenConfig openConfig;
@@ -420,19 +424,53 @@ public class DataTransportImplEt extends DataTransportAdapter {
     public void reset() {
         setConnected(false);
 
-        // kill any ET system this object started
-        if (processET != null && createdET) {
-logger.debug("    DataTransport Et: tell the ET system process to die - " + openConfig.getEtName());
+        // Kill any ET system this object started
+        if (createdET) {
+            killEtSystem();
+        }
+    }
+
+
+    /**
+     * Kill the ET system process and remove the file.
+     * @return {@code true} if ET killed, else {@code false}.
+     */
+    private boolean killEtSystem() {
+
+        logger.debug("    DataTransport Et: tell the ET system to die - " + openConfig.getEtName());
+
+        if (etSystem != null) {
+            try {
+                // Tell ET to die directly and remove file, if we're still attached.
+                etSystem.kill();
+                logger.debug("    DataTransport Et: ET is dead");
+                return true;
+            }
+            catch (IOException e) {
+            }
+            catch (EtClosedException e) {
+            }
+        }
+
+        boolean killedIt = false;
+
+        // If we couldn't command ET to die, try jvm method to kill ET process
+        if (processET != null) {
             processET.destroy();
+
             try {
                 processET.waitFor();
-logger.debug("    DataTransport Et: ET is dead");
+                logger.debug("    DataTransport Et: ET is dead");
+                killedIt = true;
             }
-            catch (InterruptedException e) { }
-            // remove the ET system file
-            File etFile = new File(openConfig.getEtName());
-            etFile.delete();
+            catch (InterruptedException e) {}
         }
+
+        // Remove the ET system file
+        File etFile = new File(openConfig.getEtName());
+        etFile.delete();
+
+        return killedIt;
     }
 
 
@@ -445,97 +483,88 @@ logger.debug("    DataTransport Et: ET is dead");
 
         createdET = false;
         boolean existingET = false;
-        boolean incompatibleET = false;
+        EtSystemOpenConfig etOpenConfig;
 
-        // Create the ET system if it does not exist and config file requests it.
+        // Here is where the ET system is created.
+        // If it does NOT exist, we create it now.
         //
-        // First check to see if there is an existing
-        // system by trying to open a connection to it.
-        // We don't want to wait for it here, so remove any wait.
-        EtSystem etSystem = null;
-        EtSystemOpenConfig openConfig = new EtSystemOpenConfig(getOpenConfig());
-        openConfig.setWaitTime(0);
+        // We need to be careful here! The power of CODA 3 is that EMUs can be
+        // started on any host and work just fine. It is possible that an identically
+        // named EMU was previously run on a different host and left an operating,
+        // identically named ET system as the one we're going to create. This can lead to
+        // problems for other CODA components that need to attach to it - they may
+        // find & attach to the wrong ET system. Therefore, after a configure transition,
+        // we will start by trying to multicast on the local subnet and open all ET
+        // systems with that name. Each will be opened and then killed.
+        // Of course, any identically named local ET will be killed along with the others.
+        // This way there are no legacy ET systems left to interfere.
+        //
+        // If a local ET system of interest does exist and the previous command was to download
+        // then leave it alone since that means this download method created it and
+        // we were not reconfigured in the meantime.
 
-        try {
-            etSystem = new EtSystem(openConfig);
-        }
-        catch (EtException e) {
-            errorMsg.compareAndSet(null, "self-contradictory ET system config");
-            state = CODAState.ERROR;
-            emu.sendStatusMessage();
-            logger.debug("    DataTransport Et execute DOWNLOAD: self-contradictory ET system config : " + name());
-            throw new CmdExecException("Self-contradictory ET system config", e);
-        }
 
-        try {
-            etSystem.open();
+        // If the previous command was DOWNLOAD (not CONFIGURE), any running ET system
+        // will be a valid one that this EMU started the last time this method was called.
+        // No need to recreate or open anything. Everything should still be fine.
+        if (emu.previousState() != CODAState.CONFIGURED) {
+//logger.debug("    DataTransport Et download(): previously downloaded, use existing ET");
             existingET = true;
-//System.out.println("  ET system " + openConfig.getEtName() + " already exists");
         }
-        catch (EtTooManyException e) {
-            errorMsg.compareAndSet(null, "multiple ET systems responding to open()");
-            state = CODAState.ERROR;
-            emu.sendStatusMessage();
-            logger.debug("    DataTransport Et execute DOWNLOAD: multiple ET systems responding to open() : " + name());
-            throw new CmdExecException("multiple ET systems responding to open()", e);
-        }
-        catch (Exception e) {
-            // There are reasons why opening an ET system fails besides not existing.
-            // An existing ET might have a different name or TCP port, or isn't local.
-            // A name conflict will spell doom for us later when we try to create it.
-        }
+        // If the previous command was CONFIGURE, there should be NO ET system(s) running.
+        // Kill any existing systems both on this host and elsewhere.
+        else {
+            // Check to see if there are any existing ET systems running
+            // on the local subnet by trying to open a connection to them.
+            // We don't want to wait for any system.
+            // We also want to connect as a remote user so no memory-mapping
+            // is needlessly taking place.
 
-        // If one exists, see if it's compatible
-        if (existingET) {
-            // If we're here, we've managed to open the ET system so we
-            // must have the name & TCP port right, and it is local.
+            try {
+                ArrayList<String> mAddrs = new ArrayList<String>();
+                mAddrs.add(EtConstants.multicastAddr);
 
-            // But is it compatible?
-            if (etSystem.getEventSize() != systemConfig.getEventSize() ||
-                    etSystem.getNumEvents() != systemConfig.getNumEvents())  {
-                incompatibleET = true;
+                // multicasting constructor
+                etOpenConfig = new EtSystemOpenConfig(openConfig.getEtName(),
+                        EtConstants.hostAnywhere, mAddrs,
+                        openConfig.getUdpPort(), 32);
+
+                etOpenConfig.setWaitTime(1000);
+                etOpenConfig.setConnectRemotely(true);
+                etSystem = new EtSystem(etOpenConfig);
+                etSystem.setDebug(EtConstants.debugInfo);
             }
-
-            if (!incompatibleET) {
-                // Compare event groups
-                try {
-                    int[] groupsReal = etSystem.getGroups();
-                    int[] groupsWant = systemConfig.getGroups();
-                    if (groupsReal.length != groupsWant.length) {
-                        incompatibleET = true;
-                    }
-                    if (!incompatibleET) {
-                        for (int i=0; i < groupsReal.length; i++) {
-                            if (groupsReal[i] != groupsWant[i]) {
-                                incompatibleET = true;
-                            }
-                        }
-                    }
-                }
-                catch (EtClosedException e) {
-                    // not happening
-                }
-                catch (IOException e) {
-                    // problems talking to the ET
-                    incompatibleET = true;
-                }
-            }
-
-            // done messing with existing ET
-            etSystem.close();
-
-            // error if incompatible ET system exists
-            if (incompatibleET) {
-                errorMsg.compareAndSet(null, "incompatible ET system exists");
+            catch (EtException e) {
+                errorMsg.compareAndSet(null, "self-contradictory ET system config");
                 state = CODAState.ERROR;
                 emu.sendStatusMessage();
-                logger.debug("    DataTransport Et execute DOWNLOAD: incompatible ET system exists : " + name());
-                throw new CmdExecException("incompatible ET system exists");
+                logger.debug("    DataTransport Et execute DOWNLOAD: self-contradictory ET system config : " + name());
+                throw new CmdExecException("Self-contradictory ET system config", e);
             }
+
+            try {
+                while (true) {
+                    etSystem.open();
+                    logger.debug("    DataTransport Et execute DOWNLOAD: kill existing ET system: " + name() +
+                            " on " + etSystem.getHost());
+                    killEtSystem();
+                }
+            }
+            catch (Exception e) {/* Not able to open ET so none are left running */}
+            etSystem = null;
+            existingET = false;
         }
-        // else try to create a new ET system
-        else {
-            String etCmd = "et_start -f " + openConfig.getEtName() +
+
+        // Create a new ET system
+        if (!existingET) {
+            // If we're here, no interfering ET systems are running.
+            // Now, after creating the ET, we want to connect in a different way,
+            // directly to a local system as a remote client (so no memory mapping).
+            etOpenConfig = new EtSystemOpenConfig(openConfig);
+            etOpenConfig.setWaitTime(2000);
+            etOpenConfig.setConnectRemotely(true);
+
+            String etCmd = "et_start -f " + etOpenConfig.getEtName() +
                     " -s " + systemConfig.getEventSize() +
                     " -n " + systemConfig.getNumEvents() +
                     " -g " + systemConfig.getGroups().length +
@@ -560,7 +589,7 @@ logger.debug("    DataTransport Et: ET is dead");
             }
 
             try {
-                logger.debug("    DataTransport Et: create ET system, " + openConfig.getEtName() + " with cmd \n" + etCmd);
+logger.debug("    DataTransport Et: create ET system, " + etOpenConfig.getEtName() + " with cmd \n" + etCmd);
                 processET = Runtime.getRuntime().exec(etCmd);
 
                 // Allow process a chance to run before testing if its terminated.
@@ -598,26 +627,28 @@ logger.debug("    DataTransport Et: ET is dead");
                 // So try for a few seconds to connect to it.
                 // If we can't, then there must have been an error trying
                 // to start it up (like another ET system using the same ports).
-                openConfig.setWaitTime(2000);
 //logger.debug("    DataTransport Et: try for 2 secs to connect to it with config = \n" +
 //                     openConfig.toString());
                 try {
-                    etSystem = new EtSystem(openConfig);
+                    etSystem = new EtSystem(etOpenConfig);
+                    etSystem.setDebug(EtConstants.debugInfo);
                     etSystem.open();
-                    try {etSystem.close();} catch (Exception e) {}
+                    // Leave the ET open so we can kill it after a reset/configure
                 }
                 catch (Exception e) {
-                    logger.debug("    DataTransport Et: created system " + openConfig.getEtName() + ", cannot connect");
+                    etSystem = null;
+                    logger.debug("    DataTransport Et: created system " + etOpenConfig.getEtName() + ", cannot connect");
                     errorMsg.compareAndSet(null, "created ET system but cannot connect");
                     state = CODAState.ERROR;
                     emu.sendStatusMessage();
-                    throw new CmdExecException("created ET, " + openConfig.getEtName() + ", but cannot connect");
+                    throw new CmdExecException("created ET, " + etOpenConfig.getEtName() + ", but cannot connect");
                 }
 
                 createdET = true;
             }
             catch (IOException e) {
                 e.printStackTrace();
+                etSystem = null;
                 errorMsg.compareAndSet(null, "cannot run ET system");
                 state = CODAState.ERROR;
                 emu.sendStatusMessage();
