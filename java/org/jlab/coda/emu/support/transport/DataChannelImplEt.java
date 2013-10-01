@@ -1509,8 +1509,8 @@ System.out.println("      DataChannel Et out helper: " + name + " some thd got E
                                 }
 
                                 // Look for END event and mark it in attachment
-                                //if (Evio.isEndEvent(pBank)) {
-  // TODO: make sure this is OK
+//if (Evio.isEndEvent(pBank)) {
+// TODO: make sure this is OK
                                 if (pBankControlType == ControlType.END) {
                                     pBank.setAttachment(Boolean.TRUE);
                                     haveOutputEndEvent = true;
@@ -1942,8 +1942,8 @@ System.out.println("      DataChannel Et out helper: " + name + " some thd got E
                                 }
 
                                 // Look for END event and mark it in attachment
-                                //if (Evio.isEndEvent(pBuffer)) {
-  // TODO: make sure this is OK
+//if (Evio.isEndEvent(pBuffer)) {
+// TODO: make sure this is OK
                                 if (pBufferControlType == ControlType.END) {
                                         pBuffer.setAttachment(Boolean.TRUE);
                                     haveOutputEndEvent = true;
