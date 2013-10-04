@@ -100,13 +100,8 @@ System.out.println("usage: java EMUCommander -Dname=\"my name\"");
                 // Check to see if config file given on command line
                 String configFile = System.getProperty("config");
                 if (configFile == null) {
-                    // Must define the INSTALL_DIR env var in order to find config files
-                    String installDir = System.getenv("INSTALL_DIR");
-                    if (installDir == null) {
-System.out.println("Check that INSTALL_DIR is set or give -Dconfig=xxx option on cmd line");
-                        System.exit(-1);
-                    }
-                    configFile = installDir + File.separator + "conf" + File.separator + emuName + ".xml";
+System.out.println("Put -Dconfig=xxx option on cmd line for local config file");
+                    System.exit(-1);
                 }
 
                 try {
