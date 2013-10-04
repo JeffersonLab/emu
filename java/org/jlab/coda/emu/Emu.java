@@ -317,7 +317,9 @@ public class Emu implements CODAComponent {
             // Check to see if LOCAL (static) config file given on command line
             String localConfigFile = System.getProperty("lconfig");
 
-            localConfig = Configurer.parseFile(localConfigFile);
+            if (localConfigFile != null) {
+                localConfig = Configurer.parseFile(localConfigFile);
+            }
         } catch (DataNotFoundException e) {
 //            logger.warn("CODAComponent - " + localConfigFile + " not found");
         }
