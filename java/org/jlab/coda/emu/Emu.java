@@ -312,20 +312,11 @@ public class Emu implements CODAComponent {
         statusReportingThread = new StatusReportingThread();
         (new Thread(threadGroup, statusReportingThread, "Statistics reporting")).start();
 
-        // Check to see if LOCAL (static) config file given on command line
-        String localConfigFile = System.getProperty("lconfig");
-        if (localConfigFile == null) {
-            // Must define the INSTALL_DIR env var in order to find config files
-            String installDir = System.getenv("INSTALL_DIR");
-            if (installDir == null) {
-                logger.error("CODAComponent exit - INSTALL_DIR is not set");
-                System.exit(-1);
-            }
-            localConfigFile = installDir + File.separator + "emu/conf" + File.separator + "local.xml";
-        }
-
         // Parse LOCAL XML-format config file and store
         try {
+            // Check to see if LOCAL (static) config file given on command line
+            String localConfigFile = System.getProperty("lconfig");
+
             localConfig = Configurer.parseFile(localConfigFile);
         } catch (DataNotFoundException e) {
 //            logger.warn("CODAComponent - " + localConfigFile + " not found");
@@ -333,6 +324,10 @@ public class Emu implements CODAComponent {
 
         // Put LOCAL config info into GUI
         if (debugGUI != null) {
+            if (localConfig == null) {
+                System.out.println("Give -Dlconfig=xxx option on cmd line for local config file");
+                System.exit(-1);
+            }
             debugGUI.addDocument(localConfig);
             debugGUI.generateInputPanel();
         }
