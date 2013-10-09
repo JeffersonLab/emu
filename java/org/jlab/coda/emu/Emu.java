@@ -236,6 +236,12 @@ public class Emu implements CODAComponent {
      */
     private Document localConfig;
 
+    /** Instead of loading a local config from a file, just use this string as it's static. */
+    private String localConfigXML =
+    "<?xml version=\"1.0\"?>\n" +
+    "<status state=\"\" eventCount=\"0\" wordCount=\"0\" run_number=\"0\" run_type=\"unknown\" " +
+            "run_start_time=\"unknown\" run_end_time=\"unknown\"/>";
+
     /** If true, there was an error the last time the configure command was processed. */
     private boolean lastConfigHadError;
 
@@ -312,32 +318,15 @@ public class Emu implements CODAComponent {
         statusReportingThread = new StatusReportingThread();
         (new Thread(threadGroup, statusReportingThread, "Statistics reporting")).start();
 
-        // Parse LOCAL XML-format config file and store
-        try {
-            // Check to see if LOCAL (static) config file given on command line
-            String localConfigFile = System.getProperty("lconfig");
-
-            if (localConfigFile != null) {
-                localConfig = Configurer.parseFile(localConfigFile);
-            }
-        } catch (DataNotFoundException e) {
-//            logger.warn("CODAComponent - " + localConfigFile + " not found");
-        }
-
         // Put LOCAL config info into GUI
         if (debugGUI != null) {
-            if (localConfig == null) {
-                System.out.println("Give -Dlconfig=xxx option on cmd line for local config file");
-                System.exit(-1);
+            // Parse XML-format config string
+            try {
+                localConfig = Configurer.parseString(localConfigXML);
             }
+            catch (DataNotFoundException e) {/* Never happen */}
             debugGUI.addDocument(localConfig);
             debugGUI.generateInputPanel();
-        }
-        else if (localConfig != null) {
-            Node node = localConfig.getFirstChild();
-            // Puts node & children (actually their associated DataNodes) into GUI
-            // and returns DataNode associated with node.
-            Configurer.treeToPanel(node,0);
         }
 
         // Need the following info for this object's getter methods
