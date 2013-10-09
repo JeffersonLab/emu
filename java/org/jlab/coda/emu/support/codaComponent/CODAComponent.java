@@ -93,10 +93,16 @@ public interface CODAComponent extends Runnable, CommandAcceptor {
     public int getRunNumber();
 
     /**
-     * Get the numeric code representing the runType of this CODA component.
-     * @return the numeric code representing the runType of this CODA component
+     * Get the numeric code representing the run type of this CODA component.
+     * @return the numeric code representing the run type of this CODA component.
      */
-    public int getRunType();
+    public int getRunTypeId();
+
+    /**
+     * Get the runType of this CODA component.
+     * @return the runType of this CODA component
+     */
+    public String getRunType();
 
     /**
      * Get the UDL used to connect to the cMsg server by this CODA component.
@@ -111,10 +117,16 @@ public interface CODAComponent extends Runnable, CommandAcceptor {
     public void setRunNumber(int runNumber);
 
     /**
+     * Set the numeric code representing the run type of this CODA component.
+     * @param runTypeId the numeric code representing the runType of this CODA component
+     */
+    public void setRunTypeId(int runTypeId);
+
+    /**
      * Set the runType of this CODA component.
      * @param runType the runType of this CODA component
      */
-    public void setRunType(int runType);
+    public void setRunType(String runType);
 
     /**
      * Set the id of this CODA component.
