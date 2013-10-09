@@ -840,7 +840,7 @@ System.out.println("      DataChannel Et in helper: " + name + " got RESET cmd, 
 
                         payloadBanks.clear();
 
-//logger.info("      DataChannel Et in helper: " + name + " block header, data type " + type +
+//logger.info("      DataChannel Et in helper: " + name + " block header, event type " + eventType +
 //            ", src id = " + sourceId + ", recd id = " + recordId);
 
                         try {
@@ -903,6 +903,11 @@ System.out.println("      DataChannel Et in helper: " + name + " got RESET cmd, 
                     }
 
                     // Put all events back in ET system - even those unused.
+                    // We should be OK since only the PRESTART event can follow
+                    // the END event. And we'll only get a prestart after we
+                    // put the ET events back, shut down this thread, and report
+                    // back to RC that we're ended.
+
                     // Do some work to get accurate error msgs back to run control.
 //System.out.println("      DataChannel Et in helper: 4 " + name + " putEvents() ...");
                     try {
@@ -962,7 +967,6 @@ System.out.println("      DataChannel Et in helper: " + name + " got RESET cmd, 
                 ControlType controlType;
 
                 ByteBuffer buf;
-                EvioReader reader;
                 EvioCompactReader compactReader;
 
                 while ( etSystem.alive() ) {
@@ -1033,16 +1037,12 @@ System.out.println("      DataChannel Et in helper: " + name + " got RESET cmd, 
                     for (EtEvent ev : events) {
                         buf = ev.getDataBuffer();
                         try {
-                            reader = new EvioReader(buf);
                             compactReader = new EvioCompactReader(buf);
                         }
-                        catch (IOException e) {
+                        catch (EvioException e) {
                             errorMsg.compareAndSet(null, "ET data is NOT evio v4 format");
                             throw e;
                         }
-
-                        // Speed things up since no EvioListeners are used - doesn't do much
-                        reader.getParser().setNotificationActive(false);
 
                         // First block header in ET buffer
                         header4 = compactReader.getFirstBlockHeader();
@@ -1056,25 +1056,6 @@ System.out.println("      DataChannel Et in helper: " + name + " got RESET cmd, 
                         controlType = null;
 // TODO: this only works from ROC !!!
                         sourceId    = header4.getReserved1();
-
-                        // The recordId associated with each bank is taken from the first
-                        // evio block header in a single ET data buffer. For a physics or
-                        // ROC raw type, it should start at zero and increase by one in the
-                        // first evio block header of the next ET data buffer.
-                        // There may be multiple banks from the same ET buffer and
-                        // they will all have the same recordId.
-                        //
-                        // Thus, only the first block header # is significant. It is set sequentially
-                        // by the evWriter object & incremented once per ET event with physics
-                        // or ROC data (set to -1 for other data types). Copy it into each bank.
-                        // Even though many banks will have the same number, it should only
-                        // increment by one. This should work just fine as all evio events in
-                        // a single ET event should always be there (not possible to skip any)
-                        // since it is transferred all together.
-                        //
-                        // When the QFiller thread of the event builder gets a physics or ROC
-                        // evio event, it checks to make sure this number is in sequence and
-                        // prints a warning if it isn't.
                         recordId = header4.getNumber();
 
                         payloadBuffers.clear();
@@ -1082,7 +1063,7 @@ System.out.println("      DataChannel Et in helper: " + name + " got RESET cmd, 
                         int eventCount = compactReader.getEventCount();
                         EvioNode node;
 
-//logger.info("      DataChannel Et in helper: " + name + " block header, data type " + type +
+//logger.info("      DataChannel Et in helper: " + name + " block header, event type " + eventType +
 //            ", src id = " + sourceId + ", recd id = " + recordId);
 
                         for (int i=0; i < eventCount; i++) {
@@ -1108,7 +1089,7 @@ System.out.println("      DataChannel Et in helper: " + name + " got RESET cmd, 
                                 }
                             }
 
-                            // Not a real copy, just points to stuff in buf
+                            // Not a real copy, just points to stuff in buff
                             payloadBuffer = new PayloadBuffer(compactReader.getEventBuffer(i));
                             // Add vital info from block header.
                             payloadBuffer.setEventType(bankType);
@@ -1322,7 +1303,12 @@ System.out.println("      DataChannel Et out helper: wake up attachment #" + att
         /** {@inheritDoc} */
         @Override
         public void run() {
-            runBanks();
+            if (queueItemType == QueueItemType.PayloadBank) {
+                runBanks();
+            }
+            else if  (queueItemType == QueueItemType.PayloadBuffer) {
+                runBuffers();
+            }
         }
 
 
@@ -1754,9 +1740,6 @@ logger.warn("      DataChannel Et out helper : exit thd: " + e.getMessage());
             }
 
         }
-
-
-
 
 
         public void runBuffers() {
@@ -2191,10 +2174,6 @@ System.out.println("      DataChannel Et out helper: " + name + " got RESET cmd,
 
 
 
-
-
-
-
         /**
          * This class is designed to write an evio bank's
          * contents into an ET buffer by way of a thread pool.
@@ -2216,8 +2195,6 @@ System.out.println("      DataChannel Et out helper: " + name + " got RESET cmd,
             /** Object for writing banks into ET data buffer. */
             private EventWriter evWriter;
 
-            /** Object for writing bank buffers into ET data buffer. */
-            private EvioCompactEventWriter evCompactWriter;
 
             /**
              * Encode the event type into the bit info word
@@ -2299,8 +2276,8 @@ System.out.println("      DataChannel Et out helper: " + name + " got RESET cmd,
                     setEventType(bitInfo, bankList.getFirst().getEventType().getValue());
 
                     // Create object to write evio banks into ET buffer
-                    evCompactWriter = new EvioCompactEventWriter(etBuffer, 550000, 200, null);
-                    evCompactWriter.setStartingBlockNumber(myRecordId);
+                    evWriter = new EventWriter(etBuffer, 550000, 200, null, null);
+                    evWriter.setStartingBlockNumber(myRecordId);
                 }
                 catch (EvioException e) {/* never happen */}
             }
@@ -2320,7 +2297,7 @@ System.out.println("      DataChannel Et out helper: " + name + " got RESET cmd,
                     }
                     else {
                         for (PayloadBuffer pBuf : bufferList) {
-                            evCompactWriter.writeEvent(pBuf.getBuffer());
+                            evWriter.writeEvent(pBuf.getBuffer());
                         }
                     }
 
