@@ -163,7 +163,7 @@ public class EventBuilding extends CODAStateMachineAdapter implements EmuModule 
     private int runNumber;
 
     /** The number of the experimental run's configuration. */
-    private int runType;
+    private int runTypeId;
 
     /** The number of the event to be assigned to that which is built next. */
     private long eventNumber;
@@ -1061,7 +1061,7 @@ if (debug && nonFatalError) System.out.println("\nERROR 1\n");
                     // If we have all control events ...
                     if (haveControlEvents) {
                         // Throw exception if inconsistent
-                        Evio.gotConsistentControlEvents(buildingBanks, runNumber, runType);
+                        Evio.gotConsistentControlEvents(buildingBanks, runNumber, runTypeId);
 
 if (true) System.out.println("Have consistent CONTROL event(s)");
 
@@ -1070,7 +1070,7 @@ if (true) System.out.println("Have consistent CONTROL event(s)");
                             // Take one of the control events and update
                             // it with the latest event builder data.
                             Evio.updateControlEvent(buildingBanks[0], runNumber,
-                                                    runType, (int)eventCountTotal,
+                                                    runTypeId, (int)eventCountTotal,
                                                     (int)(eventNumber - eventNumberAtLastSync));
 
                             // We must copy the newly-updated control event
@@ -1136,7 +1136,7 @@ if (debug && havePhysicsEvents)
                         // Combine the trigger banks of input events into one (same if single event mode)
 if (debug) System.out.println("BuildingThread: create trig bank from built banks, sparsify = " + sparsify);
                         nonFatalError |= Evio.makeTriggerBankFromPhysics(buildingBanks, builder, ebId,
-                                                                    runNumber, runType, includeRunData,
+                                                                    runNumber, runTypeId, includeRunData,
                                                                     eventsInSEM, sparsify,
                                                                     checkTimestamps, timestampSlop);
                     }
@@ -1148,7 +1148,7 @@ if (debug) System.out.println("BuildingThread: create trig bank from built banks
 //if (debug) System.out.println("BuildingThread: create trigger bank in SEM");
                             nonFatalError |= Evio.makeTriggerBankFromSemRocRaw(buildingBanks, builder,
                                                                                ebId, firstEventNumber,
-                                                                               runNumber, runType,
+                                                                               runNumber, runTypeId,
                                                                                includeRunData,
                                                                                checkTimestamps,
                                                                                timestampSlop);
@@ -1158,7 +1158,7 @@ if (debug) System.out.println("BuildingThread: create trig bank from built banks
 if (debug) System.out.println("BuildingThread: create trigger bank from Rocs, sparsify = " + sparsify);
                             nonFatalError |= Evio.makeTriggerBankFromRocRaw(buildingBanks, builder,
                                                                             ebId, firstEventNumber,
-                                                                            runNumber, runType,
+                                                                            runNumber, runTypeId,
                                                                             includeRunData, sparsify,
                                                                             checkTimestamps,
                                                                             timestampSlop);
@@ -1521,7 +1521,7 @@ if (debug) System.out.println("Building thread is ending !!!");
         // Reset some variables
         eventRate = wordRate = 0F;
         eventCountTotal = wordCountTotal = 0L;
-        runType = emu.getRunType();
+        runTypeId = emu.getRunTypeId();
         runNumber = emu.getRunNumber();
         ebRecordId = 0;
         eventNumber = 1L;
