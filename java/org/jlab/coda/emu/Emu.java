@@ -68,6 +68,9 @@ public class Emu implements CODAComponent {
     /** The name of the current DAQ session. */
     private String session;
 
+    /** The name of the current DAQ run type. */
+    private String runType;
+
     /** The name of the host this Emu is running on. */
     private String hostName;
 
@@ -90,7 +93,7 @@ public class Emu implements CODAComponent {
     private volatile int runNumber;
 
     /** The numeric code representing the run type. */
-    private volatile int runType;
+    private volatile int runTypeId;
 
     /**
      * The Emu can display a window containing debug information, a message log
@@ -463,7 +466,10 @@ public class Emu implements CODAComponent {
     public int getRunNumber() {return runNumber;}
 
     /** {@inheritDoc} */
-    public int getRunType() {return runType;}
+    public int getRunTypeId() {return runTypeId;}
+
+    /** {@inheritDoc} */
+    public String getRunType() {return runType;}
 
     /** {@inheritDoc} */
     public String getCmsgUDL() {return cmsgUDL;}
@@ -482,9 +488,15 @@ public class Emu implements CODAComponent {
 
     /**
      * {@inheritDoc}
-     * @see CODAComponent#setRunType(int)
+     * @see CODAComponent#setRunTypeId(int)
      */
-    public void setRunType(int runType) {this.runType = runType;}
+    public void setRunTypeId(int runTypeId) {this.runTypeId = runTypeId;}
+
+    /**
+     * {@inheritDoc}
+     * @see CODAComponent#setRunType(String)
+     */
+    public void setRunType(String runType) {this.runType = runType;}
 
     /**
      * Get the CODAClass of this emu.
@@ -1011,6 +1023,19 @@ System.out.println("SET Session to " + txt);
             }
             return;
         }
+        // Run Control tells us our session
+        else if (codaCommand == SET_RUN_TYPE) {
+            // Get the new run type and store it
+            String txt = cmd.getMessage().getText();
+            if (txt != null) {
+System.out.println("SET Run type to " + txt);
+                setRunType(txt);
+            }
+            else {
+                System.out.println("Got SET_RUN_TYPE command but no run type specified");
+            }
+            return;
+        }
         // Send back our state
         else if (codaCommand == GET_STATE) {
             if ( (cmsgPortal.getServer() != null) &&
@@ -1107,7 +1132,7 @@ System.out.println("SET Session to " + txt);
                 try {
                     pItem = cmd.getArg(RCConstants.prestartPayloadRunType);
                     if (pItem != null) {
-                        setRunType(pItem.getInt());
+                        setRunTypeId(pItem.getInt());
                     }
                 }
                 catch (cMsgException e) { }
