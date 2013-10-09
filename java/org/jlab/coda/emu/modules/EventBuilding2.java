@@ -175,7 +175,7 @@ public class EventBuilding2 extends CODAStateMachineAdapter implements EmuModule
     private boolean includeRunData;
 
     /** The number of the experimental run's configuration. */
-    private int runType;
+    private int runTypeId;
 
     /** The number of the experimental run. */
     private int runNumber;
@@ -949,7 +949,7 @@ if (debug && nonFatalError) System.out.println("\nERROR 2\n");
                         // Combine the trigger banks of input events into one (same if single event mode)
 //if (debug) System.out.println("BuildingThread: create trigger bank from built banks");
                         nonFatalError |= Evio.makeTriggerBankFromPhysics(storage.buildingBanks, builder, ebId,
-                                                                runNumber, runType, includeRunData,
+                                                                runNumber, runTypeId, includeRunData,
                                                                 eventsInSEM, false,
                                                                 checkTimestamps, timestampSlop);
                     }
@@ -961,7 +961,7 @@ if (debug && nonFatalError) System.out.println("\nERROR 2\n");
 //if (debug) System.out.println("BuildingThread: create trigger bank in SEM");
                             nonFatalError |= Evio.makeTriggerBankFromSemRocRaw(storage.buildingBanks, builder,
                                                                                ebId, storage.firstEventNumber,
-                                                                               runNumber, runType,
+                                                                               runNumber, runTypeId,
                                                                                includeRunData,
                                                                                checkTimestamps,
                                                                                timestampSlop);
@@ -971,7 +971,7 @@ if (debug && nonFatalError) System.out.println("\nERROR 2\n");
 //if (debug) System.out.println("BuildingThread: create trigger bank");
                             nonFatalError |= Evio.makeTriggerBankFromRocRaw(storage.buildingBanks, builder,
                                                                             ebId, storage.firstEventNumber,
-                                                                            runNumber, runType,
+                                                                            runNumber, runTypeId,
                                                                             includeRunData, false,
                                                                             checkTimestamps,
                                                                             timestampSlop);
@@ -1415,7 +1415,7 @@ if (debug) System.out.println("gotValidControlEvents: found control event of typ
         // Reset some variables
         eventRate = wordRate = 0F;
         eventCountTotal = wordCountTotal = 0L;
-        runType = emu.getRunType();
+        runTypeId = emu.getRunTypeId();
         runNumber = emu.getRunNumber();
         ebRecordId = 0;
         eventNumber = 1L;

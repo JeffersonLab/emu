@@ -799,7 +799,7 @@ System.out.println("event rate = " + String.format("%.3g", ((eventNumber-oldVal)
         try {
 //System.out.println("          RocSim: Putting in PRESTART control event");
             EvioEvent controlEvent = Evio.createControlEvent(ControlType.PRESTART, emu.getRunNumber(),
-                                                             emu.getRunType(), 0, 0);
+                                                             emu.getRunTypeId(), 0, 0);
             PayloadBank bank = new PayloadBank(controlEvent);
             bank.setEventType(EventType.CONTROL);
             bank.setControlType(ControlType.PRESTART);
