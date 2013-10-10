@@ -14,7 +14,7 @@ package org.jlab.coda.emu.support.data;
 import java.util.HashMap;
 
 /**
- * This enum specifies values associated with evio event types used in CODA online components.
+ * This enum specifies values associated with CODA event types used in CODA online components.
  * @author timmer
  */
 public enum EventType {
@@ -25,12 +25,6 @@ public enum EventType {
     DISENTANGLED_PHYSICS (3),
     USER                 (4),
     CONTROL              (5),
-    // Control Event Types: prestart, go, pause or end
-//    PRESTART             (6),
-//    GO                   (7),
-//    PAUSE                (8),
-//    END                  (9),
-//    SYNC                (10),
     OTHER               (15);
 
     private int value;
@@ -92,51 +86,8 @@ public enum EventType {
      */
     public boolean isControl() {
         return (this == CONTROL);
-//        return (this == PRESTART || this == GO  ||
-//                this == PAUSE    || this == END ||
-//                this == SYNC     || this == CONTROL);
     }
 
-//    /**
-//     * Is this a prestart control event type?
-//     * @return <code>true</code> if prestart control event type, else <code>false</code>
-//     */
-//    public boolean isPrestart() {
-//        return this == PRESTART;
-//    }
-//
-//    /**
-//     * Is this a go control event type?
-//     * @return <code>true</code> if go control event type, else <code>false</code>
-//     */
-//    public boolean isGo() {
-//        return this == GO;
-//    }
-//
-//    /**
-//     * Is this a pause control event type?
-//     * @return <code>true</code> if pause control event type, else <code>false</code>
-//     */
-//    public boolean isPause() {
-//        return this == PAUSE;
-//    }
-//
-//    /**
-//     * Is this an end control event type?
-//     * @return <code>true</code> if end control event type, else <code>false</code>
-//     */
-//    public boolean isEnd() {
-//        return this == END;
-//    }
-//
-//    /**
-//     * Is this an sync control event type?
-//     * @return <code>true</code> if sync control event type, else <code>false</code>
-//     */
-//    public boolean isSync() {
-//        return this == SYNC;
-//    }
-//
     /**
      * Is this a data event type?
      * @return <code>true</code> if data event type, else <code>false</code>
