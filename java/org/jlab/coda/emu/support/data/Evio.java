@@ -838,6 +838,14 @@ System.out.println("checkPayloadBank: bank source Id (" + sourceId + ") != bank'
 
             // Check that there are the same # of events are contained in each payload bank
             if (numEvents != buildingBanks[i].getHeader().getNumber()) {
+                System.out.println("Differing # of events sent by each ROC:\n");
+                System.out.println("numEvents       name      codaID");
+                for (int j=0; j < buildingBanks.length; i++) {
+                    System.out.println("   " +
+                                       buildingBanks[i].getHeader().getNumber() + "        " +
+                                       buildingBanks[i].getSourceName() + "        " +
+                                       buildingBanks[i].getSourceId());
+                }
                 throw new EmuException("differing # of events sent by each ROC");
             }
         }
