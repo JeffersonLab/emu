@@ -816,6 +816,8 @@ System.out.println("      DataChannel Et in helper: " + name + " got RESET cmd, 
                         header4     = (BlockHeaderV4)blockHeader;
                         eventType   = EventType.getEventType(header4.getEventType());
                         controlType = null;
+
+                        // If ROC raw type, this is the source's CODA id
                         sourceId    = header4.getReserved1();
 
                         // The recordId associated with each bank is taken from the first
@@ -872,6 +874,7 @@ System.out.println("      DataChannel Et in helper: " + name + " got RESET cmd, 
                                 payloadBank.setControlType(controlType);
                                 payloadBank.setRecordId(recordId);
                                 payloadBank.setSourceId(sourceId);
+                                payloadBank.setSourceName(name);
 
                                 // add bank to list for later writing
                                 payloadBanks.add(payloadBank);
@@ -1096,6 +1099,7 @@ System.out.println("      DataChannel Et in helper: " + name + " got RESET cmd, 
                             payloadBuffer.setControlType(controlType);
                             payloadBuffer.setRecordId(recordId);
                             payloadBuffer.setSourceId(sourceId);
+                            payloadBuffer.setSourceName(name);
 
                             // add buffer to list for later writing
                             payloadBuffers.add(payloadBuffer);
