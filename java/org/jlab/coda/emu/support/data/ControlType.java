@@ -14,7 +14,7 @@ package org.jlab.coda.emu.support.data;
 import java.util.HashMap;
 
 /**
- * This enum specifies tag values associated with evio
+ * This enum specifies tag values associated with CODA
  * control types used in CODA online components.
  * @author timmer
  */
