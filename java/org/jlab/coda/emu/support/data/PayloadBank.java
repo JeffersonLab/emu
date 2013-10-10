@@ -4,26 +4,37 @@ import org.jlab.coda.jevio.*;
 
 
 /**
- * Convenience class designed to keep extra data associated with ROC raw bank.
+ * Convenience class designed to keep extra data associated with an evio event.
  *
  * @author: timmer
  * Date: Jan 29, 2010
  */
 public class PayloadBank extends EvioEvent implements Attached {
 
+    /** What type of CODA events are contained in this bank (RocRaw, Physics, Control, ...)?
+     *  Only one type is stored in one PayloadBank object.
+     *  Only one control event is stored in one PayloadBank object. */
     private EventType eventType;
 
+    /** If this is a control event, what type of control is it (SYNC, GO, END, ...)? */
     private ControlType controlType;
 
+    /** If the event type is RocRaw, this is the CODA id of the source. */
     private int sourceId;
 
+    /** The name of the source of these CODA events. */
+    private String sourceName;
+
+    /** If the event type is RocRaw or Physics, this is the record id of this CODA events.
+     *  The record id is incremented by one for each ET event. Many CODA events (triggers)
+     *  may have the same record id. */
     private int recordId;
 
+    /** The number of CODA events (triggers) contained in this evio bank. */
     private int eventCount;
 
+    /** The event number of the first CODA event in this evio bank. */
     private long firstEventNumber;
-
-    private int dataBlockCount;
 
     /** Is sync bank? from ROC raw data record 4-bit status. */
     private boolean isSync;
@@ -41,10 +52,15 @@ public class PayloadBank extends EvioEvent implements Attached {
     private boolean nonFatalBuildingError;
 
 
+    /** Constructor. */
     public PayloadBank() {
         super();
     }
 
+    /**
+     * Copy constructor which copies references and doesn't clone.
+     * @param bank bank to copy
+     */
     public PayloadBank(BaseStructure bank) {
         // copy over all basic, essential components of a bank
         header    = bank.getHeader();
@@ -97,6 +113,14 @@ public class PayloadBank extends EvioEvent implements Attached {
         this.recordId = recordId;
     }
 
+    public String getSourceName() {
+        return sourceName;
+    }
+
+    public void setSourceName(String sourceName) {
+        this.sourceName = sourceName;
+    }
+
     public int getEventCount() {
         return eventCount;
     }
@@ -111,14 +135,6 @@ public class PayloadBank extends EvioEvent implements Attached {
 
     public void setFirstEventNumber(long firstEventNumber) {
         this.firstEventNumber = firstEventNumber;
-    }
-
-    public int getDataBlockCount() {
-        return dataBlockCount;
-    }
-
-    public void setDataBlockCount(int dataBlockCount) {
-        this.dataBlockCount = dataBlockCount;
     }
 
     public boolean isSync() {
