@@ -30,15 +30,25 @@ public class PayloadBuffer implements Cloneable, Attached {
     /** Associated object. */
     private Object attachment;
 
-    private ControlType controlType;
-
+    /** What type of CODA events are contained in this bank (RocRaw, Physics, Control, ...)?
+     *  Only one type is stored in one PayloadBank object.
+     *  Only one control event is stored in one PayloadBank object. */
     private EventType eventType;
 
+    /** If this is a control event, what type of control is it (SYNC, GO, END, ...)? */
+    private ControlType controlType;
+
+    /** If the event type is RocRaw, this is the CODA id of the source. */
     private int sourceId;
 
+    /** The name of the source of these CODA events. */
+    private String sourceName;
+
+    /** If the event type is RocRaw or Physics, this is the record id of this CODA events.
+     *  The record id is incremented by one for each ET event. Many CODA events (triggers)
+     *  may have the same record id. */
     private int recordId;
 
-    private int headerLength;
 
     /**
      * Constructor that sets attachment to null.
@@ -141,9 +151,14 @@ public class PayloadBuffer implements Cloneable, Attached {
         this.recordId = recordId;
     }
 
-    public int getHeaderLength() {
-        return headerLength;
+    public String getSourceName() {
+        return sourceName;
     }
+
+    public void setSourceName(String sourceName) {
+        this.sourceName = sourceName;
+    }
+
 
     /** Clones this object setting the attachment to null. */
     public Object clone() {
