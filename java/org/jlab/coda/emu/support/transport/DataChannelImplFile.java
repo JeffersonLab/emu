@@ -19,6 +19,7 @@ import org.jlab.coda.jevio.*;
 import java.io.DataInputStream;
 import java.io.File;
 import java.io.FileInputStream;
+import java.io.IOException;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 
@@ -58,6 +59,24 @@ public class DataChannelImplFile extends DataChannelAdapter {
     /** Object to write evio file. */
     private EventWriter evioFileWriter;
 
+    //----------------------------------------
+    // Input file parameters
+    //----------------------------------------
+
+    /** First evio block header read from a version 4 file. */
+    private BlockHeaderV4 firstBlockHeader;
+
+    /** EventType taken from first block header of file. */
+    private EventType eventType;
+
+    /** Source CODA id taken from first block header of file. */
+    private int sourceId;
+
+    /** Record id taken from first block header of file. */
+    private int recordId;
+
+    /** Number of evio events (banks) in file. */
+    private int eventCount;
 
 
     /**
@@ -175,12 +194,34 @@ logger.info("      DataChannel File: try opening input file of " + fileName);
 
                 if (queueItemType == QueueItemType.PayloadBank) {
                     evioFileReader = new EvioReader(fileName, blockNumberChecking);
+
+                    // Only deal with evio version 4 files for simplicity
+                    if (evioFileReader.getEvioVersion() < 4) {
+                        throw new IOException("Evio version " +
+                                evioFileReader.getEvioVersion() + " files not supported");
+                    }
+
                     // Speed things up since no EvioListeners are used - doesn't do much
                     evioFileReader.getParser().setNotificationActive(false);
+
+                    // Get the first block header
+                    firstBlockHeader = evioFileReader.getFirstBlockHeader();
                 }
                 else if  (queueItemType == QueueItemType.PayloadBuffer) {
+                    // This will throw an exception if evio version < 4
                     compactFileReader = new EvioCompactReader(fileName);
+
+                    // Get the first block header
+                    firstBlockHeader = compactFileReader.getFirstBlockHeader();
+
+                    // Get the # of events in file
+                    eventCount = compactFileReader.getEventCount();
                 }
+
+                eventType = EventType.getEventType(firstBlockHeader.getEventType());
+                sourceId  = firstBlockHeader.getReserved1();
+                recordId  = firstBlockHeader.getNumber();
+
                 DataInputHelper helper = new DataInputHelper();
                 dataThread = new Thread(emu.getThreadGroup(), helper, name() + " data input");
                 dataThread.start();
@@ -273,10 +314,8 @@ logger.info("      DataChannel File: try opening output base file of " + fileNam
         /** {@inheritDoc} */
         public void runBanks() {
 
-            int sourceId, recordId, counter = 0;
-            IBlockHeader blockHeader;
-            BlockHeaderV4 header4;
-            EventType eventType, bankType;
+            int counter = 0;
+            EventType  bankType;
             ControlType controlType;
             PayloadBank payloadBank;
 
@@ -298,15 +337,10 @@ logger.info("      DataChannel File: try opening output base file of " + fileNam
                         break;
                     }
 
-                    // First block header in ET buffer
-                    blockHeader = evioFileReader.getCurrentBlockHeader();
-                    header4     = (BlockHeaderV4)blockHeader;
-                    eventType   = EventType.getEventType(header4.getEventType());
+                    // From first block header in file
                     controlType = null;
-                    sourceId    = header4.getReserved1();
-                    recordId    = header4.getNumber();
-
                     bankType = eventType;
+
                     // Unlikely that a file has roc raw data, but accommodate it anyway
                     if (eventType == EventType.ROC_RAW) {
                         if (Evio.isUserEvent(bank)) {
@@ -360,10 +394,8 @@ logger.info("      DataChannel File: try opening output base file of " + fileNam
         /** {@inheritDoc} */
         public void runBuffers() {
 
-            int sourceId, recordId, eventCount, counter = 0;
-            IBlockHeader blockHeader;
-            BlockHeaderV4 header4;
-            EventType eventType, bankType;
+            int counter = 0;
+            EventType bankType;
             ControlType controlType;
             PayloadBuffer payloadBuffer;
 
@@ -371,22 +403,16 @@ logger.info("      DataChannel File: try opening output base file of " + fileNam
             latch.countDown();
 
             try {
-                // First block header in ET buffer
-                blockHeader = compactFileReader.getFirstBlockHeader();
-                eventCount  = compactFileReader.getEventCount();
-                header4     = (BlockHeaderV4)blockHeader;
-                eventType   = EventType.getEventType(header4.getEventType());
+                // From first block header in file
                 controlType = null;
-                sourceId    = header4.getReserved1();
-                recordId    = header4.getNumber();
                 EvioNode node;
 
                 for (int i=0; i < eventCount; i++) {
                     if (dataThread.isInterrupted()) break;
 
                     node = compactFileReader.getEvent(i);
-
                     bankType = eventType;
+
                     // Unlikely that a file has roc raw data, but accommodate it anyway
                     if (eventType == EventType.ROC_RAW) {
                         if (Evio.isUserEvent(node)) {
@@ -443,7 +469,8 @@ logger.info("      DataChannel File: try opening output base file of " + fileNam
 
     /**
      * Class <b>DataOutputHelper </b>
-     * Handles sending data.
+     * Handles writing evio events (banks) to a file.
+     * A lot of the work is done in jevio such as splitting files.
      */
     private class DataOutputHelper implements Runnable {
 
@@ -524,7 +551,7 @@ logger.warn("      DataChannel File (" + name + "): got event but NO PRESTART, g
                         throw e;
                     }
 
-                    // If splitting the output file name may change.
+                    // If splitting the output, the file name may change.
                     // Inform the authorities about this.
                     if (split > 0 && evioFileWriter.getSplitCount() > splitCount) {
                         emu.setOutputDestination(evioFileWriter.getCurrentFilename());
