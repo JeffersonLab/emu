@@ -807,13 +807,13 @@ System.out.println("      DataChannel Et in helper: " + name + " got RESET cmd, 
                         reader.getParser().setNotificationActive(false);
 
                         // First block header in ET buffer
-                        IBlockHeader blockHeader = reader.getCurrentBlockHeader();
+                        BlockHeaderV4 blockHeader = reader.getFirstBlockHeader();
                         evioVersion = blockHeader.getVersion();
                         if (evioVersion < 4) {
                             errorMsg.compareAndSet(null, "ET data is NOT evio v4 format");
                             throw new EvioException("Evio data needs to be written in version 4+ format");
                         }
-                        header4     = (BlockHeaderV4)blockHeader;
+                        header4     = blockHeader;
                         eventType   = EventType.getEventType(header4.getEventType());
                         controlType = null;
 
