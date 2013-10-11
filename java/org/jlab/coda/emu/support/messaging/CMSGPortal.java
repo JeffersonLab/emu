@@ -234,7 +234,7 @@ public class CMSGPortal implements LoggerAppender {
                     msg.addPayloadItem(new cMsgPayloadItem("hostName",  comp.getHostName()));
                     msg.addPayloadItem(new cMsgPayloadItem("userName",  comp.getUserName()));
                     msg.addPayloadItem(new cMsgPayloadItem("runNumber", comp.getRunNumber()));
-                    msg.addPayloadItem(new cMsgPayloadItem("runType",   comp.getRunType()));
+                    msg.addPayloadItem(new cMsgPayloadItem("runType",   comp.getRunTypeId()));
                     msg.addPayloadItem(new cMsgPayloadItem("codaClass", comp.getCodaClass().name()));
 
                     String errorLevel = event.getFormatedLevel();
