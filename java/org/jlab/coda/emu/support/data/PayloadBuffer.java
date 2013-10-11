@@ -60,6 +60,26 @@ public class PayloadBuffer implements Cloneable, Attached {
     }
 
     /**
+     * Constructor that sets attachment to null.
+     * @param buffer      ByteBuffer to wrap.
+     * @param eventType   type of CODA events contained.
+     * @param controlType if Control eventType, the type of control.
+     * @param recordId    if Physics or RocRaw, the record id of CODA events.
+     * @param sourceId    If RocRaw, the CODA id of the source.
+     * @param sourceName  The name of the source of these CODA events.
+     */
+    public PayloadBuffer(ByteBuffer buffer, EventType eventType, ControlType controlType,
+                         int recordId, int sourceId, String sourceName) {
+        this.buffer      = buffer;
+        this.eventType   = eventType;
+        this.controlType = controlType;
+        this.recordId    = recordId;
+        this.sourceId    = sourceId;
+        this.sourceName  = sourceName;
+        this.attachment  = null;
+    }
+
+    /**
      * Constructor.
      * @param buffer ByteBuffer to wrap.
      * @param attachment object to associate with the ByteBuffer.
@@ -109,6 +129,15 @@ public class PayloadBuffer implements Cloneable, Attached {
      */
     public Object getAttachment() {
         return attachment;
+    }
+
+ // TODO: Deal with this!
+    /**
+     * Get the length of the evio bank's header in words.
+     * @return length of the evio bank's header in words.
+     */
+    public int getHeaderLength() {
+        return 123;
     }
 
     /**

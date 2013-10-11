@@ -58,6 +58,27 @@ public class PayloadBank extends EvioEvent implements Attached {
     }
 
     /**
+     * Constructor that sets several parameters
+     * and copies references from bank (doesn't clone).
+     *
+     * @param bank        bank to copy
+     * @param eventType   type of CODA events contained.
+     * @param controlType if Control eventType, the type of control.
+     * @param recordId    if Physics or RocRaw, the record id of CODA events.
+     * @param sourceId    If RocRaw, the CODA id of the source.
+     * @param sourceName  The name of the source of these CODA events.
+     */
+    public PayloadBank(BaseStructure bank, EventType eventType, ControlType controlType,
+                       int recordId, int sourceId, String sourceName) {
+        this(bank);
+        this.eventType   = eventType;
+        this.controlType = controlType;
+        this.recordId    = recordId;
+        this.sourceId    = sourceId;
+        this.sourceName  = sourceName;
+    }
+
+    /**
      * Copy constructor which copies references and doesn't clone.
      * @param bank bank to copy
      */
