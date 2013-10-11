@@ -868,13 +868,9 @@ System.out.println("      DataChannel Et in helper: " + name + " got RESET cmd, 
                                 }
 
                                 // Not a real copy, just points to stuff in bank
-                                payloadBank = new PayloadBank(bank);
-                                // Add vital info from block header.
-                                payloadBank.setEventType(bankType);
-                                payloadBank.setControlType(controlType);
-                                payloadBank.setRecordId(recordId);
-                                payloadBank.setSourceId(sourceId);
-                                payloadBank.setSourceName(name);
+                                payloadBank = new PayloadBank(bank, bankType,
+                                                              controlType, recordId,
+                                                              sourceId, name);
 
                                 // add bank to list for later writing
                                 payloadBanks.add(payloadBank);
@@ -1093,13 +1089,9 @@ System.out.println("      DataChannel Et in helper: " + name + " got RESET cmd, 
                             }
 
                             // Not a real copy, just points to stuff in buff
-                            payloadBuffer = new PayloadBuffer(compactReader.getEventBuffer(i));
-                            // Add vital info from block header.
-                            payloadBuffer.setEventType(bankType);
-                            payloadBuffer.setControlType(controlType);
-                            payloadBuffer.setRecordId(recordId);
-                            payloadBuffer.setSourceId(sourceId);
-                            payloadBuffer.setSourceName(name);
+                            payloadBuffer = new PayloadBuffer(compactReader.getEventBuffer(i),
+                                                              bankType, controlType, recordId,
+                                                              sourceId, name);
 
                             // add buffer to list for later writing
                             payloadBuffers.add(payloadBuffer);
@@ -1674,7 +1666,7 @@ System.out.println("      DataChannel Et out helper: " + name + " got RESET cmd,
                         events[i].setControl(selects);
 
                         // Write banks' data into ET buffer in separate thread
-                        EvWriter writer = new EvWriter(bankList, events[i], recordIds[i]);
+                        EvWriter writer = new EvWriter(bankList, null, events[i], recordIds[i]);
                         writeThreadPool.execute(writer);
 
                         // Keep track of how many ET events we want to write
@@ -2105,7 +2097,7 @@ System.out.println("      DataChannel Et out helper: " + name + " got RESET cmd,
                         events[i].setControl(selects);
 
                         // Write banks' data into ET buffer in separate thread
-                        EvWriter writer = new EvWriter(bufferList, events[i], recordIds[i], 0);
+                        EvWriter writer = new EvWriter(null, bufferList, events[i], recordIds[i]);
                         writeThreadPool.execute(writer);
 
                         // Keep track of how many ET events we want to write
@@ -2221,47 +2213,21 @@ System.out.println("      DataChannel Et out helper: " + name + " got RESET cmd,
                 }
             }
 
+
             /**
-             * Constructor.
+             * Constructor. Either a bankList OR a bufferList is used - not both.
+             *
              * @param bankList list of banks to be written into a single ET event
-             * @param event ET event in which to place the banks
-             * @param myRecordId value of starting block header's block number
-             */
-            EvWriter(LinkedList<PayloadBank> bankList, EtEvent event, int myRecordId) {
-                this.event = event;
-                this.bankList = bankList;
-
-                try {
-                    // Make the block size bigger than
-                    // the Roc's 2MB ET buffer size so no additional block headers must
-                    // be written. It should contain less than 100 ROC Raw records,
-                    // but we'll allow 200 such banks per block header.
-
-                    // ET event's data buffer
-                    etBuffer = event.getDataBuffer();
-                    etBuffer.clear();
-                    etBuffer.order(byteOrder);
-
-                    // Encode the event type into bits
-                    BitSet bitInfo = new BitSet(24);
-                    setEventType(bitInfo, bankList.getFirst().getEventType().getValue());
-
-                    // Create object to write evio banks into ET buffer
-                    evWriter = new EventWriter(etBuffer, 550000, 200, null, bitInfo, emu.getCodaid());
-                    evWriter.setStartingBlockNumber(myRecordId);
-                }
-                catch (EvioException e) {/* never happen */}
-            }
-
-            /**
-             * Constructor.
              * @param bufferList list of buffers to be written into a single ET event
              * @param event ET event in which to place the banks
              * @param myRecordId value of starting block header's block number
-             * @param junk used only to distinguish constructors
              */
-            EvWriter(LinkedList<PayloadBuffer> bufferList, EtEvent event, int myRecordId, int junk) {
+            EvWriter(LinkedList<PayloadBank> bankList,
+                     LinkedList<PayloadBuffer> bufferList,
+                     EtEvent event, int myRecordId) {
+
                 this.event = event;
+                this.bankList = bankList;
                 this.bufferList = bufferList;
 
                 try {
@@ -2280,7 +2246,7 @@ System.out.println("      DataChannel Et out helper: " + name + " got RESET cmd,
                     setEventType(bitInfo, bankList.getFirst().getEventType().getValue());
 
                     // Create object to write evio banks into ET buffer
-                    evWriter = new EventWriter(etBuffer, 550000, 200, null, null);
+                    evWriter = new EventWriter(etBuffer, 550000, 200, null, bitInfo, emu.getCodaid());
                     evWriter.setStartingBlockNumber(myRecordId);
                 }
                 catch (EvioException e) {/* never happen */}
@@ -2305,6 +2271,8 @@ System.out.println("      DataChannel Et out helper: " + name + " got RESET cmd,
                         }
                     }
 
+// TODO: Use a different algorithm so that evWriter is not recreated each time
+//TODO: we need to write something
                     evWriter.close();
                     // Be sure to set the length to bytes of data actually written
                     event.setLength(etBuffer.position());
