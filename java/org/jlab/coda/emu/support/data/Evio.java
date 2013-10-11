@@ -840,11 +840,11 @@ System.out.println("checkPayloadBank: bank source Id (" + sourceId + ") != bank'
             if (numEvents != buildingBanks[i].getHeader().getNumber()) {
                 System.out.println("Differing # of events sent by each ROC:\n");
                 System.out.println("numEvents       name      codaID");
-                for (int j=0; j < buildingBanks.length; i++) {
+                for (int j=0; j < buildingBanks.length; j++) {
                     System.out.println("   " +
-                                       buildingBanks[i].getHeader().getNumber() + "        " +
-                                       buildingBanks[i].getSourceName() + "        " +
-                                       buildingBanks[i].getSourceId());
+                                       buildingBanks[j].getHeader().getNumber() + "        " +
+                                       buildingBanks[j].getSourceName() + "        " +
+                                       buildingBanks[j].getSourceId());
                 }
                 throw new EmuException("differing # of events sent by each ROC");
             }
