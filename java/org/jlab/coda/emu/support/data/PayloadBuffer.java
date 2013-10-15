@@ -96,7 +96,14 @@ public class PayloadBuffer implements Cloneable, Attached {
     public PayloadBuffer(PayloadBuffer buffer) {
         // Share content but keep different limit, position, mark.
         // This will work if and only if the buffer is written to.
-        this.buffer = buffer.getBuffer().duplicate();
+        ByteBuffer buf   = buffer.getBuffer();
+        this.buffer      = buf.duplicate();
+
+        this.eventType   = buffer.eventType;
+        this.controlType = buffer.controlType;
+        this.recordId    = buffer.recordId;
+        this.sourceId    = buffer.sourceId;
+        this.sourceName  = buffer.sourceName;
     }
 
     /**
