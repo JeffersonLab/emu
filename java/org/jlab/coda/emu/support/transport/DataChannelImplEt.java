@@ -807,7 +807,7 @@ System.out.println("      DataChannel Et in helper: " + name + " got RESET cmd, 
                         reader.getParser().setNotificationActive(false);
 
                         // First block header in ET buffer
-                        BlockHeaderV4 blockHeader = reader.getFirstBlockHeader();
+                        BlockHeaderV4 blockHeader = (BlockHeaderV4)reader.getFirstBlockHeader();
                         evioVersion = blockHeader.getVersion();
                         if (evioVersion < 4) {
                             errorMsg.compareAndSet(null, "ET data is NOT evio v4 format");
