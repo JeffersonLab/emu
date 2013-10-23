@@ -205,7 +205,7 @@ logger.info("      DataChannel File: try opening input file of " + fileName);
                     evioFileReader.getParser().setNotificationActive(false);
 
                     // Get the first block header
-                    firstBlockHeader = evioFileReader.getFirstBlockHeader();
+                    firstBlockHeader = (BlockHeaderV4)evioFileReader.getFirstBlockHeader();
                 }
                 else if  (queueItemType == QueueItemType.PayloadBuffer) {
                     // This will throw an exception if evio version < 4
