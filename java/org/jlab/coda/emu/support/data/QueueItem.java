@@ -11,7 +11,6 @@
 
 package org.jlab.coda.emu.support.data;
 
-import org.jlab.coda.jevio.EvioBank;
 
 /**
  * The class contains one of the multiple possible types of items
