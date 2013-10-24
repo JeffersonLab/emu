@@ -165,7 +165,12 @@ public class DataChannelImplEt extends DataChannelAdapter {
 
         dataTransportImplEt = transport;
 
-logger.info("      DataChannel Et : creating channel " + name);
+        if (input) {
+logger.info("      DataChannel Et : creating input channel " + name);
+        }
+        else {
+logger.info("      DataChannel Et : creating output channel " + name);
+        }
 
         // size of TCP send buffer (0 means use operating system default)
         int tcpSendBuf = 0;
@@ -1491,8 +1496,6 @@ System.out.println("      DataChannel Et out helper: " + name + " some thd got E
                                 }
 
                                 // Look for END event and mark it in attachment
-//if (Evio.isEndEvent(pBank)) {
-// TODO: make sure this is OK
                                 if (pBankControlType == ControlType.END) {
                                     pBank.setAttachment(Boolean.TRUE);
                                     haveOutputEndEvent = true;
@@ -1578,7 +1581,7 @@ System.out.println("      DataChannel Et out helper: " + name + " got RESET cmd,
                                 bankList.add(pBank);
                             }
 
-                            if (Evio.isEndEvent(pBank)) {
+                            if (pBank.getControlType() == ControlType.END) {
                                 pBank.setAttachment(Boolean.TRUE);
                                 haveOutputEndEvent = true;
 System.out.println("      DataChannel Et out helper: " + name + " I got END event, quitting 3");
@@ -1921,8 +1924,6 @@ System.out.println("      DataChannel Et out helper: " + name + " some thd got E
                                 }
 
                                 // Look for END event and mark it in attachment
-//if (Evio.isEndEvent(pBuffer)) {
-// TODO: make sure this is OK
                                 if (pBufferControlType == ControlType.END) {
                                         pBuffer.setAttachment(Boolean.TRUE);
                                     haveOutputEndEvent = true;
