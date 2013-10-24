@@ -1134,17 +1134,17 @@ if (debug) System.out.println("gotValidControlEvents: found control event of typ
         switch (type) {
             case SYNC:
                 data = new int[] {time, eventsSinceSync, eventsInRun};
-                eventBuilder = new EventBuilder(type.getValue(), DataType.UINT32, 0xcc);
+                eventBuilder = new EventBuilder(type.getValue(), DataType.UINT32, 0);
                 break;
             case PRESTART:
                 data = new int[] {time, runNumber, runType};
-                eventBuilder = new EventBuilder(type.getValue(), DataType.UINT32, 0xcc);
+                eventBuilder = new EventBuilder(type.getValue(), DataType.UINT32, 0);
                 break;
             case GO:
             case PAUSE:
             case END:
                 data = new int[] {time, 0, eventsInRun};
-                eventBuilder = new EventBuilder(type.getValue(), DataType.UINT32, 0xcc);
+                eventBuilder = new EventBuilder(type.getValue(), DataType.UINT32, 0);
                 break;
             default:
                 throw new EvioException("bad ControlType arg");
