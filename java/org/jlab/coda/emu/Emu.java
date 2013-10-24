@@ -2038,65 +2038,65 @@ logger.error("Emu.execute(END) : no modules in data path");
 //                    }
 //                }
 
-                boolean gotEndEvent;
+                boolean gotEndEvent, gotAllEnds = true;
 
-                // If we have output channels, look there first
-                if (outChannels.size() > 0) {
-logger.info("Emu.execute(END): Looking for END event in output channels");
-                    for (DataChannel chan : outChannels) {
-                        try {
-logger.info("Emu.execute(END): waiting for END event in output chan " + chan.name());
-                            gotEndEvent = chan.getEndCallback().waitForEvent();
-                            if (!gotEndEvent) {
-logger.info("Emu.execute(END): got FALSE waiting for output chan " + chan.name());
-                                errorMsg.compareAndSet(null, "timeout waiting for END event in output chan " + chan.name());
-                                setState(ERROR);
-                                sendStatusMessage();
-                            }
-                            else {
-logger.info("Emu.execute(END): END event found in output chan " + chan.name());
-                            }
-                        }
-                        catch (InterruptedException e) {}
-                    }
-logger.info("Emu.execute(END): Done looking for END event in output channels");
-                }
-                // Look at the last module next
-                else if (mods.size() > 0) {
-logger.info("Emu.execute(END): Looking for END event in last module");
-                    try {
-                        gotEndEvent = mods.getLast().getEndCallback().waitForEvent();
-                        if (!gotEndEvent) {
-                            errorMsg.compareAndSet(null, "timeout waiting for END event in module " + mods.getLast().name());
-                            setState(ERROR);
-                            sendStatusMessage();
-                        }
-                        else {
-logger.info("Emu.execute(END): END event found in module " + mods.getLast().name());
-                        }
-                    }
-                    catch (InterruptedException e) {}
-logger.info("Emu.execute(END): Done looking for END event in last module");
-                }
-                // Look at the input channels as the last option
-                else if (inChannels.size() > 0) {
-logger.info("Emu.execute(END): Looking for END event in input channels");
+                // Look at the input channels for END first
+                if (inChannels.size() > 0) {
                     for (DataChannel chan : inChannels) {
                         try {
                             gotEndEvent = chan.getEndCallback().waitForEvent();
                             if (!gotEndEvent) {
+logger.info("Emu.execute(END): timeout waiting for END event in input chan " + chan.name());
                                 errorMsg.compareAndSet(null, "timeout waiting for END event in input chan " + chan.name());
                                 setState(ERROR);
                                 sendStatusMessage();
                             }
-                            else {
-logger.info("Emu.execute(END): END event found in input chan " + chan.name());
-                            }
+                            gotAllEnds = gotAllEnds && gotEndEvent;
                         }
                         catch (InterruptedException e) {}
                     }
                 }
-logger.info("Emu.execute(END): Done looking for END event, send END command");
+
+                // Look at the last module next if END made it thru all input channels
+                if (gotAllEnds && mods.size() > 0) {
+                    try {
+                        gotEndEvent = mods.getLast().getEndCallback().waitForEvent();
+                        if (!gotEndEvent) {
+logger.info("Emu.execute(END): timeout waiting for END event in module " + mods.getLast().name());
+                            errorMsg.compareAndSet(null, "timeout waiting for END event in module " + mods.getLast().name());
+                            setState(ERROR);
+                            sendStatusMessage();
+                        }
+                        gotAllEnds = gotAllEnds && gotEndEvent;
+                    }
+                    catch (InterruptedException e) {}
+                }
+
+                // Look at the output channels next if END made it thru all modules
+                if (gotAllEnds && outChannels.size() > 0) {
+                    for (DataChannel chan : outChannels) {
+                        try {
+                            gotEndEvent = chan.getEndCallback().waitForEvent();
+                            if (!gotEndEvent) {
+logger.info("Emu.execute(END): timeout waiting for END event in output chan " + chan.name());
+                                errorMsg.compareAndSet(null, "timeout waiting for END event in output chan " + chan.name());
+                                setState(ERROR);
+                                sendStatusMessage();
+                            }
+                            gotAllEnds = gotAllEnds && gotEndEvent;
+                        }
+                        catch (InterruptedException e) {}
+                    }
+                }
+
+                if (!gotAllEnds) {
+                    logger.info("Emu.execute(END): END event did NOT make it thru EMU");
+                }
+                else {
+                    logger.info("Emu.execute(END): END successfully thru EMU");
+                }
+
+                logger.info("Emu.execute(END): now execute END command in EMU");
 
                 // (2) END to input channels (of FIRST module)
                 if (inChannels.size() > 0) {
