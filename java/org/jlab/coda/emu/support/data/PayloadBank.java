@@ -92,6 +92,34 @@ public class PayloadBank extends EvioEvent implements Attached {
     }
 
     /**
+     * Copy constructor which copies references and doesn't clone.
+     * @param bank payload bank to copy
+     */
+    public PayloadBank(PayloadBank bank) {
+        // copy over all basic, essential components of a bank
+        header    = bank.getHeader();
+        rawBytes  = bank.getRawBytes();
+        byteOrder = bank.getByteOrder();
+        children  = bank.getChildren();
+
+        if (children != null && children.size() > 1) isLeaf = false;
+
+        // copy over all PayloadBank specific members
+        eventType             = bank.eventType;
+        controlType           = bank.controlType;
+        sourceId              = bank.sourceId;
+        sourceName            = bank.sourceName;
+        recordId              = bank.recordId;
+        eventCount            = bank.eventCount;
+        firstEventNumber      = bank.firstEventNumber;
+        isSync                = bank.isSync;
+        isSingleEventMode     = bank.isSingleEventMode;
+        hasError              = bank.hasError;
+        reserved              = bank.reserved;
+        nonFatalBuildingError = bank.nonFatalBuildingError;
+    }
+
+    /**
      * This is a general constructor to use for an EvioEvent.
      *
      * @param tag the tag for the event header (which is just a bank header).
