@@ -467,7 +467,7 @@ public class Evio {
 
         // Look inside to see if it is an END event
         return (header.getTag() == ControlType.END.getValue() &&
-                header.getNumber() == 0xCC &&
+                header.getNumber() == 0 &&
                 header.getDataTypeValue() == 1 &&
                 header.getLength() == 4);
     }
@@ -484,7 +484,7 @@ public class Evio {
 
         // Look to see if it is an END event
         return (node.getTag() == ControlType.END.getValue() &&
-                node.getNum() == 0xCC &&
+                node.getNum() == 0 &&
                 node.getDataType() == 1 &&
                 node.getLength() == 4);
     }
@@ -503,7 +503,7 @@ public class Evio {
 
          // Look inside to see if it is a GO event.
          return (header.getTag() == ControlType.GO.getValue() &&
-                 header.getNumber() == 0xCC &&
+                 header.getNumber() == 0 &&
                  header.getDataTypeValue() == 1 &&
                  header.getLength() == 4);
      }
@@ -522,7 +522,7 @@ public class Evio {
 
          // Look inside to see if it is an END event.
          return (header.getTag() == ControlType.PRESTART.getValue() &&
-                 header.getNumber() == 0xCC &&
+                 header.getNumber() == 0 &&
                  header.getDataTypeValue() == 1 &&
                  header.getLength() == 4);
      }
@@ -541,7 +541,7 @@ public class Evio {
 
          // Look inside to see if it is an END event.
          return (header.getTag() == ControlType.PAUSE.getValue() &&
-                 header.getNumber() == 0xCC &&
+                 header.getNumber() == 0 &&
                  header.getDataTypeValue() == 1 &&
                  header.getLength() == 4);
      }
@@ -560,7 +560,7 @@ public class Evio {
 
          // Look inside to see if it is an END event.
          return (header.getTag() == ControlType.SYNC.getValue() &&
-                 header.getNumber() == 0xCC &&
+                 header.getNumber() == 0 &&
                  header.getDataTypeValue() == 1 &&
                  header.getLength() == 4);
      }
@@ -580,7 +580,7 @@ public class Evio {
 
          // Look inside to see if it is an END event.
          return (ControlType.isControl(tag) &&
-                 header.getNumber() == 0xCC &&
+                 header.getNumber() == 0 &&
                  header.getDataTypeValue() == 1 &&
                  header.getLength() == 4);
      }
@@ -628,7 +628,7 @@ public class Evio {
          }
 
          // Is it a control event?
-         if ( !(ControlType.isControl(tag) && num == 0xCC && type == 1 && len == 4) ) {
+         if ( !(ControlType.isControl(tag) && num == 0 && type == 1 && len == 4) ) {
              return null;
          }
 
@@ -1073,7 +1073,7 @@ if (debug) System.out.println("gotValidControlEvents: found control event of typ
      * _______________________________________
      * |          Event Length = 4           |
      * |_____________________________________|
-     * |   type = 0xFFD0  |  0x1   |  0xCC   |
+     * |   type = 0xFFD0  |  0x1   |    0    |
      * |_____________________________________|
      * |                time                 |
      * |_____________________________________|
@@ -1086,7 +1086,7 @@ if (debug) System.out.println("gotValidControlEvents: found control event of typ
      * _______________________________________
      * |          Event Length = 4           |
      * |_____________________________________|
-     * |   type = 0xFFD1  |  0x1   |  0xCC   |
+     * |   type = 0xFFD1  |  0x1   |    0    |
      * |_____________________________________|
      * |                time                 |
      * |_____________________________________|
@@ -1101,7 +1101,7 @@ if (debug) System.out.println("gotValidControlEvents: found control event of typ
      * _______________________________________
      * |          Event Length = 4           |
      * |_____________________________________|
-     * |       type       |  0x1   |  0xCC   |
+     * |       type       |  0x1   |    0    |
      * |_____________________________________|
      * |                time                 |
      * |_____________________________________|
