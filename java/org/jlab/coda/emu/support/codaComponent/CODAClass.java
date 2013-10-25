@@ -105,4 +105,13 @@ public enum CODAClass {
         return priority;
     }
 
- }
+    /**
+     * Is this class representative of an event building emu?
+     * @return {@code true} if this class represents an event building emu,
+     *         else {@code false}.
+     */
+    public boolean isEventBuilder() {
+        return (this == DC || this == SEB || this == PEB);
+    }
+
+}
