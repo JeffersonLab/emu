@@ -13,6 +13,7 @@ package org.jlab.coda.emu.support.transport;
 
 
 import org.jlab.coda.emu.Emu;
+import org.jlab.coda.emu.support.codaComponent.CODAClass;
 import org.jlab.coda.emu.support.codaComponent.CODAState;
 import org.jlab.coda.emu.support.data.*;
 import org.jlab.coda.et.*;
@@ -87,6 +88,12 @@ public class DataChannelImplEt extends DataChannelAdapter {
     /** Place to store a buffer off the queue for the next event out. */
     private PayloadBuffer firstBufferFromQueue;
 
+    /** Is the EMU using this ET output channel as an event builder? */
+    private boolean isEB;
+
+    /** Is the EMU using this ET output channel as the last level event builder? */
+    private boolean isFinalEB;
+
     // INPUT
 
     /** Number of data input helper threads. */
@@ -116,6 +123,9 @@ public class DataChannelImplEt extends DataChannelAdapter {
 
     /** Number of group from which new ET events are taken. */
     private int group;
+
+    /** Control words of each ET event written to output. */
+    private int[] control;
 
     /** ET system connected to. */
     private EtSystem etSystem;
@@ -355,6 +365,19 @@ logger.info("      DataChannel Et : creating output channel " + name);
                     catch (EtException e) {/* never happen */}
                  }
                 catch (Exception e) {/* never happen */}
+            }
+
+            // If this is an event building EMU, set the control array
+            // for each outgoing ET buffer.
+            CODAClass emuClass = emu.getCodaClass();
+            isEB = emuClass.isEventBuilder();
+            if (isEB) {
+                // Is this the last level event builder (not a DC)?
+                isFinalEB = (emuClass == CODAClass.PEB || emuClass == CODAClass.SEB);
+                // The control array needs to be the right size.
+                control = new int[EtConstants.stationSelectInts];
+                // The first control word is this EB's coda id
+                control[0] = id;
             }
         }
 
@@ -1663,10 +1686,18 @@ System.out.println("      DataChannel Et out helper: " + name + " got RESET cmd,
                         // Set byte order of ET event
                         events[i].setByteOrder(bankList.getFirst().getByteOrder());
 
-                        // CODA owns first select int which contains source id
-                        int[] selects = events[i].getControl();
-                        selects[0] = id; // id in ROC output channel
-                        events[i].setControl(selects);
+                        // CODA owns the first ET event control int which contains source id.
+                        // Set that control word only if this is an EB.
+                        // If a DC, set this for all events.
+                        // If a PEB or SEB set only for control events.
+                        if (isFinalEB) {
+                            if (bankList.getFirst().getControlType() != null) {
+                                events[i].setControl(control);
+                            }
+                        }
+                        else if (isEB) {
+                            events[i].setControl(control);
+                        }
 
                         // Write banks' data into ET buffer in separate thread
                         EvWriter writer = new EvWriter(bankList, null, events[i], recordIds[i]);
@@ -2092,10 +2123,18 @@ System.out.println("      DataChannel Et out helper: " + name + " got RESET cmd,
                         // Set byte order of ET event
                         events[i].setByteOrder(bufferList.getFirst().getByteOrder());
 
-                        // CODA owns first select int which contains source id
-                        int[] selects = events[i].getControl();
-                        selects[0] = id; // id in ROC output channel
-                        events[i].setControl(selects);
+                        // CODA owns the first ET event control int which contains source id.
+                        // Set that control word only if this is an EB.
+                        // If a DC, set this for all events.
+                        // If a PEB or SEB set only for control events.
+                        if (isFinalEB) {
+                            if (bufferList.getFirst().getControlType() != null) {
+                                events[i].setControl(control);
+                            }
+                        }
+                        else if (isEB) {
+                            events[i].setControl(control);
+                        }
 
                         // Write banks' data into ET buffer in separate thread
                         EvWriter writer = new EvWriter(null, bufferList, events[i], recordIds[i]);
