@@ -22,7 +22,7 @@ package org.jlab.coda.emu.support.data;
  * @author timmer
  * (Apr 3 2013)
  */
-public class QueueItem implements Cloneable {
+public class QueueItem implements Cloneable, Attached {
 
 //    /** If item is an EvioBank, store it here. */
 //    private EvioBank bank;
@@ -90,6 +90,21 @@ public class QueueItem implements Cloneable {
         this.controlType = controlType;
     }
 
+
+    /**
+     * Return any attachment.
+     * @return any attachment.
+     */
+    public Object getAttachment() {
+        if (payloadBank != null)  {
+            return payloadBank.getAttachment();
+        }
+        else if (payloadBuffer != null)  {
+            return payloadBuffer.getAttachment();
+        }
+
+        return null;
+    }
 
     /**
      * Get the type of data item stored in this object -
