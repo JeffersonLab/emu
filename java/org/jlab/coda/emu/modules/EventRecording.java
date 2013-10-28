@@ -21,7 +21,6 @@ import org.jlab.coda.emu.support.codaComponent.State;
 import org.jlab.coda.emu.support.data.*;
 import org.jlab.coda.emu.support.logger.Logger;
 import org.jlab.coda.emu.support.transport.DataChannel;
-import org.jlab.coda.jevio.*;
 
 import java.util.*;
 import java.util.concurrent.BlockingQueue;
@@ -180,7 +179,7 @@ public class EventRecording extends CODAStateMachineAdapter implements EmuModule
     private boolean representStatistics;
 
     /** Comparator which tells priority queue how to sort elements. */
-    private BankComparator<EvioBank> comparator = new BankComparator<EvioBank>();
+    private QItemComparator<Attached> comparator = new QItemComparator<Attached>();
 
 
     /** Keep some data together and store as an event attachment. */
@@ -199,7 +198,7 @@ public class EventRecording extends CODAStateMachineAdapter implements EmuModule
      * Class defining comparator which tells priority queue how to sort elements.
      * @param <T> Must be PayloadBank or PayloadBuffer in this case
      */
-    private class BankComparator<T> implements Comparator<T> {
+    private class QItemComparator<T> implements Comparator<T> {
         public int compare(T o1, T o2) throws ClassCastException {
             Attached a1 = (Attached) o1;
             Attached a2 = (Attached) o2;
@@ -990,6 +989,8 @@ if (true) System.out.println("Found END event in record thread");
 
         // Allocate some arrays based on # of output channels
         waitingListOfBanks = null;
+        waitingListOfBuffers = null;
+
         if (outputChannelCount > 0 && recordingThreadCount > 1) {
             locks = new Object[outputChannelCount];
             for (int i=0; i < outputChannelCount; i++) {
@@ -998,9 +999,17 @@ if (true) System.out.println("Found END event in record thread");
             inputOrders  = new int[outputChannelCount];
             outputOrders = new int[outputChannelCount];
 
-            waitingListOfBanks = new PriorityBlockingQueue[outputChannelCount];
-            for (int i=0; i < outputChannelCount; i++) {
-                waitingListOfBanks[i] = new PriorityBlockingQueue<PayloadBank>(100, comparator);
+            if (outputType == QueueItemType.PayloadBank) {
+                waitingListOfBanks = new PriorityBlockingQueue[outputChannelCount];
+                for (int i=0; i < outputChannelCount; i++) {
+                    waitingListOfBanks[i] = new PriorityBlockingQueue<PayloadBank>(100, comparator);
+                }
+            }
+            else {
+                waitingListOfBuffers = new PriorityBlockingQueue[outputChannelCount];
+                for (int i=0; i < outputChannelCount; i++) {
+                    waitingListOfBuffers[i] = new PriorityBlockingQueue<PayloadBuffer>(100, comparator);
+                }
             }
         }
 
