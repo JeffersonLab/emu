@@ -18,7 +18,6 @@ package org.jlab.coda.emu.support.data;
  */
 public enum QueueItemType {
 
-    EvioBank    ,
     PayloadBuffer,
     PayloadBank ;
 }
