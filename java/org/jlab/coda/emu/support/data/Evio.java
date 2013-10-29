@@ -589,6 +589,7 @@ public class Evio {
     /**
      * Determine whether a buffer containing bytes representing an
      * evio bank/event contains a control event or not. If so what type?
+     * Buffer position & limit don't change.
      *
      * @param buffer buffer representing an evio bank/event
      * @return corresponding ControlType object if arg is control event, else null
@@ -598,33 +599,35 @@ public class Evio {
          if (buffer == null) return null;
          if (buffer.remaining() < 8) return null;
 
-         int len = buffer.getInt();
+         int pos = buffer.position();
+
+         int len = buffer.getInt(pos);
          if (len < 1) {
              return null;
          }
 
          int tag, num, type;
          if (buffer.order() == ByteOrder.BIG_ENDIAN) {
-             tag = ByteDataTransformer.shortBitsToInt(buffer.getShort());
+             tag = ByteDataTransformer.shortBitsToInt(buffer.getShort(pos+4));
 
-             int dt = ByteDataTransformer.byteBitsToInt(buffer.get());
+             int dt = ByteDataTransformer.byteBitsToInt(buffer.get(pos+6));
              type = dt & 0x3f;
              if (dt == 0x40) {
                  type = DataType.TAGSEGMENT.getValue();
              }
 
-             num = ByteDataTransformer.byteBitsToInt(buffer.get());
+             num = ByteDataTransformer.byteBitsToInt(buffer.get(pos+7));
          }
          else {
-             num = ByteDataTransformer.byteBitsToInt(buffer.get());
+             num = ByteDataTransformer.byteBitsToInt(buffer.get(pos+4));
 
-             int dt = ByteDataTransformer.byteBitsToInt(buffer.get());
+             int dt = ByteDataTransformer.byteBitsToInt(buffer.get(pos+5));
              type = dt & 0x3f;
              if (dt == 0x40) {
                  type = DataType.TAGSEGMENT.getValue();
              }
 
-             tag = ByteDataTransformer.shortBitsToInt(buffer.getShort());
+             tag = ByteDataTransformer.shortBitsToInt(buffer.getShort(pos+6));
          }
 
          // Is it a control event?
