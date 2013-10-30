@@ -432,7 +432,7 @@ logger.info("      DataChannel File: try opening output base file of " + fileNam
                     // Not a real copy, just points to stuff in bank
                     payloadBuffer = new PayloadBuffer(compactFileReader.getEventBuffer(i),
                                                       bankType, controlType, recordId,
-                                                      sourceId, name);
+                                                      sourceId, name, node);
 
                     queue.put(new QueueItem(payloadBuffer));  // will block
                     counter++;
@@ -528,7 +528,7 @@ logger.info("      DataChannel File: try opening output base file of " + fileNam
                         }
                     }
                     else {
-logger.info("      DataChannel File (" + name + "): got bank of type " + eventType);
+//logger.info("      DataChannel File (" + name + "): got bank of type " + eventType);
                     }
 
                     // Don't start writing to file until we get PRESTART
