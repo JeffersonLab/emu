@@ -97,10 +97,10 @@ public class EventRecording extends CODAStateMachineAdapter implements EmuModule
     private BlockingQueue<QueueItem> channelQ;
 
     /** Type of object to expect for input. */
-    private QueueItemType inputType = QueueItemType.PayloadBank;
+    private QueueItemType inputType = QueueItemType.PayloadBuffer;
 
     /** Type of object to place on output channels. */
-    private QueueItemType outputType = QueueItemType.PayloadBank;
+    private QueueItemType outputType = QueueItemType.PayloadBuffer;
 
     /**
      * There is one waiting list per output channel -
@@ -281,19 +281,19 @@ System.out.println("EventRecording constr: " + recordingThreadCount +
             }
         }
 
-        // Do we want PayloadBuffer or EvioEvent input (EvioEvent is default)?
+        // Do we want PayloadBuffer or EvioEvent input (PayloadBuffer is default)?
         str = attributeMap.get("inputType");
         if (str != null) {
-            if (str.equalsIgnoreCase("ByteBuffer"))   {
-                inputType = QueueItemType.PayloadBuffer;
+            if (str.equalsIgnoreCase("EvioEvent"))   {
+                inputType = QueueItemType.PayloadBank;
             }
         }
 
-        // Do we want PayloadBuffer or EvioEvent output (EvioEvent is default)?
+        // Do we want PayloadBuffer or EvioEvent output (PayloadBuffer is default)?
         str = attributeMap.get("outputType");
         if (str != null) {
-            if (str.equalsIgnoreCase("ByteBuffer"))   {
-                outputType = QueueItemType.PayloadBuffer;
+            if (str.equalsIgnoreCase("EvioEvent"))   {
+                outputType = QueueItemType.PayloadBank;
             }
         }
 
@@ -414,7 +414,7 @@ System.out.println("EventRecording constr: " + recordingThreadCount +
      */
     private void startThreads() {
         if (watcher == null) {
-            System.out.println("startThreads(): recreating watcher thread");
+System.out.println("startThreads(): recreating watcher thread");
             watcher = new Thread(emu.getThreadGroup(), new Watcher(), name+":watcher");
         }
 
@@ -427,7 +427,7 @@ System.out.println("EventRecording constr: " + recordingThreadCount +
                 RecordingThread thd1 = new RecordingThread(emu.getThreadGroup(), new RecordingThread(), name+":recorder"+i);
                 recordingThreadList.add(thd1);
             }
-            System.out.println("startThreads(): recreated recording threads, # = " +
+System.out.println("startThreads(): recreated recording threads, # = " +
                     recordingThreadList.size());
         }
 
@@ -546,7 +546,7 @@ if (debug) System.out.println("endRecordThreads: will end threads but no END eve
      * @param bankOut the built/control/user event to place on output channel queue
      * @throws InterruptedException if wait, put, or take interrupted
      */
-    private void bankToOutputChannel(PayloadBank bankOut)
+    private void dataToOutputChannel(PayloadBank bankOut)
                     throws InterruptedException {
 
         // Have output channels?
@@ -627,7 +627,7 @@ if (debug) System.out.println("endRecordThreads: will end threads but no END eve
      * @param bufferOut the built/control/user evio buffer to place on output channel queue
      * @throws InterruptedException if wait, put, or take interrupted
      */
-    private void bankToOutputChannel(PayloadBuffer bufferOut)
+    private void dataToOutputChannel(PayloadBuffer bufferOut)
             throws InterruptedException {
 
         // Have output channels?
@@ -733,12 +733,13 @@ if (debug) System.out.println("endRecordThreads: will end threads but no END eve
          */
         private void runMultipleThreads() {
 
-System.out.println("Running runMultipleThreads()");
-            // initialize
-            int totalNumberEvents=1;
-            QueueItem qItem;
-            PayloadBank recordingBank;
-            EventOrder[] eventOrders = new EventOrder[outputChannelCount];
+//System.out.println("Running runMultipleThreads()");
+            int totalNumberEvents=1, wordCount;
+            QueueItem     qItem;
+            PayloadBuffer recordingBuf  = null;
+            PayloadBank   recordingBank = null;
+            ControlType   controlType;
+            EventOrder[]  eventOrders = new EventOrder[outputChannelCount];
 
             int myInputOrder;
             int myOutputChannelIndex;
@@ -756,7 +757,16 @@ System.out.println("Running runMultipleThreads()");
 
                         // Will BLOCK here waiting for payload bank if none available
                         qItem = channelQ.take();  // blocks, throws InterruptedException
-                        recordingBank = qItem.getPayloadBank();
+                        if (inputType == QueueItemType.PayloadBank) {
+                            recordingBank = qItem.getPayloadBank();
+                            controlType = recordingBank.getControlType();
+                            wordCount = recordingBank.getHeader().getLength() + 1;
+                        }
+                        else {
+                            recordingBuf = qItem.getBuffer();
+                            controlType = recordingBuf.getControlType();
+                            wordCount = recordingBuf.getNode().getLength() + 1;
+                        }
 
                         // If we're here, we've got an event.
                         // We want one EventOrder object for each output channel
@@ -770,7 +780,7 @@ System.out.println("Running runMultipleThreads()");
                             myOutputChannelIndex = outputChannelIndex;
                             outputChannelIndex = ++outputChannelIndex % outputChannelCount;
 
-                            // Order in which this will be placed into its output channel.
+                            // Order in which this will be placed into its output channel
                             myInputOrder = inputOrders[myOutputChannelIndex];
                             myOutputLock = locks[myOutputChannelIndex];
 
@@ -793,20 +803,34 @@ System.out.println("Running runMultipleThreads()");
                     }
 
                     if (outputChannelCount > 0) {
-                        // We must copy the event and place one on each output channel.
-                        recordingBank.setAttachment(eventOrders[0]);
-                        bankToOutputChannel(recordingBank);
+                        // We must copy the event and place one on each output channel
+                        if (inputType == QueueItemType.PayloadBank) {
+                            recordingBank.setAttachment(eventOrders[0]);
+                            dataToOutputChannel(recordingBank);
+                        }
+                        else {
+                            recordingBuf.setAttachment(eventOrders[0]);
+                            dataToOutputChannel(recordingBuf);
+                        }
+
                         for (int j=1; j < outputChannelCount; j++) {
-                            // Copy bank
-                            PayloadBank bb = new PayloadBank(recordingBank);
-                            bb.setAttachment(eventOrders[j]);
-                            // Write to other output Q's
-                            bankToOutputChannel(bb);
+                            if (inputType == QueueItemType.PayloadBank) {
+                                // Copy bank
+                                PayloadBank bb = new PayloadBank(recordingBank);
+                                bb.setAttachment(eventOrders[j]);
+                                // Write to other output Q's
+                                dataToOutputChannel(bb);
+                            }
+                            else {
+                                PayloadBuffer bb = new PayloadBuffer(recordingBuf);
+                                bb.setAttachment(eventOrders[j]);
+                                dataToOutputChannel(bb);
+                            }
                         }
                     }
 
                     // If END event, interrupt other record threads then quit this one.
-                    if (recordingBank.getControlType() == ControlType.END) {
+                    if (controlType == ControlType.END) {
 if (true) System.out.println("Found END event in record thread");
                         haveEndEvent = true;
                         endRecordThreads(this, false);
@@ -817,7 +841,7 @@ if (true) System.out.println("Found END event in record thread");
 //                    synchronized (EventRecording.this) {
                     // stats  // TODO: protect since in multithreaded environs
                     eventCountTotal += totalNumberEvents;
-                    wordCountTotal  += recordingBank.getHeader().getLength() + 1;
+                    wordCountTotal  += wordCount;
 //                    }
                 }
                 catch (InterruptedException e) {
@@ -831,19 +855,30 @@ if (true) System.out.println("Found END event in record thread");
 
         /** When running only 1 recording thread, things can be greatly simplified. */
         private void runOneThread() {
-System.out.println("Running runOneThread()");
+//System.out.println("Running runOneThread()");
 
             // initialize
-            int totalNumberEvents=1;
+            int totalNumberEvents=1, wordCount;
             QueueItem qItem;
-            PayloadBank recordingBank;
+            PayloadBuffer recordingBuf  = null;
+            PayloadBank   recordingBank = null;
+            ControlType controlType;
 
             while (state == CODAState.ACTIVE || paused) {
 
                 try {
                     // Will BLOCK here waiting for payload bank if none available
                     qItem = channelQ.take();  // blocks, throws InterruptedException
-                    recordingBank = qItem.getPayloadBank();
+                    if (inputType == QueueItemType.PayloadBank) {
+                        recordingBank = qItem.getPayloadBank();
+                        controlType = recordingBank.getControlType();
+                        wordCount = recordingBank.getHeader().getLength() + 1;
+                    }
+                    else {
+                        recordingBuf = qItem.getBuffer();
+                        controlType = recordingBuf.getControlType();
+                        wordCount = recordingBuf.getNode().getLength() + 1;
+                    }
 
                     if (outputChannelCount > 0) {
                         // Place bank on first output channel queue
@@ -851,12 +886,18 @@ System.out.println("Running runOneThread()");
 
                         // Copy bank & write to other output channels' Q's
                         for (int j=1; j < outputChannelCount; j++) {
-                            outputChannels.get(j).getQueue().put(new QueueItem(new PayloadBank(recordingBank)));
+                            if (inputType == QueueItemType.PayloadBank) {
+                                qItem = new QueueItem(new PayloadBank(recordingBank));
+                            }
+                            else {
+                                qItem = new QueueItem(new PayloadBuffer(recordingBuf));
+                            }
+                            outputChannels.get(j).getQueue().put(qItem);
                         }
                     }
 
                     // If END event, quit this one & only recording thread
-                    if (recordingBank.getControlType() == ControlType.END) {
+                    if (controlType == ControlType.END) {
 if (true) System.out.println("Found END event in record thread");
                         haveEndEvent = true;
                         if (endCallback != null) endCallback.endWait();
@@ -864,7 +905,7 @@ if (true) System.out.println("Found END event in record thread");
                     }
 
                     eventCountTotal += totalNumberEvents;
-                    wordCountTotal  += recordingBank.getHeader().getLength() + 1;
+                    wordCountTotal  += wordCount;
                 }
                 catch (InterruptedException e) {
                     if (debug) System.out.println("INTERRUPTED thread " + Thread.currentThread().getName());
