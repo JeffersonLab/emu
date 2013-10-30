@@ -605,14 +605,14 @@ System.out.println("ROC SIM write thds = " + writeThreads);
                                                             numEvents,
                                                             isSingleEventMode);
                eventWordSize = evs[0].getHeader().getLength() + 1;
-//System.out.println("ROCSim: each generated event data = " + (4*(eventWordSize - 2)) +
-//                " bytes, words = " + (eventWordSize -2 ) + ", tag = " +
-//                evs[0].getHeader().getTag() + ", num = " + evs[0].getHeader().getNumber());
+System.out.println("ROCSim: each generated event size = " + (4*eventWordSize) +
+                " bytes, words = " + (eventWordSize) + ", tag = " +
+                evs[0].getHeader().getTag() + ", num = " + evs[0].getHeader().getNumber());
 //System.out.println("ROCSim: each generated event = " + evs[0].toXML());
 
                while (state == CODAState.ACTIVE || paused) {
 
-                   numEvents = 2;
+                   numEvents = 10;
 
                    semaphore.acquire();
 
