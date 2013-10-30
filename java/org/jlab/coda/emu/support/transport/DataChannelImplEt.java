@@ -1091,11 +1091,11 @@ System.out.println("      DataChannel Et in helper: " + name + " got RESET cmd, 
                         EvioNode node;
 
 //logger.info("      DataChannel Et in helper: " + name + " block header, event type " + eventType +
-//            ", src id = " + sourceId + ", recd id = " + recordId);
+//            ", src id = " + sourceId + ", recd id = " + recordId + ", event cnt = " + eventCount);
 
-                        for (int i=0; i < eventCount; i++) {
+                        for (int i=1; i < eventCount+1; i++) {
                             node = compactReader.getEvent(i);
-
+//System.out.println("node = " + node);
                             // Complication: from the ROC, we'll be receiving USER events
                             // mixed in with and labeled as ROC Raw events. Check for that
                             // and fix it.
@@ -1116,10 +1116,10 @@ System.out.println("      DataChannel Et in helper: " + name + " got RESET cmd, 
                                 }
                             }
 
-                            // Not a real copy, just points to stuff in buff
+                            // Not a real copy, just points to single event in buffer
                             payloadBuffer = new PayloadBuffer(compactReader.getEventBuffer(i),
                                                               bankType, controlType, recordId,
-                                                              sourceId, name);
+                                                              sourceId, name, node);
 
                             // add buffer to list for later writing
                             payloadBuffers.add(payloadBuffer);
