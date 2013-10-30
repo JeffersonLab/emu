@@ -11,6 +11,8 @@
 
 package org.jlab.coda.emu.support.data;
 
+import org.jlab.coda.jevio.EvioNode;
+
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 
@@ -49,6 +51,9 @@ public class PayloadBuffer implements Cloneable, Attached {
      *  may have the same record id. */
     private int recordId;
 
+    /** Object containing info about the buffer. */
+    private EvioNode node;
+
 
     /**
      * Constructor that sets attachment to null.
@@ -56,7 +61,18 @@ public class PayloadBuffer implements Cloneable, Attached {
      */
     public PayloadBuffer(ByteBuffer buffer) {
         this.buffer = buffer;
-        this.attachment = null;
+    }
+
+    /**
+     * Constructor.
+     * @param buffer     ByteBuffer to wrap.
+     * @param attachment object to associate with the ByteBuffer.
+     * @param node       object holding details about the buffer.
+     */
+    public PayloadBuffer(ByteBuffer buffer, Object attachment, EvioNode node) {
+        this.node = node;
+        this.buffer = buffer;
+        this.attachment = attachment;
     }
 
     /**
@@ -67,9 +83,10 @@ public class PayloadBuffer implements Cloneable, Attached {
      * @param recordId    if Physics or RocRaw, the record id of CODA events.
      * @param sourceId    If RocRaw, the CODA id of the source.
      * @param sourceName  The name of the source of these CODA events.
+     * @param node        object holding details about the buffer.
      */
     public PayloadBuffer(ByteBuffer buffer, EventType eventType, ControlType controlType,
-                         int recordId, int sourceId, String sourceName) {
+                         int recordId, int sourceId, String sourceName, EvioNode node) {
         this.buffer      = buffer;
         this.eventType   = eventType;
         this.controlType = controlType;
@@ -77,33 +94,24 @@ public class PayloadBuffer implements Cloneable, Attached {
         this.sourceId    = sourceId;
         this.sourceName  = sourceName;
         this.attachment  = null;
-    }
-
-    /**
-     * Constructor.
-     * @param buffer ByteBuffer to wrap.
-     * @param attachment object to associate with the ByteBuffer.
-     */
-    public PayloadBuffer(ByteBuffer buffer, Object attachment) {
-        this.buffer = buffer;
-        this.attachment = attachment;
+        this.node        = node;
     }
 
     /**
      * Copy constructor.
-     * @param buffer ByteBuffer to wrap.
+     * @param buf ByteBuffer to wrap.
      */
-    public PayloadBuffer(PayloadBuffer buffer) {
+    public PayloadBuffer(PayloadBuffer buf) {
         // Share content but keep different limit, position, mark.
         // This will work if and only if the buffer is written to.
-        ByteBuffer buf   = buffer.getBuffer();
-        this.buffer      = buf.duplicate();
-
-        this.eventType   = buffer.eventType;
-        this.controlType = buffer.controlType;
-        this.recordId    = buffer.recordId;
-        this.sourceId    = buffer.sourceId;
-        this.sourceName  = buffer.sourceName;
+        this.buffer      = buf.buffer.duplicate();
+        this.eventType   = buf.eventType;
+        this.controlType = buf.controlType;
+        this.recordId    = buf.recordId;
+        this.sourceId    = buf.sourceId;
+        this.sourceName  = buf.sourceName;
+        this.node        = buf.node;
+        // TODO: attachment???
     }
 
     /**
@@ -193,6 +201,10 @@ public class PayloadBuffer implements Cloneable, Attached {
 
     public void setSourceName(String sourceName) {
         this.sourceName = sourceName;
+    }
+
+    public EvioNode getNode() {
+        return node;
     }
 
 
