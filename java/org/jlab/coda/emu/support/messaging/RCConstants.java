@@ -101,6 +101,8 @@ public class RCConstants {
     public static final String configPayloadFileName = "fileName";
     /** String used as payload name for item holding config file content. */
     public static final String configPayloadFileContent = "fileContent";
+    /** String used as payload name for item holding config file content for simulated ROC. */
+    public static final String configPayloadFileContentRoc = "emuRocConfig";
     /** String used as payload name for item holding int (1 if file content changed, else 0). */
     public static final String configPayloadFileChanged = "fileChanged";
 
