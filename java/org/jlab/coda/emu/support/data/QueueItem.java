@@ -59,7 +59,8 @@ public class QueueItem implements Cloneable, Attached {
     public QueueItem(PayloadBuffer payloadBuffer) {
         this.payloadBuffer = payloadBuffer;
         qItemType   = QueueItemType.PayloadBuffer;
-        controlType = Evio.getControlType(payloadBuffer.getBuffer());
+        //controlType = Evio.getControlType(payloadBuffer.getBuffer());
+        controlType = payloadBuffer.getControlType();
     }
 
     /**
