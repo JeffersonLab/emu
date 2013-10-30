@@ -1139,15 +1139,24 @@ System.out.println("SET Run type to " + txt);
 
                 if (msg != null) {
                     try {
-                        // May have an xml configuration string.
-                        pItem = cmd.getArg(RCConstants.configPayloadFileContent);
+                        // If this is a RocSimulation emu, this is how we
+                        // get the xml configuration string.
+                        pItem = cmd.getArg(RCConstants.configPayloadFileContentRoc);
                         if (pItem != null) {
                             rcConfigString = pItem.getString();
-                            // Only get this if we have file content.
-                            // This tells us if it changed since last configure.
-                            pItem = cmd.getArg(RCConstants.configPayloadFileChanged);
+                            isNewConfig = true;
+                        }
+                        // May have an xml configuration string for other emus
+                        else {
+                            pItem = cmd.getArg(RCConstants.configPayloadFileContent);
                             if (pItem != null) {
-                                isNewConfig = pItem.getInt() == 1;
+                                rcConfigString = pItem.getString();
+                                // Only get this if we have file content.
+                                // This tells us if it changed since last configure.
+                                pItem = cmd.getArg(RCConstants.configPayloadFileChanged);
+                                if (pItem != null) {
+                                    isNewConfig = pItem.getInt() == 1;
+                                }
                             }
                         }
 
