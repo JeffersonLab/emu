@@ -372,12 +372,21 @@ logger.info("      DataChannel Et : creating output channel " + name);
             CODAClass emuClass = emu.getCodaClass();
             isEB = emuClass.isEventBuilder();
             if (isEB) {
-                // Is this the last level event builder (not a DC)?
-                isFinalEB = (emuClass == CODAClass.PEB || emuClass == CODAClass.SEB);
                 // The control array needs to be the right size.
                 control = new int[EtConstants.stationSelectInts];
+
                 // The first control word is this EB's coda id
                 control[0] = id;
+
+                // Is this the last level event builder (not a DC)?
+                // In this case, we want the first control word to indicated that
+                // an evio control event is being sent (which will be received
+                // and dealt with by the FCS (Farm Control Supervisor).
+                // Either that or it will be ignored.
+                isFinalEB = (emuClass == CODAClass.PEB || emuClass == CODAClass.SEB);
+                if (isFinalEB) {
+                    control[0] = 0xc0da; // 49370
+                }
             }
         }
 
