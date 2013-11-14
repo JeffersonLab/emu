@@ -128,6 +128,7 @@ public class CMSGPortal implements LoggerAppender {
 //logger.info("cMSg server connected");
 
                         } catch (cMsgException e) {
+                            System.out.println("Rc error: " + e.getMessage());
                             logger.warn("cMsg server down, retry in 2 seconds");
                             if (server != null) {
                                 try {
