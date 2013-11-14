@@ -39,9 +39,6 @@ public class CMSGPortal implements LoggerAppender {
 
     /** Store a reference to the EMU here (which is the only object that uses this CMSGPortal object). */
     final CODAComponent comp;
-    
-    /** Thread which creates and maintains a healthy cMsg connection. */
-    private final Thread monitorThread;
 
     private Logger logger;
 
@@ -77,87 +74,28 @@ public class CMSGPortal implements LoggerAppender {
         logger = emu.getLogger();
         logger.addAppender(this);
 
-        // start a thread to maintain a connection to the cMsg server
-        monitorThread = new Thread(emu.getThreadGroup(), new ServerMonitor(), "cMSg Server Monitor");
-        monitorThread.start();
-    }
+        // create a connection to the RC server
+        try {
+            server = new cMsg(UDL, comp.name(), "EMU called " + comp.name());
+            server.connect();
+            // allow receipt of messages
+            server.start();
+            // only need one callback
+            RcCommandHandler handler = new RcCommandHandler(CMSGPortal.this);
+            // install callback for download, prestart, go, etc
+            server.subscribe("*", RCConstants.transitionCommandType, handler, null);
+            // install callback for reset, configure, start, stop, getsession, setsession, etc
+            server.subscribe("*", RCConstants.runCommandType, handler, null);
+            // install callback for set/get run number, set/get run type
+            server.subscribe("*", RCConstants.sessionCommandType, handler, null);
+            // install callback for getting state, status, codaClass, & objectType
+            server.subscribe("*", RCConstants.infoCommandType, handler, null);
+            // for future use
+            server.subscribe("*", RCConstants.setOptionType, handler, null);
 
-
-    /**
-     * This class is run as a thread to ensure a viable cMsg connection.
-     */
-    private class ServerMonitor implements Runnable {
-
-        /**
-         * When an object implementing interface <code>Runnable</code> is used
-         * to create a thread, starting the thread causes the object's
-         * <code>run</code> method to be called in that separately executing
-         * thread.
-         * <p/>
-         * The general contract of the method <code>run</code> is that it may
-         * take any action whatsoever.
-         *
-         * @see Thread#run()
-         */
-        public void run() {
-
-            // While we have not been ordered to shutdown,
-            // make sure we have a viable connection to the cMsg server.
-            while (!monitorThread.isInterrupted()) {
-
-                synchronized (this) {
-                    if (server == null || !server.isConnected()) {
-                        try {
-                            // create connection to cMsg server
-                            server = new cMsg(UDL, comp.name(), "EMU called " + comp.name());
-                            server.connect();
-                            // allow receipt of messages
-                            server.start();
-                            // only need one callback
-                            RcCommandHandler handler = new RcCommandHandler(CMSGPortal.this);
-                            // install callback for download, prestart, go, etc
-                            server.subscribe("*", RCConstants.transitionCommandType, handler, null);
-                            // install callback for reset, configure, start, stop, getsession, setsession, etc
-                            server.subscribe("*", RCConstants.runCommandType, handler, null);
-                            // install callback for set/get run number, set/get run type
-                            server.subscribe("*", RCConstants.sessionCommandType, handler, null);
-                            // install callback for getting state, status, codaClass, & objectType
-                            server.subscribe("*", RCConstants.infoCommandType, handler, null);
-                            // for future use
-                            server.subscribe("*", RCConstants.setOptionType, handler, null);
-//logger.info("cMSg server connected");
-
-                        } catch (cMsgException e) {
-                            System.out.println("Rc error: " + e.getMessage());
-                            logger.warn("cMsg server down, retry in 2 seconds");
-                            if (server != null) {
-                                try {
-                                    if (server.isConnected()) server.disconnect();
-                                } catch (cMsgException e1) {}
-                                server = null;
-                            }
-                        }
-                    }
-                }
-
-                // wait for 2 seconds
-                try {
-                    Thread.sleep(2000);
-                } catch (InterruptedException e) {
-                    break;
-                }
-            }
-
-            // We're here because we've been ordered to shutdown the connection
-            synchronized (this) {
-                if (server != null) {
-                    try { server.disconnect(); }
-                    catch (cMsgException e) {}
-                }
-                server = null;
-            }
-
-            logger.warn("cMSg server monitor thread exit");
+        } catch (cMsgException e) {
+            logger.warn("Exit due to RC connect error: " + e.getMessage());
+            System.exit(-1);
         }
     }
 
@@ -167,10 +105,15 @@ public class CMSGPortal implements LoggerAppender {
      * Called from the EMU when quitting.
      * @throws cMsgException
      */
-    public void shutdown() throws cMsgException {
+    synchronized public void shutdown() throws cMsgException {
+
         logger.removeAppender(this);
 
-        monitorThread.interrupt();
+        if (server != null) {
+            try { server.disconnect(); }
+            catch (cMsgException e) {}
+        }
+        server = null;
     }
 
 
