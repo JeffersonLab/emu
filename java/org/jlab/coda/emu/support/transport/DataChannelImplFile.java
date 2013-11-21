@@ -36,7 +36,7 @@ public class DataChannelImplFile extends DataChannelAdapter {
     private Thread dataThread;
 
     /** The default size in bytes at which a new file is created. */
-    private int split;
+    private long split;
 
     /** If splitting files, the number file being written currently to. */
     private int splitCount;
@@ -160,12 +160,12 @@ logger.info("      DataChannel File: dictionary file cannot be read");
             String splitStr = attributeMap.get("split");
             if (splitStr != null) {
                 try {
-                    split = Integer.parseInt(splitStr);
+                    split = Long.parseLong(splitStr);
                     // Ignore negative values
-                    if (split < 0) split = 0;
+                    if (split < 0L) split = 0L;
                 }
                 catch (NumberFormatException e) {
-                    split = 0;
+                    split = 0L;
                 }
 //logger.info("      DataChannel File: split = " + split);
             }
@@ -177,7 +177,7 @@ logger.info("      DataChannel File: dictionary file cannot be read");
                 fileName = "codaInputFile.dat";
             }
             else {
-                if (split > 0) {
+                if (split > 0L) {
                     // First specifier   (%d)  replaced with run #,
                     // second specifier (%05d) replaced with split #
                     fileName = "codaOutputFile_%d.dat%05d";
@@ -229,9 +229,12 @@ logger.info("      DataChannel File: try opening input file of " + fileName);
 
             } else {
 logger.info("      DataChannel File: try opening output base file of " + fileName);
+                // Overwriting file is OK. This is the desired behavior for
+                // statically named files. For files with run #'s in them, it
+                // will not be a problem unless run # is repeated.
                 evioFileWriter = new EventWriter(fileName, directory, runType,
                                                  runNumber, split, byteOrder,
-                                                 dictionaryXML);
+                                                 dictionaryXML, true);
 
                 // Tell emu what that output name is for stat reporting.
                 // Get the name from the file writer object so that the
@@ -240,7 +243,7 @@ logger.info("      DataChannel File: try opening output base file of " + fileNam
                 emu.setOutputDestination(evioFileWriter.getCurrentFilename());
 
                 // Keep track of how many files we create
-                if (split > 0) splitCount = evioFileWriter.getSplitCount();
+                if (split > 0L) splitCount = evioFileWriter.getSplitCount();
 
                 DataOutputHelper helper = new DataOutputHelper();
                 dataThread = new Thread(emu.getThreadGroup(), helper, name() + " data out");
@@ -556,7 +559,7 @@ logger.warn("      DataChannel File (" + name + "): got event but NO PRESTART, g
 
                     // If splitting the output, the file name may change.
                     // Inform the authorities about this.
-                    if (split > 0 && evioFileWriter.getSplitCount() > splitCount) {
+                    if (split > 0L && evioFileWriter.getSplitCount() > splitCount) {
                         emu.setOutputDestination(evioFileWriter.getCurrentFilename());
                         splitCount = evioFileWriter.getSplitCount();
                     }
