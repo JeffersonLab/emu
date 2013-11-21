@@ -229,12 +229,16 @@ logger.info("      DataChannel File: try opening input file of " + fileName);
 
             } else {
 logger.info("      DataChannel File: try opening output base file of " + fileName);
-                // Overwriting file is OK. This is the desired behavior for
-                // statically named files. For files with run #'s in them, it
-                // will not be a problem unless run # is repeated.
+
+                // Make overwriting the file OK if there is NO splitting of the file.
+                // If there is no file splitting, overwriting the file will occur when
+                // the file name is static or if the run # is repeated.
+                boolean overWriteOK = true;
+                if (split > 0L) overWriteOK = false;
+
                 evioFileWriter = new EventWriter(fileName, directory, runType,
                                                  runNumber, split, byteOrder,
-                                                 dictionaryXML, true);
+                                                 dictionaryXML, overWriteOK);
 
                 // Tell emu what that output name is for stat reporting.
                 // Get the name from the file writer object so that the
