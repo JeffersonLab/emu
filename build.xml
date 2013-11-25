@@ -101,6 +101,10 @@
             <fileset dir="${env.CODA}/common/jar" >
                 <include name="*.jar" />
             </fileset>
+            <!-- however, use swing-layout.jar from this distribution -->
+            <fileset dir="${local.jars}" >
+                <include name="swing-layout.jar" />
+            </fileset>
         </path>
         <echo message="Compile with jars in $CODA/common/jar" />
     </target>
@@ -197,8 +201,8 @@
 
     <!-- Create Jar file -->
     <target name="jar" depends="compile" description="Generates jar file.">
-        <delete file="${jarName}"/>
-        <jar jarfile="${jarName}" manifest="${src.dir}/org/jlab/coda/emu/manifest.mf">
+        <delete file="${jarPath}"/>
+        <jar jarfile="${jarPath}" manifest="${src.dir}/org/jlab/coda/emu/manifest.mf">
             <fileset dir="${build.classes}" excludes="*.class" >
                 <include name="org/jlab/coda/**/*.class"/>
                 <include name="**/*.properties"/>
