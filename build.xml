@@ -167,7 +167,7 @@
     </target>
 
 
-
+    <!-- ************************************************************* -->
     <!-- Javadoc -->
     <target name="javadoc" description="Create javadoc.">
         <mkdir dir="${doc.dir}" />
@@ -196,7 +196,7 @@
     <target name="undoc" description="remove all javadoc.">
         <delete dir="${doc.dir}" />
     </target>
-
+    <!-- ************************************************************* -->
 
 
     <!-- Create Jar file -->
