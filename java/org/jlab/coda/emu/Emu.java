@@ -777,8 +777,11 @@ System.out.println("Emu " + name + " sending special RC display error Msg:\n ***
             }
         }
 
-        /** Send a cMsg message with the status of this EMU to run control's cMsg server.  */
-        void sendStatusMessage() {
+        /**
+         * Send a cMsg message with the status of this EMU to run control's cMsg server.
+         * cMsg messages are not thread-safe when it comes to adding payloads so synchronize
+         * this method. */
+        synchronized void sendStatusMessage() {
             if (statusReportingOn &&
                (cmsgPortal.getServer() != null) &&
                (cmsgPortal.getServer().isConnected())) {
