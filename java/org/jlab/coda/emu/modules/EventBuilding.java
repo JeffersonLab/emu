@@ -1454,6 +1454,14 @@ if (debug) System.out.println("Building thread is ending !!!");
     /** {@inheritDoc} */
     public void prestart() throws CmdExecException {
 
+        // Event builder needs inputs
+        if (inputChannels.size() < 1) {
+            errorMsg.compareAndSet(null, "no input channels to EB");
+            state = CODAState.ERROR;
+            emu.sendStatusMessage();
+            throw new CmdExecException("no input channels to EB");
+        }
+
         // Make sure each input channel is associated with a unique rocId
         for (int i=0; i < inputChannels.size(); i++) {
             for (int j=i+1; j < inputChannels.size(); j++) {
