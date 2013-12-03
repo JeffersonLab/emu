@@ -997,13 +997,15 @@ if (debug) System.out.println("BuildingThread: Got user event");
 
                                 // Throw exception if not all banks are END events
                                 if (endEventCount != buildingBanks.length) {
-                                    throw new EmuException("not all channels have an END event");
+                                    throw new EmuException("have " + endEventCount + " END events, but " +
+                                            buildingBanks.length + " in channels");
                                 }
                             }
 
                             // Do a quick check on the # of CONTROL events
                             if (controlEventCount !=  buildingBanks.length) {
-                                throw new EmuException("not all channels have control events");
+                                throw new EmuException("have " + controlEventCount + " control events, but " +
+                                        buildingBanks.length + " in channels");
                             }
 
                             // Prestart creates & clears payloadBankQueues below in execute()
