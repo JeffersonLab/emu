@@ -925,7 +925,7 @@ System.out.println("      DataChannel Et in helper: " + name + " got RESET cmd, 
                                     // There should be no more events coming down the pike so
                                     // go ahead write out existing events and then shut this
                                     // thread down.
-                                    logger.info("      DataChannel Et in helper: found END event");
+                                    logger.info("      DataChannel Et in helper: " + name + " found END event");
                                     haveInputEndEvent = true;
                                     // run callback saying we got end event
                                     if (endCallback != null) endCallback.endWait();
@@ -1155,7 +1155,7 @@ System.out.println("      DataChannel Et in helper: " + name + " got RESET cmd, 
                                 // There should be no more events coming down the pike so
                                 // go ahead write out existing events and then shut this
                                 // thread down.
-                                logger.info("      DataChannel Et in helper: found END event");
+                                logger.info("      DataChannel Et in helper: " + name + " found END event");
                                 haveInputEndEvent = true;
                                 // run callback saying we got end event
                                 if (endCallback != null) endCallback.endWait();
