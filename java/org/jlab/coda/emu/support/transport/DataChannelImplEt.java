@@ -762,11 +762,17 @@ logger.debug("      DataChannel Et reset() : " + name + " - done");
                 BlockHeaderV4 header4;
                 EventType eventType, bankType;
                 ControlType controlType;
+                boolean delay = false;
 
-                EvioReader reader = null;
+                EvioReader reader;
                 ByteBuffer buf;
 
                 while ( etSystem.alive() ) {
+
+                    if (delay) {
+                        Thread.sleep(5);
+                        delay = false;
+                    }
 
                     if (pause) {
                         if (pauseCounter++ % 400 == 0)
@@ -809,24 +815,26 @@ logger.warn("      DataChannel Et in helper: " + name + " - PAUSED");
                         catch (EtWakeUpException e) {
                             // Told to wake up because we're ending or resetting
                             if (haveInputEndEvent) {
-System.out.println("      DataChannel Et in helper: " + name + " have END event, quitting");
+System.out.println("      DataChannel Et in helper: wake up " + name + ", other thd found END, quit");
                             }
                             else if (gotResetCmd) {
-System.out.println("      DataChannel Et in helper: " + name + " got RESET cmd, quitting");
+System.out.println("      DataChannel Et in helper: " + name + " got RESET cmd, quit");
                             }
                             return;
                         }
                         catch (EtTimeoutException e) {
                             if (haveInputEndEvent) {
-System.out.println("      DataChannel Et in helper: " + name + " have END event, quitting");
+System.out.println("      DataChannel Et in helper: timeout " + name + ", other thd found END, quit");
                                 return;
                             }
                             else if (gotResetCmd) {
-System.out.println("      DataChannel Et in helper: " + name + " got RESET cmd, quitting");
+System.out.println("      DataChannel Et in helper: " + name + " got RESET cmd, quit");
                                 return;
                             }
 
-                            Thread.sleep(5);
+                            // Want to delay before calling getEvents again
+                            // but don't do it here in a synchronized block.
+                            delay = true;
                             continue;
                         }
                     }
@@ -1001,11 +1009,17 @@ System.out.println("      DataChannel Et in helper: " + name + " got RESET cmd, 
                 BlockHeaderV4 header4;
                 EventType eventType, bankType;
                 ControlType controlType;
+                boolean delay = false;
 
                 ByteBuffer buf;
                 EvioCompactReader compactReader;
 
                 while ( etSystem.alive() ) {
+
+                    if (delay) {
+                        Thread.sleep(5);
+                        delay = false;
+                    }
 
                     if (pause) {
                         if (pauseCounter++ % 400 == 0)
@@ -1048,24 +1062,27 @@ System.out.println("      DataChannel Et in helper: " + name + " got RESET cmd, 
                         catch (EtWakeUpException e) {
                             // Told to wake up because we're ending or resetting
                             if (haveInputEndEvent) {
-                                System.out.println("      DataChannel Et in helper: " + name + " have END event, quitting");
+System.out.println("      DataChannel Et in helper: wake up " + name + ", other thd found END, quit");
                             }
                             else if (gotResetCmd) {
-                                System.out.println("      DataChannel Et in helper: " + name + " got RESET cmd, quitting");
+System.out.println("      DataChannel Et in helper: " + name + " got RESET cmd, quitting");
                             }
                             return;
                         }
                         catch (EtTimeoutException e) {
                             if (haveInputEndEvent) {
-                                System.out.println("      DataChannel Et in helper: " + name + " have END event, quitting");
+System.out.println("      DataChannel Et in helper: timeout " + name + ", other thd found END, quit");
                                 return;
                             }
                             else if (gotResetCmd) {
-                                System.out.println("      DataChannel Et in helper: " + name + " got RESET cmd, quitting");
+System.out.println("      DataChannel Et in helper: " + name + " got RESET cmd, quitting");
                                 return;
                             }
 
-                            Thread.sleep(5);
+                            // Want to delay before calling getEvents again
+                            // but don't do it here in a synchronized block.
+                            delay = true;
+
                             continue;
                         }
                     }
