@@ -1615,6 +1615,8 @@ System.out.println("startThreads(): recreated building threads, # = " +
                 thd.start();
             }
         }
+System.out.println("startThreads(): started " + buildingThreadList.size() +
+                   " building threads");
 
         if (qFillers == null) {
             qFillers = new Thread[payloadBankQueues.size()];
@@ -1633,6 +1635,8 @@ System.out.println("startThreads(): recreated " + payloadBankQueues.size() +
                 qFillers[i].start();
             }
         }
+System.out.println("startThreads(): started " + payloadBankQueues.size() +
+                   " Q-filling threads");
     }
 
 
