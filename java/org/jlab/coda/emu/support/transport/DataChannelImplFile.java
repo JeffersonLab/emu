@@ -548,9 +548,9 @@ logger.warn("      DataChannel File (" + name + "): got event but NO PRESTART, g
                         // evioFileWriter will automatically split the file
                         if (queueItemType == QueueItemType.PayloadBank) {
                             evioFileWriter.writeEvent(bank);
-                            if (controlType == ControlType.PRESTART) {
-                                evioFileWriter.flushToFile();
-                            }
+//                            if (controlType == ControlType.PRESTART) {
+//                                evioFileWriter.flushToFile();
+//                            }
                         }
                         else {
                             evioFileWriter.writeEvent(buf.getBuffer());
