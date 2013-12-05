@@ -881,6 +881,7 @@ System.out.println("Emu " + name + " sending special RC display error Msg:\n ***
         errorMsg.set(null);
 
         // Stop any more run control commands from being executed
+logger.info("Emu.reset(): set flag to STOP executin of rc commands");
         stopExecutingCmds = true;
 
         // Clear out any existing, un-executed commands
@@ -931,6 +932,7 @@ logger.debug("  Emu.reset(): reset modules " + module.name());
 logger.info("Emu.reset(): done, setting state to " + state);
 
         // Allow run control commands to be executed once again
+logger.info("Emu.reset(): set flag to ALLOW execution of rc commands");
         stopExecutingCmds = false;
     }
 
