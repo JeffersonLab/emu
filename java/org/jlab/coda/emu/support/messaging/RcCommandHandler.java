@@ -49,7 +49,7 @@ class RcCommandHandler extends GenericCallback implements cMsgCallbackInterface 
      * @param o   object given in subscription & passed in here (null in this case)
      */
     public void callback(cMsgMessage msg, Object o) {
-//System.out.println("callback: got " + msg.getType() + " message");
+System.out.println("callback: got " + msg.getType() + " message");
         try {
             String type = msg.getType();
 
