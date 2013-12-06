@@ -986,31 +986,78 @@ if (debug) System.out.println("BuildingThread: Got user event");
                             // Do a check on END events before we release the mutex
                             if (endEventCount > 0) {
                                 // If there is at least one end event, then we need to
-                                // clear all input channels as there should be nothing
-                                // coming after an END event.
-                                // This is done so other building threads have nothing
+                                // end everything. If not all channels have an END event,
+                                // see if we can find them. Then clear all input channels
+                                // as there should be nothing coming after an END event.
+                                //
+                                // The clearing is done so other building threads have nothing
                                 // to build when we release the mutex - even if we have
                                 // a mismatch. Avoids unnecessary generation of errors.
+                                //
+                                // If all channels have an END, we can end normally
+                                // with a warning about the mismatch in number of events.
+                                // If some do NOT have an END, then stop with major error.
+
+
+                                // If not all banks are END events
+                                if (endEventCount != buildingBanks.length) {
+
+                                    int finalEndEventCount = endEventCount;
+
+                                    // Look through Q's to see if we can find the rest ...
+                                    for (int i=0; i < payloadBankQueues.size(); i++) {
+                                        PayloadBank pBank;
+                                        EventType   eType = buildingBanks[i].getEventType();
+                                        ControlType cType = buildingBanks[i].getControlType();
+
+                                        if (cType != null)  {
+                                            System.out.println("got " + cType + " event from " + buildingBanks[i].getSourceName());
+                                        }
+                                        else {
+                                            System.out.println("got " + eType + " event from " + buildingBanks[i].getSourceName());
+                                        }
+
+                                        // If this channel doesn't have an END, try finding it somewhere in Q
+                                        if (cType != ControlType.END) {
+                                            int offset = 0;
+                                            // Loop through all events on this channel
+                                            while ( (pBank = payloadBankQueues.get(i).poll()) != null) {
+                                                offset++;
+                                                if (pBank.getControlType() == ControlType.END) {
+System.out.println("got END from " + buildingBanks[i].getSourceName() +
+                   ", back " + offset + " places in Q");
+                                                    finalEndEventCount++;
+                                                    break;
+                                                }
+                                            }
+                                        }
+                                    }
+
+                                    // If we still can't find all ENDs, throw exception - major error
+                                    if (finalEndEventCount!= buildingBanks.length) {
+                                        throw new EmuException("only " + finalEndEventCount + " ENDs for " +
+                                                buildingBanks.length + " channels");
+                                    }
+
+                                    // If we're here, we've found all ENDs, continue on with warning ...
+                                    nonFatalError = true;
+if (true) System.out.println("Have all ENDs, but differing # of physics events in channels");
+                                }
+
+                                // Clear all channels' Q's
                                 for (int i=0; i < payloadBankQueues.size(); i++) {
                                     payloadBankQueues.get(i).clear();
                                 }
-
-                                // Throw exception if not all banks are END events
-                                if (endEventCount != buildingBanks.length) {
-                                    throw new EmuException("have " + endEventCount + " END events, but " +
-                                            buildingBanks.length + " in channels");
-                                }
                             }
 
-                            // Do a quick check on the # of CONTROL events
-                            if (controlEventCount !=  buildingBanks.length) {
+                            // If no ENDs, do a quick check on the # of CONTROL events
+                            else if (controlEventCount !=  buildingBanks.length) {
                                 throw new EmuException("have " + controlEventCount + " control events, but " +
                                         buildingBanks.length + " in channels");
                             }
 
                             // Prestart creates & clears payloadBankQueues below in execute()
                         }
-
                     }
                     finally {
                         getLock.unlock();
