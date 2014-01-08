@@ -492,67 +492,55 @@ public class DataTransportImplEt extends DataTransportAdapter {
         // named EMU was previously run on a different host and left an operating,
         // identically named ET system as the one we're going to create. This can lead to
         // problems for other CODA components that need to attach to it - they may
-        // find & attach to the wrong ET system. Therefore, after a configure transition,
-        // we will start by trying to multicast on the local subnet and open all ET
-        // systems with that name. Each will be opened and then killed.
+        // find & attach to the wrong ET system. Therefore, after a configure or download
+        // transition, we will start by trying to multicast on the local subnet and open
+        // all ET systems with that name. Each will be opened and then killed.
         // Of course, any identically named local ET will be killed along with the others.
         // This way there are no legacy ET systems left to interfere.
         //
-        // If a local ET system of interest does exist and the previous command was to download
-        // then leave it alone since that means this download method created it and
-        // we were not reconfigured in the meantime.
 
 
-        // If the previous command was DOWNLOAD (not CONFIGURE), any running ET system
-        // will be a valid one that this EMU started the last time this method was called.
-        // No need to recreate or open anything. Everything should still be fine.
-        if (emu.previousState() != CODAState.CONFIGURED) {
-//logger.debug("    DataTransport Et download(): previously downloaded, use existing ET");
-            existingET = true;
-        }
-        // If the previous command was CONFIGURE, there should be NO ET system(s) running.
+        // There should be NO ET system(s) running.
         // Kill any existing systems both on this host and elsewhere.
-        else {
-            // Check to see if there are any existing ET systems running
-            // on the local subnet by trying to open a connection to them.
-            // We don't want to wait for any system.
-            // We also want to connect as a remote user so no memory-mapping
-            // is needlessly taking place.
+        //
+        // Check to see if there are any existing ET systems running
+        // on the local subnet by trying to open a connection to them.
+        // We don't want to wait for any system.
+        // We also want to connect as a remote user so no memory-mapping
+        // is needlessly taking place.
+        try {
+            ArrayList<String> mAddrs = new ArrayList<String>();
+            mAddrs.add(EtConstants.multicastAddr);
 
-            try {
-                ArrayList<String> mAddrs = new ArrayList<String>();
-                mAddrs.add(EtConstants.multicastAddr);
+            // multicasting constructor
+            etOpenConfig = new EtSystemOpenConfig(openConfig.getEtName(),
+                    EtConstants.hostAnywhere, mAddrs,
+                    openConfig.getUdpPort(), 32);
 
-                // multicasting constructor
-                etOpenConfig = new EtSystemOpenConfig(openConfig.getEtName(),
-                        EtConstants.hostAnywhere, mAddrs,
-                        openConfig.getUdpPort(), 32);
-
-                etOpenConfig.setWaitTime(1000);
-                etOpenConfig.setConnectRemotely(true);
-                etSystem = new EtSystem(etOpenConfig);
-                etSystem.setDebug(EtConstants.debugInfo);
-            }
-            catch (EtException e) {
-                errorMsg.compareAndSet(null, "self-contradictory ET system config");
-                state = CODAState.ERROR;
-                emu.sendStatusMessage();
-                logger.debug("    DataTransport Et execute DOWNLOAD: self-contradictory ET system config : " + name());
-                throw new CmdExecException("Self-contradictory ET system config", e);
-            }
-
-            try {
-                while (true) {
-                    etSystem.open();
-                    logger.debug("    DataTransport Et execute DOWNLOAD: kill existing ET system: " + name() +
-                            " on " + etSystem.getHost());
-                    killEtSystem();
-                }
-            }
-            catch (Exception e) {/* Not able to open ET so none are left running */}
-            etSystem = null;
-            existingET = false;
+            etOpenConfig.setWaitTime(1000);
+            etOpenConfig.setConnectRemotely(true);
+            etSystem = new EtSystem(etOpenConfig);
+            etSystem.setDebug(EtConstants.debugInfo);
         }
+        catch (EtException e) {
+            errorMsg.compareAndSet(null, "self-contradictory ET system config");
+            state = CODAState.ERROR;
+            emu.sendStatusMessage();
+            logger.debug("    DataTransport Et execute DOWNLOAD: self-contradictory ET system config : " + name());
+            throw new CmdExecException("Self-contradictory ET system config", e);
+        }
+
+        try {
+            while (true) {
+                etSystem.open();
+                logger.debug("    DataTransport Et execute DOWNLOAD: kill existing ET system: " + name() +
+                        " on " + etSystem.getHost());
+                killEtSystem();
+            }
+        }
+        catch (Exception e) {/* Not able to open ET so none are left running */}
+        etSystem = null;
+        existingET = false;
 
         // Create a new ET system
         if (!existingET) {
