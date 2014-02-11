@@ -58,7 +58,56 @@ public class DataTransportImplEt extends DataTransportAdapter {
     private Process processET;
 
     private Emu emu;
+
     private Logger logger;
+
+
+    /** Thread used to kill ET and remove file if JVM exited by control-C. */
+    private ControlCThread shutdownThread = new ControlCThread();
+
+    /** Class describing thread to be used for killing ET
+     *  and removing file if JVM exited by control-C. */
+    private static class ControlCThread extends Thread {
+        EtSystem etSys;
+        String etFileName;
+
+        ControlCThread() {}
+
+        ControlCThread(EtSystem etSys,String etFileName) {
+            this.etSys = etSys;
+            this.etFileName = etFileName;
+        }
+
+        void reset(EtSystem etSys,String etFileName) {
+            this.etSys = etSys;
+            this.etFileName = etFileName;
+        }
+
+        public void run() {
+
+//System.out.println("\nHEY, I'm running control-C handling thread!\n");
+            // Try killing ET system (should also delete file)
+            if (etSys != null && etSys.alive()) {
+                try {
+//System.out.println("Try killing ET");
+                    etSys.kill();
+                }
+                catch (Exception e) {}
+            }
+
+            // Try deleting any ET system file
+            if (etFileName != null) {
+                try {
+                    File etFile = new File(etFileName);
+                    if (etFile.exists() && etFile.isFile()) {
+//System.out.println("Try deleting file");
+                        etFile.delete();
+                    }
+                }
+                catch (Exception e) {}
+            }
+        }
+    }
 
 
 
@@ -260,6 +309,9 @@ public class DataTransportImplEt extends DataTransportAdapter {
                 throw new DataNotFoundException("incomplete specification of ET system", e);
             }
 
+            // Since we're creating the ET system, add thread to
+            // kill ET and remove file if EMU dies by control-C.
+            Runtime.getRuntime().addShutdownHook(shutdownThread);
         }
         else {
             // How do we connect to it? By default, assume
@@ -427,6 +479,9 @@ public class DataTransportImplEt extends DataTransportAdapter {
         if (createdET) {
             killEtSystem();
         }
+
+        // Remove any shutdown handler
+        Runtime.getRuntime().removeShutdownHook(shutdownThread);
     }
 
 
@@ -481,7 +536,6 @@ public class DataTransportImplEt extends DataTransportAdapter {
         }
 
         createdET = false;
-        boolean existingET = false;
         EtSystemOpenConfig etOpenConfig;
 
         // Here is where the ET system is created.
@@ -539,109 +593,110 @@ public class DataTransportImplEt extends DataTransportAdapter {
             }
         }
         catch (Exception e) {/* Not able to open ET so none are left running */}
+
         etSystem = null;
-        existingET = false;
 
         // Create a new ET system
-        if (!existingET) {
-            // If we're here, no interfering ET systems are running.
-            // Now, after creating the ET, we want to connect in a different way,
-            // directly to a local system as a remote client (so no memory mapping).
-            etOpenConfig = new EtSystemOpenConfig(openConfig);
-            etOpenConfig.setWaitTime(2000);
-            etOpenConfig.setConnectRemotely(true);
+        // If we're here, no interfering ET systems are running.
+        // Now, after creating the ET, we want to connect in a different way,
+        // directly to a local system as a remote client (so no memory mapping).
+        etOpenConfig = new EtSystemOpenConfig(openConfig);
+        etOpenConfig.setWaitTime(2000);
+        etOpenConfig.setConnectRemotely(true);
 
-            String etCmd = "et_start -f " + etOpenConfig.getEtName() +
-                    " -s " + systemConfig.getEventSize() +
-                    " -n " + systemConfig.getNumEvents() +
-                    " -g " + systemConfig.getGroups().length +
-                    " -p " + systemConfig.getServerPort() +
-                    " -u " + systemConfig.getUdpPort() +
-                    " -d";
+        String etCmd = "et_start -f " + etOpenConfig.getEtName() +
+                " -s " + systemConfig.getEventSize() +
+                " -n " + systemConfig.getNumEvents() +
+                " -g " + systemConfig.getGroups().length +
+                " -p " + systemConfig.getServerPort() +
+                " -u " + systemConfig.getUdpPort() +
+                " -d";
 
-            if (systemConfig.getMulticastAddrs().size() > 0) {
-                etCmd += " -a " + systemConfig.getMulticastStrings()[0];
+        if (systemConfig.getMulticastAddrs().size() > 0) {
+            etCmd += " -a " + systemConfig.getMulticastStrings()[0];
+        }
+
+        if (systemConfig.getTcpRecvBufSize() > 0) {
+            etCmd += " -rb " + systemConfig.getTcpRecvBufSize();
+        }
+
+        if (systemConfig.getTcpSendBufSize() > 0) {
+            etCmd += " -sb " + systemConfig.getTcpSendBufSize();
+        }
+
+        if (systemConfig.isNoDelay()) {
+            etCmd += " -nd";
+        }
+
+        try {
+            logger.debug("    DataTransport Et: create ET system, " + etOpenConfig.getEtName() + " with cmd \n" + etCmd);
+            processET = Runtime.getRuntime().exec(etCmd);
+
+            // Allow process a chance to run before testing if its terminated.
+            Thread.yield();
+            try {Thread.sleep(1000);}
+            catch (InterruptedException e) {}
+
+            // Figure out if process has already terminated.
+            boolean terminated = true;
+            try { processET.exitValue(); }
+            catch (IllegalThreadStateException e) {
+                terminated = false;
             }
 
-            if (systemConfig.getTcpRecvBufSize() > 0) {
-                etCmd += " -rb " + systemConfig.getTcpRecvBufSize();
-            }
-
-            if (systemConfig.getTcpSendBufSize() > 0) {
-                etCmd += " -sb " + systemConfig.getTcpSendBufSize();
-            }
-
-            if (systemConfig.isNoDelay()) {
-                etCmd += " -nd";
-            }
-
-            try {
-logger.debug("    DataTransport Et: create ET system, " + etOpenConfig.getEtName() + " with cmd \n" + etCmd);
-                processET = Runtime.getRuntime().exec(etCmd);
-
-                // Allow process a chance to run before testing if its terminated.
-                Thread.yield();
-                try {Thread.sleep(1000);}
-                catch (InterruptedException e) {}
-
-                // Figure out if process has already terminated.
-                boolean terminated = true;
-                try { processET.exitValue(); }
-                catch (IllegalThreadStateException e) {
-                    terminated = false;
+            if (terminated) {
+                String errorOut = null;
+                // grab any output
+                String[] retStrings = gatherAllOutput(processET, true);
+                if (retStrings[0] != null) {
+                    errorOut += retStrings[0];
+                }
+                if (retStrings[1] != null) {
+                    errorOut += "\n" + retStrings[0];
                 }
 
-                if (terminated) {
-                    String errorOut = null;
-                    // grab any output
-                    String[] retStrings = gatherAllOutput(processET, true);
-                    if (retStrings[0] != null) {
-                        errorOut += retStrings[0];
-                    }
-                    if (retStrings[1] != null) {
-                        errorOut += "\n" + retStrings[0];
-                    }
-
-                    logger.debug(errorOut);
-                    errorMsg.compareAndSet(null, errorOut);
-                    state = CODAState.ERROR;
-                    emu.sendStatusMessage();
-                    throw new CmdExecException(errorOut);
-                }
-
-                // There is no feedback mechanism to tell if
-                // this ET system actually started.
-                // So try for a few seconds to connect to it.
-                // If we can't, then there must have been an error trying
-                // to start it up (like another ET system using the same ports).
-//logger.debug("    DataTransport Et: try for 2 secs to connect to it with config = \n" +
-//                     openConfig.toString());
-                try {
-                    etSystem = new EtSystem(etOpenConfig);
-                    etSystem.setDebug(EtConstants.debugInfo);
-                    etSystem.open();
-                    // Leave the ET open so we can kill it after a reset/configure
-                }
-                catch (Exception e) {
-                    etSystem = null;
-                    logger.debug("    DataTransport Et: created system " + etOpenConfig.getEtName() + ", cannot connect");
-                    errorMsg.compareAndSet(null, "created ET system but cannot connect");
-                    state = CODAState.ERROR;
-                    emu.sendStatusMessage();
-                    throw new CmdExecException("created ET, " + etOpenConfig.getEtName() + ", but cannot connect");
-                }
-
-                createdET = true;
-            }
-            catch (IOException e) {
-                e.printStackTrace();
-                etSystem = null;
-                errorMsg.compareAndSet(null, "cannot run ET system");
+                logger.debug(errorOut);
+                errorMsg.compareAndSet(null, errorOut);
                 state = CODAState.ERROR;
                 emu.sendStatusMessage();
-                throw new CmdExecException("cannot run ET system", e);
+                throw new CmdExecException(errorOut);
             }
+
+            // There is no feedback mechanism to tell if
+            // this ET system actually started.
+            // So try for a few seconds to connect to it.
+            // If we can't, then there must have been an error trying
+            // to start it up (like another ET system using the same ports).
+//logger.debug("    DataTransport Et: try for 2 secs to connect to it with config = \n" +
+//                     openConfig.toString());
+            try {
+                etSystem = new EtSystem(etOpenConfig);
+                etSystem.setDebug(EtConstants.debugInfo);
+                etSystem.open();
+                // Leave the ET open so we can kill it after a reset/configure
+            }
+            catch (Exception e) {
+                etSystem = null;
+                logger.debug("    DataTransport Et: created system " + etOpenConfig.getEtName() + ", cannot connect");
+                errorMsg.compareAndSet(null, "created ET system but cannot connect");
+                state = CODAState.ERROR;
+                emu.sendStatusMessage();
+                throw new CmdExecException("created ET, " + etOpenConfig.getEtName() + ", but cannot connect");
+            }
+
+            createdET = true;
         }
+        catch (IOException e) {
+            e.printStackTrace();
+            etSystem = null;
+            errorMsg.compareAndSet(null, "cannot run ET system");
+            state = CODAState.ERROR;
+            emu.sendStatusMessage();
+            throw new CmdExecException("cannot run ET system", e);
+        }
+
+        // Thread to run in case of control-C
+        shutdownThread.reset(etSystem, etOpenConfig.getEtName());
     }
 
 
