@@ -326,8 +326,8 @@ logger.info("      DataChannel Et : creating output channel " + name);
                 }
                 catch (EtException e) { /* never happen */}
 
-                String filter = attributeMap.get("idFilter");
-                if (filter != null && filter.equalsIgnoreCase("on")) {
+                String idFilter = attributeMap.get("idFilter");
+                if (idFilter != null && idFilter.equalsIgnoreCase("on")) {
                     // Create filter for station so only events from a particular ROC
                     // (id as defined in config file) make it in.
                     // Station filter is the built-in selection function.
@@ -337,6 +337,19 @@ logger.info("      DataChannel Et : creating output channel " + name);
                     stationConfig.setSelect(selects);
                     stationConfig.setSelectMode(EtConstants.stationSelectMatch);
                 }
+
+                String controlFilter = attributeMap.get("controlFilter");
+                if (controlFilter != null && controlFilter.equalsIgnoreCase("on")) {
+                    // Create filter for station so only control events make it in.
+                    // Station filter is the built-in selection function.
+                    int[] selects = new int[EtConstants.stationSelectInts];
+                    Arrays.fill(selects, -1);
+                    selects[0] = EventType.CONTROL.getValue();
+                    stationConfig.setSelect(selects);
+                    stationConfig.setSelectMode(EtConstants.stationSelectMatch);
+                }
+
+                // Note that controlFilter trumps idFilter
 
                 // create station if it does not already exist
                 if (stationName == null) {
