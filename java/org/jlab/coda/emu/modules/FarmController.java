@@ -170,6 +170,13 @@ System.out.println("FarmController: pause");
 
     /** {@inheritDoc} */
     public void go() throws CmdExecException {
+
+        // Run #, type, id, session
+        int runNumber  = emu.getRunNumber();
+        int runTypeId  = emu.getRunTypeId();
+        String runType = emu.getRunType();
+        String session = emu.getSession();
+
 System.out.println("FarmController: go");
         state = CODAState.ACTIVE;
         paused = false;
