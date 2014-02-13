@@ -129,7 +129,7 @@ System.out.println("FarmController: created object");
     public QueueItemType getOutputQueueItemType() {return QueueItemType.PayloadBank;}
 
     /** {@inheritDoc} */
-    public boolean representsEmuStatistics() {return false;}
+    public boolean representsEmuStatistics() {return true;}
 
     /** {@inheritDoc} */
     synchronized public Object[] getStatistics() {
