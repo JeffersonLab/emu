@@ -326,8 +326,8 @@ logger.info("      DataChannel Et : creating output channel " + name);
                 }
                 catch (EtException e) { /* never happen */}
 
-                String filter = attributeMap.get("idFilter");
-                if (filter != null && filter.equalsIgnoreCase("on")) {
+                String idFilter = attributeMap.get("idFilter");
+                if (idFilter != null && idFilter.equalsIgnoreCase("on")) {
                     // Create filter for station so only events from a particular ROC
                     // (id as defined in config file) make it in.
                     // Station filter is the built-in selection function.
@@ -337,6 +337,19 @@ logger.info("      DataChannel Et : creating output channel " + name);
                     stationConfig.setSelect(selects);
                     stationConfig.setSelectMode(EtConstants.stationSelectMatch);
                 }
+
+                String controlFilter = attributeMap.get("controlFilter");
+                if (controlFilter != null && controlFilter.equalsIgnoreCase("on")) {
+                    // Create filter for station so only control events make it in.
+                    // Station filter is the built-in selection function.
+                    int[] selects = new int[EtConstants.stationSelectInts];
+                    Arrays.fill(selects, -1);
+                    selects[0] = EventType.CONTROL.getValue();
+                    stationConfig.setSelect(selects);
+                    stationConfig.setSelectMode(EtConstants.stationSelectMatch);
+                }
+
+                // Note that controlFilter trumps idFilter
 
                 // create station if it does not already exist
                 if (stationName == null) {
@@ -379,14 +392,13 @@ logger.info("      DataChannel Et : creating output channel " + name);
                 control[0] = id;
 
                 // Is this the last level event builder (not a DC)?
-                // In this case, we want the first control word to indicated that
-                // an evio control event is being sent (which will be received
-                // and dealt with by the FCS (Farm Control Supervisor).
-                // Either that or it will be ignored.
+                // In this case, we want the first control word to indicate
+                // what type of event is being sent.
+                //
+                // Control events will be received and dealt with by the FCS
+                // (Farm Control Supervisor).
                 isFinalEB = (emuClass == CODAClass.PEB || emuClass == CODAClass.SEB);
-                if (isFinalEB) {
-                    control[0] = 0xc0da; // 49370
-                }
+                // The value of control[0] will be set in the DataOutputHelper
             }
         }
 
@@ -1715,9 +1727,11 @@ System.out.println("      DataChannel Et out helper: " + name + " got RESET cmd,
                         // CODA owns the first ET event control int which contains source id.
                         // Set that control word only if this is an EB.
                         // If a DC, set this for all events.
-                        // If a PEB or SEB set only for control events.
+                        // If a PEB or SEB set it to event type for all events.
                         if (isFinalEB) {
-                            if (bankList.getFirst().getControlType() != null) {
+                            pBankType = bankList.getFirst().getEventType();
+                            if (pBankType != null) {
+                                control[0] = pBankType.getValue();
                                 events[i].setControl(control);
                             }
                         }
@@ -2152,9 +2166,11 @@ System.out.println("      DataChannel Et out helper: " + name + " got RESET cmd,
                         // CODA owns the first ET event control int which contains source id.
                         // Set that control word only if this is an EB.
                         // If a DC, set this for all events.
-                        // If a PEB or SEB set only for control events.
+                        // If a PEB or SEB set it to event type for all events.
                         if (isFinalEB) {
-                            if (bufferList.getFirst().getControlType() != null) {
+                            pBufferType = bufferList.getFirst().getEventType();
+                            if (pBufferType != null) {
+                                control[0] = pBufferType.getValue();
                                 events[i].setControl(control);
                             }
                         }
