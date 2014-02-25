@@ -40,6 +40,9 @@ public enum CODAClass {
     /** Analysis application. */
     ANA("analysis application", 500),
 
+    /** Farm Controller. */
+    FCS("farm controller", 410),
+
     /** Event Recorder. */
     ER("event recorder", 400),
 
