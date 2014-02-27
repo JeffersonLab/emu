@@ -9,19 +9,19 @@ import java.util.concurrent.LinkedBlockingQueue;
  * @author: timmer
  * Date: Jan 29, 2010
  */
-public class PayloadBankQueue<E> extends LinkedBlockingQueue<E> {
+public class PayloadQueue<E> extends LinkedBlockingQueue<E> {
 
     private int sourceId;
     
     private int recordId;
 
 
-    public PayloadBankQueue() {
+    public PayloadQueue() {
         super();
     }
 
 
-    public PayloadBankQueue(int capacity) {
+    public PayloadQueue(int capacity) {
         super(capacity);
     }
 
