@@ -7,7 +7,7 @@
     <property environment="env"/>
     
     <!-- Version -->
-    <property name="emu.version" value="2.0" />
+    <property name="emu.version" value="2.2" />
     
     <!-- Debug -->
     <property name="javac.debug" value="on" />
