@@ -1132,7 +1132,7 @@ System.out.println("      DataChannel Et in helper: " + name + " got RESET cmd, 
 //            ", src id = " + sourceId + ", recd id = " + recordId + ", event cnt = " + eventCount);
 
                         for (int i=1; i < eventCount+1; i++) {
-                            node = compactReader.getEvent(i);
+                            node = compactReader.getScannedEvent(i);
 //System.out.println("node = " + node);
                             // Complication: from the ROC, we'll be receiving USER events
                             // mixed in with and labeled as ROC Raw events. Check for that
