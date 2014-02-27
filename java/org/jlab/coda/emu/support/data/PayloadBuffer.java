@@ -51,8 +51,37 @@ public class PayloadBuffer implements Cloneable, Attached {
      *  may have the same record id. */
     private int recordId;
 
+
+
+
     /** Object containing info about the buffer. */
     private EvioNode node;
+
+
+
+
+    /** The number of CODA events (triggers) contained in this evio bank. */
+    private int eventCount;
+
+    /** The event number of the first CODA event in this evio bank. */
+    private long firstEventNumber;
+
+    /** Is sync bank? from ROC raw data record 4-bit status. */
+    private boolean isSync;
+
+    /** Is single event mode? from ROC raw data record 4-bit status. */
+    private boolean isSingleEventMode;
+
+    /** Has error? from ROC raw data record 4-bit status. */
+    private boolean hasError;
+
+    /** Reserved. from ROC raw data record 4-bit status. */
+    private boolean reserved;
+
+    /** Was there an non-fatal error generated while trying to build an event? */
+    private boolean nonFatalBuildingError;
+
+
 
 
     /**
@@ -104,14 +133,23 @@ public class PayloadBuffer implements Cloneable, Attached {
     public PayloadBuffer(PayloadBuffer buf) {
         // Share content but keep different limit, position, mark.
         // This will work if and only if the buffer is written to.
-        this.buffer      = buf.buffer.duplicate();
-        this.eventType   = buf.eventType;
-        this.controlType = buf.controlType;
-        this.recordId    = buf.recordId;
-        this.sourceId    = buf.sourceId;
-        this.sourceName  = buf.sourceName;
-        this.node        = buf.node;
-        // TODO: attachment???
+        buffer                = buf.buffer.duplicate();
+        eventType             = buf.eventType;
+        controlType           = buf.controlType;
+        recordId              = buf.recordId;
+        sourceId              = buf.sourceId;
+        sourceName            = buf.sourceName;
+        node                  = buf.node;
+
+        eventCount            = buf.eventCount;
+        firstEventNumber      = buf.firstEventNumber;
+        isSync                = buf.isSync;
+        isSingleEventMode     = buf.isSingleEventMode;
+        hasError              = buf.hasError;
+        reserved              = buf.reserved;
+        nonFatalBuildingError = buf.nonFatalBuildingError;
+
+          // TODO: attachment???
     }
 
     /**
@@ -207,6 +245,61 @@ public class PayloadBuffer implements Cloneable, Attached {
         return node;
     }
 
+    public int getEventCount() {
+        return eventCount;
+    }
+
+    public void setEventCount(int eventCount) {
+        this.eventCount = eventCount;
+    }
+
+    public long getFirstEventNumber() {
+        return firstEventNumber;
+    }
+
+    public void setFirstEventNumber(long firstEventNumber) {
+        this.firstEventNumber = firstEventNumber;
+    }
+
+    public boolean isSync() {
+        return isSync;
+    }
+
+    public void setSync(boolean sync) {
+        isSync = sync;
+    }
+
+    public boolean isSingleEventMode() {
+        return isSingleEventMode;
+    }
+
+    public void setSingleEventMode(boolean singleEventMode) {
+        isSingleEventMode = singleEventMode;
+    }
+
+    public boolean hasError() {
+        return hasError;
+    }
+
+    public void setError(boolean hasError) {
+        this.hasError = hasError;
+    }
+
+    public boolean isReserved() {
+        return reserved;
+    }
+
+    public void setReserved(boolean reserved) {
+        this.reserved = reserved;
+    }
+
+    public boolean hasNonFatalBuildingError() {
+        return nonFatalBuildingError;
+    }
+
+    public void setNonFatalBuildingError(boolean nonFatalBuildingError) {
+        this.nonFatalBuildingError = nonFatalBuildingError;
+    }
 
     /** Clones this object setting the attachment to null. */
     public Object clone() {
