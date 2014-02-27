@@ -122,8 +122,8 @@ public class EventBuilding extends CODAStateMachineAdapter implements EmuModule 
     private PriorityBlockingQueue<PayloadBank> waitingLists[];
 
     /** Container for queues used to hold QueueItems taken from Data Transport channels. */
-    private LinkedList<PayloadBankQueue<PayloadBank>> payloadBankQueues =
-            new LinkedList<PayloadBankQueue<PayloadBank>>();
+    private LinkedList<PayloadQueue<PayloadBank>> payloadQueues =
+            new LinkedList<PayloadQueue<PayloadBank>>();
 
     /** Each payloadBankQueue has this max size. */
     private final int payloadBankQueueSize = 500;
@@ -538,7 +538,7 @@ System.out.println("EventBuilding constr: " + buildingThreadCount +
 
         BlockingQueue<QueueItem> channelQ;
 
-        QfillerDump(PayloadBankQueue<PayloadBank> payloadBankQ, BlockingQueue<QueueItem> channelQ) {
+        QfillerDump(PayloadQueue<PayloadBank> payloadBankQ, BlockingQueue<QueueItem> channelQ) {
             this.channelQ = channelQ;
         }
 
@@ -567,9 +567,9 @@ System.out.println("EventBuilding constr: " + buildingThreadCount +
     private class Qfiller extends Thread {
 
         BlockingQueue<QueueItem> channelQ;
-        PayloadBankQueue<PayloadBank> payloadBankQ;
+        PayloadQueue<PayloadBank> payloadBankQ;
 
-        Qfiller(PayloadBankQueue<PayloadBank> payloadBankQ, BlockingQueue<QueueItem> channelQ) {
+        Qfiller(PayloadQueue<PayloadBank> payloadBankQ, BlockingQueue<QueueItem> channelQ) {
             this.channelQ = channelQ;
             this.payloadBankQ = payloadBankQ;
         }
@@ -586,7 +586,7 @@ System.out.println("EventBuilding constr: " + buildingThreadCount +
                         qItem = channelQ.take();  // blocks, throws InterruptedException
                         pBank = qItem.getPayloadBank();
                         // Check this bank's format. If bad, ignore it
-                        Evio.checkPayloadBank(pBank, payloadBankQ);
+                        Evio.checkPayload(pBank, payloadBankQ);
                     }
                 } catch (EmuException e) {
                     // EmuException from Evio.checkPayloadBank() if
@@ -849,13 +849,13 @@ if (debug && printQSizes) {
 
                         // Grab one non-user bank from each channel.
                         // This algorithm retains the proper order of any user events.
-                        for (int i=0; i < payloadBankQueues.size(); i++) {
+                        for (int i=0; i < payloadQueues.size(); i++) {
 
                             // Loop until we get event which is NOT a user event
                             while (true) {
 
                                 // will BLOCK here waiting for payload bank if none available
-                                buildingBanks[i] = payloadBankQueues.get(i).take();
+                                buildingBanks[i] = payloadQueues.get(i).take();
 
                                 eventType = buildingBanks[i].getEventType();
 
@@ -1005,7 +1005,7 @@ if (debug) System.out.println("BuildingThread: Got user event");
                                     int finalEndEventCount = endEventCount;
 
                                     // Look through Q's to see if we can find the rest ...
-                                    for (int i=0; i < payloadBankQueues.size(); i++) {
+                                    for (int i=0; i < payloadQueues.size(); i++) {
                                         PayloadBank pBank;
                                         EventType   eType = buildingBanks[i].getEventType();
                                         ControlType cType = buildingBanks[i].getControlType();
@@ -1021,7 +1021,7 @@ if (debug) System.out.println("BuildingThread: Got user event");
                                         if (cType != ControlType.END) {
                                             int offset = 0;
                                             // Loop through all events on this channel
-                                            while ( (pBank = payloadBankQueues.get(i).poll()) != null) {
+                                            while ( (pBank = payloadQueues.get(i).poll()) != null) {
                                                 offset++;
                                                 if (pBank.getControlType() == ControlType.END) {
 System.out.println("got END from " + buildingBanks[i].getSourceName() +
@@ -1045,8 +1045,8 @@ if (true) System.out.println("Have all ENDs, but differing # of physics events i
                                 }
 
                                 // Clear all channels' Q's
-                                for (int i=0; i < payloadBankQueues.size(); i++) {
-                                    payloadBankQueues.get(i).clear();
+                                for (int i=0; i < payloadQueues.size(); i++) {
+                                    payloadQueues.get(i).clear();
                                 }
                             }
 
@@ -1056,7 +1056,7 @@ if (true) System.out.println("Have all ENDs, but differing # of physics events i
                                         buildingBanks.length + " in channels");
                             }
 
-                            // Prestart creates & clears payloadBankQueues below in execute()
+                            // Prestart creates & clears payloadQueues below in execute()
                         }
                     }
                     finally {
@@ -1091,15 +1091,15 @@ if (true) System.out.println("Have all ENDs, but differing # of physics events i
 
                     // Check endianness & source IDs
                     if (runChecks) {
-                        for (int i=0; i < payloadBankQueues.size(); i++) {
+                        for (int i=0; i < payloadQueues.size(); i++) {
                             // Do NOT do any endian checking since we swap little
                             // endian data while building the physics event
 
                             // Check the source ID of this bank to see if it matches
                             // what should be coming over this channel.
-                            if (buildingBanks[i].getSourceId() != payloadBankQueues.get(i).getSourceId()) {
+                            if (buildingBanks[i].getSourceId() != payloadQueues.get(i).getSourceId()) {
 if (debug) System.out.println("bank tag = " + buildingBanks[i].getSourceId());
-if (debug) System.out.println("queue source id = " + payloadBankQueues.get(i).getSourceId());
+if (debug) System.out.println("queue source id = " + payloadQueues.get(i).getSourceId());
                                 nonFatalError = true;
                             }
                         }
@@ -1378,8 +1378,8 @@ if (debug) System.out.println("Building thread is ending !!!");
             boolean haveUnprocessedEvents = false;
             long startTime = System.currentTimeMillis();
 
-            for (int i=0; i < payloadBankQueues.size(); i++) {
-                if (payloadBankQueues.get(i).size() +
+            for (int i=0; i < payloadQueues.size(); i++) {
+                if (payloadQueues.get(i).size() +
                         inputChannels.get(i).getQueue().size() > 0) {
                     haveUnprocessedEvents = true;
                     break;
@@ -1394,8 +1394,8 @@ if (debug) System.out.println("Building thread is ending !!!");
                 catch (InterruptedException e) {}
 
                 haveUnprocessedEvents = false;
-                for (int i=0; i < payloadBankQueues.size(); i++) {
-                    if (payloadBankQueues.get(i).size() +
+                for (int i=0; i < payloadQueues.size(); i++) {
+                    if (payloadQueues.get(i).size() +
                             inputChannels.get(i).getQueue().size() > 0) {
                         haveUnprocessedEvents = true;
                         break;
@@ -1528,7 +1528,7 @@ if (debug) System.out.println("Building thread is ending !!!");
 
         // Make sure we have the correct # of payload bank queues available.
         // Each queue holds payload banks taken from a particular source (ROC).
-        int diff = inputChannels.size() - payloadBankQueues.size();
+        int diff = inputChannels.size() - payloadQueues.size();
         boolean add = true;
         if (diff < 0) {
             add  = false;
@@ -1539,21 +1539,21 @@ if (debug) System.out.println("Building thread is ending !!!");
             // Add more queues
             if (add) {
                 // Allow only payloadBankQueueSize items on the q at once
-                payloadBankQueues.add(new PayloadBankQueue<PayloadBank>(payloadBankQueueSize));
+                payloadQueues.add(new PayloadQueue<PayloadBank>(payloadBankQueueSize));
             }
             // Remove excess queues (from head of linked list)
             else {
-                payloadBankQueues.remove();
+                payloadQueues.remove();
             }
         }
 
-        int qCount = payloadBankQueues.size();
+        int qCount = payloadQueues.size();
 
         // Clear all payload bank queues, associate each one with source ID, reset record ID
         for (int i=0; i < qCount; i++) {
-            payloadBankQueues.get(i).clear();
-            payloadBankQueues.get(i).setSourceId(inputChannels.get(i).getID());
-            payloadBankQueues.get(i).setRecordId(0);
+            payloadQueues.get(i).clear();
+            payloadQueues.get(i).setSourceId(inputChannels.get(i).getID());
+            payloadQueues.get(i).setRecordId(0);
         }
 
         // How many output channels do we have?
@@ -1627,10 +1627,10 @@ if (debug) System.out.println("Building thread is ending !!!");
                                 buildingThreadCount);
         }
 
-        qFillers = new Thread[payloadBankQueues.size()];
-        for (int i=0; i < payloadBankQueues.size(); i++) {
+        qFillers = new Thread[payloadQueues.size()];
+        for (int i=0; i < payloadQueues.size(); i++) {
             qFillers[i] = new Thread(emu.getThreadGroup(),
-                                     new Qfiller(payloadBankQueues.get(i),
+                                     new Qfiller(payloadQueues.get(i),
                                                     inputChannels.get(i).getQueue()),
                                      name+":qfiller"+i);
         }
@@ -1668,23 +1668,23 @@ System.out.println("startThreads(): started " + buildingThreadList.size() +
                    " building threads");
 
         if (qFillers == null) {
-            qFillers = new Thread[payloadBankQueues.size()];
-            for (int i=0; i < payloadBankQueues.size(); i++) {
+            qFillers = new Thread[payloadQueues.size()];
+            for (int i=0; i < payloadQueues.size(); i++) {
                 qFillers[i] = new Thread(emu.getThreadGroup(),
-                                         new Qfiller(payloadBankQueues.get(i),
+                                         new Qfiller(payloadQueues.get(i),
                                                      inputChannels.get(i).getQueue()),
                                          name+":qfiller"+i);
             }
 
-System.out.println("startThreads(): recreated " + payloadBankQueues.size() +
+System.out.println("startThreads(): recreated " + payloadQueues.size() +
                                        " Q-filling threads");
         }
-        for (int i=0; i < payloadBankQueues.size(); i++) {
+        for (int i=0; i < payloadQueues.size(); i++) {
             if (qFillers[i].getState() == Thread.State.NEW) {
                 qFillers[i].start();
             }
         }
-System.out.println("startThreads(): started " + payloadBankQueues.size() +
+System.out.println("startThreads(): started " + payloadQueues.size() +
                    " Q-filling threads");
     }
 
