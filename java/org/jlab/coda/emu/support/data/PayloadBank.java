@@ -3,7 +3,6 @@ package org.jlab.coda.emu.support.data;
 import org.jlab.coda.jevio.*;
 
 import java.nio.ByteOrder;
-import java.util.Vector;
 
 
 /**
@@ -17,15 +16,32 @@ public class PayloadBank extends QueueItemAdapter {
 
     private EvioEvent event;
 
-//    private BaseStructureHeader header;
-//    private byte[] rawBytes;
-//    private ByteOrder byteOrder;
-//    private Vector<BaseStructure> children;
-//    boolean isLeaf;
 
-    /** Constructor. */
-    public PayloadBank() {
-        super();
+    /**
+     * Copy constructor which stores reference to event and doesn't copy or clone.
+     * @param event even to store
+     */
+    public PayloadBank(EvioEvent event) {
+        this.event = event;
+    }
+
+    /**
+     * Copy constructor which copies references and doesn't clone.
+     * @param bank payload bank to copy
+     */
+    public PayloadBank(PayloadBank bank) {
+        super(bank);
+    }
+
+    /**
+     * This is a general constructor to use for an EvioEvent.
+     *
+     * @param tag the tag for the event header (which is just a bank header).
+     * @param dataType the (enum) data type for the content of the bank.
+     * @param num sometimes, but not necessarily, an ordinal enumeration.
+     */
+    public PayloadBank(int tag, DataType dataType, int num) {
+        event = new EvioEvent(tag, dataType, num);
     }
 
     /**
@@ -50,47 +66,6 @@ public class PayloadBank extends QueueItemAdapter {
         this.sourceName  = sourceName;
     }
 
-    /**
-     * Copy constructor which copies references and doesn't clone.
-     * @param bank bank to copy
-     */
-    public PayloadBank(BaseStructure bank) {
-        // copy over all basic, essential components of a bank
-        event     = new EvioEvent();
-//        header    = bank.getHeader();
-//        rawBytes  = bank.getRawBytes();
-//        byteOrder = bank.getByteOrder();
-//        children  = bank.getChildren();
-//        if (children != null && children.size() > 1) isLeaf = false;
-    }
-
-    /**
-     * Copy constructor which copies references and doesn't clone.
-     * @param bank payload bank to copy
-     */
-    public PayloadBank(PayloadBank bank) {
-        super(bank);
-    }
-
-    /**
-     * This is a general constructor to use for an EvioEvent.
-     *
-     * @param tag the tag for the event header (which is just a bank header).
-     * @param dataType the (enum) data type for the content of the bank.
-     * @param num sometimes, but not necessarily, an ordinal enumeration.
-     */
-    public PayloadBank(int tag, DataType dataType, int num) {
-        event = new EvioEvent(tag, dataType, num);
-    }
-
-    /**
-     * What is the byte order of this data?
-     * @return {@link ByteOrder#BIG_ENDIAN} or {@link ByteOrder#LITTLE_ENDIAN}
-     */
-    public ByteOrder getByteOrder() {
-        return event.getByteOrder();
-    }
-
     public EvioEvent getEvent() {
         return event;
     }
@@ -100,6 +75,12 @@ public class PayloadBank extends QueueItemAdapter {
     }
 
     public QueueItemType getQueueItemType() {return QueueItemType.PayloadBank;}
+
+    /**
+     * What is the byte order of this data?
+     * @return {@link ByteOrder#BIG_ENDIAN} or {@link ByteOrder#LITTLE_ENDIAN}
+     */
+    public ByteOrder getByteOrder() {return event.getByteOrder();}
 
     /**
      * Get the length of this structure in bytes, including the header.
