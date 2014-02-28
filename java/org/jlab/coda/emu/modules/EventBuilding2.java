@@ -239,7 +239,7 @@ public class EventBuilding2 extends CODAStateMachineAdapter implements EmuModule
     private int timestampSlop;
 
     /** Comparator which tells priority queue how to sort elements. */
-    private BankComparator<EvioBank> comparator = new BankComparator<EvioBank>();
+    private BankComparator<PayloadBank> comparator = new BankComparator<PayloadBank>();
 
 
     /** Keep some data together and store as an event attachment. */
@@ -474,25 +474,23 @@ public class EventBuilding2 extends CODAStateMachineAdapter implements EmuModule
      */
     private class Qfiller extends Thread {
 
-        BlockingQueue<QueueItem> channelQ;
+        BlockingQueue<QueueItemIF> channelQ;
         PayloadQueue<PayloadBank> payloadBankQ;
 
-        Qfiller(PayloadQueue<PayloadBank> payloadBankQ, BlockingQueue<QueueItem> channelQ) {
+        Qfiller(PayloadQueue<PayloadBank> payloadBankQ, BlockingQueue<QueueItemIF> channelQ) {
             this.channelQ = channelQ;
             this.payloadBankQ = payloadBankQ;
         }
 
         @Override
         public void run() {
-            QueueItem qItem;
             PayloadBank pBank;
 
             while (state == CODAState.ACTIVE || paused) {
                 try {
                     while (state == CODAState.ACTIVE || paused) {
                         // Block waiting for the next bank from ROC
-                        qItem = channelQ.take();  // blocks, throws InterruptedException
-                        pBank = qItem.getPayloadBank();
+                        pBank = (PayloadBank) channelQ.take();   // blocks, throws InterruptedException
                         // Check this bank's format. If bad, ignore it
                         Evio.checkPayload(pBank, payloadBankQ);
                     }
@@ -748,7 +746,7 @@ if (debug) System.out.println("BuildingThread: Got user event");
                 }
                 // Place Data Transport Record on output channel
 //System.out.println("Put bank on output channel");
-                eo.outputChannel.getQueue().put(new QueueItem(bankOut));
+                eo.outputChannel.getQueue().put(bankOut);
                 outputOrders[eo.index] = ++outputOrders[eo.index] % Integer.MAX_VALUE;
                 eo.lock.notifyAll();
             }
@@ -773,7 +771,7 @@ if (debug) System.out.println("BuildingThread: Got user event");
                 }
 
                 // Place bank on output channel
-                eo.outputChannel.getQueue().put(new QueueItem(bankOut));
+                eo.outputChannel.getQueue().put(bankOut);
                 outputOrders[eo.index] = ++outputOrders[eo.index] % Integer.MAX_VALUE;
 //if (debug) System.out.println("placing = " + eo.inputOrder);
 
@@ -788,7 +786,7 @@ if (debug) System.out.println("BuildingThread: Got user event");
                     // Remove from waiting list permanently
                     bank = waitingLists[eo.index].take();
                     // Place Data Transport Record on output channel
-                    eo.outputChannel.getQueue().put(new QueueItem(bank));
+                    eo.outputChannel.getQueue().put(bank);
                     outputOrders[eo.index] = ++outputOrders[eo.index] % Integer.MAX_VALUE;
                     bank = waitingLists[eo.index].peek();
 //if (debug) System.out.println("placing = " + evOrder.inputOrder);
@@ -1002,7 +1000,7 @@ if (debug && nonFatalError) System.out.println("\nERROR 4\n");
 //                   ", is single mode = " + storage.buildingBanks[0].isSingleEventMode());
 
                     physicsEvent = new PayloadBank(tag, DataType.BANK, storage.totalNumberEvents);
-                    builder.setEvent(physicsEvent);
+                    builder.setEvent(physicsEvent.getEvent());
                     if (havePhysicsEvents) {
 //if (debug) System.out.println("BuildingThread: build physics event with physics banks");
                         Evio.buildPhysicsEventWithPhysics(combinedTrigger, storage.buildingBanks, builder);

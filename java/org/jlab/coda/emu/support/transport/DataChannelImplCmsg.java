@@ -211,7 +211,7 @@ public class DataChannelImplCmsg extends DataChannelAdapter {
                     payloadBank.setRecordId(recordId);
 
                     // Put evio bank (payload bank) on Q if it parses
-                    queue.put(new QueueItem(payloadBank));
+                    queue.put(payloadBank);
 
                     // Handle end event ...
                     if (controlType == ControlType.END) {
@@ -644,7 +644,7 @@ System.out.println("singlethreaded put: array len = " + msgs.length + ", send " 
 
             try {
                 EventType previousType, pBanktype;
-                QueueItem qItem;
+                QueueItemIF qItem;
                 PayloadBank pBank;
                 LinkedList<PayloadBank> bankList;
                 boolean gotNothingYet;
@@ -717,18 +717,18 @@ System.out.println("singlethreaded put: array len = " + msgs.length + ", send " 
                                     firstBankFromQueue = null;
                                 }
                                 else {
-                                    qItem = queue.poll(100L, TimeUnit.MILLISECONDS);
+
+// TODO: This cast may not be correct!
+                                    pBank = (PayloadBank) queue.poll(100L, TimeUnit.MILLISECONDS);
 
                                     // If wait longer than 100ms, and there are things to write,
                                     // send them to the cMsg server.
-                                    if (qItem == null) {
+                                    if (pBank == null) {
                                         if (gotNothingYet) {
                                             continue;
                                         }
                                         break;
                                     }
-
-                                    pBank = qItem.getPayloadBank();
                                 }
 
                                 gotNothingYet = false;
@@ -816,7 +816,7 @@ System.out.println("singlethreaded put: array len = " + msgs.length + ", send " 
                                 }
 
                                 // Look for END event and mark it in attachment
-                                if (Evio.isEndEvent(pBank)) {
+                                if (Evio.isEndEvent(pBank.getEvent())) {
                                     pBank.setAttachment(Boolean.TRUE);
                                     haveOutputEndEvent = true;
                                     if (endCallback != null) endCallback.endWait();
@@ -847,14 +847,14 @@ System.out.println("singlethreaded put: array len = " + msgs.length + ", send " 
                                 firstBankFromQueue = null;
                             }
                             else {
-                                qItem = queue.poll(100L, TimeUnit.MILLISECONDS);
-                                if (qItem == null) {
+// TODO: This cast may not be correct!
+                                pBank = (PayloadBank) queue.poll(100L, TimeUnit.MILLISECONDS);
+                                if (pBank == null) {
                                     if (gotNothingYet) {
                                         continue;
                                     }
                                     break;
                                 }
-                                pBank = qItem.getPayloadBank();
                             }
 
                             gotNothingYet = false;
@@ -906,7 +906,7 @@ System.out.println("singlethreaded put: array len = " + msgs.length + ", send " 
                                 bankListSize[thisMessageIndex] = listTotalSizeMax;
                             }
 
-                            if (Evio.isEndEvent(pBank)) {
+                            if (Evio.isEndEvent(pBank.getEvent())) {
                                 pBank.setAttachment(Boolean.TRUE);
                                 haveOutputEndEvent = true;
                                 if (endCallback != null) endCallback.endWait();
@@ -1077,7 +1077,7 @@ System.out.println("Ending");
                 try {
                     // Write banks into message buffer
                     for (PayloadBank bank : bankList) {
-                        evWriter.writeEvent(bank);
+                        evWriter.writeEvent(bank.getEvent());
                     }
                     evWriter.close();
                     buffer.flip();

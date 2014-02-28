@@ -195,7 +195,7 @@ public class EventBuilding extends CODAStateMachineAdapter implements EmuModule 
     // ---------------------------------------------------
 
     /** Comparator which tells priority queue how to sort elements. */
-    private BankComparator<EvioBank> comparator = new BankComparator<EvioBank>();
+    private BankComparator<PayloadBank> comparator = new BankComparator<PayloadBank>();
 
     /** Logger used to log messages to debug console. */
     private Logger logger;
@@ -536,9 +536,9 @@ System.out.println("EventBuilding constr: " + buildingThreadCount +
      */
     private class QfillerDump extends Thread {
 
-        BlockingQueue<QueueItem> channelQ;
+        BlockingQueue<QueueItemIF> channelQ;
 
-        QfillerDump(PayloadQueue<PayloadBank> payloadBankQ, BlockingQueue<QueueItem> channelQ) {
+        QfillerDump(PayloadQueue<PayloadBank> payloadBankQ, BlockingQueue<QueueItemIF> channelQ) {
             this.channelQ = channelQ;
         }
 
@@ -566,25 +566,24 @@ System.out.println("EventBuilding constr: " + buildingThreadCount +
      */
     private class Qfiller extends Thread {
 
-        BlockingQueue<QueueItem> channelQ;
+        BlockingQueue<QueueItemIF> channelQ;
         PayloadQueue<PayloadBank> payloadBankQ;
 
-        Qfiller(PayloadQueue<PayloadBank> payloadBankQ, BlockingQueue<QueueItem> channelQ) {
+        Qfiller(PayloadQueue<PayloadBank> payloadBankQ, BlockingQueue<QueueItemIF> channelQ) {
             this.channelQ = channelQ;
             this.payloadBankQ = payloadBankQ;
         }
 
         @Override
         public void run() {
-            QueueItem qItem;
+            QueueItemIF qItem;
             PayloadBank pBank;
 
             while (state == CODAState.ACTIVE || paused) {
                 try {
                     while (state == CODAState.ACTIVE || paused) {
                         // Block waiting for the next bank from ROC
-                        qItem = channelQ.take();  // blocks, throws InterruptedException
-                        pBank = qItem.getPayloadBank();
+                        pBank = (PayloadBank) channelQ.take();   // blocks, throws InterruptedException
                         // Check this bank's format. If bad, ignore it
                         Evio.checkPayload(pBank, payloadBankQ);
                     }
@@ -632,7 +631,7 @@ if (debug) System.out.println("Qfiller: Roc raw or physics event in wrong format
                 }
                 // Place bank on output channel
 //System.out.println("Put bank on output channel");
-                eo.outputChannel.getQueue().put(new QueueItem(bankOut));
+                eo.outputChannel.getQueue().put(bankOut);
                 outputOrders[eo.index] = ++outputOrders[eo.index] % Integer.MAX_VALUE;
                 eo.lock.notifyAll();
             }
@@ -651,7 +650,7 @@ if (debug) System.out.println("Qfiller: Roc raw or physics event in wrong format
 if (debug) {
     System.out.println("out of order = " + eo.inputOrder);
     System.out.println("waiting list = ");
-    for (EvioBank bk : waitingLists[eo.index]) {
+    for (PayloadBank bk : waitingLists[eo.index]) {
         System.out.println("" + ((EventOrder)bk.getAttachment()).inputOrder);
     }
 }
@@ -659,7 +658,7 @@ if (debug) {
                 }
 
                 // Place bank on output channel
-                eo.outputChannel.getQueue().put(new QueueItem(bankOut));
+                eo.outputChannel.getQueue().put(bankOut);
                 outputOrders[eo.index] = ++outputOrders[eo.index] % Integer.MAX_VALUE;
 //if (debug) System.out.println("placing = " + eo.inputOrder);
 
@@ -674,7 +673,7 @@ if (debug) {
                     // Remove from waiting list permanently
                     bank = waitingLists[eo.index].take();
                     // Place bank on output channel
-                    eo.outputChannel.getQueue().put(new QueueItem(bank));
+                    eo.outputChannel.getQueue().put(bank);
                     outputOrders[eo.index] = ++outputOrders[eo.index] % Integer.MAX_VALUE;
                     bank = waitingLists[eo.index].peek();
 //if (debug) System.out.println("placing = " + evOrder.inputOrder);
@@ -720,7 +719,7 @@ if (debug && printQSizes) {
                 // Place banks on output channel
 //System.out.println("Put banks on output channel");
                 for (PayloadBank bBank : banksOut) {
-                    eo.outputChannel.getQueue().put(new QueueItem(bBank));
+                    eo.outputChannel.getQueue().put(bBank);
                 }
                 outputOrders[eo.index] = ++outputOrders[eo.index] % Integer.MAX_VALUE;
                 eo.lock.notifyAll();
@@ -744,7 +743,7 @@ if (debug && printQSizes) {
 
                 // Place banks on output channel
                 for (PayloadBank bBank : banksOut) {
-                    eo.outputChannel.getQueue().put(new QueueItem(bBank));
+                    eo.outputChannel.getQueue().put(bBank);
                 }
                 outputOrders[eo.index] = ++outputOrders[eo.index] % Integer.MAX_VALUE;
 
@@ -759,7 +758,7 @@ if (debug && printQSizes) {
                     // Remove from waiting list permanently
                     bank = waitingLists[eo.index].take();
                     // Place banks on output channel
-                    eo.outputChannel.getQueue().put(new QueueItem(bank));
+                    eo.outputChannel.getQueue().put(bank);
                     outputOrders[eo.index] = ++outputOrders[eo.index] % Integer.MAX_VALUE;
                     bank = waitingLists[eo.index].peek();
                 }
@@ -1118,7 +1117,7 @@ if (true) System.out.println("Have consistent CONTROL event(s)");
                         if (outputChannelCount > 0) {
                             // Take one of the control events and update
                             // it with the latest event builder data.
-                            Evio.updateControlEvent(buildingBanks[0], runNumber,
+                            Evio.updateControlEvent(buildingBanks[0].getEvent(), runNumber,
                                                     runTypeId, (int)eventCountTotal,
                                                     (int)(eventNumber - eventNumberAtLastSync));
 
@@ -1136,7 +1135,7 @@ if (true) System.out.println("Have consistent CONTROL event(s)");
                         }
 
                         // If this is a sync event, keep track of the next event # to be sent
-                        if (Evio.isSyncEvent(buildingBanks[0])) {
+                        if (Evio.isSyncEvent(buildingBanks[0].getEvent())) {
                             eventNumberAtLastSync = eventNumber;
                         }
 
@@ -1265,7 +1264,7 @@ if (debug && nonFatalError) System.out.println("\nERROR 4\n");
 
 
                     physicsEvent = new PayloadBank(tag, DataType.BANK, totalNumberEvents);
-                    builder.setEvent(physicsEvent);
+                    builder.setEvent(physicsEvent.getEvent());
                     if (havePhysicsEvents) {
 //if (debug) System.out.println("BuildingThread: build physics event with physics banks");
                         Evio.buildPhysicsEventWithPhysics(combinedTrigger, buildingBanks, builder);

@@ -708,7 +708,7 @@ logger.debug("      DataChannel Et reset() : " + name + " - done");
 
                 // put banks in our Q, for module
                 for (PayloadBank bank : banks) {
-                    queue.put(new QueueItem(bank));
+                    queue.put(bank);
                 }
 
                 // next one to be put on output channel
@@ -738,7 +738,7 @@ logger.debug("      DataChannel Et reset() : " + name + " - done");
 
                 // put banks in our Q, for module
                 for (PayloadBuffer buf : buffers) {
-                    queue.put(new QueueItem(buf));
+                    queue.put(buf);
                 }
 
                 // next one to be put on output channel
@@ -767,7 +767,7 @@ logger.debug("      DataChannel Et reset() : " + name + " - done");
 
             try {
 
-                EvioBank bank;
+                EvioEvent event;
                 PayloadBank payloadBank;
                 LinkedList<PayloadBank> payloadBanks = new LinkedList<PayloadBank>();
                 int myInputOrder, evioVersion, sourceId, recordId;
@@ -903,13 +903,13 @@ System.out.println("      DataChannel Et in helper: " + name + " got RESET cmd, 
 //            ", src id = " + sourceId + ", recd id = " + recordId);
 
                         try {
-                            while ((bank = reader.parseNextEvent()) != null) {
+                            while ((event = reader.parseNextEvent()) != null) {
                                 // Complication: from the ROC, we'll be receiving USER events
                                 // mixed in with and labeled as ROC Raw events. Check for that
                                 // and fix it.
                                 bankType = eventType;
                                 if (eventType == EventType.ROC_RAW) {
-                                    if (Evio.isUserEvent(bank)) {
+                                    if (Evio.isUserEvent(event)) {
                                         bankType = EventType.USER;
                                     }
                                 }
@@ -917,7 +917,7 @@ System.out.println("      DataChannel Et in helper: " + name + " got RESET cmd, 
                                     // Find out exactly what type of control event it is
                                     // (May be null if there is an error).
                                     // TODO: It may NOT be enough just to check the tag
-                                    controlType = ControlType.getControlType(bank.getHeader().getTag());
+                                    controlType = ControlType.getControlType(event.getHeader().getTag());
                                     if (controlType == null) {
                                         errorMsg.compareAndSet(null, "Found unidentified control event");
                                         throw new EvioException("Found unidentified control event");
@@ -925,7 +925,7 @@ System.out.println("      DataChannel Et in helper: " + name + " got RESET cmd, 
                                 }
 
                                 // Not a real copy, just points to stuff in bank
-                                payloadBank = new PayloadBank(bank, bankType,
+                                payloadBank = new PayloadBank(event, bankType,
                                                               controlType, recordId,
                                                               sourceId, name);
 
@@ -1383,7 +1383,6 @@ System.out.println("      DataChannel Et out helper: wake up attachment #" + att
                 EtEvent[] events;
                 EventType previousType, pBankType;
                 ControlType pBankControlType;
-                QueueItem qItem;
                 PayloadBank pBank;
                 LinkedList<PayloadBank> bankList;
                 boolean gotNothingYet;
@@ -1474,16 +1473,16 @@ System.out.println("      DataChannel Et out helper: " + name + " some thd got E
                                     firstBankFromQueue = null;
                                 }
                                 else {
-                                    qItem = queue.poll(100L, TimeUnit.MILLISECONDS);
+// TODO: this may be WRONG cast
+                                    pBank = (PayloadBank) queue.poll(100L, TimeUnit.MILLISECONDS);
                                     // If wait longer than 100ms, and there are things to write,
                                     // send them to the ET system.
-                                    if (qItem == null) {
+                                    if (pBank == null) {
                                         if (gotNothingYet) {
                                             continue;
                                         }
                                         break;
                                     }
-                                    pBank = qItem.getPayloadBank();
                                 }
 
                                 gotNothingYet = false;
@@ -1590,14 +1589,14 @@ System.out.println("      DataChannel Et out helper: " + name + " got RESET cmd,
                                 firstBankFromQueue = null;
                             }
                             else {
-                                qItem = queue.poll(100L, TimeUnit.MILLISECONDS);
-                                if (qItem == null) {
+ // TODO: this may be WRONG cast
+                                pBank = (PayloadBank) queue.poll(100L, TimeUnit.MILLISECONDS);
+                                if (pBank == null) {
                                     if (gotNothingYet) {
                                         continue;
                                     }
                                     break;
                                 }
-                                pBank = qItem.getPayloadBank();
                             }
 
                             gotNothingYet = false;
@@ -1821,7 +1820,6 @@ logger.warn("      DataChannel Et out helper : exit thd: " + e.getMessage());
                 EtEvent[] events;
                 ControlType pBufferControlType;
                 EventType previousType, pBufferType;
-                QueueItem qItem;
                 PayloadBuffer pBuffer;
                 LinkedList<PayloadBuffer> bufferList;
                 boolean gotNothingYet;
@@ -1912,16 +1910,16 @@ System.out.println("      DataChannel Et out helper: " + name + " some thd got E
                                     firstBufferFromQueue = null;
                                 }
                                 else {
-                                    qItem = queue.poll(100L, TimeUnit.MILLISECONDS);
+// TODO: this may be WRONG cast
+                                    pBuffer = (PayloadBuffer) queue.poll(100L, TimeUnit.MILLISECONDS);
                                     // If wait longer than 100ms, and there are things to write,
                                     // send them to the ET system.
-                                    if (qItem == null) {
+                                    if (pBuffer == null) {
                                         if (gotNothingYet) {
                                             continue;
                                         }
                                         break;
                                     }
-                                    pBuffer = qItem.getBuffer();
                                 }
 
                                 gotNothingYet = false;
@@ -2028,14 +2026,14 @@ System.out.println("      DataChannel Et out helper: " + name + " got RESET cmd,
                                 firstBufferFromQueue = null;
                             }
                             else {
-                                qItem = queue.poll(100L, TimeUnit.MILLISECONDS);
-                                if (qItem == null) {
+// TODO: this may be WRONG cast
+                                pBuffer = (PayloadBuffer) queue.poll(100L, TimeUnit.MILLISECONDS);
+                                if (pBuffer == null) {
                                     if (gotNothingYet) {
                                         continue;
                                     }
                                     break;
                                 }
-                                pBuffer = qItem.getBuffer();
                             }
 
                             gotNothingYet = false;
@@ -2265,7 +2263,7 @@ System.out.println("      DataChannel Et out helper: " + name + " got RESET cmd,
             private LinkedList<PayloadBuffer> bufferList;
 
             /** ET event in which to write banks. */
-            private EtEvent event;
+            private EtEvent etEvent;
 
             /** ET event's data buffer. */
             private ByteBuffer etBuffer;
@@ -2308,7 +2306,7 @@ System.out.println("      DataChannel Et out helper: " + name + " got RESET cmd,
                      LinkedList<PayloadBuffer> bufferList,
                      EtEvent event, int myRecordId) {
 
-                this.event = event;
+                this.etEvent = event;
                 this.bankList = bankList;
                 this.bufferList = bufferList;
 
@@ -2344,7 +2342,7 @@ System.out.println("      DataChannel Et out helper: " + name + " got RESET cmd,
                     // Write banks into ET buffer
                     if (bankList != null) {
                         for (PayloadBank bank : bankList) {
-                            evWriter.writeEvent(bank);
+                            evWriter.writeEvent(bank.getEvent());
                         }
                     }
                     else {
@@ -2357,7 +2355,7 @@ System.out.println("      DataChannel Et out helper: " + name + " got RESET cmd,
 //TODO: we need to write something
                     evWriter.close();
                     // Be sure to set the length to bytes of data actually written
-                    event.setLength(etBuffer.position());
+                    etEvent.setLength(etBuffer.position());
                     // Tell the DataOutputHelper thread that we're done
                     latch.countDown();
                 }

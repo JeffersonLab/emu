@@ -410,25 +410,23 @@ public class EventBuildingOrig extends CODAStateMachineAdapter implements EmuMod
       */
      private class Qfiller extends Thread {
 
-         BlockingQueue<QueueItem> channelQ;
+         BlockingQueue<QueueItemIF> channelQ;
          PayloadQueue<PayloadBank> payloadBankQ;
 
-         Qfiller(PayloadQueue<PayloadBank> payloadBankQ, BlockingQueue<QueueItem> channelQ) {
+         Qfiller(PayloadQueue<PayloadBank> payloadBankQ, BlockingQueue<QueueItemIF> channelQ) {
              this.channelQ = channelQ;
              this.payloadBankQ = payloadBankQ;
          }
 
          @Override
          public void run() {
-             QueueItem qItem;
              PayloadBank pBank;
 
              while (state == CODAState.ACTIVE || paused) {
                  try {
                      while (state == CODAState.ACTIVE || paused) {
                          // Block waiting for the next bank from ROC
-                         qItem = channelQ.take();  // blocks, throws InterruptedException
-                         pBank = qItem.getPayloadBank();
+                         pBank = (PayloadBank)channelQ.take();  // blocks, throws InterruptedException
                          // Check this bank's format. If bad, ignore it
                          Evio.checkPayload(pBank, payloadBankQ);
                      }
@@ -514,7 +512,7 @@ public class EventBuildingOrig extends CODAStateMachineAdapter implements EmuMod
 
                             if (eventType.isPhysics()) {
                                 outputChannels.get(outputOrderPhysics % outputChannels.size()).
-                                        getQueue().put(new QueueItem(banks[i]));
+                                        getQueue().put(banks[i]);
                                 // stats
                                 eventCountTotal += banks[i].getEventCount();              // event count
                                 wordCountTotal  += banks[i].getHeader().getLength() + 1;  //  word count
@@ -527,13 +525,13 @@ public class EventBuildingOrig extends CODAStateMachineAdapter implements EmuMod
                                 for (DataChannel outChannel : outputChannels) {
                                     // As far as I can tell, the EvioWriter write to an ET
                                     // buffer is thread safe. Guess we'll find out.
-                                    outChannel.getQueue().put(new QueueItem(banks[i]));
+                                    outChannel.getQueue().put(banks[i]);
                                 }
                             }
                             else {
                                 // User events are not part of the round-robin output,
                                 // put on first output channel.
-                                outputChannels.get(0).getQueue().put(new QueueItem(banks[i]));
+                                outputChannels.get(0).getQueue().put(banks[i]);
                             }
 
                             // Get another built bank from this Q
@@ -802,7 +800,8 @@ if (debug && nonFatalError) System.out.println("\nERROR 4\n");
 //                   ", is single mode = " + buildingBanks[0].isSingleEventMode());
 
                         physicsEvent = new PayloadBank(tag, DataType.BANK, totalNumberEvents);
-                        builder.setEvent(physicsEvent);
+                        builder.setEvent(physicsEvent.getEvent());
+
                         if (havePhysicsEvents) {
 //if (debug) System.out.println("BuildingThread: build physics event with physics banks");
                             Evio.buildPhysicsEventWithPhysics(combinedTrigger, buildingBanks, builder);

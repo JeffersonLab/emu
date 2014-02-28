@@ -1117,7 +1117,7 @@ System.out.println("checkPayloadBuffer: bank source Id (" + sourceId + ") != ban
         if (firstControlType == ControlType.PRESTART) {
             int[] prestartData;
             for (PayloadBank bank : buildingBanks) {
-                prestartData = bank.getIntData();
+                prestartData = bank.getEvent().getIntData();
                 if (prestartData == null) {
                     throw new EmuException("PRESTART event does not have data");
 
@@ -1253,7 +1253,7 @@ if (debug) System.out.println("gotValidControlEvents: got " + controlEventCount 
             if (controlType == ControlType.PRESTART) {
                 int[] prestartData;
                 for (PayloadBank bank : buildingBanks) {
-                    prestartData = bank.getIntData();
+                    prestartData = bank.getEvent().getIntData();
                     if (prestartData == null) {
                         throw new EmuException("PRESTART event does not have data");
 
@@ -1618,7 +1618,7 @@ if (debug) System.out.println("gotValidControlEvents: found control event of typ
             index = 0;
             do {
                 try {
-                    triggerBanks[i] = (EvioBank)inputPayloadBanks[i].getChildAt(index++);
+                    triggerBanks[i] = (EvioBank)inputPayloadBanks[i].getEvent().getChildAt(index++);
                     tags[i] = CODATag.getTagType(triggerBanks[i].getHeader().getTag());
 //System.out.println("makeTriggerBankFromPhysics: tag from trig bank " + i + " = " + tags[i]);
                 }
@@ -2426,7 +2426,7 @@ System.out.println("Timestamps are NOT consistent !!!");
         for (int i=0; i < numROCs; i++) {
 
             // the trigger bank is the first one
-            triggerBanks[i] = (EvioBank)inputPayloadBanks[i].getChildAt(0);
+            triggerBanks[i] = (EvioBank)inputPayloadBanks[i].getEvent().getChildAt(0);
             if (!Evio.isRawTriggerBank(triggerBanks[i])) {
                 throw new EmuException("No trigger bank in ROC raw record");
             }
@@ -3111,7 +3111,7 @@ System.out.println("Timestamps are NOT consistent!!!");
 
         // Extract needed event type from Data Block banks (pick first in list)
         // for checking type consistency.
-        EvioBank blockBank = (EvioBank)inputPayloadBanks[0].getChildAt(0);
+        EvioBank blockBank = (EvioBank)inputPayloadBanks[0].getEvent().getChildAt(0);
         short[] evData = new short[1];
         evData[0] = (short) (blockBank.getHeader().getNumber());  // event type
 
@@ -3134,7 +3134,7 @@ System.out.println("Timestamps are NOT consistent!!!");
         // if more than one from a ROC.
         int[] data;
         for (int j=0; j < numROCs; j++) {
-            blockBank = (EvioBank) (inputPayloadBanks[j].getChildAt(0));
+            blockBank = (EvioBank) (inputPayloadBanks[j].getEvent().getChildAt(0));
 
             // check event type consistency
             if (evData[0] != (short) (blockBank.getHeader().getNumber())) {
@@ -3443,11 +3443,11 @@ System.out.println("Timestamps are NOT consistent !!!");
      * @param builder object used to build trigger bank
      */
     public static void buildPhysicsEventWithPhysics(EvioBank triggerBank,
-                                                    EvioBank[] inputPayloadBanks,
+                                                    PayloadBank[] inputPayloadBanks,
                                                     EventBuilder builder) {
 
         int childrenCount;
-        EvioBank  dataBlock;
+        EvioBank  dataBlock, bank;
         EvioEvent finalEvent = builder.getEvent();
 
         try {
@@ -3455,11 +3455,12 @@ System.out.println("Timestamps are NOT consistent !!!");
             builder.addChild(finalEvent, triggerBank);
 
             // add all data banks (from payload banks) which are already wrapped properly
-            for (EvioBank inputPayloadBank : inputPayloadBanks) {
-                childrenCount = inputPayloadBank.getChildCount();
+            for (PayloadBank inputPayloadBank : inputPayloadBanks) {
+                bank = inputPayloadBank.getEvent();
+                childrenCount = bank.getChildCount();
 
                 for (int j = 0; j < childrenCount; j++) {
-                    dataBlock = (EvioBank) inputPayloadBank.getChildAt(j);
+                    dataBlock = (EvioBank) bank.getChildAt(j);
                     // ignore the built trigger bank (should be first one)
                     if (Evio.isBuiltTriggerBank(dataBlock)) {
                         continue;
@@ -3519,13 +3520,13 @@ System.out.println("Timestamps are NOT consistent !!!");
      * @return bank final built event
      */
     public static EvioBank buildPhysicsEventWithRocRaw(EvioBank triggerBank,
-                                                       EvioBank[] inputPayloadBanks,
+                                                       PayloadBank[] inputPayloadBanks,
                                                        EventBuilder builder,
                                                        boolean semMode) {
 
         int childrenCount;
         BankHeader header;
-        EvioBank dataBank, blockBank;
+        EvioBank dataBank, blockBank, bank;
         EvioEvent finalEvent = builder.getEvent();
 
         try {
@@ -3536,16 +3537,18 @@ System.out.println("Timestamps are NOT consistent !!!");
 
             // Wrap and add data block banks (from payload banks).
             // Use the same header to wrap data blocks as used for payload bank.
-            for (EvioBank inputPayloadBank : inputPayloadBanks) {
+            for (PayloadBank inputPayloadBank : inputPayloadBanks) {
+                bank = inputPayloadBank.getEvent();
+
                 // Get Roc Raw header
-                header = (BankHeader) inputPayloadBank.getHeader();
+                header = (BankHeader) bank.getHeader();
 
                 // Create physics data bank with same tag & num as Roc Raw bank
                 dataBank = new EvioBank(header.getTag(), DataType.BANK, header.getNumber());
 //System.out.println("    created a wrapping data-bank");
 
                 // How many banks inside Roc Raw bank ?
-                childrenCount = inputPayloadBank.getChildCount();
+                childrenCount = bank.getChildCount();
 
 //System.out.println("    roc raw ev #" + i + " has " + childrenCount + " banks");
                 // Add Roc Raw's data block banks to our data bank.
@@ -3558,7 +3561,7 @@ System.out.println("Timestamps are NOT consistent !!!");
                 }
 
                 for (; j < childrenCount; j++) {
-                    blockBank = (EvioBank) inputPayloadBank.getChildAt(j);
+                    blockBank = (EvioBank) bank.getChildAt(j);
                     // Pretend data is big endian so we can add the blockBank
                     // to out dataBank without an exception. No swapping done.
                     if (blockBank.getByteOrder() != ByteOrder.BIG_ENDIAN) {

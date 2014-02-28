@@ -18,10 +18,7 @@ import org.jlab.coda.emu.support.codaComponent.CODAState;
 import org.jlab.coda.emu.support.codaComponent.CODAStateMachineAdapter;
 import org.jlab.coda.emu.support.codaComponent.State;
 import org.jlab.coda.emu.support.control.CmdExecException;
-import org.jlab.coda.emu.support.data.ControlType;
-import org.jlab.coda.emu.support.data.PayloadBank;
-import org.jlab.coda.emu.support.data.QueueItem;
-import org.jlab.coda.emu.support.data.QueueItemType;
+import org.jlab.coda.emu.support.data.*;
 import org.jlab.coda.emu.support.logger.Logger;
 import org.jlab.coda.emu.support.transport.DataChannel;
 
@@ -240,8 +237,7 @@ System.out.println("FarmController: running event moving thread");
             int inputChannelCount   = inputChannels.size();
             int outputChannelCount  = outputChannels.size();
 
-            QueueItem qItem;
-            BlockingQueue<QueueItem> queue;
+            BlockingQueue<QueueItemIF> queue;
             PayloadBank payloadBank;
 
             while (state == CODAState.ACTIVE || paused) {
@@ -255,26 +251,26 @@ System.out.println("FarmController: running event moving thread");
 
                         // Will BLOCK here waiting for payload bank if none available
                         queue = inputChannels.get(currentInputChannel).getQueue();
-                        qItem = queue.poll(1L, TimeUnit.MILLISECONDS);
+// TODO:Before we cast, we need to find out what it is!!!
+                        payloadBank = (PayloadBank) queue.poll(1L, TimeUnit.MILLISECONDS);
 
                         // If nothing on this channel go to the next
-                        if (qItem == null) {
+                        if (payloadBank == null) {
                             if (killThread) return;
                             continue;
                         }
 
-                        payloadBank = qItem.getPayloadBank();
                         break;
                     }
 
                     // Place input event on all output channels ...
                     if (outputChannelCount > 0) {
                         // Place bank on first output channel queue
-                        outputChannels.get(0).getQueue().put(qItem);
+                        outputChannels.get(0).getQueue().put(payloadBank);
 
                         // Copy bank & write to other output channels' Q's
                         for (int j=1; j < outputChannelCount; j++) {
-                            outputChannels.get(j).getQueue().put((QueueItem)qItem.clone());
+                            outputChannels.get(j).getQueue().put((QueueItemIF)payloadBank.clone());
                         }
                     }
 

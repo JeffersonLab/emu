@@ -441,7 +441,7 @@ System.out.println("RocSimulation module: quitting watcher thread");
 
                 try {
                     // Stick it on the output Q.
-                    outputChannels.get(0).getQueue().put(new QueueItem(new PayloadBank(event)));
+                    outputChannels.get(0).getQueue().put(new PayloadBank(event));
 
                     // stats
                     rocRecordId++;
@@ -497,7 +497,7 @@ System.out.println("INTERRUPTED thread " + Thread.currentThread().getName());
             }
 
             // Place Data Transport Record on output channel
-            outputChannels.get(0).getQueue().put(new QueueItem(bank));
+            outputChannels.get(0).getQueue().put(bank);
 
             // next one to be put on output channel
             outputOrder = ++outputOrder % Integer.MAX_VALUE;
@@ -530,7 +530,7 @@ System.out.println("INTERRUPTED thread " + Thread.currentThread().getName());
 
             // Place banks on output channel
             for (PayloadBank bank : banks) {
-                outputChannels.get(0).getQueue().put(new QueueItem(bank));
+                outputChannels.get(0).getQueue().put(bank);
             }
 
             // next group to be put on output channel
@@ -627,7 +627,7 @@ System.out.println("          RocSim: Putting in END control event");
                            PayloadBank bank = new PayloadBank(controlEvent);
                            bank.setEventType(EventType.CONTROL);
                            bank.setControlType(ControlType.END);
-                           outputChannels.get(0).getQueue().put(new QueueItem(bank));
+                           outputChannels.get(0).getQueue().put(bank);
                            if (endCallback != null) endCallback.endWait();
                        }
                        catch (InterruptedException e) {}
@@ -803,7 +803,7 @@ System.out.println("event rate = " + String.format("%.3g", ((eventNumber-oldVal)
             PayloadBank bank = new PayloadBank(controlEvent);
             bank.setEventType(EventType.CONTROL);
             bank.setControlType(ControlType.PRESTART);
-            outputChannels.get(0).getQueue().put(new QueueItem(bank));
+            outputChannels.get(0).getQueue().put(bank);
         }
         catch (InterruptedException e) {}
         catch (EvioException e) {/* never happen */}
@@ -829,7 +829,7 @@ System.out.println("event rate = " + String.format("%.3g", ((eventNumber-oldVal)
             PayloadBank bank = new PayloadBank(controlEvent);
             bank.setEventType(EventType.CONTROL);
             bank.setControlType(ControlType.PAUSE);
-            outputChannels.get(0).getQueue().put(new QueueItem(bank));
+            outputChannels.get(0).getQueue().put(bank);
         }
         catch (InterruptedException e) {}
         catch (EvioException e) {/* never happen */}
@@ -850,7 +850,7 @@ System.out.println("event rate = " + String.format("%.3g", ((eventNumber-oldVal)
             PayloadBank bank = new PayloadBank(controlEvent);
             bank.setEventType(EventType.CONTROL);
             bank.setControlType(ControlType.GO);
-            outputChannels.get(0).getQueue().put(new QueueItem(bank));
+            outputChannels.get(0).getQueue().put(bank);
         }
         catch (InterruptedException e) {}
         catch (EvioException e) {/* never happen */}

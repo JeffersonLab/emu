@@ -94,7 +94,7 @@ public class EventRecording extends CODAStateMachineAdapter implements EmuModule
     private DataChannel inputChannel;
 
     /** Input channel's queue. */
-    private BlockingQueue<QueueItem> channelQ;
+    private BlockingQueue<QueueItemIF> channelQ;
 
     /** Type of object to expect for input. */
     private QueueItemType inputType = QueueItemType.PayloadBuffer;
@@ -566,7 +566,7 @@ if (debug) System.out.println("endRecordThreads: will end threads but no END eve
                 }
                 // Place bank on output channel
 //System.out.println("Put bank on output channel");
-                eo.outputChannel.getQueue().put(new QueueItem(bankOut));
+                eo.outputChannel.getQueue().put(bankOut);
                 outputOrders[eo.index] = ++outputOrders[eo.index] % Integer.MAX_VALUE;
                 eo.lock.notifyAll();
             }
@@ -591,7 +591,7 @@ if (debug) System.out.println("endRecordThreads: will end threads but no END eve
                 }
 
                 // Place bank on output channel
-                eo.outputChannel.getQueue().put(new QueueItem(bankOut));
+                eo.outputChannel.getQueue().put(bankOut);
                 outputOrders[eo.index] = ++outputOrders[eo.index] % Integer.MAX_VALUE;
 //if (debug) System.out.println("placing = " + eo.inputOrder);
 
@@ -606,7 +606,7 @@ if (debug) System.out.println("endRecordThreads: will end threads but no END eve
                     // Remove from waiting list permanently
                     bank = waitingListOfBanks[eo.index].take();
                     // Place bank on output channel
-                    eo.outputChannel.getQueue().put(new QueueItem(bank));
+                    eo.outputChannel.getQueue().put(bank);
                     outputOrders[eo.index] = ++outputOrders[eo.index] % Integer.MAX_VALUE;
                     bank = waitingListOfBanks[eo.index].peek();
 //if (debug) System.out.println("placing = " + evOrder.inputOrder);
@@ -647,7 +647,7 @@ if (debug) System.out.println("endRecordThreads: will end threads but no END eve
                 }
                 // Place buf on output channel
 //System.out.println("Put buf on output channel");
-                eo.outputChannel.getQueue().put(new QueueItem(bufferOut));
+                eo.outputChannel.getQueue().put(bufferOut);
                 outputOrders[eo.index] = ++outputOrders[eo.index] % Integer.MAX_VALUE;
                 eo.lock.notifyAll();
             }
@@ -672,7 +672,7 @@ if (debug) System.out.println("endRecordThreads: will end threads but no END eve
                 }
 
                 // Place buf on output channel
-                eo.outputChannel.getQueue().put(new QueueItem(bufferOut));
+                eo.outputChannel.getQueue().put(bufferOut);
                 outputOrders[eo.index] = ++outputOrders[eo.index] % Integer.MAX_VALUE;
 //if (debug) System.out.println("placing = " + eo.inputOrder);
 
@@ -687,7 +687,7 @@ if (debug) System.out.println("endRecordThreads: will end threads but no END eve
                     // Remove from waiting list permanently
                     buffer = waitingListOfBuffers[eo.index].take();
                     // Place buffer on output channel
-                    eo.outputChannel.getQueue().put(new QueueItem(buffer));
+                    eo.outputChannel.getQueue().put(buffer);
                     outputOrders[eo.index] = ++outputOrders[eo.index] % Integer.MAX_VALUE;
                     buffer = waitingListOfBuffers[eo.index].peek();
 //if (debug) System.out.println("placing = " + evOrder.inputOrder);
@@ -735,7 +735,7 @@ if (debug) System.out.println("endRecordThreads: will end threads but no END eve
 
 //System.out.println("Running runMultipleThreads()");
             int totalNumberEvents=1, wordCount;
-            QueueItem     qItem;
+            QueueItemIF   qItem;
             PayloadBuffer recordingBuf  = null;
             PayloadBank   recordingBank = null;
             ControlType   controlType;
@@ -758,12 +758,12 @@ if (debug) System.out.println("endRecordThreads: will end threads but no END eve
                         // Will BLOCK here waiting for payload bank if none available
                         qItem = channelQ.take();  // blocks, throws InterruptedException
                         if (inputType == QueueItemType.PayloadBank) {
-                            recordingBank = qItem.getPayloadBank();
+                            recordingBank = (PayloadBank)qItem;
                             controlType = recordingBank.getControlType();
                             wordCount = recordingBank.getHeader().getLength() + 1;
                         }
                         else {
-                            recordingBuf = qItem.getBuffer();
+                            recordingBuf = (PayloadBuffer)qItem;
                             controlType = recordingBuf.getControlType();
                             wordCount = recordingBuf.getNode().getLength() + 1;
                         }
@@ -859,7 +859,7 @@ if (true) System.out.println("Found END event in record thread");
 
             // initialize
             int totalNumberEvents=1, wordCount;
-            QueueItem qItem;
+            QueueItemIF qItem;
             PayloadBuffer recordingBuf  = null;
             PayloadBank   recordingBank = null;
             ControlType controlType;
@@ -870,12 +870,12 @@ if (true) System.out.println("Found END event in record thread");
                     // Will BLOCK here waiting for payload bank if none available
                     qItem = channelQ.take();  // blocks, throws InterruptedException
                     if (inputType == QueueItemType.PayloadBank) {
-                        recordingBank = qItem.getPayloadBank();
+                        recordingBank = (PayloadBank)qItem;
                         controlType = recordingBank.getControlType();
                         wordCount = recordingBank.getHeader().getLength() + 1;
                     }
                     else {
-                        recordingBuf = qItem.getBuffer();
+                        recordingBuf = (PayloadBuffer)qItem;
                         controlType = recordingBuf.getControlType();
                         wordCount = recordingBuf.getNode().getLength() + 1;
                     }
@@ -887,10 +887,10 @@ if (true) System.out.println("Found END event in record thread");
                         // Copy bank & write to other output channels' Q's
                         for (int j=1; j < outputChannelCount; j++) {
                             if (inputType == QueueItemType.PayloadBank) {
-                                qItem = new QueueItem(new PayloadBank(recordingBank));
+                                qItem = new PayloadBank(recordingBank);
                             }
                             else {
-                                qItem = new QueueItem(new PayloadBuffer(recordingBuf));
+                                qItem = new PayloadBuffer(recordingBuf);
                             }
                             outputChannels.get(j).getQueue().put(qItem);
                         }

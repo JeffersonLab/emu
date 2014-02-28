@@ -540,9 +540,9 @@ System.out.println("EventBuilding constr: " + buildingThreadCount +
      */
     private class QfillerDump extends Thread {
 
-        BlockingQueue<QueueItem> channelQ;
+        BlockingQueue<QueueItemIF> channelQ;
 
-        QfillerDump(PayloadQueue<PayloadBuffer> payloadBufQ, BlockingQueue<QueueItem> channelQ) {
+        QfillerDump(PayloadQueue<PayloadBuffer> payloadBufQ, BlockingQueue<QueueItemIF> channelQ) {
             this.channelQ = channelQ;
         }
 
@@ -570,25 +570,23 @@ System.out.println("EventBuilding constr: " + buildingThreadCount +
      */
     private class Qfiller extends Thread {
 
-        BlockingQueue<QueueItem> channelQ;
+        BlockingQueue<QueueItemIF> channelQ;
         PayloadQueue<PayloadBuffer> payloadBufQ;
 
-        Qfiller(PayloadQueue<PayloadBuffer> payloadBufQ, BlockingQueue<QueueItem> channelQ) {
+        Qfiller(PayloadQueue<PayloadBuffer> payloadBufQ, BlockingQueue<QueueItemIF> channelQ) {
             this.channelQ = channelQ;
             this.payloadBufQ = payloadBufQ;
         }
 
         @Override
         public void run() {
-            QueueItem qItem;
             PayloadBuffer pBuf;
 
             while (state == CODAState.ACTIVE || paused) {
                 try {
                     while (state == CODAState.ACTIVE || paused) {
                         // Block waiting for the next bank from ROC
-                        qItem = channelQ.take();  // blocks, throws InterruptedException
-                        pBuf = qItem.getBuffer();
+                        pBuf = (PayloadBuffer)channelQ.take();  // blocks, throws InterruptedException
                         // Check this bank's format. If bad, ignore it
                         Evio.checkPayload(pBuf, payloadBufQ);
                     }
@@ -636,7 +634,7 @@ if (debug) System.out.println("Qfiller: Roc raw or physics event in wrong format
                 }
                 // Place bank on output channel
 //System.out.println("Put bank on output channel");
-                eo.outputChannel.getQueue().put(new QueueItem(bankOut));
+                eo.outputChannel.getQueue().put(bankOut);
                 outputOrders[eo.index] = ++outputOrders[eo.index] % Integer.MAX_VALUE;
                 eo.lock.notifyAll();
             }
@@ -663,7 +661,7 @@ if (debug) {
                 }
 
                 // Place bank on output channel
-                eo.outputChannel.getQueue().put(new QueueItem(bankOut));
+                eo.outputChannel.getQueue().put(bankOut);
                 outputOrders[eo.index] = ++outputOrders[eo.index] % Integer.MAX_VALUE;
 //if (debug) System.out.println("placing = " + eo.inputOrder);
 
@@ -678,7 +676,7 @@ if (debug) {
                     // Remove from waiting list permanently
                     buffer = waitingLists[eo.index].take();
                     // Place bank on output channel
-                    eo.outputChannel.getQueue().put(new QueueItem(buffer));
+                    eo.outputChannel.getQueue().put(buffer);
                     outputOrders[eo.index] = ++outputOrders[eo.index] % Integer.MAX_VALUE;
                     buffer = waitingLists[eo.index].peek();
 //if (debug) System.out.println("placing = " + evOrder.inputOrder);
@@ -724,7 +722,7 @@ if (debug && printQSizes) {
                 // Place banks on output channel
 //System.out.println("Put banks on output channel");
                 for (PayloadBuffer bBuf : banksOut) {
-                    eo.outputChannel.getQueue().put(new QueueItem(bBuf));
+                    eo.outputChannel.getQueue().put(bBuf);
                 }
                 outputOrders[eo.index] = ++outputOrders[eo.index] % Integer.MAX_VALUE;
                 eo.lock.notifyAll();
@@ -748,7 +746,7 @@ if (debug && printQSizes) {
 
                 // Place banks on output channel
                 for (PayloadBuffer bBuf : banksOut) {
-                    eo.outputChannel.getQueue().put(new QueueItem(bBuf));
+                    eo.outputChannel.getQueue().put(bBuf);
                 }
                 outputOrders[eo.index] = ++outputOrders[eo.index] % Integer.MAX_VALUE;
 
@@ -763,7 +761,7 @@ if (debug && printQSizes) {
                     // Remove from waiting list permanently
                     buffer = waitingLists[eo.index].take();
                     // Place banks on output channel
-                    eo.outputChannel.getQueue().put(new QueueItem(buffer));
+                    eo.outputChannel.getQueue().put(buffer);
                     outputOrders[eo.index] = ++outputOrders[eo.index] % Integer.MAX_VALUE;
                     buffer = waitingLists[eo.index].peek();
                 }

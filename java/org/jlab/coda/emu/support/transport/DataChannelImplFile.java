@@ -331,16 +331,16 @@ logger.info("      DataChannel File: try opening output base file of " + fileNam
 
             try {
                 while (!dataThread.isInterrupted()) {
-                    EvioBank bank;
+                    EvioEvent event;
                     try {
-                        bank = evioFileReader.parseNextEvent();
+                        event = evioFileReader.parseNextEvent();
                     }
                     catch (Exception e) {
                         errorMsg.compareAndSet(null, "File data is NOT evio v4 format");
                         throw e;
                     }
 
-                    if (bank == null) {
+                    if (event == null) {
                         break;
                     }
 
@@ -350,14 +350,14 @@ logger.info("      DataChannel File: try opening output base file of " + fileNam
 
                     // Unlikely that a file has roc raw data, but accommodate it anyway
                     if (eventType == EventType.ROC_RAW) {
-                        if (Evio.isUserEvent(bank)) {
+                        if (Evio.isUserEvent(event)) {
                             bankType = EventType.USER;
                         }
                     }
                     else if (eventType == EventType.CONTROL) {
                         // Find out exactly what type of control event it is
                         // (May be null if there is an error).
-                        controlType = ControlType.getControlType(bank.getHeader().getTag());
+                        controlType = ControlType.getControlType(event.getHeader().getTag());
                         if (controlType == null) {
                             errorMsg.compareAndSet(null, "Found unidentified control event");
                             throw new EvioException("Found unidentified control event");
@@ -365,11 +365,11 @@ logger.info("      DataChannel File: try opening output base file of " + fileNam
                     }
 
                     // Not a real copy, just points to stuff in bank
-                    payloadBank = new PayloadBank(bank, bankType,
+                    payloadBank = new PayloadBank(event, bankType,
                                                   controlType, recordId,
                                                   sourceId, name);
 
-                    queue.put(new QueueItem(payloadBank));  // will block
+                    queue.put(payloadBank);  // will block
                     counter++;
                 }
 
@@ -378,7 +378,7 @@ logger.info("      DataChannel File: try opening output base file of " + fileNam
                 PayloadBank bank = new PayloadBank(controlEvent);
                 bank.setEventType(EventType.CONTROL);
                 bank.setControlType(ControlType.END);
-                queue.put(new QueueItem(bank, ControlType.END));  // will block
+                queue.put(bank);  // will block
                 if (endCallback != null) endCallback.endWait();
 
             }
@@ -441,7 +441,7 @@ logger.info("      DataChannel File: try opening output base file of " + fileNam
                                                       bankType, controlType, recordId,
                                                       sourceId, name, node);
 
-                    queue.put(new QueueItem(payloadBuffer));  // will block
+                    queue.put(payloadBuffer);  // will block
                     counter++;
                 }
 
@@ -450,7 +450,7 @@ logger.info("      DataChannel File: try opening output base file of " + fileNam
                 PayloadBank bank = new PayloadBank(controlEvent);
                 bank.setEventType(EventType.CONTROL);
                 bank.setControlType(ControlType.END);
-                queue.put(new QueueItem(bank, ControlType.END));  // will block
+                queue.put(bank);  // will block
                 if (endCallback != null) endCallback.endWait();
 
             }
@@ -499,7 +499,7 @@ logger.info("      DataChannel File: try opening output base file of " + fileNam
             // I've started
             latch.countDown();
 
-            QueueItem qItem;
+            QueueItemIF qItem;
             PayloadBank bank  = null;
             PayloadBuffer buf = null;
             EventType eventType;
@@ -513,12 +513,12 @@ logger.info("      DataChannel File: try opening output base file of " + fileNam
                     qItem = queue.take(); // will block
 
                     if (queueItemType == QueueItemType.PayloadBank) {
-                        bank = qItem.getPayloadBank();
+                        bank = (PayloadBank)qItem;
                         eventType = bank.getEventType();
                         controlType = bank.getControlType();
                     }
                     else {
-                        buf = qItem.getBuffer();
+                        buf = (PayloadBuffer)qItem;
                         eventType = buf.getEventType();
                         controlType = buf.getControlType();
                     }
@@ -547,7 +547,7 @@ logger.warn("      DataChannel File (" + name + "): got event but NO PRESTART, g
                     try {
                         // evioFileWriter will automatically split the file
                         if (queueItemType == QueueItemType.PayloadBank) {
-                            evioFileWriter.writeEvent(bank);
+                            evioFileWriter.writeEvent(bank.getEvent());
 //                            if (controlType == ControlType.PRESTART) {
 //                                evioFileWriter.flushToFile();
 //                            }
