@@ -128,7 +128,7 @@ public class DataChannelImplCmsg extends DataChannelAdapter {
          */
         public void callback(cMsgMessage msg, Object userObject) {
 
-            EvioBank bank;
+            EvioEvent bank;
             PayloadBank payloadBank;
             int evioVersion, sourceId, recordId;
             BlockHeaderV4 header4;
