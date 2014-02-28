@@ -146,7 +146,7 @@ public class QueueItemAdapter implements QueueItem {
     public boolean isReserved() {return reserved;}
     public void setReserved(boolean reserved) {this.reserved = reserved;}
 
-    public boolean hasNonFatalBuildingError() { return nonFatalBuildingError; }
+    public boolean hasNonFatalBuildingError() {return nonFatalBuildingError;}
     public void setNonFatalBuildingError(boolean nonFatalBuildingError) {
         this.nonFatalBuildingError = nonFatalBuildingError;
     }
