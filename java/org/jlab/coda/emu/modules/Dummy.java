@@ -229,7 +229,7 @@ System.out.println("Dummy: running event moving thread");
             int inputChannelCount   = inputChannels.size();
             int outputChannelCount  = outputChannels.size();
 
-            BlockingQueue<QueueItemIF> queue;
+            BlockingQueue<QueueItem> queue;
             PayloadBank payloadBank;
 
             while (state == CODAState.ACTIVE || paused) {
@@ -261,7 +261,7 @@ System.out.println("Dummy: running event moving thread");
 
                         // Copy bank & write to other output channels' Q's
                         for (int j=1; j < outputChannelCount; j++) {
-                            outputChannels.get(j).getQueue().put((QueueItemIF)payloadBank.clone());
+                            outputChannels.get(j).getQueue().put((QueueItem)payloadBank.clone());
                         }
                     }
 

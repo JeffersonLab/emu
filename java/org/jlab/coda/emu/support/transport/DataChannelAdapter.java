@@ -16,7 +16,7 @@ import org.jlab.coda.emu.Emu;
 import org.jlab.coda.emu.EmuEventNotify;
 import org.jlab.coda.emu.support.codaComponent.CODAStateMachineAdapter;
 import org.jlab.coda.emu.support.codaComponent.State;
-import org.jlab.coda.emu.support.data.QueueItemIF;
+import org.jlab.coda.emu.support.data.QueueItem;
 import org.jlab.coda.emu.support.data.QueueItemType;
 import org.jlab.coda.emu.support.logger.Logger;
 
@@ -79,7 +79,7 @@ public class DataChannelAdapter extends CODAStateMachineAdapter implements DataC
     protected QueueItemType queueItemType;
 
     /** Queue used to hold data for either input or output depending on {@link #input}. */
-    protected final BlockingQueue<QueueItemIF> queue;
+    protected final BlockingQueue<QueueItem> queue;
 
 
 
@@ -113,7 +113,7 @@ public class DataChannelAdapter extends CODAStateMachineAdapter implements DataC
             capacity = dataTransport.getIntAttr("capacity");
         }
         catch (Exception e) {}
-        queue = new LinkedBlockingQueue<QueueItemIF>(capacity);
+        queue = new LinkedBlockingQueue<QueueItem>(capacity);
 
 
         // Set id number. Use any defined in config file, else use default = 0
@@ -157,18 +157,18 @@ public class DataChannelAdapter extends CODAStateMachineAdapter implements DataC
 
     /** {@inheritDoc}
      *  Will block until data item becomes available. */
-    public QueueItemIF receive() throws InterruptedException {return queue.take();}
+    public QueueItem receive() throws InterruptedException {return queue.take();}
     
     /** {@inheritDoc}
      *  Will block until space is available in output queue. */
-    public void send(QueueItemIF item) throws InterruptedException {
+    public void send(QueueItem item) throws InterruptedException {
         queue.put(item);     // blocks if capacity reached
         //queue.add(item);   // throws exception if capacity reached
         //queue.offer(item); // returns false if capacity reached
     }
 
     /** {@inheritDoc} */
-    public BlockingQueue<QueueItemIF> getQueue() {return queue;}
+    public BlockingQueue<QueueItem> getQueue() {return queue;}
 
     /** {@inheritDoc} */
     public void registerEndCallback(EmuEventNotify callback) {endCallback = callback;}

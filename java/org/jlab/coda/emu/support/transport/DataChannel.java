@@ -14,7 +14,7 @@ package org.jlab.coda.emu.support.transport;
 
 import org.jlab.coda.emu.support.codaComponent.CODAStateMachine;
 import org.jlab.coda.emu.support.codaComponent.StatedObject;
-import org.jlab.coda.emu.support.data.QueueItemIF;
+import org.jlab.coda.emu.support.data.QueueItem;
 
 import java.util.concurrent.BlockingQueue;
 
@@ -63,20 +63,20 @@ public interface DataChannel extends CODAStateMachine, StatedObject {
      * @return item of data.
      * @throws InterruptedException on wakeup without data.
      */
-    public QueueItemIF receive() throws InterruptedException;
+    public QueueItem receive() throws InterruptedException;
     
     /**
      * Place a data item on this channel's queue.
      * @param item item of data.
      * @throws InterruptedException possible while waiting to place item on queue.
      */
-    public void send(QueueItemIF item) throws InterruptedException;
+    public void send(QueueItem item) throws InterruptedException;
 
     /**
      * Get the queue of this data channel which contains
      * QueueItem objects of data for either receiving or sending data.
      * @return the queue of QueueItem objects for either receiving or sending data.
      */
-    public BlockingQueue<QueueItemIF> getQueue();
+    public BlockingQueue<QueueItem> getQueue();
 
 }

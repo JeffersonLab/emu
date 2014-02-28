@@ -536,9 +536,9 @@ System.out.println("EventBuilding constr: " + buildingThreadCount +
      */
     private class QfillerDump extends Thread {
 
-        BlockingQueue<QueueItemIF> channelQ;
+        BlockingQueue<QueueItem> channelQ;
 
-        QfillerDump(PayloadQueue<PayloadBank> payloadBankQ, BlockingQueue<QueueItemIF> channelQ) {
+        QfillerDump(PayloadQueue<PayloadBank> payloadBankQ, BlockingQueue<QueueItem> channelQ) {
             this.channelQ = channelQ;
         }
 
@@ -566,17 +566,17 @@ System.out.println("EventBuilding constr: " + buildingThreadCount +
      */
     private class Qfiller extends Thread {
 
-        BlockingQueue<QueueItemIF> channelQ;
+        BlockingQueue<QueueItem> channelQ;
         PayloadQueue<PayloadBank> payloadBankQ;
 
-        Qfiller(PayloadQueue<PayloadBank> payloadBankQ, BlockingQueue<QueueItemIF> channelQ) {
+        Qfiller(PayloadQueue<PayloadBank> payloadBankQ, BlockingQueue<QueueItem> channelQ) {
             this.channelQ = channelQ;
             this.payloadBankQ = payloadBankQ;
         }
 
         @Override
         public void run() {
-            QueueItemIF qItem;
+            QueueItem qItem;
             PayloadBank pBank;
 
             while (state == CODAState.ACTIVE || paused) {

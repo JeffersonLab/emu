@@ -644,7 +644,7 @@ System.out.println("singlethreaded put: array len = " + msgs.length + ", send " 
 
             try {
                 EventType previousType, pBanktype;
-                QueueItemIF qItem;
+                QueueItem qItem;
                 PayloadBank pBank;
                 LinkedList<PayloadBank> bankList;
                 boolean gotNothingYet;

@@ -474,10 +474,10 @@ public class EventBuilding2 extends CODAStateMachineAdapter implements EmuModule
      */
     private class Qfiller extends Thread {
 
-        BlockingQueue<QueueItemIF> channelQ;
+        BlockingQueue<QueueItem> channelQ;
         PayloadQueue<PayloadBank> payloadBankQ;
 
-        Qfiller(PayloadQueue<PayloadBank> payloadBankQ, BlockingQueue<QueueItemIF> channelQ) {
+        Qfiller(PayloadQueue<PayloadBank> payloadBankQ, BlockingQueue<QueueItem> channelQ) {
             this.channelQ = channelQ;
             this.payloadBankQ = payloadBankQ;
         }
