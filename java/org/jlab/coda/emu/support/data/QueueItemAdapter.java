@@ -4,12 +4,15 @@ package org.jlab.coda.emu.support.data;
 import java.nio.ByteOrder;
 
 /**
- * Convenience class designed to handle boilerplate methods of QueueItem.
+ * This class provides the boilerplate methods of the QueueItem interface.
+ * This class is meant to be extended to handle a specific type of data
+ * object to be placed in queues for consumption by emu modules and
+ * transport channels.
  *
  * @author: timmer
  * Date: Feb 28, 2014
  */
-public class QueueItemAdapter implements QueueItem {
+class QueueItemAdapter implements QueueItem {
 
     /** What type of CODA events are contained in this bank (RocRaw, Physics, Control, ...)?
      *  Only one type is stored in one PayloadBank object.
@@ -103,7 +106,7 @@ public class QueueItemAdapter implements QueueItem {
     }
 
     // Will need to be overwritten
-    public QueueItemType getQueueItemType() {return QueueItemType.PayloadBank;}
+    public QueueItemType getQueueItemType() {return null;}
 
     public ByteOrder getByteOrder() {return ByteOrder.BIG_ENDIAN;}
     //----------------------------
