@@ -422,7 +422,7 @@ System.out.println("RocSimulation module: quitting watcher thread");
 
             // create event with jevio package
             EventBuilder eventBuilder = new EventBuilder(tag, DataType.BANK, rocRecordId);
-            EvioBank event = eventBuilder.getEvent();
+            EvioEvent event = eventBuilder.getEvent();
 
             // add a bank with no meaningful data in it - just to take up some size
             EvioBank intBank = new EvioBank(1, DataType.INT32, 0 /* updated later */);
