@@ -15,19 +15,15 @@ package org.jlab.coda.emu.support.data;
 import java.nio.ByteOrder;
 
 /**
- * The class contains one of the multiple possible types of items
- * which may be passed to the EMU through its transport channels.
- * A single item and its type are stored in an object of this class.
- * This gives EMU modules some flexibility in the type of data they
- * can handle.
+ * This interface defines type of item which may be passed to the EMU
+ * through its transport channels.
+ * This interface may be implemented to give EMU modules some flexibility
+ * in the type of data they can handle.
  *
  * @author timmer
  * (Feb 27 2014)
  */
 public interface QueueItem extends Cloneable, Attached {
-//public interface QueueItem  {
-
-//    public Object getAttachment();
 
     /**
      * Get the type of data item stored in this object -
@@ -85,19 +81,4 @@ public interface QueueItem extends Cloneable, Attached {
 
     public boolean hasNonFatalBuildingError();
     public void setNonFatalBuildingError(boolean nonFatalBuildingError);
-
-
-//    /**
-//     * Get the stored PayloadBuffer object. If none, null is returned.
-//     * @return stored PayloadBuffer object. If none, null is returned.
-//     */
-//    public PayloadBuffer getBuffer();
-//
-//    /**
-//     * Get the stored PayloadBank object. If none, null is returned.
-//     * @return stored PayloadBank object. If none, null is returned.
-//     */
-//    public PayloadBank getPayloadBank();
-//
-
 }
