@@ -17,9 +17,9 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 
 /**
- * Wrapper for a ByteBuffer object that has an attachment.
+ * Wrapper for a ByteBuffer object that has external, associated data.
  * This class plays the same role that PayloadBank plays
- * except for ByteBuffer instead of EvioBank objects.
+ * except it uses a ByteBuffer instead of an EvioBank object.
  *
  * @author timmer
  * (5/16/13)

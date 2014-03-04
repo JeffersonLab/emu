@@ -100,56 +100,76 @@ class QueueItemAdapter implements QueueItem {
         isSync                = qItem.isSync();
         isSingleEventMode     = qItem.isSingleEventMode();
         hasError              = qItem.hasError();
-        reserved              = qItem.isReserved();
         nonFatalBuildingError = qItem.hasNonFatalBuildingError();
         attachment            = qItem.getAttachment();
     }
 
     // Will need to be overwritten
+    /** {@inheritDoc} */
     public QueueItemType getQueueItemType() {return null;}
 
+    /** {@inheritDoc} */
     public ByteOrder getByteOrder() {return ByteOrder.BIG_ENDIAN;}
     //----------------------------
 
-
+    /** {@inheritDoc} */
     public Object getAttachment() {return attachment;}
+    /** {@inheritDoc} */
     public void setAttachment(Object attachment) {this.attachment = attachment;}
 
+    /** {@inheritDoc} */
     public boolean isControlEvent() {return controlType != null;}
+    /** {@inheritDoc} */
     public ControlType getControlType() {return controlType;}
+    /** {@inheritDoc} */
     public void setControlType(ControlType type) {this.controlType = type;}
 
+    /** {@inheritDoc} */
     public EventType getEventType() {return eventType;}
+    /** {@inheritDoc} */
     public void setEventType(EventType type) {this.eventType = type;}
 
+    /** {@inheritDoc} */
     public int getSourceId() {return sourceId;}
+    /** {@inheritDoc} */
     public void setSourceId(int sourceId) {this.sourceId = sourceId;}
 
+    /** {@inheritDoc} */
     public int getRecordId() {return recordId;}
+    /** {@inheritDoc} */
     public void setRecordId(int recordId) {this.recordId = recordId;}
 
+    /** {@inheritDoc} */
     public String getSourceName() {return sourceName;}
-    public void setSourceName(String sourceName) {this.sourceName = sourceName;}
 
+    /** {@inheritDoc} */
     public int getEventCount() {return eventCount;}
+    /** {@inheritDoc} */
     public void setEventCount(int eventCount) {this.eventCount = eventCount;}
 
+    /** {@inheritDoc} */
     public long getFirstEventNumber() {return firstEventNumber;}
+    /** {@inheritDoc} */
     public void setFirstEventNumber(long firstEventNumber) {this.firstEventNumber = firstEventNumber;}
 
+    /** {@inheritDoc} */
     public boolean isSync() {return isSync;}
+    /** {@inheritDoc} */
     public void setSync(boolean sync) {isSync = sync;}
 
+    /** {@inheritDoc} */
     public boolean isSingleEventMode() {return isSingleEventMode;}
+    /** {@inheritDoc} */
     public void setSingleEventMode(boolean singleEventMode) {isSingleEventMode = singleEventMode;}
 
+    /** {@inheritDoc} */
     public boolean hasError() {return hasError;}
+    /** {@inheritDoc} */
     public void setError(boolean hasError) {this.hasError = hasError;}
 
-    public boolean isReserved() {return reserved;}
-    public void setReserved(boolean reserved) {this.reserved = reserved;}
-
+    /** {@inheritDoc} */
     public boolean hasNonFatalBuildingError() {return nonFatalBuildingError;}
+    /** {@inheritDoc} */
     public void setNonFatalBuildingError(boolean nonFatalBuildingError) {
         this.nonFatalBuildingError = nonFatalBuildingError;
     }

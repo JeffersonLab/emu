@@ -13,7 +13,7 @@ import java.nio.ByteOrder;
  */
 public class PayloadBank extends QueueItemAdapter {
 
-
+    /** Event to wrap. */
     private EvioEvent event;
 
 

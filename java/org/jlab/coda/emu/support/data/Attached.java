@@ -1,12 +1,20 @@
 package org.jlab.coda.emu.support.data;
 
 /**
- * Created with IntelliJ IDEA.
- * User: timmer
- * Date: 5/16/13
- * Time: 4:04 PM
- * To change this template use File | Settings | File Templates.
+ * Interface used to designate the presence of an attached object.
+ * @author timmer
+ * 5/16/13
  */
 public interface Attached {
+    /**
+     * This method gets an attached object.
+     * @return the attached object.
+     */
     public Object getAttachment();
+
+    /**
+     * This method sets an attached object.
+     * @param attachment the object to attach.
+     */
+    public void setAttachment(Object attachment);
 }
