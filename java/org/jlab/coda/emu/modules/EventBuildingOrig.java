@@ -791,13 +791,14 @@ if (debug && nonFatalError) System.out.println("\nERROR 4\n");
                         // create a physics event from payload banks and combined trigger bank
                         int tag = Evio.createCodaTag(buildingBanks[0].isSync(),
                                                      buildingBanks[0].hasError() || nonFatalError,
-                                                     buildingBanks[0].isReserved(),
+                                                     buildingBanks[0].getByteOrder() == ByteOrder.BIG_ENDIAN,
                                                      buildingBanks[0].isSingleEventMode(),
                                                      ebId);
+
 //if (debug) System.out.println("tag = " + tag + ", is sync = " + buildingBanks[0].isSync() +
-//                   ", has error = " + (buildingBanks[0].hasError() || nonFatalError) +
-//                   ", is reserved = " + buildingBanks[0].isReserved() +
-//                   ", is single mode = " + buildingBanks[0].isSingleEventMode());
+//                       ", has error = " + (buildingBanks[0].hasError() || nonFatalError) +
+//                       ", big endian? = " + (buildingBanks[0].getByteOrder() == ByteOrder.BIG_ENDIAN) +
+//                       ", is single mode = " + buildingBanks[0].isSingleEventMode());
 
                         physicsEvent = new PayloadBank(tag, DataType.BANK, totalNumberEvents);
                         builder.setEvent(physicsEvent.getEvent());
