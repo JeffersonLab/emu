@@ -8,7 +8,7 @@ import java.nio.ByteOrder;
 /**
  * Convenience class designed to keep extra data associated with an evio event.
  *
- * @author: timmer
+ * @author timmer
  * Date: Jan 29, 2010
  */
 public class PayloadBank extends QueueItemAdapter {
