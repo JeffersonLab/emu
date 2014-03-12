@@ -11,8 +11,6 @@
 
 package org.jlab.coda.emu.support.data;
 
-import java.util.HashMap;
-
 /**
  * This enum specifies values associated with CODA event types used in CODA online components.
  * @author timmer
@@ -29,18 +27,16 @@ public enum EventType {
 
     private int value;
 
-    /** Faster way to convert integer values into names. */
-    private static HashMap<Integer, String> names = new HashMap<Integer, String>(16);
 
-    /** Faster way to convert integer values into EventType objects. */
-    private static HashMap<Integer, EventType> types = new HashMap<Integer, EventType>(16);
+    /** Fast way to convert integer values into EventType objects. */
+    private static EventType[] intToType;
 
 
-    // Fill static hashmaps after all enum objects created
+    // Fill array after all enum objects created
     static {
-        for (EventType item : EventType.values()) {
-            types.put(item.value, item);
-            names.put(item.value, item.name());
+        intToType = new EventType[16];
+        for (EventType type : values()) {
+            intToType[type.value] = type;
         }
     }
 
@@ -52,7 +48,7 @@ public enum EventType {
 	 * @return the matching enum, or <code>null</code>.
 	 */
     public static EventType getEventType(int val) {
-        return types.get(val);
+        return intToType[val];
     }
 
 
@@ -63,7 +59,10 @@ public enum EventType {
      * @return the name, or <code>null</code>.
      */
     public static String getName(int val) {
-        return names.get(val);
+        if (val > 15 || val < 0) return null;
+        EventType type = getEventType(val);
+        if (type == null) return null;
+        return type.name();
     }
 
 

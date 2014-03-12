@@ -1,6 +1,5 @@
 package org.jlab.coda.emu.support.data;
 
-import java.util.HashMap;
 
 /**
  * This enum specifies values associated with data acquisition
@@ -15,18 +14,16 @@ public enum ModuleType {
 
     private int value;
 
-    /** Faster way to convert integer values into names. */
-    private static HashMap<Integer, String> names = new HashMap<Integer, String>(16);
 
-    /** Faster way to convert integer values into ModuleType objects. */
-    private static HashMap<Integer, ModuleType> types = new HashMap<Integer, ModuleType>(16);
+    /** Fast way to convert integer values into ModuleType objects. */
+    private static ModuleType[] intToType;
 
 
-    // Fill static hashmaps after all enum objects created
+    // Fill array after all enum objects created
     static {
-        for (ModuleType item : ModuleType.values()) {
-            types.put(item.value, item);
-            names.put(item.value, item.name());
+        intToType = new ModuleType[3];
+        for (ModuleType type : values()) {
+            intToType[type.value] = type;
         }
     }
 
@@ -38,7 +35,7 @@ public enum ModuleType {
 	 * @return the matching enum, or <code>null</code>.
 	 */
     public static ModuleType getTagType(int val) {
-        return types.get(val);
+        return intToType[val];
     }
 
 
@@ -49,7 +46,10 @@ public enum ModuleType {
      * @return the name, or <code>null</code>.
      */
     public static String getName(int val) {
-        return names.get(val);
+        if (val > 3 || val < 0) return null;
+        ModuleType type = getTagType(val);
+        if (type == null) return null;
+        return type.name();
     }
 
 
