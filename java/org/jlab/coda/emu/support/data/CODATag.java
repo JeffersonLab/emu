@@ -66,12 +66,15 @@ public enum CODATag {
     /** Faster way to convert integer values into CODATag objects. */
     private static HashMap<Integer, CODATag> tags = new HashMap<Integer, CODATag>(16);
 
+    /** Fast way to convert integer values into CODATag objects. */
+    private static CODATag[] intToType;
 
-    // Fill static hashmaps after all enum objects created
+
+    // Fill array after all enum objects created
     static {
-        for (CODATag item : CODATag.values()) {
-            tags.put(item.value, item);
-            names.put(item.value, item.name());
+        intToType = new CODATag[0xff + 1];
+        for (CODATag type : values()) {
+            intToType[type.value & 0xff] = type;
         }
     }
 
@@ -83,7 +86,8 @@ public enum CODATag {
 	 * @return the matching enum, or <code>null</code>.
 	 */
     public static CODATag getTagType(int val) {
-        return tags.get(val);
+        if (val > 0xFF71 || val < 0xFF10) return null;
+        return intToType[val & 0xff];
     }
 
 
@@ -94,7 +98,10 @@ public enum CODATag {
      * @return the name, or <code>null</code>.
      */
     public static String getName(int val) {
-        return names.get(val);
+        if (val > 0xFF71 || val < 0xFF10) return null;
+        CODATag type = getTagType(val);
+        if (type == null) return null;
+        return type.name();
     }
 
 

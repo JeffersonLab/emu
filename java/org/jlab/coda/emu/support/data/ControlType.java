@@ -35,10 +35,9 @@ public enum ControlType {
 
     // Fill array after all enum objects created
     static {
-        int index = 0;
-        intToType = new ControlType[5];
+        intToType = new ControlType[0xf + 1];
         for (ControlType type : values()) {
-            intToType[index++] = type;
+            intToType[type.value & 0xf] = type;
         }
     }
 
