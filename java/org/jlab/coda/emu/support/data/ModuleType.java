@@ -34,7 +34,7 @@ public enum ModuleType {
 	 * @param val the value to match.
 	 * @return the matching enum, or <code>null</code>.
 	 */
-    public static ModuleType getTagType(int val) {
+    public static ModuleType getModuleType(int val) {
         if (val > 3 || val < 0) return null;
         return intToType[val];
     }
@@ -48,7 +48,7 @@ public enum ModuleType {
      */
     public static String getName(int val) {
         if (val > 3 || val < 0) return null;
-        ModuleType type = getTagType(val);
+        ModuleType type = getModuleType(val);
         if (type == null) return null;
         return type.name();
     }
@@ -58,21 +58,6 @@ public enum ModuleType {
         this.value   = value;
     }
 
-    /**
-     * Obtain the enum from the value.
-     *
-     * @param value the value to match.
-     * @return the matching enum, or <code>null</code>.
-     */
-    public static ModuleType getModuleType(int value) {
-        ModuleType moduleTypes[] = ModuleType.values();
-        for (ModuleType dt : moduleTypes) {
-            if (dt.value == value) {
-                return dt;
-            }
-        }
-        return null;
-    }
 
     /**
      * Get the integer value of this enum.
