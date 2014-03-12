@@ -11,7 +11,6 @@
 
 package org.jlab.coda.emu.support.data;
 
-import java.util.HashMap;
 
 /**
  * This enum specifies values associated with tags used in CODA online components.
@@ -59,12 +58,6 @@ public enum CODATag {
     ;
 
     private int value;
-
-    /** Faster way to convert integer values into names. */
-    private static HashMap<Integer, String> names = new HashMap<Integer, String>(16);
-
-    /** Faster way to convert integer values into CODATag objects. */
-    private static HashMap<Integer, CODATag> tags = new HashMap<Integer, CODATag>(16);
 
     /** Fast way to convert integer values into CODATag objects. */
     private static CODATag[] intToType;
