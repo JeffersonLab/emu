@@ -11,7 +11,6 @@
 
 package org.jlab.coda.emu.support.data;
 
-import java.util.HashMap;
 
 /**
  * This enum specifies tag values associated with CODA
@@ -29,18 +28,17 @@ public enum ControlType {
 
     private int value;
 
-    /** Faster way to convert integer values into names. */
-    private static HashMap<Integer, String> names = new HashMap<Integer, String>(16);
 
-    /** Faster way to convert integer values into ControlType objects. */
-    private static HashMap<Integer, ControlType> types = new HashMap<Integer, ControlType>(16);
+    /** Fast way to convert integer values into ControlType objects. */
+    private static ControlType[] intToType;
 
 
-    // Fill static hashmaps after all enum objects created
+    // Fill array after all enum objects created
     static {
-        for (ControlType item : ControlType.values()) {
-            types.put(item.value, item);
-            names.put(item.value, item.name());
+        int index = 0;
+        intToType = new ControlType[5];
+        for (ControlType type : values()) {
+            intToType[index++] = type;
         }
     }
 
@@ -52,7 +50,8 @@ public enum ControlType {
 	 * @return the matching enum, or <code>null</code>.
 	 */
     public static ControlType getControlType(int val) {
-        return types.get(val);
+        if (val > 0xFFD4 || val < 0xFFD0) return null;
+        return intToType[val & 0xf];
     }
 
 
@@ -63,7 +62,10 @@ public enum ControlType {
      * @return the name, or <code>null</code>.
      */
     public static String getName(int val) {
-        return names.get(val);
+        if (val > 0xFFD4 || val < 0xFFD0) return null;
+        ControlType type = getControlType(val);
+        if (type == null) return null;
+        return type.name();
     }
 
 
@@ -79,6 +81,7 @@ public enum ControlType {
     public int getValue() {
         return value;
     }
+
 
     /**
      * Is this a control tag of any sort?
