@@ -48,6 +48,7 @@ public enum EventType {
 	 * @return the matching enum, or <code>null</code>.
 	 */
     public static EventType getEventType(int val) {
+        if (val > 15 || val < 0) return null;
         return intToType[val];
     }
 

@@ -35,6 +35,7 @@ public enum ModuleType {
 	 * @return the matching enum, or <code>null</code>.
 	 */
     public static ModuleType getTagType(int val) {
+        if (val > 3 || val < 0) return null;
         return intToType[val];
     }
 
