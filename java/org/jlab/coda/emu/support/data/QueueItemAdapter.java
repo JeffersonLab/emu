@@ -25,6 +25,9 @@ class QueueItemAdapter implements QueueItem {
     /** If the event type is RocRaw, this is the CODA id of the source. */
     protected int sourceId;
 
+    /** Does sourceId match id of input channel? */
+    protected boolean matchesId = true;
+
     /** The name of the source of these CODA events. */
     protected String sourceName;
 
@@ -93,6 +96,7 @@ class QueueItemAdapter implements QueueItem {
         eventType             = qItem.getEventType();
         controlType           = qItem.getControlType();
         sourceId              = qItem.getSourceId();
+        matchesId             = qItem.matchesId();
         sourceName            = qItem.getSourceName();
         recordId              = qItem.getRecordId();
         eventCount            = qItem.getEventCount();
@@ -133,6 +137,11 @@ class QueueItemAdapter implements QueueItem {
     public int getSourceId() {return sourceId;}
     /** {@inheritDoc} */
     public void setSourceId(int sourceId) {this.sourceId = sourceId;}
+
+    /** {@inheritDoc} */
+    public boolean matchesId() {return matchesId;}
+    /** {@inheritDoc} */
+    public void matchesId(boolean matchesId) {this.matchesId = matchesId;}
 
     /** {@inheritDoc} */
     public int getRecordId() {return recordId;}
