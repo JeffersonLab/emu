@@ -16,6 +16,7 @@ import org.jlab.coda.emu.support.codaComponent.CODAStateMachine;
 import org.jlab.coda.emu.support.codaComponent.StatedObject;
 import org.jlab.coda.emu.support.data.QueueItem;
 
+import java.util.List;
 import java.util.concurrent.BlockingQueue;
 
 /**
@@ -38,6 +39,27 @@ public interface DataChannel extends CODAStateMachine, StatedObject {
      * @return the ID number of this data channel.
      */
     public int getID();
+
+    /**
+     * Set the ID number of this data channel.
+     * @return the ID number of this data channel.
+     */
+    public void setID(int id);
+
+    /**
+     * Get the record ID number of the latest event through this channel.
+     * In CODA event building this is used, for example, to track the
+     * record ids for input events which allows consistency
+     * checks of incoming data.
+     * @return the record ID number of the latest event through channel.
+     */
+    public int getRecordId();
+
+    /**
+     * Set the record ID number of the latest event through this channel.
+     * @param recordId record ID number of the latest event through channel.
+     */
+    public void setRecordId(int recordId);
 
     /**
      * Get the name of this data channel.
@@ -73,10 +95,29 @@ public interface DataChannel extends CODAStateMachine, StatedObject {
     public void send(QueueItem item) throws InterruptedException;
 
     /**
-     * Get the queue of this data channel which contains
+     * Get the first data queue of this data channel which contains
      * QueueItem objects of data for either receiving or sending data.
      * @return the queue of QueueItem objects for either receiving or sending data.
      */
     public BlockingQueue<QueueItem> getQueue();
+
+    /**
+     * Get the total number of data queues.
+     * @return total number of data queues.
+     */
+    public int getQCount();
+
+    /**
+     * Get the list of data queues which contains at least one.
+     * @return list of data queues.
+     */
+    public List<BlockingQueue<QueueItem>> getQueueList();
+
+    /**
+     * Get the control queue or null if none.
+     * @return control queue; null if none
+     */
+    public BlockingQueue<QueueItem> getControlQ();
+
 
 }
