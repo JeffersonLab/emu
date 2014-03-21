@@ -699,57 +699,6 @@ logger.debug("      DataChannel Et reset() : " + name + " - done");
             catch (InterruptedException e) {}
         }
 
-        /**
-         * This method is used to put a non-buildable (everything NOT
-         * ROC raw, physics, or partial physics) PayloadBank object onto
-         * the control queue.
-         *
-         * @param bank a payload bank to put on the control queue.
-         * @param order the writing order of this bank
-         * @throws InterruptedException if put or wait interrupted
-         */
-        private void writeControlEvent(PayloadBank bank, int order)
-                throws InterruptedException {
-
-            synchronized (lockOut2) {
-                // Is the bank we grabbed next to be output? If not, wait.
-                while (order != outputOrderInControl) {
-                    lockOut2.wait();
-                }
-
-                // Put bank in our Q, for module
-                controlQ.put(bank);
-
-                lockOut2.notifyAll();
-            }
-        }
-
-
-        /**
-         * This method is used to put a non-buildable (everything NOT
-         * ROC raw, physics, or partial physics) PayloadBuffer object onto
-         * the control queue.
-         *
-         * @param buffer a payload buffer to put on the control queue.
-         * @param order  the writing order of this buffer
-         * @throws InterruptedException if put or wait interrupted
-         */
-        private void writeControlEvent(PayloadBuffer buffer, int order)
-                throws InterruptedException {
-
-            synchronized (lockOut2) {
-                // Is the bank we grabbed next to be output? If not, wait.
-                while (order != outputOrderInControl) {
-                    lockOut2.wait();
-                }
-
-                // Put bank in our Q, for module
-                controlQ.put(buffer);
-
-                lockOut2.notifyAll();
-            }
-        }
-
 
         /**
          * This method is used to put a list of PayloadBank objects
@@ -1009,14 +958,8 @@ System.out.println("      DataChannel Et in helper: " + name + " got RESET cmd, 
 
                                 payloadBank.matchesId(sourceId == id);
 
-                                if (bankType != null && !bankType.isBuildable()) {
-                                    // Write non-buildable events to controlQ
-                                    writeControlEvent(payloadBank, myInputOrder);
-                                }
-                                else {
-                                    // Add buildable bank to list for later writing
-                                    payloadBanks.add(payloadBank);
-                                }
+                                // Add buildable bank to list for later writing
+                                payloadBanks.add(payloadBank);
 
                                 // Handle end event ...
                                 if (controlType == ControlType.END) {
@@ -1247,14 +1190,8 @@ System.out.println("      DataChannel Et in helper: " + name + " got RESET cmd, 
 
                             payloadBuffer.matchesId(sourceId == id);
 
-                            if (bankType != null && !bankType.isBuildable()) {
-                                // Write non-buildable events to controlQ
-                                writeControlEvent(payloadBuffer, myInputOrder);
-                            }
-                            else {
-                                // Add buildable buffer to list for later writing
-                                payloadBuffers.add(payloadBuffer);
-                            }
+                            // Add buildable buffer to list for later writing
+                            payloadBuffers.add(payloadBuffer);
 
                             // Handle end event ...
                             if (controlType == ControlType.END) {
