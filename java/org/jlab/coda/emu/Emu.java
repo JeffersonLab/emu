@@ -45,8 +45,7 @@ import java.io.File;
 import java.lang.reflect.Constructor;
 import java.net.InetAddress;
 import java.util.*;
-import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
@@ -115,7 +114,7 @@ public class Emu implements CODAComponent {
      * Commands from cMsg are converted into objects of
      * class Command that are then posted in this mailbox queue.
      */
-    private final LinkedBlockingQueue<Command> mailbox;
+    private final ArrayBlockingQueue<Command> mailbox;
 
     /** A CMSGPortal object encapsulates all cMsg communication with Run Control. */
     private final CMSGPortal cmsgPortal;
@@ -177,23 +176,25 @@ public class Emu implements CODAComponent {
     //------------------------------------------------
 
     /**
-     * This object is a Vector and thus is synchronized for insertions and deletions.
-     * This vector is only modified in the {@link #execute(Command)} method and then
+     * This object is thread-safe.
+     * It is only modified in the {@link #execute(Command)} method and then
      * only by the main EMU thread. However, it is possible that other threads
      * (such as the EMU's statistics reporting thread) may call methods which use its
      * iterator ({@link #state()}, {@link #findModule(String)},
      * and {@link #getStatisticsModule()}) and therefore need to be synchronized.
+     * Note that the CopyOnWriteArrayList is a thread-safe variant of the ArrayList
+     * and should not be too "expensive" to use since its size will be very small.
      */
-    private final Vector<EmuModule> modules = new Vector<EmuModule>(10);
+    private final CopyOnWriteArrayList<EmuModule> modules = new CopyOnWriteArrayList<EmuModule>();
 
     /** List of input channels. */
-    private final Vector<DataChannel> inChannels = new Vector<DataChannel>();
+    private final CopyOnWriteArrayList<DataChannel> inChannels = new CopyOnWriteArrayList<DataChannel>();
 
     /** List of output channels. */
-    private final Vector<DataChannel> outChannels = new Vector<DataChannel>();
+    private final CopyOnWriteArrayList<DataChannel> outChannels = new CopyOnWriteArrayList<DataChannel>();
 
     /** Vector containing all DataTransport objects. */
-    private final Vector<DataTransport> transports = new Vector<DataTransport>();
+    private final CopyOnWriteArrayList<DataTransport> transports = new CopyOnWriteArrayList<DataTransport>();
 
     /** The Fifo transport is handled separately from the other transports. */
     private DataTransportImplFifo fifoTransport;
@@ -248,7 +249,6 @@ public class Emu implements CODAComponent {
     /** If true, there was an error the last time the configure command was processed. */
     private boolean lastConfigHadError;
 
-    //------------------------------------------------
 
     /**
      * Constructor.
@@ -309,7 +309,7 @@ public class Emu implements CODAComponent {
         }
 
         // Define place to put incoming commands
-        mailbox = new LinkedBlockingQueue<Command>();
+        mailbox = new ArrayBlockingQueue<Command>(100);
 
         // Put this (which is a CODAComponent and therefore Runnable)
         // into a thread group and keep track of this object's thread.
@@ -585,7 +585,7 @@ public class Emu implements CODAComponent {
             }
 
             // If no modules claim to speak for EMU, choose last module in config file
-            return modules.lastElement();
+            return modules.get(modules.size()-1);
         }
     }
 
@@ -1361,8 +1361,21 @@ System.out.println("Got config type = " + myClass + ", I was " + codaClass);
                         // Name of module is its node name
                         String moduleName = moduleNode.getNodeName();
 
-                        // Modules need children (input & output channels)
-                        //if (!moduleNode.hasChildNodes()) continue;
+                        // Get attributes of module & look for codaID
+                        int codaID = -1;
+                        NamedNodeMap map = moduleNode.getAttributes();
+                        if (map != null) {
+                            // Get "id" attribute node from map
+                            Node modIdNode = map.getNamedItem("id");
+                            // If it exists, get its value
+                            if (modIdNode != null) {
+                                try {
+                                    codaID = Integer.parseInt(modIdNode.getNodeValue());
+                                    if (codaID < 0) codaID = -1;
+                                }
+                                catch (NumberFormatException e) { /* default to -`1 */ }
+                            }
+                        }
 
                         // List of channels in (children of) the module ...
                         NodeList childChannelList = moduleNode.getChildNodes();
@@ -1413,6 +1426,26 @@ System.out.println("Got config type = " + myClass + ", I was " + codaClass);
                                 if (channelTransName.equals("Fifo")) {
                                     outputFifoCount++;
                                     outputFifoName = channelName;
+                                }
+
+                                // Get attributes of channel & look for id which must match codaID
+                                int chanID = -1;
+                                // Get "id" attribute node from map
+                                Node channelIdNode = nnm.getNamedItem("id");
+                                if (channelIdNode != null) {
+                                    // If it exists, get its value
+                                    try {
+                                        chanID = Integer.parseInt(channelIdNode.getNodeValue());
+                                        if (chanID < 0) chanID = -1;
+                                    }
+                                    catch (NumberFormatException e) { /* default to -`1 */ }
+                                }
+
+                                // Make sure id's match
+                                if (codaID > -1 && chanID > -1 && codaID != chanID) {
+                                    throw new DataNotFoundException("CODA id (" + codaID +
+                                                                     ") does not match config file output chan id (" +
+                                                                     chanID + ")");
                                 }
                             }
                         }
@@ -1890,8 +1923,8 @@ logger.debug("Emu.execute(PRESTART): PRESTART to " + transport.name());
                                 // If it's an input channel ...
                                 if (channelNode.getNodeName().equalsIgnoreCase("inchannel")) {
                                     // Create channel
-                                    DataChannel channel = trans.createChannel(channelName, attributeMap, true, this,
-                                                                              module.getInputQueueItemType());
+                                    DataChannel channel = trans.createChannel(channelName, attributeMap,
+                                                                              true, this, module);
                                     // Add to list while keeping fifos separate
                                     if (channelTransName.equals("Fifo")) {
                                         // Fifo does NOT notify Emu when END event comes through
@@ -1906,8 +1939,8 @@ logger.debug("Emu.execute(PRESTART): PRESTART to " + transport.name());
                                 }
                                 // If it's an output channel ...
                                 else if (channelNode.getNodeName().equalsIgnoreCase("outchannel")) {
-                                    DataChannel channel = trans.createChannel(channelName, attributeMap, false, this,
-                                                                              module.getOutputQueueItemType());
+                                    DataChannel channel = trans.createChannel(channelName, attributeMap,
+                                                                              false, this, module);
                                     if (channelTransName.equals("Fifo")) {
                                         channel.registerEndCallback(null);
                                         outFifo.add(channel);
