@@ -18,11 +18,13 @@ import org.jlab.coda.emu.support.codaComponent.CODAState;
 import org.jlab.coda.emu.support.codaComponent.State;
 import org.jlab.coda.emu.support.configurer.DataNotFoundException;
 import org.jlab.coda.emu.support.control.CmdExecException;
+import org.jlab.coda.emu.support.data.Attached;
 import org.jlab.coda.emu.support.data.QueueItemType;
 import org.jlab.coda.emu.support.logger.Logger;
 import org.jlab.coda.emu.support.transport.DataChannel;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -76,10 +78,17 @@ public class ModuleAdapter implements EmuModule {
     /** Flag used to kill eventMovingThread. */
     protected volatile boolean killThread;
 
-    /** Total number of DataBank objects written to the outputs. */
+    /** Comparator which tells queue how to sort elements. */
+    protected AttachComparator<Attached> comparator = new AttachComparator<Attached>();
+
+    //---------------------------
+    // For generating statistics
+    //---------------------------
+
+    /** Total number of evio events written to the outputs. */
     protected long eventCountTotal;
 
-    /** Sum of the sizes, in 32-bit words, of all DataBank objects written to the outputs. */
+    /** Sum of the sizes, in 32-bit words, of all evio events written to the outputs. */
     protected long wordCountTotal;
 
     /** Instantaneous event rate in Hz over the last time period of length {@link #statGatheringPeriod}. */
@@ -91,9 +100,11 @@ public class ModuleAdapter implements EmuModule {
     /** Targeted time period in milliseconds over which instantaneous rates will be calculated. */
     protected static final int statGatheringPeriod = 2000;
 
-    /** If <code>true</code>, this module's statistics
-     * accurately represent the statistics of the EMU. */
+    /** If {@code true}, this module's statistics represents that of the EMU. */
     protected boolean representStatistics;
+
+    /** Thread to calculate event & data rates. */
+    protected Thread RateCalculator;
 
     // ---------------------------------------------------
 
@@ -135,6 +146,9 @@ public class ModuleAdapter implements EmuModule {
 
     //-----------------------------------------------------------
     // For CODAStateMachine interface
+    //
+    // In general, go(), end(), prestart(), download(), and reset()
+    // will be overridden in modules which extend this class.
     //-----------------------------------------------------------
 
     /** {@inheritDoc} */
@@ -142,7 +156,7 @@ public class ModuleAdapter implements EmuModule {
     /** {@inheritDoc} */
     public void end()      throws CmdExecException {}
     /** {@inheritDoc} */
-    public void pause()    throws CmdExecException {}
+    public void pause()    {paused = true;}
     /** {@inheritDoc} */
     public void prestart() throws CmdExecException {}
     /** {@inheritDoc} */
@@ -239,6 +253,92 @@ public class ModuleAdapter implements EmuModule {
     }
 
     //----------------------------------------------------------------
+
+    /** Keep some data together and store as an event attachment. */
+    protected class EventOrder {
+        /** Output channel to use. */
+        DataChannel outputChannel;
+        /** Index into arrays for this output channel. */
+        int index;
+        /** Place of event in output order of this output channel. */
+        int inputOrder;
+        /** Lock to use for output to this output channel. */
+        Object lock;
+    }
+
+    /**
+     * Class defining comparator which tells priority queue how to sort elements.
+     * @param <T> Must be PayloadBank or PayloadBuffer in this case
+     */
+    protected class AttachComparator<T> implements Comparator<T> {
+        public int compare(T o1, T o2) throws ClassCastException {
+            Attached a1 = (Attached) o1;
+            Attached a2 = (Attached) o2;
+            EventOrder eo1 = (EventOrder) (a1.getAttachment());
+            EventOrder eo2 = (EventOrder) (a2.getAttachment());
+
+            if (eo1 == null || eo2 == null) {
+                return 0;
+            }
+
+            return (eo1.inputOrder - eo2.inputOrder);
+        }
+    }
+
+
+    /**
+     * This class defines a thread that makes instantaneous rate calculations
+     * once every few seconds. Rates can be sent to run control
+     * (or stored in local xml config file).
+     */
+    protected class RateCalculatorThread extends Thread {
+        /**
+         * Method run is the action loop of the thread.
+         * Suggested creation & start on PRESTART.
+         * Suggested exit on END or RESET.
+         */
+        @Override
+        public void run() {
+
+            // variables for instantaneous stats
+            long deltaT, t1, t2, prevEventCount=0L, prevWordCount=0L;
+
+            while ((state == CODAState.ACTIVE) || paused) {
+                try {
+                    // In the paused state only wake every two seconds.
+                    sleep(2000);
+
+                    t1 = System.currentTimeMillis();
+
+                    while (state == CODAState.ACTIVE) {
+                        sleep(statGatheringPeriod);
+
+                        t2 = System.currentTimeMillis();
+                        deltaT = t2 - t1;
+
+                        // calculate rates
+                        eventRate = (eventCountTotal - prevEventCount)*1000F/deltaT;
+                        wordRate  = (wordCountTotal  - prevWordCount)*1000F/deltaT;
+
+                        prevEventCount = eventCountTotal;
+                        prevWordCount  = wordCountTotal;
+                        t1 = t2;
+//                        System.out.println("evRate = " + eventRate + ", byteRate = " + 4*wordRate);
+
+                        // The following was in the old RateCalculatorThread thread ...
+//                        try {
+//                            Configurer.setValue(emu.parameters(), "status/eventCount", Long.toString(eventCountTotal));
+//                            Configurer.setValue(emu.parameters(), "status/wordCount", Long.toString(wordCountTotal));
+//                        }
+//                        catch (DataNotFoundException e) {}
+                    }
+
+                } catch (InterruptedException e) {
+                    logger.info("EventBuilding thread " + name() + " interrupted");
+                }
+            }
+        }
+    }
 
 
 }
