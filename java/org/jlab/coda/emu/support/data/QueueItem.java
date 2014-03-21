@@ -83,6 +83,21 @@ public interface QueueItem extends Cloneable, Attached {
 
 
     /**
+     * Does the source id match that of the input channel?
+     * @return {@code true} if source id matches that of the input channel,
+     *         else {@code false}.
+     */
+    public boolean matchesId();
+
+    /**
+     * Set whether the source id matches that of the input channel.
+     * @param matchId {@code true} if source id matches that of the input channel,
+     *                else {@code false}.
+     */
+    public void matchesId(boolean matchId);
+
+
+    /**
      * The recordId, for a physics or ROC Raw type, starts at zero and
      * increases by one in each successive "evio-file-format" data buffer.
      * It is set to -1 for other data types.
