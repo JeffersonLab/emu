@@ -7,7 +7,7 @@ import java.util.concurrent.LinkedBlockingQueue;
  * It is threadsafe.
  *
  * @author: timmer
- * Date: Jan 29, 2010
+ * Jan 29, 2010
  */
 public class PayloadQueue<E> extends LinkedBlockingQueue<E> {
 
@@ -17,7 +17,7 @@ public class PayloadQueue<E> extends LinkedBlockingQueue<E> {
 
 
     public PayloadQueue() {
-        super();
+        super(100);
     }
 
 
