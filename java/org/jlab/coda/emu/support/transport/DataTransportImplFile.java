@@ -1,8 +1,8 @@
 package org.jlab.coda.emu.support.transport;
 
 import org.jlab.coda.emu.Emu;
+import org.jlab.coda.emu.EmuModule;
 import org.jlab.coda.emu.support.configurer.DataNotFoundException;
-import org.jlab.coda.emu.support.data.QueueItemType;
 
 import java.util.Map;
 
@@ -33,10 +33,10 @@ public class DataTransportImplFile extends DataTransportAdapter {
     /** {@inheritDoc} */
     public DataChannel createChannel(String name, Map<String,String> attributeMap,
                                      boolean isInput, Emu emu,
-                                     QueueItemType queueItemType)
+                                     EmuModule module)
             throws DataTransportException {
 
         return new DataChannelImplFile(name() + ":" + name, this, attributeMap,
-                                       isInput, emu, queueItemType);
+                                       isInput, emu, module);
     }
 }
