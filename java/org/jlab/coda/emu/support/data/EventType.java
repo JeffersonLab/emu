@@ -135,7 +135,7 @@ public enum EventType {
      * @return <code>true</code> if appropriate for the event builder, else <code>false</code>
      */
     public boolean isEbFriendly() {
-        return (isBuildable()  || this == USER);
+        return (isBuildable() || this == CONTROL || this == USER);
     }
 
     /**
@@ -143,8 +143,7 @@ public enum EventType {
      * @return <code>true</code> if buildable by the event builder, else <code>false</code>
      */
     public boolean isBuildable() {
-        return (this == CONTROL || this == ROC_RAW ||
-                this == PHYSICS || this == PARTIAL_PHYSICS);
+        return (this == ROC_RAW || this == PHYSICS || this == PARTIAL_PHYSICS);
     }
 
     /**
