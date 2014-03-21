@@ -112,12 +112,4 @@ public interface DataChannel extends CODAStateMachine, StatedObject {
      * @return list of data queues.
      */
     public List<BlockingQueue<QueueItem>> getQueueList();
-
-    /**
-     * Get the control queue or null if none.
-     * @return control queue; null if none
-     */
-    public BlockingQueue<QueueItem> getControlQ();
-
-
 }
