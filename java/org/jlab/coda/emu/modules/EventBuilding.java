@@ -14,13 +14,11 @@ package org.jlab.coda.emu.modules;
 import org.jlab.coda.emu.*;
 import org.jlab.coda.emu.support.codaComponent.CODAClass;
 import org.jlab.coda.emu.support.codaComponent.CODAState;
-import org.jlab.coda.emu.support.codaComponent.CODAStateMachineAdapter;
 import org.jlab.coda.emu.support.configurer.Configurer;
 import org.jlab.coda.emu.support.configurer.DataNotFoundException;
 import org.jlab.coda.emu.support.control.CmdExecException;
 import org.jlab.coda.emu.support.codaComponent.State;
 import org.jlab.coda.emu.support.data.*;
-import org.jlab.coda.emu.support.logger.Logger;
 import org.jlab.coda.emu.support.transport.DataChannel;
 import org.jlab.coda.jevio.*;
 
@@ -28,7 +26,6 @@ import java.nio.ByteOrder;
 import java.util.*;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.PriorityBlockingQueue;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.ReentrantLock;
 
 /**
@@ -86,33 +83,11 @@ import java.util.concurrent.locks.ReentrantLock;
  * channel. Control & User events are not part of the round-robin output to each channel in turn.
  * If no output channels are defined in the config file, this module discards all events.
  */
-public class EventBuilding extends CODAStateMachineAdapter implements EmuModule {
+public class EventBuilding extends ModuleAdapter {
 
-
-    /** Name of this event builder. */
-    private final String name;
-
-    /** ID number of this event builder obtained from config file. */
-    private int ebId;
 
     /** Keep track of the number of records built in this event builder. Reset at prestart. */
     private volatile int ebRecordId;
-
-    /** State of this module. */
-    private volatile State state = CODAState.BOOTED;
-
-    /**
-     * Possible error message. reset() sets it back to null.
-     * Making this an atomically settable String ensures that only 1 thread
-     * at a time can change its value. That way it's only set once per error.
-     */
-    private AtomicReference<String> errorMsg = new AtomicReference<String>();
-
-    /** ArrayList of DataChannel objects that are inputs. */
-    private ArrayList<DataChannel> inputChannels = new ArrayList<DataChannel>();
-
-    /** ArrayList of DataChannel objects that are outputs. */
-    private ArrayList<DataChannel> outputChannels = new ArrayList<DataChannel>();
 
     /**
      * There is one waiting list per output channel -
@@ -134,9 +109,6 @@ public class EventBuilding extends CODAStateMachineAdapter implements EmuModule 
     /** Container for threads used to build events. */
     private LinkedList<BuildingThread> buildingThreadList = new LinkedList<BuildingThread>();
 
-    /** Map containing attributes of this module given in config file. */
-    private Map<String,String> attributeMap;
-
     /**
      * Array of threads used to take Evio data from
      * input channels, dissect them, and place resulting payload
@@ -147,17 +119,11 @@ public class EventBuilding extends CODAStateMachineAdapter implements EmuModule 
     /** Lock to ensure that a BuildingThread grabs the same positioned event from each Q.  */
     private ReentrantLock getLock = new ReentrantLock();
 
-    /** User hit PAUSE button if <code>true</code>. */
-    private boolean paused;
-
     /** END event detected by one of the building threads. */
     private volatile boolean haveEndEvent;
 
     /** Maximum time in milliseconds to wait when commanded to END but no END event received. */
     private long endingTimeLimit = 30000;
-
-    /** Object used by Emu to be notified of END event arrival. */
-    private EmuEventNotify endCallback;
 
     /** The number of the experimental run. */
     private int runNumber;
@@ -171,37 +137,8 @@ public class EventBuilding extends CODAStateMachineAdapter implements EmuModule 
     /** The eventNumber value when the last sync event arrived. */
     private long eventNumberAtLastSync;
 
-    // The following members are for keeping statistics
-
-    // TODO: make stats volatile??
-    /** Total number of DataBank objects written to the outputs. */
-    private long eventCountTotal;
-
-    /** Sum of the sizes, in 32-bit words, of all DataBank objects written to the outputs. */
-    private long wordCountTotal;
-
-    /** Instantaneous event rate in Hz over the last time period of length {@link #statGatheringPeriod}. */
-    private float eventRate;
-
-    /** Instantaneous word rate in Hz over the last time period of length {@link #statGatheringPeriod}. */
-    private float wordRate;
-
-    /** Targeted time period in milliseconds over which instantaneous rates will be calculated. */
-    private static final int statGatheringPeriod = 2000;
-
-    /** Thread to update statistics. */
-    private Thread watcher;
 
     // ---------------------------------------------------
-
-    /** Comparator which tells priority queue how to sort elements. */
-    private BankComparator<PayloadBank> comparator = new BankComparator<PayloadBank>();
-
-    /** Logger used to log messages to debug console. */
-    private Logger logger;
-
-    /** Emu this module belongs to. */
-    private Emu emu;
 
     /** If <code>true</code>, then print sizes of various queues for debugging. */
     private boolean printQSizes;
@@ -220,10 +157,6 @@ public class EventBuilding extends CODAStateMachineAdapter implements EmuModule 
     // ---------------------------------------------------
     // Configuration parameters
     // ---------------------------------------------------
-
-    /** If <code>true</code>, this module's statistics
-     * accurately represent the statistics of the EMU. */
-    private boolean representStatistics;
 
     /** If <code>true</code>, check timestamps for consistency. */
     private boolean checkTimestamps;
@@ -249,37 +182,6 @@ public class EventBuilding extends CODAStateMachineAdapter implements EmuModule 
 
     // ---------------------------------------------------
 
-
-    /** Keep some data together and store as an event attachment. */
-    private class EventOrder {
-        /** Output channel to use. */
-        DataChannel outputChannel;
-        /** Index into arrays for this output channel. */
-        int index;
-        /** Place of event in output order of this output channel. */
-        int inputOrder;
-        /** Lock to use for output to this output channel. */
-        Object lock;
-    }
-
-    /**
-     * Class defining comparator which tells priority queue how to sort elements.
-     * @param <T> Must be EvioBank in this case
-     */
-    private class BankComparator<T> implements Comparator<T> {
-        public int compare(T o1, T o2) throws ClassCastException {
-            EvioBank bank1 = (EvioBank) o1;
-            EvioBank bank2 = (EvioBank) o2;
-            EventOrder eo1 = (EventOrder) (bank1.getAttachment());
-            EventOrder eo2 = (EventOrder) (bank2.getAttachment());
-
-            if (eo1 == null || eo2 == null) {
-                return 0;
-            }
-
-            return (eo1.inputOrder - eo2.inputOrder);
-        }
-    }
 
     /** Number of output channels. */
     private int outputChannelCount;
@@ -317,17 +219,8 @@ public class EventBuilding extends CODAStateMachineAdapter implements EmuModule 
      * @param emu          emu which created this module
      */
     public EventBuilding(String name, Map<String, String> attributeMap, Emu emu) {
-        this.emu = emu;
-        this.name = name;
-        this.attributeMap = attributeMap;
 
-        logger = emu.getLogger();
-
-        try {
-            ebId = Integer.parseInt(attributeMap.get("id"));
-            if (ebId < 0)  ebId = 0;
-        }
-        catch (NumberFormatException e) { /* default to 0 */ }
+        super(name, attributeMap, emu);
 
         // default to 3 event building threads
         buildingThreadCount = 3;
@@ -401,132 +294,6 @@ System.out.println("EventBuilding constr: " + buildingThreadCount +
             timestampSlop = Integer.parseInt(attributeMap.get("tsSlop"));
         }
         catch (NumberFormatException e) {}
-    }
-
-
-    /** {@inheritDoc} */
-    public String name() {return name;}
-
-    /** {@inheritDoc} */
-    public String getError() {return errorMsg.get();}
-
-    /** {@inheritDoc} */
-    public State state() {return state;}
-
-    /** {@inheritDoc} */
-    public void registerEndCallback(EmuEventNotify callback) {endCallback = callback;}
-
-    /** {@inheritDoc} */
-    public EmuEventNotify getEndCallback() {return endCallback;}
-
-    /** {@inheritDoc} */
-    public void addInputChannels(ArrayList<DataChannel> input_channels) {
-        this.inputChannels.addAll(input_channels);
-    }
-
-    /** {@inheritDoc} */
-     public void addOutputChannels(ArrayList<DataChannel> output_channels) {
-         this.outputChannels.addAll(output_channels);
-     }
-
-     /** {@inheritDoc} */
-     public ArrayList<DataChannel> getInputChannels() {return inputChannels;}
-
-     /** {@inheritDoc} */
-     public ArrayList<DataChannel> getOutputChannels() {return outputChannels;}
-
-     /** {@inheritDoc} */
-     public void clearChannels() {
-         inputChannels.clear();
-         outputChannels.clear();
-     }
-
-    /** {@inheritDoc} */
-    public QueueItemType getInputQueueItemType() {return QueueItemType.PayloadBank;}
-
-    /** {@inheritDoc} */
-    public QueueItemType getOutputQueueItemType() {return QueueItemType.PayloadBank;}
-
-    /** {@inheritDoc} */
-    public boolean representsEmuStatistics() {return representStatistics;}
-
-    /** {@inheritDoc} */
-    synchronized public Object[] getStatistics() {
-        Object[] stats = new Object[4];
-
-        // If we're not active, keep the accumulated
-        // totals, but the rates are zero.
-        if (state != CODAState.ACTIVE) {
-            stats[0] = eventCountTotal;
-            stats[1] = wordCountTotal;
-            stats[2] = 0F;
-            stats[3] = 0F;
-        }
-        else {
-            stats[0] = eventCountTotal;
-            stats[1] = wordCountTotal;
-            stats[2] = eventRate;
-            stats[3] = wordRate;
-        }
-
-        return stats;
-    }
-
-
-    /**
-     * This class defines a thread that makes instantaneous rate calculations
-     * once every few seconds. Rates are sent to run control
-     * (or stored in local xml config file).
-     */
-    private class Watcher extends Thread {
-        /**
-         * Method run is the action loop of the thread. It's created while the module is in the
-         * ACTIVE or PAUSED state. It is exited on end of run or reset.
-         * It is started by the GO transition.
-         */
-        @Override
-        public void run() {
-
-            // variables for instantaneous stats
-            long deltaT, t1, t2, prevEventCount=0L, prevWordCount=0L;
-
-            while ((state == CODAState.ACTIVE) || paused) {
-                try {
-                    // In the paused state only wake every two seconds.
-                    sleep(2000);
-
-                    t1 = System.currentTimeMillis();
-
-                    while (state == CODAState.ACTIVE) {
-                        sleep(statGatheringPeriod);
-
-                        t2 = System.currentTimeMillis();
-                        deltaT = t2 - t1;
-
-//                        synchronized (EventBuilding.this) {
-                            // calculate rates
-                            eventRate = (eventCountTotal - prevEventCount)*1000F/deltaT;
-                            wordRate  = (wordCountTotal  - prevWordCount)*1000F/deltaT;
-
-                            prevEventCount = eventCountTotal;
-                            prevWordCount  = wordCountTotal;
-//                        System.out.println("evRate = " + eventRate + ", byteRate = " + 4*wordRate);
-//                        }
-                        t1 = t2;
-
-                        // The following was in the old Watcher thread ...
-//                        try {
-//                            Configurer.setValue(emu.parameters(), "status/eventCount", Long.toString(eventCountTotal));
-//                            Configurer.setValue(emu.parameters(), "status/wordCount", Long.toString(wordCountTotal));
-//                        }
-//                        catch (DataNotFoundException e) {}
-                    }
-
-                } catch (InterruptedException e) {
-                    logger.info("EventBuilding thread " + name() + " interrupted");
-                }
-            }
-        }
     }
 
 
@@ -1183,7 +950,7 @@ if (debug && havePhysicsEvents)
                         //-----------------------------------------------------------------------------------
                         // Combine the trigger banks of input events into one (same if single event mode)
 if (debug) System.out.println("BuildingThread: create trig bank from built banks, sparsify = " + sparsify);
-                        nonFatalError |= Evio.makeTriggerBankFromPhysics(buildingBanks, builder, ebId,
+                        nonFatalError |= Evio.makeTriggerBankFromPhysics(buildingBanks, builder, id,
                                                                     runNumber, runTypeId, includeRunData,
                                                                     eventsInSEM, sparsify,
                                                                     checkTimestamps, timestampSlop);
@@ -1195,7 +962,7 @@ if (debug) System.out.println("BuildingThread: create trig bank from built banks
                             // Create a trigger bank from data in Data Block banks
 //if (debug) System.out.println("BuildingThread: create trigger bank in SEM");
                             nonFatalError |= Evio.makeTriggerBankFromSemRocRaw(buildingBanks, builder,
-                                                                               ebId, firstEventNumber,
+                                                                               id, firstEventNumber,
                                                                                runNumber, runTypeId,
                                                                                includeRunData,
                                                                                checkTimestamps,
@@ -1205,7 +972,7 @@ if (debug) System.out.println("BuildingThread: create trig bank from built banks
                             // Combine the trigger banks of input events into one
 if (debug) System.out.println("BuildingThread: create trigger bank from Rocs, sparsify = " + sparsify);
                             nonFatalError |= Evio.makeTriggerBankFromRocRaw(buildingBanks, builder,
-                                                                            ebId, firstEventNumber,
+                                                                            id, firstEventNumber,
                                                                             runNumber, runTypeId,
                                                                             includeRunData, sparsify,
                                                                             checkTimestamps,
@@ -1255,7 +1022,7 @@ if (debug && nonFatalError) System.out.println("\nERROR 4\n");
                                                  buildingBanks[0].hasError() || nonFatalError,
                                                  buildingBanks[0].getByteOrder() == ByteOrder.BIG_ENDIAN,
                                                  buildingBanks[0].isSingleEventMode(),
-                                                 ebId);
+                                                 id);
 //if (debug) System.out.println("tag = " + tag + ", is sync = " + buildingBanks[0].isSync() +
 //                   ", has error = " + (buildingBanks[0].hasError() || nonFatalError) +
 //                   ", is big endian = " + buildingBanks[0].getByteOrder() == ByteOrder.BIG_ENDIAN +
@@ -1445,12 +1212,12 @@ if (debug) System.out.println("Building thread is ending !!!");
         State previousState = state;
         state = CODAState.CONFIGURED;
 
-        if (watcher != null) watcher.interrupt();
+        if (RateCalculator != null) RateCalculator.interrupt();
 
         // Build & QFiller threads must be immediately ended
         endBuildAndQFillerThreads(null, false);
 
-        watcher  = null;
+        RateCalculator = null;
         qFillers = null;
         buildingThreadList.clear();
 
@@ -1477,12 +1244,12 @@ if (debug) System.out.println("Building thread is ending !!!");
         // The order in which these thread are shutdown does(should) not matter.
         // Rocs should already have been shutdown, followed by the input transports,
         // followed by this module (followed by the output transports).
-        if (watcher != null) watcher.interrupt();
+        if (RateCalculator != null) RateCalculator.interrupt();
 
         // Build & QFiller threads should already be ended by END event
         endBuildAndQFillerThreads(null, true);
 
-        watcher  = null;
+        RateCalculator = null;
         qFillers = null;
         buildingThreadList.clear();
 
@@ -1613,7 +1380,7 @@ if (debug) System.out.println("Building thread is ending !!!");
      * Method to create thread objects for stats, filling Qs and building events.
      */
     private void createThreads() {
-        watcher = new Thread(emu.getThreadGroup(), new Watcher(), name+":watcher");
+        RateCalculator = new Thread(emu.getThreadGroup(), new RateCalculatorThread(), name+":watcher");
 
         for (int i=0; i < buildingThreadCount; i++) {
             BuildingThread thd1 = new BuildingThread(emu.getThreadGroup(), new BuildingThread(), name+":builder"+i);
@@ -1640,13 +1407,13 @@ if (debug) System.out.println("Building thread is ending !!!");
      * It creates these threads if they don't exist yet.
      */
     private void startThreads() {
-        if (watcher == null) {
+        if (RateCalculator == null) {
 System.out.println("startThreads(): recreating watcher thread");
-            watcher = new Thread(emu.getThreadGroup(), new Watcher(), name+":watcher");
+            RateCalculator = new Thread(emu.getThreadGroup(), new RateCalculatorThread(), name+":watcher");
         }
 
-        if (watcher.getState() == Thread.State.NEW) {
-            watcher.start();
+        if (RateCalculator.getState() == Thread.State.NEW) {
+            RateCalculator.start();
         }
 
         if (buildingThreadList.size() < 1) {

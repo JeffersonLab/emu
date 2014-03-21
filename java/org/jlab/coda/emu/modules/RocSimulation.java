@@ -15,19 +15,16 @@ import org.jlab.coda.emu.*;
 import org.jlab.coda.emu.support.codaComponent.CODAClass;
 import org.jlab.coda.emu.support.codaComponent.CODAState;
 
-import org.jlab.coda.emu.support.codaComponent.CODAStateMachineAdapter;
 import org.jlab.coda.emu.support.configurer.Configurer;
 import org.jlab.coda.emu.support.configurer.DataNotFoundException;
 import org.jlab.coda.emu.support.control.CmdExecException;
 import org.jlab.coda.emu.support.codaComponent.State;
 import org.jlab.coda.emu.support.data.*;
-import org.jlab.coda.emu.support.logger.Logger;
 import org.jlab.coda.emu.support.transport.DataChannel;
 import org.jlab.coda.jevio.*;
 
 import java.util.*;
 import java.util.concurrent.*;
-import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * This class simulates a Roc. It is a module which uses a single thread
@@ -36,39 +33,13 @@ import java.util.concurrent.atomic.AtomicReference;
  * @author timmer
  * (2011)
  */
-public class RocSimulation extends CODAStateMachineAdapter implements EmuModule {
-
-
-    /** Name of this ROC. */
-    private final String name;
-
-    /** ID number of this ROC obtained from config file. */
-    private int rocId;
+public class RocSimulation extends ModuleAdapter {
 
     /** Keep track of the number of records built in this ROC. Reset at prestart. */
     private volatile int rocRecordId;
 
-    /** State of the module. */
-    private volatile State state = CODAState.BOOTED;
-
-    /**
-     * Possible error message. reset() sets it back to null.
-     * Making this an atomically settable String ensures that only 1 thread
-     * at a time can change its value. That way it's only set once per error.
-     */
-    private AtomicReference<String> errorMsg = new AtomicReference<String>();
-
-    /** OutputChannels is an ArrayList of DataChannel objects that are outputs. */
-    private ArrayList<DataChannel> outputChannels = new ArrayList<DataChannel>();
-
     /** Thread used for generating events. */
     private EventGeneratingThread eventGeneratingThread;
-
-    /** Map containing attributes of this module given in config file. */
-    private Map<String,String> attributeMap;
-
-    /** User hit pause button if <code>true</code>. */
-    private boolean paused;
 
     /** Type of trigger sent from trigger supervisor. */
     private int triggerType;
@@ -87,9 +58,6 @@ public class RocSimulation extends CODAStateMachineAdapter implements EmuModule 
      * Value of 0 means don't end any END events automatically.
      */
     private int endLimit;
-
-    /** Object used by Emu to be notified of END event arrival. */
-    private EmuEventNotify endCallback;
 
     /** Number of writing threads to ask for in generating data for ROC Raw banks. */
     private int writeThreads;
@@ -114,37 +82,11 @@ public class RocSimulation extends CODAStateMachineAdapter implements EmuModule 
 
 
     // The following members are for keeping statistics
-
-
     /** The number of the event to be assigned to that which is built next. */
     private long eventNumber;
 
     /** The number of the last event that this ROC created. */
     private long lastEventNumberCreated;
-
-    /** Total number of EvioBank objects written to the outputs. */
-    private long eventCountTotal;
-
-    /** Sum of the sizes, in 32-bit words, of all EvioBank objects written to the outputs. */
-    private long wordCountTotal;
-
-    /** Instantaneous event rate in Hz over the last time period of length {@link #statGatheringPeriod}. */
-    private float eventRate;
-
-    /** Instantaneous word rate in Hz over the last time period of length {@link #statGatheringPeriod}. */
-    private float wordRate;
-
-    /** Targeted time period in milliseconds over which instantaneous rates will be calculated. */
-    private static final int statGatheringPeriod = 2000;
-
-    /** Thread to update statistics. */
-    private Thread watcher;
-
-    /** Logger used to log messages to debug console. */
-    private Logger logger;
-
-    /** Emu this module belongs to. */
-    private Emu emu;
 
     /** Used in debugging output to track each time an array of evio events is generated. */
     static int jobNumber;
@@ -157,18 +99,10 @@ public class RocSimulation extends CODAStateMachineAdapter implements EmuModule 
      * @param attributeMap map containing attributes of module
      */
     public RocSimulation(String name, Map<String, String> attributeMap, Emu emu) {
-        String s;
-        this.emu = emu;
-        this.name = name;
-        this.attributeMap = attributeMap;
-        if (attributeMap == null) return;
-        logger = emu.getLogger();
 
-        // CODA id of this ROC
-        try { rocId = Integer.parseInt(attributeMap.get("id")); }
-        catch (NumberFormatException e) { /* defaults to 0 */ }
-System.out.println("                                      SET ROCID TO " + rocId);
-        emu.setCodaid(rocId);
+        super(name, attributeMap, emu);
+
+        String s;
 
         // Value for trigger type from trigger supervisor
         triggerType = 15;
@@ -184,7 +118,7 @@ System.out.println("                                      SET ROCID TO " + rocId
         if (detectorId < 0) detectorId = 0;
 
         // How many entangled events in one data block?
-        eventBlockSize = 1;
+        eventBlockSize = 2;
         try { eventBlockSize = Integer.parseInt(attributeMap.get("blockSize")); }
         catch (NumberFormatException e) { /* defaults to 1 */ }
         if (eventBlockSize <   1) eventBlockSize = 1;
@@ -223,72 +157,13 @@ System.out.println("                                      SET ROCID TO " + rocId
 
 
     /** {@inheritDoc} */
-    public String name() {return name;}
-
-    /** {@inheritDoc} */
-    public State state() {return state;}
-
-    /** {@inheritDoc} */
-    public void registerEndCallback(EmuEventNotify callback) {endCallback = callback;}
-
-    /** {@inheritDoc} */
-    public EmuEventNotify getEndCallback() {return endCallback;}
-
-    /** {@inheritDoc} */
-    public String getError() {return errorMsg.get();}
-
-    /** {@inheritDoc} */
-    protected void finalize() throws Throwable {super.finalize();}
-
-    /** {@inheritDoc} */
     public void addInputChannels(ArrayList<DataChannel> input_channels) {}
-
-    /** {@inheritDoc} */
-    public void addOutputChannels(ArrayList<DataChannel> output_channels) {
-        this.outputChannels.addAll(output_channels);
-    }
 
     /** {@inheritDoc} */
     public ArrayList<DataChannel> getInputChannels() {return null;}
 
     /** {@inheritDoc} */
-    public ArrayList<DataChannel> getOutputChannels() {return outputChannels;}
-
-    /** {@inheritDoc} */
     public void clearChannels() {outputChannels.clear();}
-
-    /** {@inheritDoc} */
-    public QueueItemType getInputQueueItemType() {return QueueItemType.PayloadBank;}
-
-    /** {@inheritDoc} */
-    public QueueItemType getOutputQueueItemType() {return QueueItemType.PayloadBank;}
-
-    /** {@inheritDoc} */
-    public boolean representsEmuStatistics() {
-        String stats = attributeMap.get("statistics");
-        return (stats != null && stats.equalsIgnoreCase("on"));
-    }
-
-    /** {@inheritDoc} */
-    synchronized public Object[] getStatistics() {
-        Object[] stats = new Object[4];
-
-        // nothing going on since we're not active
-        if (state != CODAState.ACTIVE) {
-            stats[0] = 0L;
-            stats[1] = 0L;
-            stats[2] = 0F;
-            stats[3] = 0F;
-        }
-        else {
-            stats[0] = eventCountTotal;
-            stats[1] = wordCountTotal;
-            stats[2] = eventRate;
-            stats[3] = wordRate;
-        }
-
-        return stats;
-    }
 
 
     //---------------------------------------
@@ -300,8 +175,8 @@ System.out.println("                                      SET ROCID TO " + rocId
     private void endThreads() {
         // The order in which these threads are shutdown does(should) not matter.
         // Transport objects should already have been shutdown followed by this module.
-        if (watcher != null) watcher.interrupt();
-        watcher = null;
+        if (RateCalculator != null) RateCalculator.interrupt();
+        RateCalculator = null;
 
         if (eventGeneratingThread != null) {
             try {
@@ -321,65 +196,6 @@ System.out.println("                                      SET ROCID TO " + rocId
             catch (InterruptedException e) {}
         }
         eventGeneratingThread = null;
-    }
-
-
-    /**
-     * This class defines a thread that makes instantaneous rate calculations
-     * once every few seconds. Rates are sent to run control.
-     */
-    private class Watcher extends Thread {
-        /**
-         * Method run is the action loop of the thread. It's created while the module is in the
-         * ACTIVE or PAUSED state. It is exited on end of run or reset.
-         * It is started by the GO transition.
-         */
-        public void run() {
-
-            // variables for instantaneous stats
-            long deltaT, t1, t2, prevEventCount=0L, prevWordCount=0L;
-            long totalT=0L, offset=0L;
-            float avgByteRate=0.F;
-            boolean isFirstRound = true;
-
-            while ((state == CODAState.ACTIVE) || paused) {
-                try {
-                    // In the paused state only wake every two seconds.
-                    sleep(2000);
-
-                    t1 = System.currentTimeMillis();
-
-                    while (state == CODAState.ACTIVE) {
-                        sleep(statGatheringPeriod);
-
-                        t2 = System.currentTimeMillis();
-                        deltaT = t2 - t1;
-                        if (isFirstRound) {
-                            offset = wordCountTotal;
-                        }
-                        else {
-                            totalT += deltaT;
-                        }
-
-                        // calculate rates
-                        eventRate   = (eventCountTotal - prevEventCount)*1000F/deltaT;
-                        wordRate    = (wordCountTotal  - prevWordCount)*1000F/deltaT;
-                        if (!isFirstRound) {
-                            avgByteRate = (wordCountTotal-offset)*4000F/totalT;
-                        }
-                        isFirstRound = false;
-
-                        t1 = t2;
-                        prevEventCount = eventCountTotal;
-                        prevWordCount  = wordCountTotal;
-//System.out.println("evRate = " + eventRate + ", byteRate = " + 4*wordRate + ", avg = " + avgByteRate);
-                    }
-
-                } catch (InterruptedException e) {
-                }
-            }
-System.out.println("RocSimulation module: quitting watcher thread");
-        }
     }
 
 
@@ -415,7 +231,7 @@ System.out.println("RocSimulation module: quitting watcher thread");
             int type = EventType.ROC_RAW.getValue();
             int counter = 0, totalCount = 0;
             long timestamp = 0L, start_time = System.currentTimeMillis();
-            int tag = Evio.createCodaTag(type, rocId);
+            int tag = Evio.createCodaTag(type, id);
 
             int numEvents = 9200;
             //int numEvents = 920;
@@ -563,7 +379,7 @@ System.out.println("INTERRUPTED thread " + Thread.currentThread().getName());
             // Run thread pool with "writeThreads" number of threads & fixed-sized queue.
             writeThreadPool = new ThreadPoolExecutor(writeThreads, writeThreads,
                                                      0L, TimeUnit.MILLISECONDS,
-                                                     new LinkedBlockingQueue<Runnable>(2*writeThreads));
+                                                     new ArrayBlockingQueue<Runnable>(2*writeThreads));
 
             writeThreadPool.prestartAllCoreThreads();
 
@@ -573,7 +389,7 @@ System.out.println("INTERRUPTED thread " + Thread.currentThread().getName());
             super();
             writeThreadPool = new ThreadPoolExecutor(writeThreads, writeThreads,
                                                      0L, TimeUnit.MILLISECONDS,
-                                                     new LinkedBlockingQueue<Runnable>(2*writeThreads));
+                                                     new ArrayBlockingQueue<Runnable>(2*writeThreads));
 
             writeThreadPool.prestartAllCoreThreads();
 
@@ -582,6 +398,7 @@ System.out.println("INTERRUPTED thread " + Thread.currentThread().getName());
         ThreadPoolExecutor getWriteThreadPool() {
             return writeThreadPool;
         }
+
 
         public void run() {
 
@@ -596,9 +413,8 @@ System.out.println("ROC SIM write thds = " + writeThreads);
 
            // Found out how many events are generated per method call, and the event size
            try {
-               // don't use 1, cause you'll get single event mode
                numEvents = 2;
-               PayloadBank[] evs = Evio.createRocDataEvents(rocId, triggerType,
+               PayloadBank[] evs = Evio.createRocDataEvents(id, triggerType,
                                                             detectorId, status,
                                                             0, eventBlockSize,
                                                             0L, 0,
@@ -614,34 +430,51 @@ System.out.println("ROCSim: each generated event size = " + (4*eventWordSize) +
 
                    numEvents = 10;
 
-                   semaphore.acquire();
+                   if (writeThreads == 1) {
+                       evs = Evio.createRocDataEvents(id, triggerType,
+                                                      detectorId, status,
+                                                      (int) eventNumber, eventBlockSize,
+                                                      timestamp, rocRecordId,
+                                                      numEvents,
+                                                      isSingleEventMode);
 
-                   if (sentOneAlready && (endLimit > 0) && (eventNumber + numEvents > endLimit)) {
-System.out.println("\nRocSim: hit event number limit of " + endLimit + ", quitting\n");
-
-                       // Put in END event
-                       try {
-System.out.println("          RocSim: Putting in END control event");
-                           EvioEvent controlEvent = Evio.createControlEvent(ControlType.END, 0, 0,
-                                                                            (int)eventCountTotal, 0);
-                           PayloadBank bank = new PayloadBank(controlEvent);
-                           bank.setEventType(EventType.CONTROL);
-                           bank.setControlType(ControlType.END);
-                           outputChannels.get(0).getQueue().put(bank);
-                           if (endCallback != null) endCallback.endWait();
-                       }
-                       catch (InterruptedException e) {}
-                       catch (EvioException e) {/* never happen */}
-
-                       return;
+                       // put generated events into output channel
+                       evs[0].setAttachment(inputOrder);
+                       eventToOutputQueue(evs);
+//                           Thread.sleep(3);
+//System.out.println("    ^^^^^^^^^^^  RocSim: put ev # " + (++index));
                    }
-                   sentOneAlready = true;
+                   else {
+                       semaphore.acquire();
 
-                   job = new DataGenerateJobNew(timestamp, status, rocRecordId, numEvents,
-                                               (int) eventNumber, inputOrder);
-                   writeThreadPool.execute(job);
+                       if (sentOneAlready && (endLimit > 0) && (eventNumber + numEvents > endLimit)) {
+                           System.out.println("\nRocSim: hit event number limit of " + endLimit + ", quitting\n");
 
-                   inputOrder   = ++inputOrder % Integer.MAX_VALUE;
+                           // Put in END event
+                           try {
+                               System.out.println("          RocSim: Putting in END control event");
+                               EvioEvent controlEvent = Evio.createControlEvent(ControlType.END, 0, 0,
+                                                                                (int)eventCountTotal, 0);
+                               PayloadBank bank = new PayloadBank(controlEvent);
+                               bank.setEventType(EventType.CONTROL);
+                               bank.setControlType(ControlType.END);
+                               outputChannels.get(0).getQueue().put(bank);
+                               if (endCallback != null) endCallback.endWait();
+                           }
+                           catch (InterruptedException e) {}
+                           catch (EvioException e) {/* never happen */}
+
+                           return;
+                       }
+                       sentOneAlready = true;
+
+                       job = new DataGenerateJobNew(timestamp, status, rocRecordId, numEvents,
+                                                    (int) eventNumber, inputOrder);
+                       writeThreadPool.execute(job);
+
+                   }
+
+                   inputOrder = ++inputOrder % Integer.MAX_VALUE;
                    timestamp   += 4*eventBlockSize*numEvents;
                    eventNumber += eventBlockSize*numEvents;
                    rocRecordId++;
@@ -682,7 +515,8 @@ System.out.println("event rate = " + String.format("%.3g", ((eventNumber-oldVal)
             private int inputOrder;
 
             /** Constructor. */
-            DataGenerateJobNew(long timeStamp, int status, int recordId, int numEvs, int evNum, int inputOrder) {
+            DataGenerateJobNew(long timeStamp, int status, int recordId,
+                               int numEvs, int evNum, int inputOrder) {
                 this.evNum      = evNum;
                 this.numEvs     = numEvs;
                 this.status     = status;
@@ -697,7 +531,7 @@ System.out.println("event rate = " + String.format("%.3g", ((eventNumber-oldVal)
                 try {
                     // turn event into byte array
 //System.out.println("RocSim("+jobNum+"): executing job");
-                    PayloadBank[] evs = Evio.createRocDataEvents(rocId, triggerType,
+                    PayloadBank[] evs = Evio.createRocDataEvents(id, triggerType,
                                                           detectorId, status,
                                                           evNum, eventBlockSize,
                                                           timeStamp, recordId,
@@ -706,8 +540,10 @@ System.out.println("event rate = " + String.format("%.3g", ((eventNumber-oldVal)
 
                     // put generated events into output channel
 //System.out.println("RocSim("+jobNum + "): generated " + evs.length + " Roc Raw events");
-                    evs[0].setAttachment(inputOrder);
-                    eventToOutputQueue(evs);
+                    for (PayloadBank bank : evs) {
+                        bank.setAttachment(inputOrder);
+                        eventToOutputQueue(bank);
+                    }
 //System.out.println("RocSim("+jobNum + "): put evs on output Q");
                     semaphore.release();
                 }
@@ -790,7 +626,7 @@ System.out.println("event rate = " + String.format("%.3g", ((eventNumber-oldVal)
         lastEventNumberCreated = 0L;
 
         // create threads objects (but don't start them yet)
-        watcher = new Thread(emu.getThreadGroup(), new Watcher(), name+":watcher");
+        RateCalculator = new Thread(emu.getThreadGroup(), new RateCalculatorThread(), name+":watcher");
         eventGeneratingThread = new EventGeneratingThread(emu.getThreadGroup(),
                                                           new EventGeneratingThread(),
                                                           name+":generator");
@@ -819,7 +655,7 @@ System.out.println("event rate = " + String.format("%.3g", ((eventNumber-oldVal)
     /** {@inheritDoc} */
     public void pause() {
 //System.out.println("          RocSim: GOT PAUSE, DO NOTHING");
-        paused = true;
+        super.pause();
 
         // Put in PAUSE event
         try {
@@ -858,12 +694,12 @@ System.out.println("event rate = " + String.format("%.3g", ((eventNumber-oldVal)
         state = CODAState.ACTIVE;
 
         // start up all threads
-        if (watcher == null) {
-            watcher = new Thread(emu.getThreadGroup(), new Watcher(), name+":watcher");
+        if (RateCalculator == null) {
+            RateCalculator = new Thread(emu.getThreadGroup(), new RateCalculatorThread(), name+":watcher");
         }
 
-        if (watcher.getState() == Thread.State.NEW) {
-            watcher.start();
+        if (RateCalculator.getState() == Thread.State.NEW) {
+            RateCalculator.start();
         }
 
         if (eventGeneratingThread == null) {

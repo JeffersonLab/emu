@@ -13,19 +13,16 @@ package org.jlab.coda.emu.modules;
 
 import org.jlab.coda.emu.*;
 import org.jlab.coda.emu.support.codaComponent.CODAState;
-import org.jlab.coda.emu.support.codaComponent.CODAStateMachineAdapter;
 import org.jlab.coda.emu.support.configurer.Configurer;
 import org.jlab.coda.emu.support.configurer.DataNotFoundException;
 import org.jlab.coda.emu.support.control.CmdExecException;
 import org.jlab.coda.emu.support.codaComponent.State;
 import org.jlab.coda.emu.support.data.*;
-import org.jlab.coda.emu.support.logger.Logger;
 import org.jlab.coda.emu.support.transport.DataChannel;
 
 import java.util.*;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.PriorityBlockingQueue;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.ReentrantLock;
 
 /**
@@ -65,30 +62,7 @@ import java.util.concurrent.locks.ReentrantLock;
  * @author timmer
  * (2012)
  */
-public class EventRecording extends CODAStateMachineAdapter implements EmuModule {
-
-
-    /** Name of this event recorder. */
-    private final String name;
-
-    /** ID number of this event recorder obtained from config file. */
-    private int erId;
-
-    /** State of this module. */
-    private volatile State state = CODAState.BOOTED;
-
-    /**
-     * Possible error message. reset() sets it back to null.
-     * Making this an atomically settable String ensures that only 1 thread
-     * at a time can change its value. That way it's only set once per error.
-     */
-    private AtomicReference<String> errorMsg = new AtomicReference<String>();
-
-    /** ArrayList of DataChannel objects that are outputs. */
-    private ArrayList<DataChannel> outputChannels = new ArrayList<DataChannel>();
-
-    /** ArrayList of DataChannel objects that are inputs. */
-    private ArrayList<DataChannel> inputChannels = new ArrayList<DataChannel>();
+public class EventRecording extends ModuleAdapter {
 
     /** There should only be one input DataChannel. */
     private DataChannel inputChannel;
@@ -116,52 +90,16 @@ public class EventRecording extends CODAStateMachineAdapter implements EmuModule
     /** Container for threads used to record events. */
     private LinkedList<RecordingThread> recordingThreadList = new LinkedList<RecordingThread>();
 
-    /** Map containing attributes of this module given in config file. */
-    private Map<String,String> attributeMap;
-
     /** Lock to ensure that a RecordingThread grabs the same positioned event from each Q.  */
     private ReentrantLock getLock = new ReentrantLock();
 
-    /** User hit PAUSE button if {@code true}. */
-    private boolean paused;
-
-    /** END event detected by one of the recording threads. */
+   /** END event detected by one of the recording threads. */
     private volatile boolean haveEndEvent;
 
     /** Maximum time in milliseconds to wait when commanded to END but no END event received. */
     private long endingTimeLimit = 30000;
 
-    /** Object used by Emu to be notified of END event arrival. */
-    private EmuEventNotify endCallback;
-
-    // The following members are for keeping statistics
-
-    // TODO: make stats volatile??
-    /** Total number of DataBank objects written to the outputs. */
-    private long eventCountTotal;
-
-    /** Sum of the sizes, in 32-bit words, of all DataBank objects written to the outputs. */
-    private long wordCountTotal;
-
-    /** Instantaneous event rate in Hz over the last time period of length {@link #statGatheringPeriod}. */
-    private float eventRate;
-
-    /** Instantaneous word rate in Hz over the last time period of length {@link #statGatheringPeriod}. */
-    private float wordRate;
-
-    /** Targeted time period in milliseconds over which instantaneous rates will be calculated. */
-    private static final int statGatheringPeriod = 2000;
-
     // ---------------------------------------------------
-
-    /** Thread to update statistics. */
-    private Thread watcher;
-
-    /** Logger used to log messages to debug console. */
-    private Logger logger;
-
-    /** Emu this module belongs to. */
-    private Emu emu;
 
     /**
      * If {@code true}, then each event recording thread can put its event
@@ -173,45 +111,6 @@ public class EventRecording extends CODAStateMachineAdapter implements EmuModule
 
     /** If {@code true}, get debug print out. */
     private boolean debug = false;
-
-    /** If {@code true}, this module's statistics
-     * accurately represent the statistics of the EMU. */
-    private boolean representStatistics;
-
-    /** Comparator which tells priority queue how to sort elements. */
-    private QItemComparator<Attached> comparator = new QItemComparator<Attached>();
-
-
-    /** Keep some data together and store as an event attachment. */
-    private class EventOrder {
-        /** Output channel to use. */
-        DataChannel outputChannel;
-        /** Index into arrays for this output channel. */
-        int index;
-        /** Place of event in output order of this output channel. */
-        int inputOrder;
-        /** Lock to use for output to this output channel. */
-        Object lock;
-    }
-
-    /**
-     * Class defining comparator which tells priority queue how to sort elements.
-     * @param <T> Must be PayloadBank or PayloadBuffer in this case
-     */
-    private class QItemComparator<T> implements Comparator<T> {
-        public int compare(T o1, T o2) throws ClassCastException {
-            Attached a1 = (Attached) o1;
-            Attached a2 = (Attached) o2;
-            EventOrder eo1 = (EventOrder) (a1.getAttachment());
-            EventOrder eo2 = (EventOrder) (a2.getAttachment());
-
-            if (eo1 == null || eo2 == null) {
-                return 0;
-            }
-
-            return (eo1.inputOrder - eo2.inputOrder);
-        }
-    }
 
     /** Number of output channels. */
     private int outputChannelCount;
@@ -248,17 +147,8 @@ public class EventRecording extends CODAStateMachineAdapter implements EmuModule
      * @param attributeMap map containing attributes of module
      */
     public EventRecording(String name, Map<String, String> attributeMap, Emu emu) {
-        this.emu = emu;
-        this.name = name;
-        this.attributeMap = attributeMap;
 
-        logger = emu.getLogger();
-
-        try {
-            erId = Integer.parseInt(attributeMap.get("id"));
-            if (erId < 0)  erId = 0;
-        }
-        catch (NumberFormatException e) { /* default to 0 */ }
+        super(name, attributeMap, emu);
 
         // default to 1 event recording thread
         recordingThreadCount = 1;
@@ -301,21 +191,6 @@ System.out.println("EventRecording constr: " + recordingThreadCount +
 
 
     /** {@inheritDoc} */
-    public String name() {return name;}
-
-    /** {@inheritDoc} */
-    public void registerEndCallback(EmuEventNotify callback) {endCallback = callback;};
-
-    /** {@inheritDoc} */
-    public EmuEventNotify getEndCallback() {return endCallback;};
-
-    /** {@inheritDoc} */
-    public State state() {return state;}
-
-    /** {@inheritDoc} */
-    public String getError() {return errorMsg.get();}
-
-    /** {@inheritDoc} */
     public void addInputChannels(ArrayList<DataChannel> input_channels) {
         if (input_channels == null) return;
         this.inputChannels.addAll(input_channels);
@@ -339,12 +214,6 @@ System.out.println("EventRecording constr: " + recordingThreadCount +
     public DataChannel getInputChannel() {return inputChannel;}
 
     /** {@inheritDoc} */
-    public ArrayList<DataChannel> getInputChannels() {return inputChannels;}
-
-    /** {@inheritDoc} */
-    public ArrayList<DataChannel> getOutputChannels() {return outputChannels;}
-
-    /** {@inheritDoc} */
     public void clearChannels() {
         inputChannels.clear();
         outputChannels.clear();
@@ -358,31 +227,6 @@ System.out.println("EventRecording constr: " + recordingThreadCount +
     /** {@inheritDoc} */
     public QueueItemType getOutputQueueItemType() {return outputType;}
 
-    /** {@inheritDoc} */
-    public boolean representsEmuStatistics() {return representStatistics;}
-
-    /** {@inheritDoc} */
-    synchronized public Object[] getStatistics() {
-        Object[] stats = new Object[4];
-
-        // If we're not active, keep the accumulated
-        // totals, but the rates are zero.
-        if (state != CODAState.ACTIVE) {
-            stats[0] = eventCountTotal;
-            stats[1] = wordCountTotal;
-            stats[2] = 0F;
-            stats[3] = 0F;
-        }
-        else {
-            stats[0] = eventCountTotal;
-            stats[1] = wordCountTotal;
-            stats[2] = eventRate;
-            stats[3] = wordRate;
-        }
-
-        return stats;
-    }
-
 
     //---------------------------------------
     // Start and end threads
@@ -393,7 +237,7 @@ System.out.println("EventRecording constr: " + recordingThreadCount +
      * Method to create thread objects for stats, filling Qs and recording events.
      */
     private void createThreads() {
-        watcher = new Thread(emu.getThreadGroup(), new Watcher(), name+":watcher");
+        RateCalculator = new Thread(emu.getThreadGroup(), new RateCalculatorThread(), name+":watcher");
 
         for (int i=0; i < recordingThreadCount; i++) {
             RecordingThread thd1 = new RecordingThread(emu.getThreadGroup(), new RecordingThread(), name+":recorder"+i);
@@ -413,13 +257,13 @@ System.out.println("EventRecording constr: " + recordingThreadCount +
      * It creates these threads if they don't exist yet.
      */
     private void startThreads() {
-        if (watcher == null) {
+        if (RateCalculator == null) {
 System.out.println("startThreads(): recreating watcher thread");
-            watcher = new Thread(emu.getThreadGroup(), new Watcher(), name+":watcher");
+            RateCalculator = new Thread(emu.getThreadGroup(), new RateCalculatorThread(), name+":watcher");
         }
 
-        if (watcher.getState() == Thread.State.NEW) {
-            watcher.start();
+        if (RateCalculator.getState() == Thread.State.NEW) {
+            RateCalculator.start();
         }
 
         if (recordingThreadList.size() < 1) {
@@ -489,53 +333,6 @@ if (debug) System.out.println("endRecordThreads: will end threads but no END eve
     //---------------------------------------
     // Threads
     //---------------------------------------
-
-
-    /**
-     * This class defines a thread that makes instantaneous rate calculations
-     * once every few seconds. Rates are sent to run control
-     * (or stored in local xml config file).
-     */
-    private class Watcher extends Thread {
-        /**
-         * Method run is the action loop of the thread. It's created while the module is in the
-         * ACTIVE or PAUSED state. It is exited on end of run or reset.
-         * It is started by the GO transition.
-         */
-        @Override
-        public void run() {
-
-            // variables for instantaneous stats
-            long deltaT, t1, t2, prevEventCount=0L, prevWordCount=0L;
-
-            while ((state == CODAState.ACTIVE) || paused) {
-                try {
-                    // In the paused state only wake every two seconds.
-                    sleep(2000);
-
-                    t1 = System.currentTimeMillis();
-
-                    while (state == CODAState.ACTIVE) {
-                        sleep(statGatheringPeriod);
-
-                        t2 = System.currentTimeMillis();
-                        deltaT = t2 - t1;
-
-                        eventRate = (eventCountTotal - prevEventCount)*1000F/deltaT;
-                        wordRate  = (wordCountTotal  - prevWordCount)*1000F/deltaT;
-
-                        prevEventCount = eventCountTotal;
-                        prevWordCount  = wordCountTotal;
-
-                        t1 = t2;
-                    }
-
-                } catch (InterruptedException e) {
-                    logger.info("EventRecording thread " + name() + " interrupted");
-                }
-            }
-        }
-    }
 
 
     /**
@@ -929,12 +726,12 @@ if (true) System.out.println("Found END event in record thread");
         State previousState = state;
         state = CODAState.CONFIGURED;
 
-        if (watcher != null) watcher.interrupt();
+        if (RateCalculator != null) RateCalculator.interrupt();
 
         // Recording threads must be immediately ended
         endRecordThreads(null, false);
 
-        watcher = null;
+        RateCalculator = null;
         recordingThreadList.clear();
 
         if (inputOrders  != null) Arrays.fill(inputOrders, 0);
@@ -949,12 +746,6 @@ if (true) System.out.println("Found END event in record thread");
             }
             catch (DataNotFoundException e) {}
         }
-    }
-
-
-    /** {@inheritDoc} */
-    public void pause() {
-        paused = true;
     }
 
 
@@ -978,12 +769,12 @@ if (true) System.out.println("Found END event in record thread");
         // The order in which these thread are shutdown does(should) not matter.
         // Rocs should already have been shutdown, followed by the input transports,
         // followed by this module (followed by the output transports).
-        if (watcher  != null) watcher.interrupt();
+        if (RateCalculator != null) RateCalculator.interrupt();
 
         // Recording threads should already be ended by END event
         endRecordThreads(null, true);
 
-        watcher = null;
+        RateCalculator = null;
         recordingThreadList.clear();
 
         if (inputOrders  != null) Arrays.fill(inputOrders, 0);

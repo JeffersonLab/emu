@@ -12,20 +12,13 @@
 package org.jlab.coda.emu.modules;
 
 import org.jlab.coda.emu.Emu;
-import org.jlab.coda.emu.EmuEventNotify;
-import org.jlab.coda.emu.EmuModule;
-import org.jlab.coda.emu.support.codaComponent.CODAStateMachineAdapter;
 import org.jlab.coda.emu.support.codaComponent.CODAState;
 import org.jlab.coda.emu.support.control.CmdExecException;
-import org.jlab.coda.emu.support.codaComponent.State;
 import org.jlab.coda.emu.support.data.*;
-import org.jlab.coda.emu.support.logger.Logger;
-import org.jlab.coda.emu.support.transport.DataChannel;
 
 import java.util.*;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * This class is a bare bones module used for testing and as a template.
@@ -33,54 +26,14 @@ import java.util.concurrent.atomic.AtomicReference;
  * input channels and pass each input item to each of the output channels.
  *
  * @author timmer
- * @date 4/26/2013
+ * 4/26/2013
  */
-public class Dummy extends CODAStateMachineAdapter implements EmuModule {
-
-
-    /** ID number of this event recorder obtained from config file. */
-    private int id;
-
-    /** Name of this event recorder. */
-    private final String name;
-
-    /**
-     * Possible error message. reset() sets it back to null.
-     * Making this an atomically settable String ensures that only 1 thread
-     * at a time can change its value. That way it's only set once per error.
-     */
-    private AtomicReference<String> errorMsg = new AtomicReference<String>();
-
-    /** Emu this module belongs to. */
-    private Emu emu;
-
-    /** Logger used to log messages to debug console. */
-    private Logger logger;
-
-    /** State of this module. */
-    private volatile State state = CODAState.BOOTED;
-
-    /** ArrayList of DataChannel objects that are inputs. */
-    private ArrayList<DataChannel> inputChannels = new ArrayList<DataChannel>();
-
-    /** ArrayList of DataChannel objects that are outputs. */
-    private ArrayList<DataChannel> outputChannels = new ArrayList<DataChannel>();
-
-    /** User hit PAUSE button if {@code true}. */
-    private boolean paused;
-
-    /** Object used by Emu to be notified of END event arrival. */
-    private EmuEventNotify endCallback;
+public class Dummy extends ModuleAdapter {
 
     /** Thread which moves events from inputs to outputs. */
     private EventMovingThread eventMovingThread;
 
-    /** Flag used to kill eventMovingThread. */
-    private volatile boolean killThread;
-
     // ---------------------------------------------------
-
-
 
 
     /**
@@ -90,47 +43,10 @@ public class Dummy extends CODAStateMachineAdapter implements EmuModule {
      * @param attributeMap map containing attributes of module
      */
     public Dummy(String name, Map<String, String> attributeMap, Emu emu) {
-        this.emu = emu;
-        this.name = name;
-        logger = emu.getLogger();
-
-        try {
-            id = Integer.parseInt(attributeMap.get("id"));
-            if (id < 0)  id = 0;
-        }
-        catch (NumberFormatException e) { /* default to 0 */ }
+        super(name, attributeMap, emu);
 System.out.println("Dummy: created object");
     }
 
-
-    /** {@inheritDoc} */
-    public String name() {return name;}
-
-    /** {@inheritDoc} */
-    public State state() {return state;}
-
-    /** {@inheritDoc} */
-    public String getError() {return errorMsg.get();}
-
-    /** {@inheritDoc} */
-    public void registerEndCallback(EmuEventNotify callback) {endCallback = callback; }
-
-    /** {@inheritDoc} */
-    public EmuEventNotify getEndCallback() {return endCallback;}
-
-    /** {@inheritDoc} */
-    public QueueItemType getInputQueueItemType() {return QueueItemType.PayloadBank;}
-
-    /** {@inheritDoc} */
-    public QueueItemType getOutputQueueItemType() {return QueueItemType.PayloadBank;}
-
-    /** {@inheritDoc} */
-    public boolean representsEmuStatistics() {return false;}
-
-    /** {@inheritDoc} */
-    synchronized public Object[] getStatistics() {
-        return new Object[] {0L, 0L, 0F, 0F};
-    }
 
     /** {@inheritDoc} */
     public void reset() {
@@ -169,32 +85,6 @@ System.out.println("Dummy: pause");
 System.out.println("Dummy: go");
         state = CODAState.ACTIVE;
         paused = false;
-    }
-
-    /** {@inheritDoc} */
-    public void addInputChannels(ArrayList<DataChannel> input_channels) {
-        this.inputChannels.addAll(input_channels);
-    }
-
-    /** {@inheritDoc} */
-    public void addOutputChannels(ArrayList<DataChannel> output_channels) {
-        this.outputChannels.addAll(output_channels);
-    }
-
-    /** {@inheritDoc} */
-    public ArrayList<DataChannel> getInputChannels() {
-        return inputChannels;
-    }
-
-    /** {@inheritDoc} */
-    public ArrayList<DataChannel> getOutputChannels() {
-        return outputChannels;
-    }
-
-    /** {@inheritDoc} */
-    public void clearChannels() {
-        inputChannels.clear();
-        outputChannels.clear();
     }
 
 
@@ -240,7 +130,7 @@ System.out.println("Dummy: running event moving thread");
                     while (true) {
                         // Take turns reading from different input channels
                         currentInputChannel = (currentInputChannel+1) % inputChannelCount;
-// TODO:Before we cast, we need to find out what it is!!!
+
                         // Will BLOCK here waiting for payload bank if none available
                         queue = inputChannels.get(currentInputChannel).getQueue();
                         payloadBank = (PayloadBank) queue.poll(1L, TimeUnit.MILLISECONDS);
