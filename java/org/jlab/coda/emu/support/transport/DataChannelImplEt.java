@@ -13,6 +13,7 @@ package org.jlab.coda.emu.support.transport;
 
 
 import org.jlab.coda.emu.Emu;
+import org.jlab.coda.emu.EmuModule;
 import org.jlab.coda.emu.support.codaComponent.CODAClass;
 import org.jlab.coda.emu.support.codaComponent.CODAState;
 import org.jlab.coda.emu.support.data.*;
@@ -88,6 +89,9 @@ public class DataChannelImplEt extends DataChannelAdapter {
     /** Place to store a buffer off the queue for the next event out. */
     private PayloadBuffer firstBufferFromQueue;
 
+    /** Is the EMU using this ET output channel as a simulated ROC ? */
+    private boolean isROC;
+
     /** Is the EMU using this ET output channel as an event builder? */
     private boolean isEB;
 
@@ -102,11 +106,17 @@ public class DataChannelImplEt extends DataChannelAdapter {
     /** Array of threads used to input data. */
     private DataInputHelper[] dataInputThreads;
 
+    /** Index of the current Q in which to place buildable events. */
+    private int qIndex;
+
     /** Order number of next list of evio banks to be put onto Q. */
     private int outputOrderIn;
 
     /** Order of array of ET events read from the ET system. */
     private int inputOrderIn;
+
+    /** Order number of next evio bank to be put onto control Q. */
+    private int outputOrderInControl;
 
     /** Synchronize getting ET events for multiple DataInputHelpers. */
     private Object lockIn2  = new Object();
@@ -153,7 +163,7 @@ public class DataChannelImplEt extends DataChannelAdapter {
 
     /**
      * Constructor to create a new DataChannelImplEt instance. Used only by
-     * {@link DataTransportImplEt#createChannel(String, Map, boolean, Emu, QueueItemType)}
+     * {@link DataTransportImplEt#createChannel(String, Map, boolean, Emu, EmuModule)}
      * which is only used during PRESTART in {@link Emu}.
      *
      * @param name          the name of this channel
@@ -161,17 +171,17 @@ public class DataChannelImplEt extends DataChannelAdapter {
      * @param attributeMap  the hashmap of config file attributes for this channel
      * @param input         true if this is an input data channel, otherwise false
      * @param emu           emu this channel belongs to
-     * @param queueItemType type of object to expect in queue item
+     * @param module        module this channel belongs to
      *
      * @throws DataTransportException - unable to create buffers or socket.
      */
     DataChannelImplEt(String name, DataTransportImplEt transport,
                          Map<String, String> attributeMap, boolean input, Emu emu,
-                         QueueItemType queueItemType)
+                         EmuModule module)
         throws DataTransportException {
 
         // constructor of super class
-        super(name, transport, attributeMap, input, emu, queueItemType);
+        super(name, transport, attributeMap, input, emu, module);
 
         dataTransportImplEt = transport;
 
@@ -384,13 +394,14 @@ logger.info("      DataChannel Et : creating output channel " + name);
             // for each outgoing ET buffer.
             CODAClass emuClass = emu.getCodaClass();
             isEB = emuClass.isEventBuilder();
-            if (isEB) {
+            isROC = emuClass == CODAClass.ROC;
+            if (isEB || isROC) {
                 // The control array needs to be the right size.
                 control = new int[EtConstants.stationSelectInts];
 
                 // The first control word is this EB's coda id
                 control[0] = id;
-
+System.out.println("\nSetting control[0] = " + id + "\n");
                 // Is this the last level event builder (not a DC)?
                 // In this case, we want the first control word to indicate
                 // what type of event is being sent.
@@ -689,12 +700,64 @@ logger.debug("      DataChannel Et reset() : " + name + " - done");
         }
 
         /**
+         * This method is used to put a non-buildable (everything NOT
+         * ROC raw, physics, or partial physics) PayloadBank object onto
+         * the control queue.
+         *
+         * @param bank a payload bank to put on the control queue.
+         * @param order the writing order of this bank
+         * @throws InterruptedException if put or wait interrupted
+         */
+        private void writeControlEvent(PayloadBank bank, int order)
+                throws InterruptedException {
+
+            synchronized (lockOut2) {
+                // Is the bank we grabbed next to be output? If not, wait.
+                while (order != outputOrderInControl) {
+                    lockOut2.wait();
+                }
+
+                // Put bank in our Q, for module
+                controlQ.put(bank);
+
+                lockOut2.notifyAll();
+            }
+        }
+
+
+        /**
+         * This method is used to put a non-buildable (everything NOT
+         * ROC raw, physics, or partial physics) PayloadBuffer object onto
+         * the control queue.
+         *
+         * @param buffer a payload buffer to put on the control queue.
+         * @param order  the writing order of this buffer
+         * @throws InterruptedException if put or wait interrupted
+         */
+        private void writeControlEvent(PayloadBuffer buffer, int order)
+                throws InterruptedException {
+
+            synchronized (lockOut2) {
+                // Is the bank we grabbed next to be output? If not, wait.
+                while (order != outputOrderInControl) {
+                    lockOut2.wait();
+                }
+
+                // Put bank in our Q, for module
+                controlQ.put(buffer);
+
+                lockOut2.notifyAll();
+            }
+        }
+
+
+        /**
          * This method is used to put a list of PayloadBank objects
          * onto a queue. It allows coordination between multiple DataInputHelper
          * threads so that event order is preserved.
          *
          * @param banks a list of payload banks to put on the queue
-         * @param order the record Id of the bank taken from the ET event
+         * @param order the writing order of this list of banks
          * @throws InterruptedException if put or wait interrupted
          */
         private void writeEvents(List<PayloadBank> banks, int order)
@@ -706,13 +769,19 @@ logger.debug("      DataChannel Et reset() : " + name + " - done");
                     lockOut2.wait();
                 }
 
-                // put banks in our Q, for module
+                // Put banks in our Q, for module
                 for (PayloadBank bank : banks) {
-                    queue.put(bank);
+                    // Round-robin through Q's
+                    queueList.get(qIndex).put(bank);
+                    qIndex = ++qIndex % qCount;
                 }
 
-                // next one to be put on output channel
+                // Next one to be put on output channel
                 outputOrderIn = ++outputOrderIn % Integer.MAX_VALUE;
+
+                // Keep track of control event output order
+                outputOrderInControl = ++outputOrderInControl % Integer.MAX_VALUE;
+
                 lockOut2.notifyAll();
             }
         }
@@ -724,7 +793,7 @@ logger.debug("      DataChannel Et reset() : " + name + " - done");
          * threads so that event order is preserved.
          *
          * @param buffers a list of payload buffers to put on the queue
-         * @param order the record Id of the buffer taken from the ET event
+         * @param order the writing order of this list of buffers
          * @throws InterruptedException if put or wait interrupted
          */
         private void writeEventsBB(List<PayloadBuffer> buffers, int order)
@@ -736,13 +805,19 @@ logger.debug("      DataChannel Et reset() : " + name + " - done");
                     lockOut2.wait();
                 }
 
-                // put banks in our Q, for module
+                // Put banks in our Q's, for module
                 for (PayloadBuffer buf : buffers) {
-                    queue.put(buf);
+                    // Round-robin through Q's
+                    queueList.get(qIndex).put(buf);
+                    qIndex = ++qIndex % qCount;
                 }
 
-                // next one to be put on output channel
+                // Next one to be put on output channel
                 outputOrderIn = ++outputOrderIn % Integer.MAX_VALUE;
+
+                // Keep track of control event output order
+                outputOrderInControl = ++outputOrderInControl % Integer.MAX_VALUE;
+
                 lockOut2.notifyAll();
             }
         }
@@ -769,7 +844,7 @@ logger.debug("      DataChannel Et reset() : " + name + " - done");
 
                 EvioEvent event;
                 PayloadBank payloadBank;
-                LinkedList<PayloadBank> payloadBanks = new LinkedList<PayloadBank>();
+                ArrayList<PayloadBank> payloadBanks = new ArrayList<PayloadBank>(1024);
                 int myInputOrder, evioVersion, sourceId, recordId;
                 BlockHeaderV4 header4;
                 EventType eventType, bankType;
@@ -798,7 +873,7 @@ logger.warn("      DataChannel Et in helper: " + name + " - PAUSED");
                         // Get events while checking periodically to see if we must go away.
                         // Do some work to get accurate error msgs back to run control.
                         try {
-//System.out.println("      DataChannel Et in helper: 4 " + name + " getEvents() ...");
+//System.out.println("      DataChannel Et in helper: " + name + " getEvents() ...");
                             events = etSystem.getEvents(attachment, Mode.TIMED,
                                                         Modify.NOTHING, etWaitTime, chunk);
                             // Keep track of the order in which events are grabbed
@@ -832,6 +907,7 @@ System.out.println("      DataChannel Et in helper: wake up " + name + ", other 
                             else if (gotResetCmd) {
 System.out.println("      DataChannel Et in helper: " + name + " got RESET cmd, quit");
                             }
+//System.out.println("      DataChannel Et in helper: wake up exception");
                             return;
                         }
                         catch (EtTimeoutException e) {
@@ -843,6 +919,7 @@ System.out.println("      DataChannel Et in helper: timeout " + name + ", other 
 System.out.println("      DataChannel Et in helper: " + name + " got RESET cmd, quit");
                                 return;
                             }
+//System.out.println("      DataChannel Et in helper: timeout exception");
 
                             // Want to delay before calling getEvents again
                             // but don't do it here in a synchronized block.
@@ -871,9 +948,10 @@ System.out.println("      DataChannel Et in helper: " + name + " got RESET cmd, 
                             throw new EvioException("Evio data needs to be written in version 4+ format");
                         }
                         header4     = blockHeader;
+                        // eventType may be null if no type info exists in block header.
+                        // But it should always be there if reading from ROC or DC.
                         eventType   = EventType.getEventType(header4.getEventType());
                         controlType = null;
-
                         // If ROC raw type, this is the source's CODA id
                         sourceId    = header4.getReserved1();
 
@@ -929,8 +1007,16 @@ System.out.println("      DataChannel Et in helper: " + name + " got RESET cmd, 
                                                               controlType, recordId,
                                                               sourceId, name);
 
-                                // add bank to list for later writing
-                                payloadBanks.add(payloadBank);
+                                payloadBank.matchesId(sourceId == id);
+
+                                if (bankType != null && !bankType.isBuildable()) {
+                                    // Write non-buildable events to controlQ
+                                    writeControlEvent(payloadBank, myInputOrder);
+                                }
+                                else {
+                                    // Add buildable bank to list for later writing
+                                    payloadBanks.add(payloadBank);
+                                }
 
                                 // Handle end event ...
                                 if (controlType == ControlType.END) {
@@ -950,7 +1036,7 @@ System.out.println("      DataChannel Et in helper: " + name + " got RESET cmd, 
                             throw e;
                         }
 
-                        // Write any existing banks
+                        // Write any existing buildable banks
                         writeEvents(payloadBanks, myInputOrder++);
 
                         if (haveInputEndEvent) {
@@ -1016,7 +1102,7 @@ System.out.println("      DataChannel Et in helper: " + name + " got RESET cmd, 
 
             try {
                 PayloadBuffer payloadBuffer;
-                LinkedList<PayloadBuffer> payloadBuffers = new LinkedList<PayloadBuffer>();
+                ArrayList<PayloadBuffer> payloadBuffers = new ArrayList<PayloadBuffer>(1024);
                 int myInputOrder, evioVersion, sourceId, recordId;
                 BlockHeaderV4 header4;
                 EventType eventType, bankType;
@@ -1155,12 +1241,20 @@ System.out.println("      DataChannel Et in helper: " + name + " got RESET cmd, 
                             }
 
                             // Not a real copy, just points to single event in buffer
-                            payloadBuffer = new PayloadBuffer(compactReader.getEventBuffer(i),
+                            payloadBuffer = new PayloadBuffer(node.getStructureBuffer(false),
                                                               bankType, controlType, recordId,
                                                               sourceId, name, node);
 
-                            // add buffer to list for later writing
-                            payloadBuffers.add(payloadBuffer);
+                            payloadBuffer.matchesId(sourceId == id);
+
+                            if (bankType != null && !bankType.isBuildable()) {
+                                // Write non-buildable events to controlQ
+                                writeControlEvent(payloadBuffer, myInputOrder);
+                            }
+                            else {
+                                // Add buildable buffer to list for later writing
+                                payloadBuffers.add(payloadBuffer);
+                            }
 
                             // Handle end event ...
                             if (controlType == ControlType.END) {
@@ -1384,7 +1478,7 @@ System.out.println("      DataChannel Et out helper: wake up attachment #" + att
                 EventType previousType, pBankType;
                 ControlType pBankControlType;
                 PayloadBank pBank;
-                LinkedList<PayloadBank> bankList;
+                ArrayList<PayloadBank> bankList;
                 boolean gotNothingYet;
                 int nextEventIndex, thisEventIndex, pBankSize, listTotalSizeMax, etSize;
                 int events2Write, eventArrayLen, myInputOrder=0;
@@ -1393,9 +1487,9 @@ System.out.println("      DataChannel Et out helper: wake up attachment #" + att
                 // Create an array of lists of PayloadBank objects by 2-step
                 // initialization to avoid "generic array creation" error.
                 // Create one list for every possible ET event.
-                LinkedList<PayloadBank>[] bankListArray = new LinkedList[chunk];
+                ArrayList<PayloadBank>[] bankListArray = new ArrayList[chunk];
                 for (int i=0; i < chunk; i++) {
-                    bankListArray[i] = new LinkedList<PayloadBank>();
+                    bankListArray[i] = new ArrayList<PayloadBank>();
                 }
 
                 etSize = (int) etSystem.getEventSize();
@@ -1679,7 +1773,7 @@ System.out.println("      DataChannel Et out helper: " + name + " got RESET cmd,
                         // In this case, list will only contain 1 (big) bank.
                         if (bankList.size() == 1) {
                             // Max # of bytes to write this bank into buffer
-                            int bankWrittenSize = bankList.getFirst().getTotalBytes() + 64;
+                            int bankWrittenSize = bankList.get(0).getTotalBytes() + 64;
                             if (bankWrittenSize > etSize) {
 logger.warn("      DataChannel Et DataOutputHelper : " + name + " ET event too small to contain built event");
                                 // This new event is not large enough, so dump it and replace it
@@ -1721,20 +1815,20 @@ System.out.println("      DataChannel Et out helper: " + name + " got RESET cmd,
                         }
 
                         // Set byte order of ET event
-                        events[i].setByteOrder(bankList.getFirst().getByteOrder());
+                        events[i].setByteOrder(bankList.get(0).getByteOrder());
 
                         // CODA owns the first ET event control int which contains source id.
                         // Set that control word only if this is an EB.
                         // If a DC, set this for all events.
                         // If a PEB or SEB set it to event type for all events.
                         if (isFinalEB) {
-                            pBankType = bankList.getFirst().getEventType();
+                            pBankType = bankList.get(0).getEventType();
                             if (pBankType != null) {
                                 control[0] = pBankType.getValue();
                                 events[i].setControl(control);
                             }
                         }
-                        else if (isEB) {
+                        else if (isEB || isROC) {
                             events[i].setControl(control);
                         }
 
@@ -1744,7 +1838,7 @@ System.out.println("      DataChannel Et out helper: " + name + " got RESET cmd,
 
                         // Keep track of how many ET events we want to write
                         events2Write++;
-
+// TODO: this really does not do anything!!!
                         // Handle END event ...
                         for (PayloadBank bank : bankList) {
                             if (bank.getAttachment() == Boolean.TRUE) {
@@ -1821,7 +1915,7 @@ logger.warn("      DataChannel Et out helper : exit thd: " + e.getMessage());
                 ControlType pBufferControlType;
                 EventType previousType, pBufferType;
                 PayloadBuffer pBuffer;
-                LinkedList<PayloadBuffer> bufferList;
+                ArrayList<PayloadBuffer> bufferList;
                 boolean gotNothingYet;
                 int nextEventIndex, thisEventIndex, pBufferSize, listTotalSizeMax, etSize;
                 int events2Write, eventArrayLen, myInputOrder=0;
@@ -1830,9 +1924,9 @@ logger.warn("      DataChannel Et out helper : exit thd: " + e.getMessage());
                 // Create an array of lists of PayloadBuffer objects by 2-step
                 // initialization to avoid "generic array creation" error.
                 // Create one list for every possible ET event.
-                LinkedList<PayloadBuffer>[]bufferListArray = new LinkedList[chunk];
+                ArrayList<PayloadBuffer>[]bufferListArray = new ArrayList[chunk];
                 for (int i=0; i < chunk; i++) {
-                    bufferListArray[i] = new LinkedList<PayloadBuffer>();
+                    bufferListArray[i] = new ArrayList<PayloadBuffer>();
                 }
 
                 etSize = (int) etSystem.getEventSize();
@@ -2117,7 +2211,7 @@ System.out.println("      DataChannel Et out helper: " + name + " got RESET cmd,
                         // In this case, list will only contain 1 (big) bank.
                         if (bufferList.size() == 1) {
                             // Max # of bytes to write this bank into buffer
-                            int bankWrittenSize = bufferList.getFirst().getTotalBytes() + 64;
+                            int bankWrittenSize = bufferList.get(0).getTotalBytes() + 64;
                             if (bankWrittenSize > etSize) {
                                 logger.warn("      DataChannel Et DataOutputHelper : " + name + " ET event too small to contain built event");
                                 // This new event is not large enough, so dump it and replace it
@@ -2159,20 +2253,20 @@ System.out.println("      DataChannel Et out helper: " + name + " got RESET cmd,
                         }
 
                         // Set byte order of ET event
-                        events[i].setByteOrder(bufferList.getFirst().getByteOrder());
+                        events[i].setByteOrder(bufferList.get(0).getByteOrder());
 
                         // CODA owns the first ET event control int which contains source id.
                         // Set that control word only if this is an EB.
                         // If a DC, set this for all events.
                         // If a PEB or SEB set it to event type for all events.
                         if (isFinalEB) {
-                            pBufferType = bufferList.getFirst().getEventType();
+                            pBufferType = bufferList.get(0).getEventType();
                             if (pBufferType != null) {
                                 control[0] = pBufferType.getValue();
                                 events[i].setControl(control);
                             }
                         }
-                        else if (isEB) {
+                        else if (isEB || isROC) {
                             events[i].setControl(control);
                         }
 
@@ -2257,10 +2351,10 @@ System.out.println("      DataChannel Et out helper: " + name + " got RESET cmd,
         private class EvWriter implements Runnable {
 
             /** List of evio banks to write. */
-            private LinkedList<PayloadBank> bankList;
+            private List<PayloadBank> bankList;
 
             /** List of evio banks in ByteBuffer format to write. */
-            private LinkedList<PayloadBuffer> bufferList;
+            private List<PayloadBuffer> bufferList;
 
             /** ET event in which to write banks. */
             private EtEvent etEvent;
@@ -2302,12 +2396,12 @@ System.out.println("      DataChannel Et out helper: " + name + " got RESET cmd,
              * @param event ET event in which to place the banks
              * @param myRecordId value of starting block header's block number
              */
-            EvWriter(LinkedList<PayloadBank> bankList,
-                     LinkedList<PayloadBuffer> bufferList,
+            EvWriter(List<PayloadBank> bankList,
+                     List<PayloadBuffer> bufferList,
                      EtEvent event, int myRecordId) {
 
-                this.etEvent = event;
-                this.bankList = bankList;
+                this.etEvent    = event;
+                this.bankList   = bankList;
                 this.bufferList = bufferList;
 
                 try {
@@ -2323,7 +2417,13 @@ System.out.println("      DataChannel Et out helper: " + name + " got RESET cmd,
 
                     // Encode the event type into bits
                     BitSet bitInfo = new BitSet(24);
-                    setEventType(bitInfo, bankList.getFirst().getEventType().getValue());
+
+                    if (bankList != null) {
+                        setEventType(bitInfo, bankList.get(0).getEventType().getValue());
+                    }
+                    else {
+                        setEventType(bitInfo, bufferList.get(0).getEventType().getValue());
+                    }
 
                     // Create object to write evio banks into ET buffer
                     evWriter = new EventWriter(etBuffer, 550000, 200, null, bitInfo, emu.getCodaid());
@@ -2348,6 +2448,8 @@ System.out.println("      DataChannel Et out helper: " + name + " got RESET cmd,
                     else {
                         for (PayloadBuffer pBuf : bufferList) {
                             evWriter.writeEvent(pBuf.getBuffer());
+//                            Emu.bufferStorage.add(pBuf.getBuffer());
+System.out.print("B");
                         }
                     }
 
