@@ -12,9 +12,9 @@
 package org.jlab.coda.emu.support.transport;
 
 
+import org.jlab.coda.emu.EmuModule;
 import org.jlab.coda.emu.support.codaComponent.CODAState;
 import org.jlab.coda.emu.support.control.CmdExecException;
-import org.jlab.coda.emu.support.data.QueueItemType;
 import org.jlab.coda.et.*;
 import org.jlab.coda.et.exception.EtClosedException;
 import org.jlab.coda.et.system.SystemConfig;
@@ -399,10 +399,10 @@ public class DataTransportImplEt extends DataTransportAdapter {
     /** {@inheritDoc} */
     public DataChannel createChannel(String name, Map<String,String> attributeMap,
                                      boolean isInput, Emu emu,
-                                     QueueItemType queueItemType)
+                                     EmuModule module)
                     throws DataTransportException {
 
-        return new DataChannelImplEt(name, this, attributeMap, isInput, emu, queueItemType);
+        return new DataChannelImplEt(name, this, attributeMap, isInput, emu, module);
     }
 
 
