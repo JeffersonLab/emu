@@ -12,6 +12,7 @@
 package org.jlab.coda.emu.support.transport;
 
 import org.jlab.coda.emu.Emu;
+import org.jlab.coda.emu.EmuModule;
 import org.jlab.coda.emu.support.data.QueueItemType;
 
 import java.util.Map;
@@ -31,16 +32,16 @@ public class DataChannelImplFifo extends DataChannelAdapter {
      * @param name          of type String
      * @param transport     of type DataTransport
      * @param input         true if this is an input
-     * @param queueItemType type of object to expect in queue item
+     * @param module        module this channel belongs to
      *
      * @throws DataTransportException - unable to create fifo buffer.
      */
     DataChannelImplFifo(String name, DataTransportImplFifo transport,
                         Map<String, String> attributeMap, boolean input, Emu emu ,
-                        QueueItemType queueItemType) {
+                        EmuModule module) {
 
         // constructor of super class
-        super(name, transport, attributeMap, input, emu, queueItemType);
+        super(name, transport, attributeMap, input, emu, module);
     }
 
 

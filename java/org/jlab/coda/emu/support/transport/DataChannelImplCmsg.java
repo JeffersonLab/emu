@@ -11,6 +11,7 @@
 
 package org.jlab.coda.emu.support.transport;
 
+import org.jlab.coda.emu.EmuModule;
 import org.jlab.coda.emu.support.codaComponent.CODAState;
 import org.jlab.coda.emu.support.data.*;
 import org.jlab.coda.emu.Emu;
@@ -300,7 +301,7 @@ public class DataChannelImplCmsg extends DataChannelAdapter {
 
     /**
      * Constructor to create a new DataChannelImplCmsg instance. Used only by
-     * {@link DataTransportImplCmsg#createChannel(String, Map, boolean, Emu, QueueItemType)}
+     * {@link DataTransportImplCmsg#createChannel(String, Map, boolean, Emu, EmuModule)}
      * which is only used during PRESTART in the EmuModuleFactory.
      *
      * @param name          the name of this channel
@@ -308,17 +309,17 @@ public class DataChannelImplCmsg extends DataChannelAdapter {
      * @param attributeMap  the hashmap of config file attributes for this channel
      * @param input         true if this is an input data channel, otherwise false
      * @param emu           emu this channel belongs to
-     * @param queueItemType type of object to expect in queue item
+     * @param module        module this channel belongs to
      *
      * @throws DataTransportException - unable to create buffers or socket.
      */
     DataChannelImplCmsg(String name, DataTransportImplCmsg transport,
-                      Map<String, String> attributeMap, boolean input, Emu emu,
-                      QueueItemType queueItemType)
+                        Map<String, String> attributeMap, boolean input, Emu emu,
+                        EmuModule module)
                 throws DataTransportException {
 
         // constructor of super class
-        super(name, transport, attributeMap, input, emu, queueItemType);
+        super(name, transport, attributeMap, input, emu, module);
 
         dataTransportImplCmsg = transport;
 

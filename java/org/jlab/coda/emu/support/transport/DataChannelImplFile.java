@@ -12,6 +12,7 @@
 package org.jlab.coda.emu.support.transport;
 
 import org.jlab.coda.emu.Emu;
+import org.jlab.coda.emu.EmuModule;
 import org.jlab.coda.emu.support.codaComponent.CODAState;
 import org.jlab.coda.emu.support.data.*;
 import org.jlab.coda.jevio.*;
@@ -87,17 +88,16 @@ public class DataChannelImplFile extends DataChannelAdapter {
      * @param attributeMap  the hashmap of config file attributes for this channel
      * @param input         true if this is an input
      * @param emu           emu this channel belongs to
-     * @param queueItemType type of object to expect in queue item
-     *
+     * @param module        module this channel belongs to
      * @throws DataTransportException if unable to create fifo buffer.
      */
     DataChannelImplFile(String name, DataTransportImplFile transport,
                         Map<String, String> attributeMap, boolean input, Emu emu,
-                        QueueItemType queueItemType)
+                        EmuModule module)
             throws DataTransportException {
 
         // constructor of super class
-        super(name, transport, attributeMap, input, emu, queueItemType);
+        super(name, transport, attributeMap, input, emu, module);
 
         // Set option whether or not to enforce evio block header
         // numbers to be sequential (throw an exception if not).
