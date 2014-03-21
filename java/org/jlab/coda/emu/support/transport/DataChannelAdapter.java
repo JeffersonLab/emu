@@ -96,9 +96,6 @@ public class DataChannelAdapter extends CODAStateMachineAdapter implements DataC
     /** List holding all queues used to hold data for either input or output depending on {@link #input}. */
     protected final List<BlockingQueue<QueueItem>> queueList;
 
-    /** Queue used to hold incoming, non-buildable, control, & user events. */
-    protected final BlockingQueue<QueueItem> controlQ;
-
 
 
     /**
@@ -157,9 +154,6 @@ public class DataChannelAdapter extends CODAStateMachineAdapter implements DataC
             queueList.add(new LinkedBlockingQueue<QueueItem>(capacity));
         }
         queue = queueList.get(0);
-
-        // Create non-data queue
-        controlQ = new LinkedBlockingQueue<QueueItem>(20);
 
 
         // Set id number. Use any defined in config file, else use default = 0
@@ -230,9 +224,6 @@ public class DataChannelAdapter extends CODAStateMachineAdapter implements DataC
 
     /** {@inheritDoc} */
     public List<BlockingQueue<QueueItem>> getQueueList() {return queueList;}
-
-    /** {@inheritDoc} */
-    public BlockingQueue<QueueItem> getControlQ() {return controlQ;}
 
     /** {@inheritDoc} */
     public void registerEndCallback(EmuEventNotify callback) {endCallback = callback;}
