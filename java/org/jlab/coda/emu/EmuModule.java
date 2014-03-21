@@ -13,6 +13,7 @@ package org.jlab.coda.emu;
 
 import org.jlab.coda.emu.support.codaComponent.CODAStateMachine;
 import org.jlab.coda.emu.support.codaComponent.StatedObject;
+import org.jlab.coda.emu.support.configurer.DataNotFoundException;
 import org.jlab.coda.emu.support.data.QueueItemType;
 import org.jlab.coda.emu.support.transport.DataChannel;
 
@@ -24,7 +25,7 @@ import java.util.ArrayList;
  *
  * @author heyes
  * @author timmer
- *         Created on Sep 17, 2008
+ * Sep 17, 2008
  */
 public interface EmuModule extends StatedObject, CODAStateMachine {
     /**
@@ -33,6 +34,14 @@ public interface EmuModule extends StatedObject, CODAStateMachine {
      * @return the name
      */
     public String name();
+
+
+
+    public String getAttr(String name) throws DataNotFoundException;
+
+    public int getIntAttr(String name) throws DataNotFoundException;
+
+
 
     /**
      * Add the given input channels to this EmuModule object.
