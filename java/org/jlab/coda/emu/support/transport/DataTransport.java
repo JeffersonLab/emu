@@ -12,10 +12,10 @@
 package org.jlab.coda.emu.support.transport;
 
 import org.jlab.coda.emu.Emu;
+import org.jlab.coda.emu.EmuModule;
 import org.jlab.coda.emu.support.codaComponent.CODAStateMachine;
 import org.jlab.coda.emu.support.codaComponent.StatedObject;
 import org.jlab.coda.emu.support.configurer.DataNotFoundException;
-import org.jlab.coda.emu.support.data.QueueItemType;
 
 import java.util.Map;
 
@@ -25,7 +25,7 @@ import java.util.Map;
  *
  * @author heyes
  * @author timmer
- *         Created on Sep 17, 2008
+ * Sep 17, 2008
  */
 public interface DataTransport extends CODAStateMachine, StatedObject {
 
@@ -75,14 +75,14 @@ public interface DataTransport extends CODAStateMachine, StatedObject {
      * @param name          name of DataChannel
      * @param attributeMap  hashmap of attributes taken from XML config file
      * @param isInput       true if this channel puts data into the Emu, else false
-     * @param queueItemType type of object to expect in queue item
+     * @param module        module creating this channel
      *
      * @return DataChannel object
      * @throws DataTransportException if transport problem
      */
     public DataChannel createChannel(String name, Map<String, String> attributeMap,
                                      boolean isInput, Emu emu,
-                                     QueueItemType queueItemType)
+                                     EmuModule module)
             throws DataTransportException;
 
     /**
