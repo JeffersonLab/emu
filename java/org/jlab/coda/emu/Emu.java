@@ -17,6 +17,7 @@ import org.jlab.coda.cMsg.cMsgMessage;
 
 import org.jlab.coda.emu.modules.EventBuilding;
 import org.jlab.coda.emu.modules.EventRecording;
+import org.jlab.coda.emu.modules.FastEventBuilder;
 import org.jlab.coda.emu.modules.RocSimulation;
 
 import org.jlab.coda.emu.support.codaComponent.*;
@@ -1757,6 +1758,9 @@ logger.debug("  Emu.execute(DOWNLOAD): pass download down to " + transport.name(
                         }
                         else if (moduleClassName.equals("EventRecording")) {
                                 module = new EventRecording(n.getNodeName(), attributeMap, this);
+                        }
+                        else if (moduleClassName.equals("FastEventBuilder")) {
+                                module = new FastEventBuilder(n.getNodeName(), attributeMap, this);
                         }
                         else if (moduleClassName.equals("RocSimulation")) {
                                 module = new RocSimulation(n.getNodeName(), attributeMap, this);
