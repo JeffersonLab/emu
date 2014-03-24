@@ -679,10 +679,7 @@ public class Evio {
      * @return <code>true</code> if arg is USER event, else <code>false</code>
      */
     public static boolean isUserEvent(EvioBank bank) {
-        if (bank == null)  return false;
-
-        // Look inside to see if it is a USER event.
-        return (bank.getHeader().getNumber() == 0);
+        return bank != null && (bank.getHeader().getNumber() == 0);
     }
 
 
@@ -695,10 +692,7 @@ public class Evio {
      * @return <code>true</code> if arg is USER event, else <code>false</code>
      */
     public static boolean isUserEvent(EvioNode node) {
-        if (node == null)  return false;
-
-        // Look inside to see if it is a USER event.
-        return (node.getNum() == 0);
+        return node != null && (node.getNum() == 0);
     }
 
 
@@ -709,8 +703,7 @@ public class Evio {
      * @return <code>true</code> if arg is trigger bank, else <code>false</code>
      */
     public static boolean isRawTriggerBank(EvioNode node) {
-        if (node == null)  return false;
-        return CODATag.isRawTrigger(node.getTag());
+        return node != null && CODATag.isRawTrigger(node.getTag());
     }
 
 
@@ -721,8 +714,7 @@ public class Evio {
      * @return <code>true</code> if arg is trigger bank, else <code>false</code>
      */
     public static boolean isRawTriggerBank(EvioBank bank) {
-        if (bank == null)  return false;
-        return CODATag.isRawTrigger(bank.getHeader().getTag());
+        return bank != null && CODATag.isRawTrigger(bank.getHeader().getTag());
     }
 
 
@@ -734,8 +726,7 @@ public class Evio {
      * @return <code>true</code> if arg is a built trigger bank, else <code>false</code>
      */
     public static boolean isBuiltTriggerBank(EvioBank bank) {
-        if (bank == null)  return false;
-        return CODATag.isBuiltTrigger(bank.getHeader().getTag());
+        return bank != null && CODATag.isBuiltTrigger(bank.getHeader().getTag());
     }
 
 
@@ -747,8 +738,7 @@ public class Evio {
      * @return <code>true</code> if arg is a built trigger bank, else <code>false</code>
      */
     public static boolean isBuiltTriggerBank(EvioNode node) {
-        if (node == null)  return false;
-        return CODATag.isBuiltTrigger(node.getTag());
+        return node != null && CODATag.isBuiltTrigger(node.getTag());
     }
 
 
