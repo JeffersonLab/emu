@@ -22,8 +22,6 @@ import org.jlab.coda.emu.support.data.QueueItemType;
 import org.jlab.coda.emu.support.logger.Logger;
 
 import java.nio.ByteOrder;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Map;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
@@ -93,8 +91,8 @@ public class DataChannelAdapter extends CODAStateMachineAdapter implements DataC
     /** Number of data queues (does not include controlQ). */
     protected int qCount;
 
-    /** List holding all queues used to hold data for either input or output depending on {@link #input}. */
-    protected final List<BlockingQueue<QueueItem>> queueList;
+    /** Array holding all queues used to hold data for either input or output depending on {@link #input}. */
+    protected final BlockingQueue<QueueItem>[] allQueues;
 
 
 
@@ -147,13 +145,14 @@ public class DataChannelAdapter extends CODAStateMachineAdapter implements DataC
         }
         catch (Exception e) {}
 
+logger.info("      DataChannel Adapter : qCount = " + qCount);
 
         // Create data queues
-        queueList = new ArrayList<BlockingQueue<QueueItem>>(qCount);
+        allQueues = new BlockingQueue[qCount];
         for (int i=0; i < qCount; i++) {
-            queueList.add(new LinkedBlockingQueue<QueueItem>(capacity));
+            allQueues[i] = new LinkedBlockingQueue<QueueItem>(capacity);
         }
-        queue = queueList.get(0);
+        queue = allQueues[0];
 
 
         // Set id number. Use any defined in config file, else use default = 0
@@ -223,7 +222,7 @@ public class DataChannelAdapter extends CODAStateMachineAdapter implements DataC
     public int getQCount() {return qCount;}
 
     /** {@inheritDoc} */
-    public List<BlockingQueue<QueueItem>> getQueueList() {return queueList;}
+    public BlockingQueue<QueueItem>[] getAllQueues() {return allQueues;}
 
     /** {@inheritDoc} */
     public void registerEndCallback(EmuEventNotify callback) {endCallback = callback;}
