@@ -24,13 +24,13 @@ import org.jlab.coda.emu.support.transport.DataChannel;
 import org.jlab.coda.jevio.CompactEventBuilder;
 import org.jlab.coda.jevio.DataType;
 import org.jlab.coda.jevio.EvioException;
+import org.jlab.coda.jevio.EvioNode;
 
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.*;
-import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.PriorityBlockingQueue;
+import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.ReentrantLock;
 
 /**
@@ -100,14 +100,13 @@ public class FastEventBuilder extends ModuleAdapter {
      * each of which stores built events until their turn to go over the
      * output channel has arrived.
      */
-    private PriorityBlockingQueue<PayloadBuffer> waitingLists[];
+    private PriorityBlockingQueue<QueueItem> waitingLists[];
 
     /** Container for queues used to hold QueueItems taken from Data Transport channels. */
-    private ArrayList<PayloadQueue<PayloadBuffer>> payloadQueues =
-            new ArrayList<PayloadQueue<PayloadBuffer>>(20);
+    private PayloadQueue<PayloadBuffer> payloadQueues[];
 
     /** Each payloadBufferQueue has this max size. */
-    private final int payloadBufferQueueSize = 2048; // TODO: why does increasing this cause problems?!!!
+    private final int payloadBufferQueueSize = 4096;
 
     /** The number of BuildingThread objects. */
     private int buildingThreadCount;
@@ -125,9 +124,6 @@ public class FastEventBuilder extends ModuleAdapter {
     /** Lock to ensure that a BuildingThread grabs the same positioned event from each Q.  */
     private ReentrantLock getLock = new ReentrantLock();
 
-    /** END event detected by one of the building threads. */
-    private volatile boolean haveEndEvent;
-
     /** Maximum time in milliseconds to wait when commanded to END but no END event received. */
     private long endingTimeLimit = 30000;
 
@@ -137,11 +133,8 @@ public class FastEventBuilder extends ModuleAdapter {
     /** The number of the experimental run's configuration. */
     private int runTypeId;
 
-    /** The number of the event to be assigned to that which is built next. */
-    private long eventNumber;
-
     /** The eventNumber value when the last sync event arrived. */
-    private long eventNumberAtLastSync;
+    private volatile long eventNumberAtLastSync;
 
     // The following members are for keeping statistics
     /** Targeted time period in milliseconds over which instantaneous rates will be calculated. */
@@ -196,7 +189,7 @@ public class FastEventBuilder extends ModuleAdapter {
     private int outputChannelCount;
 
     /** Index to help cycle through output channels sequentially. */
-    private int outputChannelIndex;
+//    private int outputChannelIndex;
 
     /**
      * Array of locks - one for each output channel -
@@ -218,6 +211,26 @@ public class FastEventBuilder extends ModuleAdapter {
      */
     private int[] outputOrders;
 
+    /** Object used to start all event building after go event received. */
+    private CountDownLatch waitForGo;
+
+    /** Object used to start all build threads looking
+     * for go event after prestart event received. */
+    private CountDownLatch waitForPrestart;
+
+    /** Have complete END event (on all input channels)
+     * detected by one of the building threads. */
+    private volatile boolean haveEndEvent;
+
+    /** Synchronize between build threads who will write GO. */
+    private AtomicBoolean firstToGetGo = new AtomicBoolean(false);
+
+    /** Synchronize between build threads who will write END. */
+    private AtomicBoolean firstToGetEnd = new AtomicBoolean(false);
+
+    /** Synchronize between build threads who will write PRESTART. */
+    private AtomicBoolean firstToGetPrestart = new AtomicBoolean(false);
+
 
 
     /**
@@ -230,14 +243,21 @@ public class FastEventBuilder extends ModuleAdapter {
     public FastEventBuilder(String name, Map<String, String> attributeMap, Emu emu) {
         super(name, attributeMap, emu);
 
-        // default to 3 event building threads
-        buildingThreadCount = 3;
+        // Set number of building threads, by default, one for each queue
+        int qCount = 1;
         try {
-            buildingThreadCount = Integer.parseInt(attributeMap.get("threads"));
-            if (buildingThreadCount < 1)  buildingThreadCount = 1;
-            if (buildingThreadCount > 10) buildingThreadCount = 10;
+            qCount = Integer.parseInt(attributeMap.get("qCount"));
+            if (qCount < 1)  qCount = 1;
         }
         catch (NumberFormatException e) {}
+        buildingThreadCount = qCount;
+
+//        // Let the "threads" attribute override the number of event building threads
+//        try {
+//            buildingThreadCount = Integer.parseInt(attributeMap.get("threads"));
+//            if (buildingThreadCount < qCount) buildingThreadCount = qCount;
+//        }
+//        catch (NumberFormatException e) {}
 System.out.println("EventBuilding constr: " + buildingThreadCount +
                            " number of event building threads");
 
@@ -314,7 +334,11 @@ System.out.println("EventBuilding constr: " + buildingThreadCount +
         BlockingQueue<QueueItem> channelQ;
         PayloadQueue<PayloadBuffer> payloadBufQ;
 
-        Qfiller(PayloadQueue<PayloadBuffer> payloadBufQ, BlockingQueue<QueueItem> channelQ) {
+        Qfiller(PayloadQueue<PayloadBuffer> payloadBufQ,
+                BlockingQueue<QueueItem> channelQ,
+                ThreadGroup group, String name) {
+
+            super(group, name);
             this.channelQ = channelQ;
             this.payloadBufQ = payloadBufQ;
         }
@@ -355,7 +379,7 @@ if (debug) System.out.println("Qfiller: Roc raw or physics event in wrong format
      * @param bankOut the built/control/user event to place on output channel queue
      * @throws InterruptedException if wait, put, or take interrupted
      */
-    private void bankToOutputChannel(PayloadBuffer bankOut)
+    private void bankToOutputChannel(QueueItem bankOut)
                     throws InterruptedException {
 
         // Have output channels?
@@ -366,66 +390,72 @@ if (debug) System.out.println("Qfiller: Roc raw or physics event in wrong format
             return;
         }
 
-        PayloadBuffer buffer;
+        QueueItem buffer;
         EventOrder evOrder;
         EventOrder eo = (EventOrder)bankOut.getAttachment();
 
         synchronized (eo.lock) {
-            if (!useOutputWaitingList) {
-                // Is the bank we grabbed next to be output? If not, wait.
-                while (eo.inputOrder != outputOrders[eo.index]) {
-                    eo.lock.wait();
-                }
-                // Place bank on output channel
-//System.out.println("Put bank on output channel");
-                eo.outputChannel.getQueue().put(bankOut);
-                outputOrders[eo.index] = ++outputOrders[eo.index] % Integer.MAX_VALUE;
-                eo.lock.notifyAll();
+            // Output order not important for aSync, just write them out.
+            if (eo.aSync) {
+                eo.outputChannel.getQueue().add(bankOut);
             }
-            // else if we're using waiting lists
             else {
-                // Is the bank we grabbed next to be output?
-                // If not, put in waiting list and return.
-                if (eo.inputOrder != outputOrders[eo.index]) {
-                    bankOut.setAttachment(eo);
-                    waitingLists[eo.index].add(bankOut);
-
-                    // If the waiting list gets too big, just wait here
-                    if (waitingLists[eo.index].size() > 9) {
+                if (!useOutputWaitingList) {
+                    // Is the bank we grabbed next to be output? If not, wait.
+                    while (eo.inputOrder != outputOrders[eo.index]) {
                         eo.lock.wait();
                     }
-if (debug) {
-    System.out.println("out of order = " + eo.inputOrder);
-    System.out.println("waiting list = ");
-    for (PayloadBuffer bk : waitingLists[eo.index]) {
-        System.out.println("" + ((EventOrder)bk.getAttachment()).inputOrder);
-    }
-}
-                    return;
+                    // Place bank on output channel
+//System.out.println("Put bank on output channel");
+                    eo.outputChannel.getQueue().put(bankOut);
+                    outputOrders[eo.index] = ++outputOrders[eo.index] % Integer.MAX_VALUE;
+                    eo.lock.notifyAll();
                 }
+                // else if we're using waiting lists
+                else {
+                    // Is the bank we grabbed next to be output?
+                    // If not, put in waiting list and return.
+                    if (eo.inputOrder != outputOrders[eo.index]) {
+                        bankOut.setAttachment(eo);
+                        waitingLists[eo.index].add(bankOut);
 
-                // Place bank on output channel
-                eo.outputChannel.getQueue().put(bankOut);
-                outputOrders[eo.index] = ++outputOrders[eo.index] % Integer.MAX_VALUE;
+                        // If the waiting list gets too big, just wait here
+                        if (waitingLists[eo.index].size() > 9) {
+                            eo.lock.wait();
+                        }
+                        if (debug) {
+                            System.out.println("out of order = " + eo.inputOrder);
+                            System.out.println("waiting list = ");
+                            for (QueueItem bk : waitingLists[eo.index]) {
+                                System.out.println("" + ((EventOrder)bk.getAttachment()).inputOrder);
+                            }
+                        }
+                        return;
+                    }
+
+                    // Place bank on output channel
+                    eo.outputChannel.getQueue().put(bankOut);
+                    outputOrders[eo.index] = ++outputOrders[eo.index] % Integer.MAX_VALUE;
 //if (debug) System.out.println("placing = " + eo.inputOrder);
 
-                // Take a look on the waiting list without removing ...
-                buffer = waitingLists[eo.index].peek();
-                while (buffer != null) {
-                    evOrder = (EventOrder) buffer.getAttachment();
-                    // If it's not next to be output, skip this waiting list
-                    if (evOrder.inputOrder != outputOrders[eo.index]) {
-                        break;
-                    }
-                    // Remove from waiting list permanently
-                    buffer = waitingLists[eo.index].take();
-                    // Place bank on output channel
-                    eo.outputChannel.getQueue().put(buffer);
-                    outputOrders[eo.index] = ++outputOrders[eo.index] % Integer.MAX_VALUE;
+                    // Take a look on the waiting list without removing ...
                     buffer = waitingLists[eo.index].peek();
+                    while (buffer != null) {
+                        evOrder = (EventOrder) buffer.getAttachment();
+                        // If it's not next to be output, skip this waiting list
+                        if (evOrder.inputOrder != outputOrders[eo.index]) {
+                            break;
+                        }
+                        // Remove from waiting list permanently
+                        buffer = waitingLists[eo.index].take();
+                        // Place bank on output channel
+                        eo.outputChannel.getQueue().put(buffer);
+                        outputOrders[eo.index] = ++outputOrders[eo.index] % Integer.MAX_VALUE;
+                        buffer = waitingLists[eo.index].peek();
 //if (debug) System.out.println("placing = " + evOrder.inputOrder);
+                    }
+                    eo.lock.notifyAll();
                 }
-                eo.lock.notifyAll();
             }
         }
 
@@ -445,7 +475,7 @@ if (debug && printQSizes) {
      * @param banksOut a list of the built/control/user events to place on output channel queue
      * @throws InterruptedException if wait, put, or take interrupted
      */
-    private void bankToOutputChannel(List<PayloadBuffer> banksOut)
+    private void bankToOutputChannel(List<QueueItem> banksOut)
                     throws InterruptedException {
 
         // Have output channels? Have output banks?
@@ -458,67 +488,179 @@ if (debug && printQSizes) {
             return;
         }
 
-        PayloadBuffer buffer;
+        QueueItem buffer;
         EventOrder evOrder;
         EventOrder eo = (EventOrder)banksOut.get(0).getAttachment();
 
         synchronized (eo.lock) {
-            if (!useOutputWaitingList) {
-                // Is the bank we grabbed next to be output? If not, wait.
-                while (eo.inputOrder != outputOrders[eo.index]) {
-                    eo.lock.wait();
-                }
-                // Place banks on output channel
-//System.out.println("Put banks on output channel");
-                for (PayloadBuffer bBuf : banksOut) {
-                    eo.outputChannel.getQueue().put(bBuf);
-                }
-                outputOrders[eo.index] = ++outputOrders[eo.index] % Integer.MAX_VALUE;
-                eo.lock.notifyAll();
-            }
-            // else if we're using waiting lists
-            else {
-                // Is the bank we grabbed next to be output?
-                // If not, put in waiting list and return.
-                if (eo.inputOrder != outputOrders[eo.index]) {
-                    for (PayloadBuffer bBuf : banksOut) {
-                        bBuf.setAttachment(eo);
-                        waitingLists[eo.index].add(bBuf);
-                    }
 
-                    // If the waiting list gets too big, just wait here
-                    if (waitingLists[eo.index].size() > 9) {
+            // If first guy in list is aSync (user event), then all are.
+            // Output order not important for aSync, just write them out.
+            if (eo.aSync) {
+//TODO: look at this for other code sections
+                eo.outputChannel.getQueue().addAll(banksOut);
+            }
+            else {
+                if (!useOutputWaitingList) {
+                    // Is the bank we grabbed next to be output? If not, wait.
+                    while (eo.inputOrder != outputOrders[eo.index]) {
                         eo.lock.wait();
                     }
-                    return;
-                }
-
-                // Place banks on output channel
-                for (PayloadBuffer bBuf : banksOut) {
-                    eo.outputChannel.getQueue().put(bBuf);
-                }
-                outputOrders[eo.index] = ++outputOrders[eo.index] % Integer.MAX_VALUE;
-
-                // Take a look on the waiting list without removing ...
-                buffer = waitingLists[eo.index].peek();
-                while (buffer != null) {
-                    evOrder = (EventOrder) buffer.getAttachment();
-                    // If it's not next to be output, skip this waiting list
-                    if (evOrder.inputOrder != outputOrders[eo.index]) {
-                        break;
-                    }
-                    // Remove from waiting list permanently
-                    buffer = waitingLists[eo.index].take();
                     // Place banks on output channel
-                    eo.outputChannel.getQueue().put(buffer);
+//System.out.println("Put banks on output channel");
+                    for (QueueItem item : banksOut) {
+                        eo.outputChannel.getQueue().put(item);
+                    }
                     outputOrders[eo.index] = ++outputOrders[eo.index] % Integer.MAX_VALUE;
-                    buffer = waitingLists[eo.index].peek();
+                    eo.lock.notifyAll();
                 }
-                eo.lock.notifyAll();
+                // else if we're using waiting lists
+                else {
+                    // Is the bank we grabbed next to be output?
+                    // If not, put in waiting list and return.
+                    if (eo.inputOrder != outputOrders[eo.index]) {
+                        for (QueueItem item : banksOut) {
+                            item.setAttachment(eo);
+                            waitingLists[eo.index].add(item);
+                        }
+
+                        // If the waiting list gets too big, just wait here
+                        if (waitingLists[eo.index].size() > 9) {
+                            eo.lock.wait();
+                        }
+                        return;
+                    }
+
+                    // Place banks on output channel
+                    for (QueueItem item : banksOut) {
+                        eo.outputChannel.getQueue().put(item);
+                    }
+                    outputOrders[eo.index] = ++outputOrders[eo.index] % Integer.MAX_VALUE;
+
+                    // Take a look on the waiting list without removing ...
+                    buffer = waitingLists[eo.index].peek();
+                    while (buffer != null) {
+                        evOrder = (EventOrder) buffer.getAttachment();
+                        // If it's not next to be output, skip this waiting list
+                        if (evOrder.inputOrder != outputOrders[eo.index]) {
+                            break;
+                        }
+                        // Remove from waiting list permanently
+                        buffer = waitingLists[eo.index].take();
+                        // Place banks on output channel
+                        eo.outputChannel.getQueue().put(buffer);
+                        outputOrders[eo.index] = ++outputOrders[eo.index] % Integer.MAX_VALUE;
+                        buffer = waitingLists[eo.index].peek();
+                    }
+                    eo.lock.notifyAll();
+                }
+            }
+        }
+    }
+
+
+    /**
+     * This method looks for either a prestart or go event in all the Qs
+     * given in the argument.
+     *
+     * @param btPayloadQueues queues in which to look for prestart or go events
+     * @return a copy of the control event found
+     * @throws EmuException if got non-control or non-prestart/go event
+     * @throws InterruptedException if taking of event off of Q is interrupted
+     */
+    private PayloadBuffer gotAllControlEvents(PayloadQueue<PayloadBuffer> btPayloadQueues[])
+            throws EmuException, InterruptedException {
+
+        boolean isPrestart = true;
+        PayloadBuffer[] buildingBanks = new PayloadBuffer[btPayloadQueues.length];
+
+        // First thing we do is look for the go/prestart event and pass it on
+        // Grab one control event from each queue.
+        for (int i = 0; i < btPayloadQueues.length; i++) {
+            buildingBanks[i] = btPayloadQueues[i].take();
+            ControlType cType = buildingBanks[i].getControlType();
+            if (cType == null) {
+                throw new EmuException("Expecting control event, got something else");
+            }
+
+            if (cType.isGo()) {
+                isPrestart = false;
+            }
+            else if (!cType.isPrestart()) {
+                throw new EmuException("Expecting go or prestart, got " + cType);
             }
         }
 
+        // Throw exception if inconsistent
+        Evio.gotConsistentControlEvents(buildingBanks, runNumber, runTypeId);
+
+        if (isPrestart) {
+System.out.println("Have consistent PRESTART event(s)");
+        }
+        else {
+System.out.println("Have consistent GO event(s)");
+        }
+
+        return buildingBanks[0];
     }
+
+
+
+    /**
+     * This method writes the given control event into all the output channels.
+     *
+     * @param btPayloadQueues queues in which to look for prestart or go events
+     * @param controlEvent {@code true} if prestart event being written, else go event
+     * @param isPrestart {@code true} if prestart event being written, else go event
+     * @throws InterruptedException if writing of event to output Q is interrupted
+     */
+    private void controlToOutputAsync(PayloadQueue<PayloadBuffer> btPayloadQueues[],
+                                      PayloadBuffer controlEvent, boolean isPrestart)
+            throws InterruptedException {
+
+        // Put 1 event on each output Q
+        if (outputChannelCount > 0) {
+            // Take one of the go/prestart events and update
+            // it with the latest event builder data.
+            Evio.updateControlEvent(controlEvent, runNumber,
+                                    runTypeId, (int)eventCountTotal, 0);
+
+            EventOrder eo = new EventOrder();
+            eo.index = 0;
+            eo.outputChannel = outputChannels.get(0);
+            eo.lock = locks[0];
+            eo.aSync = true;
+
+            // We must copy the newly-updated event
+            // and make sure one is placed on each output channel.
+            controlEvent.setAttachment(eo);
+            bankToOutputChannel(controlEvent);
+
+            for (int j = 1; j < outputChannelCount; j++) {
+                // Copy first control event
+                PayloadBuffer bb = new PayloadBuffer(controlEvent);
+
+                eo = new EventOrder();
+                eo.index = j;
+                eo.outputChannel = outputChannels.get(j);
+                eo.lock = locks[j];
+                eo.aSync = true;
+
+                bb.setAttachment(eo);
+                // Write to other output Q's
+                bankToOutputChannel(bb);
+            }
+        }
+
+        if (isPrestart) {
+            System.out.println("\n\nWrote PRESTART from build thread\n");
+        }
+        else {
+            System.out.println("\n\nWrote GO from build thread\n");
+        }
+    }
+
+
 
 
     /**
@@ -535,38 +677,53 @@ if (debug && printQSizes) {
      */
     class BuildingThread extends Thread {
 
-        BuildingThread(ThreadGroup group, Runnable target, String name) {
-            super(group, target, name);
+        private PayloadQueue<PayloadBuffer> btPayloadQueues[];
+        private int outputChannelIndex;
+        /** The order of this build thread, starting at 0. */
+        private final int order;
+        /** The total number of build threads. */
+        private final int btCount;
+        /** The number of the event to be assigned to that which is built next. */
+        private long eventNumber;
+
+
+        BuildingThread(PayloadQueue<PayloadBuffer> payloadQueues[],
+                       int order, ThreadGroup group, String name) {
+            super(group, name);
+            btPayloadQueues = payloadQueues;
+
+            this.order = order;
+            outputChannelIndex = order;
+            btCount = buildingThreadCount;
+            eventNumber = order + 1L;
         }
 
-        BuildingThread() {
-            super();
-        }
 
         @Override
         public void run() {
 
 
-                LinkedBlockingQueue<ByteBuffer> bufferStorage =
-                                    new LinkedBlockingQueue<ByteBuffer>();
-               //TODO: make this an array with a couple of indexes ...
+            LinkedBlockingQueue<ByteBuffer> bufferStorage =
+                    new LinkedBlockingQueue<ByteBuffer>();
+            //TODO: make this an array with a couple of indexes ...
 
-                ByteBuffer[] bufferArray = new ByteBuffer[20000];
-                int getBuf = 0;
-                int putBuf = 0;
+            ByteBuffer[] bufferArray = new ByteBuffer[20000];
+            int getBuf = 0;
+            int putBuf = 0;
 //Populate trial Q
-        for (int i = 0; i < 1000; i++) {
-            bufferStorage.add(ByteBuffer.allocate(20000));
-        }
-        for (int i = 0; i < 20000; i++) {
-            bufferArray[i] = ByteBuffer.allocate(20000);
-        }
+            for (int i = 0; i < 1000; i++) {
+                bufferStorage.add(ByteBuffer.allocate(20000));
+            }
+            for (int i = 0; i < 20000; i++) {
+                bufferArray[i] = ByteBuffer.allocate(10000);
+            }
 
             // initialize
             int totalNumberEvents=1;
             long firstEventNumber=1;
+            boolean haveEnd;
+            boolean firstToFindEnd;
             boolean nonFatalError;
-            boolean haveControlEvents;
             boolean havePhysicsEvents;
             boolean gotFirstBuildEvent;
             EventType eventType;
@@ -575,15 +732,69 @@ if (debug && printQSizes) {
             PayloadBuffer[] buildingBanks = new PayloadBuffer[inputChannels.size()];
 
             EventOrder[] controlEventOrders = new EventOrder[outputChannelCount];
-            LinkedList<PayloadBuffer> userEventList = new LinkedList<PayloadBuffer>();
+            LinkedList<QueueItem> userEventList = new LinkedList<QueueItem>();
 
-            int myInputOrder = -1;
+            int myInputOrder = order - btCount;
             int myOutputChannelIndex = 0;
             Object myOutputLock = null;
             DataChannel myOutputChannel = null;
 
             int endEventCount;
-            int controlEventCount;
+
+
+            // First thing we do is look for the prestart event(s) and pass it on
+            try {
+                PayloadBuffer cEvent = gotAllControlEvents(btPayloadQueues);
+                // If this is the first build thread to reach this point, then
+                // write prestart event on all output channels. Other build
+                // threads ignore this.
+                if (firstToGetPrestart.compareAndSet(false, true)) {
+                    controlToOutputAsync(btPayloadQueues, cEvent, true);
+                }
+                // This thread is ready to look for "go"
+                waitForPrestart.countDown();
+            }
+            catch (Exception e) {
+                e.printStackTrace();
+                if (debug) System.out.println("Interrupted while waiting for prestart event");
+                // If we haven't yet set the cause of error, do so now & inform run control
+                errorMsg.compareAndSet(null,"Interrupted waiting for prestart event");
+
+                // set state
+                state = CODAState.ERROR;
+                emu.sendStatusMessage();
+                return;
+            }
+
+            // Wait for ALL Prestart events to arrive at build threads before looking for Go
+            try {
+                waitForPrestart.await();
+            }
+            catch (InterruptedException e) {}
+
+            // Second thing we do is look for the go event and pass it on
+            try {
+                PayloadBuffer gEvent = gotAllControlEvents(btPayloadQueues);
+                if (firstToGetGo.compareAndSet(false, true)) {
+                    controlToOutputAsync(btPayloadQueues, gEvent, false);
+                }
+                // This thread is ready to build
+                waitForGo.countDown();
+            }
+            catch (Exception e) {
+                e.printStackTrace();
+                if (debug) System.out.println("Interrupted while waiting for go event");
+                errorMsg.compareAndSet(null,"Interrupted waiting for go event");
+                state = CODAState.ERROR;
+                emu.sendStatusMessage();
+                return;
+            }
+
+            // Wait for ALL Go events to arrive at build threads before building
+            try {
+                waitForGo.await();
+            }
+            catch (InterruptedException e) {}
 
 
             while (state == CODAState.ACTIVE || paused) {
@@ -602,272 +813,276 @@ if (debug && printQSizes) {
                     Arrays.fill(buildingBanks, null);
 
                     // Set variables/flags
-                    haveControlEvents  = false;
+                    haveEnd = false;
+                    firstToFindEnd = false;
                     gotFirstBuildEvent = false;
-                    endEventCount      = 0;
-                    controlEventCount  = 0;
+                    endEventCount = 0;
 
                     // Fill array with actual banks
-                    try {
-                        // grab lock so we get the very next bank from each channel
-                        getLock.lock();
 
-                        // Grab one non-user bank from each channel.
-                        // This algorithm retains the proper order of any user events.
-                        for (int i=0; i < payloadQueues.size(); i++) {
+                    // Grab one buildable (non-user/control) bank from each channel.
+                    // This algorithm retains the proper order of any user events.
+                    for (int i=0; i < btPayloadQueues.length; i++) {
 
-                            // Loop until we get event which is NOT a user event
-                            while (true) {
+                        // Loop until we get event which is NOT a user event
+                        while (true) {
 
-                                // will BLOCK here waiting for payload bank if none available
-                                buildingBanks[i] = payloadQueues.get(i).take();
+                            // will BLOCK here waiting for payload bank if none available
+                            buildingBanks[i] = btPayloadQueues[i].take();
 
-                                eventType = buildingBanks[i].getEventType();
+                            eventType = buildingBanks[i].getEventType();
 
-                                // If event needs to be built ...
-                                if (!eventType.isControl() && !eventType.isUser()) {
-                                    // One-time init stuff for a group of
-                                    // records that will be built together.
-                                    if (!gotFirstBuildEvent) {
-                                        // Set flag
-                                        gotFirstBuildEvent = true;
-
-                                        // Find the total # of events
-                                        totalNumberEvents = buildingBanks[i].getNode().getNum();
-
-                                        // Store first event number
-                                        firstEventNumber = eventNumber;
-
-                                        // Calculate event number for next time through
-                                        eventNumber += totalNumberEvents;
-
-                                        if (outputChannelCount > 0) {
-                                            // We can already figure out which output channel it should go to.
-                                            // We simply need to cycle through all the output channels.
-                                            myOutputChannel = outputChannels.get(outputChannelIndex);
-                                            myOutputChannelIndex = outputChannelIndex;
-                                            outputChannelIndex = ++outputChannelIndex % outputChannelCount;
-
-                                            // Order in which this will be placed into its output channel.
-                                            myInputOrder = inputOrders[myOutputChannelIndex];
-                                            myOutputLock = locks[myOutputChannelIndex];
-
-                                            // Keep track of the next slot in this output channel.
-                                            inputOrders[myOutputChannelIndex] =
-                                                    ++inputOrders[myOutputChannelIndex] % Integer.MAX_VALUE;
-                                        }
-                                    }
-
-                                    // Go to next input channel
-                                    break;
-                                }
-
-                                // Check if this is a user event.
-                                // If so, store it in a list and get another.
-                                if (eventType.isUser()) {
-if (debug) System.out.println("BuildingThread: Got user event");
-                                    EventOrder eo = null;
-
-                                    // User events are thrown away if no output channels
-                                    // since this event builder does nothing with them.
-                                    if (outputChannelCount < 1) {
-                                        continue;
-                                    }
-
-                                    // User events go into 1 - the first - channel
-                                    myOutputChannel = outputChannels.get(0);
-                                    myOutputChannelIndex = 0;
-
-                                    // Order in which this will be placed into its output channel.
-                                    myInputOrder = inputOrders[myOutputChannelIndex];
-                                    myOutputLock = locks[myOutputChannelIndex];
-
-                                    // Keep track of the next slot in this output channel.
-                                    inputOrders[myOutputChannelIndex] =
-                                            ++inputOrders[myOutputChannelIndex] % Integer.MAX_VALUE;
-
-                                    eo = new EventOrder();
-                                    eo.index = myOutputChannelIndex;
-                                    eo.outputChannel = myOutputChannel;
-                                    eo.lock = myOutputLock;
-                                    eo.inputOrder = myInputOrder;
-
-                                    // Store its output order info
-                                    buildingBanks[i].setAttachment(eo);
-                                    // Stick it in a list
-                                    userEventList.add(buildingBanks[i]);
-                                    // Since we got a user event, try again from the
-                                    // same input channel until we get one that isn't.
-                                    continue;
-                                }
-
-                                // If we're here, we've got a CONTROL event. Count them.
-                                haveControlEvents = true;
-                                controlEventCount++;
-
-                                // How many are END events?
-                                if (buildingBanks[i].getControlType().isEnd()) endEventCount++;
-
-                                // We want one EventOrder object for each output channel
-                                // since we want one control event placed on each.
+                            // If event needs to be built ...
+                            if (!eventType.isControl() && !eventType.isUser()) {
+                                // One-time init stuff for a group of
+                                // records that will be built together.
                                 if (!gotFirstBuildEvent) {
                                     // Set flag
                                     gotFirstBuildEvent = true;
 
-                                    // Loop through the output channels and get
-                                    // them ready to accept a control event.
-                                    for (int j=0; j < outputChannelCount; j++) {
-                                        // Output channel it should go to.
+                                    // Find the total # of events
+                                    totalNumberEvents = buildingBanks[i].getNode().getNum();
+
+                                    // Store first event number
+                                    firstEventNumber = eventNumber;
+//System.out.println(order + ", " + firstEventNumber);
+                                    // Calculate event number for next time through
+                                    eventNumber += btCount*totalNumberEvents;
+
+                                    if (outputChannelCount > 0) {
+                                        // We can already figure out which output channel it should go to.
+                                        // We simply need to cycle through all the output channels.
                                         myOutputChannel = outputChannels.get(outputChannelIndex);
                                         myOutputChannelIndex = outputChannelIndex;
-                                        outputChannelIndex = ++outputChannelIndex % outputChannelCount;
+                                        outputChannelIndex = (outputChannelIndex + btCount) % outputChannelCount;
 
                                         // Order in which this will be placed into its output channel.
-                                        myInputOrder = inputOrders[myOutputChannelIndex];
-                                        myOutputLock = locks[myOutputChannelIndex];
-
-                                        // Keep track of the next slot in this output channel.
-                                        inputOrders[myOutputChannelIndex] =
-                                                ++inputOrders[myOutputChannelIndex] % Integer.MAX_VALUE;
-
-                                        EventOrder eo = new EventOrder();
-                                        eo.index = myOutputChannelIndex;
-                                        eo.outputChannel = myOutputChannel;
-                                        eo.lock = myOutputLock;
-                                        eo.inputOrder = myInputOrder;
-
-                                        // Store control event output order info in array
-                                        controlEventOrders[j] = eo;
+                                        // First value = "order".
+                                        myInputOrder += btCount;
+                                        myOutputLock  = locks[myOutputChannelIndex];
                                     }
                                 }
 
                                 // Go to next input channel
                                 break;
                             }
-                        }
 
-                        // Do some initial CONTROL events checks here, more later
-                        if (haveControlEvents) {
-                            // Do a check on END events before we release the mutex
-                            if (endEventCount > 0) {
-                                // If there is at least one end event, then we need to
-                                // end everything. If not all channels have an END event,
-                                // see if we can find them. Then clear all input channels
-                                // as there should be nothing coming after an END event.
-                                //
-                                // The clearing is done so other building threads have nothing
-                                // to build when we release the mutex - even if we have
-                                // a mismatch. Avoids unnecessary generation of errors.
-                                //
-                                // If all channels have an END, we can end normally
-                                // with a warning about the mismatch in number of events.
-                                // If some do NOT have an END, then stop with major error.
+                            // Check if this is a user event.
+                            // If so, store it in a list and get another.
+                            if (eventType.isUser()) {
+                                if (debug) System.out.println("BuildingThread: Got user event");
+                                EventOrder eo = null;
 
-
-                                // If not all banks are END events
-                                if (endEventCount != buildingBanks.length) {
-
-                                    int finalEndEventCount = endEventCount;
-
-                                    // Look through Q's to see if we can find the rest ...
-                                    for (int i=0; i < payloadQueues.size(); i++) {
-                                        PayloadBuffer pBuf;
-                                        EventType   eType = buildingBanks[i].getEventType();
-                                        ControlType cType = buildingBanks[i].getControlType();
-
-                                        if (cType != null)  {
-                                            System.out.println("got " + cType + " event from " + buildingBanks[i].getSourceName());
-                                        }
-                                        else {
-                                            System.out.println("got " + eType + " event from " + buildingBanks[i].getSourceName());
-                                        }
-
-                                        // If this channel doesn't have an END, try finding it somewhere in Q
-                                        if (cType != ControlType.END) {
-                                            int offset = 0;
-                                            // Loop through all events on this channel
-                                            while ( (pBuf = payloadQueues.get(i).poll()) != null) {
-                                                offset++;
-                                                if (pBuf.getControlType() == ControlType.END) {
-System.out.println("got END from " + buildingBanks[i].getSourceName() +
-                   ", back " + offset + " places in Q");
-                                                    finalEndEventCount++;
-                                                    break;
-                                                }
-                                            }
-                                        }
-                                    }
-
-                                    // If we still can't find all ENDs, throw exception - major error
-                                    if (finalEndEventCount!= buildingBanks.length) {
-                                        throw new EmuException("only " + finalEndEventCount + " ENDs for " +
-                                                buildingBanks.length + " channels");
-                                    }
-
-                                    // If we're here, we've found all ENDs, continue on with warning ...
-                                    nonFatalError = true;
-if (true) System.out.println("Have all ENDs, but differing # of physics events in channels");
+                                // User events are thrown away if no output channels
+                                // since this event builder does nothing with them.
+                                if (outputChannelCount < 1) {
+                                    continue;
                                 }
 
-                                // Clear all channels' Q's
-                                for (PayloadQueue<PayloadBuffer> payloadQueue : payloadQueues) {
-                                    payloadQueue.clear();
+                                // User events go into 1 - the first - channel
+                                myOutputChannel = outputChannels.get(0);
+                                myOutputChannelIndex = 0;
+                                myOutputLock = locks[myOutputChannelIndex];
+
+                                eo = new EventOrder();
+                                eo.index = myOutputChannelIndex;
+                                eo.outputChannel = myOutputChannel;
+                                eo.lock = myOutputLock;
+                                eo.aSync = true;   // output order is NOT important
+
+                                // Store its output order info
+                                buildingBanks[i].setAttachment(eo);
+                                // Stick it in a list
+                                userEventList.add(buildingBanks[i]);
+                                // Since we got a user event, try again from the
+                                // same input channel until we get one that isn't.
+                                continue;
+                            }
+
+                            // If we're here, we've got a CONTROL event
+
+                            // If not END, we got problems
+                            if (!buildingBanks[i].getControlType().isEnd()) {
+                                throw new EmuException(buildingBanks[i].getControlType() +
+                                                               " control events not allowed");
+                            }
+
+                            // At this point all controls are END events
+                            firstToFindEnd = firstToGetEnd.compareAndSet(false, true);
+                            haveEnd = true;
+                            endEventCount++;
+
+                            if (!gotFirstBuildEvent) {
+                                // Don't do all the stuff for a
+                                // regular build if first event is END.
+                                gotFirstBuildEvent = true;
+                            }
+
+                            // Go to next input channel
+                            break;
+                        }
+                    }
+
+                    // Do END event checks here
+                    if (haveEnd) {
+
+                        // Since there is at least one END event,  we need to
+                        // end everything. If we have all ENDs then we write them
+                        // to all output channels in the proper order.
+                        if (endEventCount == buildingBanks.length) {
+
+                            // Order in which first END will be placed
+                            // into the next-in-line output channel.
+                            myInputOrder += btCount;
+
+                            // Loop through all output channels and get
+                            // them ready to accept an END event.
+                            for (int j=0; j < outputChannelCount; j++) {
+                                // Output channel event should go to
+                                myOutputChannel = outputChannels.get(outputChannelIndex);
+                                myOutputChannelIndex = outputChannelIndex;
+                                outputChannelIndex = ++outputChannelIndex % outputChannelCount;
+                                myOutputLock = locks[myOutputChannelIndex];
+
+                                // Order in which event will be placed into its output channel
+                               // myInputOrder += j;
+
+                                EventOrder eo = new EventOrder();
+                                eo.index = myOutputChannelIndex;
+                                eo.outputChannel = myOutputChannel;
+                                eo.lock = myOutputLock;
+                                //eo.inputOrder = myInputOrder;
+                                eo.aSync = true;
+
+                                // Store control event output order info in array
+                                // so END can be written to outputs a little later.
+                                controlEventOrders[j] = eo;
+                            }
+                        }
+                        else {
+                            // If we're here, not all channels got an END event.
+                            // See if we can find them in our local Qs (not some other
+                            // build thread's Qs). If we can, great. If not, major error.
+                            // If all our channels have an END, we can end normally
+                            // with a warning about the mismatch in number of events.
+
+                            int finalEndEventCount = endEventCount;
+
+                            // Look through Q's to see if we can find the rest ...
+                            for (int i=0; i < btPayloadQueues.length; i++) {
+                                PayloadBuffer pBuf;
+                                EventType   eType = buildingBanks[i].getEventType();
+                                ControlType cType = buildingBanks[i].getControlType();
+
+                                if (cType != null)  {
+                                    System.out.println("END paired with " + cType + " event from " + buildingBanks[i].getSourceName());
+                                }
+                                else {
+                                    System.out.println("END paired with " + eType + " event from " + buildingBanks[i].getSourceName());
+                                }
+
+                                // If this channel doesn't have an END, try finding it somewhere in Q
+                                if (cType != ControlType.END) {
+                                    int offset = 0;
+                                    // Loop through all events on this channel
+                                    while ( (pBuf = btPayloadQueues[i].poll()) != null) {
+                                        offset++;
+                                        if (pBuf.getControlType() == ControlType.END) {
+                                            System.out.println("got END from " + buildingBanks[i].getSourceName() +
+                                                                       ", back " + offset + " places in Q");
+                                            finalEndEventCount++;
+                                            break;
+                                        }
+                                    }
                                 }
                             }
 
-                            // If no ENDs, do a quick check on the # of CONTROL events
-                            else if (controlEventCount !=  buildingBanks.length) {
-                                throw new EmuException("have " + controlEventCount + " control events, but " +
-                                        buildingBanks.length + " in channels");
+                            // If we still can't find all ENDs, throw exception - major error
+                            if (finalEndEventCount!= buildingBanks.length) {
+                                throw new EmuException("only " + finalEndEventCount + " ENDs for " +
+                                                               buildingBanks.length + " channels");
                             }
 
-                            // Prestart creates & clears payloadQueues below in execute()
+                            // Order in which first END will be placed
+                            // into the next-in-line output channel.
+                            myInputOrder += btCount;
+
+                            for (int j=0; j < outputChannelCount; j++) {
+                                // Output channel event should go to
+                                myOutputChannel = outputChannels.get(outputChannelIndex);
+                                myOutputChannelIndex = outputChannelIndex;
+                                outputChannelIndex = ++outputChannelIndex % outputChannelCount;
+                                myOutputLock = locks[myOutputChannelIndex];
+
+                                // Order in which event will be placed into its output channel
+                                //myInputOrder += j;
+
+                                EventOrder eo = new EventOrder();
+                                eo.index = myOutputChannelIndex;
+                                eo.outputChannel = myOutputChannel;
+                                eo.lock = myOutputLock;
+                                //eo.inputOrder = myInputOrder;
+                                eo.aSync = true;
+
+                                // Store control event output order info in array
+                                // so END can be written to outputs a little later.
+                                controlEventOrders[j] = eo;
+                            }
+
+                            // If we're here, we've found all ENDs, continue on with warning ...
+                            nonFatalError = true;
+System.out.println("Have all ENDs, but differing # of physics events in channels");
+                        }
+
+                        // Clear all channels' Q's
+                        for (PayloadQueue<PayloadBuffer> payloadQueue : btPayloadQueues) {
+                            payloadQueue.clear();
                         }
                     }
-                    finally {
-                        getLock.unlock();
-                    }
 
-                    // store all channel & order info here
+                    // Store all channel & order info here for buildable event
                     EventOrder evOrder = new EventOrder();
                     evOrder.index = myOutputChannelIndex;
                     evOrder.outputChannel = myOutputChannel;
                     evOrder.lock = myOutputLock;
                     evOrder.inputOrder = myInputOrder;
 
-                    // If we have any user events, stick those on the Q first.
-                    // Source may be any of the inputs.
+                    // If we have any user events, stick those on the output channels first.
                     if (userEventList.size() > 0) {
-                        // Send each user event to all output channels
-                        for (PayloadBuffer pBuf : userEventList) {
-                            EventOrder[] userEventOrders = (EventOrder[]) pBuf.getAttachment();
-                            pBuf.setAttachment(userEventOrders[0]);
-                            bankToOutputChannel(pBuf);
-                            for (int j=1; j < outputChannelCount; j++) {
-                                // Copy user event
-                                PayloadBuffer bb = new PayloadBuffer(pBuf);
-                                bb.setAttachment(userEventOrders[j]);
-                                // Write to other output Q's
-                                bankToOutputChannel(bb);
-                            }
-                        }
+                        // Send each user event to only 1(first)  output channel
+                        bankToOutputChannel(userEventList);
                         userEventList.clear();
                     }
 
-                    // If we have all control events ...
-                    if (haveControlEvents) {
+                    // If we have all END events ...
+                    if (haveEnd) {
+                        // Only the first to find all ENDs will place
+                        // END on output channels.
+                        if (!firstToFindEnd) return;
+
+                        haveEndEvent = true;
+System.out.println("Found END events on all input channels");
+
+                        // Interrupt the other BT threads which may not have processed
+                        // the END event yet or experienced some error.
+                        // Give them time to finish up business first. This business may
+                        // never finish if there are differing numbers of events on each
+                        // input channel.
+                        Thread.sleep(250);
+                        endBuildAndQFillerThreads(this, false);
+
                         // Throw exception if inconsistent
                         Evio.gotConsistentControlEvents(buildingBanks, runNumber, runTypeId);
 
-if (true) System.out.println("Have consistent CONTROL event(s)");
+System.out.println("Have consistent END event(s)");
 
                         // Put 1 event on each output Q.
                         if (outputChannelCount > 0) {
                             // Take one of the control events and update
                             // it with the latest event builder data.
                             Evio.updateControlEvent(buildingBanks[0], runNumber,
-                                                    runTypeId, (int)eventCountTotal,
-                                                    (int)(eventNumber - eventNumberAtLastSync));
+                                  runTypeId, (int)eventCountTotal,
+                                  (int)(firstEventNumber + totalNumberEvents - eventNumberAtLastSync));
 
                             // We must copy the newly-updated control event
                             // and make sure one is placed on each output channel.
@@ -884,21 +1099,12 @@ if (true) System.out.println("Have consistent CONTROL event(s)");
 
                         // If this is a sync event, keep track of the next event # to be sent
                         if (Evio.isSyncEvent(buildingBanks[0].getNode())) {
-                            eventNumberAtLastSync = eventNumber;
+                            eventNumberAtLastSync = firstEventNumber + totalNumberEvents;
                         }
 
-                        // If it is an END event, interrupt other build threads
-                        // then quit this one.
-                        if (buildingBanks[0].getControlType() == ControlType.END) {
-if (true) System.out.println("Found END event in build thread");
-                            haveEndEvent = true;
-                            endBuildAndQFillerThreads(this, false);
-                            if (endCallback != null) endCallback.endWait();
-                            return;
-                        }
-
-                        continue;
-                    }
+                        if (endCallback != null) endCallback.endWait();
+                        return;
+                     }
 
                     // At this point there are only physics or ROC raw events, which do we have?
                     havePhysicsEvents = buildingBanks[0].getEventType().isAnyPhysics();
@@ -950,6 +1156,7 @@ System.out.print("+");
                     }
                     getBuf = (getBuf + 1) % 20000;
 
+//                    CompactEventBuilder builder = new CompactEventBuilder(memSize, ByteOrder.BIG_ENDIAN, true);
 
                     // Create a (top-level) physics event from payload banks
                     // and the combined trigger bank. First create the tag:
@@ -1093,11 +1300,11 @@ if (debug && nonFatalError) System.out.println("\nERROR 4\n");
                         try {
                             ByteBuffer controlEvent =
                                     Evio.createControlBuffer(ControlType.SYNC,
-                                                             0, 0, (int) eventCountTotal,
-                                                             (int) (eventNumber - eventNumberAtLastSync));
+                                         0, 0, (int) eventCountTotal,
+                                         (int) (firstEventNumber + totalNumberEvents - eventNumberAtLastSync));
                             PayloadBuffer controlPBuf = new PayloadBuffer(controlEvent);
-                            eventNumberAtLastSync = eventNumber;
-                            ArrayList<PayloadBuffer> list = new ArrayList<PayloadBuffer>(2);
+                            eventNumberAtLastSync = firstEventNumber + totalNumberEvents;
+                            ArrayList<QueueItem> list = new ArrayList<QueueItem>(2);
                             // Don't switch the order of the next 2 statements
                             list.add(physicsEvent);
                             list.add(controlPBuf);
@@ -1145,8 +1352,6 @@ if (debug) System.out.println("Building thread is ending !!!");
 
 
 
-
-
 //    /**
 //     * This thread is started by the GO transition and runs while the state of the module is ACTIVE.
 //     * <p/>
@@ -1159,25 +1364,45 @@ if (debug) System.out.println("Building thread is ending !!!");
 //     * The count of outgoing banks and the count of data words are incremented.
 //     * If the Module has outputs, the bank of banks is put on the output DataChannels.
 //     */
-//    class ControlThread extends Thread {
+//    class BuildingThread extends Thread {
 //
-//        ControlThread(ThreadGroup group, Runnable target, String name) {
+//        BuildingThread(ThreadGroup group, Runnable target, String name) {
 //            super(group, target, name);
 //        }
 //
-//        ControlThread() {
+//        BuildingThread() {
 //            super();
 //        }
 //
 //        @Override
 //        public void run() {
 //
+//
+//                LinkedBlockingQueue<ByteBuffer> bufferStorage =
+//                                    new LinkedBlockingQueue<ByteBuffer>();
+//               //TODO: make this an array with a couple of indexes ...
+//
+//                ByteBuffer[] bufferArray = new ByteBuffer[20000];
+//                int getBuf = 0;
+//                int putBuf = 0;
+////Populate trial Q
+//        for (int i = 0; i < 1000; i++) {
+//            bufferStorage.add(ByteBuffer.allocate(20000));
+//        }
+//        for (int i = 0; i < 20000; i++) {
+//            bufferArray[i] = ByteBuffer.allocate(20000);
+//        }
+//
 //            // initialize
 //            int totalNumberEvents=1;
+//            long firstEventNumber=1;
+//            boolean nonFatalError;
 //            boolean haveControlEvents;
+//            boolean havePhysicsEvents;
 //            boolean gotFirstBuildEvent;
 //            EventType eventType;
 //
+//            PayloadBuffer   physicsEvent;
 //            PayloadBuffer[] buildingBanks = new PayloadBuffer[inputChannels.size()];
 //
 //            EventOrder[] controlEventOrders = new EventOrder[outputChannelCount];
@@ -1191,15 +1416,11 @@ if (debug) System.out.println("Building thread is ending !!!");
 //            int endEventCount;
 //            int controlEventCount;
 //
-//            /** Container for queues used to hold QueueItems taken from Data Transport channels. */
-//            ArrayList<PayloadQueue<PayloadBuffer>> payloadQueues =
-//                    new ArrayList<PayloadQueue<PayloadBuffer>>();
-//
-//
 //
 //            while (state == CODAState.ACTIVE || paused) {
 //
 //                try {
+//                    nonFatalError = false;
 //
 //                    // The payload bank queues are filled by the QFiller thread.
 //
@@ -1234,6 +1455,43 @@ if (debug) System.out.println("Building thread is ending !!!");
 //
 //                                eventType = buildingBanks[i].getEventType();
 //
+//                                // If event needs to be built ...
+//                                if (!eventType.isControl() && !eventType.isUser()) {
+//                                    // One-time init stuff for a group of
+//                                    // records that will be built together.
+//                                    if (!gotFirstBuildEvent) {
+//                                        // Set flag
+//                                        gotFirstBuildEvent = true;
+//
+//                                        // Find the total # of events
+//                                        totalNumberEvents = buildingBanks[i].getNode().getNum();
+//
+//                                        // Store first event number
+//                                        firstEventNumber = eventNumber;
+//
+//                                        // Calculate event number for next time through
+//                                        eventNumber += totalNumberEvents;
+//
+//                                        if (outputChannelCount > 0) {
+//                                            // We can already figure out which output channel it should go to.
+//                                            // We simply need to cycle through all the output channels.
+//                                            myOutputChannel = outputChannels.get(outputChannelIndex);
+//                                            myOutputChannelIndex = outputChannelIndex;
+//                                            outputChannelIndex = ++outputChannelIndex % outputChannelCount;
+//
+//                                            // Order in which this will be placed into its output channel.
+//                                            myInputOrder = inputOrders[myOutputChannelIndex];
+//                                            myOutputLock = locks[myOutputChannelIndex];
+//
+//                                            // Keep track of the next slot in this output channel.
+//                                            inputOrders[myOutputChannelIndex] =
+//                                                    ++inputOrders[myOutputChannelIndex] % Integer.MAX_VALUE;
+//                                        }
+//                                    }
+//
+//                                    // Go to next input channel
+//                                    break;
+//                                }
 //
 //                                // Check if this is a user event.
 //                                // If so, store it in a list and get another.
@@ -1470,7 +1728,215 @@ if (debug) System.out.println("Building thread is ending !!!");
 //                            return;
 //                        }
 //
+//                        continue;
 //                    }
+//
+//                    // At this point there are only physics or ROC raw events, which do we have?
+//                    havePhysicsEvents = buildingBanks[0].getEventType().isAnyPhysics();
+//
+//                    // Check for identical syncs, uniqueness of ROC ids,
+//                    // single-event-mode, identical (physics or ROC raw) event types,
+//                    // and the same # of events in each bank
+//                    nonFatalError |= Evio.checkConsistency(buildingBanks);
+//
+//                    // Are events in single event mode?
+//                    boolean eventsInSEM = buildingBanks[0].isSingleEventMode();
+//
+//if (debug && nonFatalError) System.out.println("\nERROR 2\n");
+//
+//                    //--------------------------------------------------------------------
+//                    // Build trigger bank, number of ROCs given by number of buildingBanks
+//                    //--------------------------------------------------------------------
+//                    // The tag will be finally set when this trigger bank is fully created
+//if (debug && havePhysicsEvents)
+//    System.out.println("BuildingThread: create combined trig w/ num (# Rocs) = " + buildingBanks.length);
+//
+//                    // Get an estimate on the buffer memory needed.
+//                    // Start with 1K and add roughly the amount of trigger bank data
+//                    int memSize = 1000 + buildingBanks.length * totalNumberEvents * 10;
+//                    for (PayloadBuffer buildingBank : buildingBanks) {
+//                        memSize += buildingBank.getBuffer().capacity();
+//                    }
+//
+//                    CompactEventBuilder builder = null;
+//
+//                    // Grab a stored ByteBuffer
+////                    ByteBuffer buffie = Emu.bufferStorage.poll();
+//                    ByteBuffer buffie = bufferArray[getBuf];
+//                    if (buffie != null) {
+//                        if (buffie.capacity() >= memSize) {
+//                            builder = new CompactEventBuilder(buffie, true);
+////System.out.print(".");
+//                        }
+//                        else {
+//                            System.out.println("REJECT");
+//                        }
+//                    }
+//
+//                    if (builder == null) {
+//                        builder = new CompactEventBuilder(memSize, ByteOrder.BIG_ENDIAN, true);
+////                        bufferStorage.add(builder.getBuffer());
+//                        bufferArray[getBuf] = builder.getBuffer();
+//System.out.print("+");
+//                    }
+//                    getBuf = (getBuf + 1) % 20000;
+//
+//
+//                    // Create a (top-level) physics event from payload banks
+//                    // and the combined trigger bank. First create the tag:
+//                    //   -if I'm a data concentrator or DC, the tag has 4 status bits and the ebId
+//                    //   -if I'm a primary event builder or PEB, the tag is 0xFF50 (or 0xFF51 if SEM)
+//                    //   -if I'm a secondary event builder or SEB, the tag is 0xFF70 (or 0xFF71 if SEM)
+//                    int tag;
+//                    CODAClass myClass = emu.getCodaClass();
+//                    switch (myClass) {
+//                        case SEB:
+//                            if (eventsInSEM) {
+//                                tag = CODATag.BUILT_BY_SEB_IN_SEM.getValue();
+//                            }
+//                            else {
+//                                tag = CODATag.BUILT_BY_SEB.getValue();
+//                            }
+//                            break;
+//                        case PEB:
+//                            if (eventsInSEM) {
+//                                tag = CODATag.BUILT_BY_PEB_IN_SEM.getValue();
+//                            }
+//                            else {
+//                                tag = CODATag.BUILT_BY_PEB.getValue();
+//                            }
+//                            break;
+//                        //case DC:
+//                        default:
+//                            tag = Evio.createCodaTag(buildingBanks[0].isSync(),
+//                                                 buildingBanks[0].hasError() || nonFatalError,
+//                                                 buildingBanks[0].getByteOrder() == ByteOrder.BIG_ENDIAN,
+//                                                 buildingBanks[0].isSingleEventMode(),
+//                                                 id);
+////if (debug) System.out.println("tag = " + tag + ", is sync = " + buildingBanks[0].isSync() +
+////                   ", has error = " + (buildingBanks[0].hasError() || nonFatalError) +
+////                   ", is big endian = " + buildingBanks[0].getByteOrder() == ByteOrder.BIG_ENDIAN +
+////                   ", is single mode = " + buildingBanks[0].isSingleEventMode());
+//                    }
+//
+//                    // TODO: Problem, non fatal errors cannot be known in advance of building???
+//
+//                    // Start top level
+//                    builder.openBank(tag, totalNumberEvents, DataType.BANK);
+//
+//
+//                    // If building with Physics events ...
+//                    if (havePhysicsEvents) {
+//                        //-----------------------------------------------------------------------------------
+//                        // The actual number of rocs will replace num in combinedTrigger definition above
+//                        //-----------------------------------------------------------------------------------
+//                        // Combine the trigger banks of input events into one (same if single event mode)
+//if (debug) System.out.println("BuildingThread: create trig bank from built banks, sparsify = " + sparsify);
+//                        nonFatalError |= Evio.makeTriggerBankFromPhysics(buildingBanks, builder, id,
+//                                                                    runNumber, runTypeId, includeRunData,
+//                                                                    eventsInSEM, sparsify,
+//                                                                    checkTimestamps, timestampSlop);
+//                    }
+//                    // else if building with ROC raw records ...
+//                    else {
+//                        // If in single event mode, build trigger bank differently
+//                        if (eventsInSEM) {
+//                            // Create a trigger bank from data in Data Block banks
+////if (debug) System.out.println("BuildingThread: create trigger bank in SEM");
+//                            nonFatalError |= Evio.makeTriggerBankFromSemRocRaw(buildingBanks, builder,
+//                                                                               id, firstEventNumber,
+//                                                                               runNumber, runTypeId,
+//                                                                               includeRunData,
+//                                                                               checkTimestamps,
+//                                                                               timestampSlop);
+//                        }
+//                        else {
+//                            // Combine the trigger banks of input events into one
+//if (debug) System.out.println("BuildingThread: create trigger bank from Rocs, sparsify = " + sparsify);
+//                            nonFatalError |= Evio.makeTriggerBankFromRocRaw(buildingBanks, builder,
+//                                                                            id, firstEventNumber,
+//                                                                            runNumber, runTypeId,
+//                                                                            includeRunData, sparsify,
+//                                                                            checkTimestamps,
+//                                                                            timestampSlop);
+//                        }
+//                    }
+//
+//if (debug && nonFatalError) System.out.println("\nERROR 3\n");
+//                    // Print out trigger bank
+////                    printEvent(combinedTrigger, "combined trigger");
+//
+//                    // Check payload banks for non-fatal errors when
+//                    // extracting them onto the payload queues.
+//                    for (PayloadBuffer pBank : buildingBanks)  {
+//                        nonFatalError |= pBank.hasNonFatalBuildingError();
+//                    }
+//
+//if (debug && nonFatalError) System.out.println("\nERROR 4\n");
+//
+//                    if (havePhysicsEvents) {
+////if (debug) System.out.println("BuildingThread: build physics event with physics banks");
+//                        Evio.buildPhysicsEventWithPhysics(buildingBanks, builder);
+//                    }
+//                    else {
+////if (debug) System.out.println("BuildingThread: build physics event with ROC raw banks");
+//                        Evio.buildPhysicsEventWithRocRaw(buildingBanks,
+//                                                         builder, eventsInSEM);
+//                    }
+//
+//                    // Done creating event
+//                    builder.closeAll();
+//
+//                    // Retrieve buffer we've been writing into with builder/
+//                    // It is ready to read so do NOT flip() it.
+//                    ByteBuffer evBuf = builder.getBuffer();
+//
+//   //                 builder.toFile("/daqfs/home/timmer/coda/evioTestFiles/HEY.ev");
+//
+//                    // Get buffer ready to read
+////                    evBuf.flip();
+//
+//                    // Wrap it in payload buffer object
+//                    physicsEvent = new PayloadBuffer(evBuf);
+//
+//                    physicsEvent.setAttachment(evOrder); // store its input order info
+//                    physicsEvent.setEventType(EventType.PHYSICS);
+//                    physicsEvent.setEventCount(totalNumberEvents);
+//                    physicsEvent.setFirstEventNumber(firstEventNumber);
+//
+//                    //                    synchronized (EventBuilding.this) {
+//                    // stats  // TODO: protect since in multithreaded environs
+//                    eventCountTotal += totalNumberEvents;
+//                    wordCountTotal  += builder.getTotalBytes()/4 + 1;
+//                    //                    }
+//
+//                    // Put it in the correct output channel.
+//                    //
+//                    // But wait! One more thing.
+//                    // We must check for the sync bits being set. If they are set,
+//                    // generate a SYNC event and write both the SYNC & PHYSICS events
+//                    // at the same time. Actually the physics must go first because
+//                    // it's attachment is needed.
+//                    if (!buildingBanks[0].isSync()) {
+//                        bankToOutputChannel(physicsEvent);
+//                    }
+//                    else {
+//                        try {
+//                            ByteBuffer controlEvent =
+//                                    Evio.createControlBuffer(ControlType.SYNC,
+//                                                             0, 0, (int) eventCountTotal,
+//                                                             (int) (eventNumber - eventNumberAtLastSync));
+//                            PayloadBuffer controlPBuf = new PayloadBuffer(controlEvent);
+//                            eventNumberAtLastSync = eventNumber;
+//                            ArrayList<PayloadBuffer> list = new ArrayList<PayloadBuffer>(2);
+//                            // Don't switch the order of the next 2 statements
+//                            list.add(physicsEvent);
+//                            list.add(controlPBuf);
+//                            bankToOutputChannel(list);
+//                        }
+//                        catch (EvioException e) {/* never happen */}
+//                    }
+//
 //
 //                }
 //                catch (EmuException e) {
@@ -1509,7 +1975,6 @@ if (debug) System.out.println("Building thread is ending !!!");
 
 
 
-
     /**
      * End all build and QFiller threads because an END cmd or event came through.
      * The build thread calling this method is not interrupted.
@@ -1526,8 +1991,8 @@ if (debug) System.out.println("Building thread is ending !!!");
             boolean haveUnprocessedEvents = false;
             long startTime = System.currentTimeMillis();
 
-            for (int i=0; i < payloadQueues.size(); i++) {
-                if (payloadQueues.get(i).size() +
+            for (int i=0; i < payloadQueues.length; i++) {
+                if (payloadQueues[i].size() +
                         inputChannels.get(i).getQueue().size() > 0) {
                     haveUnprocessedEvents = true;
                     break;
@@ -1542,8 +2007,8 @@ if (debug) System.out.println("Building thread is ending !!!");
                 catch (InterruptedException e) {}
 
                 haveUnprocessedEvents = false;
-                for (int i=0; i < payloadQueues.size(); i++) {
-                    if (payloadQueues.get(i).size() +
+                for (int i=0; i < payloadQueues.length; i++) {
+                    if (payloadQueues[i].size() +
                             inputChannels.get(i).getQueue().size() > 0) {
                         haveUnprocessedEvents = true;
                         break;
@@ -1641,6 +2106,102 @@ if (debug) System.out.println("Building thread is ending !!!");
     }
 
 
+//    /** {@inheritDoc} */
+//    public void prestart() throws CmdExecException {
+//
+//        // Event builder needs inputs
+//        if (inputChannels.size() < 1) {
+//            errorMsg.compareAndSet(null, "no input channels to EB");
+//            state = CODAState.ERROR;
+//            emu.sendStatusMessage();
+//            throw new CmdExecException("no input channels to EB");
+//        }
+//
+//        // Make sure each input channel is associated with a unique rocId
+//        for (int i=0; i < inputChannels.size(); i++) {
+//            for (int j=i+1; j < inputChannels.size(); j++) {
+//                if (inputChannels.get(i).getID() == inputChannels.get(j).getID()) {
+//                    errorMsg.compareAndSet(null, "input channels duplicate rocIDs");
+//                    state = CODAState.ERROR;
+//                    emu.sendStatusMessage();
+//                    throw new CmdExecException("input channels duplicate rocIDs");
+//                }
+//            }
+//        }
+//
+//        state = CODAState.PAUSED;
+//        paused = true;
+//
+//        // Make sure we have the correct # of payload bank queues available.
+//        // Each queue holds payload banks taken from a particular source (ROC).
+//        int diff = inputChannels.size() - payloadQueues.size();
+//        boolean add = true;
+//        if (diff < 0) {
+//            add  = false;
+//            diff = -diff;
+//        }
+//
+//        for (int i=0; i < diff; i++) {
+//            // Add more queues
+//            if (add) {
+//                // Allow only payloadBufferQueueSize items on the q at once
+//                payloadQueues.add(new PayloadQueue<PayloadBuffer>(payloadBufferQueueSize));
+//            }
+//            // Remove excess queues (from head of list)
+//            else {
+//                payloadQueues.remove(0);
+//            }
+//        }
+//
+//        int qCount = payloadQueues.size();
+//
+//        // Clear all payload bank queues, associate each one with source ID, reset record ID
+//        for (int i=0; i < qCount; i++) {
+//            payloadQueues.get(i).clear();
+//            payloadQueues.get(i).setSourceId(inputChannels.get(i).getID());
+//            payloadQueues.get(i).setRecordId(0);
+//        }
+//
+//        // How many output channels do we have?
+//        outputChannelCount = outputChannels.size();
+//
+//        // Allocate some arrays based on # of output channels
+//        waitingLists = null;
+//        if (outputChannelCount > 0) {
+//            locks = new Object[outputChannelCount];
+//            for (int i=0; i < outputChannelCount; i++) {
+//                locks[i] = new Object();
+//            }
+//            inputOrders  = new int[outputChannelCount];
+//            outputOrders = new int[outputChannelCount];
+//
+//            waitingLists = new PriorityBlockingQueue[outputChannelCount];
+//            for (int i=0; i < outputChannelCount; i++) {
+//                waitingLists[i] = new PriorityBlockingQueue<PayloadBuffer>(100, comparator);
+//            }
+//        }
+//
+//        // Reset some variables
+//        eventRate = wordRate = 0F;
+//        eventCountTotal = wordCountTotal = 0L;
+//        runTypeId = emu.getRunTypeId();
+//        runNumber = emu.getRunNumber();
+//        ebRecordId = 0;
+//        eventNumber = 1L;
+//        eventNumberAtLastSync = eventNumber;
+//
+//        // Create & start threads
+//        createThreads();
+//        startThreads();
+//
+//        try {
+//            // Set start-of-run time in local XML config / debug GUI
+//            Configurer.setValue(emu.parameters(), "status/run_start_time", "--prestart--");
+//        }
+//        catch (DataNotFoundException e) {}
+//    }
+
+
     /** {@inheritDoc} */
     public void prestart() throws CmdExecException {
 
@@ -1669,33 +2230,20 @@ if (debug) System.out.println("Building thread is ending !!!");
 
         // Make sure we have the correct # of payload bank queues available.
         // Each queue holds payload banks taken from a particular source (ROC).
-        int diff = inputChannels.size() - payloadQueues.size();
-        boolean add = true;
-        if (diff < 0) {
-            add  = false;
-            diff = -diff;
-        }
-
-        for (int i=0; i < diff; i++) {
-            // Add more queues
-            if (add) {
-                // Allow only payloadBufferQueueSize items on the q at once
-                payloadQueues.add(new PayloadQueue<PayloadBuffer>(payloadBufferQueueSize));
-            }
-            // Remove excess queues (from head of list)
-            else {
-                payloadQueues.remove(0);
+        int qCount = buildingThreadCount*inputChannels.size();
+        payloadQueues = new PayloadQueue[qCount];
+        PayloadQueue pq;
+        for (int i=0; i < buildingThreadCount; i++) {
+            for (int j=0; j < inputChannels.size(); j++) {
+                // Allow only payloadBufferQueueSize items on the Q at once
+                pq = new PayloadQueue<PayloadBuffer>(payloadBufferQueueSize);
+                pq.setSourceId(inputChannels.get(j).getID());
+                payloadQueues[i+j] = pq;
+System.out.println("\n\nCreate Payload buffer Q for in chan " + (j) +
+                   " with source id " + pq.getSourceId());
             }
         }
 
-        int qCount = payloadQueues.size();
-
-        // Clear all payload bank queues, associate each one with source ID, reset record ID
-        for (int i=0; i < qCount; i++) {
-            payloadQueues.get(i).clear();
-            payloadQueues.get(i).setSourceId(inputChannels.get(i).getID());
-            payloadQueues.get(i).setRecordId(0);
-        }
 
         // How many output channels do we have?
         outputChannelCount = outputChannels.size();
@@ -1712,7 +2260,7 @@ if (debug) System.out.println("Building thread is ending !!!");
 
             waitingLists = new PriorityBlockingQueue[outputChannelCount];
             for (int i=0; i < outputChannelCount; i++) {
-                waitingLists[i] = new PriorityBlockingQueue<PayloadBuffer>(100, comparator);
+                waitingLists[i] = new PriorityBlockingQueue<QueueItem>(100, comparator);
             }
         }
 
@@ -1722,8 +2270,11 @@ if (debug) System.out.println("Building thread is ending !!!");
         runTypeId = emu.getRunTypeId();
         runNumber = emu.getRunNumber();
         ebRecordId = 0;
-        eventNumber = 1L;
-        eventNumberAtLastSync = eventNumber;
+//        eventNumber = 1L;
+        eventNumberAtLastSync = 1L;
+        // do this before starting build threads
+        waitForGo = new CountDownLatch(buildingThreadCount);
+        waitForPrestart = new CountDownLatch(buildingThreadCount);
 
         // Create & start threads
         createThreads();
@@ -1757,24 +2308,44 @@ if (debug) System.out.println("Building thread is ending !!!");
     private void createThreads() {
         RateCalculator = new Thread(emu.getThreadGroup(), new RateCalculatorThread(), name+":watcher");
 
-        for (int i=0; i < buildingThreadCount; i++) {
-            BuildingThread thd1 = new BuildingThread(emu.getThreadGroup(), new BuildingThread(), name+":builder"+i);
+        int inChanCount = inputChannels.size();
+
+        for (int i=0; i < buildingThreadCount; i += inChanCount) {
+System.out.println("\nCreate build thd" + i + ":");
+            // Pick out 1 Q from each input for each build thread
+            PayloadQueue<PayloadBuffer> qs[] = new  PayloadQueue[inChanCount];
+            for (int j=0; j < inChanCount; j++) {
+System.out.println("       with payload Q " + (i+j));
+                qs[j] = payloadQueues[i+j];
+            }
+            BuildingThread thd1 = new BuildingThread(qs, i, emu.getThreadGroup(), name+":builder"+i);
             buildingThreadList.add(thd1);
         }
 
-        // Sanity check
-        if (buildingThreadList.size() != buildingThreadCount) {
-            System.out.println("Have " + buildingThreadList.size() + " build threads, but want " +
-                                buildingThreadCount);
+//        // Sanity check
+//        if (buildingThreadList.size() != buildingThreadCount) {
+//            System.out.println("Have " + buildingThreadList.size() + " build threads, but want " +
+//                                buildingThreadCount);
+//        }
+
+//        qFillers = new Thread[payloadQueues.length];
+//        for (int i=0; i < payloadQueues.length; i++) {
+//            qFillers[i] = new Thread(emu.getThreadGroup(),
+//                                     new Qfiller(payloadQueues[i],
+//                                                    inputChannels.get(i).getQueue()),
+//                                     name+":qfiller"+i);
+//        }
+
+        qFillers = new Thread[payloadQueues.length];
+        for (int i=0; i < buildingThreadCount; i++) {
+            for (int j=0; j < inputChannels.size(); j++) {
+                qFillers[i+j] = new Qfiller(payloadQueues[i+j],
+                                            inputChannels.get(j).getAllQueues()[i],
+                                            emu.getThreadGroup(),
+                                            name+":qfiller"+(i+j));
+            }
         }
 
-        qFillers = new Thread[payloadQueues.size()];
-        for (int i=0; i < payloadQueues.size(); i++) {
-            qFillers[i] = new Thread(emu.getThreadGroup(),
-                                     new Qfiller(payloadQueues.get(i),
-                                                    inputChannels.get(i).getQueue()),
-                                     name+":qfiller"+i);
-        }
     }
 
     /**
@@ -1792,10 +2363,21 @@ System.out.println("startThreads(): recreating watcher thread");
         }
 
         if (buildingThreadList.size() < 1) {
-            for (int i=0; i < buildingThreadCount; i++) {
-                BuildingThread thd1 = new BuildingThread(emu.getThreadGroup(), new BuildingThread(), name+":builder"+i);
-                buildingThreadList.add(thd1);
-            }
+            int inChanCount = inputChannels.size();
+
+            for (int i=0; i < buildingThreadCount; i += inChanCount) {
+
+                // Pick out 1 Q from each input for each build thread
+                PayloadQueue<PayloadBuffer> qs[] = new  PayloadQueue[inChanCount];
+                for (int j=0; j < inChanCount; j++) {
+                    System.out.println("       with payload Q " + (i+j));
+                    qs[j] = payloadQueues[i+j];
+                }
+                BuildingThread thd1 = new BuildingThread(qs, i, emu.getThreadGroup(), name+":builder"+i);
+
+               buildingThreadList.add(thd1);
+           }
+
 System.out.println("startThreads(): recreated building threads, # = " +
                                buildingThreadList.size());
         }
@@ -1809,23 +2391,31 @@ System.out.println("startThreads(): started " + buildingThreadList.size() +
                    " building threads");
 
         if (qFillers == null) {
-            qFillers = new Thread[payloadQueues.size()];
-            for (int i=0; i < payloadQueues.size(); i++) {
-                qFillers[i] = new Thread(emu.getThreadGroup(),
-                                         new Qfiller(payloadQueues.get(i),
-                                                     inputChannels.get(i).getQueue()),
-                                         name+":qfiller"+i);
-            }
+            qFillers = new Thread[payloadQueues.length];
+//            for (int i=0; i < payloadQueues.length; i++) {
+//                qFillers[i] = new Thread(emu.getThreadGroup(),
+//                                         new Qfiller(payloadQueues[i],
+//                                                     inputChannels.get(i).getQueue()),
+//                                         name+":qfiller"+i);
+//            }
+            for (int i=0; i < buildingThreadCount; i++) {
+               for (int j=0; j < inputChannels.size(); j++) {
+                   qFillers[i+j] = new Qfiller(payloadQueues[i+j],
+                                               inputChannels.get(j).getAllQueues()[i],
+                                               emu.getThreadGroup(),
+                                               name+":qfiller"+(i+j));
+               }
+           }
 
-System.out.println("startThreads(): recreated " + payloadQueues.size() +
+System.out.println("startThreads(): recreated " + payloadQueues.length +
                                        " Q-filling threads");
         }
-        for (int i=0; i < payloadQueues.size(); i++) {
+        for (int i=0; i < payloadQueues.length; i++) {
             if (qFillers[i].getState() == Thread.State.NEW) {
                 qFillers[i].start();
             }
         }
-System.out.println("startThreads(): started " + payloadQueues.size() +
+System.out.println("startThreads(): started " + payloadQueues.length +
                    " Q-filling threads");
     }
 
