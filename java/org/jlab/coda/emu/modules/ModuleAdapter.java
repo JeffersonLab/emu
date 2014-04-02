@@ -254,7 +254,8 @@ public class ModuleAdapter implements EmuModule {
 
     //----------------------------------------------------------------
 
-    /** Keep some data together and store as an event attachment. */
+    /** Keep some data together and store as an event attachment.
+     *  This class helps write events in the desired order.*/
     protected class EventOrder {
         /** Output channel to use. */
         DataChannel outputChannel;
@@ -264,6 +265,8 @@ public class ModuleAdapter implements EmuModule {
         int inputOrder;
         /** Lock to use for output to this output channel. */
         Object lock;
+        /** If {@code true}, then its output order is not important. */
+        boolean aSync;
     }
 
     /**
