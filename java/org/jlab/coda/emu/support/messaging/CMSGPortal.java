@@ -94,6 +94,7 @@ public class CMSGPortal implements LoggerAppender {
             server.subscribe("*", RCConstants.setOptionType, handler, null);
 
         } catch (cMsgException e) {
+            e.printStackTrace();
             logger.warn("Exit due to RC connect error: " + e.getMessage());
             System.exit(-1);
         }
