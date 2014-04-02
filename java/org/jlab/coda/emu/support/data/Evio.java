@@ -2825,7 +2825,7 @@ System.out.println("Timestamps are NOT consistent!!!");
 
         EvioNode[][]triggerSegments = new EvioNode[numROCs][numEvents];
 
-        EvioNode segment, rocNode;
+        EvioNode rocNode;
         EvioNode[] triggerBanks = new EvioNode[numROCs];
         boolean haveTimestamps, haveMiscData=false, nonFatalError=false;
         CODATag trigTag;
@@ -2948,23 +2948,21 @@ System.out.println("Timestamps are NOT consistent!!!");
         // across all ROCs, the event number & event type are the same.
         int[] triggerData = null;
         int firstEvNum = (int) firstEventNumber;
+        int[][][] trigIntArrays = new int[numEvents][numROCs][];
 
         for (int i=0; i < numEvents; i++) {
             for (int j=0; j < numROCs; j++) {
-
-//                segment = triggerBanks[j].getChildAt(i);
-
                 if (!turnOffChecks) {
                     // Check event type consistency
                     if (evData[i] != (short) (triggerSegments[j][i].getTag())) {
-    System.out.println("makeTriggerBankFromRocRaw: event type differs across ROCs");
+System.out.println("makeTriggerBankFromRocRaw: event type differs across ROCs");
                         nonFatalError = true;
                     }
 
                     // Check event number consistency
-                    triggerData = ByteDataTransformer.toIntArray(triggerSegments[j][i].getByteData(false));
+                    trigIntArrays[j][i] = triggerData = ByteDataTransformer.toIntArray(triggerSegments[j][i].getByteData(false));
                     if (firstEvNum + i != triggerData[0]) {
-    System.out.println("makeTriggerBankFromRocRaw: EB event # differs from ROC id#" +
+System.out.println("makeTriggerBankFromRocRaw: EB event # differs from ROC id#" +
                         getTagCodaId(inputPayloadBanks[j].getNode().getTag()) + "'s, " +
                         (firstEvNum+i) + " != " + (triggerData[0]));
                         nonFatalError = true;
@@ -3104,7 +3102,8 @@ System.out.println("Timestamps are NOT consistent!!!");
                     int[] oldData;
                     int position = 0;
                     for (int j=0; j < numEvents; j++) {
-                        oldData = ByteDataTransformer.toIntArray(triggerSegments[i][j].getByteData(false));
+                        oldData = trigIntArrays[i][j];
+                        // = ByteDataTransformer.toIntArray(triggerSegments[i][j].getByteData(false));
                         if (oldData.length != dataLenFromEachSeg + 1) {
                             throw new EmuException("Trigger segments contain different amounts of data");
                         }
