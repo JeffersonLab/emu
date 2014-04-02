@@ -162,6 +162,33 @@ public class DataChannelImplEt extends DataChannelAdapter {
 
 
     /**
+     * This method clones a ByteBuffer as efficiently as possible.
+     * @param buf buffer to copy/clone.
+     * @return a new copy of the data in buffer.
+     */
+    private static ByteBuffer cloneBuffer(ByteBuffer buf) {
+        int cap = buf.capacity();
+        int origPos = buf.position();
+        int origLim = buf.limit();
+
+        ByteBuffer clone = ByteBuffer.allocate(cap);
+
+        if (buf.hasArray()) {
+            System.arraycopy(buf.array(), 0, clone.array(), 0, cap);
+        }
+        else {
+            buf.limit(cap).position(0);
+            clone.put(buf);
+            buf.limit(origLim).position(origPos);
+        }
+        clone.order(buf.order());
+
+        return (ByteBuffer)clone.limit(origLim).position(origPos);
+    }
+
+
+
+    /**
      * Constructor to create a new DataChannelImplEt instance. Used only by
      * {@link DataTransportImplEt#createChannel(String, Map, boolean, Emu, EmuModule)}
      * which is only used during PRESTART in {@link Emu}.
@@ -258,7 +285,7 @@ logger.info("      DataChannel Et : creating output channel " + name);
 //logger.info("      DataChannel Et : write threads = " + writeThreadCount);
 
         // How may data reading threads?
-        inputThreadCount = 3;
+        inputThreadCount = 1;
         attribString = attributeMap.get("ithreads");
         if (attribString != null) {
             try {
@@ -709,7 +736,7 @@ logger.debug("      DataChannel Et reset() : " + name + " - done");
          * @param order the writing order of this list of banks
          * @throws InterruptedException if put or wait interrupted
          */
-        private void writeEvents(List<PayloadBank> banks, int order)
+        private void writeEvents(List<QueueItem> banks, int order)
                 throws InterruptedException {
 
             synchronized (lockOut2) {
@@ -719,46 +746,20 @@ logger.debug("      DataChannel Et reset() : " + name + " - done");
                 }
 
                 // Put banks in our Q, for module
-                for (PayloadBank bank : banks) {
-                    // Round-robin through Q's
-                    queueList.get(qIndex).put(bank);
-                    qIndex = ++qIndex % qCount;
-                }
-
-                // Next one to be put on output channel
-                outputOrderIn = ++outputOrderIn % Integer.MAX_VALUE;
-
-                // Keep track of control event output order
-                outputOrderInControl = ++outputOrderInControl % Integer.MAX_VALUE;
-
-                lockOut2.notifyAll();
-            }
-        }
-
-
-        /**
-         * This method is used to put a list of PayloadBuffer (ByteBuffer) objects
-         * onto a queue. It allows coordination between multiple DataInputHelper
-         * threads so that event order is preserved.
-         *
-         * @param buffers a list of payload buffers to put on the queue
-         * @param order the writing order of this list of buffers
-         * @throws InterruptedException if put or wait interrupted
-         */
-        private void writeEventsBB(List<PayloadBuffer> buffers, int order)
-                throws InterruptedException {
-
-            synchronized (lockOut2) {
-                // Is the bank we grabbed next to be output? If not, wait.
-                while (order != outputOrderIn) {
-                    lockOut2.wait();
-                }
-
-                // Put banks in our Q's, for module
-                for (PayloadBuffer buf : buffers) {
-                    // Round-robin through Q's
-                    queueList.get(qIndex).put(buf);
-                    qIndex = ++qIndex % qCount;
+                for (QueueItem bank : banks) {
+                    // Round-robin of physics & roc (buildable) events through Q's.
+                    // User events keep going to same Q until a buildable event shows up.
+                    // Control events go to all Qs.
+                    if (bank.getControlType() != null) {
+                        for (int i=0; i < qCount; i++) {
+                            allQueues[i].put(bank);
+                        }
+                        continue;
+                    }
+                    allQueues[qIndex].put(bank);
+                    if (bank.getEventType().isBuildable()) {
+                        qIndex = ++qIndex % qCount;
+                    }
                 }
 
                 // Next one to be put on output channel
@@ -793,7 +794,7 @@ logger.debug("      DataChannel Et reset() : " + name + " - done");
 
                 EvioEvent event;
                 PayloadBank payloadBank;
-                ArrayList<PayloadBank> payloadBanks = new ArrayList<PayloadBank>(1024);
+                ArrayList<QueueItem> payloadBanks = new ArrayList<QueueItem>(1024);
                 int myInputOrder, evioVersion, sourceId, recordId;
                 BlockHeaderV4 header4;
                 EventType eventType, bankType;
@@ -1045,7 +1046,7 @@ System.out.println("      DataChannel Et in helper: " + name + " got RESET cmd, 
 
             try {
                 PayloadBuffer payloadBuffer;
-                ArrayList<PayloadBuffer> payloadBuffers = new ArrayList<PayloadBuffer>(1024);
+                ArrayList<QueueItem> payloadBuffers = new ArrayList<QueueItem>(1024);
                 int myInputOrder, evioVersion, sourceId, recordId;
                 BlockHeaderV4 header4;
                 EventType eventType, bankType;
@@ -1129,7 +1130,13 @@ System.out.println("      DataChannel Et in helper: " + name + " got RESET cmd, 
                     }
 
                     for (EtEvent ev : events) {
-                        buf = ev.getDataBuffer();
+                        // The reason we clone this buffer is because the ET event's
+                        // data buffer points into shared memory. Since the parsed
+                        // evio events (which hold a reference to this buffer)
+                        // go onto a Q and then who knows where, it's best
+                        // to copy the buffer since ET buffers recirculate and get
+                        // reused. Was already burned by this once.
+                        buf = cloneBuffer(ev.getDataBuffer());
                         try {
                             compactReader = new EvioCompactReader(buf);
                         }
@@ -1207,7 +1214,7 @@ System.out.println("      DataChannel Et in helper: " + name + " got RESET cmd, 
                         }
 
                         // Write any existing banks
-                        writeEventsBB(payloadBuffers, myInputOrder++);
+                        writeEvents(payloadBuffers, myInputOrder++);
 
                         if (haveInputEndEvent) {
                             break;
