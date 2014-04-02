@@ -108,8 +108,8 @@ public interface DataChannel extends CODAStateMachine, StatedObject {
     public int getQCount();
 
     /**
-     * Get the list of data queues which contains at least one.
-     * @return list of data queues.
+     * Get the array of data queues which contains at least one.
+     * @return array of data queues.
      */
-    public List<BlockingQueue<QueueItem>> getQueueList();
+    public BlockingQueue<QueueItem>[] getAllQueues();
 }
