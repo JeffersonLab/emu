@@ -1046,7 +1046,12 @@ if (debug && nonFatalError) System.out.println("\nERROR 4\n");
 //                    physicsEvent.setAllHeaderLengths();
 
                     physicsEvent.setAttachment(evOrder); // store its input order info
-                    physicsEvent.setEventType(EventType.PHYSICS);
+                    if (emu.getCodaClass() == CODAClass.DC) {
+                        physicsEvent.setEventType(EventType.PARTIAL_PHYSICS);
+                    }
+                    else {
+                        physicsEvent.setEventType(EventType.PHYSICS);
+                    }
                     physicsEvent.setEventCount(totalNumberEvents);
                     physicsEvent.setFirstEventNumber(firstEventNumber);
 
