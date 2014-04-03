@@ -2105,7 +2105,7 @@ System.out.println("Timestamps are NOT consistent !!!");
         //-------------------------------------
         // Number of events in each payload bank
         int numEvents = inputPayloadBanks[0].getNode().getNum();
-        boolean firstTrigTimestamped = CODATag.hasTimestamp(inputPayloadBanks[0].getNode().getTag());
+        boolean firstTrigTimestamped = false;
 
 
         // In each payload bank (of banks) is a built trigger bank. Extract them all.
@@ -2117,6 +2117,8 @@ System.out.println("Timestamps are NOT consistent !!!");
             if (!Evio.isBuiltTriggerBank(triggerBanks[i])) {
                 throw new EmuException("No built trigger bank in physics event");
             }
+
+            if (i==0) firstTrigTimestamped = tags[0].hasTimestamp();
 
             // Number of rocs in this trigger bank
             rocCount = triggerBanks[i].getNum();
