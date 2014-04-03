@@ -902,8 +902,13 @@ System.out.println("      DataChannel Et in helper: " + name + " got RESET cmd, 
                         // But it should always be there if reading from ROC or DC.
                         eventType   = EventType.getEventType(header4.getEventType());
                         controlType = null;
+
                         // If ROC raw type, this is the source's CODA id
-                        sourceId    = header4.getReserved1();
+                        sourceId = header4.getReserved1();
+                        // If DC, CODA id is first ET event control word
+                        if (eventType == EventType.PARTIAL_PHYSICS) {
+                            sourceId = ev.getControl()[0];
+                        }
 
                         // The recordId associated with each bank is taken from the first
                         // evio block header in a single ET data buffer. For a physics or
@@ -1157,6 +1162,9 @@ System.out.println("      DataChannel Et in helper: " + name + " got RESET cmd, 
                         controlType = null;
 // TODO: this only works from ROC !!!
                         sourceId    = header4.getReserved1();
+                        if (eventType == EventType.PARTIAL_PHYSICS) {
+                            sourceId = ev.getControl()[0];
+                        }
                         recordId = header4.getNumber();
 
                         payloadBuffers.clear();
