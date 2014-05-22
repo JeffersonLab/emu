@@ -19,14 +19,15 @@ package org.jlab.coda.emu.support.data;
  */
 public enum ControlType {
 
-    SYNC       (0xFFD0),
-    PRESTART   (0xFFD1),
-    GO         (0xFFD2),
-    PAUSE      (0xFFD3),
-    END        (0xFFD4),
+    SYNC       (0xFFD0, 0),
+    PRESTART   (0xFFD1, 1),
+    GO         (0xFFD2, 2),
+    PAUSE      (0xFFD3, 3),
+    END        (0xFFD4, 4),
     ;
 
     private int value;
+    private int ordinalValue; // enum value can be expressed in 1 byte, useful over the wire
 
 
     /** Fast way to convert integer values into ControlType objects. */
@@ -37,21 +38,33 @@ public enum ControlType {
     static {
         intToType = new ControlType[0xf + 1];
         for (ControlType type : values()) {
-            intToType[type.value & 0xf] = type;
+            intToType[type.ordinalValue] = type;
         }
     }
 
 
-	/**
-	 * Obtain the enum from the value.
-	 *
-	 * @param val the value to match.
-	 * @return the matching enum, or <code>null</code>.
-	 */
-    public static ControlType getControlType(int val) {
-        if (val > 0xFFD4 || val < 0xFFD0) return null;
-        return intToType[val & 0xf];
-    }
+    /**
+   	 * Obtain the enum from the value.
+   	 *
+   	 * @param val the value to match.
+   	 * @return the matching enum, or <code>null</code>.
+   	 */
+       public static ControlType getControlType(int val) {
+           if (val > 0xFFD4 || val < 0xFFD0) return null;
+           return intToType[val & 0xf];
+       }
+
+
+    /**
+   	 * Obtain the enum from the ordinal value.
+   	 *
+   	 * @param val the ordinal value to match.
+   	 * @return the matching enum, or <code>null</code>.
+   	 */
+       public static ControlType getControlTypeFromOrdinal(int val) {
+           if (val > 4 || val < 0) return null;
+           return intToType[val];
+       }
 
 
     /**
@@ -68,8 +81,9 @@ public enum ControlType {
     }
 
 
-    private ControlType(int value) {
+    private ControlType(int value, int ordinalValue) {
         this.value = value;
+        this.ordinalValue = ordinalValue;
     }
 
 
@@ -79,6 +93,15 @@ public enum ControlType {
      */
     public int getValue() {
         return value;
+    }
+
+
+    /**
+     * Get the ordinal value of this enum.
+     * @return the ordinal value of this enum.
+     */
+    public int getOrdinalValue() {
+        return ordinalValue;
     }
 
 

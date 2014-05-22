@@ -11,11 +11,7 @@ import java.nio.ByteOrder;
  * @author timmer
  * Date: Jan 29, 2010
  */
-public class PayloadBank extends QueueItemAdapter {
-
-    /** Event to wrap. */
-    private EvioEvent event;
-
+public class PayloadBank extends RingItemAdapter {
 
     /**
      * Copy constructor which stores reference to event and doesn't copy or clone.
