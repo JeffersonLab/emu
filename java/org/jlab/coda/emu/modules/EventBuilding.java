@@ -96,7 +96,7 @@ public class EventBuilding extends ModuleAdapter {
      */
     private PriorityBlockingQueue<PayloadBank> waitingLists[];
 
-    /** Container for queues used to hold QueueItems taken from Data Transport channels. */
+    /** Container for queues used to hold RingItems taken from Data Transport channels. */
     private LinkedList<PayloadQueue<PayloadBank>> payloadQueues =
             new LinkedList<PayloadQueue<PayloadBank>>();
 
@@ -303,9 +303,9 @@ System.out.println("EventBuilding constr: " + buildingThreadCount +
      */
     private class QfillerDump extends Thread {
 
-        BlockingQueue<QueueItem> channelQ;
+        BlockingQueue<RingItem> channelQ;
 
-        QfillerDump(PayloadQueue<PayloadBank> payloadBankQ, BlockingQueue<QueueItem> channelQ) {
+        QfillerDump(PayloadQueue<PayloadBank> payloadBankQ, BlockingQueue<RingItem> channelQ) {
             this.channelQ = channelQ;
         }
 
@@ -326,24 +326,24 @@ System.out.println("EventBuilding constr: " + buildingThreadCount +
 
 
     /**
-     * This class takes QueueItems from a queue (an input channel, eg. ROC),
+     * This class takes RingItems from a queue (an input channel, eg. ROC),
      * and places the them in a payload bank queue associated with that channel.
      * All other types of events are ignored.
      * Nothing in this class depends on single event mode status.
      */
     private class Qfiller extends Thread {
 
-        BlockingQueue<QueueItem> channelQ;
+        BlockingQueue<RingItem> channelQ;
         PayloadQueue<PayloadBank> payloadBankQ;
 
-        Qfiller(PayloadQueue<PayloadBank> payloadBankQ, BlockingQueue<QueueItem> channelQ) {
+        Qfiller(PayloadQueue<PayloadBank> payloadBankQ, BlockingQueue<RingItem> channelQ) {
             this.channelQ = channelQ;
             this.payloadBankQ = payloadBankQ;
         }
 
         @Override
         public void run() {
-            QueueItem qItem;
+            RingItem qItem;
             PayloadBank pBank;
 
             while (state == CODAState.ACTIVE || paused) {

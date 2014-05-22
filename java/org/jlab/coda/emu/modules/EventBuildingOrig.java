@@ -104,7 +104,7 @@ import java.util.concurrent.locks.ReentrantLock;
  * If no output channels are defined in the config file, this module's QCollector thread
  * pulls off all events and discards them.
  */
-public class EventBuildingOrig extends CODAStateMachineAdapter implements EmuModule {
+public class EventBuildingOrig extends ModuleAdapter {
 
 
     /** Name of this event builder. */
@@ -245,6 +245,9 @@ public class EventBuildingOrig extends CODAStateMachineAdapter implements EmuMod
      * @param attributeMap map containing attributes of module
      */
     public EventBuildingOrig(String name, Map<String, String> attributeMap, Emu emu) {
+
+        super(name, attributeMap, emu);
+
         this.emu = emu;
         this.name = name;
         this.attributeMap = attributeMap;
@@ -410,10 +413,10 @@ public class EventBuildingOrig extends CODAStateMachineAdapter implements EmuMod
       */
      private class Qfiller extends Thread {
 
-         BlockingQueue<QueueItem> channelQ;
+         BlockingQueue<RingItem> channelQ;
          PayloadQueue<PayloadBank> payloadBankQ;
 
-         Qfiller(PayloadQueue<PayloadBank> payloadBankQ, BlockingQueue<QueueItem> channelQ) {
+         Qfiller(PayloadQueue<PayloadBank> payloadBankQ, BlockingQueue<RingItem> channelQ) {
              this.channelQ = channelQ;
              this.payloadBankQ = payloadBankQ;
          }

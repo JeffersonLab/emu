@@ -68,7 +68,7 @@ public class EventRecording extends ModuleAdapter {
     private DataChannel inputChannel;
 
     /** Input channel's queue. */
-    private BlockingQueue<QueueItem> channelQ;
+    private BlockingQueue<RingItem> channelQ;
 
     /** Type of object to expect for input. */
     private QueueItemType inputType = QueueItemType.PayloadBuffer;
@@ -532,7 +532,7 @@ if (debug) System.out.println("endRecordThreads: will end threads but no END eve
 
 //System.out.println("Running runMultipleThreads()");
             int totalNumberEvents=1, wordCount;
-            QueueItem qItem;
+            RingItem qItem;
             PayloadBuffer recordingBuf  = null;
             PayloadBank   recordingBank = null;
             ControlType   controlType;
@@ -656,7 +656,7 @@ if (true) System.out.println("Found END event in record thread");
 
             // initialize
             int totalNumberEvents=1, wordCount;
-            QueueItem qItem;
+            RingItem qItem;
             PayloadBuffer recordingBuf  = null;
             PayloadBank   recordingBank = null;
             ControlType controlType;

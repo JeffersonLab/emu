@@ -127,7 +127,7 @@ System.out.println("FarmController: running event moving thread");
             int inputChannelCount   = inputChannels.size();
             int outputChannelCount  = outputChannels.size();
 
-            BlockingQueue<QueueItem> queue;
+            BlockingQueue<RingItem> queue;
             PayloadBank payloadBank;
 
             while (state == CODAState.ACTIVE || paused) {
@@ -161,7 +161,7 @@ System.out.println("FarmController: got event of type " + payloadBank.getControl
 
                         // Copy bank & write to other output channels' Q's
                         for (int j=1; j < outputChannelCount; j++) {
-                            outputChannels.get(j).getQueue().put((QueueItem)payloadBank.clone());
+                            outputChannels.get(j).getQueue().put((RingItem)payloadBank.clone());
                         }
                     }
 

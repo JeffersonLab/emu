@@ -11,6 +11,8 @@
 
 package org.jlab.coda.emu.modules;
 
+import com.lmax.disruptor.*;
+import com.lmax.disruptor.TimeoutException;
 import org.jlab.coda.emu.Emu;
 import org.jlab.coda.emu.EmuException;
 import org.jlab.coda.emu.support.codaComponent.CODAClass;
@@ -24,7 +26,7 @@ import org.jlab.coda.emu.support.transport.DataChannel;
 import org.jlab.coda.jevio.CompactEventBuilder;
 import org.jlab.coda.jevio.DataType;
 import org.jlab.coda.jevio.EvioException;
-import org.jlab.coda.jevio.EvioNode;
+import org.jlab.coda.jevio.Utilities;
 
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
@@ -100,9 +102,9 @@ public class FastEventBuilder extends ModuleAdapter {
      * each of which stores built events until their turn to go over the
      * output channel has arrived.
      */
-    private PriorityBlockingQueue<QueueItem> waitingLists[];
+    private PriorityBlockingQueue<RingItem> waitingLists[];
 
-    /** Container for queues used to hold QueueItems taken from Data Transport channels. */
+    /** Container for queues used to hold RingItems taken from Data Transport channels. */
     private PayloadQueue<PayloadBuffer> payloadQueues[];
 
     /** Each payloadBufferQueue has this max size. */
@@ -115,11 +117,10 @@ public class FastEventBuilder extends ModuleAdapter {
     private LinkedList<BuildingThread> buildingThreadList = new LinkedList<BuildingThread>();
 
     /**
-     * Array of threads used to take Evio data from
-     * input channels, dissect them, and place resulting payload
-     * banks onto payload queues.
+     * Threads (one for each input channel) used to take Evio data from
+     * input channels and check them for proper format.
      */
-    private Thread qFillers[];
+    private Thread preProcessors[];
 
     /** Lock to ensure that a BuildingThread grabs the same positioned event from each Q.  */
     private ReentrantLock getLock = new ReentrantLock();
@@ -186,6 +187,9 @@ public class FastEventBuilder extends ModuleAdapter {
 
 
     /** Number of output channels. */
+    private int inputChannelCount;
+
+    /** Number of output channels. */
     private int outputChannelCount;
 
     /** Index to help cycle through output channels sequentially. */
@@ -223,14 +227,41 @@ public class FastEventBuilder extends ModuleAdapter {
     private volatile boolean haveEndEvent;
 
     /** Synchronize between build threads who will write GO. */
-    private AtomicBoolean firstToGetGo = new AtomicBoolean(false);
+    private final AtomicBoolean firstToGetGo = new AtomicBoolean(false);
 
     /** Synchronize between build threads who will write END. */
-    private AtomicBoolean firstToGetEnd = new AtomicBoolean(false);
+    private final AtomicBoolean firstToGetEnd = new AtomicBoolean(false);
 
     /** Synchronize between build threads who will write PRESTART. */
-    private AtomicBoolean firstToGetPrestart = new AtomicBoolean(false);
+    private final AtomicBoolean firstToGetPrestart = new AtomicBoolean(false);
 
+
+    //-------------------------------------------
+    // Disruptor (RingBuffer)  stuff, input
+    //-------------------------------------------
+
+    /** One RingBuffer per input channel. */
+    private RingBuffer<RingItem>[] ringBuffersIn;
+
+    /** One pre-build sequence and barrier for each input channel. */
+    public Sequence[] preBuildSequence;
+    public SequenceBarrier[] preBuildBarrier;
+
+    /** For each input channel, 1 sequence per build thread. */
+    public Sequence[][] buildSequenceIn;
+
+    /** For each input channel, all build threads share one barrier. */
+    public SequenceBarrier[] buildBarrierIn;
+
+
+     //-------------------------------------------
+    // Disruptor (RingBuffer)  stuff, output
+    //-------------------------------------------
+
+
+
+    /** One RingBuffer per input channel. */
+    private RingBuffer<RingItem>[] ringBuffersOut;
 
 
     /**
@@ -244,20 +275,7 @@ public class FastEventBuilder extends ModuleAdapter {
         super(name, attributeMap, emu);
 
         // Set number of building threads, by default, one for each queue
-        int qCount = 1;
-        try {
-            qCount = Integer.parseInt(attributeMap.get("qCount"));
-            if (qCount < 1)  qCount = 1;
-        }
-        catch (NumberFormatException e) {}
-        buildingThreadCount = qCount;
-
-//        // Let the "threads" attribute override the number of event building threads
-//        try {
-//            buildingThreadCount = Integer.parseInt(attributeMap.get("threads"));
-//            if (buildingThreadCount < qCount) buildingThreadCount = qCount;
-//        }
-//        catch (NumberFormatException e) {}
+        buildingThreadCount = eventProducingThreads;
 System.out.println("EventBuilding constr: " + buildingThreadCount +
                            " number of event building threads");
 
@@ -323,42 +341,136 @@ System.out.println("EventBuilding constr: " + buildingThreadCount +
     public QueueItemType getOutputQueueItemType() {return QueueItemType.PayloadBuffer;}
 
 
+//    /**
+//     * This class takes RingItems from a queue (an input channel, eg. ROC),
+//     * and places the them in a payload bank queue associated with that channel.
+//     * All other types of events are ignored.
+//     * Nothing in this class depends on single event mode status.
+//     */
+//    private class Qfiller extends Thread {
+//
+//        BlockingQueue<RingItem> channelQ;
+//        PayloadQueue<PayloadBuffer> payloadBufQ;
+//
+//        Qfiller(PayloadQueue<PayloadBuffer> payloadBufQ,
+//                BlockingQueue<RingItem> channelQ,
+//                ThreadGroup group, String name) {
+//
+//            super(group, name);
+//            this.channelQ = channelQ;
+//            this.payloadBufQ = payloadBufQ;
+//        }
+//
+//        @Override
+//        public void run() {
+//            PayloadBuffer pBuf;
+//
+//            while (state == CODAState.ACTIVE || paused) {
+//                try {
+//                    while (state == CODAState.ACTIVE || paused) {
+//                        // Block waiting for the next bank from ROC
+//                        pBuf = (PayloadBuffer)channelQ.take();  // blocks, throws InterruptedException
+//                        // Check this bank's format. If bad, ignore it
+//                        Evio.checkPayload(pBuf, payloadBufQ);
+//                    }
+//                } catch (EmuException e) {
+//                    // EmuException from Evio.checkPayload() if
+//                    // Roc raw or physics banks are in the wrong format
+//if (debug) System.out.println("Qfiller: Roc raw or physics event in wrong format");
+//                    errorMsg.compareAndSet(null, "Roc raw or physics banks are in the wrong format");
+//                    state = CODAState.ERROR;
+//                    emu.sendStatusMessage();
+//                    return;
+//                } catch (InterruptedException e) {
+//                    return;
+//                }
+//            }
+//        }
+//    }
+
+
     /**
-     * This class takes QueueItems from a queue (an input channel, eg. ROC),
-     * and places the them in a payload bank queue associated with that channel.
+     * This class takes RingItems from a RingBuffer (an input channel, eg. ROC),
+     * and processes them making sure each item is a valid, evio, DAQ event.
      * All other types of events are ignored.
      * Nothing in this class depends on single event mode status.
      */
-    private class Qfiller extends Thread {
+    private class PreProcessor extends Thread {
 
-        BlockingQueue<QueueItem> channelQ;
-        PayloadQueue<PayloadBuffer> payloadBufQ;
+        private long nextSequence;
 
-        Qfiller(PayloadQueue<PayloadBuffer> payloadBufQ,
-                BlockingQueue<QueueItem> channelQ,
-                ThreadGroup group, String name) {
+        private final Sequence sequence;
+        private final SequenceBarrier barrier;
+        private final RingBuffer<RingItem> ringBuffer;
+        private final DataChannel channel;
+
+        PreProcessor(RingBuffer<RingItem> ringBuffer,  SequenceBarrier barrier,
+                     Sequence sequence, DataChannel channel,
+                     ThreadGroup group, String name) {
 
             super(group, name);
-            this.channelQ = channelQ;
-            this.payloadBufQ = payloadBufQ;
+
+            this.channel = channel;
+            this.barrier = barrier;
+            this.sequence = sequence;
+            this.ringBuffer = ringBuffer;
+
+            nextSequence = sequence.get() + 1L;
         }
 
         @Override
         public void run() {
+System.out.println("PreProcessing Thread running ...");
             PayloadBuffer pBuf;
 
             while (state == CODAState.ACTIVE || paused) {
                 try {
+
                     while (state == CODAState.ACTIVE || paused) {
-                        // Block waiting for the next bank from ROC
-                        pBuf = (PayloadBuffer)channelQ.take();  // blocks, throws InterruptedException
-                        // Check this bank's format. If bad, ignore it
-                        Evio.checkPayload(pBuf, payloadBufQ);
+//System.out.println("PreProcessing: wait for Seq = " + nextSequence);
+                        final long availableSequence = barrier.waitFor(nextSequence);
+
+//System.out.println("PreProcessing: available Seq = " + availableSequence);
+                        while (nextSequence <= availableSequence) {
+                            pBuf = (PayloadBuffer) ringBuffer.get(nextSequence);
+                            Evio.checkPayload(pBuf, channel);
+
+                            // Take user event and place on first output channel
+                            if (pBuf.getEventType().isUser() && outputChannelCount > 0) {
+                                if (debug) System.out.println("BuildingThread: Got user event");
+
+                                // User events are thrown away if no output channels
+                                // since this event builder does nothing with them.
+                                // User events go into 1 - the first - channel
+                                EventOrder eo = new EventOrder();
+                                eo.index = 0;
+                                eo.outputChannel = outputChannels.get(0);
+                                eo.lock = locks[0];
+                                eo.aSync = true;   // output order is NOT important
+
+                                // Store its output order info
+                                pBuf.setAttachment(eo);
+                                // Send it on
+                                bankToOutputChannel(pBuf);
+                            }
+
+                            nextSequence++;
+//System.out.println("PreProcessing: next Seq = " + nextSequence);
+                        }
+
+//System.out.println("PreProcessing: set Seq = " + availableSequence);
+                        sequence.set(availableSequence);
                     }
+
+                } catch (AlertException e) {
+                    // don't know what this means
+                    e.printStackTrace();
+                } catch (TimeoutException e) {
+                    // won't happen
                 } catch (EmuException e) {
                     // EmuException from Evio.checkPayload() if
                     // Roc raw or physics banks are in the wrong format
-if (debug) System.out.println("Qfiller: Roc raw or physics event in wrong format");
+if (debug) System.out.println("PreProcessor: Roc raw or physics event in wrong format");
                     errorMsg.compareAndSet(null, "Roc raw or physics banks are in the wrong format");
                     state = CODAState.ERROR;
                     emu.sendStatusMessage();
@@ -379,18 +491,19 @@ if (debug) System.out.println("Qfiller: Roc raw or physics event in wrong format
      * @param bankOut the built/control/user event to place on output channel queue
      * @throws InterruptedException if wait, put, or take interrupted
      */
-    private void bankToOutputChannel(QueueItem bankOut)
+    private void bankToOutputChannel(RingItem bankOut)
                     throws InterruptedException {
 
         // Have output channels?
         if (outputChannelCount < 1) {
+            bankOut.releaseByteBuffer();
 //            Emu.bufferStorage.add(bankOut.getBuffer());
 //            Emu.bufferArray[Emu.putBuf++ % 20000] = bankOut.getBuffer();
 //System.out.print("B");
             return;
         }
 
-        QueueItem buffer;
+        RingItem buffer;
         EventOrder evOrder;
         EventOrder eo = (EventOrder)bankOut.getAttachment();
 
@@ -426,7 +539,7 @@ if (debug) System.out.println("Qfiller: Roc raw or physics event in wrong format
                         if (debug) {
                             System.out.println("out of order = " + eo.inputOrder);
                             System.out.println("waiting list = ");
-                            for (QueueItem bk : waitingLists[eo.index]) {
+                            for (RingItem bk : waitingLists[eo.index]) {
                                 System.out.println("" + ((EventOrder)bk.getAttachment()).inputOrder);
                             }
                         }
@@ -475,7 +588,7 @@ if (debug && printQSizes) {
      * @param banksOut a list of the built/control/user events to place on output channel queue
      * @throws InterruptedException if wait, put, or take interrupted
      */
-    private void bankToOutputChannel(List<QueueItem> banksOut)
+    private void bankToOutputChannel(List<RingItem> banksOut)
                     throws InterruptedException {
 
         // Have output channels? Have output banks?
@@ -488,7 +601,7 @@ if (debug && printQSizes) {
             return;
         }
 
-        QueueItem buffer;
+        RingItem buffer;
         EventOrder evOrder;
         EventOrder eo = (EventOrder)banksOut.get(0).getAttachment();
 
@@ -508,7 +621,7 @@ if (debug && printQSizes) {
                     }
                     // Place banks on output channel
 //System.out.println("Put banks on output channel");
-                    for (QueueItem item : banksOut) {
+                    for (RingItem item : banksOut) {
                         eo.outputChannel.getQueue().put(item);
                     }
                     outputOrders[eo.index] = ++outputOrders[eo.index] % Integer.MAX_VALUE;
@@ -519,7 +632,7 @@ if (debug && printQSizes) {
                     // Is the bank we grabbed next to be output?
                     // If not, put in waiting list and return.
                     if (eo.inputOrder != outputOrders[eo.index]) {
-                        for (QueueItem item : banksOut) {
+                        for (RingItem item : banksOut) {
                             item.setAttachment(eo);
                             waitingLists[eo.index].add(item);
                         }
@@ -532,7 +645,7 @@ if (debug && printQSizes) {
                     }
 
                     // Place banks on output channel
-                    for (QueueItem item : banksOut) {
+                    for (RingItem item : banksOut) {
                         eo.outputChannel.getQueue().put(item);
                     }
                     outputOrders[eo.index] = ++outputOrders[eo.index] % Integer.MAX_VALUE;
@@ -607,15 +720,148 @@ System.out.println("Have consistent GO event(s)");
 
 
     /**
+     * This method looks for either a prestart or go event in all the
+     * ring buffers given in the argument.
+     *
+     * @param ringBuffers   all ring buffers
+     * @param sequences     one sequence per ring buffer per build thread
+     * @param barriers      one barrier per ring buffer
+     * @param nextSequences one "index" per ring buffer per build thread to
+     *                      keep track of which event each thread is at
+     *                      in each ring buffer
+     *
+     * @return a copy of the control event found
+     * @throws EmuException if got non-control or non-prestart/go event
+     * @throws InterruptedException if taking of event off of Q is interrupted
+     */
+    private PayloadBuffer gotAllControlEvents(RingBuffer<RingItem>[] ringBuffers,
+                                              Sequence[] sequences,
+                                              SequenceBarrier barriers[],
+                                              long nextSequences[])
+            throws EmuException, InterruptedException {
+
+
+        boolean isPrestart = true;
+        PayloadBuffer[] buildingBanks = new PayloadBuffer[inputChannelCount];
+
+
+        // First thing we do is look for the go/prestart event and pass it on
+        // Grab one control event from each ring buffer.
+        for (int i=0; i < inputChannelCount; i++) {
+            try  {
+                final long availableSequence = barriers[i].waitFor(nextSequences[i]);
+                System.out.println("gotAllControlEvents: available Seq = " + availableSequence);
+
+                buildingBanks[i] = (PayloadBuffer) ringBuffers[i].get(nextSequences[i]);
+                ControlType cType = buildingBanks[i].getControlType();
+//System.out.println("gotAllControlEvents: Seq = " + nextSequences[i] + " has control type " + cType);
+                if (cType == null) {
+                    throw new EmuException("Expecting control event, got something else");
+                }
+
+                if (cType.isGo()) {
+                    isPrestart = false;
+                }
+                else if (!cType.isPrestart()) {
+                    Utilities.printBuffer(buildingBanks[i].getBuffer(), 0, 10, "Bad go/prestart");
+                    throw new EmuException("Expecting go or prestart, got " + cType);
+                }
+
+//System.out.println("gotAllControlEvents: set Seq = " + nextSequences[i]);
+                sequences[i].set(nextSequences[i]);
+
+                nextSequences[i]++;
+//System.out.println("gotAllControlEvents: next Seq = " + nextSequences[i]);
+            }
+            catch (final TimeoutException e) {
+                e.printStackTrace();
+                throw new EmuException("Cannot get control event", e);
+            }
+            catch (final AlertException e) {
+                e.printStackTrace();
+                throw new EmuException("Cannot get control event", e);
+            }
+        }
+
+        // Throw exception if inconsistent
+        Evio.gotConsistentControlEvents(buildingBanks, runNumber, runTypeId);
+
+        if (isPrestart) {
+System.out.println("Have consistent PRESTART event(s)");
+        }
+        else {
+System.out.println("Have consistent GO event(s)");
+        }
+
+        return buildingBanks[0];
+    }
+
+
+    /**
      * This method writes the given control event into all the output channels.
      *
-     * @param btPayloadQueues queues in which to look for prestart or go events
+     * @param ringBuffers queues in which to look for prestart or go events
      * @param controlEvent {@code true} if prestart event being written, else go event
      * @param isPrestart {@code true} if prestart event being written, else go event
      * @throws InterruptedException if writing of event to output Q is interrupted
      */
-    private void controlToOutputAsync(PayloadQueue<PayloadBuffer> btPayloadQueues[],
+    private void controlToOutputAsync(RingBuffer[] ringBuffers,
                                       PayloadBuffer controlEvent, boolean isPrestart)
+            throws InterruptedException {
+
+        if (true) return;
+
+        // Put 1 event on each output Q
+        if (outputChannelCount > 0) {
+            // Take one of the go/prestart events and update
+            // it with the latest event builder data.
+            Evio.updateControlEvent(controlEvent, runNumber,
+                                    runTypeId, (int)eventCountTotal, 0);
+
+            EventOrder eo = new EventOrder();
+            eo.index = 0;
+            eo.outputChannel = outputChannels.get(0);
+            eo.lock = locks[0];
+            eo.aSync = true;
+
+            // We must copy the newly-updated event
+            // and make sure one is placed on each output channel.
+            controlEvent.setAttachment(eo);
+            bankToOutputChannel(controlEvent);
+
+            for (int j = 1; j < outputChannelCount; j++) {
+                // Copy first control event
+                PayloadBuffer bb = new PayloadBuffer(controlEvent);
+
+                eo = new EventOrder();
+                eo.index = j;
+                eo.outputChannel = outputChannels.get(j);
+                eo.lock = locks[j];
+                eo.aSync = true;
+
+                bb.setAttachment(eo);
+                // Write to other output Q's
+                bankToOutputChannel(bb);
+            }
+        }
+
+        if (isPrestart) {
+            System.out.println("\n\nWrote PRESTART from build thread\n");
+        }
+        else {
+            System.out.println("\n\nWrote GO from build thread\n");
+        }
+    }
+
+
+    /**
+     * This method writes the given control event into all the output channels.
+     *
+     * @param controlEvent {@code true} if prestart event being written, else go event
+     * @param isPrestart {@code true} if prestart event being written, else go event
+     * @throws InterruptedException if writing of event to output Q is interrupted
+     */
+    private void controlToOutputAsync(PayloadBuffer controlEvent, boolean isPrestart)
             throws InterruptedException {
 
         // Put 1 event on each output Q
@@ -663,6 +909,8 @@ System.out.println("Have consistent GO event(s)");
 
 
 
+
+
     /**
      * This thread is started by the GO transition and runs while the state of the module is ACTIVE.
      * <p/>
@@ -677,62 +925,64 @@ System.out.println("Have consistent GO event(s)");
      */
     class BuildingThread extends Thread {
 
-        private PayloadQueue<PayloadBuffer> btPayloadQueues[];
+//        private PayloadQueue<PayloadBuffer> btPayloadQueues[];
         private int outputChannelIndex;
-        /** The order of this build thread, starting at 0. */
+        /** The order of this build thread, relative to the other build threads,
+          * starting at zero. */
         private final int order;
         /** The total number of build threads. */
         private final int btCount;
-        /** The number of the event to be assigned to that which is built next. */
-        private long eventNumber;
+
+        // RingBuffer Stuff
+        /** 1 sequence for each input channel in this particular build thread. */
+        private Sequence[] buildSequences;
+        private long availableSequences[];
+        private long nextSequences[];
 
 
-        BuildingThread(PayloadQueue<PayloadBuffer> payloadQueues[],
-                       int order, ThreadGroup group, String name) {
+
+
+        BuildingThread(int order, ThreadGroup group, String name) {
             super(group, name);
-            btPayloadQueues = payloadQueues;
-
+//            btPayloadQueues = payloadQueues;
             this.order = order;
             outputChannelIndex = order;
             btCount = buildingThreadCount;
-            eventNumber = order + 1L;
         }
 
 
         @Override
         public void run() {
 
+            ByteBufferSupply bbSupply = new ByteBufferSupply(4096, 20000);
 
-            LinkedBlockingQueue<ByteBuffer> bufferStorage =
-                    new LinkedBlockingQueue<ByteBuffer>();
-            //TODO: make this an array with a couple of indexes ...
+            CompactEventBuilder builder = null;
+            try {
+                // Internal buffer of 8 bytes will be overwritten later
+                builder = new CompactEventBuilder(8, ByteOrder.BIG_ENDIAN, true);
+            }
+            catch (EvioException e) {/*never happen */}
 
-            ByteBuffer[] bufferArray = new ByteBuffer[20000];
-            int getBuf = 0;
-            int putBuf = 0;
-//Populate trial Q
-            for (int i = 0; i < 1000; i++) {
-                bufferStorage.add(ByteBuffer.allocate(20000));
-            }
-            for (int i = 0; i < 20000; i++) {
-                bufferArray[i] = ByteBuffer.allocate(10000);
-            }
 
             // initialize
             int totalNumberEvents=1;
             long firstEventNumber=1;
+            int skipCounter = order + 1;
             boolean haveEnd;
             boolean firstToFindEnd;
             boolean nonFatalError;
             boolean havePhysicsEvents;
             boolean gotFirstBuildEvent;
-            EventType eventType;
+            boolean gotBank;
+            // Has the firstEventNumber been set for the first time?
+            boolean isEventNumberInitiallySet = false;
+            EventType eventType = null;
 
             PayloadBuffer   physicsEvent;
-            PayloadBuffer[] buildingBanks = new PayloadBuffer[inputChannels.size()];
+            PayloadBuffer[] buildingBanks = new PayloadBuffer[inputChannelCount];
 
             EventOrder[] controlEventOrders = new EventOrder[outputChannelCount];
-            LinkedList<QueueItem> userEventList = new LinkedList<QueueItem>();
+            LinkedList<RingItem> userEventList = new LinkedList<RingItem>();
 
             int myInputOrder = order - btCount;
             int myOutputChannelIndex = 0;
@@ -741,15 +991,28 @@ System.out.println("Have consistent GO event(s)");
 
             int endEventCount;
 
+            // Ring Buffer stuff - define array for convenience
+            nextSequences = new long[inputChannelCount];
+            availableSequences = new long[inputChannelCount];
+            Arrays.fill(availableSequences, -2L);
+            buildSequences = new Sequence[inputChannelCount];
+            for (int i=0; i < inputChannelCount; i++) {
+                buildSequences[i] = buildSequenceIn[order][i];
+                nextSequences[i]  = buildSequences[i].get() + 1L;
+            }
 
             // First thing we do is look for the prestart event(s) and pass it on
             try {
-                PayloadBuffer cEvent = gotAllControlEvents(btPayloadQueues);
+                PayloadBuffer cEvent = gotAllControlEvents(ringBuffersIn,
+                                                           buildSequences,
+                                                           buildBarrierIn,
+                                                           nextSequences);
+
                 // If this is the first build thread to reach this point, then
                 // write prestart event on all output channels. Other build
                 // threads ignore this.
                 if (firstToGetPrestart.compareAndSet(false, true)) {
-                    controlToOutputAsync(btPayloadQueues, cEvent, true);
+                    controlToOutputAsync(ringBuffersOut, cEvent, true);
                 }
                 // This thread is ready to look for "go"
                 waitForPrestart.countDown();
@@ -774,9 +1037,12 @@ System.out.println("Have consistent GO event(s)");
 
             // Second thing we do is look for the go event and pass it on
             try {
-                PayloadBuffer gEvent = gotAllControlEvents(btPayloadQueues);
+                PayloadBuffer gEvent = gotAllControlEvents(ringBuffersIn,
+                                                           buildSequences,
+                                                           buildBarrierIn,
+                                                           nextSequences);
                 if (firstToGetGo.compareAndSet(false, true)) {
-                    controlToOutputAsync(btPayloadQueues, gEvent, false);
+                    controlToOutputAsync(ringBuffersOut, gEvent, false);
                 }
                 // This thread is ready to build
                 waitForGo.countDown();
@@ -796,13 +1062,12 @@ System.out.println("Have consistent GO event(s)");
             }
             catch (InterruptedException e) {}
 
-
             while (state == CODAState.ACTIVE || paused) {
 
                 try {
                     nonFatalError = false;
 
-                    // The payload bank queues are filled by the QFiller thread.
+                    // The payload bank queues are filled by the PreProcessor thread.
 
                     // Here we have what we need to build:
                     // ROC raw events from all ROCs (or partially built events from
@@ -820,17 +1085,60 @@ System.out.println("Have consistent GO event(s)");
 
                     // Fill array with actual banks
 
+//                    Thread.sleep(1000);
+
                     // Grab one buildable (non-user/control) bank from each channel.
                     // This algorithm retains the proper order of any user events.
-                    for (int i=0; i < btPayloadQueues.length; i++) {
+                    for (int i=0; i < ringBuffersIn.length; i++) {
 
                         // Loop until we get event which is NOT a user event
                         while (true) {
 
-                            // will BLOCK here waiting for payload bank if none available
-                            buildingBanks[i] = btPayloadQueues[i].take();
+                            gotBank = false;
 
-                            eventType = buildingBanks[i].getEventType();
+                            // Will BLOCK here waiting for payload bank if none available
+                            // Only wait or read-volatile-memory if necessary ...
+                            if (availableSequences[i] < nextSequences[i]) {
+                                // Available sequence may be larger than what we desired
+                                availableSequences[i] = buildBarrierIn[i].waitFor(nextSequences[i]);
+//System.out.println("btThread " + order + ": available Seq = " + availableSequences[i]);
+                            }
+
+                            while (nextSequences[i] <= availableSequences[i]) {
+                                buildingBanks[i] = (PayloadBuffer) ringBuffersIn[i].get(nextSequences[i]);
+                                eventType = buildingBanks[i].getEventType();
+                                if (eventType.isUser() ||
+                                        skipCounter - 1 > 0    )  {
+//System.out.println("btThread " + order + ": skip item " + nextSequences[i]);
+                                    //buildSequences[i].set(nextSequences[i]++);
+                                    nextSequences[i]++;
+                                    skipCounter--;
+                                }
+                                //if (skipCounter - 1 == 0)
+                                else {
+//System.out.println("btThread " + order + ": accept item " + nextSequences[i]);
+                                    // Pick out every buildingThreadCount-th event
+                                    //eventType = buildingBanks[i].getEventType();
+                                    gotBank = true;
+                                    // Found a bank, so do something with it
+                                    break;
+                                }
+//                                else {
+////System.out.println("btThread " + order + ": skip item " + nextSequences[i]);
+//                                    //buildSequences[i].set(nextSequences[i]++);
+//                                    nextSequences[i]++;
+//                                    skipCounter--;
+//                                }
+                            }
+
+                            // The next event we're interested in
+                            // (although we'll get everything in between too).
+
+                            if (!gotBank) {
+                                //System.out.println("Oops, bad algorithm !!!");
+                                continue;
+                            }
+
 
                             // If event needs to be built ...
                             if (!eventType.isControl() && !eventType.isUser()) {
@@ -843,11 +1151,20 @@ System.out.println("Have consistent GO event(s)");
                                     // Find the total # of events
                                     totalNumberEvents = buildingBanks[i].getNode().getNum();
 
-                                    // Store first event number
-                                    firstEventNumber = eventNumber;
-//System.out.println(order + ", " + firstEventNumber);
-                                    // Calculate event number for next time through
-                                    eventNumber += btCount*totalNumberEvents;
+                                    // The "block level" is the number of entangled events in one
+                                    // ROC raw record which is set by the trigger supervisor.
+                                    // Its value is in "totalNumberEvents" set in the line above.
+                                    // This may change following each sync event.
+                                    // It is important because if there are multiple BuildingThreads, then
+                                    // each thread must set its expected event number according to the
+                                    // blockLevel.
+                                    if (!isEventNumberInitiallySet)  {
+                                        firstEventNumber = 1L + (order * totalNumberEvents);
+                                        isEventNumberInitiallySet = true;
+                                    }
+                                    else {
+                                        firstEventNumber += btCount*totalNumberEvents;
+                                    }
 
                                     if (outputChannelCount > 0) {
                                         // We can already figure out which output channel it should go to.
@@ -862,6 +1179,8 @@ System.out.println("Have consistent GO event(s)");
                                         myOutputLock  = locks[myOutputChannelIndex];
                                     }
                                 }
+
+                                skipCounter = btCount;
 
                                 // Go to next input channel
                                 break;
@@ -908,7 +1227,10 @@ System.out.println("Have consistent GO event(s)");
                             }
 
                             // At this point all controls are END events
+
+                            // Is this build thread the first to get the END event?
                             firstToFindEnd = firstToGetEnd.compareAndSet(false, true);
+
                             haveEnd = true;
                             endEventCount++;
 
@@ -961,39 +1283,66 @@ System.out.println("Have consistent GO event(s)");
                         }
                         else {
                             // If we're here, not all channels got an END event.
-                            // See if we can find them in our local Qs (not some other
-                            // build thread's Qs). If we can, great. If not, major error.
+                            // See if we can find them in the ring buffers which didn't
+                            // have one. If we can, great. If not, major error.
                             // If all our channels have an END, we can end normally
                             // with a warning about the mismatch in number of events.
 
                             int finalEndEventCount = endEventCount;
 
-                            // Look through Q's to see if we can find the rest ...
-                            for (int i=0; i < btPayloadQueues.length; i++) {
-                                PayloadBuffer pBuf;
+                            // Look through ring buffers to see if we can find the rest ...
+                            for (int i=0; i < ringBuffersIn.length; i++) {
+
                                 EventType   eType = buildingBanks[i].getEventType();
                                 ControlType cType = buildingBanks[i].getControlType();
 
                                 if (cType != null)  {
-                                    System.out.println("END paired with " + cType + " event from " + buildingBanks[i].getSourceName());
+                                    System.out.println("END paired with " + cType + " event from " +
+                                                               buildingBanks[i].getSourceName());
                                 }
                                 else {
-                                    System.out.println("END paired with " + eType + " event from " + buildingBanks[i].getSourceName());
+                                    System.out.println("END paired with " + eType + " event from " +
+                                                               buildingBanks[i].getSourceName());
                                 }
 
                                 // If this channel doesn't have an END, try finding it somewhere in Q
                                 if (cType != ControlType.END) {
                                     int offset = 0;
-                                    // Loop through all events on this channel
-                                    while ( (pBuf = btPayloadQueues[i].poll()) != null) {
-                                        offset++;
-                                        if (pBuf.getControlType() == ControlType.END) {
-                                            System.out.println("got END from " + buildingBanks[i].getSourceName() +
+                                    boolean done = false;
+                                    PayloadBuffer pBuf;
+                                    long available, veryNextSequence = nextSequences[i]+1;
+
+                                    try  {
+                                        while (true) {
+                                            // Check to see if there is anything to read so we don't block.
+                                            // If not, move on to the next ring.
+                                            if (!ringBuffersIn[i].isPublished(veryNextSequence)) {
+                                                break;
+                                            }
+
+                                            available = buildBarrierIn[i].waitFor(veryNextSequence);
+
+                                            while (veryNextSequence <= available) {
+                                                offset++;
+                                                pBuf = (PayloadBuffer) ringBuffersIn[i].get(veryNextSequence);
+                                                if (pBuf.getControlType() == ControlType.END) {
+                                                    // Found the END event
+                                                    System.out.println("got END from " + buildingBanks[i].getSourceName() +
                                                                        ", back " + offset + " places in Q");
-                                            finalEndEventCount++;
-                                            break;
+                                                    finalEndEventCount++;
+                                                    done = true;
+                                                    break;
+                                                }
+                                                buildSequences[i].set(veryNextSequence++);
+                                            }
+
+                                            if (done) {
+                                                break;
+                                            }
                                         }
                                     }
+                                    catch (final TimeoutException e) {}
+                                    catch (final AlertException e)   {}
                                 }
                             }
 
@@ -1032,11 +1381,6 @@ System.out.println("Have consistent GO event(s)");
                             // If we're here, we've found all ENDs, continue on with warning ...
                             nonFatalError = true;
 System.out.println("Have all ENDs, but differing # of physics events in channels");
-                        }
-
-                        // Clear all channels' Q's
-                        for (PayloadQueue<PayloadBuffer> payloadQueue : btPayloadQueues) {
-                            payloadQueue.clear();
                         }
                     }
 
@@ -1133,30 +1477,14 @@ if (debug && havePhysicsEvents)
                         memSize += buildingBank.getBuffer().capacity();
                     }
 
-                    CompactEventBuilder builder = null;
-
                     // Grab a stored ByteBuffer
-//                    ByteBuffer buffie = Emu.bufferStorage.poll();
-                    ByteBuffer buffie = bufferArray[getBuf];
-                    if (buffie != null) {
-                        if (buffie.capacity() >= memSize) {
-                            builder = new CompactEventBuilder(buffie, true);
-//System.out.print(".");
-                        }
-                        else {
-                            System.out.println("REJECT");
-                        }
+                    ByteBufferItem bufItem = bbSupply.get();
+                    ByteBuffer evBuf = bufItem.getBuffer();
+                    if (evBuf.capacity() < memSize) {
+                        evBuf = ByteBuffer.allocate(memSize);
+                        bufItem.setBuffer(evBuf);
                     }
-
-                    if (builder == null) {
-                        builder = new CompactEventBuilder(memSize, ByteOrder.BIG_ENDIAN, true);
-//                        bufferStorage.add(builder.getBuffer());
-                        bufferArray[getBuf] = builder.getBuffer();
-System.out.print("+");
-                    }
-                    getBuf = (getBuf + 1) % 20000;
-
-//                    CompactEventBuilder builder = new CompactEventBuilder(memSize, ByteOrder.BIG_ENDIAN, true);
+                    builder.setBuffer(evBuf);
 
                     // Create a (top-level) physics event from payload banks
                     // and the combined trigger bank. First create the tag:
@@ -1234,7 +1562,7 @@ if (debug) System.out.println("BuildingThread: create trigger bank from Rocs, sp
                                                                             runNumber, runTypeId,
                                                                             includeRunData, sparsify,
                                                                             checkTimestamps,
-                                                                            timestampSlop);
+                                                                            timestampSlop, order);
                         }
                     }
 
@@ -1263,17 +1591,10 @@ if (debug && nonFatalError) System.out.println("\nERROR 4\n");
                     // Done creating event
                     builder.closeAll();
 
-                    // Retrieve buffer we've been writing into with builder/
-                    // It is ready to read so do NOT flip() it.
-                    ByteBuffer evBuf = builder.getBuffer();
-
-   //                 builder.toFile("/daqfs/home/timmer/coda/evioTestFiles/HEY.ev");
-
-                    // Get buffer ready to read
-//                    evBuf.flip();
-
                     // Wrap it in payload buffer object
                     physicsEvent = new PayloadBuffer(evBuf);
+                    // Set some things to allow buffer to be freed for reuse later
+                    physicsEvent.setReusableByteBuffer(bbSupply, bufItem);
 
                     physicsEvent.setAttachment(evOrder); // store its input order info
                     if (emu.getCodaClass() == CODAClass.DC) {
@@ -1286,7 +1607,7 @@ if (debug && nonFatalError) System.out.println("\nERROR 4\n");
                     physicsEvent.setFirstEventNumber(firstEventNumber);
 
                     //                    synchronized (EventBuilding.this) {
-                    // stats  // TODO: protect since in multithreaded environs
+                    // stats  // TODO: protect since in multithreaded environs ?
                     eventCountTotal += totalNumberEvents;
                     wordCountTotal  += builder.getTotalBytes()/4 + 1;
                     //                    }
@@ -1309,7 +1630,7 @@ if (debug && nonFatalError) System.out.println("\nERROR 4\n");
                                          (int) (firstEventNumber + totalNumberEvents - eventNumberAtLastSync));
                             PayloadBuffer controlPBuf = new PayloadBuffer(controlEvent);
                             eventNumberAtLastSync = firstEventNumber + totalNumberEvents;
-                            ArrayList<QueueItem> list = new ArrayList<QueueItem>(2);
+                            ArrayList<RingItem> list = new ArrayList<RingItem>(2);
                             // Don't switch the order of the next 2 statements
                             list.add(physicsEvent);
                             list.add(controlPBuf);
@@ -1319,7 +1640,45 @@ if (debug && nonFatalError) System.out.println("\nERROR 4\n");
                     }
 
 
+                    // Release the reusable ByteBuffers back its ring buffer
+                    for (int i=0; i < inputChannelCount; i++) {
+                        buildingBanks[i].releaseByteBuffer();
+                    }
+
+                    // Release the events back to the ring buffer for re-use
+                    for (int i=0; i < ringBuffersIn.length; i++) {
+//System.out.println("btThread " + order + ": set seq " + veryNextSequences[i]);
+                        buildSequences[i].set(nextSequences[i]++);
+                    }
+
                 }
+                catch (final TimeoutException e) {
+                    e.printStackTrace();
+                    if (debug) System.out.println("Timeout in ring buffer");
+                    // If we haven't yet set the cause of error, do so now & inform run control
+                    errorMsg.compareAndSet(null, e.getMessage());
+
+                    // set state
+                    state = CODAState.ERROR;
+                    emu.sendStatusMessage();
+
+                    e.printStackTrace();
+                    return;
+                }
+                catch (final AlertException e) {
+                    e.printStackTrace();
+                    if (debug) System.out.println("Alert in ring buffer");
+                    // If we haven't yet set the cause of error, do so now & inform run control
+                    errorMsg.compareAndSet(null, e.getMessage());
+
+                    // set state
+                    state = CODAState.ERROR;
+                    emu.sendStatusMessage();
+
+                    e.printStackTrace();
+                    return;
+                }
+
                 catch (EmuException e) {
 if (debug) System.out.println("MAJOR ERROR building events");
                     // If we haven't yet set the cause of error, do so now & inform run control
@@ -2038,8 +2397,8 @@ if (debug) System.out.println("Building thread is ending !!!");
         }
 
         // Interrupt all QFiller threads too
-        if (qFillers != null) {
-            for (Thread qf : qFillers) {
+        if (preProcessors != null) {
+            for (Thread qf : preProcessors) {
                 qf.interrupt();
             }
         }
@@ -2063,7 +2422,7 @@ if (debug) System.out.println("Building thread is ending !!!");
         endBuildAndQFillerThreads(null, false);
 
         RateCalculator = null;
-        qFillers = null;
+        preProcessors = null;
         buildingThreadList.clear();
 
         if (inputOrders  != null) Arrays.fill(inputOrders, 0);
@@ -2095,7 +2454,7 @@ if (debug) System.out.println("Building thread is ending !!!");
         endBuildAndQFillerThreads(null, true);
 
         RateCalculator = null;
-        qFillers = null;
+        preProcessors = null;
         buildingThreadList.clear();
 
         if (inputOrders  != null) Arrays.fill(inputOrders, 0);
@@ -2210,8 +2569,10 @@ if (debug) System.out.println("Building thread is ending !!!");
     /** {@inheritDoc} */
     public void prestart() throws CmdExecException {
 
+        inputChannelCount = inputChannels.size();
+
         // Event builder needs inputs
-        if (inputChannels.size() < 1) {
+        if (inputChannelCount < 1) {
             errorMsg.compareAndSet(null, "no input channels to EB");
             state = CODAState.ERROR;
             emu.sendStatusMessage();
@@ -2219,8 +2580,8 @@ if (debug) System.out.println("Building thread is ending !!!");
         }
 
         // Make sure each input channel is associated with a unique rocId
-        for (int i=0; i < inputChannels.size(); i++) {
-            for (int j=i+1; j < inputChannels.size(); j++) {
+        for (int i=0; i < inputChannelCount; i++) {
+            for (int j=i+1; j < inputChannelCount; j++) {
                 if (inputChannels.get(i).getID() == inputChannels.get(j).getID()) {
                     errorMsg.compareAndSet(null, "input channels duplicate rocIDs");
                     state = CODAState.ERROR;
@@ -2233,21 +2594,68 @@ if (debug) System.out.println("Building thread is ending !!!");
         state = CODAState.PAUSED;
         paused = true;
 
-        // Make sure we have the correct # of payload bank queues available.
-        // Each queue holds payload banks taken from a particular source (ROC).
-        int qCount = buildingThreadCount*inputChannels.size();
-        payloadQueues = new PayloadQueue[qCount];
-        PayloadQueue pq;
-        for (int i=0; i < buildingThreadCount; i++) {
-            for (int j=0; j < inputChannels.size(); j++) {
-                // Allow only payloadBufferQueueSize items on the Q at once
-                pq = new PayloadQueue<PayloadBuffer>(payloadBufferQueueSize);
-                pq.setSourceId(inputChannels.get(j).getID());
-                payloadQueues[i+j] = pq;
-System.out.println("\n\nCreate Payload buffer Q for in chan " + (j) +
-                   " with source id " + pq.getSourceId());
+//        // Make sure we have the correct # of payload bank queues available.
+//        // Each queue holds payload banks taken from a particular source (ROC).
+//        int qCount = buildingThreadCount*inputChannelCount;
+//        payloadQueues = new PayloadQueue[qCount];
+//        PayloadQueue pq;
+//        for (int i=0; i < buildingThreadCount; i++) {
+//            for (int j=0; j < inputChannels.size(); j++) {
+//                // Allow only payloadBufferQueueSize items on the Q at once
+//                pq = new PayloadQueue<PayloadBuffer>(payloadBufferQueueSize);
+//                pq.setSourceId(inputChannels.get(j).getID());
+//                payloadQueues[i+j] = pq;
+//System.out.println("\n\nCreate Payload buffer Q for in chan " + (j) +
+//                   " with source id " + pq.getSourceId());
+//            }
+//        }
+//
+
+        //------------------------------------------------
+        // Disruptor (RingBuffer) stuff for input channels
+        //------------------------------------------------
+
+        // "One ring buffer to rule them all and in the darkness bind them."
+        // Actually, one ring buffer for each input channel.
+        ringBuffersIn = new RingBuffer[inputChannelCount];
+
+        // One pre-build sequence and barrier for each input channel
+        preBuildSequence = new Sequence[inputChannelCount];
+        preBuildBarrier  = new SequenceBarrier[inputChannelCount];
+
+        // For each input channel, 1 sequence per build thread
+        buildSequenceIn = new Sequence[buildingThreadCount][inputChannelCount];
+
+        // For each input channel, all build threads share one barrier
+        buildBarrierIn = new SequenceBarrier[inputChannelCount];
+
+        // For each channel ...
+        for (int i=0; i < inputChannelCount; i++) {
+            // Get channel's ring buffer
+            RingBuffer<RingItem> rb = inputChannels.get(i).getRing();
+            ringBuffersIn[i] = rb;
+
+            // First sequence & barrier is for checking of PayloadBuffer/Bank
+            // data before the actual building takes place.
+            preBuildBarrier[i]  = rb.newBarrier();
+            preBuildSequence[i] = new Sequence(Sequencer.INITIAL_CURSOR_VALUE);
+
+            // For each build thread ...
+            for (int j=0; j < buildingThreadCount; j++) {
+                // We have 1 sequence for each build thread & input channel combination
+                buildSequenceIn[j][i] = new Sequence(Sequencer.INITIAL_CURSOR_VALUE);
+
+                // This sequence may be the last consumer before producer comes along
+                rb.addGatingSequences(buildSequenceIn[j][i]);
             }
+
+            // We have 1 barrier for each channel (shared by building threads)
+            buildBarrierIn[i] = rb.newBarrier(preBuildSequence[i]);
         }
+
+        //------------------------------------------------
+        //
+        //------------------------------------------------
 
 
         // How many output channels do we have?
@@ -2265,7 +2673,7 @@ System.out.println("\n\nCreate Payload buffer Q for in chan " + (j) +
 
             waitingLists = new PriorityBlockingQueue[outputChannelCount];
             for (int i=0; i < outputChannelCount; i++) {
-                waitingLists[i] = new PriorityBlockingQueue<QueueItem>(100, comparator);
+                waitingLists[i] = new PriorityBlockingQueue<RingItem>(100, comparator);
             }
         }
 
@@ -2316,39 +2724,25 @@ System.out.println("\n\nCreate Payload buffer Q for in chan " + (j) +
         int inChanCount = inputChannels.size();
 
         for (int i=0; i < buildingThreadCount; i += inChanCount) {
-System.out.println("\nCreate build thd" + i + ":");
-            // Pick out 1 Q from each input for each build thread
-            PayloadQueue<PayloadBuffer> qs[] = new  PayloadQueue[inChanCount];
-            for (int j=0; j < inChanCount; j++) {
-System.out.println("       with payload Q " + (i+j));
-                qs[j] = payloadQueues[i+j];
-            }
-            BuildingThread thd1 = new BuildingThread(qs, i, emu.getThreadGroup(), name+":builder"+i);
+//System.out.println("\nCreate build thd" + i + ":");
+//            // Pick out 1 Q from each input for each build thread
+//            PayloadQueue<PayloadBuffer> qs[] = new  PayloadQueue[inChanCount];
+//            for (int j=0; j < inChanCount; j++) {
+//System.out.println("       with payload Q " + (i+j));
+//                qs[j] = payloadQueues[i+j];
+//            }
+            BuildingThread thd1 = new BuildingThread(i, emu.getThreadGroup(), name+":builder"+i);
             buildingThreadList.add(thd1);
         }
 
-//        // Sanity check
-//        if (buildingThreadList.size() != buildingThreadCount) {
-//            System.out.println("Have " + buildingThreadList.size() + " build threads, but want " +
-//                                buildingThreadCount);
-//        }
-
-//        qFillers = new Thread[payloadQueues.length];
-//        for (int i=0; i < payloadQueues.length; i++) {
-//            qFillers[i] = new Thread(emu.getThreadGroup(),
-//                                     new Qfiller(payloadQueues[i],
-//                                                    inputChannels.get(i).getQueue()),
-//                                     name+":qfiller"+i);
-//        }
-
-        qFillers = new Thread[payloadQueues.length];
-        for (int i=0; i < buildingThreadCount; i++) {
-            for (int j=0; j < inputChannels.size(); j++) {
-                qFillers[i+j] = new Qfiller(payloadQueues[i+j],
-                                            inputChannels.get(j).getAllQueues()[i],
-                                            emu.getThreadGroup(),
-                                            name+":qfiller"+(i+j));
-            }
+        preProcessors = new Thread[inChanCount];
+        for (int j=0; j < inChanCount; j++) {
+            preProcessors[j] = new PreProcessor(ringBuffersIn[j],
+                                           preBuildBarrier[j],
+                                           preBuildSequence[j],
+                                           inputChannels.get(j),
+                                           emu.getThreadGroup(),
+                                           name+":preProcessor"+(j));
         }
 
     }
@@ -2367,18 +2761,18 @@ System.out.println("startThreads(): recreating watcher thread");
             RateCalculator.start();
         }
 
-        if (buildingThreadList.size() < 1) {
-            int inChanCount = inputChannels.size();
+        int inChanCount = inputChannels.size();
 
+        if (buildingThreadList.size() < 1) {
             for (int i=0; i < buildingThreadCount; i += inChanCount) {
 
-                // Pick out 1 Q from each input for each build thread
-                PayloadQueue<PayloadBuffer> qs[] = new  PayloadQueue[inChanCount];
-                for (int j=0; j < inChanCount; j++) {
-                    System.out.println("       with payload Q " + (i+j));
-                    qs[j] = payloadQueues[i+j];
-                }
-                BuildingThread thd1 = new BuildingThread(qs, i, emu.getThreadGroup(), name+":builder"+i);
+//                // Pick out 1 Q from each input for each build thread
+//                PayloadQueue<PayloadBuffer> qs[] = new  PayloadQueue[inChanCount];
+//                for (int j=0; j < inChanCount; j++) {
+//                    System.out.println("       with payload Q " + (i+j));
+//                    qs[j] = payloadQueues[i+j];
+//                }
+                BuildingThread thd1 = new BuildingThread(i, emu.getThreadGroup(), name+":builder"+i);
 
                buildingThreadList.add(thd1);
            }
@@ -2395,33 +2789,29 @@ System.out.println("startThreads(): recreated building threads, # = " +
 System.out.println("startThreads(): started " + buildingThreadList.size() +
                    " building threads");
 
-        if (qFillers == null) {
-            qFillers = new Thread[payloadQueues.length];
-//            for (int i=0; i < payloadQueues.length; i++) {
-//                qFillers[i] = new Thread(emu.getThreadGroup(),
-//                                         new Qfiller(payloadQueues[i],
-//                                                     inputChannels.get(i).getQueue()),
-//                                         name+":qfiller"+i);
-//            }
-            for (int i=0; i < buildingThreadCount; i++) {
-               for (int j=0; j < inputChannels.size(); j++) {
-                   qFillers[i+j] = new Qfiller(payloadQueues[i+j],
-                                               inputChannels.get(j).getAllQueues()[i],
+        if (preProcessors == null) {
+System.out.println("startThreads(): A");
+            preProcessors = new Thread[inChanCount];
+            for (int j=0; j < inChanCount; j++) {
+System.out.println("startThreads(): create preProcessing thread");
+                preProcessors[j] = new PreProcessor(ringBuffersIn[j],
+                                               preBuildBarrier[j],
+                                               preBuildSequence[j],
+                                               inputChannels.get(j),
                                                emu.getThreadGroup(),
-                                               name+":qfiller"+(i+j));
-               }
-           }
+                                               name+":preProcessor"+(j));
+            }
 
-System.out.println("startThreads(): recreated " + payloadQueues.length +
-                                       " Q-filling threads");
+System.out.println("startThreads(): recreated " + inChanCount + " preProcessing threads");
         }
-        for (int i=0; i < payloadQueues.length; i++) {
-            if (qFillers[i].getState() == Thread.State.NEW) {
-                qFillers[i].start();
+
+        for (int i=0; i < inChanCount; i++) {
+System.out.println("startThreads(): b");
+            if (preProcessors[i].getState() == Thread.State.NEW) {
+                preProcessors[i].start();
             }
         }
-System.out.println("startThreads(): started " + payloadQueues.length +
-                   " Q-filling threads");
+System.out.println("startThreads(): started " + inChanCount + " preProcessing threads");
     }
 
 

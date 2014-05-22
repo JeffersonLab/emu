@@ -99,7 +99,7 @@ import java.util.concurrent.atomic.AtomicReference;
  * channel. Control & User events are not part of the round-robin output to each channel in turn.
  * If no output channels are defined in the config file, this module discards all events.
  */
-public class EventBuilding2 extends CODAStateMachineAdapter implements EmuModule {
+public class EventBuilding2 extends ModuleAdapter {
 
 
     /** Name of this event builder. */
@@ -308,6 +308,9 @@ public class EventBuilding2 extends CODAStateMachineAdapter implements EmuModule
      * @param attributeMap map containing attributes of module
      */
     public EventBuilding2(String name, Map<String, String> attributeMap, Emu emu) {
+
+        super(name, attributeMap, emu);
+
         this.emu = emu;
         this.name = name;
         this.attributeMap = attributeMap;
@@ -474,10 +477,10 @@ public class EventBuilding2 extends CODAStateMachineAdapter implements EmuModule
      */
     private class Qfiller extends Thread {
 
-        BlockingQueue<QueueItem> channelQ;
+        BlockingQueue<RingItem> channelQ;
         PayloadQueue<PayloadBank> payloadBankQ;
 
-        Qfiller(PayloadQueue<PayloadBank> payloadBankQ, BlockingQueue<QueueItem> channelQ) {
+        Qfiller(PayloadQueue<PayloadBank> payloadBankQ, BlockingQueue<RingItem> channelQ) {
             this.channelQ = channelQ;
             this.payloadBankQ = payloadBankQ;
         }
