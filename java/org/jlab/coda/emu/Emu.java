@@ -121,7 +121,7 @@ public class Emu implements CODAComponent {
     private final CMSGPortal cmsgPortal;
 
     /** The UDL of the cMsg server. */
-    private String cmsgUDL;
+    private final String cmsgUDL;
 
     /** Path that the data takes through the parts of the emu. */
     private EmuDataPath dataPath;
@@ -1936,9 +1936,11 @@ logger.debug("Emu.execute(PRESTART): PRESTART to " + transport.name());
                                         inFifo.add(channel);
                                     }
                                     else {
-                                        // Give it object to notify Emu when END event comes through
-                                        channel.registerEndCallback(new EmuEventNotify());
-                                        in.add(channel);
+                                        if (channel != null) {
+                                            // Give it object to notify Emu when END event comes through
+                                            channel.registerEndCallback(new EmuEventNotify());
+                                            in.add(channel);
+                                        }
                                     }
                                 }
                                 // If it's an output channel ...
@@ -1950,8 +1952,10 @@ logger.debug("Emu.execute(PRESTART): PRESTART to " + transport.name());
                                         outFifo.add(channel);
                                     }
                                     else {
-                                        channel.registerEndCallback(new EmuEventNotify());
-                                        out.add(channel);
+                                        if (channel != null) {
+                                            channel.registerEndCallback(new EmuEventNotify());
+                                            out.add(channel);
+                                        }
                                     }
                                 }
                                 else {
@@ -2001,6 +2005,7 @@ logger.debug("Emu.execute(PRESTART): PRESTART to IN chan " + chan.name());
 
             } catch (Exception e) {
 logger.error("PRESTART threw " + e.getMessage());
+                e.printStackTrace();
                 errorMsg.compareAndSet(null, e.getMessage());
                 setState(ERROR);
                 return;
