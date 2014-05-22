@@ -499,7 +499,7 @@ logger.info("      DataChannel File: try opening output base file of " + fileNam
             // I've started
             latch.countDown();
 
-            QueueItem qItem;
+            RingItem qItem;
             PayloadBank bank  = null;
             PayloadBuffer buf = null;
             EventType eventType;

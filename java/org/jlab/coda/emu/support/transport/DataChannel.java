@@ -12,9 +12,11 @@
 package org.jlab.coda.emu.support.transport;
 
 
+import com.lmax.disruptor.RingBuffer;
 import org.jlab.coda.emu.support.codaComponent.CODAStateMachine;
 import org.jlab.coda.emu.support.codaComponent.StatedObject;
 import org.jlab.coda.emu.support.data.QueueItem;
+import org.jlab.coda.emu.support.data.RingItem;
 
 import java.util.List;
 import java.util.concurrent.BlockingQueue;
@@ -33,16 +35,19 @@ import java.util.concurrent.BlockingQueue;
 public interface DataChannel extends CODAStateMachine, StatedObject {
 
     /**
-     * Get the ID number of this data channel.
-     * In CODA event building, this is used, for example, to contain the ROC
-     * id for input channels which allows consistency checks of incoming data.
-     * @return the ID number of this data channel.
+     * Get the CODA ID number of the CODA component connected to this
+     * data channel. In event building, this is used, for example, to check
+     * the ROC id of incoming event which allows consistency checking.
+     * @return the CODA ID number the CODA component connected to this
+     *         data channel.
      */
     public int getID();
 
     /**
-     * Set the ID number of this data channel.
-     * @return the ID number of this data channel.
+     * Set the CODA ID number of the CODA component connected to this
+     * data channel.
+     * @return the CODA ID number the CODA component connected to this
+     *         data channel.
      */
     public void setID(int id);
 
@@ -85,21 +90,29 @@ public interface DataChannel extends CODAStateMachine, StatedObject {
      * @return item of data.
      * @throws InterruptedException on wakeup without data.
      */
-    public QueueItem receive() throws InterruptedException;
+    public RingItem receive() throws InterruptedException;
     
     /**
      * Place a data item on this channel's queue.
      * @param item item of data.
      * @throws InterruptedException possible while waiting to place item on queue.
      */
-    public void send(QueueItem item) throws InterruptedException;
+    public void send(RingItem item) throws InterruptedException;
 
     /**
      * Get the first data queue of this data channel which contains
      * QueueItem objects of data for either receiving or sending data.
      * @return the queue of QueueItem objects for either receiving or sending data.
      */
-    public BlockingQueue<QueueItem> getQueue();
+    public BlockingQueue<RingItem> getQueue();
+
+    /**
+     * Get the first ring buffer of this data channel which contains
+     * RingItem objects of data for either receiving or sending data.
+     * There is only one if this is an input channel.
+     * @return the ring buffer of RingItem objects for either receiving or sending data.
+     */
+    public RingBuffer<RingItem> getRing();
 
     /**
      * Get the total number of data queues.
@@ -108,8 +121,8 @@ public interface DataChannel extends CODAStateMachine, StatedObject {
     public int getQCount();
 
     /**
-     * Get the array of data queues which contains at least one.
-     * @return array of data queues.
+     * Get the array of ring buffers which contains at least one element.
+     * @return array of ring buffers.
      */
-    public BlockingQueue<QueueItem>[] getAllQueues();
+    public RingBuffer<RingItem>[] getRingBuffers();
 }

@@ -12,13 +12,15 @@
 package org.jlab.coda.emu.support.transport;
 
 
+import com.lmax.disruptor.*;
 import org.jlab.coda.emu.Emu;
 import org.jlab.coda.emu.EmuEventNotify;
 import org.jlab.coda.emu.EmuModule;
 import org.jlab.coda.emu.support.codaComponent.CODAStateMachineAdapter;
 import org.jlab.coda.emu.support.codaComponent.State;
-import org.jlab.coda.emu.support.data.QueueItem;
 import org.jlab.coda.emu.support.data.QueueItemType;
+import org.jlab.coda.emu.support.data.RingItem;
+import org.jlab.coda.emu.support.data.RingItemFactory;
 import org.jlab.coda.emu.support.logger.Logger;
 
 import java.nio.ByteOrder;
@@ -26,6 +28,8 @@ import java.util.Map;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.atomic.AtomicReference;
+
+import static com.lmax.disruptor.RingBuffer.createSingleProducer;
 
 /**
  * This class provides boilerplate code for the DataChannel
@@ -86,14 +90,29 @@ public class DataChannelAdapter extends CODAStateMachineAdapter implements DataC
     protected QueueItemType queueItemType;
 
     /** First queue used to hold data for either input or output depending on {@link #input}. */
-    protected final BlockingQueue<QueueItem> queue;
+    protected final BlockingQueue<RingItem> queue;
 
-    /** Number of data queues (does not include controlQ). */
-    protected int qCount;
+    /** Number of output ring buffers. */
+    protected int ringCount;
 
     /** Array holding all queues used to hold data for either input or output depending on {@link #input}. */
-    protected final BlockingQueue<QueueItem>[] allQueues;
+    protected final BlockingQueue<RingItem>[] allQueues;
 
+    //-------------------------------------------
+    // Disruptor (RingBuffer)  Stuff
+    //-------------------------------------------
+
+    // Input
+    /** Ring buffer - one per input channel. */
+    protected RingBuffer<RingItem> ringBufferIn;
+
+    // Output
+    /** Array holding all ring buffers for output. */
+    protected RingBuffer<RingItem>[] ringBuffers;
+
+    protected SequenceBarrier[] sequenceBarriers;
+
+    protected Sequence[] sequences;
 
 
     /**
@@ -121,9 +140,11 @@ public class DataChannelAdapter extends CODAStateMachineAdapter implements DataC
 
         if (input) {
             queueItemType = module.getInputQueueItemType();
+logger.info("      DataChannel Adapter : input type = " + queueItemType);
         }
         else {
             queueItemType = module.getOutputQueueItemType();
+logger.info("      DataChannel Adapter : output type = " + queueItemType);
         }
 
         // Set queue capacity
@@ -135,24 +156,60 @@ public class DataChannelAdapter extends CODAStateMachineAdapter implements DataC
         catch (Exception e) {}
 
 
-        // Set number of data queues
-        qCount = 1;
-        try {
-            qCount = module.getIntAttr("qCount");
-            if (qCount < 1) {
-                qCount = 1;
-            }
-        }
-        catch (Exception e) {}
+        // Set number of data output ring buffers
+        ringCount = module.getEventProducingThreadCount();
 
-logger.info("      DataChannel Adapter : qCount = " + qCount);
+logger.info("      DataChannel Adapter : ring buffer count = " + ringCount);
 
         // Create data queues
-        allQueues = new BlockingQueue[qCount];
-        for (int i=0; i < qCount; i++) {
-            allQueues[i] = new LinkedBlockingQueue<QueueItem>(capacity);
+        allQueues = new BlockingQueue[ringCount];
+        for (int i=0; i < ringCount; i++) {
+            allQueues[i] = new LinkedBlockingQueue<RingItem>(capacity);
         }
         queue = allQueues[0];
+
+
+        // Create RingBuffers (will supplant queues eventually)
+        ringBuffers = new RingBuffer[ringCount];
+
+        if (input) {
+            if (queueItemType == QueueItemType.PayloadBuffer) {
+                ringBufferIn =
+                        createSingleProducer(new RingItemFactory(QueueItemType.PayloadBuffer),
+                                             2048, new YieldingWaitStrategy());
+            }
+            else {
+                ringBufferIn =
+                        createSingleProducer(new RingItemFactory(QueueItemType.PayloadBank),
+                                             2048, new YieldingWaitStrategy());
+            }
+            ringBuffers[0] = ringBufferIn;
+        }
+        else {
+            sequenceBarriers = new SequenceBarrier[ringCount];
+            sequences = new Sequence[ringCount];
+
+            for (int i=0; i < ringCount; i++) {
+                if (queueItemType == QueueItemType.PayloadBuffer) {
+                    ringBuffers[i] =
+                            createSingleProducer(new RingItemFactory(QueueItemType.PayloadBuffer),
+                                                 4096, new YieldingWaitStrategy());
+                }
+                else {
+                    ringBuffers[i] =
+                            createSingleProducer(new RingItemFactory(QueueItemType.PayloadBank),
+                                                 4096, new YieldingWaitStrategy());
+                }
+
+                // One barrier for each ring
+                sequenceBarriers[i] = ringBuffers[i].newBarrier();
+                sequenceBarriers[i].clearAlert();
+
+                // One sequence for each ring for reading in output channel
+                sequences[i] = new Sequence(Sequencer.INITIAL_CURSOR_VALUE);
+                ringBuffers[i].addGatingSequences(sequences[i]);
+            }
+        }
 
 
         // Set id number. Use any defined in config file, else use default = 0
@@ -205,24 +262,32 @@ logger.info("      DataChannel Adapter : qCount = " + qCount);
 
     /** {@inheritDoc}
      *  Will block until data item becomes available. */
-    public QueueItem receive() throws InterruptedException {return queue.take();}
+    public RingItem receive() throws InterruptedException {return queue.take();}
     
     /** {@inheritDoc}
      *  Will block until space is available in output queue. */
-    public void send(QueueItem item) throws InterruptedException {
+    public void send(RingItem item) throws InterruptedException {
         queue.put(item);     // blocks if capacity reached
         //queue.add(item);   // throws exception if capacity reached
         //queue.offer(item); // returns false if capacity reached
     }
 
     /** {@inheritDoc} */
-    public BlockingQueue<QueueItem> getQueue() {return queue;}
+    public BlockingQueue<RingItem> getQueue() {return queue;}
 
     /** {@inheritDoc} */
-    public int getQCount() {return qCount;}
+    public int getQCount() {return ringCount;}
 
     /** {@inheritDoc} */
-    public BlockingQueue<QueueItem>[] getAllQueues() {return allQueues;}
+    public BlockingQueue<RingItem>[] getAllQueues() {return allQueues;}
+
+
+    /** {@inheritDoc} */
+    public RingBuffer<RingItem> getRing() {return ringBufferIn;}
+
+    /** {@inheritDoc} */
+    public RingBuffer<RingItem>[] getRingBuffers() {return ringBuffers;}
+
 
     /** {@inheritDoc} */
     public void registerEndCallback(EmuEventNotify callback) {endCallback = callback;}

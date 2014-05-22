@@ -21,12 +21,17 @@ import org.jlab.coda.et.*;
 import org.jlab.coda.et.enums.Mode;
 import org.jlab.coda.et.enums.Modify;
 import org.jlab.coda.et.exception.*;
+import org.jlab.coda.et.system.AttachmentLocal;
+import org.jlab.coda.et.system.StationLocal;
+import org.jlab.coda.et.system.SystemCreate;
 import org.jlab.coda.jevio.*;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.concurrent.*;
+
+import static com.lmax.disruptor.RingBuffer.createSingleProducer;
 
 /**
  * This class implement a data channel which gets data from
@@ -140,8 +145,14 @@ public class DataChannelImplEt extends DataChannelAdapter {
     /** ET system connected to. */
     private EtSystem etSystem;
 
+    /** Local, running, java ET system. */
+    private SystemCreate etSysLocal = null;
+
     /** ET station attached to. */
     private EtStation station;
+
+    /** ET station attached to. */
+    private StationLocal stationLocal;
 
     /** Name of ET station attached to. */
     private String stationName;
@@ -152,6 +163,9 @@ public class DataChannelImplEt extends DataChannelAdapter {
     /** Attachment to ET station. */
     private EtAttachment attachment;
 
+    /** Attachment to ET station. */
+    private AttachmentLocal attachmentLocal;
+
     /** Configuration of ET station being created and attached to. */
     private EtStationConfig stationConfig;
 
@@ -160,13 +174,22 @@ public class DataChannelImplEt extends DataChannelAdapter {
     private int etWaitTime = 500000;
 
 
+    //-------------------------------------------
+    // Disruptor (RingBuffer)  Stuff
+    //-------------------------------------------
+    private long nextRingItem;
+
+    /** Ring buffer holding ByteBuffers when using EvioCompactEvent reader for incoming events. */
+    protected ByteBufferSupply bbSupply;
+
+
 
     /**
      * This method clones a ByteBuffer as efficiently as possible.
      * @param buf buffer to copy/clone.
      * @return a new copy of the data in buffer.
      */
-    private static ByteBuffer cloneBuffer(ByteBuffer buf) {
+    private static final ByteBuffer cloneBuffer(ByteBuffer buf) {
         int cap = buf.capacity();
         int origPos = buf.position();
         int origLim = buf.limit();
@@ -184,6 +207,32 @@ public class DataChannelImplEt extends DataChannelAdapter {
         clone.order(buf.order());
 
         return (ByteBuffer)clone.limit(origLim).position(origPos);
+    }
+
+
+    /**
+     * This method copies a ByteBuffer as efficiently as possible.
+     * @param srcBuf  buffer to copy.
+     * @param destBuf buffer to copy into.
+     * @param len     number of bytes to copy
+     * @return destination buffer.
+     */
+    private static final ByteBuffer copyBuffer(ByteBuffer srcBuf, ByteBuffer destBuf, int len) {
+        int origPos = srcBuf.position();
+        int origLim = srcBuf.limit();
+
+        if (srcBuf.hasArray() && destBuf.hasArray()) {
+            System.arraycopy(srcBuf.array(), 0, destBuf.array(), 0, len);
+        }
+        else {
+            srcBuf.limit(len).position(0);
+            destBuf.clear();
+            destBuf.put(srcBuf);
+            srcBuf.limit(origLim).position(origPos);
+        }
+        destBuf.order(srcBuf.order());
+
+        return (ByteBuffer)destBuf.limit(origLim).position(origPos);
     }
 
 
@@ -320,7 +369,7 @@ logger.info("      DataChannel Et : creating output channel " + name);
             }
             catch (NumberFormatException e) {}
         }
-//logger.info("      DataChannel Et : chunk = " + chunk);
+logger.info("      DataChannel Et : chunk = " + chunk);
 
         // From which group do we grab new events? (default = 1)
         group = 1;
@@ -356,6 +405,10 @@ logger.info("      DataChannel Et : creating output channel " + name);
         if (input) {
 
             try {
+                if (transport.tryToCreateET())  {
+                    etSysLocal = transport.getLocalEtSystem();
+                }
+
                 // configuration of a new station
                 stationConfig = new EtStationConfig();
                 try {
@@ -392,9 +445,21 @@ logger.info("      DataChannel Et : creating output channel " + name);
                 if (stationName == null) {
                     stationName = "station"+id;
                 }
+
+
+                // RingBuffer supply of buffers to hold all ET event bytes
+                if (queueItemType == QueueItemType.PayloadBuffer) {
+                    // ET system parameters
+                    int etEventSize = transport.getSystemConfig().getEventSize();
+
+                    // Create reusable supply of ByteBuffer objects
+                    bbSupply = new ByteBufferSupply(64, etEventSize);
+                }
             }
-            catch (Exception e) {/* never happen */}
-         }
+            catch (Exception e) {
+                e.printStackTrace();
+            }
+        }
         // if OUTPUT channel
         else {
 
@@ -456,80 +521,133 @@ System.out.println("\nSetting control[0] = " + id + "\n");
      * @return the ET system object.
      */
     private void openEtSystem() throws DataTransportException {
-        try {
-//System.out.println("      DataChannel Et: try to open" + dataTransportImplEt.getOpenConfig().getEtName() );
-            etSystem.open();
-        }
-        catch (Exception e) {
-            // Send error msg that ends up in run control gui's list of messages.
-            // This allows the user to quickly identify the ET problem
-            // and fix it in the config file or wherever.
-            EtSystemOpenConfig config = etSystem.getConfig();
-            String errString = "cannot connect to ET " + config.getEtName() + ", ";
-            int method = config.getNetworkContactMethod();
-            if (method == EtConstants.direct) {
-                errString += " direct to " + config.getHost() + " on port " + config.getTcpPort();
-            }
-            else if (method == EtConstants.multicast) {
-                errString += " multicasting to port " + config.getUdpPort();
-            }
-            else if (method == EtConstants.broadcast) {
-                errString += " broadcasting to port " + config.getUdpPort();
-            }
-            else if (method == EtConstants.broadAndMulticast) {
-                errString += " multi/broadcasting to port " + config.getUdpPort();
-            }
-            emu.getCmsgPortal().rcGuiErrorMessage(errString);
 
-            throw new DataTransportException(errString, e);
-        }
-
-        try {
-            if (stationName.equals("GRAND_CENTRAL")) {
-                station = etSystem.stationNameToObject(stationName);
-            }
-            else {
-                try {
-                    station = etSystem.createStation(stationConfig, stationName);
-                    etSystem.setStationPosition(station, stationPosition, 0);
+        // If we have an ET system running in this JVM, take advantage of it
+        if (etSysLocal != null)  {
+            try {
+                if (stationName.equals("GRAND_CENTRAL")) {
+                    stationLocal = etSysLocal.stationNameToObject(stationName);
                 }
-                catch (EtExistsException e) {
+                else {
+                    try {
+                        stationLocal = etSysLocal.createStation(stationConfig, stationName);
+                        etSysLocal.setStationPosition(stationLocal.getStationId(), stationPosition, 0);
+                    }
+                    catch (EtExistsException e) {
+                        stationLocal = etSysLocal.stationNameToObject(stationName);
+                        etSysLocal.setStationPosition(stationLocal.getStationId(), stationPosition, 0);
+                    }
+                }
+
+                // attach to station
+                attachmentLocal = etSysLocal.attach(stationLocal.getStationId());
+            }
+            catch (Exception e) {
+                e.printStackTrace();
+                throw new DataTransportException("cannot create/attach to station " + stationName, e);
+            }
+        }
+        // Otherwise open in usual manner, use sockets
+        else {
+            try {
+                System.out.println("      DataChannel Et: try to open" + dataTransportImplEt.getOpenConfig().getEtName() );
+                etSystem.open();
+            }
+            catch (Exception e) {
+                e.printStackTrace();
+                // Send error msg that ends up in run control gui's list of messages.
+                // This allows the user to quickly identify the ET problem
+                // and fix it in the config file or wherever.
+                EtSystemOpenConfig config = etSystem.getConfig();
+                String errString = "cannot connect to ET " + config.getEtName() + ", ";
+                int method = config.getNetworkContactMethod();
+                if (method == EtConstants.direct) {
+                    errString += " direct to " + config.getHost() + " on port " + config.getTcpPort();
+                }
+                else if (method == EtConstants.multicast) {
+                    errString += " multicasting to port " + config.getUdpPort();
+                }
+                else if (method == EtConstants.broadcast) {
+                    errString += " broadcasting to port " + config.getUdpPort();
+                }
+                else if (method == EtConstants.broadAndMulticast) {
+                    errString += " multi/broadcasting to port " + config.getUdpPort();
+                }
+                emu.getCmsgPortal().rcGuiErrorMessage(errString);
+
+                throw new DataTransportException(errString, e);
+            }
+
+            try {
+                if (stationName.equals("GRAND_CENTRAL")) {
                     station = etSystem.stationNameToObject(stationName);
-                    etSystem.setStationPosition(station, stationPosition, 0);
                 }
-            }
+                else {
+                    try {
+                        station = etSystem.createStation(stationConfig, stationName);
+                        etSystem.setStationPosition(station, stationPosition, 0);
+                    }
+                    catch (EtExistsException e) {
+                        station = etSystem.stationNameToObject(stationName);
+                        etSystem.setStationPosition(station, stationPosition, 0);
+                    }
+                }
 
-            // attach to station
-            attachment = etSystem.attach(station);
-        }
-        catch (Exception e) {
-            throw new DataTransportException("cannot create/attach to station " + stationName, e);
+                // attach to station
+                attachment = etSystem.attach(station);
+            }
+            catch (Exception e) {
+                e.printStackTrace();
+                throw new DataTransportException("cannot create/attach to station " + stationName, e);
+            }
         }
     }
 
 
     private void closeEtSystem() throws DataTransportException {
-        try {
-System.out.println("closeEtSystem: detach from station " + attachment.getStation().getName());
-            etSystem.detach(attachment);
-        }
-        catch (Exception e) {
-            // Might be detached already or cannot communicate with ET
-        }
+        if (etSysLocal != null) {
+            try {
+System.out.println("closeEtSystem: detach from station " + attachmentLocal.getStation().getName());
+                etSysLocal.detach(attachmentLocal);
+            }
+            catch (Exception e) {
+                // Might be detached already or cannot communicate with ET
+            }
 
-        try {
-            if (!stationName.equals("GRAND_CENTRAL")) {
-System.out.println("closeEtSystem: remove station " + stationName);
-                etSystem.removeStation(station);
+            try {
+                if (!stationName.equals("GRAND_CENTRAL")) {
+    System.out.println("closeEtSystem: remove station " + stationName);
+                    etSysLocal.removeStation(stationLocal.getStationId());
+                }
+            }
+            catch (Exception e) {
+                // Station may not exist, may still have attachments, or
+                // cannot communicate with ET
             }
         }
-        catch (Exception e) {
-            // Station may not exist, may still have attachments, or
-            // cannot communicate with ET
-        }
+        else {
+            try {
+    System.out.println("closeEtSystem: detach from station " + attachment.getStation().getName());
+                etSystem.detach(attachment);
+            }
+            catch (Exception e) {
+                // Might be detached already or cannot communicate with ET
+            }
 
-System.out.println("closeEtSystem: close ET connection");
-        etSystem.close();
+            try {
+                if (!stationName.equals("GRAND_CENTRAL")) {
+    System.out.println("closeEtSystem: remove station " + stationName);
+                    etSystem.removeStation(station);
+                }
+            }
+            catch (Exception e) {
+                // Station may not exist, may still have attachments, or
+                // cannot communicate with ET
+            }
+
+            System.out.println("closeEtSystem: close ET connection");
+            etSystem.close();
+        }
     }
 
 
@@ -706,6 +824,9 @@ logger.debug("      DataChannel Et reset() : " + name + " - done");
         /** Array of ET events to be gotten from ET system. */
         private EtEvent[] events;
 
+        /** Array of ET events to be gotten from ET system. */
+        private EtEventImpl[] eventsDirect;
+
         /** Variable to print messages when paused. */
         private int pauseCounter = 0;
 
@@ -736,7 +857,7 @@ logger.debug("      DataChannel Et reset() : " + name + " - done");
          * @param order the writing order of this list of banks
          * @throws InterruptedException if put or wait interrupted
          */
-        private void writeEvents(List<QueueItem> banks, int order)
+        private void writeEvents(List<RingItem> banks, int order)
                 throws InterruptedException {
 
             synchronized (lockOut2) {
@@ -746,19 +867,19 @@ logger.debug("      DataChannel Et reset() : " + name + " - done");
                 }
 
                 // Put banks in our Q, for module
-                for (QueueItem bank : banks) {
+                for (RingItem bank : banks) {
                     // Round-robin of physics & roc (buildable) events through Q's.
                     // User events keep going to same Q until a buildable event shows up.
                     // Control events go to all Qs.
                     if (bank.getControlType() != null) {
-                        for (int i=0; i < qCount; i++) {
+                        for (int i=0; i < ringCount; i++) {
                             allQueues[i].put(bank);
                         }
                         continue;
                     }
                     allQueues[qIndex].put(bank);
                     if (bank.getEventType().isBuildable()) {
-                        qIndex = ++qIndex % qCount;
+                        qIndex = ++qIndex % ringCount;
                     }
                 }
 
@@ -794,7 +915,7 @@ logger.debug("      DataChannel Et reset() : " + name + " - done");
 
                 EvioEvent event;
                 PayloadBank payloadBank;
-                ArrayList<QueueItem> payloadBanks = new ArrayList<QueueItem>(1024);
+                ArrayList<RingItem> payloadBanks = new ArrayList<RingItem>(1024);
                 int myInputOrder, evioVersion, sourceId, recordId;
                 BlockHeaderV4 header4;
                 EventType eventType, bankType;
@@ -831,7 +952,7 @@ logger.warn("      DataChannel Et in helper: " + name + " - PAUSED");
                             myInputOrder = inputOrderIn;
                             inputOrderIn = (inputOrderIn + events.length) % Integer.MAX_VALUE;
 //System.out.println("\n      DataChannel Et in helper: Got " + events.length +
-// " events from ET, inputOrder = " + myInputOrder);
+// " ET event banks, inputOrder = " + myInputOrder);
                         }
                         catch (IOException e) {
                             errorMsg.compareAndSet(null, "Network communication error with Et");
@@ -936,6 +1057,7 @@ System.out.println("      DataChannel Et in helper: " + name + " got RESET cmd, 
 //            ", src id = " + sourceId + ", recd id = " + recordId);
 
                         try {
+//System.out.println("      DataChannel Et in helper: parse next event");
                             while ((event = reader.parseNextEvent()) != null) {
                                 // Complication: from the ROC, we'll be receiving USER events
                                 // mixed in with and labeled as ROC Raw events. Check for that
@@ -957,11 +1079,28 @@ System.out.println("      DataChannel Et in helper: " + name + " got RESET cmd, 
                                     }
                                 }
 
-                                // Not a real copy, just points to stuff in bank
-                                payloadBank = new PayloadBank(event, bankType,
-                                                              controlType, recordId,
-                                                              sourceId, name);
 
+//System.out.println("      DataChannel Et in helper: wait for next ring buf for writing");
+                                nextRingItem = ringBufferIn.next();
+//System.out.println("      DataChannel Et in helper: Got sequence " + nextRingItem);
+                                payloadBank = (PayloadBank) ringBufferIn.get(nextRingItem);
+
+                                payloadBank.setEvent(event);
+                                payloadBank.setEventType(bankType);
+                                payloadBank.setControlType(controlType);
+                                payloadBank.setRecordId(recordId);
+                                payloadBank.setSourceId(sourceId);
+                                payloadBank.setSourceName(name);
+//                                payloadBank.setSequence(nextRingItem);
+
+                                ringBufferIn.publish(nextRingItem);
+//System.out.println("      DataChannel Et in helper: published sequence " + nextRingItem);
+
+                                // Not a real copy, just points to stuff in bank
+//                                payloadBank = new PayloadBank(event, bankType,
+//                                                              controlType, recordId,
+//                                                              sourceId, name);
+//
                                 payloadBank.matchesId(sourceId == id);
 
                                 // Add buildable bank to list for later writing
@@ -986,7 +1125,7 @@ System.out.println("      DataChannel Et in helper: " + name + " got RESET cmd, 
                         }
 
                         // Write any existing buildable banks
-                        writeEvents(payloadBanks, myInputOrder++);
+                        //writeEvents(payloadBanks, myInputOrder++);
 
                         if (haveInputEndEvent) {
                             break;
@@ -1051,17 +1190,25 @@ System.out.println("      DataChannel Et in helper: " + name + " got RESET cmd, 
 
             try {
                 PayloadBuffer payloadBuffer;
-                ArrayList<QueueItem> payloadBuffers = new ArrayList<QueueItem>(1024);
+                ArrayList<RingItem> payloadBuffers = new ArrayList<RingItem>(1024);
                 int myInputOrder, evioVersion, sourceId, recordId;
                 BlockHeaderV4 header4;
                 EventType eventType, bankType;
                 ControlType controlType;
+                ByteBufferItem bbItem;
+
                 boolean delay = false;
+                boolean useDirectEt = (etSysLocal != null);
+                boolean etAlive = true;
+
+                if (!useDirectEt) {
+                    etAlive = etSystem.alive();
+                }
 
                 ByteBuffer buf;
                 EvioCompactReader compactReader;
 
-                while ( etSystem.alive() ) {
+                while ( etAlive ) {
 
                     if (delay) {
                         Thread.sleep(5);
@@ -1081,14 +1228,21 @@ System.out.println("      DataChannel Et in helper: " + name + " got RESET cmd, 
                         // Do some work to get accurate error msgs back to run control.
                         try {
 //System.out.println("      DataChannel Et in helper: 4 " + name + " getEvents() ...");
-                            events = etSystem.getEvents(attachment, Mode.TIMED,
+                            if (useDirectEt) {
+                                eventsDirect = etSysLocal.getEvents(attachmentLocal, Mode.TIMED.getValue(),
+                                                                    etWaitTime, chunk);
+                                events = eventsDirect;
+                            }
+                            else {
+                                events = etSystem.getEvents(attachment, Mode.TIMED,
                                                         Modify.NOTHING, etWaitTime, chunk);
+                            }
                             // Keep track of the order in which events are grabbed
                             // in order to preserve event order with multiple threads.
                             myInputOrder = inputOrderIn;
                             inputOrderIn = (inputOrderIn + events.length) % Integer.MAX_VALUE;
 //System.out.println("\n      DataChannel Et in helper: Got " + events.length +
-// " events from ET, inputOrder = " + myInputOrder);
+// " ET event bufs, inputOrder = " + myInputOrder);
                         }
                         catch (IOException e) {
                             errorMsg.compareAndSet(null, "Network communication error with Et");
@@ -1117,6 +1271,7 @@ System.out.println("      DataChannel Et in helper: " + name + " got RESET cmd, 
                             return;
                         }
                         catch (EtTimeoutException e) {
+//System.out.println("      DataChannel Et in helper: timeout in " + name);
                             if (haveInputEndEvent) {
 System.out.println("      DataChannel Et in helper: timeout " + name + ", other thd found END, quit");
                                 return;
@@ -1141,7 +1296,15 @@ System.out.println("      DataChannel Et in helper: " + name + " got RESET cmd, 
                         // go onto a Q and then who knows where, it's best
                         // to copy the buffer since ET buffers recirculate and get
                         // reused. Was already burned by this once.
-                        buf = cloneBuffer(ev.getDataBuffer());
+//                        buf = cloneBuffer(ev.getDataBuffer());
+
+                        // Get a reusable ByteBuffer
+                        bbItem = bbSupply.get();
+                        bbItem.setUsers(events.length);
+                        buf = bbItem.getBuffer();
+                        // Copy ET data into it
+                        copyBuffer(ev.getDataBuffer(), buf, ev.getLength());
+
                         try {
                             compactReader = new EvioCompactReader(buf);
                         }
@@ -1176,6 +1339,7 @@ System.out.println("      DataChannel Et in helper: " + name + " got RESET cmd, 
 //            ", src id = " + sourceId + ", recd id = " + recordId + ", event cnt = " + eventCount);
 
                         for (int i=1; i < eventCount+1; i++) {
+//System.out.println("      DataChannel Et in helper: get next event");
                             node = compactReader.getScannedEvent(i);
 //System.out.println("node = " + node);
                             // Complication: from the ROC, we'll be receiving USER events
@@ -1198,10 +1362,26 @@ System.out.println("      DataChannel Et in helper: " + name + " got RESET cmd, 
                                 }
                             }
 
+//System.out.println("      DataChannel Et in helper: wait for next ring buf for writing");
+                            nextRingItem = ringBufferIn.next();
+//System.out.println("      DataChannel Et in helper: Got sequence " + nextRingItem);
+                            payloadBuffer = (PayloadBuffer) ringBufferIn.get(nextRingItem);
+                            payloadBuffer.setBuffer(node.getStructureBuffer(false));
+                            payloadBuffer.setEventType(bankType);
+                            payloadBuffer.setControlType(controlType);
+                            payloadBuffer.setRecordId(recordId);
+                            payloadBuffer.setSourceId(sourceId);
+                            payloadBuffer.setSourceName(name);
+                            payloadBuffer.setNode(node);
+//                            payloadBuffer.setSequence(nextRingItem);
+                            payloadBuffer.setReusableByteBuffer(bbSupply, bbItem);
+
+                            ringBufferIn.publish(nextRingItem);
+//System.out.println("      DataChannel Et in helper: published sequence " + nextRingItem);
                             // Not a real copy, just points to single event in buffer
-                            payloadBuffer = new PayloadBuffer(node.getStructureBuffer(false),
-                                                              bankType, controlType, recordId,
-                                                              sourceId, name, node);
+//                            payloadBuffer = new PayloadBuffer(node.getStructureBuffer(false),
+//                                                              bankType, controlType, recordId,
+//                                                              sourceId, name, node);
 
                             payloadBuffer.matchesId(sourceId == id);
 
@@ -1222,7 +1402,7 @@ System.out.println("      DataChannel Et in helper: " + name + " got RESET cmd, 
                         }
 
                         // Write any existing banks
-                        writeEvents(payloadBuffers, myInputOrder++);
+                       // writeEvents(payloadBuffers, myInputOrder++);
 
                         if (haveInputEndEvent) {
                             break;
@@ -1231,9 +1411,14 @@ System.out.println("      DataChannel Et in helper: " + name + " got RESET cmd, 
 
                     // Put all events back in ET system - even those unused.
                     // Do some work to get accurate error msgs back to run control.
-//System.out.println("      DataChannel Et in helper: 4 " + name + " putEvents() ...");
+//System.out.println("      DataChannel Et in helper: 4 " + name + " putEvents()");
                     try {
-                        etSystem.putEvents(attachment, events);
+                        if (useDirectEt) {
+                            etSysLocal.putEvents(attachmentLocal, eventsDirect);
+                        }
+                        else {
+                            etSystem.putEvents(attachment, events);
+                        }
                     }
                     catch (IOException e) {
                         errorMsg.compareAndSet(null, "Network communication error with Et");
@@ -1256,6 +1441,11 @@ System.out.println("      DataChannel Et in helper: " + name + " got RESET cmd, 
                         logger.info("      DataChannel Et in helper: have END, " + name + " quit thd");
                         return;
                     }
+
+                    if (!useDirectEt) {
+                        etAlive = etSystem.alive();
+                    }
+
                 }
 
             } catch (InterruptedException e) {
