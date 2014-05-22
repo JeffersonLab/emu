@@ -110,4 +110,10 @@ public interface EmuModule extends StatedObject, CODAStateMachine {
      * @return <code>true</code> if this module's statistics represents the EMU, else <code>false</code>.
      */
     public boolean representsEmuStatistics();
+
+    /**
+     * Get the number of threads which produce events to be placed in output channels.
+     * @return number of threads which produce events to be placed in output channels.
+     */
+    public int getEventProducingThreadCount();
 }
