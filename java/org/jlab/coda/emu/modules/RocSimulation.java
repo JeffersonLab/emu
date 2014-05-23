@@ -222,7 +222,7 @@ public class RocSimulation extends ModuleAdapter {
      * @param items   item corresponding to the buffer allowing buffer to be reused
      * @throws InterruptedException if put or wait interrupted
      */
-    private void eventToOutputRing(int ringNum, int rrId, ByteBuffer[] bufs,
+    private void eventToOutputRing(int ringNum, ByteBuffer[] bufs,
                                    ByteBufferItem[] items, ByteBufferSupply bbSupply) throws InterruptedException {
 
         int index = 0;
@@ -237,8 +237,6 @@ public class RocSimulation extends ModuleAdapter {
             pb.setEventType(EventType.ROC_RAW);
             pb.setControlType(null);
             pb.setSourceName(null);
-//            pb.setSequence(nextRingItem);
-            pb.setRecordId(rrId);
             pb.setReusableByteBuffer(bbSupply, items[index++]);
 
 //System.out.println("published : record id " + rrId + " to ring " + ringNum);
@@ -342,13 +340,13 @@ System.out.println("\n\nStart With (id=" + myId + "):\n    record id = " + myRoc
                     evs = Evio.createRocDataEventsFast(id, triggerType,
                                                        detectorId, status,
                                                        (int) myEventNumber, eventBlockSize,
-                                                       timestamp, myRocRecordId,
+                                                       timestamp,
                                                        numEvents,
                                                        isSingleEventMode,
                                                        bbSupply, builder, items);
 
                     // Put generated events into output channel
-                    eventToOutputRing(myId, myRocRecordId, evs, items, bbSupply);
+                    eventToOutputRing(myId, evs, items, bbSupply);
 
                     // stats // TODO: problem with multiple threads writing to these stat values
                     //assert(evs.length == numEvents);
