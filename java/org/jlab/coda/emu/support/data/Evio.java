@@ -4196,7 +4196,6 @@ System.out.println("Timestamps are NOT consistent !!!");
      * @param eventNumber starting event number
      * @param numEvents   number of physics events in created each payload bank
      * @param timestamp   starting event's timestamp
-     * @param recordId    record count
      * @param numPayloadBanks number of payload banks to generate
      * @param bbSupply    supply of reusable ByteBuffers
      * @param builder     used to build evio events in buffer acquired from bbSupply
@@ -4206,7 +4205,7 @@ System.out.println("Timestamps are NOT consistent !!!");
     public static ByteBuffer[] createRocDataEventsFast(int rocId, int triggerType,
                                                           int detectorId, int status,
                                                           int eventNumber, int numEvents,
-                                                          long timestamp, int recordId,
+                                                          long timestamp,
                                                           int numPayloadBanks,
                                                           boolean singleEventMode,
                                                           ByteBufferSupply bbSupply,
