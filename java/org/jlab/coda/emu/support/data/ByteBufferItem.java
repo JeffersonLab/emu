@@ -27,6 +27,21 @@ public class ByteBufferItem {
     /** Track more than one user so this object can be released for reuse. */
     private AtomicInteger atomicCounter;
 
+    // For testing purposes
+
+    /** Counter for assigning unique id to each buffer item. */
+    static int idCounter=0;
+
+    /** Unique id for each object of this class. */
+    private int myId;
+
+    /**
+     * Get the unique id of this object.
+     * @return unique id of this object.
+     */
+    public int getMyId() {return myId;}
+
+    //--------------------------------
 
     /**
      * Constructor.
@@ -35,6 +50,7 @@ public class ByteBufferItem {
     public ByteBufferItem(int bufferSize) {
         this.bufferSize = bufferSize;
         buffer = ByteBuffer.allocate(bufferSize);
+        myId = idCounter++;
     }
 
 
