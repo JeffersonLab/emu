@@ -11,14 +11,13 @@
 
 package org.jlab.coda.emu.modules;
 
+import com.lmax.disruptor.*;
 import org.jlab.coda.emu.Emu;
 import org.jlab.coda.emu.support.codaComponent.CODAState;
 import org.jlab.coda.emu.support.control.CmdExecException;
 import org.jlab.coda.emu.support.data.*;
 
 import java.util.Map;
-import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.TimeUnit;
 
 /**
  * This class is a Farm Controlling module.
@@ -32,6 +31,23 @@ public class FarmController extends ModuleAdapter {
 
     /** Thread which moves events from inputs to outputs. */
     private EventMovingThread eventMovingThread;
+
+    private int outputChannelCount;
+
+    //-------------------------------------------
+    // Disruptor (RingBuffer)  stuff
+    //-------------------------------------------
+
+    /** One RingBuffer. */
+    private RingBuffer<RingItem> ringBufferIn;
+
+    /** Sequence of ring items. */
+    public Sequence sequenceIn;
+
+    /** All recording threads share one barrier. */
+    public SequenceBarrier barrierIn;
+
+
 
     // ---------------------------------------------------
 
@@ -66,6 +82,23 @@ System.out.println("FarmController: end");
     /** {@inheritDoc} */
     public void prestart() throws CmdExecException {
 System.out.println("FarmController: prestart");
+
+        //------------------------------------------------
+        // Disruptor (RingBuffer) stuff for input channels
+        //------------------------------------------------
+        // Get FIRST input channel's ring buffer
+        ringBufferIn = inputChannels.get(0).getRing();
+
+        // We have 1 sequence of control events
+        sequenceIn = new Sequence(Sequencer.INITIAL_CURSOR_VALUE);
+
+        // This sequence is the last consumer before producer comes along
+        ringBufferIn.addGatingSequences(sequenceIn);
+
+        // We have 1 barrier
+        barrierIn = ringBufferIn.newBarrier();
+        //------------------------------------------------
+
         state = CODAState.PAUSED;
         killThread = false;
 System.out.println("FarmController: create & start event moving thread");
@@ -95,7 +128,6 @@ System.out.println("FarmController: go");
     }
 
 
-
     /**
       * End all record threads because an END cmd or event came through.
       * The record thread calling this method is not interrupted.
@@ -106,81 +138,133 @@ System.out.println("FarmController: go");
          eventMovingThread.interrupt();
      }
 
-     /**
+
+    /**
+     * This method is used to place an item onto a specified ring buffer of a
+     * single, specified output channel.
+     *
+     * @param bankOut    the built/control/user event to place on output channel
+     * @param ringNum    which output channel ring buffer to place item on
+     * @param channelNum which output channel to place item on
+     */
+    private void dataToOutputChannel(RingItem bankOut, int ringNum, int channelNum) {
+
+        // Have output channels?
+        if (outputChannelCount < 1) {
+            return;
+        }
+
+        RingBuffer rb = outputChannels.get(channelNum).getRingBuffers()[ringNum];
+        long nextRingItem = rb.next();
+
+        RingItem ri = (RingItem) rb.get(nextRingItem);
+        ri.setBuffer(bankOut.getBuffer());
+        ri.setEventType(bankOut.getEventType());
+        ri.setControlType(bankOut.getControlType());
+        ri.setSourceName(bankOut.getSourceName());
+        ri.setAttachment(bankOut.getAttachment());
+        ri.setReusableByteBuffer(bankOut.getByteBufferSupply(),
+                                 bankOut.getByteBufferItem());
+
+        rb.publish(nextRingItem);
+    }
+
+
+
+    /**
      * This thread is started by the GO transition and runs while the state
      * of the module is ACTIVE. When the state is ACTIVE, this thread pulls
-     * one bank off an input DataChannel. That bank is copied and placed in
-     * each output channel.
+     * one bank off the first input DataChannel. That bank is copied and placed
+     * in the first output channel.
+     *
+     * Each Farm Controller only needs one set of control events, so getting
+     * events from one input channel is enough. There should only be one (1)
+     * output channel, a single ER.
      */
     private class EventMovingThread extends Thread {
 
+        // RingBuffer Stuff
+        /** Available sequence (largest index of items desired). */
+        private long availableSequence;
+
+        /** Next sequence (index of next item desired). */
+        private long nextSequence;
+
+
         EventMovingThread() {
-            super();
+            super(emu.getThreadGroup(), name+":main");
         }
+
 
         @Override
         public void run() {
-System.out.println("FarmController: running event moving thread");
 
-            // initialize variables
-            int currentInputChannel = -1;
-            int inputChannelCount   = inputChannels.size();
-            int outputChannelCount  = outputChannels.size();
+            boolean debug = false;
+            int totalNumberEvents, wordCount;
+            RingItem ringItem;
+            ControlType controlType;
+            PayloadBuffer recordingBuf;
+            outputChannelCount = outputChannels.size();
 
-            BlockingQueue<RingItem> queue;
-            PayloadBank payloadBank;
+            // Ring Buffer stuff
+            availableSequence = -2L;
+            nextSequence = sequenceIn.get() + 1L;
+
 
             while (state == CODAState.ACTIVE || paused) {
-                if (killThread) return;
 
                 try {
-                    // Grab input event ...
-                    while (true) {
-                        // Take turns reading from different input channels
-                        currentInputChannel = (currentInputChannel+1) % inputChannelCount;
-
-                        // Will BLOCK here waiting for payload bank if none available
-                        queue = inputChannels.get(currentInputChannel).getQueue();
-// TODO:Before we cast, we need to find out what it is!!!
-                        payloadBank = (PayloadBank) queue.poll(1L, TimeUnit.MILLISECONDS);
-
-                        // If nothing on this channel go to the next
-                        if (payloadBank == null) {
-                            if (killThread) return;
-                            continue;
-                        }
-
-System.out.println("FarmController: got event of type " + payloadBank.getControlType());
-                        break;
+                    // Only wait or read-volatile-memory if necessary ...
+                    if (availableSequence < nextSequence) {
+                        // Will BLOCK here waiting for item if none available.
+                        // Available sequence may be larger than what we desired
+                        availableSequence = barrierIn.waitFor(nextSequence);
                     }
 
-                    // Place input event on all output channels ...
+                    ringItem = ringBufferIn.get(nextSequence);
+                    controlType = ringItem.getControlType();
+                    totalNumberEvents = ringItem.getEventCount();
+
+                    recordingBuf = (PayloadBuffer)ringItem;
+                    wordCount = recordingBuf.getNode().getLength() + 1;
+
                     if (outputChannelCount > 0) {
-                        // Place bank on first output channel queue
-                        outputChannels.get(0).getQueue().put(payloadBank);
-
-                        // Copy bank & write to other output channels' Q's
-                        for (int j=1; j < outputChannelCount; j++) {
-                            outputChannels.get(j).getQueue().put((RingItem)payloadBank.clone());
-                        }
+                        // Place event on only the first output channel
+                        dataToOutputChannel(ringItem, 0, 0);
                     }
 
-                    // If END event, quit this thread
-                    if (payloadBank != null && payloadBank.getControlType() == ControlType.END) {
-System.out.println("FarmController: found END event");
+                    // If END event, end this thread
+                    if (controlType == ControlType.END) {
                         if (endCallback != null) endCallback.endWait();
                         return;
                     }
+
+                    eventCountTotal += totalNumberEvents;
+                    wordCountTotal  += wordCount;
+
+                    // Release the reusable ByteBuffers back to their supply
+                    ringItem.releaseByteBuffer();
+
+                    // Release the events back to the ring buffer for re-use
+                    sequenceIn.set(nextSequence++);
+
                 }
                 catch (InterruptedException e) {
-                    System.out.println("FarmController: interrupted thread " + Thread.currentThread().getName());
+                    if (debug) System.out.println("INTERRUPTED thread " + Thread.currentThread().getName());
+                    return;
+                }
+                catch (AlertException e) {
+                    if (debug) System.out.println("Ring buf alert, " + Thread.currentThread().getName());
+                    return;
+                }
+                catch (TimeoutException e) {
+                    if (debug) System.out.println("Ring buf timeout, " + Thread.currentThread().getName());
                     return;
                 }
             }
-            System.out.println("FarmController: event moving thread ending");
+
         }
 
     }
-
 
 }
