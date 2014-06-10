@@ -18,7 +18,6 @@ import org.jlab.coda.cMsg.*;
 import org.jlab.coda.emu.Emu;
 import org.jlab.coda.emu.EmuException;
 import org.jlab.coda.emu.EmuModule;
-import org.jlab.coda.emu.support.codaComponent.CODAClass;
 import org.jlab.coda.emu.support.codaComponent.CODAState;
 import org.jlab.coda.emu.support.control.CmdExecException;
 import org.jlab.coda.emu.support.data.*;
@@ -49,9 +48,6 @@ public class DataChannelImplEmu extends DataChannelAdapter {
     /** Read END event from input queue. */
     private volatile boolean haveInputEndEvent;
 
-    /** Read END event from output queue. */
-//    private volatile boolean haveOutputEndEvent;
-
     /** Got END command from Run Control. */
     private volatile boolean gotEndCmd;
 
@@ -62,15 +58,6 @@ public class DataChannelImplEmu extends DataChannelAdapter {
 
     /** Thread used to output data. */
     private DataOutputHelper dataOutputThread;
-
-    /** Is the EMU using this ET output channel as a simulated ROC ? */
-    private boolean isROC;
-
-    /** Is the EMU using this ET output channel as an event builder? */
-    private boolean isEB;
-
-    /** Is the EMU using this ET output channel as the last level event builder? */
-    private boolean isFinalEB;
 
     private boolean marshallOutput;
 
@@ -86,11 +73,8 @@ public class DataChannelImplEmu extends DataChannelAdapter {
 
 
 
-    private SocketChannel channel;
     private DataInputStream in;
-    private DataOutputStream out;
     private int maxBufferSize;
-    private boolean isBigEndian;
     private int sourceId;
     private int tcpRecvBuf;
     private int tcpSendBuf;
@@ -221,18 +205,18 @@ System.out.println("Sending on port " + sendPort);
 
             // Do we send out individual events or do we
             // marshall them into one evio-file-format buffer?
-            marshallOutput = false;
+            marshallOutput = true;
             attribString = attributeMap.get("marshall");
             if (attribString != null) {
-                if (attribString.equalsIgnoreCase("true") ||
-                        attribString.equalsIgnoreCase("on")   ||
-                        attribString.equalsIgnoreCase("yes"))   {
-                    marshallOutput = true;
+                if (attribString.equalsIgnoreCase("false") ||
+                        attribString.equalsIgnoreCase("off")   ||
+                        attribString.equalsIgnoreCase("no"))   {
+                    marshallOutput = false;
                 }
             }
 
 
-            // Size of max buffer
+            // Size of max buffer, input or output
 //TODO: fix this
             maxBufferSize = 1000;
             attribString = attributeMap.get("maxBuf");
@@ -246,11 +230,6 @@ System.out.println("Sending on port " + sendPort);
                 catch (NumberFormatException e) {}
             }
 
-            // Create a ring buffer full of empty ByteBuffer objects
-            // in which to copy outgoing data.
-//TODO: How do we set the number of buffers???
-            bbSupply = new ByteBufferSupply(256, maxBufferSize);
-
             nextSequences = new long[ringCount];
             availableSequences = new long[ringCount];
             Arrays.fill(availableSequences, -1L);
@@ -259,21 +238,6 @@ System.out.println("Sending on port " + sendPort);
                 nextSequences[i] = sequences[i].get() + 1L;
             }
 
-            // If this is an event building EMU, set the control array
-            // for each outgoing ET buffer.
-            CODAClass emuClass = emu.getCodaClass();
-            isEB = emuClass.isEventBuilder();
-            isROC = emuClass == CODAClass.ROC;
-            if (isEB || isROC) {
-                // Is this the last level event builder (not a DC)?
-                // In this case, we want the first control word to indicate
-                // what type of event is being sent.
-                //
-                // Control events will be received and dealt with by the FCS
-                // (Farm Control Supervisor).
-                isFinalEB = (emuClass == CODAClass.PEB || emuClass == CODAClass.SEB);
-                // The value of control[0] will be set in the DataOutputHelper
-            }
         }
 
         // State after prestart transition -
@@ -290,10 +254,8 @@ System.out.println("Sending on port " + sendPort);
      * @param channel
      */
     void attachToInput(SocketChannel channel, int sourceId, int maxBufferSize, int isBigEndian) throws IOException {
-        this.channel = channel;
         this.sourceId = sourceId;
         this.maxBufferSize = maxBufferSize;
-        this.isBigEndian = isBigEndian == 1;
 
         // Set socket options
         Socket socket = channel.socket();
@@ -305,8 +267,7 @@ System.out.println("Sending on port " + sendPort);
         }
 
         // Use buffered streams for efficiency
-        in  = new DataInputStream(new BufferedInputStream(socket.getInputStream(), 256000));
-        out = new DataOutputStream(new BufferedOutputStream(socket.getOutputStream(), 1024));
+        in = new DataInputStream(new BufferedInputStream(socket.getInputStream(), 256000));
 
         // Create a ring buffer full of empty ByteBuffer objects
         // in which to copy incoming data from client.
@@ -500,11 +461,21 @@ logger.debug("      DataChannel Emu startOutputThread()");
         /** Let a single waiter know that the main thread has been started. */
         private CountDownLatch latch = new CountDownLatch(1);
 
+        /** Read into EvioEvent objects. */
+        private EvioReader eventReader;
+
+        /** Read into ByteBuffers. */
+        private EvioCompactReader compactReader;
+
+        /** Read event-only buffer. */
+        private EvioCompactStructureHandler structureReader;
+
 
         /** Constructor. */
         DataInputHelper() {
             super(emu.getThreadGroup(), name() + "_data_in");
         }
+
 
         /** A single waiter can call this method which returns when thread was started. */
         private void waitUntilStarted() {
@@ -550,6 +521,7 @@ logger.debug("      DataChannel Emu startOutputThread()");
                                 handleEvioFileToBank();
                             }
                             else if  (queueItemType == QueueItemType.PayloadBuffer) {
+//System.out.println("      DataChannel Emu in helper: event to handleEvioFileToBuf(), name = " + name);
                                 handleEvioFileToBuf();
                             }
 
@@ -595,7 +567,6 @@ logger.debug("      DataChannel Emu startOutputThread()");
         }
 
 
-
         /**
          * Handle single incoming evio event over socket.
          * Event is not in evio file format, just comes by itself.
@@ -612,15 +583,10 @@ logger.debug("      DataChannel Emu startOutputThread()");
 
             int recordId = 0;
 
-            // Read the length of evio file-format data to come
+            // Read the length of evio format data to come
             int evioBytes = in.readInt();
-            if (evioBytes > maxBufferSize) {
-                // TODO: throw an exception here
-            }
 
-//System.out.println("      DataChannel Emu in helper: wait for next ring buf for writing, bytes = " + evioBytes);
             nextRingItem = ringBufferIn.next();
-//System.out.println("      DataChannel Emu in helper: Got sequence " + nextRingItem);
 
             PayloadBuffer payloadBuffer = (PayloadBuffer) ringBufferIn.get(nextRingItem);
             byte[] array;
@@ -632,15 +598,19 @@ logger.debug("      DataChannel Emu startOutputThread()");
             else {
                 array = buf.array();
             }
+//            buf.limit(0).limit(evioBytes);
 
-            // Read evio file-format data
+            // Read evio format data
             in.readFully(array, 0, evioBytes);
-//TODO: should not have to make a new reader each time
-            EvioCompactStructureHandler eventReader = new EvioCompactStructureHandler(buf, DataType.BANK);
-            EvioNode node = eventReader.getScannedStructure();
 
-//logger.info("      DataChannel Emu in helper: " + name + " block header, event type " + eventType +
-//            ", src id = " + sourceId + ", recd id = " + recordId);
+            if (structureReader == null) {
+                structureReader = new EvioCompactStructureHandler(buf, DataType.BANK);
+            }
+            else {
+                structureReader.setBuffer(buf, DataType.BANK);
+            }
+
+            EvioNode node = structureReader.getScannedStructure();
 
             // Complication: from the ROC, we'll be receiving USER events
             // mixed in with and labeled as ROC Raw events. Check for that
@@ -652,19 +622,18 @@ logger.debug("      DataChannel Emu startOutputThread()");
                 }
             }
 
-            payloadBuffer.setBuffer(node.getStructureBuffer(false));
+//            payloadBuffer.setBuffer(node.getStructureBuffer(false));
+            payloadBuffer.setBuffer(buf);
             payloadBuffer.setNode(node);
             payloadBuffer.setEventType(bankType);
             payloadBuffer.setControlType(controlType);
             payloadBuffer.setRecordId(recordId);
             payloadBuffer.setSourceId(sourceId);
             payloadBuffer.setSourceName(name);
-//            payloadBuffer.setSequence(nextRingItem);
+            payloadBuffer.setEventCount(1);
             payloadBuffer.matchesId(sourceId == id);
 
-
             ringBufferIn.publish(nextRingItem);
-//System.out.println("      DataChannel Emu in helper: published sequence " + nextRingItem);
 
             // Handle END event
             if (controlType == ControlType.END) {
@@ -676,7 +645,6 @@ logger.debug("      DataChannel Emu startOutputThread()");
         }
 
 
-
         private final void handleEvioFileToBank() throws IOException, EvioException {
 
             EvioEvent event;
@@ -685,8 +653,7 @@ logger.debug("      DataChannel Emu startOutputThread()");
             ControlType controlType = null;
 
             // Get a reusable ByteBuffer
-            logger.debug("      DataChannel Emu in helper: get buffer from ring");
-            ByteBufferItem  bbItem = bbSupply.get();
+            ByteBufferItem bbItem = bbSupply.get();
             ByteBuffer buf = bbItem.getBuffer();
 
             // Read the length of evio file-format data to come
@@ -701,19 +668,23 @@ logger.debug("      DataChannel Emu startOutputThread()");
             // Read evio file-format data
             in.readFully(buf.array(), 0, evioBytes);
 
-            EvioReader reader;
             try {
-                reader = new EvioReader(buf);
+                if (eventReader == null) {
+                    eventReader = new EvioReader(buf);
+                }
+                else {
+                    eventReader.setBuffer(buf);
+                }
             }
             catch (IOException e) {
                 errorMsg.compareAndSet(null, "Data is NOT in evio v4 format");
                 throw e;
             }
             // Speed things up since no EvioListeners are used - doesn't do much
-            reader.getParser().setNotificationActive(false);
+            eventReader.getParser().setNotificationActive(false);
 
             // First block header in buffer
-            BlockHeaderV4 blockHeader = (BlockHeaderV4)reader.getFirstBlockHeader();
+            BlockHeaderV4 blockHeader = (BlockHeaderV4)eventReader.getFirstBlockHeader();
             if (blockHeader.getVersion() < 4) {
                 errorMsg.compareAndSet(null, "Data is NOT in evio v4 format");
                 throw new EvioException("Evio data needs to be written in version 4+ format");
@@ -747,7 +718,7 @@ logger.debug("      DataChannel Emu startOutputThread()");
 //            ", src id = " + sourceId + ", recd id = " + recordId);
 
 //System.out.println("      DataChannel Emu in helper: parse next event");
-            while ((event = reader.parseNextEvent()) != null) {
+            while ((event = eventReader.parseNextEvent()) != null) {
                 // Complication: from the ROC, we'll be receiving USER events
                 // mixed in with and labeled as ROC Raw events. Check for that
                 // and fix it.
@@ -768,9 +739,7 @@ logger.debug("      DataChannel Emu startOutputThread()");
                     }
                 }
 
-//System.out.println("      DataChannel Emu in helper: wait for next ring buf for writing");
                 nextRingItem = ringBufferIn.next();
-//System.out.println("      DataChannel Emu in helper: Got sequence " + nextRingItem);
                 payloadBank = (PayloadBank) ringBufferIn.get(nextRingItem);
 
                 payloadBank.setEvent(event);
@@ -779,11 +748,10 @@ logger.debug("      DataChannel Emu startOutputThread()");
                 payloadBank.setRecordId(recordId);
                 payloadBank.setSourceId(sourceId);
                 payloadBank.setSourceName(name);
-//                payloadBank.setSequence(nextRingItem);
+                payloadBank.setEventCount(1);
                 payloadBank.matchesId(sourceId == id);
 
                 ringBufferIn.publish(nextRingItem);
-//System.out.println("      DataChannel Emu in helper: published sequence " + nextRingItem);
 
                 // Handle end event ...
                 if (controlType == ControlType.END) {
@@ -820,18 +788,22 @@ logger.debug("      DataChannel Emu startOutputThread()");
             // If buffer is too small, make a bigger one
             if (evioBytes > bbItem.getBufferSize()) {
                 buf = ByteBuffer.allocate(evioBytes);
-//System.out.println("RESETTTTTTTTTTTTTTTTTT  SIZEEEEEEEEEEEEEEEEEEEE");
                 bbItem.setBuffer(buf);
             }
 
             // Read evio file-format data
             in.readFully(buf.array(), 0, evioBytes);
 
-            EvioCompactReader compactReader;
             try {
-                compactReader = new EvioCompactReader(buf);
+                if (compactReader == null) {
+                    compactReader = new EvioCompactReader(buf);
+                }
+                else {
+                    compactReader.setBuffer(buf);
+                }
             }
             catch (EvioException e) {
+                e.printStackTrace();
                 errorMsg.compareAndSet(null, "Data is NOT evio v4 format");
                 throw e;
             }
@@ -857,7 +829,6 @@ logger.debug("      DataChannel Emu startOutputThread()");
 //            ", src id = " + sourceId + ", recd id = " + recordId + ", event cnt = " + eventCount);
 
             for (int i=1; i < eventCount+1; i++) {
-//System.out.println("      DataChannel Emu in helper: get next event");
                 node = compactReader.getScannedEvent(i);
 
                 // Complication: from the ROC, we'll be receiving USER events
@@ -880,9 +851,8 @@ logger.debug("      DataChannel Emu startOutputThread()");
                     }
                 }
 
-//System.out.println("      DataChannel Emu in helper: wait for next ring buf for writing");
                 nextRingItem = ringBufferIn.next();
-//System.out.println("      DataChannel Emu in helper: Got sequence " + nextRingItem);
+
                 payloadBuffer = (PayloadBuffer) ringBufferIn.get(nextRingItem);
                 payloadBuffer.setBuffer(node.getStructureBuffer(false));
                 payloadBuffer.setEventType(bankType);
@@ -891,12 +861,11 @@ logger.debug("      DataChannel Emu startOutputThread()");
                 payloadBuffer.setSourceId(sourceId);
                 payloadBuffer.setSourceName(name);
                 payloadBuffer.setNode(node);
-//                payloadBuffer.setSequence(nextRingItem);
+                payloadBuffer.setEventCount(1);
                 payloadBuffer.setReusableByteBuffer(bbSupply, bbItem);
                 payloadBuffer.matchesId(sourceId == id);
 
                 ringBufferIn.publish(nextRingItem);
-//System.out.println("      DataChannel Emu in helper: published sequence " + nextRingItem);
 
                 // Handle end event ...
                 if (controlType == ControlType.END) {
@@ -915,6 +884,10 @@ logger.debug("      DataChannel Emu startOutputThread()");
     }
 
 
+
+
+
+
     /**
      * Class used to take Evio banks from ring buffer, write them over
      * network to an Emu using the Emu domain input channel.
@@ -925,11 +898,16 @@ logger.debug("      DataChannel Emu startOutputThread()");
         private int pauseCounter;
 
         /** Let a single waiter know that the main thread has been started. */
-        private CountDownLatch startLatch = new CountDownLatch(1);
+        private final CountDownLatch startLatch = new CountDownLatch(1);
 
+        /** Object to write (marshall) input buffers into larger, output evio buffer (next member). */
         private EventWriter writer;
 
-        private ByteBuffer byteBuffer;
+        /** Buffer to write events into so it can be sent in a cMsg message. */
+        private final ByteBuffer byteBuffer;
+
+// TODO: look at this
+        private boolean firstWrite = true;
 
 
 
@@ -938,6 +916,15 @@ logger.debug("      DataChannel Emu startOutputThread()");
         DataOutputHelper() {
             super(emu.getThreadGroup(), name() + "_data_out");
             byteBuffer = ByteBuffer.allocate(maxBufferSize);
+
+            // Create writer to write events into file format
+            if (marshallOutput) {
+                try {
+                    writer = new EventWriter(byteBuffer);
+                //  writer = new EventWriter(byteBuffer, 5250, 50000, null, null);
+                }
+                catch (EvioException e) {/* never happen */}
+            }
         }
 
 
@@ -963,12 +950,14 @@ logger.debug("      DataChannel Emu startOutputThread()");
             if (!marshallOutput) {
                 return;
             }
+
             // If we have no more room in buffer, send what we have so far
             writer.close();
             outGoingMsg.setUserInt(cMsgConstants.emuEvioFile);
-            outGoingMsg.setByteArray(byteBuffer.array(), 0,
-                                     (int) writer.getBytesWrittenToBuffer());
+            outGoingMsg.setByteArrayNoCopy(writer.getByteBuffer().array(), 0,
+                                           (int) writer.getBytesWrittenToBuffer());
             emuDomain.send(outGoingMsg);
+
             // Reset writer ..
             writer.setBuffer(byteBuffer);
         }
@@ -1104,11 +1093,6 @@ logger.debug("      DataChannel Emu out helper: started");
                 RingItem ringItem;
                 int ringChunkCounter = ringChunk;
 
-                // Create writer to write events into file format
-                if (marshallOutput) {
-                    writer = new EventWriter(byteBuffer);
-                }
-
                 // First event will be "prestart", by convention in ring 0
                 ringItem = getNextOutputRingItem(0);
                 if (queueItemType == QueueItemType.PayloadBank) {
@@ -1120,6 +1104,7 @@ logger.debug("      DataChannel Emu out helper: started");
                     writeEvioData(pBuffer, ringItem.getEventType());
                 }
                 releaseOutputRingItem(0);
+logger.debug("      DataChannel Emu out helper: sent prestart");
 
                 // First event will be "go", by convention in ring 0
                 ringItem = getNextOutputRingItem(0);
@@ -1132,6 +1117,7 @@ logger.debug("      DataChannel Emu out helper: started");
                     writeEvioData(pBuffer, ringItem.getEventType());
                 }
                 releaseOutputRingItem(0);
+logger.debug("      DataChannel Emu out helper: sent go");
 
                 while ( true ) {
 
@@ -1155,9 +1141,12 @@ logger.debug("      DataChannel Emu out helper: started");
                     }
                     else if  (queueItemType == QueueItemType.PayloadBuffer) {
                         pBuffer = (PayloadBuffer)ringItem;
+//Utilities.printBuffer(pBuffer.getBuffer(), 0, 10, "built event (emu out):");
+
                         // Write over socket ...
                         writeEvioData(pBuffer, ringItem.getEventType());
                     }
+//logger.debug("      DataChannel Emu out helper: sent event");
 
 //logger.debug("      DataChannel Emu out helper: release ring item");
                     releaseOutputRingItem(rbIndex);
