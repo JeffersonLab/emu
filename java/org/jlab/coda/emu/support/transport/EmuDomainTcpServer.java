@@ -26,7 +26,7 @@ public class EmuDomainTcpServer extends Thread {
 
 
     /** Level of debug output for this class. */
-    private int debug = cMsgConstants.debugInfo;
+    private int debug = cMsgConstants.debugError;
 
     private final int serverPort;
 
@@ -174,7 +174,7 @@ public class EmuDomainTcpServer extends Thread {
 
                                 // Check for server / client compatibility for cMsg version
                                 version = buffer.getInt();
-System.out.println("Got version = " + version);
+//System.out.println("Got version = " + version);
                                 if (version != cMsgConstants.version) {
                                     if (debug >= cMsgConstants.debugInfo) {
                                         System.out.println("Emu domain server: version mismatch, got " +
@@ -187,7 +187,7 @@ System.out.println("Got version = " + version);
 
                                 // CODA id of sender
                                 codaId = buffer.getInt();
-System.out.println("Got coda id = " + codaId);
+//System.out.println("Got coda id = " + codaId);
                                 if (codaId < 0) {
                                     if (debug >= cMsgConstants.debugInfo) {
                                         System.out.println("Emu domain server: bad coda id of sender (" +
@@ -200,7 +200,7 @@ System.out.println("Got coda id = " + codaId);
 
                                 // Max size buffers to hold incoming data in bytes
                                 bufferSizeDesired = buffer.getInt();
-System.out.println("Got buffer size = " + bufferSizeDesired);
+//System.out.println("Got buffer size = " + bufferSizeDesired);
                                 if (bufferSizeDesired < 4*10) {
                                     // 40 bytes is smallest possible evio file format size
                                     if (debug >= cMsgConstants.debugInfo) {
@@ -214,7 +214,7 @@ System.out.println("Got buffer size = " + bufferSizeDesired);
 
                                 // Byte Order of evio data (useful if sending event only, no file format)
                                 isBigEndian = buffer.getInt();
-System.out.println("Got isBigEndian = " + isBigEndian);
+//System.out.println("Got isBigEndian = " + isBigEndian);
                                 if (isBigEndian != 0  && isBigEndian != 1) {
                                     if (debug >= cMsgConstants.debugInfo) {
                                         System.out.println("Emu domain server: bad is-big-endian (" +

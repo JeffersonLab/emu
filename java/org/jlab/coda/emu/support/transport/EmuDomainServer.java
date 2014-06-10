@@ -120,7 +120,6 @@ public class EmuDomainServer extends Thread {
 System.out.println("I/O Error: " + e);
             throw new cMsgException(e.getMessage());
         }
-System.out.println("Done constructing EmuDomainServer");
     }
 
 
@@ -175,7 +174,7 @@ System.out.println("Done constructing EmuDomainServer");
             // First check to see if there is another Emu multicast server
             // on this port with this EXPID. If so, all hands abandon ship.
 
-System.out.println("Find other EmuDomainServers");
+//System.out.println("Find other EmuDomainServers");
             // Create a thread which will send out our multicast
             Multicaster sender = new Multicaster(udpPacket);
             sender.start();
@@ -183,9 +182,9 @@ System.out.println("Find other EmuDomainServers");
             // Wait up to multicastTimeout milliseconds
             boolean response = false;
             try {
-System.out.println("Wait for response");
+//System.out.println("Wait for response");
                 if (multicastResponse.await(multicastTimeout, TimeUnit.MILLISECONDS)) {
-System.out.println("Got a response!");
+//System.out.println("Got a response!");
                     response = true;
                 }
             }
@@ -200,7 +199,7 @@ System.out.println("Got a response!");
                 throw new cMsgException("Another Emu multicast server is running at port " + serverPort +
                                                 " host " + respondingHost + " with EXPID = " + expid);
             }
-System.out.println("No other Emu mMulticast server is running, so start this one up!");
+//System.out.println("No other Emu mMulticast server is running, so start this one up!");
             acceptingClients = true;
 
             // Closing the socket AFTER THE ABOVE LINE diminishes the chance that

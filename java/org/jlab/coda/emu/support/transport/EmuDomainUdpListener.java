@@ -29,7 +29,7 @@ public class EmuDomainUdpListener extends Thread {
     private MulticastSocket multicastSocket;
 
     /** Level of debug output for this class. */
-    private int debug = cMsgConstants.debugInfo;
+    private int debug = cMsgConstants.debugError;
 
     private String expid;
 
@@ -66,8 +66,8 @@ public class EmuDomainUdpListener extends Thread {
             while (enumer.hasMoreElements()) {
                 NetworkInterface ni = enumer.nextElement();
                 if (ni.isUp() && ni.supportsMulticast() && !ni.isLoopback()) {
-System.out.println("Join group for " + cMsgNetworkConstants.emuMulticast +
-                    ", port = " + multicastPort + ", ni = " + ni.getName());
+//System.out.println("Join group for " + cMsgNetworkConstants.emuMulticast +
+//                    ", port = " + multicastPort + ", ni = " + ni.getName());
                     multicastSocket.joinGroup(sa, ni);
                 }
             }
@@ -143,7 +143,7 @@ System.out.println("Join group for " + cMsgNetworkConstants.emuMulticast +
                 if (killThreads) { return; }
 
                 packet.setLength(2048);
-System.out.println("Udp listener: WAITING TO RECEIVE PACKET");
+//System.out.println("Udp listener: WAITING TO RECEIVE PACKET");
                 multicastSocket.receive(packet);   // blocks
                 if (debug >= cMsgConstants.debugInfo) {
                     System.out.println("     ***** RECEIVED EMU DOMAIN MULTICAST PACKET *****");
@@ -180,27 +180,27 @@ System.out.println("Udp listener: WAITING TO RECEIVE PACKET");
                 switch (msgType) {
                     // Multicasts from emu clients
                     case cMsgNetworkConstants.emuDomainMulticastClient:
-System.out.println("Client wants to connect");
+//System.out.println("Client wants to connect");
                         out.writeInt(cMsgNetworkConstants.emuDomainMulticastServer);
                         break;
                     // Multicasts from emu servers
                     case cMsgNetworkConstants.emuDomainMulticastServer:
-System.out.println("Server wants to connect");
+//System.out.println("Server wants to connect");
                         break;
                     // Kill this server since one already exists on this port/expid
                     case cMsgNetworkConstants.emuDomainMulticastKillSelf:
-System.out.println("Emu multicast server : Told to kill myself by another multicast server");
+//System.out.println("Emu multicast server : Told to kill myself by another multicast server");
                         server.respondingHost = multicasterHost;
                         server.multicastResponse.countDown();
                         return;
                     // Packet from client just trying to locate emu multicast servers.
                     // Send back a normal response but don't do anything else.
                     case cMsgNetworkConstants.emuDomainMulticastProbe:
-System.out.println("I was probed");
+//System.out.println("I was probed");
                         break;
                     // Ignore packets from unknown sources
                     default:
-System.out.println("Unknown command");
+//System.out.println("Unknown command");
                         continue;
                 }
 
@@ -225,11 +225,11 @@ System.out.println("Unknown command");
                 }
                 catch (UnsupportedEncodingException e) {}
 
-                if (debug >= cMsgConstants.debugInfo) {
-                    System.out.println("multicaster's host = " + multicasterHost + ", UDP port = " + multicasterUdpPort +
-                        ", cMsg version = " + cMsgVersion + ", name = " + multicasterName +
-                        ", expid = " + multicasterExpid);
-                }
+//                if (debug >= cMsgConstants.debugInfo) {
+//                    System.out.println("multicaster's host = " + multicasterHost + ", UDP port = " + multicasterUdpPort +
+//                        ", cMsg version = " + cMsgVersion + ", name = " + multicasterName +
+//                        ", expid = " + multicasterExpid);
+//                }
 
                 // Check for conflicting expids
                 if (!expid.equalsIgnoreCase(multicasterExpid)) {
@@ -252,7 +252,7 @@ System.out.println("Unknown command");
 //                System.out.println("                   : our port = " + server.localTempPort);
 
                 if (multicasterUdpPort == server.localTempPort) {
-System.out.println("Emu multicast server : ignore my own udp messages");
+//System.out.println("Emu multicast server : ignore my own udp messages");
                     continue;
                 }
 
@@ -261,7 +261,7 @@ System.out.println("Emu multicast server : ignore my own udp messages");
                     msgType == cMsgNetworkConstants.emuDomainMulticastClient)  {
                     try {
                         sendPacket = new DatagramPacket(outBuf, outBuf.length, multicasterAddress, multicasterUdpPort);
-System.out.println("Send response-to-probe packet to client");
+//System.out.println("Send response-to-probe packet to client");
                         multicastSocket.send(sendPacket);
                     }
                     catch (IOException e) {
