@@ -44,7 +44,7 @@ public class FarmController extends ModuleAdapter {
     /** Sequence of ring items. */
     public Sequence sequenceIn;
 
-    /** All recording threads share one barrier. */
+    /** Thread has one barrier. */
     public SequenceBarrier barrierIn;
 
 
