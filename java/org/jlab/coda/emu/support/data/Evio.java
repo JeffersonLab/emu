@@ -2901,7 +2901,7 @@ System.out.println("Timestamps are NOT consistent!!!");
 
         boolean turnOffChecks = false;
 
-        int tag, firstTrigTag=0;
+        int firstTrigTag=0;
         int numROCs = inputPayloadBanks.length;
         int numEvents = inputPayloadBanks[0].getNode().getNum();
 
