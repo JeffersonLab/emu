@@ -27,6 +27,7 @@ public class PayloadBank extends RingItemAdapter {
      */
     public PayloadBank(PayloadBank bank) {
         super(bank);
+        event = bank.getEvent();
     }
 
     /**
@@ -62,13 +63,6 @@ public class PayloadBank extends RingItemAdapter {
         this.sourceName  = sourceName;
     }
 
-    public EvioEvent getEvent() {
-        return event;
-    }
-
-    public void setEvent(EvioEvent event) {
-        this.event = event;
-    }
 
     public QueueItemType getQueueItemType() {return QueueItemType.PayloadBank;}
 

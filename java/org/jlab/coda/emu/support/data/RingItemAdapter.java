@@ -137,7 +137,8 @@ class RingItemAdapter implements RingItem {
         hasError              = qItem.hasError();
         nonFatalBuildingError = qItem.hasNonFatalBuildingError();
         attachment            = qItem.getAttachment();
-//        sequence              = qItem.getSequence();
+        byteBufferItem        = qItem.getByteBufferItem();
+        byteBufferSupply      = qItem.getByteBufferSupply();
     }
 
     // Will need to be overwritten
@@ -146,6 +147,26 @@ class RingItemAdapter implements RingItem {
 
     /** {@inheritDoc} */
     public ByteOrder getByteOrder() {return ByteOrder.BIG_ENDIAN;}
+
+    public EvioEvent getEvent() {
+        return event;
+    }
+
+    public void setEvent(EvioEvent event) {
+        this.event = event;
+    }
+
+    public ByteBuffer getBuffer() {
+        return buffer;
+    }
+
+    public void setBuffer(ByteBuffer buffer) { this.buffer = buffer; }
+
+    public EvioNode getNode() { return node; }
+
+    public void setNode(EvioNode node) { this.node = node; }
+
+
     //----------------------------
 
 //    /** {@inheritDoc} */

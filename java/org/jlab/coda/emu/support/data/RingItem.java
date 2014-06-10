@@ -12,6 +12,10 @@
 package org.jlab.coda.emu.support.data;
 
 
+import org.jlab.coda.jevio.EvioEvent;
+import org.jlab.coda.jevio.EvioNode;
+
+import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 
 /**
@@ -36,6 +40,21 @@ public interface RingItem extends Cloneable, Attached {
      * @return byte order of the data contained in this object.
      */
     public ByteOrder getByteOrder();
+
+
+
+    public EvioEvent getEvent();
+
+    public void setEvent(EvioEvent event);
+
+    public ByteBuffer getBuffer();
+
+    public void setBuffer(ByteBuffer buffer);
+
+    public EvioNode getNode();
+
+    public void setNode(EvioNode node);
+
 
 
     /**

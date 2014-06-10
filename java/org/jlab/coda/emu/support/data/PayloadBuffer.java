@@ -88,28 +88,13 @@ public class PayloadBuffer extends RingItemAdapter {
     }
 
     /**
-     * Get the ByteBuffer.
-     * @return the ByteBuffer object.
-     */
-    public ByteBuffer getBuffer() {
-        return buffer;
-    }
-
-    public void setBuffer(ByteBuffer buffer) { this.buffer = buffer; }
-
-    public EvioNode getNode() {
-        return node;
-    }
-
-    public void setNode(EvioNode node) { this.node = node; }
-
-
-    /**
      * Get the length of this structure in bytes, including the header.
      * @return the length of this structure in bytes, including the header.
      */
     public int getTotalBytes() {
-        return buffer.remaining();
+        // remaining() THIS DOES NOTTTTTTTTTT SEEM RIGHT!!!!!
+        //return buffer.remaining();
+        return buffer.limit();
     }
 
     /**
