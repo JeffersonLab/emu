@@ -1,9 +1,7 @@
 package org.jlab.coda.emu.support.data;
 
-import com.lmax.disruptor.EventFactory;
-import com.lmax.disruptor.RingBuffer;
-import com.lmax.disruptor.YieldingWaitStrategy;
 
+import com.lmax.disruptor.*;
 
 import static com.lmax.disruptor.RingBuffer.createSingleProducer;
 
@@ -14,11 +12,18 @@ import static com.lmax.disruptor.RingBuffer.createSingleProducer;
  */
 public class ByteBufferSupply {
 
-    /** Size in bytes of ByteBuffer contained in each ByteBufferItem in ring. */
+    /** Initial size, in bytes, of ByteBuffers contained in each ByteBufferItem in ring. */
     private final int bufferSize;
 
     /** Ring buffer. */
     private final RingBuffer<ByteBufferItem> ringBuffer;
+
+    /** Barrier to prevent buffers from being used again, before being released. */
+    private final SequenceBarrier barrier;
+
+    /** Which buffer is this one? */
+    private final Sequence sequence;
+
 
     /** Class used to initially create all items in ring buffer. */
     private final class ByteBufferFactory implements EventFactory<ByteBufferItem> {
@@ -32,7 +37,7 @@ public class ByteBufferSupply {
      * Constructor.
      *
      * @param ringSize   number of ByteBufferItem objects in ring buffer.
-     * @param bufferSize size of ByteBuffer (bytes) in each ByteBufferItem object.
+     * @param bufferSize initial size (bytes) of ByteBuffer in each ByteBufferItem object.
      * @throws IllegalArgumentException if args < 1 or ringSize not power of 2.
      */
     public ByteBufferSupply(int ringSize, int bufferSize) throws IllegalArgumentException {
@@ -48,9 +53,16 @@ public class ByteBufferSupply {
         this.bufferSize = bufferSize;
 
         // Create ring buffer with "ringSize" # of elements,
-        // each with ByteBuffers of size "bufferSize".
+        // each with ByteBuffers of size "bufferSize" bytes.
+        // The ByteBuffer can be changed by the user by using
+        // the setBuffer() method of the ByteBufferItem object.
         ringBuffer = createSingleProducer(new ByteBufferFactory(), ringSize,
                                           new YieldingWaitStrategy());
+
+        // Barrier to keep unreleased buffers from being reused
+        barrier  = ringBuffer.newBarrier();
+        sequence = new Sequence(Sequencer.INITIAL_CURSOR_VALUE);
+        ringBuffer.addGatingSequences(sequence);
     }
 
     /**
@@ -64,7 +76,7 @@ public class ByteBufferSupply {
         // Get object in that position (sequence) of ring buffer
         ByteBufferItem bufItem = ringBuffer.get(getSequence);
 
-        // Store sequence for later publishing
+        // Store sequence for later releasing of the buffer
         bufItem.setSequence(getSequence);
 
         // Get ByteBuffer ready for being written into
@@ -84,7 +96,7 @@ public class ByteBufferSupply {
         // Each item may be used by several objects/threads. It will
         // only be released for reuse if everyone releases their claim.
         if (byteBufferItem.decrementCounter()) {
-            ringBuffer.publish(byteBufferItem.getSequence());
+            sequence.set(byteBufferItem.getSequence());
         }
     }
 
