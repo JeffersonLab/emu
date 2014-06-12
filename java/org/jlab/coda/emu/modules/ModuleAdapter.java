@@ -79,9 +79,6 @@ public class ModuleAdapter implements EmuModule {
     /** Object used by Emu to be notified of END event arrival. */
     protected EmuEventNotify endCallback;
 
-    /** Flag used to kill eventMovingThread. */
-    protected volatile boolean killThread;
-
     /** Comparator which tells queue how to sort elements. */
     protected AttachComparator<Attached> comparator = new AttachComparator<Attached>();
 
