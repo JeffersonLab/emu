@@ -34,6 +34,8 @@ public class FarmController extends ModuleAdapter {
 
     private int outputChannelCount;
 
+    private boolean debug = false;
+
     //-------------------------------------------
     // Disruptor (RingBuffer)  stuff
     //-------------------------------------------
@@ -42,12 +44,10 @@ public class FarmController extends ModuleAdapter {
     private RingBuffer<RingItem> ringBufferIn;
 
     /** Sequence of ring items. */
-    public Sequence sequenceIn;
+    private Sequence sequenceIn;
 
     /** Thread has one barrier. */
-    public SequenceBarrier barrierIn;
-
-
+    private SequenceBarrier barrierIn;
 
     // ---------------------------------------------------
 
@@ -66,14 +66,14 @@ public class FarmController extends ModuleAdapter {
 
     /** {@inheritDoc} */
     public void reset() {
-System.out.println("FarmController: reset");
+        if (debug) System.out.println("FarmController: reset");
         state = CODAState.CONFIGURED;
         paused = false;
     }
 
     /** {@inheritDoc} */
     public void end() throws CmdExecException {
-System.out.println("FarmController: end");
+        if (debug) System.out.println("FarmController: end");
         state = CODAState.DOWNLOADED;
         paused = false;
         endThread();
@@ -81,11 +81,11 @@ System.out.println("FarmController: end");
 
     /** {@inheritDoc} */
     public void prestart() throws CmdExecException {
-System.out.println("FarmController: prestart");
+        if (debug) System.out.println("FarmController: prestart");
 
-        //------------------------------------------------
-        // Disruptor (RingBuffer) stuff for input channels
-        //------------------------------------------------
+        //--------------------------------------------------
+        // Disruptor (RingBuffer) stuff for 1 input channel
+        //--------------------------------------------------
         // Get FIRST input channel's ring buffer
         ringBufferIn = inputChannels.get(0).getRing();
 
@@ -97,11 +97,9 @@ System.out.println("FarmController: prestart");
 
         // We have 1 barrier
         barrierIn = ringBufferIn.newBarrier();
-        //------------------------------------------------
+        //--------------------------------------------------
 
         state = CODAState.PAUSED;
-        killThread = false;
-System.out.println("FarmController: create & start event moving thread");
         eventMovingThread = new EventMovingThread();
         eventMovingThread.start();
         paused = true;
@@ -110,7 +108,7 @@ System.out.println("FarmController: create & start event moving thread");
     /** {@inheritDoc} */
     public void pause() {
         super.pause();
-System.out.println("FarmController: pause");
+        if (debug) System.out.println("FarmController: pause");
     }
 
     /** {@inheritDoc} */
@@ -122,7 +120,7 @@ System.out.println("FarmController: pause");
         String runType = emu.getRunType();
         String session = emu.getSession();
 
-System.out.println("FarmController: go");
+        if (debug) System.out.println("FarmController: go");
         state = CODAState.ACTIVE;
         paused = false;
     }
@@ -134,7 +132,6 @@ System.out.println("FarmController: go");
       */
      private void endThread() {
          // Interrupt the event moving thread
-         killThread = true;
          eventMovingThread.interrupt();
      }
 
