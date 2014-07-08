@@ -311,7 +311,7 @@ logger.info("      DataChannel Et : creating output channel " + name);
 //logger.info("      DataChannel Et : output threads = " + outputThreadCount);
 
         // How may buffers do we grab at a time?
-        chunk = 100;
+        chunk = 10;
         attribString = attributeMap.get("chunk");
         if (attribString != null) {
             try {
