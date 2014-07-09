@@ -13,12 +13,11 @@ package org.jlab.coda.emu.support.transport;
 
 
 import com.lmax.disruptor.RingBuffer;
+import org.jlab.coda.emu.EmuModule;
 import org.jlab.coda.emu.support.codaComponent.CODAStateMachine;
 import org.jlab.coda.emu.support.codaComponent.StatedObject;
-import org.jlab.coda.emu.support.data.QueueItem;
 import org.jlab.coda.emu.support.data.RingItem;
 
-import java.util.List;
 import java.util.concurrent.BlockingQueue;
 
 /**
@@ -50,6 +49,12 @@ public interface DataChannel extends CODAStateMachine, StatedObject {
      *         data channel.
      */
     public void setID(int id);
+
+    /**
+     * Get the module which created this channel.
+     * @return module which created this channel.
+     */
+    public EmuModule getModule();
 
     /**
      * Get the record ID number of the latest event through this channel.

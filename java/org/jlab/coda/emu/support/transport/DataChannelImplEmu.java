@@ -69,9 +69,6 @@ public class DataChannelImplEmu extends DataChannelAdapter {
     private DataInputHelper dataInputThread;
 
 
-    private int ringChunk;
-
-
 
     private DataInputStream in;
     private int maxBufferSize;
@@ -90,8 +87,6 @@ public class DataChannelImplEmu extends DataChannelAdapter {
     /** Ring buffer holding ByteBuffers when using EvioCompactEvent reader for incoming events. */
     protected ByteBufferSupply bbSupply;
 
-    private long[] nextSequences;
-    private long[] availableSequences;
     private int rbIndex;
 
 
@@ -100,8 +95,8 @@ public class DataChannelImplEmu extends DataChannelAdapter {
 
     /**
      * Constructor to create a new DataChannelImplEt instance. Used only by
-     * {@link org.jlab.coda.emu.support.transport.DataTransportImplEt#createChannel(String, java.util.Map, boolean, org.jlab.coda.emu.Emu, org.jlab.coda.emu.EmuModule)}
-     * which is only used during PRESTART in {@link org.jlab.coda.emu.Emu}.
+     * {@link DataTransportImplEt#createChannel(String, Map, boolean, Emu, EmuModule)}
+     * which is only used during PRESTART in {@link Emu}.
      *
      * @param name          the name of this channel
      * @param transport     the DataTransport object that this channel belongs to
@@ -110,7 +105,7 @@ public class DataChannelImplEmu extends DataChannelAdapter {
      * @param emu           emu this channel belongs to
      * @param module        module this channel belongs to
      *
-     * @throws org.jlab.coda.emu.support.transport.DataTransportException - unable to create buffers or socket.
+     * @throws DataTransportException - unable to create buffers or socket.
      */
     DataChannelImplEmu(String name, DataTransportImplEmu transport,
                        Map<String, String> attributeMap, boolean input, Emu emu,
@@ -229,15 +224,6 @@ System.out.println("Sending on port " + sendPort);
                 }
                 catch (NumberFormatException e) {}
             }
-
-            nextSequences = new long[ringCount];
-            availableSequences = new long[ringCount];
-            Arrays.fill(availableSequences, -1L);
-
-            for (int i=0; i < ringCount; i++) {
-                nextSequences[i] = sequences[i].get() + 1L;
-            }
-
         }
 
         // State after prestart transition -
@@ -963,61 +949,7 @@ logger.debug("      DataChannel Emu startOutputThread()");
         }
 
 
-        /**
-         * Gets the next ring buffer item placed there by the last module.
-         * Only call from one thread. MUST be followed by call to
-         * {@link #releaseOutputRingItem(int)} AFTER the returned item
-         * is used or nothing will work right.
-         *
-         * @param ringIndex ring buffer to take item from
-         * @return next ring buffer item
-         */
-        private RingItem getNextOutputRingItem(int ringIndex)
-                throws InterruptedException, EmuException {
-
-            RingItem item = null;
-//            System.out.println("getNextOutputRingITem: index = " + ringIndex);
-//            System.out.println("                     : availableSequences = " + availableSequences[ringIndex]);
-//            System.out.println("                     : nextSequences = " + nextSequences[ringIndex]);
-
-            try  {
-                // Only wait for read-volatile-memory if necessary ...
-                if (availableSequences[ringIndex] < nextSequences[ringIndex]) {
-    //System.out.println("getNextOutputRingITem: WAITING");
-                    availableSequences[ringIndex] = sequenceBarriers[ringIndex].waitFor(nextSequences[ringIndex]);
-                }
-    //System.out.println("getNextOutputRingITem: available seq = " + availableSequences[ringIndex]);
-
-                item = ringBuffers[ringIndex].get(nextSequences[ringIndex]);
-    //System.out.println("getNextOutputRingITem: got seq = " + nextSequences[ringIndex]);
-//System.out.println("Got ring item " + item.getRecordId());
-            }
-            catch (final TimeoutException ex) {
-                /* never happen since we don't use timeout wait strategy */
-                ex.printStackTrace();
-            }
-            catch (final AlertException ex) {
-                ex.printStackTrace();
-                throw new EmuException("Ring buffer error",ex);
-            }
-
-            return item;
-        }
-
-
-        /**
-         * Releases the item obtained by calling {@link #getNextOutputRingItem(int)},
-         * so that it may be reused for writing into by the last module.
-         * @param ringIndex ring buffer to release item to
-         */
-        private void releaseOutputRingItem(int ringIndex) {
-            sequences[ringIndex].set(nextSequences[ringIndex]);
-            nextSequences[ringIndex]++;
-        }
-
-
-
-        private final void writeEvioData(PayloadBuffer buffer, EventType eType) throws cMsgException,
+     private final void writeEvioData(PayloadBuffer buffer, EventType eType) throws cMsgException,
                                                                 IOException,
                                                                 EvioException {
 
@@ -1149,7 +1081,7 @@ logger.debug("      DataChannel Emu out helper: sent go");
 //logger.debug("      DataChannel Emu out helper: sent event");
 
 //logger.debug("      DataChannel Emu out helper: release ring item");
-                    releaseOutputRingItem(rbIndex);
+                    releaseCurrentAndGetNextOutputRingItem(rbIndex);
                     if (--ringChunkCounter < 1) {
                         rbIndex = ++rbIndex % ringCount;
                         ringChunkCounter = ringChunk;
@@ -1164,11 +1096,11 @@ logger.debug("      DataChannel Emu out helper: sent go");
 System.out.println("      DataChannel Emu out helper: " + name + " I got END event, quitting");
                         // run callback saying we got end event
                         if (endCallback != null) endCallback.endWait();
-                        break;
+                        return;
                     }
 
                     // If I've been told to RESET ...
-                    if (gotResetCmd || gotEndCmd) {
+                    if (gotResetCmd) {
                         System.out.println("      DataChannel Emu out helper: " + name + " got RESET/END cmd, quitting 1");
                         return;
                     }

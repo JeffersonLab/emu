@@ -16,7 +16,7 @@ import java.nio.ByteOrder;
  * @author: timmer
  * Date: Feb 28, 2014
  */
-class RingItemAdapter implements RingItem {
+abstract class RingItemAdapter implements RingItem {
 
     // If contains event
 
@@ -81,8 +81,6 @@ class RingItemAdapter implements RingItem {
 
     // Deal with ring buffers
 
-//    protected long sequence;
-
     /** This refers to a reusable ByteBufferSupply used for buffer (if any). */
     protected ByteBufferSupply byteBufferSupply;
 
@@ -124,29 +122,46 @@ class RingItemAdapter implements RingItem {
      * @param qItem QueueItem to copy
      */
     public RingItemAdapter(RingItem qItem) {
-        eventType             = qItem.getEventType();
-        controlType           = qItem.getControlType();
-        sourceId              = qItem.getSourceId();
-        matchesId             = qItem.matchesId();
-        sourceName            = qItem.getSourceName();
-        recordId              = qItem.getRecordId();
-        eventCount            = qItem.getEventCount();
-        firstEventNumber      = qItem.getFirstEventNumber();
-        isSync                = qItem.isSync();
-        isSingleEventMode     = qItem.isSingleEventMode();
-        hasError              = qItem.hasError();
-        nonFatalBuildingError = qItem.hasNonFatalBuildingError();
-        attachment            = qItem.getAttachment();
-        byteBufferItem        = qItem.getByteBufferItem();
-        byteBufferSupply      = qItem.getByteBufferSupply();
+        copy(qItem);
     }
 
-    // Will need to be overwritten
+
+    /**
+     * Copy members of argument into this object (except for "reserved").
+     * @param ringItem object to copy.
+     */
+    public void copy(RingItem ringItem) {
+        event                 = ringItem.getEvent();
+        buffer                = ringItem.getBuffer();
+        node                  = ringItem.getNode();
+        eventType             = ringItem.getEventType();
+        controlType           = ringItem.getControlType();
+        sourceId              = ringItem.getSourceId();
+        matchesId             = ringItem.matchesId();
+        sourceName            = ringItem.getSourceName();
+        recordId              = ringItem.getRecordId();
+        eventCount            = ringItem.getEventCount();
+        firstEventNumber      = ringItem.getFirstEventNumber();
+        isSync                = ringItem.isSync();
+        isSingleEventMode     = ringItem.isSingleEventMode();
+        hasError              = ringItem.hasError();
+        nonFatalBuildingError = ringItem.hasNonFatalBuildingError();
+        attachment            = ringItem.getAttachment();
+        byteBufferItem        = ringItem.getByteBufferItem();
+        byteBufferSupply      = ringItem.getByteBufferSupply();
+    }
+
+
+    // Methods that need to be overwritten
     /** {@inheritDoc} */
-    public QueueItemType getQueueItemType() {return null;}
+    abstract public QueueItemType getQueueItemType();
 
     /** {@inheritDoc} */
-    public ByteOrder getByteOrder() {return ByteOrder.BIG_ENDIAN;}
+    abstract public ByteOrder getByteOrder();
+
+    /** {@inheritDoc} */
+    abstract public int getTotalBytes();
+
 
     public EvioEvent getEvent() {
         return event;
@@ -166,15 +181,6 @@ class RingItemAdapter implements RingItem {
 
     public void setNode(EvioNode node) { this.node = node; }
 
-
-    //----------------------------
-
-//    /** {@inheritDoc} */
-//    public void setSequence(long sequence) {
-//        this.sequence = sequence;
-//    }
-//    /** {@inheritDoc} */
-//    public long getSequence() { return sequence; }
 
 
     /** {@inheritDoc} */

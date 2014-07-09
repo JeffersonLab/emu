@@ -41,7 +41,7 @@ public interface RingItem extends Cloneable, Attached {
      */
     public ByteOrder getByteOrder();
 
-
+    public void copy(RingItem ringItem);
 
     public EvioEvent getEvent();
 
@@ -54,6 +54,12 @@ public interface RingItem extends Cloneable, Attached {
     public EvioNode getNode();
 
     public void setNode(EvioNode node);
+
+    /**
+     * Get the length of this structure in bytes, including the header.
+     * @return the length of this structure in bytes, including the header.
+     */
+    public int getTotalBytes();
 
 
 

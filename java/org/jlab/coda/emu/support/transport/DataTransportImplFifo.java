@@ -59,21 +59,43 @@ public class DataTransportImplFifo extends DataTransportAdapter {
     /** {@inheritDoc} */
     synchronized public DataChannel createChannel(String name, Map<String,String> attributeMap,
                                                   boolean isInput, Emu emu,
-                                                  EmuModule module) {
+                                                  EmuModule module)
+            throws DataTransportException {
+
 //System.out.println("    DataTransportImplFifo.createChannel : create channel " + name);
         String channelName = name() + ":" + name;
 
-        // see if channel (queue) has already been created
+        // See if channel (queue) has already been created
         DataChannel c = allChannels.get(channelName);
 
-        // if not, create it
+        // Fifos are both input and output channels at the same time.
+        // The object type that the fifo must accept as input must be
+        // the same as its expected output, else throw an exception.
+        // In the EMU, in prestart, each fifo is "created" twice, once as input and
+        // the other as output. So we can check for this (in)compatibility.
+
+        // If not created yet, create it
         if (c == null) {
             c = new DataChannelImplFifo(channelName, this, attributeMap, isInput,
                                         emu, module);
             allChannels.put(channelName, c);
 System.out.println("    DataTransportImplFifo.createChannel() : create FIFO channel " + c.name());
         }
+        // If we're trying to create it again, make sure things are compatible.
         else {
+            EmuModule firstModule = c.getModule();
+
+            if (isInput) {
+                if (module.getInputQueueItemType() != firstModule.getOutputQueueItemType()) {
+                    throw new DataTransportException("Modules require inconsistent in/output object types");
+                }
+            }
+            else {
+                if (module.getOutputQueueItemType() != firstModule.getInputQueueItemType()) {
+                    throw new DataTransportException("Modules require inconsistent in/output object types");
+                }
+            }
+
 System.out.println("    DataTransportImplFifo.createChannel() : return stored FIFO channel " + c.name());
         }
         return c;
