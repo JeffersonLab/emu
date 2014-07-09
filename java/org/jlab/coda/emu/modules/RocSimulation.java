@@ -200,13 +200,12 @@ public class RocSimulation extends ModuleAdapter {
 //System.out.println("     : wait for next ring buf for writing");
         long nextRingItem = rb.next();
 //System.out.println("     : Get sequence " + nextRingItem);
-        PayloadBuffer pb = (PayloadBuffer) rb.get(nextRingItem);
-        pb.setBuffer(bank.getBuffer());
-        pb.setEventType(bank.getEventType());
-//System.out.println("     : set event type to " + bank.getEventType());
-        pb.setControlType(bank.getControlType());
-        pb.setSourceName(bank.getSourceName());
-        pb.setRecordId(bank.getRecordId());
+        RingItem ri = (RingItem) rb.get(nextRingItem);
+        ri.setBuffer(bank.getBuffer());
+        ri.setEventType(bank.getEventType());
+        ri.setControlType(bank.getControlType());
+        ri.setSourceName(bank.getSourceName());
+        ri.setRecordId(bank.getRecordId());
 
         rb.publish(nextRingItem);
     }
@@ -227,17 +226,18 @@ public class RocSimulation extends ModuleAdapter {
 
         int index = 0;
         for (ByteBuffer buf : bufs) {
+            // TODO: assumes only one output channel ...
             RingBuffer rb = outputChannels.get(0).getRingBuffers()[ringNum];
 
 //System.out.println("     : wait for next ring buf for writing");
             long nextRingItem = rb.next();
 //System.out.println("     : Got sequence " + nextRingItem);
-            PayloadBuffer pb = (PayloadBuffer) rb.get(nextRingItem);
-            pb.setBuffer(buf);
-            pb.setEventType(EventType.ROC_RAW);
-            pb.setControlType(null);
-            pb.setSourceName(null);
-            pb.setReusableByteBuffer(bbSupply, items[index++]);
+            RingItem ri = (RingItem) rb.get(nextRingItem);
+            ri.setBuffer(buf);
+            ri.setEventType(EventType.ROC_RAW);
+            ri.setControlType(null);
+            ri.setSourceName(null);
+            ri.setReusableByteBuffer(bbSupply, items[index++]);
 
 //System.out.println("published : record id " + rrId + " to ring " + ringNum);
             rb.publish(nextRingItem);
@@ -279,9 +279,9 @@ public class RocSimulation extends ModuleAdapter {
                                                          isSingleEventMode);
 
             eventWordSize = evs[0].getHeader().getLength() + 1;
-//System.out.println("ROCSim: each generated event size = " + (4*eventWordSize) +
-//                   " bytes, words = " + (eventWordSize) + ", tag = " +
-//                   evs[0].getHeader().getTag() + ", num = " + evs[0].getHeader().getNumber());
+System.out.println("ROCSim: each generated event size = " + (4*eventWordSize) +
+                   " bytes, words = " + (eventWordSize) + ", tag = " +
+                   evs[0].getHeader().getTag() + ", num = " + evs[0].getHeader().getNumber());
 
             // Set & initialize values
             numEvents = 10;
@@ -292,7 +292,7 @@ public class RocSimulation extends ModuleAdapter {
 System.out.println("\n\nStart With (id=" + myId + "):\n    record id = " + myRocRecordId +
                            ", ev # = " +myEventNumber + ", ts = " + timestamp);
 
-            bbSupply = new ByteBufferSupply(8192, 4*eventWordSize);
+            bbSupply = new ByteBufferSupply(32768, 4*eventWordSize);
         }
 
 
