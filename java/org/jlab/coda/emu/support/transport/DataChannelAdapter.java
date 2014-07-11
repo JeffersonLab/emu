@@ -17,6 +17,7 @@ import org.jlab.coda.emu.Emu;
 import org.jlab.coda.emu.EmuEventNotify;
 import org.jlab.coda.emu.EmuException;
 import org.jlab.coda.emu.EmuModule;
+import org.jlab.coda.emu.support.codaComponent.CODAClass;
 import org.jlab.coda.emu.support.codaComponent.CODAStateMachineAdapter;
 import org.jlab.coda.emu.support.codaComponent.State;
 import org.jlab.coda.emu.support.data.QueueItemType;
@@ -27,7 +28,6 @@ import org.jlab.coda.emu.support.logger.Logger;
 import java.nio.ByteOrder;
 import java.util.Arrays;
 import java.util.Map;
-import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static com.lmax.disruptor.RingBuffer.createSingleProducer;
@@ -52,6 +52,30 @@ public class DataChannelAdapter extends CODAStateMachineAdapter implements DataC
 
     /** Record id (corresponds to evio events flowing through data channel). */
     protected int recordId;
+
+    /**
+     * When DCs are connected to an SEB, each DC must send the same number of events
+     * to SEB as all others. This is due to the fact that there may be more than one
+     * SEB and so the DCs would have to ping-pong sending events between each SEB.
+     * This value may be set in the config file, settable by jcedit.
+     */
+    protected int sebChunk;
+
+    /**
+     * True if we're outputting from DC to SEB and so we need to chunk up events
+     * sent into batches of "sebChunk".
+     * TODO: How do we know to set this to true???????????????????????????????????
+     */
+    protected boolean chunkForSeb;
+
+    /**
+     * If we're a PEB or SEB and want to send 1 evio event per et-buffer/cmsg-message,
+     * then this is true. If we want to cram as many evio events as possible in each
+     * et-buffer/cmsg-message, then this is false.
+     * In the EMU domain, do we send out individual events (true) or do we
+     * marshall them into one evio-file-format buffer (false)?
+     */
+    protected boolean singleEventOut;
 
     /** Channel state. */
     protected State state;
@@ -194,15 +218,47 @@ logger.info("      DataChannel Adapter : output type = " + queueItemType);
             catch (NumberFormatException e) {}
         }
 
-
-        // Set endianness of output data
-        byteOrder = ByteOrder.BIG_ENDIAN;
-        try {
-            String order = attributeMap.get("endian");
-            if (order != null && order.equalsIgnoreCase("little")) {
-                byteOrder = ByteOrder.LITTLE_ENDIAN;
+        if (!input) {
+            // Set the number of evio events in a single et-buffer (or cmsg message)
+            // when sending from DC to SEB.
+            sebChunk = 50;
+            attribString = attributeMap.get("sebChunk");
+            if (attribString != null) {
+                try {
+                    // If this attribute is set, assume we're a DC outputting to an SEB
+                    if (emu.getCodaClass() == CODAClass.DC) {
+                        chunkForSeb = true;
+                    }
+                    int val = Integer.parseInt(attribString);
+                    if (val > 0) {
+                        sebChunk = val;
+                    }
+                }
+                catch (NumberFormatException e) {}
             }
-        } catch (Exception e) {}
+
+            // Do we send out single events or do we
+            // marshall them into one output buffer?
+            singleEventOut = false;
+            attribString = attributeMap.get("single");
+            if (attribString != null) {
+                if (attribString.equalsIgnoreCase("true") ||
+                        attribString.equalsIgnoreCase("on")   ||
+                        attribString.equalsIgnoreCase("yes"))   {
+                    singleEventOut = true;
+                }
+            }
+
+            // Set endianness of output data
+            byteOrder = ByteOrder.BIG_ENDIAN;
+            try {
+                String order = attributeMap.get("endian");
+                if (order != null && order.equalsIgnoreCase("little")) {
+                    byteOrder = ByteOrder.LITTLE_ENDIAN;
+                }
+            } catch (Exception e) {}
+
+        }
 
 
         // Set number of data output ring buffers
@@ -303,40 +359,8 @@ logger.info("      DataChannel Adapter : ring buffer count = " + ringCount);
     /** {@inheritDoc} */
     public DataTransport getDataTransport() {return dataTransport;}
 
-// TODO: get rid of this??
-    /** {@inheritDoc}
-     *  Will block until data item becomes available. */
-    public RingItem receive() throws InterruptedException {
-//        return queue.take();
-        return null;
-    }
-    
-// TODO: get rid of this??
-    /** {@inheritDoc}
-     *  Will block until space is available in output queue. */
-    public void send(RingItem item) throws InterruptedException {
-//        queue.put(item);     // blocks if capacity reached
-        //queue.add(item);   // throws exception if capacity reached
-        //queue.offer(item); // returns false if capacity reached
-    }
-
-// TODO: get rid of this??
     /** {@inheritDoc} */
-    public BlockingQueue<RingItem> getQueue() {
-//        return queue;
-        return null;
-    }
-
-    /** {@inheritDoc} */
-    public int getQCount() {return ringCount;}
-
-// TODO: get rid of this??
-    /** {@inheritDoc} */
-    public BlockingQueue<RingItem>[] getAllQueues() {
-//        return allQueues;
-        return null;
-    }
-
+    public int getRingCount() {return ringCount;}
 
     /** {@inheritDoc} */
     public RingBuffer<RingItem> getRing() {return ringBufferIn;}

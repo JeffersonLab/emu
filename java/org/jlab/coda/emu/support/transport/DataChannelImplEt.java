@@ -141,8 +141,6 @@ public class DataChannelImplEt extends DataChannelAdapter {
     protected ByteBufferSupply bbSupply;   // input
 
     private int rbIndex;
-    private long[] nextSequences;
-    private long[] availableSequences;
 
 
 
@@ -372,10 +370,6 @@ logger.info("      DataChannel Et : chunk = " + chunk);
         }
         // if OUTPUT channel
         else {
-
-            nextSequences = new long[ringCount];
-            availableSequences = new long[ringCount];
-
             // Tell emu what that output name is for stat reporting
             emu.setOutputDestination(transport.getOpenConfig().getEtName());
 
@@ -1352,14 +1346,17 @@ System.out.println("      DataChannel Et out helper: wake up attachment #" + att
             startLatch.countDown();
 
             try {
-                EtEvent[] events;
                 EventType previousType, pBankType;
                 ControlType pBankControlType;
                 ArrayList<RingItem> bankList;
-                RingItem ringItem = null;
-                int nextEventIndex, thisEventIndex, pBankSize, listTotalSizeMax, etSize, eventCount;
-                int events2Write, eventArrayLen;
+                RingItem ringItem;
+                int nextEventIndex, thisEventIndex, pBankSize, listTotalSizeMax;
+                EvWriter[] writers = new EvWriter[chunk];
+
+                EtEvent[] events;
+				int etSize, eventCount, events2Write, eventArrayLen;
                 int[] recordIds = new int[chunk];
+                etSize = (int) etSystem.getEventSize();               
 
                 // RocSimulation generates "ringChunk" sequential events at once,
                 // so, a single ring will have ringChunk sequential events together.
@@ -1374,10 +1371,6 @@ System.out.println("      DataChannel Et out helper: wake up attachment #" + att
                 for (int i=0; i < chunk; i++) {
                     bankListArray[i] = new ArrayList<RingItem>();
                 }
-
-                etSize = (int) etSystem.getEventSize();
-
-                EvWriter[] writers = new EvWriter[chunk];
 
                 // Get some new ET events
                 getThreadPool.execute(getter);
@@ -1453,7 +1446,7 @@ System.out.println("      DataChannel Et out helper: " + name + " got RESET cmd,
  //Utilities.printBuffer(ringItem.getBuffer(), 0, 10, "event");
 
                         // Assume worst case of one block header / bank
-                        listTotalSizeMax += pBankSize + 32;
+                        listTotalSizeMax += pBankSize + 64;
 
 //                        if (listTotalSizeMax >= etSize) {
 //                            System.out.println("listTotalSizeMax = " + listTotalSizeMax +
@@ -1479,13 +1472,14 @@ System.out.println("      DataChannel Et out helper: " + name + " got RESET cmd,
                             // Index of next list
                             nextEventIndex++;
                         }
-
                         // Is this bank a diff type as previous bank?
                         // Will it not fit into the et buffer?
                         // In both these cases start using a new list.
-                        else if ((previousType != pBankType) ||
-                                (listTotalSizeMax >= etSize))  {
-//System.out.println("Start new list ...");
+                        // If we're in single event output mode, we only want
+                        // 1 evio event per each et-buf/cmsg-msg so use a new list.
+                        else if (singleEventOut ||
+                                 (previousType != pBankType) ||
+                                 (listTotalSizeMax >= etSize)  )  {
 
                             // If we've already used up all the events,
                             // write things out first. Be sure to store what we just
@@ -1829,8 +1823,6 @@ logger.warn("      DataChannel Et out helper : exit thd: " + e.getMessage());
                         }
                     }
 
-// TODO: Use a different algorithm so that evWriter is not recreated each time
-//TODO: we need to write something
                     evWriter.close();
                     // Be sure to set the length to bytes of data actually written
                     etEvent.setLength(etBuffer.position());

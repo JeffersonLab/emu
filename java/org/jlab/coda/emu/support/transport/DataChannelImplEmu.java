@@ -59,8 +59,6 @@ public class DataChannelImplEmu extends DataChannelAdapter {
     /** Thread used to output data. */
     private DataOutputHelper dataOutputThread;
 
-    private boolean marshallOutput;
-
     private int sendPort;
 
     // INPUT
@@ -171,19 +169,6 @@ logger.info("      DataChannel Emu : set recvBuf to " + tcpRecvBuf);
         // if OUTPUT channel
         else {
 
-            ringChunk = 1;
-            attribString = attributeMap.get("ringChunk");
-            if (attribString != null) {
-                try {
-                    ringChunk = Integer.parseInt(attribString);
-                    if (ringChunk < 1) {
-                        ringChunk = 1;
-                    }
-                }
-                catch (NumberFormatException e) {}
-            }
-
-
             // Send port
             sendPort = cMsgNetworkConstants.emuTcpPort;
             attribString = attributeMap.get("port");
@@ -197,18 +182,6 @@ logger.info("      DataChannel Emu : set recvBuf to " + tcpRecvBuf);
                 catch (NumberFormatException e) {}
             }
 System.out.println("Sending on port " + sendPort);
-
-            // Do we send out individual events or do we
-            // marshall them into one evio-file-format buffer?
-            marshallOutput = true;
-            attribString = attributeMap.get("marshall");
-            if (attribString != null) {
-                if (attribString.equalsIgnoreCase("false") ||
-                        attribString.equalsIgnoreCase("off")   ||
-                        attribString.equalsIgnoreCase("no"))   {
-                    marshallOutput = false;
-                }
-            }
 
 
             // Size of max buffer, input or output
@@ -904,7 +877,7 @@ logger.debug("      DataChannel Emu startOutputThread()");
             byteBuffer = ByteBuffer.allocate(maxBufferSize);
 
             // Create writer to write events into file format
-            if (marshallOutput) {
+            if (!singleEventOut) {
                 try {
                     writer = new EventWriter(byteBuffer);
                 //  writer = new EventWriter(byteBuffer, 5250, 50000, null, null);
@@ -933,7 +906,7 @@ logger.debug("      DataChannel Emu startOutputThread()");
          * @throws EvioException
          */
         private final void flushEvents() throws cMsgException, EvioException{
-            if (!marshallOutput) {
+            if (singleEventOut) {
                 return;
             }
 
@@ -954,7 +927,7 @@ logger.debug("      DataChannel Emu startOutputThread()");
                                                                 EvioException {
 
             // If we're marshalling events into a single buffer before sending ...
-            if (marshallOutput && !eType.isControl()) {
+            if (!singleEventOut && !eType.isControl()) {
                 // If we have no more room in buffer ...
                 if (!writer.hasRoom(buffer.getTotalBytes())) {
                     flushEvents();
@@ -982,7 +955,7 @@ logger.debug("      DataChannel Emu startOutputThread()");
         private final void writeEvioData(PayloadBank bank, EventType eType) throws cMsgException,
                                                                   IOException,
                                                                   EvioException {
-            if (marshallOutput && !eType.isControl()) {
+            if (!singleEventOut && !eType.isControl()) {
 //System.out.println("writeEvioData: total bytes = " + bank.getTotalBytes() + ", has room = " +
 //                           writer.hasRoom(bank.getTotalBytes()));
                 if (!writer.hasRoom(bank.getTotalBytes())) {

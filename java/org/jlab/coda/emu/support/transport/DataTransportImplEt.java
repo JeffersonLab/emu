@@ -407,6 +407,16 @@ public class DataTransportImplEt extends DataTransportAdapter {
     public SystemCreate getLocalEtSystem() {return etSysLocal;}
 
 
+    /**
+      * Gets the number of events per group in the opened ET system.
+      * @return  number of events per group in the opened ET system.
+      */
+     public int getEventsInGroup() {
+         if (systemConfig == null) return 0;
+         return (systemConfig.getNumEvents()/systemConfig.getGroups().length);
+     }
+
+
     /** {@inheritDoc} */
     public DataChannel createChannel(String name, Map<String,String> attributeMap,
                                      boolean isInput, Emu emu,

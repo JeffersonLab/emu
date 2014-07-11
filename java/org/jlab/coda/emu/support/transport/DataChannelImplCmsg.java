@@ -101,15 +101,11 @@ public class DataChannelImplCmsg extends DataChannelAdapter {
     //-------------------------------------------
     // Disruptor (RingBuffer)  Stuff
     //-------------------------------------------
-    private long nextRingItem;       // input
 
 //    /** Ring buffer holding ByteBuffers when using EvioCompactEvent reader for incoming events. */
 //    protected ByteBufferSupply bbSupply;   // input
 
     private int rbIndex;
-
-    private long[] nextSequences;
-    private long[] availableSequences;
 
 
 
@@ -400,9 +396,6 @@ System.out.println("\n\nDataChannel: subscribe to subject = " + subject + ", typ
             }
         }
         else {
-            nextSequences = new long[ringCount];
-            availableSequences = new long[ringCount];
-
             // Tell emu what that output name is for stat reporting
             emu.setOutputDestination("cMsg");
 
@@ -649,15 +642,22 @@ System.out.println("singlethreaded put: array len = " + msgs.length + ", send " 
 
             try {
                 EventType previousType, pBanktype;
+                ControlType pBankControlType;
                 ArrayList<RingItem> bankList;
                 RingItem ringItem;
                 int nextMessageIndex, thisMessageIndex, pBankSize, listTotalSizeMax;
-                int messages2Write;
+                EvWriter[] writers = new EvWriter[writeThreadCount];
+
+                int eventCount, messages2Write;
                 int[] recordIds = new int[writeThreadCount];
                 int[] bankListSize = new int[writeThreadCount];
-                ControlType pBankControlType;
-
                 cMsgMessage[] msgs = new cMsgMessage[writeThreadCount];
+
+                // RocSimulation generates "ringChunk" sequential events at once,
+                // so, a single ring will have ringChunk sequential events together.
+                // Take this into account when reading from multiple rings.
+                // We must get the output order right.
+                int ringChunkCounter = ringChunk;
 
                 // Create an array of lists of PayloadBank objects by 2-step
                 // initialization to avoid "generic array creation" error.
@@ -691,10 +691,11 @@ System.out.println("singlethreaded put: array len = " + msgs.length + ", send " 
                     }
 
                     // Init variables
+                    eventCount = 0;
                     messages2Write = 0;
                     nextMessageIndex = thisMessageIndex = 0;
-                    previousType = null;
                     listTotalSizeMax = 32;
+                    previousType = null;
                     bankList = bankListArray[nextMessageIndex];
 
                     // Grab a bank to put into a cMsg buffer,
@@ -709,6 +710,8 @@ System.out.println("singlethreaded put: array len = " + msgs.length + ", send " 
                         else {
                             ringItem = getNextOutputRingItem(rbIndex);
                         }
+
+                        eventCount++;
 
                         pBanktype = ringItem.getEventType();
                         pBankSize = ringItem.getTotalBytes();
@@ -743,9 +746,10 @@ System.out.println("singlethreaded put: array len = " + msgs.length + ", send " 
                         // Will it not fit into the target size per message?
                         // Will it be > the target number of banks per message?
                         // In all these cases start using a new list.
-                        else if ((previousType != pBanktype) ||
-                                (listTotalSizeMax >= outputSizeLimit) ||
-                                (bankList.size() + 1 > outputCountLimit)) {
+                        else if (singleEventOut ||
+                                 (previousType != pBanktype) ||
+                                 (listTotalSizeMax >= outputSizeLimit) ||
+                                 (bankList.size() + 1 > outputCountLimit)) {
 
                             // Store final value of previous list's maximum possible size
                             bankListSize[thisMessageIndex] = listTotalSizeMax - pBankSize - 32;
@@ -788,17 +792,33 @@ System.out.println("singlethreaded put: array len = " + msgs.length + ", send " 
                             bankListSize[thisMessageIndex] = listTotalSizeMax;
                         }
 
-                        // Look for END event and mark it in attachment
-                        if (pBankControlType == ControlType.END) {
-                            ringItem.setAttachment(Boolean.TRUE);
-                            haveOutputEndEvent = true;
-                            if (endCallback != null) endCallback.endWait();
-                            break;
-                        }
-
                         // Set this for next round
                         previousType = pBanktype;
                         ringItem.setAttachment(Boolean.FALSE);
+
+                        gotoNextRingItem(rbIndex);
+
+                        // If control event, quit loop and write what we have
+                        if (pBankControlType != null) {
+System.out.println("      DataChannel cMsg out helper: SEND CONTROL RIGHT THROUGH: " + pBankControlType);
+
+                            // Look for END event and mark it in attachment
+                            if (pBankControlType == ControlType.END) {
+                                ringItem.setAttachment(Boolean.TRUE);
+                                haveOutputEndEvent = true;
+System.out.println("      DataChannel cMsg out helper: " + name + " I got END event, quitting 2");
+                                // run callback saying we got end event
+                                if (endCallback != null) endCallback.endWait();
+                            }
+
+                            break;
+                        }
+
+                        // Be careful not to use up all the events in the output
+                        // ring buffer before writing (& freeing up) some.
+                        if (eventCount >= outputRingCount/2) {
+                            break;
+                        }
 
                     } while (!gotResetCmd && (thisMessageIndex < writeThreadCount));
 
@@ -821,10 +841,18 @@ System.out.println("singlethreaded put: array len = " + msgs.length + ", send " 
                             continue;
                         }
 
-                        // Write banks' data into cMsg message in separate thread
-                        EvWriter writer = new EvWriter(bankList, msgs[i],
-                                                       bankListSize[i], recordIds[i]);
-                        writeThreadPool.execute(writer);
+
+                        // Write banks' data into ET buffer in separate thread.
+                        // Do not recreate writer object if not necessary.
+                        if (writers[i] == null) {
+                            writers[i] = new EvWriter(bankList, msgs[i],
+                                                      bankListSize[i], recordIds[i]);
+                        }
+                        else {
+                            writers[i].setupWriter(bankList, msgs[i],
+                                                   bankListSize[i], recordIds[i]);
+                        }
+                        writeThreadPool.execute(writers[i]);
 
                         // Keep track of how many messages we want to write
                         messages2Write++;
@@ -854,8 +882,15 @@ System.out.println("      DataChannel cMsg: write " + messages2Write + " message
                         throw e;
                     }
 
+                    releaseOutputRingItem(rbIndex);
+
+                    if (--ringChunkCounter < 1) {
+                        rbIndex = ++rbIndex % ringCount;
+                        ringChunkCounter = ringChunk;
+                    }
+
                     if (haveOutputEndEvent) {
-System.out.println("Ending");
+System.out.println("      DataChannel cMsg out helper: " + name + " some thd got END event, quitting 4");
                         shutdown();
                         return;
                     }
@@ -891,7 +926,7 @@ System.out.println("Ending");
             private ArrayList<RingItem> bankList;
 
             /** cMsg message's data buffer. */
-            private ByteBuffer  buffer;
+            private ByteBuffer buffer;
 
             /** Object for writing banks into message's data buffer. */
             private EventWriter evWriter;
@@ -931,11 +966,26 @@ System.out.println("Ending");
              */
             EvWriter(ArrayList<RingItem> bankList, cMsgMessage msg,
                      int bankByteSize, int myRecordId) {
+                setupWriter(bankList, msg, bankByteSize, myRecordId);
+            }
+
+            /**
+             * Create and/or setup the object to write evio events into cmsg buffer.
+             *
+             * @param bankList list of banks to be written into a single cMsg message
+             * @param msg cMsg message in which to write the list of banks
+             * @param bankByteSize total size of the banks in bytes <b>including block headers</b>
+             * @param myRecordId value of starting block header's block number
+             */
+            void setupWriter(ArrayList<RingItem> bankList, cMsgMessage msg,
+                     int bankByteSize, int myRecordId) {
 
                 this.msg = msg;
                 this.bankList = bankList;
 
                 // Need to account for block headers + a little extra just in case
+
+// TODO: use bufferSupply here!
                 buffer = ByteBuffer.allocate(bankByteSize);
                 buffer.order(byteOrder);
 
@@ -945,7 +995,12 @@ System.out.println("Ending");
 
                 try {
                     // Create object to write evio banks into message buffer
-                    evWriter = new EventWriter(buffer, 550000, 200, null, bitInfo, emu.getCodaid());
+                    if (evWriter == null) {
+                        evWriter = new EventWriter(buffer, 550000, 200, null, bitInfo, emu.getCodaid());
+                    }
+                    else {
+                        evWriter.setBuffer(buffer, bitInfo);
+                    }
                     evWriter.setStartingBlockNumber(myRecordId);
                 }
                 catch (EvioException e) {e.printStackTrace();/* never happen */}
@@ -960,13 +1015,15 @@ System.out.println("Ending");
                 try {
                     // Write banks into message buffer
                     if (queueItemType == QueueItemType.PayloadBank) {
-                        for (RingItem bank : bankList) {
-                            evWriter.writeEvent(bank.getEvent());
+                        for (RingItem ri : bankList) {
+                            evWriter.writeEvent(ri.getEvent());
+                            ri.releaseByteBuffer();
                         }
                     }
                     else {
-                        for (RingItem bank : bankList) {
-                            evWriter.writeEvent(bank.getBuffer());
+                        for (RingItem ri : bankList) {
+                            evWriter.writeEvent(ri.getBuffer());
+                            ri.releaseByteBuffer();
                         }
                     }
 

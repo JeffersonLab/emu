@@ -18,7 +18,6 @@ import org.jlab.coda.emu.support.codaComponent.CODAStateMachine;
 import org.jlab.coda.emu.support.codaComponent.StatedObject;
 import org.jlab.coda.emu.support.data.RingItem;
 
-import java.util.concurrent.BlockingQueue;
 
 /**
  * This interface defines an object that can send and
@@ -91,27 +90,6 @@ public interface DataChannel extends CODAStateMachine, StatedObject {
     public DataTransport getDataTransport();
 
     /**
-     * Take an item of data off this channel's queue.
-     * @return item of data.
-     * @throws InterruptedException on wakeup without data.
-     */
-    public RingItem receive() throws InterruptedException;
-    
-    /**
-     * Place a data item on this channel's queue.
-     * @param item item of data.
-     * @throws InterruptedException possible while waiting to place item on queue.
-     */
-    public void send(RingItem item) throws InterruptedException;
-
-    /**
-     * Get the first data queue of this data channel which contains
-     * QueueItem objects of data for either receiving or sending data.
-     * @return the queue of QueueItem objects for either receiving or sending data.
-     */
-    public BlockingQueue<RingItem> getQueue();
-
-    /**
      * Get the first ring buffer of this data channel which contains
      * RingItem objects of data for either receiving or sending data.
      * There is only one if this is an input channel.
@@ -120,10 +98,10 @@ public interface DataChannel extends CODAStateMachine, StatedObject {
     public RingBuffer<RingItem> getRing();
 
     /**
-     * Get the total number of data queues.
-     * @return total number of data queues.
+     * Get the total number of data-holding ring buffers.
+     * @return total number of data-holding ring buffers.
      */
-    public int getQCount();
+    public int getRingCount();
 
     /**
      * Get the array of ring buffers which contains at least one element.
