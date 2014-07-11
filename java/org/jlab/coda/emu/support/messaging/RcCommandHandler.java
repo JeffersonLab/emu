@@ -74,7 +74,7 @@ class RcCommandHandler extends GenericCallback implements cMsgCallbackInterface 
             // the highest priority. We don't want them stuck in a Q
             // somewhere so treat them separately.
             if (codaCmd == CODACommand.RESET) {
-                cmsgPortal.comp.reset();
+                cmsgPortal.emu.reset();
                 return;
             }
 
@@ -98,7 +98,7 @@ class RcCommandHandler extends GenericCallback implements cMsgCallbackInterface 
             // Get the Emu object and have it post this new command
             // by putting it in a Q that is periodically checked by
             // the Emu's "run" (main thread) method.
-            cmsgPortal.comp.postCommand(cmd);
+            cmsgPortal.emu.postCommand(cmd);
 
         } catch (InterruptedException e) {
             e.printStackTrace();
