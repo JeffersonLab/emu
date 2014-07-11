@@ -38,7 +38,7 @@ public class CMSGPortal implements LoggerAppender {
     private final String UDL;
 
     /** Store a reference to the EMU here (which is the only object that uses this CMSGPortal object). */
-    final CODAComponent comp;
+    final CODAComponent emu;
 
     private Logger logger;
 
@@ -49,7 +49,7 @@ public class CMSGPortal implements LoggerAppender {
      * @param expid experiment id
      */
     public CMSGPortal(Emu emu, String expid) {
-        comp = emu;
+        this.emu = emu;
         // UDL for connection to cMsg server was originally specified
         // with -DcmsgUDL=xxx flag to interpreter when running EMU.
         String udl = emu.getCmsgUDL();
@@ -76,7 +76,7 @@ public class CMSGPortal implements LoggerAppender {
 
         // create a connection to the RC server
         try {
-            server = new cMsg(UDL, comp.name(), "EMU called " + comp.name());
+            server = new cMsg(UDL, emu.name(), "EMU called " + this.emu.name());
             server.connect();
             // allow receipt of messages
             server.start();
@@ -126,6 +126,36 @@ public class CMSGPortal implements LoggerAppender {
         return server;
     }
 
+
+    /**
+     * Send a message to the rocs specifying the number of evio events to send
+     * in a single ET buffer.
+     *
+     * @param eventsInBuf number of evio events for rocs to send in a single ET buffer
+     */
+    synchronized public void sendRocMessage(int eventsInBuf) {
+
+        if ((server != null) && server.isConnected()) {
+
+            try {
+                cMsgMessage msg = new cMsgMessage();
+                msg.setSubject("ROC");                      // to all Rocs
+                msg.setType(emu.getCodaClass().toString()); // from DC, PEB, etc.
+                msg.setUserInt(eventsInBuf); // # of evio events / et buffer
+                if (server != null) {
+                    server.send(msg);
+                }
+
+            } catch (cMsgException e) {
+                try {
+                    if (server.isConnected()) server.disconnect();
+                } catch (cMsgException e1) {}
+                server = null;
+            }
+        }
+    }
+
+
     /**
      * Send an error message that ends up on the run control gui.
      * @param text text of message
@@ -136,7 +166,7 @@ public class CMSGPortal implements LoggerAppender {
 
             try {
                 cMsgMessage msg = new cMsgMessage();
-                msg.setSubject(comp.name());
+                msg.setSubject(emu.name());
                 msg.setType(RCConstants.dalogMsg);
                 msg.setText(text);
                 msg.setUserInt(2);  // 0=info, 1=warning, 2=error, 3=severe; < 2 is ignored by rc gui
@@ -165,7 +195,7 @@ public class CMSGPortal implements LoggerAppender {
         if ((server != null) && server.isConnected() && event != null) {
             try {
                 cMsgMessage msg = new cMsgMessage();
-                msg.setSubject(comp.name());
+                msg.setSubject(emu.name());
                 msg.setType(RCConstants.dalogMsg);
                 msg.setText(event.getMessage());
 
@@ -176,11 +206,11 @@ public class CMSGPortal implements LoggerAppender {
 
                 if (event.hasData()) {
                     // currently none of the payload items, except severity & tod, are used
-                    msg.addPayloadItem(new cMsgPayloadItem("hostName",  comp.getHostName()));
-                    msg.addPayloadItem(new cMsgPayloadItem("userName",  comp.getUserName()));
-                    msg.addPayloadItem(new cMsgPayloadItem("runNumber", comp.getRunNumber()));
-                    msg.addPayloadItem(new cMsgPayloadItem("runType",   comp.getRunTypeId()));
-                    msg.addPayloadItem(new cMsgPayloadItem("codaClass", comp.getCodaClass().name()));
+                    msg.addPayloadItem(new cMsgPayloadItem("hostName",  emu.getHostName()));
+                    msg.addPayloadItem(new cMsgPayloadItem("userName",  emu.getUserName()));
+                    msg.addPayloadItem(new cMsgPayloadItem("runNumber", emu.getRunNumber()));
+                    msg.addPayloadItem(new cMsgPayloadItem("runType",   emu.getRunTypeId()));
+                    msg.addPayloadItem(new cMsgPayloadItem("codaClass", emu.getCodaClass().name()));
 
                     String errorLevel = event.getFormatedLevel();
                     if (errorLevel.equalsIgnoreCase("WARN")) {
@@ -196,7 +226,7 @@ public class CMSGPortal implements LoggerAppender {
                         msg.addPayloadItem(new cMsgPayloadItem("severity", "severe"));
                     }
 
-                    if (comp.state() != null) msg.addPayloadItem(new cMsgPayloadItem("state", comp.state().toString()));
+                    if (emu.state() != null) msg.addPayloadItem(new cMsgPayloadItem("state", emu.state().toString()));
                     msg.addPayloadItem(new cMsgPayloadItem("dalogData", event.getFormatedData()));
 
                     DateFormat format = new SimpleDateFormat("HH:mm:ss.SSS ");
