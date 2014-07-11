@@ -15,7 +15,6 @@ import org.jlab.coda.cMsg.cMsgException;
 import org.jlab.coda.cMsg.cMsgPayloadItem;
 import org.jlab.coda.cMsg.cMsgMessage;
 
-import org.jlab.coda.emu.modules.EventBuilding;
 import org.jlab.coda.emu.modules.EventRecording;
 import org.jlab.coda.emu.modules.FastEventBuilder;
 import org.jlab.coda.emu.modules.RocSimulation;
@@ -1753,13 +1752,10 @@ logger.debug("  Emu.execute(DOWNLOAD): pass download down to " + transport.name(
                         // What type of module are we creating?
                         EmuModule module;
 
-                        if (moduleClassName.equals("EventBuilding")) {
-                                module = new EventBuilding(n.getNodeName(), attributeMap, this);
-                        }
-                        else if (moduleClassName.equals("EventRecording")) {
+                        if (moduleClassName.equals("EventRecording")) {
                                 module = new EventRecording(n.getNodeName(), attributeMap, this);
                         }
-                        else if (moduleClassName.equals("FastEventBuilder")) {
+                        else if (moduleClassName.equals("EventBuilding")) {
                                 module = new FastEventBuilder(n.getNodeName(), attributeMap, this);
                         }
                         else if (moduleClassName.equals("RocSimulation")) {
