@@ -13,6 +13,7 @@ package org.jlab.coda.emu.support.transport;
 
 
 import org.jlab.coda.emu.EmuModule;
+import org.jlab.coda.emu.support.codaComponent.CODAClass;
 import org.jlab.coda.emu.support.codaComponent.CODAState;
 import org.jlab.coda.emu.support.control.CmdExecException;
 import org.jlab.coda.et.*;
@@ -559,7 +560,36 @@ public class DataTransportImplEt extends DataTransportAdapter {
 
 
     /** {@inheritDoc} */
-    public void downloadOld() throws CmdExecException {
+    public void prestart() throws CmdExecException {
+
+        // If this is a DC or PEB, send myself info about ET at prestart
+        if (emu.getCodaClass() == CODAClass.DC ||
+            emu.getCodaClass() == CODAClass.PEB)  {
+
+            // Send a message to the callback providing evio-events / ET-event
+            // feedback to the rocs. This will tell it some et parameters and
+            // clear things for the next run.
+
+            try {
+                // Send the # evio events / ET event for ROC feedback
+                int eventsPerGroup = getEventsInGroup();
+                if (eventsPerGroup < 1 && etSystem != null) {
+                    eventsPerGroup = etSystem.getNumEvents()/etSystem.getGroupCount();
+                }
+System.out.println("      MMMMMMMMMMMMMMM  Send cmsg msg to myself at prestart");
+                emu.getCmsgPortal().sendMHandlerMessage(eventsPerGroup, "eventsPerGroup");
+            }
+            catch (Exception e) {
+                e.printStackTrace();
+                throw new CmdExecException("Cannot find # et-events/et-group", e);
+            }
+        }
+
+    }
+
+
+    /** {@inheritDoc} */
+    public void download() throws CmdExecException {
 
         if (!tryToCreateET) {
             return;
@@ -634,7 +664,7 @@ public class DataTransportImplEt extends DataTransportAdapter {
         etOpenConfig.setWaitTime(2000);
         etOpenConfig.setConnectRemotely(true);
 
-        String etCmd = "et_start -f " + etOpenConfig.getEtName() +
+        String etCmd = "et_start -v -f " + etOpenConfig.getEtName() +
                 " -s " + systemConfig.getEventSize() +
                 " -n " + systemConfig.getNumEvents() +
                 " -g " + systemConfig.getGroups().length +
@@ -731,7 +761,7 @@ public class DataTransportImplEt extends DataTransportAdapter {
 
 
     /** {@inheritDoc} */
-    public void download() throws CmdExecException {
+    public void downloadNew() throws CmdExecException {
 
         if (!tryToCreateET) {
             return;

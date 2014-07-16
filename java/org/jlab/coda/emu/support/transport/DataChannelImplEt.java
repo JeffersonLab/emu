@@ -82,6 +82,9 @@ public class DataChannelImplEt extends DataChannelAdapter {
     /** Is the EMU using this ET output channel as the last level event builder? */
     private boolean isFinalEB;
 
+    /** Is the EMU using this ET output channel as the first level event builder? */
+    private boolean isFirstEB;
+
     // INPUT
 
     /** Thread used to input data. */
@@ -313,6 +316,11 @@ logger.info("      DataChannel Et : chunk = " + chunk);
         if (input) {
 
             try {
+                // Rocs need feedback of minimum evio-events / et-buffer from
+                // the DCs and PEBs.
+                CODAClass emuClass = emu.getCodaClass();
+                isFirstEB = (emuClass == CODAClass.PEB || emuClass == CODAClass.DC);
+
                 if (transport.tryToCreateET())  {
                     etSysLocal = transport.getLocalEtSystem();
                 }
@@ -720,6 +728,8 @@ logger.debug("      DataChannel Et reset() : " + name + " - done");
         /** Let a single waiter know that the main thread has been started. */
         private final CountDownLatch latch = new CountDownLatch(1);
 
+        private int lastMvalue = -1;
+
 
 
         /** Constructor. */
@@ -755,7 +765,7 @@ logger.debug("      DataChannel Et reset() : " + name + " - done");
             latch.countDown();
 
             try {
-                int evioVersion, sourceId, recordId;
+                int evioVersion, sourceId, recordId, evCount;
                 BlockHeaderV4 header4;
                 EventType eventType, bankType;
                 ControlType controlType;
@@ -855,6 +865,14 @@ System.out.println("      DataChannel Et in helper: " + name + " got RESET cmd, 
                         // But it should always be there if reading from ROC or DC.
                         eventType   = EventType.getEventType(header4.getEventType());
                         controlType = null;
+
+                        // Send the # of (buildable) evio events / ET event for ROC feedback.
+                        // But only if this is the DC or PEB.
+                        evCount = reader.getEventCount();
+                        if (isFirstEB && (evCount != lastMvalue) && eventType.isBuildable()) {
+                            lastMvalue = evCount;
+                            emu.getCmsgPortal().sendMHandlerMessage(lastMvalue, "M");
+                        }
 
                         // If ROC raw type, this is the source's CODA id
                         sourceId = header4.getReserved1();
@@ -1135,7 +1153,15 @@ System.out.println("      DataChannel Et in helper: " + name + " got RESET cmd, 
                         }
                         recordId = header4.getNumber();
 
+                        // Send the # of (buildable) evio events / ET event for ROC feedback.
+                        // But only if this is the DC or PEB.
                         int eventCount = compactReader.getEventCount();
+//logger.info("      DataChannel Et in helper: isFirstEb = " + isFirstEB + ", eventCount = " + eventCount +
+//            ", last val = " + lastMvalue + ", isBuildable = " + eventType.isBuildable());
+                        if (isFirstEB && (eventCount != lastMvalue) && eventType.isBuildable()) {
+                            lastMvalue = eventCount;
+                            emu.getCmsgPortal().sendMHandlerMessage(lastMvalue, "M");
+                        }
                         EvioNode node;
 
 //logger.info("      DataChannel Et in helper: " + name + " block header, event type " + eventType +
