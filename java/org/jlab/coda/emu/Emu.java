@@ -783,8 +783,8 @@ System.out.println("Emu " + name + " sending special RC display error Msg:\n ***
          * this method. */
         synchronized void sendStatusMessage() {
             if (statusReportingOn &&
-               (cmsgPortal.getServer() != null) &&
-               (cmsgPortal.getServer().isConnected())) {
+               (cmsgPortal.getRcServer() != null) &&
+               (cmsgPortal.getRcServer().isConnected())) {
 
                 String state = state().name().toLowerCase();
 
@@ -827,7 +827,7 @@ System.out.println("Emu " + name + " sending special RC display error Msg:\n ***
     //                        System.out.println("   " + RCConstants.dataRate + " = " + (double)wordRate);
 
                     // Send msg
-                    cmsgPortal.getServer().send(reportMsg);
+                    cmsgPortal.getRcServer().send(reportMsg);
                 }
                 catch (cMsgException e) {
                     logger.warn(e.getMessage());
@@ -1043,8 +1043,8 @@ System.out.println("SET Run type to " + txt);
         }
         // Send back our state
         else if (codaCommand == GET_STATE) {
-            if ( (cmsgPortal.getServer() != null) &&
-                 (cmsgPortal.getServer().isConnected())) {
+            if ( (cmsgPortal.getRcServer() != null) &&
+                 (cmsgPortal.getRcServer().isConnected())) {
 
                 // Need to reply to sendAndGet msg from Run Control
                 cMsgMessage msg = null;
@@ -1062,7 +1062,7 @@ System.out.println("SET Run type to " + txt);
                 msg.setText(state().name().toLowerCase());
 
                 try {
-                    cmsgPortal.getServer().send(msg);
+                    cmsgPortal.getRcServer().send(msg);
                 }
                 catch (cMsgException e) {
                     e.printStackTrace();
@@ -1073,8 +1073,8 @@ System.out.println("SET Run type to " + txt);
         }
         // Send back our CODA class
         else if (codaCommand == GET_CODA_CLASS) {
-            if ( (cmsgPortal.getServer() != null) &&
-                 (cmsgPortal.getServer().isConnected())) {
+            if ( (cmsgPortal.getRcServer() != null) &&
+                 (cmsgPortal.getRcServer().isConnected())) {
 
                 cMsgMessage msg = new cMsgMessage();
                 msg.setSubject(name);
@@ -1082,7 +1082,7 @@ System.out.println("SET Run type to " + txt);
                 msg.setText(getCodaClass().name());  // CODA class set in module constructors
 
                 try {
-                    cmsgPortal.getServer().send(msg);
+                    cmsgPortal.getRcServer().send(msg);
                 }
                 catch (cMsgException e) {
                     e.printStackTrace();
@@ -1093,8 +1093,8 @@ System.out.println("SET Run type to " + txt);
         }
         // Send back our object type
         else if (codaCommand == GET_OBJECT_TYPE) {
-            if ( (cmsgPortal.getServer() != null) &&
-                 (cmsgPortal.getServer().isConnected())) {
+            if ( (cmsgPortal.getRcServer() != null) &&
+                 (cmsgPortal.getRcServer().isConnected())) {
 
                 cMsgMessage msg = new cMsgMessage();
                 msg.setSubject(name);
@@ -1102,7 +1102,7 @@ System.out.println("SET Run type to " + txt);
                 msg.setText(objectType);
 
                 try {
-                    cmsgPortal.getServer().send(msg);
+                    cmsgPortal.getRcServer().send(msg);
                 }
                 catch (cMsgException e) {
                     e.printStackTrace();
