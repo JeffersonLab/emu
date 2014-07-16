@@ -11,11 +11,9 @@
 
 package org.jlab.coda.emu.support.messaging;
 
-import org.jlab.coda.cMsg.cMsg;
-import org.jlab.coda.cMsg.cMsgException;
-import org.jlab.coda.cMsg.cMsgMessage;
-import org.jlab.coda.cMsg.cMsgPayloadItem;
+import org.jlab.coda.cMsg.*;
 import org.jlab.coda.emu.Emu;
+import org.jlab.coda.emu.support.codaComponent.CODAClass;
 import org.jlab.coda.emu.support.codaComponent.CODAComponent;
 import org.jlab.coda.emu.support.logger.Logger;
 import org.jlab.coda.emu.support.logger.LoggerAppender;
@@ -31,10 +29,16 @@ import java.util.Date;
  */
 public class CMSGPortal implements LoggerAppender {
 
-    /** cMsg connection object. */
+    /** Connection object to rc multicast server of runcontrol platform. */
+    private cMsg rcServer;
+
+    /** UDL for connection to rc multicast server of runcontrol platform. */
+    private final String rcUDL;
+
+    /** Connection object to cMsg name server of runcontrol platform. */
     private cMsg server;
 
-    /** UDL to connection to cMsg system. */
+    /** UDL for connection to cMsg name server of runcontrol platform. */
     private final String UDL;
 
     /** Store a reference to the EMU here (which is the only object that uses this CMSGPortal object). */
@@ -68,30 +72,59 @@ public class CMSGPortal implements LoggerAppender {
             }
         }
 
-        UDL = udl;
+        rcUDL = udl;
+
+
+        // TODO: a mistake of AFECS to run cMsgNameServer at default port!!!!!
+        // cMsg subdomain with namespace "M" on local cMsg server at default ports
+        UDL = "cMsg://localhost/cMsg/M";
 
 //System.out.println("\n CMSGPortal using UDL = " + UDL + "\n");
         logger = emu.getLogger();
         logger.addAppender(this);
 
-        // create a connection to the RC server
         try {
-            server = new cMsg(UDL, emu.name(), "EMU called " + this.emu.name());
-            server.connect();
+            //--------------------------------------------
+            // Create a connection to the RC server
+            //--------------------------------------------
+            rcServer = new cMsg(rcUDL, emu.name(), "EMU called " + this.emu.name());
+            rcServer.connect();
             // allow receipt of messages
-            server.start();
+            rcServer.start();
             // only need one callback
             RcCommandHandler handler = new RcCommandHandler(CMSGPortal.this);
             // install callback for download, prestart, go, etc
-            server.subscribe("*", RCConstants.transitionCommandType, handler, null);
+            rcServer.subscribe("*", RCConstants.transitionCommandType, handler, null);
             // install callback for reset, configure, start, stop, getsession, setsession, etc
-            server.subscribe("*", RCConstants.runCommandType, handler, null);
+            rcServer.subscribe("*", RCConstants.runCommandType, handler, null);
             // install callback for set/get run number, set/get run type
-            server.subscribe("*", RCConstants.sessionCommandType, handler, null);
+            rcServer.subscribe("*", RCConstants.sessionCommandType, handler, null);
             // install callback for getting state, status, codaClass, & objectType
-            server.subscribe("*", RCConstants.infoCommandType, handler, null);
+            rcServer.subscribe("*", RCConstants.infoCommandType, handler, null);
             // for future use
-            server.subscribe("*", RCConstants.setOptionType, handler, null);
+            rcServer.subscribe("*", RCConstants.setOptionType, handler, null);
+
+            //--------------------------------------------
+            // Create a connection to the cMsg name server
+            //--------------------------------------------
+
+            // only need one callback
+            MvalReportingHandler mHandler = new MvalReportingHandler(CMSGPortal.this);
+            server = new cMsg(UDL, emu.name(), "EMU called " + this.emu.name());
+            server.connect();
+            server.start();
+
+            // install callback for reporting the smallest number of evio events per ET event
+            if (emu.getCodaClass() == CODAClass.ROC) {
+System.out.println("             cMsg domain, ROC subscribes to subject = ROC");
+                server.subscribe("ROC", "*", mHandler, null);
+            }
+            else if (emu.getCodaClass() == CODAClass.SEB ||
+                     emu.getCodaClass() == CODAClass.PEB)  {
+System.out.println("             cMsg domain, " + emu.getCodaClass() +
+                           " subscribes to subject = " + this.emu.name());
+                                server.subscribe(this.emu.name(), "*", mHandler, null);
+            }
 
         } catch (cMsgException e) {
             e.printStackTrace();
@@ -102,7 +135,7 @@ public class CMSGPortal implements LoggerAppender {
 
 
     /**
-     * Disconnect from the cMsg server.
+     * Disconnect from the rc multicast server / runcontrol platform.
      * Called from the EMU when quitting.
      * @throws cMsgException
      */
@@ -110,26 +143,62 @@ public class CMSGPortal implements LoggerAppender {
 
         logger.removeAppender(this);
 
-        if (server != null) {
-            try { server.disconnect(); }
+        if (rcServer != null) {
+            try { rcServer.disconnect(); }
             catch (cMsgException e) {}
         }
-        server = null;
+        rcServer = null;
     }
 
 
     /**
-     * Get a reference to the cMsg connection object.
-     * @return cMsg connection object
+     * Get the connection object to the rc multicast server of runcontrol platform.
+     * @return connection object to the rc multicast server of runcontrol platform.
      */
-    public cMsg getServer() {
-        return server;
+    public cMsg getRcServer() {
+        return rcServer;
+    }
+
+
+    /**
+     * Send a message to a callback in this emu so that it can calculate & send all rocs
+     * the number of evio events to send in a single ET buffer.  Using cMsg domain server
+     * in platform.
+     *
+     * @param val # of evio events found in a single ET buffer, or
+     *            (total number of ET events)/(total number of Et groups) - depending
+     *            on type value
+     * @param type msg type:
+     *             1) "M" if val is # of evio events in a single ET buffer as
+     *                 reported bt ET input channel, or
+     *             2) "eventsPerRoc" if val is (total number of ET events)/(total number of Et groups)
+     */
+    synchronized public void sendMHandlerMessage(int val, String type) {
+
+        if ((server != null) && server.isConnected()) {
+
+            try {
+                cMsgMessage msg = new cMsgMessage();
+                msg.setSubject(emu.name());
+                msg.setType(type);
+                msg.setUserInt(val);
+                if (server != null) {
+                    server.send(msg);
+                }
+
+            } catch (cMsgException e) {
+                try {
+                    if (server.isConnected()) server.disconnect();
+                } catch (cMsgException e1) {}
+                rcServer = null;
+            }
+        }
     }
 
 
     /**
      * Send a message to the rocs specifying the number of evio events to send
-     * in a single ET buffer.
+     * in a single ET buffer. Using cMsg domain server in platform.
      *
      * @param eventsInBuf number of evio events for rocs to send in a single ET buffer
      */
@@ -140,7 +209,7 @@ public class CMSGPortal implements LoggerAppender {
             try {
                 cMsgMessage msg = new cMsgMessage();
                 msg.setSubject("ROC");                      // to all Rocs
-                msg.setType(emu.getCodaClass().toString()); // from DC, PEB, etc.
+                msg.setType("eventsPerGroup"); // from DC, PEB, etc.
                 msg.setUserInt(eventsInBuf); // # of evio events / et buffer
                 if (server != null) {
                     server.send(msg);
@@ -150,7 +219,7 @@ public class CMSGPortal implements LoggerAppender {
                 try {
                     if (server.isConnected()) server.disconnect();
                 } catch (cMsgException e1) {}
-                server = null;
+                rcServer = null;
             }
         }
     }
@@ -162,7 +231,7 @@ public class CMSGPortal implements LoggerAppender {
      */
     synchronized public void rcGuiErrorMessage(String text) {
 
-        if ((server != null) && server.isConnected()) {
+        if ((rcServer != null) && rcServer.isConnected()) {
 
             try {
                 cMsgMessage msg = new cMsgMessage();
@@ -173,15 +242,15 @@ public class CMSGPortal implements LoggerAppender {
                 msg.addPayloadItem(new cMsgPayloadItem("severity", "error"));
                 DateFormat format = new SimpleDateFormat("HH:mm:ss.SSS ");
                 msg.addPayloadItem(new cMsgPayloadItem("tod", format.format(new Date())));
-                if (server != null) {
-                    server.send(msg);
+                if (rcServer != null) {
+                    rcServer.send(msg);
                 }
 
             } catch (cMsgException e) {
                 try {
-                    if (server.isConnected()) server.disconnect();
+                    if (rcServer.isConnected()) rcServer.disconnect();
                 } catch (cMsgException e1) {}
-                server = null;
+                rcServer = null;
             }
         }
     }
@@ -192,7 +261,7 @@ public class CMSGPortal implements LoggerAppender {
      */
     synchronized public void append(LoggingEvent event) {
 
-        if ((server != null) && server.isConnected() && event != null) {
+        if ((rcServer != null) && rcServer.isConnected() && event != null) {
             try {
                 cMsgMessage msg = new cMsgMessage();
                 msg.setSubject(emu.name());
@@ -234,13 +303,13 @@ public class CMSGPortal implements LoggerAppender {
                     msg.addPayloadItem(new cMsgPayloadItem("tod", format.format(event.getEventTime())));
                 }
 
-                server.send(msg);
+                rcServer.send(msg);
 
             } catch (cMsgException e) {
                 try {
-                    if (server.isConnected()) server.disconnect();
+                    if (rcServer.isConnected()) rcServer.disconnect();
                 } catch (cMsgException e1) {}
-                server = null;
+                rcServer = null;
             }
         }
     }
