@@ -94,6 +94,9 @@ public class Emu implements CODAComponent {
     /** The numeric code representing the run type. */
     private volatile int runTypeId;
 
+    /** For a ROC, the smallest number of evio-events/et-buffer that DC/PEB found. */
+    private volatile int bufferLevel;
+
     /**
      * The Emu can display a window containing debug information, a message log
      * and toolbars that allow commands to be issued without Run Control.
@@ -473,6 +476,20 @@ public class Emu implements CODAComponent {
 
     /** {@inheritDoc} */
     public String getCmsgUDL() {return cmsgUDL;}
+
+    /**
+     * Get the smallest number of evio-events/et-buffer that connected DC/PEB found.
+     * Meaningful only for a ROC.
+     * @return smallest number of evio-events/et-buffer that connected DC/PEB found.
+     */
+    public int getBufferLevel() {return bufferLevel;}
+
+    /**
+     * Set the smallest number of evio-events/et-buffer that connected DC/PEB found.
+     * Meaningful only for a ROC.
+     * @param bufferLevel smallest number of evio-events/et-buffer that connected DC/PEB found.
+     */
+    public void setBufferLevel(int bufferLevel) {this.bufferLevel = bufferLevel;}
 
     /** {@inheritDoc} */
     public Document configuration() {return loadedConfig;}
@@ -1041,9 +1058,23 @@ System.out.println("SET Run type to " + txt);
             }
             return;
         }
+        // Run Control tells us our ROC output buffer level
+        else if (codaCommand == SET_BUF_LEVEL) {
+            // Get the new run type and store it
+            int bufferLevel = cmd.getMessage().getUserInt();
+            if (bufferLevel > 0) {
+System.out.println("SET buffer level to " + bufferLevel);
+                setBufferLevel(bufferLevel);
+            }
+            else {
+                System.out.println("Got SET_BUF_LEVEL command but bad value ("+ bufferLevel + ")");
+            }
+            return;
+        }
         // Send back our state
         else if (codaCommand == GET_STATE) {
-            if ( (cmsgPortal.getRcServer() != null) &&
+            if ( (cmsgPortal != null) &&
+                 (cmsgPortal.getRcServer() != null) &&
                  (cmsgPortal.getRcServer().isConnected())) {
 
                 // Need to reply to sendAndGet msg from Run Control
@@ -1073,7 +1104,8 @@ System.out.println("SET Run type to " + txt);
         }
         // Send back our CODA class
         else if (codaCommand == GET_CODA_CLASS) {
-            if ( (cmsgPortal.getRcServer() != null) &&
+            if ( (cmsgPortal != null) &&
+                 (cmsgPortal.getRcServer() != null) &&
                  (cmsgPortal.getRcServer().isConnected())) {
 
                 cMsgMessage msg = new cMsgMessage();
@@ -1093,7 +1125,8 @@ System.out.println("SET Run type to " + txt);
         }
         // Send back our object type
         else if (codaCommand == GET_OBJECT_TYPE) {
-            if ( (cmsgPortal.getRcServer() != null) &&
+            if ( (cmsgPortal != null) &&
+                 (cmsgPortal.getRcServer() != null) &&
                  (cmsgPortal.getRcServer().isConnected())) {
 
                 cMsgMessage msg = new cMsgMessage();
@@ -1691,10 +1724,17 @@ logger.info("  Emu.execute(DOWNLOAD): creating " + transportName);
                                 continue;
                             }
 
+                            Class c;
                             try {
-                                Class c = Emu.class.getClassLoader().loadClass(implName);
+                                c = Emu.class.getClassLoader().loadClass(implName);
 //logger.info("  Emu.execute(DOWNLOAD): loaded class = " + c);
+                            }
+                            catch (Exception e) {
+                                e.printStackTrace();
+                                throw new CmdExecException("cannot load transport class", e);
+                            }
 
+                            try {
                                 // 2 constructor args
                                 Class[] parameterTypes = {String.class, Map.class, Emu.class};
                                 Constructor co = c.getConstructor(parameterTypes);
@@ -1702,11 +1742,11 @@ logger.info("  Emu.execute(DOWNLOAD): creating " + transportName);
                                 // create an instance & store reference
                                 Object[] args = {transportName, attrib, this};
                                 transports.add((DataTransport) co.newInstance(args));
-
 //logger.info("  Emu.execute(DOWNLOAD): created " + transportName + " of protocol " + transportClass);
-
-                            } catch (Exception e) {
-                                throw new CmdExecException("cannot load transport class", e);
+                            }
+                            catch (Exception e) {
+                                e.printStackTrace();
+                                throw new CmdExecException("cannot create transport object", e);
                             }
                         } // if node is element
                     } // for each child node
