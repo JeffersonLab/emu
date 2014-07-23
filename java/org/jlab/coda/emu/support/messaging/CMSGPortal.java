@@ -29,6 +29,9 @@ import java.util.Date;
  */
 public class CMSGPortal implements LoggerAppender {
 
+    /** Store a reference to the EMU here (which is the only object that uses this CMSGPortal object). */
+    final CODAComponent emu;
+
     /** Connection object to rc multicast server of runcontrol platform. */
     private cMsg rcServer;
 
@@ -38,13 +41,22 @@ public class CMSGPortal implements LoggerAppender {
     /** Connection object to cMsg name server of runcontrol platform. */
     private cMsg server;
 
-    /** UDL for connection to cMsg name server of runcontrol platform. */
-    private final String UDL;
+    /** UDL for connection to cMsg name server of runcontrol platform to send
+     *  messages internal to this emu. */
+    private String UDL;
 
-    /** Store a reference to the EMU here (which is the only object that uses this CMSGPortal object). */
-    final CODAComponent emu;
+    /** Connection object to cMsg name server of runcontrol platform for ROC's namespace. */
+    private cMsg rocServer;
+
+    /** UDL for connection to cMsg name server of runcontrol platform to send messages to
+     *  and receive messages on a ROC. */
+    private String rocUDL;
+
+    /** IP address of host emu's agent (and presumably the platform) is running on. */
+    private String platformHost;
 
     private Logger logger;
+
 
 
     /**
@@ -73,11 +85,6 @@ public class CMSGPortal implements LoggerAppender {
         }
 
         rcUDL = udl;
-
-
-        // TODO: a mistake of AFECS to run cMsgNameServer at default port!!!!!
-        // cMsg subdomain with namespace "M" on local cMsg server at default ports
-        UDL = "cMsg://localhost/cMsg/M";
 
 //System.out.println("\n CMSGPortal using UDL = " + UDL + "\n");
         logger = emu.getLogger();
@@ -108,34 +115,49 @@ public class CMSGPortal implements LoggerAppender {
             // Create a connection to the cMsg name server
             //--------------------------------------------
 
-            // only need one callback
+            // Find the host the platform (actually agent) is running on
+            // so we can do an cMsg domain connection.
+            cMsgMessage msg = rcServer.monitor("3000");
+            if (msg == null) {
+                System.out.println("\n\n PROBLEM: null msg in monitor\n\n");
+                platformHost = "localhost";
+            }
+            else {
+                platformHost = msg.getSenderHost();
+            }
+
+            // Only need one callback
             MvalReportingHandler mHandler = new MvalReportingHandler(CMSGPortal.this);
-            server = new cMsg(UDL, emu.name(), "EMU called " + this.emu.name());
-            server.connect();
-            server.start();
 
-            // install callback for reporting the smallest number of evio events per ET event
-            if (emu.getCodaClass() == CODAClass.ROC) {
-System.out.println("             cMsg domain, ROC subscribes to subject = ROC");
-                server.subscribe("ROC", "*", mHandler, null);
-            }
-            else if (emu.getCodaClass() == CODAClass.SEB ||
-                     emu.getCodaClass() == CODAClass.PEB)  {
-System.out.println("             cMsg domain, " + emu.getCodaClass() +
-                           " subscribes to subject = " + this.emu.name());
-                                server.subscribe(this.emu.name(), "*", mHandler, null);
+            // Install callback for reporting the smallest number of evio events per ET event
+
+            if (emu.getCodaClass() == CODAClass.SEB ||
+                emu.getCodaClass() == CODAClass.PEB)  {
+
+                // Use this connection for internal communications on this emu to set M value.
+                UDL = "cMsg://" + platformHost + "/cMsg/M";
+                server = new cMsg(UDL, emu.name()+"_emu", "EmuInternal");
+                server.connect();
+                server.start();
+                server.subscribe(this.emu.name(), "*", mHandler, null);
+
+                // cMsg subdomain with namespace expid on platform of cMsg server at default port
+                // Use this connection to send messages to the connected ROCs (through platform/agent)
+                rocUDL = "cMsg://" + platformHost + "/cMsg/" + expid;
+                rocServer = new cMsg(rocUDL, emu.name()+"_toRoc", "EmuToRoc");
+                rocServer.connect();
             }
 
-        } catch (cMsgException e) {
+        } catch (Exception e) {
             e.printStackTrace();
-            logger.warn("Exit due to RC connect error: " + e.getMessage());
+            logger.warn("Exit due to rc/cMsg connect error: " + e.getMessage());
             System.exit(-1);
         }
     }
 
 
     /**
-     * Disconnect from the rc multicast server / runcontrol platform.
+     * Disconnect from the runcontrol platform.
      * Called from the EMU when quitting.
      * @throws cMsgException
      */
@@ -148,6 +170,18 @@ System.out.println("             cMsg domain, " + emu.getCodaClass() +
             catch (cMsgException e) {}
         }
         rcServer = null;
+
+        if (server != null) {
+            try { server.disconnect(); }
+            catch (cMsgException e) {}
+        }
+        server = null;
+
+        if (rocServer != null) {
+            try { rocServer.disconnect(); }
+            catch (cMsgException e) {}
+        }
+        rocServer = null;
     }
 
 
@@ -161,17 +195,15 @@ System.out.println("             cMsg domain, " + emu.getCodaClass() +
 
 
     /**
-     * Send a message to a callback in this emu so that it can calculate & send all rocs
-     * the number of evio events to send in a single ET buffer.  Using cMsg domain server
-     * in platform.
+     * Send messages to a callback in this emu so that it can send all rocs
+     * the lowest number of evio events received by this event builder in a
+     * single ET buffer. Using cMsg name server in platform.
      *
-     * @param val # of evio events found in a single ET buffer, or
-     *            (total number of ET events)/(total number of Et groups) - depending
-     *            on type value
-     * @param type msg type:
-     *             1) "M" if val is # of evio events in a single ET buffer as
-     *                 reported bt ET input channel, or
-     *             2) "eventsPerRoc" if val is (total number of ET events)/(total number of Et groups)
+     * @param val lowest # of evio events found in a single ET buffer or reset
+     *            (depending on type value)
+
+     * @param type  "M" if val is lowest # of evio events in a single ET buffer as
+     *              reported by ET input channel or "reset" if clearing M values at prestart
      */
     synchronized public void sendMHandlerMessage(int val, String type) {
 
@@ -190,36 +222,38 @@ System.out.println("             cMsg domain, " + emu.getCodaClass() +
                 try {
                     if (server.isConnected()) server.disconnect();
                 } catch (cMsgException e1) {}
-                rcServer = null;
+                server = null;
             }
         }
     }
 
 
     /**
-     * Send a message to the rocs specifying the number of evio events to send
-     * in a single ET buffer. Using cMsg domain server in platform.
+     * Send a message to the connected rocs specifying the lowest number of evio events
+     * per single ET buffer that was received by the input channels to this emu.
+     * Using cMsg domain server in platform.
      *
-     * @param eventsInBuf number of evio events for rocs to send in a single ET buffer
+     * @param eventsPerBuf lowest number of evio events per single ET buffer
+     *                     received by the input channels to this emu
      */
-    synchronized public void sendRocMessage(int eventsInBuf) {
+    synchronized public void sendRocMessage(int eventsPerBuf) {
 
-        if ((server != null) && server.isConnected()) {
+        if ((rocServer != null) && rocServer.isConnected()) {
 
             try {
                 cMsgMessage msg = new cMsgMessage();
-                msg.setSubject("ROC");                      // to all Rocs
-                msg.setType("eventsPerGroup"); // from DC, PEB, etc.
-                msg.setUserInt(eventsInBuf); // # of evio events / et buffer
-                if (server != null) {
-                    server.send(msg);
+                msg.setSubject(emu.name());
+                msg.setType("eventsPerBuffer");
+                msg.setUserInt(eventsPerBuf);
+                if (rocServer != null) {
+                    rocServer.send(msg);
                 }
 
             } catch (cMsgException e) {
                 try {
-                    if (server.isConnected()) server.disconnect();
+                    if (rocServer.isConnected()) rocServer.disconnect();
                 } catch (cMsgException e1) {}
-                rcServer = null;
+                rocServer = null;
             }
         }
     }
