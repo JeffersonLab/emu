@@ -229,22 +229,33 @@ public class CMSGPortal implements LoggerAppender {
 
 
     /**
-     * Send a message to the connected rocs specifying the lowest number of evio events
-     * per single ET buffer that was received by the input channels to this emu.
+     * Send a message to the connected rocs specifying the lowest & highest
+     * number of evio events per single ET buffer that was received by the
+     * input channels to this emu. It also includes the value of the highest
+     * safe number of evio events for each ROC to place in an ET buffer.
      * Using cMsg domain server in platform.
      *
-     * @param eventsPerBuf lowest number of evio events per single ET buffer
-     *                     received by the input channels to this emu
+     * @param lowM      lowest number of ROC records per single ET buffer
+     *                  received by the input channels to this emu
+     * @param highM     highest number of ROC records per single ET buffer
+     *                  received by the input channels to this emu
+     * @param highSafeM highest number of ROC records per single ET buffer
+     *                  that each ROC should be sending
      */
-    synchronized public void sendRocMessage(int eventsPerBuf) {
+    synchronized public void sendRocMessage(int lowM, int highM, int highSafeM) {
 
         if ((rocServer != null) && rocServer.isConnected()) {
 
             try {
                 cMsgMessage msg = new cMsgMessage();
+                msg.setHistoryLengthMax(0);
                 msg.setSubject(emu.name());
                 msg.setType("eventsPerBuffer");
-                msg.setUserInt(eventsPerBuf);
+                msg.setUserInt(highSafeM);
+                cMsgPayloadItem lowItem  = new cMsgPayloadItem("lowM",  lowM);
+                cMsgPayloadItem highItem = new cMsgPayloadItem("highM", highM);
+                msg.addPayloadItem(lowItem);
+                msg.addPayloadItem(highItem);
                 if (rocServer != null) {
                     rocServer.send(msg);
                 }

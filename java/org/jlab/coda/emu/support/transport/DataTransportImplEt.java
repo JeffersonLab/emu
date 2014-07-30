@@ -560,30 +560,7 @@ public class DataTransportImplEt extends DataTransportAdapter {
 
 
     /** {@inheritDoc} */
-    public void prestart() throws CmdExecException {
-
-        // If this is a DC or PEB ...
-        if (emu.getCodaClass() == CODAClass.DC ||
-            emu.getCodaClass() == CODAClass.PEB)  {
-
-            // Send a message to the callback providing evio-events / ET-event
-            // feedback to the rocs. This will tell it to reset things for the
-            // next run.
-            try {
-//System.out.println("      MMMMMMMMMMMMMMM  Send cmsg msg to reset callback at prestart");
-                emu.getCmsgPortal().sendMHandlerMessage(0, "reset");
-            }
-            catch (Exception e) {
-                e.printStackTrace();
-                throw new CmdExecException("Cannot find # et-events/et-group", e);
-            }
-        }
-
-    }
-
-
-    /** {@inheritDoc} */
-    public void downloadOrig() throws CmdExecException {
+    public void download() throws CmdExecException {
 
         if (!tryToCreateET) {
             return;
@@ -755,7 +732,7 @@ public class DataTransportImplEt extends DataTransportAdapter {
 
 
     /** {@inheritDoc} */
-    public void download() throws CmdExecException {
+    public void downloadNew() throws CmdExecException {
 
         if (!tryToCreateET) {
             return;

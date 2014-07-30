@@ -122,6 +122,8 @@ public class RCConstants {
     public static final String getRunType       = runCommand + "getRunType";
     /** String used as type in message for the set-run-type command. */
     public static final String setRunType       = runCommand + "setRunType";
+    /** String used as type in message for the set-buffer-level command. */
+    public static final String setBufferLevel   = runCommand + "setRocBufferLevel";
 
     // Types in messages received in coda/info/* callback
 
