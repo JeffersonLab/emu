@@ -835,6 +835,9 @@ System.out.println("Emu " + name + " sending special RC display error Msg:\n ***
                     if (outputDestination != null) {
                         reportMsg.addPayloadItem(new cMsgPayloadItem(RCConstants.filename, outputDestination));
                     }
+                    else {
+                        reportMsg.removePayloadItem(RCConstants.filename);
+                    }
     //System.out.println("Emu " + name + " sending STATUS REPORTING Msg:");
     //                        System.out.println("   " + RCConstants.state + " = " + state);
     //                        System.out.println("   " + RCConstants.codaClass + " = " + codaClass.name());
