@@ -87,7 +87,7 @@ public class FarmController extends ModuleAdapter {
         // Disruptor (RingBuffer) stuff for 1 input channel
         //--------------------------------------------------
         // Get FIRST input channel's ring buffer
-        ringBufferIn = inputChannels.get(0).getRing();
+        ringBufferIn = inputChannels.get(0).getRingBufferIn();
 
         // We have 1 sequence of control events
         sequenceIn = new Sequence(Sequencer.INITIAL_CURSOR_VALUE);
@@ -151,7 +151,7 @@ public class FarmController extends ModuleAdapter {
             return;
         }
 
-        RingBuffer rb = outputChannels.get(channelNum).getRingBuffers()[ringNum];
+        RingBuffer rb = outputChannels.get(channelNum).getRingBuffersOut()[ringNum];
         long nextRingItem = rb.next();
 
         RingItem ri = (RingItem) rb.get(nextRingItem);
