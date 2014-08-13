@@ -19,7 +19,7 @@ import org.jlab.coda.emu.support.codaComponent.State;
 import org.jlab.coda.emu.support.configurer.DataNotFoundException;
 import org.jlab.coda.emu.support.control.CmdExecException;
 import org.jlab.coda.emu.support.data.Attached;
-import org.jlab.coda.emu.support.data.QueueItemType;
+import org.jlab.coda.emu.support.data.ModuleIoType;
 import org.jlab.coda.emu.support.logger.Logger;
 import org.jlab.coda.emu.support.transport.DataChannel;
 
@@ -208,10 +208,10 @@ public class ModuleAdapter implements EmuModule {
     public String name() {return name;}
 
     /** {@inheritDoc} */
-    public QueueItemType getInputQueueItemType() {return QueueItemType.PayloadBank;}
+    public ModuleIoType getInputRingItemType() {return ModuleIoType.PayloadBank;}
 
     /** {@inheritDoc} */
-    public QueueItemType getOutputQueueItemType() {return QueueItemType.PayloadBank;}
+    public ModuleIoType getOutputRingItemType() {return ModuleIoType.PayloadBank;}
 
     /** {@inheritDoc} */
     public boolean representsEmuStatistics() {return representStatistics;}
