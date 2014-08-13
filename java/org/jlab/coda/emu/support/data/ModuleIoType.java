@@ -12,12 +12,12 @@
 package org.jlab.coda.emu.support.data;
 
 /**
- * This class enumerates the possible types of data that can be used in an EMU.
+ * This class enumerates the possible types of data that can be used in an EMU module.
  * @author timmer
  * (4/3/13)
  */
-public enum QueueItemType {
+public enum ModuleIoType {
 
     PayloadBuffer,
-    PayloadBank ;
+    PayloadBank;
 }
