@@ -202,7 +202,7 @@ logger.info("      DataChannel File: dictionary file cannot be read");
             if (input) {
 logger.info("      DataChannel File: try opening input file of " + fileName);
 
-                if (queueItemType == QueueItemType.PayloadBank) {
+                if (ringItemType == ModuleIoType.PayloadBank) {
                     evioFileReader = new EvioReader(fileName, blockNumberChecking);
 
                     // Only deal with evio version 4 files for simplicity
@@ -217,7 +217,7 @@ logger.info("      DataChannel File: try opening input file of " + fileName);
                     // Get the first block header
                     firstBlockHeader = (BlockHeaderV4)evioFileReader.getFirstBlockHeader();
                 }
-                else if  (queueItemType == QueueItemType.PayloadBuffer) {
+                else if  (ringItemType == ModuleIoType.PayloadBuffer) {
                     // This will throw an exception if evio version < 4
                     compactFileReader = new EvioCompactReader(fileName);
 
@@ -351,10 +351,10 @@ logger.debug("      DataChannel File reset() : " + name + " - done");
 
         /** {@inheritDoc} */
         public void run() {
-            if (queueItemType == QueueItemType.PayloadBank) {
+            if (ringItemType == ModuleIoType.PayloadBank) {
                 runBanks();
             }
-            else if  (queueItemType == QueueItemType.PayloadBuffer) {
+            else if  (ringItemType == ModuleIoType.PayloadBuffer) {
                 runBuffers();
             }
         }
@@ -595,10 +595,10 @@ logger.debug("      DataChannel File reset() : " + name + " - done");
 
         private final void writeEvioData(RingItem ri) throws IOException, EvioException {
 
-            if (queueItemType == QueueItemType.PayloadBank) {
+            if (ringItemType == ModuleIoType.PayloadBank) {
                 evioFileWriter.writeEvent(ri.getEvent());
             }
-            else if  (queueItemType == QueueItemType.PayloadBuffer) {
+            else if  (ringItemType == ModuleIoType.PayloadBuffer) {
                 evioFileWriter.writeEvent(ri.getBuffer());
                 ri.releaseByteBuffer();
             }
@@ -616,7 +616,7 @@ logger.debug("      DataChannel File out helper: started");
 
             try {
                 RingItem ringItem;
-                int ringChunkCounter = ringChunk;
+                int ringChunkCounter = outputRingChunk;
 
                 // First event will be "prestart", by convention in ring 0
                 ringItem = getNextOutputRingItem(0);
@@ -657,8 +657,8 @@ logger.debug("      DataChannel File out helper: sent go");
 //logger.debug("      DataChannel File out helper: release ring item");
                     releaseOutputRingItem(rbIndex);
                     if (--ringChunkCounter < 1) {
-                        rbIndex = ++rbIndex % ringCount;
-                        ringChunkCounter = ringChunk;
+                        rbIndex = ++rbIndex % outputRingCount;
+                        ringChunkCounter = outputRingChunk;
 //                        System.out.println("switch ring to "+ rbIndex);
                     }
                     else {
