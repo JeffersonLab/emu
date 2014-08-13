@@ -22,7 +22,7 @@ import org.jlab.coda.emu.support.data.RingItem;
 /**
  * This interface defines an object that can send and
  * receive data in any format listed in the
- * {@link org.jlab.coda.emu.support.data.QueueItemType} enum.
+ * {@link org.jlab.coda.emu.support.data.ModuleIoType} enum.
  * It refers to a particular connection (eg. a single socket
  * or cMsg connection object).
  *
@@ -90,22 +90,20 @@ public interface DataChannel extends CODAStateMachine, StatedObject {
     public DataTransport getDataTransport();
 
     /**
-     * Get the first ring buffer of this data channel which contains
-     * RingItem objects of data for either receiving or sending data.
-     * There is only one if this is an input channel.
-     * @return the ring buffer of RingItem objects for either receiving or sending data.
+     * Get the one and only input ring buffer of this data channel.
+     * @return the input ring buffer.
      */
-    public RingBuffer<RingItem> getRing();
+    public RingBuffer<RingItem> getRingBufferIn();
 
     /**
-     * Get the total number of data-holding ring buffers.
-     * @return total number of data-holding ring buffers.
+     * Get the total number of data-holding output ring buffers.
+     * @return total number of data-holding output ring buffers.
      */
-    public int getRingCount();
+    public int getOutputRingCount();
 
     /**
-     * Get the array of ring buffers which contains at least one element.
-     * @return array of ring buffers.
+     * Get the array of output ring buffers.
+     * @return array of output ring buffers.
      */
-    public RingBuffer<RingItem>[] getRingBuffers();
+    public RingBuffer<RingItem>[] getRingBuffersOut();
 }
