@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2008, Jefferson Science Associates
+ * Copyright (c) 2014, Jefferson Science Associates
  *
  * Thomas Jefferson National Accelerator Facility
  * Data Acquisition Group
