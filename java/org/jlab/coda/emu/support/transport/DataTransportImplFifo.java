@@ -29,7 +29,8 @@ import java.util.Map;
 public class DataTransportImplFifo extends DataTransportAdapter {
 
     /** Map of all Fifo channels. */
-    private final HashMap<String, DataChannel> allChannels = new HashMap<String, DataChannel>();
+    private final HashMap<String, DataChannelImplFifo> allChannels =
+            new HashMap<String, DataChannelImplFifo>();
 
     /**
      * Constructor.
@@ -62,11 +63,10 @@ public class DataTransportImplFifo extends DataTransportAdapter {
                                                   EmuModule module)
             throws DataTransportException {
 
-//System.out.println("    DataTransportImplFifo.createChannel : create channel " + name);
         String channelName = name() + ":" + name;
 
         // See if channel (queue) has already been created
-        DataChannel c = allChannels.get(channelName);
+        DataChannelImplFifo c = allChannels.get(channelName);
 
         // Fifos are both input and output channels at the same time.
         // The object type that the fifo must accept as input must be
@@ -79,24 +79,41 @@ public class DataTransportImplFifo extends DataTransportAdapter {
             c = new DataChannelImplFifo(channelName, this, attributeMap, isInput,
                                         emu, module);
             allChannels.put(channelName, c);
-System.out.println("    DataTransportImplFifo.createChannel() : create FIFO channel " + c.name());
+if (isInput) {
+    System.out.println("    DataTransport Fifo : create channel " + c.name() + " as input");
+}
+else {
+    System.out.println("    DataTransport Fifo : create channel " + c.name() + " as output");
+}
         }
-        // If we're trying to create it again, make sure things are compatible.
+        // If we're trying to "create" it again, make sure things are compatible.
         else {
             EmuModule firstModule = c.getModule();
 
             if (isInput) {
-                if (module.getInputQueueItemType() != firstModule.getOutputQueueItemType()) {
+                if (module.getInputRingItemType() != firstModule.getOutputRingItemType()) {
                     throw new DataTransportException("Modules require inconsistent in/output object types");
                 }
             }
             else {
-                if (module.getOutputQueueItemType() != firstModule.getInputQueueItemType()) {
+                if (module.getOutputRingItemType() != firstModule.getInputRingItemType()) {
                     throw new DataTransportException("Modules require inconsistent in/output object types");
                 }
             }
 
-System.out.println("    DataTransportImplFifo.createChannel() : return stored FIFO channel " + c.name());
+            // Fifos must be created in 2 stages (this is the 2nd).
+            // If it is first created as an input, then when the
+            // Fifo is "created" here as an output channel, it must be properly
+            // setup for that. Similarly for the other way around.
+            if (isInput) {
+                c.setupInputRingBuffers();
+System.out.println("    DataTransport Fifo : setup channel " + c.name() + " as input");
+            }
+            else {
+                c.setupOutputRingBuffers();
+System.out.println("    DataTransport Fifo : setup channel " + c.name() + " as output");
+            }
+
         }
         return c;
     }
