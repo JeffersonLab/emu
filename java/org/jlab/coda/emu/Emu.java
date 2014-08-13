@@ -825,7 +825,7 @@ System.out.println("Emu " + name + " sending special RC display error Msg:\n ***
                     // Over write any previously defined payload items
                     reportMsg.addPayloadItem(new cMsgPayloadItem(RCConstants.state, state));
                     reportMsg.addPayloadItem(new cMsgPayloadItem(RCConstants.codaClass, codaClass.name()));
-                    reportMsg.addPayloadItem(new cMsgPayloadItem(RCConstants.eventNumber, (int)eventCount));
+                    reportMsg.addPayloadItem(new cMsgPayloadItem(RCConstants.eventCount, (int)eventCount));
                     reportMsg.addPayloadItem(new cMsgPayloadItem(RCConstants.objectType, "coda3"));
                     // in Hz
                     reportMsg.addPayloadItem(new cMsgPayloadItem(RCConstants.eventRate, eventRate));
