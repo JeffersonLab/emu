@@ -1410,67 +1410,6 @@ System.out.println("      DataChannel Et out helper: wake up attachment #" + att
 
 
 
-//        class MyPhaser extends Phaser {
-//
-//            private EtEvent[] events;
-//            private int eventsToWrite;
-//            private int totalEventCount;
-//            private int ringBufferIndex;
-//
-//
-//            MyPhaser(int parties) {
-//                super(parties);
-//            }
-//
-//
-//            void setParameters(EtEvent[] events, int eventsToWrite,
-//                               int totalEventCount, int ringBufferIndex) {
-//                this.events = events;
-//                this.eventsToWrite = eventsToWrite;
-//                this.totalEventCount = totalEventCount;
-//                this.ringBufferIndex = ringBufferIndex;
-//            }
-//
-//
-//            protected boolean onAdvance(int phase, int registeredParties) {
-//
-//                try {
-////System.out.println("      DataChannel Et: write " + eventsToWrite + " events");
-//                    // Put events back in ET system
-//                    etSystem.putEvents(attachment, events, 0, eventsToWrite);
-//
-//                    // Dump any left over new ET events.
-//                    if (eventsToWrite < totalEventCount) {
-////System.out.println("Dumping " +  (totalEventCount - eventsToWrite) + " unused new events");
-//                        etSystem.dumpEvents(attachment, events, eventsToWrite, (totalEventCount - eventsToWrite));
-//                    }
-//                }
-//                catch (IOException e) {
-//                    errorMsg.compareAndSet(null, "Network communication error with Et");
-//                    return true;
-//                }
-//                catch (EtException e) {
-//                    errorMsg.compareAndSet(null, "Internal error handling Et");
-//                    return true;
-//                }
-//                catch (EtDeadException e) {
-//                    errorMsg.compareAndSet(null, "Et system dead");
-//                    return true;
-//                }
-//                catch (EtClosedException e) {
-//                    errorMsg.compareAndSet(null, "Et connection closed");
-//                    return true;
-//                }
-//
-//                releaseOutputRingItem(ringBufferIndex);
-//
-//                //return phase >= 1 || registeredParties == 0;
-//                return phase < 0 || registeredParties == 0;
-//            }
-//        }
-
-
-
         /** {@inheritDoc} */
         @Override
         public void run() {
