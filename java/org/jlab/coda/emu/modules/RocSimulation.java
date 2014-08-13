@@ -344,7 +344,7 @@ System.out.println("\n\nStart With (id=" + myId + "):\n    record id = " + myRoc
                                                        numEvents,
                                                        isSingleEventMode,
                                                        bbSupply, builder, items);
-
+// For testing EMU domain
 //                    Utilities.printBuffer(evs[0], 0, evs[0].limit()/4, "one event");
 //
 //                    if (true) {
@@ -382,8 +382,6 @@ System.out.println("\n\nStart With (id=" + myId + "):\n    record id = " + myRoc
                         }
                         start_time = now;
                         oldVal = myEventNumber;
-
-                        emu.getCmsgPortal().rcGuiErrorMessage("HEY");
                     }
 
                 }
