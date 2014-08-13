@@ -150,7 +150,7 @@ public class RocSimulation extends ModuleAdapter {
     public void clearChannels() {outputChannels.clear();}
 
     /** {@inheritDoc} */
-    public QueueItemType getOutputQueueItemType() {return QueueItemType.PayloadBuffer;}
+    public ModuleIoType getOutputRingItemType() {return ModuleIoType.PayloadBuffer;}
 
     //---------------------------------------
     // Threads
@@ -195,7 +195,7 @@ public class RocSimulation extends ModuleAdapter {
         // Place Data Transport Record on output ring buffer
 //System.out.println("eventToOutput_RING: set event type");
 
-        RingBuffer rb = outputChannels.get(0).getRingBuffers()[ringNum];
+        RingBuffer rb = outputChannels.get(0).getRingBuffersOut()[ringNum];
 
 //System.out.println("     : wait for next ring buf for writing");
         long nextRingItem = rb.next();
@@ -227,7 +227,7 @@ public class RocSimulation extends ModuleAdapter {
         int index = 0;
         for (ByteBuffer buf : bufs) {
             // TODO: assumes only one output channel ...
-            RingBuffer rb = outputChannels.get(0).getRingBuffers()[ringNum];
+            RingBuffer rb = outputChannels.get(0).getRingBuffersOut()[ringNum];
 
 //System.out.println("     : wait for next ring buf for writing");
             long nextRingItem = rb.next();
@@ -345,6 +345,12 @@ System.out.println("\n\nStart With (id=" + myId + "):\n    record id = " + myRoc
                                                        isSingleEventMode,
                                                        bbSupply, builder, items);
 
+//                    Utilities.printBuffer(evs[0], 0, evs[0].limit()/4, "one event");
+//
+//                    if (true) {
+//                        System.exit(-1);
+//                    }
+//
                     // Put generated events into output channel
                     eventToOutputRing(myId, evs, items, bbSupply);
 
@@ -376,6 +382,8 @@ System.out.println("\n\nStart With (id=" + myId + "):\n    record id = " + myRoc
                         }
                         start_time = now;
                         oldVal = myEventNumber;
+
+                        emu.getCmsgPortal().rcGuiErrorMessage("HEY");
                     }
 
                 }
