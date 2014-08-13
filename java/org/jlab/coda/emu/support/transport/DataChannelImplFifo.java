@@ -22,7 +22,16 @@ import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 
 /**
- * Implementation of a DataChannel reading/writing from/to a fifo.
+ * This class implements a DataChannel to act as a fifo.
+ * The FIFO channel is unlike other channels. Other channels are either
+ * input or output meaning they either supply data to a module or
+ * allow a module to write data out. The FIFO channel acts as both.
+ * On one side of a FIFO is a module which produces data and expects
+ * the FIFO to accept it into ring buffers (like a standard output channel),
+ * and on the other is a module which reads data from the FIFO (like a
+ * standard input channel). Thus the FIFO is both an input and output channel.
+ * The thread which this class contains moves the data from the output
+ * side to the input side - seems backwards doesn't it?.
  *
  * @author heyes
  * @author timmer
@@ -51,6 +60,8 @@ public class DataChannelImplFifo extends DataChannelAdapter {
 
         // constructor of super class
         super(name, transport, attributeMap, input, emu, module);
+
+        state = CODAState.PAUSED;
 
         DataMover mover = new DataMover();
         movingThread = new Thread(emu.getThreadGroup(), mover, name());
@@ -84,7 +95,6 @@ public class DataChannelImplFifo extends DataChannelAdapter {
         gotResetCmd = true;
         state = CODAState.CONFIGURED;
     }
-
 
 
     /**
@@ -122,28 +132,27 @@ public class DataChannelImplFifo extends DataChannelAdapter {
         /** {@inheritDoc} */
          @Override
          public void run() {
- logger.debug("      DataChannel Fifo out helper: started");
 
              // Tell the world I've started
              latch.countDown();
 
              try {
                  RingItem ringItem;
-                 int ringChunkCounter = ringChunk;
+                 int ringChunkCounter = outputRingChunk;
 
                  // First event will be "prestart", by convention in ring 0
                  ringItem = getNextOutputRingItem(0);
                  writeEvioData(ringItem);
-                 releaseOutputRingItem(0);
- logger.debug("      DataChannel Fifo out helper: sent prestart");
+                 releaseCurrentAndGetNextOutputRingItem(0);
+ logger.debug("      DataChannel Fifo helper: sent prestart");
 
                  // First event will be "go", by convention in ring 0
                  ringItem = getNextOutputRingItem(0);
                  writeEvioData(ringItem);
-                 releaseOutputRingItem(0);
+                 releaseCurrentAndGetNextOutputRingItem(0);
  logger.debug("      DataChannel Fifo out helper: sent go");
-          // TODO: change the condition ???
-                 while ( true ) {
+
+                 while ( state == CODAState.PAUSED || state == CODAState.ACTIVE ) {
 
                      if (pause) {
                          if (pauseCounter++ % 400 == 0) {
@@ -153,26 +162,26 @@ public class DataChannelImplFifo extends DataChannelAdapter {
                          continue;
                      }
 
- //logger.debug("      DataChannel Fifo out helper: get next buffer from ring");
+//logger.debug("      DataChannel Fifo helper: get next buffer from ring " + rbIndex);
                      ringItem = getNextOutputRingItem(rbIndex);
                      ControlType pBankControlType = ringItem.getControlType();
                      writeEvioData(ringItem);
 
- //logger.debug("      DataChannel Fifo out helper: sent event");
+//logger.debug("      DataChannel Fifo helper: sent event");
 
- //logger.debug("      DataChannel Fifo out helper: release ring item");
-                     releaseOutputRingItem(rbIndex);
+//logger.debug("      DataChannel Fifo helper: release ring item");
+                     releaseCurrentAndGetNextOutputRingItem(rbIndex);
                      if (--ringChunkCounter < 1) {
-                         rbIndex = ++rbIndex % ringCount;
-                         ringChunkCounter = ringChunk;
- //                        System.out.println("switch ring to "+ rbIndex);
+                         rbIndex = ++rbIndex % outputRingCount;
+                         ringChunkCounter = outputRingChunk;
+//System.out.println("      DataChannel Fifo helper: switch ring to "+ rbIndex);
                      }
                      else {
- //                        System.out.println(""+ ringChunkCounter);
+                        System.out.println(""+ ringChunkCounter);
                      }
 
                      if (pBankControlType == ControlType.END) {
- System.out.println("      DataChannel Fifo out helper: " + name + " I got END event, quitting");
+ System.out.println("      DataChannel Fifo helper: " + name + " I got END event, quitting");
                          return;
                      }
 
@@ -183,9 +192,9 @@ public class DataChannelImplFifo extends DataChannelAdapter {
                  }
 
              } catch (InterruptedException e) {
-                 logger.warn("      DataChannel Fifo out helper: " + name + "  interrupted thd, exiting");
+                 logger.warn("      DataChannel Fifo helper: " + name + "  interrupted thd, exiting");
              } catch (Exception e) {
-                 logger.warn("      DataChannel Fifo out helper : exit thd: " + e.getMessage());
+                 logger.warn("      DataChannel Fifo helper : exit thd: " + e.getMessage());
                  // If we haven't yet set the cause of error, do so now & inform run control
                  errorMsg.compareAndSet(null, e.getMessage());
 
