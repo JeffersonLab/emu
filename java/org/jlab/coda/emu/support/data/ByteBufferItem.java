@@ -18,8 +18,11 @@ public class ByteBufferItem {
     /** ByteBuffer object. */
     private ByteBuffer buffer;
 
-    /** Sequence in which this object was taken from ring for use. */
-    private long sequence;
+    /** Sequence in which this object was taken from ring for use by a producer with get(). */
+    private long producerSequence;
+
+    /** Sequence in which this object was taken from ring for use by a consumer with consumerGet(). */
+    private long ConsumerSequence;
 
     /** How many users does this object have? */
     private volatile int users;
@@ -55,17 +58,31 @@ public class ByteBufferItem {
 
 
     /**
-     * Get the sequence of this item.
-     * @return sequence of this item.
+     * Get the sequence of this item for producer.
+     * @return sequence of this item for producer.
      */
-    public long getSequence() {return sequence;}
+    public long getProducerSequence() {return producerSequence;}
 
 
     /**
-     * Set the sequence of this item.
-     * @param sequence sequence of this item.
+     * Set the sequence of this item for producer.
+     * @param sequence sequence of this item for producer.
      */
-    public void setSequence(long sequence) {this.sequence = sequence;}
+    public void setProducerSequence(long sequence) {this.producerSequence = sequence;}
+
+
+    /**
+     * Get the sequence of this item for consumer.
+     * @return sequence of this item for consumer.
+     */
+    public long getConsumerSequence() {return ConsumerSequence;}
+
+
+    /**
+     * Set the sequence of this item for consumer.
+     * @param sequence sequence of this item for consumer.
+     */
+    public void setConsumerSequence(long sequence) {this.ConsumerSequence = sequence;}
 
 
     /**
@@ -80,6 +97,18 @@ public class ByteBufferItem {
      * @return contained ByteBuffer.
      */
     public ByteBuffer getBuffer() {return buffer;}
+
+
+    /**
+     * Make sure the buffer is the size needed.
+     * @param capacity minimum necessary size of buffer in bytes.
+     */
+    public void ensureCapacity(int capacity) {
+        if (bufferSize < capacity) {
+            buffer = ByteBuffer.allocate(capacity);
+            bufferSize = capacity;
+        }
+    }
 
 
     /**
