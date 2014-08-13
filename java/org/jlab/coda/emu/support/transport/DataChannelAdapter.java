@@ -20,7 +20,7 @@ import org.jlab.coda.emu.EmuModule;
 import org.jlab.coda.emu.support.codaComponent.CODAClass;
 import org.jlab.coda.emu.support.codaComponent.CODAStateMachineAdapter;
 import org.jlab.coda.emu.support.codaComponent.State;
-import org.jlab.coda.emu.support.data.QueueItemType;
+import org.jlab.coda.emu.support.data.ModuleIoType;
 import org.jlab.coda.emu.support.data.RingItem;
 import org.jlab.coda.emu.support.data.RingItemFactory;
 import org.jlab.coda.emu.support.logger.Logger;
@@ -111,8 +111,8 @@ public class DataChannelAdapter extends CODAStateMachineAdapter implements DataC
     /** Object used by Emu to create this channel. */
     protected final DataTransport dataTransport;
 
-    /** Type of object to expect in each queue item. */
-    protected QueueItemType queueItemType;
+    /** Type of object to expect in each ring item. */
+    protected ModuleIoType ringItemType;
 
 
 
@@ -133,17 +133,17 @@ public class DataChannelAdapter extends CODAStateMachineAdapter implements DataC
     //-------------------------------------------
 
     /** Number of output ring buffers. */
-    protected int ringCount;
+    protected int outputRingCount;
 
     /**
      * Number of output items to be taken sequentially from a single output ring buffer.
      * Necessary for RocSimulation in which "ringChunk" number of sequential events are
      * produced by a single thread to a single output ring buffer.
      */
-    protected int ringChunk;
+    protected int outputRingChunk;
 
-    protected int inputRingCount  = 2048;
-    protected int outputRingCount = 16384;
+    protected int inputRingItemCount  = 2048;
+    protected int outputRingItemCount = 4096;
 
     // Input
     /** Ring buffer - one per input channel. */
@@ -151,7 +151,7 @@ public class DataChannelAdapter extends CODAStateMachineAdapter implements DataC
 
     // Output
     /** Array holding all ring buffers for output. */
-    protected RingBuffer<RingItem>[] ringBuffers;
+    protected RingBuffer<RingItem>[] ringBuffersOut;
 
     protected SequenceBarrier[] sequenceBarriers;
 
@@ -199,12 +199,12 @@ public class DataChannelAdapter extends CODAStateMachineAdapter implements DataC
         logger = emu.getLogger();
 
         if (input) {
-            queueItemType = module.getInputQueueItemType();
-logger.info("      DataChannel Adapter : input type = " + queueItemType);
+            ringItemType = module.getInputRingItemType();
+logger.info("      DataChannel Adapter : input type = " + ringItemType);
         }
         else {
-            queueItemType = module.getOutputQueueItemType();
-logger.info("      DataChannel Adapter : output type = " + queueItemType);
+            ringItemType = module.getOutputRingItemType();
+logger.info("      DataChannel Adapter : output type = " + ringItemType);
         }
 
 
@@ -262,72 +262,85 @@ logger.info("      DataChannel Adapter : output type = " + queueItemType);
 
 
         // Set number of data output ring buffers
-        ringCount = module.getEventProducingThreadCount();
+        outputRingCount = module.getEventProducingThreadCount();
 
-logger.info("      DataChannel Adapter : ring buffer count = " + ringCount);
+logger.info("      DataChannel Adapter : # of ring buffers = " + outputRingCount);
 
 
         // Create RingBuffers (will supplant queues eventually)
-        ringBuffers = new RingBuffer[ringCount];
-
         if (input) {
-            if (queueItemType == QueueItemType.PayloadBuffer) {
-                ringBufferIn =
-                        createSingleProducer(new RingItemFactory(QueueItemType.PayloadBuffer),
-                                             inputRingCount, new YieldingWaitStrategy());
-            }
-            else {
-                ringBufferIn =
-                        createSingleProducer(new RingItemFactory(QueueItemType.PayloadBank),
-                                             inputRingCount, new YieldingWaitStrategy());
-            }
-            ringBuffers[0] = ringBufferIn;
+            setupInputRingBuffers();
         }
         else {
-            sequenceBarriers = new SequenceBarrier[ringCount];
-            sequences = new Sequence[ringCount];
-
-            nextSequences = new long[ringCount];
-            availableSequences = new long[ringCount];
-            Arrays.fill(availableSequences, -1L);
-
-            for (int i=0; i < ringCount; i++) {
-                if (queueItemType == QueueItemType.PayloadBuffer) {
-                    ringBuffers[i] =
-                            createSingleProducer(new RingItemFactory(QueueItemType.PayloadBuffer),
-                                                 outputRingCount, new YieldingWaitStrategy());
-                }
-                else {
-                    ringBuffers[i] =
-                            createSingleProducer(new RingItemFactory(QueueItemType.PayloadBank),
-                                                 outputRingCount, new YieldingWaitStrategy());
-                }
-
-                // One barrier for each ring
-                sequenceBarriers[i] = ringBuffers[i].newBarrier();
-                sequenceBarriers[i].clearAlert();
-
-                // One sequence for each ring for reading in output channel
-                sequences[i] = new Sequence(Sequencer.INITIAL_CURSOR_VALUE);
-                ringBuffers[i].addGatingSequences(sequences[i]);
-                nextSequences[i] = sequences[i].get() + 1L;
-            }
+            ringBuffersOut = new RingBuffer[outputRingCount];
+            setupOutputRingBuffers();
         }
 
         // Number of sequential items in a single ring buffer.
-        ringChunk = 1;
+        outputRingChunk = 1;
         attribString = attributeMap.get("ringChunk");
         if (attribString != null) {
             try {
-                ringChunk = Integer.parseInt(attribString);
-                if (ringChunk < 1) {
-                    ringChunk = 1;
+                outputRingChunk = Integer.parseInt(attribString);
+                if (outputRingChunk < 1) {
+                    outputRingChunk = 1;
                 }
             }
             catch (NumberFormatException e) {}
         }
+logger.info("      DataChannel Adapter : ring chunk = " + outputRingChunk);
+
 
     }
+
+
+    /** Setup the output channel ring buffers. */
+    void setupOutputRingBuffers() {
+        sequenceBarriers = new SequenceBarrier[outputRingCount];
+        sequences = new Sequence[outputRingCount];
+
+        nextSequences = new long[outputRingCount];
+        availableSequences = new long[outputRingCount];
+        Arrays.fill(availableSequences, -1L);
+
+        for (int i=0; i < outputRingCount; i++) {
+            if (ringItemType == ModuleIoType.PayloadBuffer) {
+                ringBuffersOut[i] =
+                        createSingleProducer(new RingItemFactory(ModuleIoType.PayloadBuffer),
+                                             outputRingItemCount, new YieldingWaitStrategy());
+            }
+            else {
+                ringBuffersOut[i] =
+                        createSingleProducer(new RingItemFactory(ModuleIoType.PayloadBank),
+                                             outputRingItemCount, new YieldingWaitStrategy());
+            }
+
+            // One barrier for each ring
+            sequenceBarriers[i] = ringBuffersOut[i].newBarrier();
+            sequenceBarriers[i].clearAlert();
+
+            // One sequence for each ring for reading in output channel
+            sequences[i] = new Sequence(Sequencer.INITIAL_CURSOR_VALUE);
+            ringBuffersOut[i].addGatingSequences(sequences[i]);
+            nextSequences[i] = sequences[i].get() + 1L;
+        }
+    }
+
+
+    /** Setup the input channel ring buffers. */
+    void setupInputRingBuffers() {
+        if (ringItemType == ModuleIoType.PayloadBuffer) {
+            ringBufferIn =
+                    createSingleProducer(new RingItemFactory(ModuleIoType.PayloadBuffer),
+                                         inputRingItemCount, new YieldingWaitStrategy());
+        }
+        else {
+            ringBufferIn =
+                    createSingleProducer(new RingItemFactory(ModuleIoType.PayloadBank),
+                                         inputRingItemCount, new YieldingWaitStrategy());
+        }
+    }
+
 
     /** {@inheritDoc} */
     public EmuModule getModule() {return module;}
@@ -360,13 +373,13 @@ logger.info("      DataChannel Adapter : ring buffer count = " + ringCount);
     public DataTransport getDataTransport() {return dataTransport;}
 
     /** {@inheritDoc} */
-    public int getRingCount() {return ringCount;}
+    public int getOutputRingCount() {return outputRingCount;}
 
     /** {@inheritDoc} */
-    public RingBuffer<RingItem> getRing() {return ringBufferIn;}
+    public RingBuffer<RingItem> getRingBufferIn() {return ringBufferIn;}
 
     /** {@inheritDoc} */
-    public RingBuffer<RingItem>[] getRingBuffers() {return ringBuffers;}
+    public RingBuffer<RingItem>[] getRingBuffersOut() {return ringBuffersOut;}
 
 
     /** {@inheritDoc} */
@@ -401,7 +414,7 @@ logger.info("      DataChannel Adapter : ring buffer count = " + ringCount);
             }
 //System.out.println("getNextOutputRingITem: available seq = " + availableSequences[ringIndex]);
 
-            item = ringBuffers[ringIndex].get(nextSequences[ringIndex]);
+            item = ringBuffersOut[ringIndex].get(nextSequences[ringIndex]);
 //System.out.println("getNextOutputRingITem: got seq = " + nextSequences[ringIndex]);
 //System.out.println("Got ring item " + item.getRecordId());
         }
