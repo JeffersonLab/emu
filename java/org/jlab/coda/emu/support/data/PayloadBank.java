@@ -64,7 +64,7 @@ public class PayloadBank extends RingItemAdapter {
     }
 
 
-    public QueueItemType getQueueItemType() {return QueueItemType.PayloadBank;}
+    public ModuleIoType getQueueItemType() {return ModuleIoType.PayloadBank;}
 
     /**
      * What is the byte order of this data?
