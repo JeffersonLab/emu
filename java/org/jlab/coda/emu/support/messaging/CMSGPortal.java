@@ -285,7 +285,6 @@ public class CMSGPortal implements LoggerAppender {
                 msg.setText(text);
                 // 0-3=info, 4-7=warning, 8-11=error, 12-15=severe; < 9 is ignored by rc gui
                 msg.setUserInt(9);
-                msg.addPayloadItem(new cMsgPayloadItem("codaName", emu.name()));
                 if (rcServer != null) {
                     rcServer.send(msg);
                 }
@@ -314,7 +313,6 @@ public class CMSGPortal implements LoggerAppender {
                 // 0-3=info, 4-7=warning, 8-11=error, 12-15=severe;  < 9 is ignored by rc gui
                 // Default to info message
                 msg.setUserInt(0);
-                msg.addPayloadItem(new cMsgPayloadItem("codaName", emu.name()));
 
                 if (event.hasData()) {
                     String errorLevel = event.getFormatedLevel();
