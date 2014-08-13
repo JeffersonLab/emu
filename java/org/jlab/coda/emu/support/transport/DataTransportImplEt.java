@@ -518,7 +518,6 @@ public class DataTransportImplEt extends DataTransportAdapter {
         if (etSystem != null) {
             try {
                 // Tell ET to die directly and remove file, if we're still attached.
-                System.out.println("\n\n\nKILLL ET\n\n");
                 etSystem.kill();
                 logger.debug("    DataTransport Et: ET is dead");
                 return true;
@@ -539,14 +538,12 @@ public class DataTransportImplEt extends DataTransportAdapter {
                 processET.waitFor();
                 logger.debug("    DataTransport Et: ET is dead");
                 killedIt = true;
-                System.out.println("\n\n\nKILLL ET 2\n\n");
             }
             catch (InterruptedException e) {}
         }
 
         // Kill any locally started system
         if (etSysLocal != null) {
-            System.out.println("\n\n\nSHUT DOWN LOCAL ET\n\n");
             etSysLocal.shutdown();
         }
 
