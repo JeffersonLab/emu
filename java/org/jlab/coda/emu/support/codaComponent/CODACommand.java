@@ -63,6 +63,8 @@ public enum CODACommand {
     SET_RUN_TYPE("Set run type", setRunType, false, -1, null, null),
     /** Command to get run type. */
     GET_RUN_TYPE("Get run type", getRunType, false, -1, null, null),
+    /** Command to set buffer level - smallest evio-event/et-buffer for ROCs. */
+    SET_BUF_LEVEL("Set buffer level", setBufferLevel, false, -1, null, null),
 
     // session/setOption/    none implemented
 
