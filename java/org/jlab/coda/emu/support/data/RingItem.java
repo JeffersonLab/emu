@@ -34,25 +34,62 @@ public interface RingItem extends Cloneable, Attached {
      * either a PayloadBank, or PayloadBuffer.
      * @return type of object implementing this interface.
      */
-    public QueueItemType getQueueItemType();
+    public ModuleIoType getQueueItemType();
+
     /**
      * Get the byte order of the data contained in this object.
      * @return byte order of the data contained in this object.
      */
     public ByteOrder getByteOrder();
 
+    /**
+     * Copy the argument's data into this RingItem object.
+     * @param ringItem RingItem to copy from
+     */
     public void copy(RingItem ringItem);
 
+    /**
+     * Get the evio event object contained in this ring item if any.
+     * @return evio event object contained in this ring item if any (null if none).
+     */
     public EvioEvent getEvent();
 
+    /**
+     * Set the evio event object contained in this ring item.
+     * @param event evio event object to be contained in this ring item.
+     */
     public void setEvent(EvioEvent event);
 
+    /**
+     * Get the ByteBuffer object (containing evio data) referenced by this ring item if any.
+     * Used in conjunction with {{@link #getNode()}}.
+     * @return ByteBuffer object referenced by this ring item if any (null if none).
+     */
     public ByteBuffer getBuffer();
 
+    /**
+     * Set the ByteBuffer object (containing evio data) referenced by this ring item if any.
+     * Used in conjunction with {{@link #setNode(org.jlab.coda.jevio.EvioNode)}}.
+     * @param buffer ByteBuffer object to be referenced by this ring item.
+     */
     public void setBuffer(ByteBuffer buffer);
 
+    /**
+     * Get the EvioNode object which selects a particular event in the ByteBuffer
+     * referenced by this ring item, if any.
+     * Used in conjunction with {{@link #getBuffer()}}.
+     * @return EvioNode object which selects a particular event in the ByteBuffer
+     *         referenced by this ring item, if any (null if none).
+     */
     public EvioNode getNode();
 
+    /**
+     * Set the EvioNode object which selects a particular event in the ByteBuffer
+     * referenced by this ring item, if any.
+     * Used in conjunction with {{@link #setBuffer(java.nio.ByteBuffer)}}.
+     * @param node EvioNode object which selects a particular event in the ByteBuffer
+     *             referenced by this ring item.
+     */
     public void setNode(EvioNode node);
 
     /**
@@ -61,51 +98,50 @@ public interface RingItem extends Cloneable, Attached {
      */
     public int getTotalBytes();
 
-
-
     /**
      * Is this object a control event?
      * @return {@code true} if control event, else {@code false}.
      */
     public boolean isControlEvent();
+
     /**
      * If this is control event, this method returns the type of
      * control event, otherwise it returns null.
      * @return type of control event, else null.
      */
     public ControlType getControlType();
+
     /**
      * Set the type of control event this is.
      * @param type type of control event this is.
      */
     public void setControlType(ControlType type);
 
-
     /**
      * Get the type of event (ROC raw, physics, user, control , etc) this is.
      * @return type of event this is.
      */
     public EventType getEventType();
+
     /**
      * Set the type of event (ROC raw, physics, user, control , etc) this is.
      * @param type type of event this is.
      */
     public void setEventType(EventType type);
 
-
     /**
      * If emu input channel is reading ROC raw data, then this method
      * gets the CODA id number of the source.
-     * @return  CODA id number of input ROC raw data source.
+     * @return CODA id number of input ROC raw data source.
      */
     public int getSourceId();
+
     /**
      * If emu input channel is reading Roc Raw data, then this method
      * sets the CODA id number of the source.
      * @param sourceId CODA id number of input Roc Raw data source.
      */
     public void setSourceId(int sourceId);
-
 
     /**
      * Does the source id match that of the input channel?
@@ -121,23 +157,22 @@ public interface RingItem extends Cloneable, Attached {
      */
     public void matchesId(boolean matchId);
 
-
     /**
      * The recordId, for a physics or ROC Raw type, starts at zero and
      * increases by one in each successive "evio-file-format" data buffer.
      * It is set to -1 for other data types.
-     * This id is copied into each QueueItem and many items can have the
+     * This id is copied into each RingItem and many items can have the
      * same id. This method gets the record id.
      *
      * @return record id
      */
     public int getRecordId();
+
     /**
      * This method sets the record id.
      * @param recordId  the record id
      */
     public void setRecordId(int recordId);
-
 
     /**
      * Get the name of the data input channel (from xml config file)
@@ -158,24 +193,24 @@ public interface RingItem extends Cloneable, Attached {
      * @return number of ROC events in this object's data.
      */
     public int getEventCount();
+
     /**
      * Set the number of ROC events in this object's data.
      * @param eventCount number of ROC events in this object's data.
      */
     public void setEventCount(int eventCount);
 
-
     /**
      * Get the first event number in this object's data.
      * @return first event number in this object's data.
      */
     public long getFirstEventNumber();
+
     /**
      * Set the first event number in this object's data.
      * @param firstEventNumber first event number in this object's data.
      */
     public void setFirstEventNumber(long firstEventNumber);
-
 
     /**
      * Is this object is a sync event?
@@ -183,6 +218,7 @@ public interface RingItem extends Cloneable, Attached {
      * @return {@code true} if this object is a sync event, else {@code false}.
      */
     public boolean isSync();
+
     /**
      * Sets whether or not this object is a sync event.
      * This condition is set by the ROC and so this method is only used to
@@ -191,12 +227,12 @@ public interface RingItem extends Cloneable, Attached {
      */
     public void setSync(boolean sync);
 
-
     /**
      * Is this object in single event mode (only 1 physics event in a block)?
      * @return {@code true} if this object is in single event mode, else {@code false}.
      */
     public boolean isSingleEventMode();
+
     /**
      * Sets whether or not this object is in single event mode.
      * @param singleEventMode {@code true} if this object is in single event mode,
@@ -204,19 +240,18 @@ public interface RingItem extends Cloneable, Attached {
      */
     public void setSingleEventMode(boolean singleEventMode);
 
-
     /**
      * Did this object already have an error when first received from transport?
      * @return {@code true} if this object had an error when first received,
      *         else {@code false}.
      */
     public boolean hasError();
+
     /**
      * Sets whether or not this object has an error.
      * @param hasError {@code true} if this object has an error,  else {@code false}.
      */
     public void setError(boolean hasError);
-
 
     /**
      * Did this object generate a non-fatal error while being built
@@ -224,6 +259,7 @@ public interface RingItem extends Cloneable, Attached {
      * @return {@code true} if this object generated a non-fatal build error, else {@code false}.
      */
     public boolean hasNonFatalBuildingError();
+
     /**
      * Sets whether or not this object generated a non-fatal error while being built.
      * @param nonFatalBuildingError {@code true} if this object generate a non-fatal
@@ -231,20 +267,15 @@ public interface RingItem extends Cloneable, Attached {
      */
     public void setNonFatalBuildingError(boolean nonFatalBuildingError);
 
-
-//    public void setSequence(long sequence);
-//    public long getSequence();
-
-
     /**
-     * Releases a ByteBuffer (if any) contained by this object which was obtained
+     * Releases a ByteBuffer (if any) referenced by this object which was obtained
      * from a ByteBufferSupply object. This allows the buffer to be reused.
      */
     public void releaseByteBuffer();
 
     /**
      * Set the objects needed to release (by calling {@link #releaseByteBuffer()})
-     * the contained ByteBuffer when no longer needed.
+     * the referenced ByteBuffer when no longer needed.
      * @param byteBufferSupply object which supplied the ByteBuffer
      * @param byteBufferItem   object wrapping ByteBuffer in the supply
      */
@@ -252,16 +283,15 @@ public interface RingItem extends Cloneable, Attached {
                                       ByteBufferItem byteBufferItem);
 
     /**
-     * Get the ByteBufferSupply object used to create the contained ByteBuffer (if any).
-     * @return ByteBufferSupply object used to create the contained ByteBuffer (if any, else null).
+     * Get the ByteBufferSupply object used to create the referenced ByteBuffer (if any).
+     * @return ByteBufferSupply object used to create the referenced ByteBuffer (if any, else null).
      */
     public ByteBufferSupply getByteBufferSupply();
 
     /**
-     * Get the ByteBufferItem object used to wrap the contained ByteBuffer (if any).
-     * @return ByteBufferItem object used to wrap the contained ByteBuffer (if any, else null).
+     * Get the ByteBufferItem object used to wrap the referenced ByteBuffer (if any).
+     * @return ByteBufferItem object used to wrap the referenced ByteBuffer (if any, else null).
      */
     public ByteBufferItem getByteBufferItem();
-
 
 }
