@@ -14,6 +14,7 @@ package org.jlab.coda.emu.support.transport;
 
 import org.jlab.coda.emu.Emu;
 import org.jlab.coda.emu.EmuModule;
+import org.jlab.coda.emu.EmuUtilities;
 import org.jlab.coda.emu.support.codaComponent.CODAClass;
 import org.jlab.coda.emu.support.codaComponent.CODAState;
 import org.jlab.coda.emu.support.data.*;
@@ -364,7 +365,7 @@ logger.info("      DataChannel Et : chunk = " + chunk);
 
 
                 // RingBuffer supply of buffers to hold all ET event bytes
-                if (queueItemType == QueueItemType.PayloadBuffer) {
+                if (ringItemType == ModuleIoType.PayloadBuffer) {
                     // ET system parameters
                     int etEventSize = transport.getSystemConfig().getEventSize();
 
@@ -765,10 +766,10 @@ logger.debug("      DataChannel Et reset() : " + name + " - done");
         /** {@inheritDoc} */
         @Override
         public void run() {
-            if (queueItemType == QueueItemType.PayloadBank) {
+            if (ringItemType == ModuleIoType.PayloadBank) {
                 runBanks();
             }
-            else if  (queueItemType == QueueItemType.PayloadBuffer) {
+            else if  (ringItemType == ModuleIoType.PayloadBuffer) {
                 runBuffers();
             }
         }
@@ -1496,7 +1497,7 @@ System.out.println("      DataChannel Et out helper: wake up attachment #" + att
                 // so, a single ring will have ringChunk sequential events together.
                 // Take this into account when reading from multiple rings.
                 // We must get the output order right.
-                int ringChunkCounter = ringChunk;
+                int ringChunkCounter = outputRingChunk;
 
                 // Create an array of lists of RingItem objects by 2-step
                 // initialization to avoid "generic array creation" error.
@@ -1676,7 +1677,7 @@ System.out.println("      DataChannel Et out helper: " + name + " got RESET cmd,
 
                         // Be careful not to use up all the events in the output
                         // ring buffer before writing (& freeing up) some.
-                        if (eventCount >= outputRingCount/2) {
+                        if (eventCount >= outputRingItemCount /2) {
                             break;
                         }
 
@@ -1824,8 +1825,8 @@ System.out.println("      DataChannel Et out helper: " + name + " got RESET cmd,
                     releaseOutputRingItem(rbIndex);
 
                     if (--ringChunkCounter < 1) {
-                        rbIndex = ++rbIndex % ringCount;
-                        ringChunkCounter = ringChunk;
+                        rbIndex = ++rbIndex % outputRingCount;
+                        ringChunkCounter = outputRingChunk;
                     }
 
                     if (haveOutputEndEvent) {
@@ -1958,7 +1959,7 @@ logger.warn("      DataChannel Et out helper : exit thd: " + e.getMessage());
             public void run() {
                 try {
                     // Write banks into ET buffer
-                    if (queueItemType == QueueItemType.PayloadBank) {
+                    if (ringItemType == ModuleIoType.PayloadBank) {
                         for (RingItem ri : bankList) {
                             evWriter.writeEvent(ri.getEvent());
                             ri.releaseByteBuffer();
@@ -2082,7 +2083,7 @@ logger.warn("      DataChannel Et out helper : exit thd: " + e.getMessage());
       * Class used to take Evio banks from ring buffers, write them into ET events
       * and put them into an ET system.
       */
-     private class DataOutputHelperOrig extends Thread {
+     private class DataOutputHelper extends Thread {
 
          /** Used to sync things before putting new ET events. */
          private CountDownLatch latch;
@@ -2107,7 +2108,7 @@ logger.warn("      DataChannel Et out helper : exit thd: " + e.getMessage());
 
 
           /** Constructor. */
-         DataOutputHelperOrig(ThreadGroup group, String name) {
+         DataOutputHelper(ThreadGroup group, String name) {
              super(group, name);
 
              // Thread pool with "writeThreadCount" number of threads & queue
@@ -2184,7 +2185,7 @@ logger.warn("      DataChannel Et out helper : exit thd: " + e.getMessage());
                  // so, a single ring will have ringChunk sequential events together.
                  // Take this into account when reading from multiple rings.
                  // We must get the output order right.
-                 int ringChunkCounter = ringChunk;
+                 int ringChunkCounter = outputRingChunk;
 
                  // Create an array of lists of RingItem objects by 2-step
                  // initialization to avoid "generic array creation" error.
@@ -2362,7 +2363,7 @@ logger.warn("      DataChannel Et out helper : exit thd: " + e.getMessage());
 
                          // Be careful not to use up all the events in the output
                          // ring buffer before writing (& freeing up) some.
-                         if (eventCount >= outputRingCount/2) {
+                         if (eventCount >= outputRingItemCount /2) {
                              break;
                          }
 
@@ -2503,8 +2504,8 @@ logger.warn("      DataChannel Et out helper : exit thd: " + e.getMessage());
                      releaseOutputRingItem(rbIndex);
 
                      if (--ringChunkCounter < 1) {
-                         rbIndex = ++rbIndex % ringCount;
-                         ringChunkCounter = ringChunk;
+                         rbIndex = ++rbIndex % outputRingCount;
+                         ringChunkCounter = outputRingChunk;
                      }
 
                      if (haveOutputEndEvent) {
@@ -2632,7 +2633,7 @@ logger.warn("      DataChannel Et out helper : exit thd: " + e.getMessage());
              public void run() {
                  try {
                      // Write banks into ET buffer
-                     if (queueItemType == QueueItemType.PayloadBank) {
+                     if (ringItemType == ModuleIoType.PayloadBank) {
                          for (RingItem ri : bankList) {
                              evWriter.writeEvent(ri.getEvent());
                              ri.releaseByteBuffer();
@@ -2761,7 +2762,7 @@ logger.warn("      DataChannel Et out helper : exit thd: " + e.getMessage());
       * Class used to take Evio banks from ring buffers, write them into ET events
       * and put them into an ET system.
       */
-     private class DataOutputHelper extends Thread {
+     private class DataOutputHelperDis extends Thread {
 
          /** Used to sync things before putting new ET events. */
          private CountDownLatch latch;
@@ -2779,14 +2780,7 @@ logger.warn("      DataChannel Et out helper : exit thd: " + e.getMessage());
          private final EvGetter getter;
 
         /** Let a single waiter know that the main thread has been started. */
-        private final CountDownLatch startLatch1 = new CountDownLatch(1);
-
-        /** Let a single waiter know that the writing thread has been started. */
-        private final CountDownLatch startLatch2 = new CountDownLatch(1);
-
-        /** Let a single waiter know that the get new events thread has been started. */
-        private final CountDownLatch startLatch3 = new CountDownLatch(1);
-
+        private final CountDownLatch startLatch = new CountDownLatch(3);
 
         private final Thread writingThread;
 
@@ -2795,7 +2789,7 @@ logger.warn("      DataChannel Et out helper : exit thd: " + e.getMessage());
 
 
           /** Constructor. */
-         DataOutputHelper(ThreadGroup group, String name) {
+         DataOutputHelperDis(ThreadGroup group, String name) {
              super(group, name);
 
              // Thread pool with "writeThreadCount" number of threads & queue
@@ -2820,9 +2814,7 @@ logger.warn("      DataChannel Et out helper : exit thd: " + e.getMessage());
          /** A single waiter can call this method which returns when thread was started. */
          private void waitUntilStarted() {
              try {
-                 startLatch1.await();
-                 startLatch2.await();
-                 startLatch3.await();
+                 startLatch.await();
              }
              catch (InterruptedException e) {}
          }
@@ -2861,7 +2853,7 @@ logger.warn("      DataChannel Et out helper : exit thd: " + e.getMessage());
          public void run() {
 
              // Tell the world I've started
-             startLatch1.countDown();
+             startLatch.countDown();
 
              try {
                  EventType previousType, pBankType;
@@ -2881,7 +2873,7 @@ logger.warn("      DataChannel Et out helper : exit thd: " + e.getMessage());
                  // so, a single ring will have ringChunk sequential events together.
                  // Take this into account when reading from multiple rings.
                  // We must get the output order right.
-                 int ringChunkCounter = ringChunk;
+                 int ringChunkCounter = outputRingChunk;
 
                  // Create an array of lists of RingItem objects by 2-step
                  // initialization to avoid "generic array creation" error.
@@ -3059,7 +3051,7 @@ logger.warn("      DataChannel Et out helper : exit thd: " + e.getMessage());
 
                          // Be careful not to use up all the events in the output
                          // ring buffer before writing (& freeing up) some.
-                         if (eventCount >= outputRingCount/2) {
+                         if (eventCount >= outputRingItemCount /2) {
                              break;
                          }
 
@@ -3180,8 +3172,8 @@ logger.warn("      DataChannel Et out helper : exit thd: " + e.getMessage());
                      releaseOutputRingItem(rbIndex);
 
                      if (--ringChunkCounter < 1) {
-                         rbIndex = ++rbIndex % ringCount;
-                         ringChunkCounter = ringChunk;
+                         rbIndex = ++rbIndex % outputRingCount;
+                         ringChunkCounter = outputRingChunk;
                      }
 
                      if (haveOutputEndEvent) {
@@ -3221,7 +3213,7 @@ logger.warn("      DataChannel Et out helper : exit thd: " + e.getMessage());
                 EtEventsItem item;
 
                 // Tell the world I've started
-                startLatch2.countDown();
+                startLatch.countDown();
 //System.out.println("      DataChannel Et: Et Writing Thread: PAst latch @@@@@  !!!!!!!!!!!");
 
                 while (true) {
@@ -3291,28 +3283,6 @@ logger.warn("      DataChannel Et out helper : exit thd: " + e.getMessage());
 
 
              /**
-              * Encode the event type into the bit info word
-              * which will be in each evio block header.
-              *
-              * @param bSet bit set which will become part of the bit info word
-              * @param type event type to be encoded
-              */
-             private void setEventType(BitSet bSet, int type) {
-                 // check args
-                 if (type < 0) type = 0;
-                 else if (type > 15) type = 15;
-
-                 if (bSet == null || bSet.size() < 6) {
-                     return;
-                 }
-                 // do the encoding
-                 for (int i=2; i < 6; i++) {
-                     bSet.set(i, ((type >>> i - 2) & 0x1) > 0);
-                 }
-             }
-
-
-             /**
               * Constructor.
               *
               * @param bankList list of banks to be written into a single ET event
@@ -3349,7 +3319,7 @@ logger.warn("      DataChannel Et out helper : exit thd: " + e.getMessage());
 
                      // Encode the event type into bits
                      BitSet bitInfo = new BitSet(24);
-                     setEventType(bitInfo, bankList.get(0).getEventType().getValue());
+                     EmuUtilities.setEventType(bitInfo, bankList.get(0).getEventType());
 
                      // Create object to write evio banks into ET buffer
                      if (evWriter == null) {
@@ -3371,7 +3341,7 @@ logger.warn("      DataChannel Et out helper : exit thd: " + e.getMessage());
              public void run() {
                  try {
                      // Write banks into ET buffer
-                     if (queueItemType == QueueItemType.PayloadBank) {
+                     if (ringItemType == ModuleIoType.PayloadBank) {
                          for (RingItem ri : bankList) {
                              evWriter.writeEvent(ri.getEvent());
                              ri.releaseByteBuffer();
@@ -3416,7 +3386,7 @@ logger.warn("      DataChannel Et out helper : exit thd: " + e.getMessage());
                  EtEventsItem item;
 
                  // Tell the world I've started
-                 startLatch3.countDown();
+                 startLatch.countDown();
 
                  while (true) {
                      try {
