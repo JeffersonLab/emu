@@ -283,10 +283,9 @@ public class CMSGPortal implements LoggerAppender {
                 msg.setSubject(emu.name());
                 msg.setType(RCConstants.dalogMsg);
                 msg.setText(text);
-                msg.setUserInt(2);  // 0=info, 1=warning, 2=error, 3=severe; < 2 is ignored by rc gui
-                msg.addPayloadItem(new cMsgPayloadItem("severity", "error"));
-                DateFormat format = new SimpleDateFormat("HH:mm:ss.SSS ");
-                msg.addPayloadItem(new cMsgPayloadItem("tod", format.format(new Date())));
+                // 0-3=info, 4-7=warning, 8-11=error, 12-15=severe; < 9 is ignored by rc gui
+                msg.setUserInt(9);
+                msg.addPayloadItem(new cMsgPayloadItem("codaName", emu.name()));
                 if (rcServer != null) {
                     rcServer.send(msg);
                 }
@@ -312,40 +311,22 @@ public class CMSGPortal implements LoggerAppender {
                 msg.setSubject(emu.name());
                 msg.setType(RCConstants.dalogMsg);
                 msg.setText(event.getMessage());
-
-                // 0=info, 1=warning, 2=error, 3=severe; < 2 is ignored by rc gui
+                // 0-3=info, 4-7=warning, 8-11=error, 12-15=severe;  < 9 is ignored by rc gui
                 // Default to info message
                 msg.setUserInt(0);
-                msg.addPayloadItem(new cMsgPayloadItem("severity", "info"));
+                msg.addPayloadItem(new cMsgPayloadItem("codaName", emu.name()));
 
                 if (event.hasData()) {
-                    // currently none of the payload items, except severity & tod, are used
-                    msg.addPayloadItem(new cMsgPayloadItem("hostName",  emu.getHostName()));
-                    msg.addPayloadItem(new cMsgPayloadItem("userName",  emu.getUserName()));
-                    msg.addPayloadItem(new cMsgPayloadItem("runNumber", emu.getRunNumber()));
-                    msg.addPayloadItem(new cMsgPayloadItem("runType",   emu.getRunTypeId()));
-                    msg.addPayloadItem(new cMsgPayloadItem("codaClass", emu.getCodaClass().name()));
-
                     String errorLevel = event.getFormatedLevel();
                     if (errorLevel.equalsIgnoreCase("WARN")) {
-                        msg.setUserInt(1);
-                        msg.addPayloadItem(new cMsgPayloadItem("severity", "warning"));
+                        msg.setUserInt(5);
                     }
                     else if (errorLevel.equalsIgnoreCase("ERROR")) {
-                        msg.setUserInt(2);
-                        msg.addPayloadItem(new cMsgPayloadItem("severity", "error"));
+                        msg.setUserInt(9);
                     }
                     else if (errorLevel.equalsIgnoreCase("BUG")) {
-                        msg.setUserInt(3);
-                        msg.addPayloadItem(new cMsgPayloadItem("severity", "severe"));
+                        msg.setUserInt(13);
                     }
-
-                    if (emu.state() != null) msg.addPayloadItem(new cMsgPayloadItem("state", emu.state().toString()));
-                    msg.addPayloadItem(new cMsgPayloadItem("dalogData", event.getFormatedData()));
-
-                    DateFormat format = new SimpleDateFormat("HH:mm:ss.SSS ");
-                    format.format(new Date(event.getEventTime()));
-                    msg.addPayloadItem(new cMsgPayloadItem("tod", format.format(event.getEventTime())));
                 }
 
                 rcServer.send(msg);
