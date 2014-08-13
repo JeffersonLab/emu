@@ -33,7 +33,6 @@ import java.nio.ByteOrder;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.locks.ReentrantLock;
 
 /**
  * <pre><code>
@@ -293,10 +292,10 @@ System.out.println("EventBuilding constr: " + buildingThreadCount +
 
 
     /** {@inheritDoc} */
-    public QueueItemType getInputQueueItemType() {return QueueItemType.PayloadBuffer;}
+    public ModuleIoType getInputRingItemType() {return ModuleIoType.PayloadBuffer;}
 
     /** {@inheritDoc} */
-    public QueueItemType getOutputQueueItemType() {return QueueItemType.PayloadBuffer;}
+    public ModuleIoType getOutputRingItemType() {return ModuleIoType.PayloadBuffer;}
 
 
 
@@ -406,7 +405,7 @@ if (debug) System.out.println("PreProcessor: Roc raw or physics event in wrong f
             return;
         }
 
-        RingBuffer rb = outputChannels.get(channelNum).getRingBuffers()[ringNum];
+        RingBuffer rb = outputChannels.get(channelNum).getRingBuffersOut()[ringNum];
 
 //System.out.println("     : wait for next ring buf for writing");
         long nextRingItem = rb.next();
@@ -443,7 +442,7 @@ if (debug) System.out.println("PreProcessor: Roc raw or physics event in wrong f
             return;
         }
 
-        RingBuffer rb = outputChannels.get(channelNum).getRingBuffers()[ringNum];
+        RingBuffer rb = outputChannels.get(channelNum).getRingBuffersOut()[ringNum];
 
 //System.out.println("     : wait for next ring buf for writing");
         long lastRingItem = rb.next(banksOut.size());
@@ -486,7 +485,7 @@ if (debug) System.out.println("PreProcessor: Roc raw or physics event in wrong f
             return;
         }
 
-        RingBuffer rb = outputChannels.get(channelNum).getRingBuffers()[ringNum];
+        RingBuffer rb = outputChannels.get(channelNum).getRingBuffersOut()[ringNum];
 
 //System.out.println("          : wait for next ring buf for writing");
         long nextRingItem = rb.next();
@@ -1073,10 +1072,7 @@ if (debug && havePhysicsEvents)
                     // Grab a stored ByteBuffer
                     ByteBufferItem bufItem = bbSupply.get();
                     ByteBuffer evBuf = bufItem.getBuffer();
-                    if (evBuf.capacity() < memSize) {
-                        evBuf = ByteBuffer.allocate(memSize);
-                        bufItem.setBuffer(evBuf);
-                    }
+                    bufItem.ensureCapacity(memSize);
                     builder.setBuffer(evBuf);
 
                     // Create a (top-level) physics event from payload banks
@@ -1502,7 +1498,7 @@ if (debug) System.out.println("Building thread is ending !!!");
         // For each channel ...
         for (int i=0; i < inputChannelCount; i++) {
             // Get channel's ring buffer
-            RingBuffer<RingItem> rb = inputChannels.get(i).getRing();
+            RingBuffer<RingItem> rb = inputChannels.get(i).getRingBufferIn();
             ringBuffersIn[i] = rb;
 
             // First sequence & barrier is for checking of PayloadBuffer/Bank
