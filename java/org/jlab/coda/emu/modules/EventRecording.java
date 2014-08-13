@@ -90,10 +90,10 @@ public class EventRecording extends ModuleAdapter {
     private DataChannel inputChannel;
 
     /** Type of object to expect for input. */
-    private QueueItemType inputType = QueueItemType.PayloadBuffer;
+    private ModuleIoType inputType = ModuleIoType.PayloadBuffer;
 
     /** Type of object to place on output channels. */
-    private QueueItemType outputType = QueueItemType.PayloadBuffer;
+    private ModuleIoType outputType = ModuleIoType.PayloadBuffer;
 
     /** The number of RecordThread objects. */
     private int recordingThreadCount;
@@ -190,10 +190,10 @@ System.out.println("EventRecording constructor: " + recordingThreadCount +
     }
 
     /** {@inheritDoc} */
-    public QueueItemType getInputQueueItemType() {return inputType;}
+    public ModuleIoType getInputRingItemType() {return inputType;}
 
     /** {@inheritDoc} */
-    public QueueItemType getOutputQueueItemType() {return outputType;}
+    public ModuleIoType getOutputRingItemType() {return outputType;}
 
 
     //---------------------------------------
@@ -293,7 +293,7 @@ if (debug) System.out.println("endRecordThreads: will end threads but no END eve
             return;
         }
 
-        RingBuffer rb = outputChannels.get(channelNum).getRingBuffers()[ringNum];
+        RingBuffer rb = outputChannels.get(channelNum).getRingBuffersOut()[ringNum];
         long nextRingItem = rb.next();
 
         RingItem ri = (RingItem) rb.get(nextRingItem);
@@ -540,7 +540,7 @@ System.out.println("recording thread is ending !!!");
         sequenceIn = new Sequence[recordingThreadCount];
 
         // Get input channel's ring buffer
-        ringBufferIn = inputChannels.get(0).getRing();
+        ringBufferIn = inputChannels.get(0).getRingBufferIn();
 
         // For each recording thread ...
         for (int j=0; j < recordingThreadCount; j++) {
