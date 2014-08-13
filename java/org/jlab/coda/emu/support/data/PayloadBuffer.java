@@ -116,7 +116,7 @@ public class PayloadBuffer extends RingItemAdapter {
     }
 
 
-    public QueueItemType getQueueItemType() {return QueueItemType.PayloadBuffer;}
+    public ModuleIoType getQueueItemType() {return ModuleIoType.PayloadBuffer;}
 
     /** Clones this object setting the attachment to null. */
     public Object clone() {
