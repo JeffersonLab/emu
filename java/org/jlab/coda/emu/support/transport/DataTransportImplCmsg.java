@@ -97,6 +97,8 @@ public class DataTransportImplCmsg extends DataTransportAdapter {
         try {
             logger.debug("    DataTransportImplCmsg.prestart(): cmsg connect : " + name());
             cmsgConnection.connect();
+            logger.debug("    DataTransportImplCmsg.prestart(): cmsg start receiving : " + name());
+            cmsgConnection.start();
 
         } catch (cMsgException e) {
             errorMsg.compareAndSet(null, "cannot connect to cMsg server (bad UDL or network)");
@@ -110,12 +112,11 @@ public class DataTransportImplCmsg extends DataTransportAdapter {
     }
 
 
-    /** {@inheritDoc}. Allow sending messages to callbacks. */
-    public void go() {cmsgConnection.start();}
-
-
     /** {@inheritDoc}. Stop sending messages to callbacks. */
-    public void pause() {cmsgConnection.stop();}
+    public void pause() {
+        logger.debug("    DataTransportImplCmsg.pause(): cmsg stop receiving : " + name());
+        cmsgConnection.stop();
+    }
 
 
     /** {@inheritDoc}. Disconnect from cMsg server. */
