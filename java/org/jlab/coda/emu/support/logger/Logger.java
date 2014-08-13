@@ -17,7 +17,7 @@ import java.util.Vector;
 
 /**
  * This class is used as abstraction layer for log messages
- * Minimum Log4j implemenation with multiple overloaded functions
+ * Minimum Log4j implementation with multiple overloaded functions
  *
  * @author vlads
  */
