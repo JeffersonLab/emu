@@ -44,27 +44,27 @@ public enum ControlType {
 
 
     /**
-   	 * Obtain the enum from the value.
-   	 *
-   	 * @param val the value to match.
-   	 * @return the matching enum, or <code>null</code>.
-   	 */
-       public static ControlType getControlType(int val) {
-           if (val > 0xFFD4 || val < 0xFFD0) return null;
-           return intToType[val & 0xf];
-       }
+     * Obtain the enum from the value.
+     *
+     * @param val the value to match.
+     * @return the matching enum, or <code>null</code>.
+     */
+    public static ControlType getControlType(int val) {
+        if (val > 0xFFD4 || val < 0xFFD0) return null;
+        return intToType[val & 0xf];
+    }
 
 
     /**
-   	 * Obtain the enum from the ordinal value.
-   	 *
-   	 * @param val the ordinal value to match.
-   	 * @return the matching enum, or <code>null</code>.
-   	 */
-       public static ControlType getControlTypeFromOrdinal(int val) {
-           if (val > 4 || val < 0) return null;
-           return intToType[val];
-       }
+     * Obtain the enum from the ordinal value.
+     *
+     * @param val the ordinal value to match.
+     * @return the matching enum, or <code>null</code>.
+     */
+    public static ControlType getControlTypeFromOrdinal(int val) {
+        if (val > 4 || val < 0) return null;
+        return intToType[val];
+    }
 
 
     /**
