@@ -12,12 +12,10 @@
 package org.jlab.coda.emu.support.transport;
 
 
-import com.lmax.disruptor.*;
-import com.lmax.disruptor.TimeoutException;
 import org.jlab.coda.cMsg.*;
 import org.jlab.coda.emu.Emu;
-import org.jlab.coda.emu.EmuException;
 import org.jlab.coda.emu.EmuModule;
+import org.jlab.coda.emu.EmuUtilities;
 import org.jlab.coda.emu.support.codaComponent.CODAState;
 import org.jlab.coda.emu.support.control.CmdExecException;
 import org.jlab.coda.emu.support.data.*;
@@ -212,7 +210,7 @@ System.out.println("Sending on port " + sendPort);
      *
      * @param channel
      */
-    void attachToInput(SocketChannel channel, int sourceId, int maxBufferSize, int isBigEndian) throws IOException {
+    void attachToInput(SocketChannel channel, int sourceId, int maxBufferSize) throws IOException {
         this.sourceId = sourceId;
         this.maxBufferSize = maxBufferSize;
 
@@ -230,7 +228,7 @@ System.out.println("Sending on port " + sendPort);
 
         // Create a ring buffer full of empty ByteBuffer objects
         // in which to copy incoming data from client.
-        bbSupply = new ByteBufferSupply(256, maxBufferSize);
+        bbSupply = new ByteBufferSupply(128, maxBufferSize);
 
         // Start thread to handle all socket input
         startInputThread();
@@ -426,13 +424,15 @@ logger.debug("      DataChannel Emu startOutputThread()");
         /** Read into ByteBuffers. */
         private EvioCompactReader compactReader;
 
-        /** Read event-only buffer. */
-        private EvioCompactStructureHandler structureReader;
+        private final boolean ringItemIsBuffer;
 
 
         /** Constructor. */
         DataInputHelper() {
             super(emu.getThreadGroup(), name() + "_data_in");
+System.out.println("START EMU DATA input thread");
+            // Speed things up with local variable
+            ringItemIsBuffer = (ringItemType == ModuleIoType.PayloadBuffer);
         }
 
 
@@ -472,36 +472,28 @@ logger.debug("      DataChannel Emu startOutputThread()");
 
                     // Read the command first
                     command = in.readInt();
+//System.out.println("      DataChannel Emu in helper: cmd = 0x" + Integer.toHexString(command));
+//                    Thread.sleep(1000);
 
-                   // 1st byte has command
-                    switch (command & 0xf) {
-                        case cMsgConstants.emuEvioFile:
-                            if (queueItemType == QueueItemType.PayloadBank) {
-                                handleEvioFileToBank();
-                            }
-                            else if  (queueItemType == QueueItemType.PayloadBuffer) {
+                    // 1st byte has command
+                    switch (command & 0xff) {
+                        case cMsgConstants.emuEvioFileFormat:
+                            if  (ringItemIsBuffer) {
 //System.out.println("      DataChannel Emu in helper: event to handleEvioFileToBuf(), name = " + name);
                                 handleEvioFileToBuf();
                             }
+                            else {
+                                handleEvioFileToBank();
+                            }
 
-                            break;
-
-                        case cMsgConstants.emuEvioEvent:
-                            // EventType in 2nd byte
-                            EventType etype   = EventType.getEventType(command >> 8 & 0xf);
-                            // ControlType in 3rd byte
-                            ControlType ctype = ControlType.getControlTypeFromOrdinal(command >> 16 & 0xf);
-//System.out.println("      DataChannel Emu in helper: type ordinal val = " + (command >> 8 & 0xf) +
-//                           ", cmd ordinal val = " + (command >> 16 & 0xf));
-
-                            handleEvioEvent(etype, ctype);
                             break;
 
                         case cMsgConstants.emuEnd:
+System.out.println("      DataChannel Emu in helper: get emuEnd cmd");
                             break;
 
                         default:
-                            System.out.println("Unknown command from Emu client");
+//System.out.println("      DataChannel Emu in helper: unknown command from Emu client = " + (command & 0xff));
                     }
 
                     if (haveInputEndEvent) {
@@ -525,83 +517,6 @@ logger.debug("      DataChannel Emu startOutputThread()");
 
         }
 
-
-        /**
-         * Handle single incoming evio event over socket.
-         * Event is not in evio file format, just comes by itself.
-         * This method is only used when sending from RocSimulation module
-         * and "Q" type is PayloadBuffer.
-         *
-         * @param eventType      type of event to parse
-         * @param controlType    type of control event to parse
-         * @throws IOException   failure reading socket
-         * @throws EvioException failure parsing evio data
-         */
-        private final void handleEvioEvent(EventType eventType, ControlType controlType)
-                                    throws IOException, EvioException {
-
-            int recordId = 0;
-
-            // Read the length of evio format data to come
-            int evioBytes = in.readInt();
-
-            nextRingItem = ringBufferIn.next();
-
-            PayloadBuffer payloadBuffer = (PayloadBuffer) ringBufferIn.get(nextRingItem);
-            byte[] array;
-            ByteBuffer buf = payloadBuffer.getBuffer();
-            if (buf == null || buf.capacity() < evioBytes) {
-                array = new byte[evioBytes];
-                buf = ByteBuffer.wrap(array);
-            }
-            else {
-                array = buf.array();
-            }
-//            buf.limit(0).limit(evioBytes);
-
-            // Read evio format data
-            in.readFully(array, 0, evioBytes);
-
-            if (structureReader == null) {
-                structureReader = new EvioCompactStructureHandler(buf, DataType.BANK);
-            }
-            else {
-                structureReader.setBuffer(buf, DataType.BANK);
-            }
-
-            EvioNode node = structureReader.getScannedStructure();
-
-            // Complication: from the ROC, we'll be receiving USER events
-            // mixed in with and labeled as ROC Raw events. Check for that
-            // and fix it.
-            EventType bankType = eventType;
-            if (eventType == EventType.ROC_RAW) {
-                if (Evio.isUserEvent(node)) {
-                    bankType = EventType.USER;
-                }
-            }
-
-//            payloadBuffer.setBuffer(node.getStructureBuffer(false));
-            payloadBuffer.setBuffer(buf);
-            payloadBuffer.setNode(node);
-            payloadBuffer.setEventType(bankType);
-            payloadBuffer.setControlType(controlType);
-            payloadBuffer.setRecordId(recordId);
-            payloadBuffer.setSourceId(sourceId);
-            payloadBuffer.setSourceName(name);
-            payloadBuffer.setEventCount(1);
-            payloadBuffer.matchesId(sourceId == id);
-
-            ringBufferIn.publish(nextRingItem);
-
-            // Handle END event
-            if (controlType == ControlType.END) {
-                logger.info("      DataChannel Emu in helper: " + name + " found END event");
-                haveInputEndEvent = true;
-                // Run callback saying we got end event
-                if (endCallback != null) endCallback.endWait();
-            }
-        }
 
 
         private final void handleEvioFileToBank() throws IOException, EvioException {
@@ -743,7 +658,7 @@ logger.debug("      DataChannel Emu startOutputThread()");
 
             // Read the length of evio file-format data to come
             int evioBytes = in.readInt();
-
+//System.out.println("Len = " + evioBytes);
             // If buffer is too small, make a bigger one
             if (evioBytes > bbItem.getBufferSize()) {
                 buf = ByteBuffer.allocate(evioBytes);
@@ -844,45 +759,99 @@ logger.debug("      DataChannel Emu startOutputThread()");
 
 
 
-
-
-
     /**
-     * Class used to take Evio banks from ring buffer, write them over
-     * network to an Emu using the Emu domain input channel.
+     * Class used to take Evio banks from ring buffer (placed there by a module),
+     * and write them over network to an Emu domain input channel using the Emu
+     * domain output channel. The trick is to have a single thread constantly
+     * writing over the network, while another feeds it buffers to write (on a ring).
+     * Although this should be faster than the other DataOutputHelper, it's about
+     * 4% slower - probably because the bottleneck is elsewhere and this class
+     * takes more CPU plus overhead of an extra thread.
      */
-    private class DataOutputHelper extends Thread {
+    private class DataOutputHelperNew extends Thread {
 
         /** Help in pausing DAQ. */
         private int pauseCounter;
 
-        /** Let a single waiter know that the main thread has been started. */
-        private final CountDownLatch startLatch = new CountDownLatch(1);
+        /** Let a single waiter know that the main threads have been started. */
+        private final CountDownLatch startLatch = new CountDownLatch(2);
 
         /** Object to write (marshall) input buffers into larger, output evio buffer (next member). */
         private EventWriter writer;
 
         /** Buffer to write events into so it can be sent in a cMsg message. */
-        private final ByteBuffer byteBuffer;
+        private ByteBuffer byteBuffer;
 
-// TODO: look at this
-        private boolean firstWrite = true;
+        private final BitSet bitInfo = new BitSet(24);
 
+        private EventType previousEventType;
+
+        private final boolean ringItemIsBuffer;
+
+        // Create a ring buffer full of empty ByteBuffer objects
+        // in which place outgoing evio file data.
+        private final ByteBufferSupply outBufSupply = new ByteBufferSupply(32, maxBufferSize);
+
+        private ByteBufferItem bufferItem;
+
+        private OutputThread outputThread;
 
 
 
          /** Constructor. */
-        DataOutputHelper() {
+        DataOutputHelperNew() {
             super(emu.getThreadGroup(), name() + "_data_out");
             byteBuffer = ByteBuffer.allocate(maxBufferSize);
+
+            // Speed things up with local variable
+            ringItemIsBuffer = (ringItemType == ModuleIoType.PayloadBuffer);
 
             // Create writer to write events into file format
             if (!singleEventOut) {
                 try {
                     writer = new EventWriter(byteBuffer);
+                    writer.close();
                 //  writer = new EventWriter(byteBuffer, 5250, 50000, null, null);
                 }
                 catch (EvioException e) {/* never happen */}
+            }
+
+            outputThread = new OutputThread();
+            outputThread.start();
+        }
+
+
+
+        private class OutputThread extends Thread {
+
+            /** {@inheritDoc} */
+            @Override
+            public void run() {
+                ByteBuffer buf;
+                ByteBufferItem item;
+
+                // Tell the world I've started
+                startLatch.countDown();
+
+                try {
+                    while (true) {
+                        item = outBufSupply.consumerGet();
+
+                        buf = item.getBuffer();
+
+                        outGoingMsg.setUserInt(cMsgConstants.emuEvioFileFormat);
+                        outGoingMsg.setByteArrayNoCopy(buf.array(), 0, buf.limit());
+                        emuDomain.send(outGoingMsg);
+
+                        outBufSupply.consumerRelease(item);
+                    }
+                }
+                catch (cMsgException e) {
+                    e.printStackTrace();
+                }
+                catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
             }
         }
 
@@ -906,82 +875,97 @@ logger.debug("      DataChannel Emu startOutputThread()");
          * @throws EvioException
          */
         private final void flushEvents() throws cMsgException, EvioException{
-            if (singleEventOut) {
+//System.out.println("    flushEvents: in");
+            writer.close();
+
+            // We must have something to write
+            if (writer.getEventsWritten() < 1) {
+//System.out.println("    flushEvents: nothing to write out");
                 return;
             }
+//System.out.println("    flushEvents: write event out by publishing");
 
-            // If we have no more room in buffer, send what we have so far
-            writer.close();
-            outGoingMsg.setUserInt(cMsgConstants.emuEvioFile);
-            outGoingMsg.setByteArrayNoCopy(writer.getByteBuffer().array(), 0,
-                                           (int) writer.getBytesWrittenToBuffer());
-            emuDomain.send(outGoingMsg);
-
-            // Reset writer ..
-            writer.setBuffer(byteBuffer);
+            // Release buffer used in writer for reuse
+            outBufSupply.publish(bufferItem);
         }
 
 
-     private final void writeEvioData(PayloadBuffer buffer, EventType eType) throws cMsgException,
+        private final void writeEvioData(RingItem rItem, EventType eType)
+                                                         throws cMsgException,
                                                                 IOException,
                                                                 EvioException {
+            int eventsWritten =  writer.getEventsWritten();
 
+            // If we're sending out 1 event by itself ...
+            if (singleEventOut || eType.isControl()) {
+// System.out.println("  writeEvioData1: type = " + eType);
+                // If we already have something stored-up to write, send it out first
+                if (eventsWritten > 0 && !writer.isClosed()) {
+//System.out.println("  writeEvioData1: flush1");
+                    flushEvents();
+                }
+
+//System.out.println("  writeEvioData1: get new outBufSupply buf for control/single event");
+                bufferItem = outBufSupply.get();
+
+                // Write the event ..
+                EmuUtilities.setEventType(bitInfo, eType);
+                writer.setBuffer(bufferItem.getBuffer(), bitInfo);
+                if (ringItemIsBuffer) {
+                    writer.writeEvent(rItem.getBuffer());
+                }
+                else {
+                    writer.writeEvent(rItem.getEvent());
+                }
+                rItem.releaseByteBuffer();
+//System.out.println("  writeEvioData1: flush2");
+                flushEvents();
+            }
             // If we're marshalling events into a single buffer before sending ...
-            if (!singleEventOut && !eType.isControl()) {
-                // If we have no more room in buffer ...
-                if (!writer.hasRoom(buffer.getTotalBytes())) {
+            else {
+//System.out.println("  writeEvioData2: type = " + eType);
+
+                // If we've already written at least 1 event AND
+                // (we have no more room in buffer OR we're changing event types),
+                // write what we have.
+                if ((eventsWritten > 0 && !writer.isClosed()) &&
+                    (!writer.hasRoom(rItem.getTotalBytes()) || previousEventType != eType)) {
+//System.out.println("  writeEvioData2: flush1");
                     flushEvents();
                 }
 
+                // Initialize writer if nothing written yet
+                if (eventsWritten < 1 || writer.isClosed()) {
+//System.out.println("  writeEvioData2: get new outBufSupply buf for marshalled event");
+                    bufferItem = outBufSupply.get();
+
+                    // If we're here, we're writing the first event into the buffer.
+                    // Make sure there's enough room for at least that one event.
+                    if (rItem.getTotalBytes() > bufferItem.getBuffer().capacity()) {
+                        bufferItem.ensureCapacity(rItem.getTotalBytes() + 1024);
+                    }
+
+                    // Init writer
+                    EmuUtilities.setEventType(bitInfo, eType);
+                    writer.setBuffer(bufferItem.getBuffer(), bitInfo);
+//System.out.println("  writeEvioData2: init writer");
+                }
+
+//System.out.println("  writeEvioData2: write ev into buf");
                 // Write the new event ..
-                writer.writeEvent(buffer.getBuffer());
-                buffer.releaseByteBuffer();
-            }
-            else {
-                // Encode some info about this event into an integer
-                int cmd = cMsgConstants.emuEvioEvent | (buffer.getEventType().getValue() << 8);
-                ControlType cType = buffer.getControlType();
-                if (cType != null)  {
-                    cmd |= (cType.getOrdinalValue() << 16);
+                if (ringItemIsBuffer) {
+                    writer.writeEvent(rItem.getBuffer());
+                }
+                else {
+                    writer.writeEvent(rItem.getEvent());
                 }
 
-                outGoingMsg.setUserInt(cmd);
-                outGoingMsg.setByteArray(buffer.getBuffer().array(), 0, buffer.getTotalBytes());
-                emuDomain.send(outGoingMsg);
+                // Release buffer in channel input ring
+                rItem.releaseByteBuffer();
             }
+
+            previousEventType = eType;
         }
-
-
-        private final void writeEvioData(PayloadBank bank, EventType eType) throws cMsgException,
-                                                                  IOException,
-                                                                  EvioException {
-            if (!singleEventOut && !eType.isControl()) {
-//System.out.println("writeEvioData: total bytes = " + bank.getTotalBytes() + ", has room = " +
-//                           writer.hasRoom(bank.getTotalBytes()));
-                if (!writer.hasRoom(bank.getTotalBytes())) {
-                    flushEvents();
-                }
-
-                writer.writeEvent(bank.getEvent());
-            }
-            else {
-                // Encode some info about this event into an integer
-                //System.out.println("writeEvioData: bank ev type = " + bank.getEventType());
-                int cmd = cMsgConstants.emuEvioEvent | (bank.getEventType().getValue() << 8);
-                ControlType cType = bank.getControlType();
-                if (cType != null)  {
-                    //System.out.println("writeEvioData: control ev type = " + cType + ", ordinal val = " + cType.getOrdinalValue());
-                    cmd |= (cType.getOrdinalValue() << 16);
-                }
-
-                outGoingMsg.setUserInt(cmd);
-                ByteBuffer buf = ByteBuffer.allocate(bank.getTotalBytes());
-                bank.getEvent().write(buf);
-                outGoingMsg.setByteArray(buf.array());
-                emuDomain.send(outGoingMsg);
-            }
-        }
-
 
 
         /** {@inheritDoc} */
@@ -993,35 +977,19 @@ logger.debug("      DataChannel Emu out helper: started");
             startLatch.countDown();
 
             try {
-                PayloadBank pBank;
-                PayloadBuffer pBuffer;
                 RingItem ringItem;
-                int ringChunkCounter = ringChunk;
+                int ringChunkCounter = outputRingChunk;
 
                 // First event will be "prestart", by convention in ring 0
                 ringItem = getNextOutputRingItem(0);
-                if (queueItemType == QueueItemType.PayloadBank) {
-                    pBank = (PayloadBank)ringItem;
-                    writeEvioData(pBank, ringItem.getEventType());
-                }
-                else if  (queueItemType == QueueItemType.PayloadBuffer) {
-                    pBuffer = (PayloadBuffer)ringItem;
-                    writeEvioData(pBuffer, ringItem.getEventType());
-                }
-                releaseOutputRingItem(0);
+                writeEvioData(ringItem, ringItem.getEventType());
+                releaseCurrentAndGetNextOutputRingItem(0);
 logger.debug("      DataChannel Emu out helper: sent prestart");
 
                 // First event will be "go", by convention in ring 0
                 ringItem = getNextOutputRingItem(0);
-                if (queueItemType == QueueItemType.PayloadBank) {
-                    pBank = (PayloadBank)ringItem;
-                    writeEvioData(pBank, ringItem.getEventType());
-                }
-                else if  (queueItemType == QueueItemType.PayloadBuffer) {
-                    pBuffer = (PayloadBuffer)ringItem;
-                    writeEvioData(pBuffer, ringItem.getEventType());
-                }
-                releaseOutputRingItem(0);
+                writeEvioData(ringItem, ringItem.getEventType());
+                releaseCurrentAndGetNextOutputRingItem(0);
 logger.debug("      DataChannel Emu out helper: sent go");
 
                 while ( true ) {
@@ -1037,27 +1005,14 @@ logger.debug("      DataChannel Emu out helper: sent go");
 //logger.debug("      DataChannel Emu out helper: get next buffer from ring");
                     ringItem = getNextOutputRingItem(rbIndex);
                     ControlType pBankControlType = ringItem.getControlType();
-
-                    if (queueItemType == QueueItemType.PayloadBank) {
-                        pBank = (PayloadBank)ringItem;
-                        // Write over socket ...
-//logger.debug("      DataChannel Emu out helper: write bank over net");
-                        writeEvioData(pBank, ringItem.getEventType());
-                    }
-                    else if  (queueItemType == QueueItemType.PayloadBuffer) {
-                        pBuffer = (PayloadBuffer)ringItem;
-//Utilities.printBuffer(pBuffer.getBuffer(), 0, 10, "built event (emu out):");
-
-                        // Write over socket ...
-                        writeEvioData(pBuffer, ringItem.getEventType());
-                    }
+                    writeEvioData(ringItem, ringItem.getEventType());
 //logger.debug("      DataChannel Emu out helper: sent event");
 
 //logger.debug("      DataChannel Emu out helper: release ring item");
                     releaseCurrentAndGetNextOutputRingItem(rbIndex);
                     if (--ringChunkCounter < 1) {
-                        rbIndex = ++rbIndex % ringCount;
-                        ringChunkCounter = ringChunk;
+                        rbIndex = ++rbIndex % outputRingCount;
+                        ringChunkCounter = outputRingChunk;
 //                        System.out.println("switch ring to "+ rbIndex);
                     }
                     else {
@@ -1095,6 +1050,258 @@ System.out.println("      DataChannel Emu out helper: " + name + " I got END eve
 
         }
 
+    }
+
+
+
+
+
+
+    /**
+     * Class used to take Evio banks from ring buffer (placed there by a module),
+     * and write them over network to an Emu domain input channel using the Emu
+     * domain output channel.
+     */
+    private class DataOutputHelper extends Thread {
+
+        /** Help in pausing DAQ. */
+        private int pauseCounter;
+
+        /** Let a single waiter know that the main thread has been started. */
+        private final CountDownLatch startLatch = new CountDownLatch(1);
+
+        /** Object to write (marshall) input buffers into larger, output evio buffer (next member). */
+        private EventWriter writer;
+
+        /** Buffer to write events into so it can be sent in a cMsg message. */
+        private ByteBuffer byteBuffer;
+
+        private final BitSet bitInfo = new BitSet(24);
+
+        private EventType previousEventType;
+
+        private final boolean ringItemIsBuffer;
+
+
+         /** Constructor. */
+        DataOutputHelper() {
+            super(emu.getThreadGroup(), name() + "_data_out");
+            byteBuffer = ByteBuffer.allocate(maxBufferSize);
+
+            // Speed things up with local variable
+            ringItemIsBuffer = (ringItemType == ModuleIoType.PayloadBuffer);
+
+            // Create writer to write events into file format
+            if (!singleEventOut) {
+                try {
+                    writer = new EventWriter(byteBuffer);
+                    writer.close();
+                //  writer = new EventWriter(byteBuffer, 5250, 50000, null, null);
+                }
+                catch (EvioException e) {/* never happen */}
+            }
+        }
+
+
+        /** A single waiter can call this method which returns when thread was started. */
+        private void waitUntilStarted() {
+            try {
+                startLatch.await();
+            }
+            catch (InterruptedException e) {}
+        }
+
+
+        /** Stop all this object's threads. */
+        private void shutdown() { }
+
+
+        /**
+         * Send the events currently marshalled into a single buffer.
+         * @throws cMsgException
+         * @throws EvioException
+         */
+        private final void flushEvents() throws cMsgException, EvioException{
+//System.out.println("    flushEvents: in");
+            writer.close();
+
+            // We must have something to write
+            if (writer.getEventsWritten() < 1) {
+//System.out.println("    flushEvents: nothing to write out");
+                return;
+            }
+//System.out.println("    flushEvents: write event out");
+            // If we have no more room in buffer, send what we have so far
+            outGoingMsg.setUserInt(cMsgConstants.emuEvioFileFormat);
+            outGoingMsg.setByteArrayNoCopy(writer.getByteBuffer().array(), 0,
+                                           (int) writer.getBytesWrittenToBuffer());
+            emuDomain.send(outGoingMsg);
+        }
+
+
+        private final void writeEvioData(RingItem rItem, EventType eType)
+                                                         throws cMsgException,
+                                                                IOException,
+                                                                EvioException {
+            int eventsWritten =  writer.getEventsWritten();
+
+            // If we're sending out 1 event by itself ...
+            if (singleEventOut || eType.isControl()) {
+// System.out.println("  writeEvioData1: type = " + eType);
+                // If we already have something stored-up to write, send it out first
+                if (eventsWritten > 0 && !writer.isClosed()) {
+//System.out.println("  writeEvioData1: flush1");
+                    flushEvents();
+                }
+
+//System.out.println("  writeEvioData1: write ev into buf");
+                // Write the event ..
+                EmuUtilities.setEventType(bitInfo, eType);
+                writer.setBuffer(byteBuffer, bitInfo);
+                if (ringItemIsBuffer) {
+                    writer.writeEvent(rItem.getBuffer());
+                }
+                else {
+                    writer.writeEvent(rItem.getEvent());
+                }
+                rItem.releaseByteBuffer();
+//System.out.println("  writeEvioData1: flush2");
+                flushEvents();
+            }
+            // If we're marshalling events into a single buffer before sending ...
+            else {
+//System.out.println("  writeEvioData2: type = " + eType);
+                // Following is for testing with C emu producer:
+//                boolean a = true;
+//                while (a) {
+//                    try {
+//                        Thread.sleep(3000);
+//                    }
+//                    catch (InterruptedException e) {
+//                        e.printStackTrace();
+//                    }
+//                    System.out.print(".");
+//                }
+
+                // If we've already written at least 1 event AND
+                // (we have no more room in buffer OR we're changing event types),
+                // write what we have.
+                if ((eventsWritten > 0 && !writer.isClosed()) &&
+                    (!writer.hasRoom(rItem.getTotalBytes()) || previousEventType != eType)) {
+//System.out.println("  writeEvioData2: flush1");
+                    flushEvents();
+                }
+
+                // Initialize writer if nothing written into buffer yet
+                if (eventsWritten < 1 || writer.isClosed()) {
+                    // If we're here, we're writing the first event into the buffer.
+                    // Make sure there's enough room for at least that one event.
+                    if (rItem.getTotalBytes() > byteBuffer.capacity()) {
+                        byteBuffer = ByteBuffer.allocate(rItem.getTotalBytes() + 1024);
+                    }
+
+                    // Init writer
+                    EmuUtilities.setEventType(bitInfo, eType);
+                    writer.setBuffer(byteBuffer, bitInfo);
+//System.out.println("  writeEvioData2: init writer");
+                }
+
+//System.out.println("  writeEvioData2: write ev into buf");
+                // Write the new event ..
+                if (ringItemIsBuffer) {
+                    writer.writeEvent(rItem.getBuffer());
+                }
+                else {
+                    writer.writeEvent(rItem.getEvent());
+                }
+                rItem.releaseByteBuffer();
+            }
+
+            previousEventType = eType;
+        }
+
+
+        /** {@inheritDoc} */
+        @Override
+        public void run() {
+logger.debug("      DataChannel Emu out helper: started");
+
+            // Tell the world I've started
+            startLatch.countDown();
+
+            try {
+                RingItem ringItem;
+                int ringChunkCounter = outputRingChunk;
+
+                // First event will be "prestart", by convention in ring 0
+                ringItem = getNextOutputRingItem(0);
+                writeEvioData(ringItem, ringItem.getEventType());
+                releaseCurrentAndGetNextOutputRingItem(0);
+logger.debug("      DataChannel Emu out helper: sent prestart");
+
+                // First event will be "go", by convention in ring 0
+                ringItem = getNextOutputRingItem(0);
+                writeEvioData(ringItem, ringItem.getEventType());
+                releaseCurrentAndGetNextOutputRingItem(0);
+logger.debug("      DataChannel Emu out helper: sent go");
+
+                while ( true ) {
+
+                    if (pause) {
+                        if (pauseCounter++ % 400 == 0) {
+                            try {Thread.sleep(5);}
+                            catch (InterruptedException e1) {}
+                        }
+                        continue;
+                    }
+
+//logger.debug("      DataChannel Emu out helper: get next buffer from ring");
+                    ringItem = getNextOutputRingItem(rbIndex);
+                    ControlType pBankControlType = ringItem.getControlType();
+                    writeEvioData(ringItem, ringItem.getEventType());
+//logger.debug("      DataChannel Emu out helper: sent event");
+
+//logger.debug("      DataChannel Emu out helper: release ring item");
+                    releaseCurrentAndGetNextOutputRingItem(rbIndex);
+                    if (--ringChunkCounter < 1) {
+                        rbIndex = ++rbIndex % outputRingCount;
+                        ringChunkCounter = outputRingChunk;
+//                        System.out.println("switch ring to "+ rbIndex);
+                    }
+                    else {
+//                        System.out.println(""+ ringChunkCounter);
+                    }
+
+                    if (pBankControlType == ControlType.END) {
+                        flushEvents();
+System.out.println("      DataChannel Emu out helper: " + name + " I got END event, quitting");
+                        // run callback saying we got end event
+                        if (endCallback != null) endCallback.endWait();
+                        return;
+                    }
+
+                    // If I've been told to RESET ...
+                    if (gotResetCmd) {
+                        System.out.println("      DataChannel Emu out helper: " + name + " got RESET/END cmd, quitting 1");
+                        return;
+                    }
+                }
+
+            } catch (InterruptedException e) {
+                logger.warn("      DataChannel Emu out helper: " + name + "  interrupted thd, exiting");
+            } catch (Exception e) {
+                logger.warn("      DataChannel Emu out helper : exit thd: " + e.getMessage());
+                // If we haven't yet set the cause of error, do so now & inform run control
+                errorMsg.compareAndSet(null, e.getMessage());
+
+                // set state
+                state = CODAState.ERROR;
+                emu.sendStatusMessage();
+
+                e.printStackTrace();
+            }
+
+        }
 
     }
 
