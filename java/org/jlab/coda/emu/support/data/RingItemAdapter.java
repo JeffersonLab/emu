@@ -1,3 +1,14 @@
+/*
+ * Copyright (c) 2014, Jefferson Science Associates
+ *
+ * Thomas Jefferson National Accelerator Facility
+ * Data Acquisition Group
+ *
+ * 12000, Jefferson Ave, Newport News, VA 23606
+ * Phone : (757)-269-7100
+ *
+ */
+
 package org.jlab.coda.emu.support.data;
 
 
@@ -10,8 +21,9 @@ import java.nio.ByteOrder;
 /**
  * This class provides the boilerplate methods of the RingItem interface.
  * This class is meant to be extended to handle a specific type of data
- * object to be placed in queues or ring buffers for consumption by emu
+ * object to be placed in ring buffers for consumption by emu
  * modules and transport channels.
+ * {@see PayloadBank, PayloadBuffer}.
  *
  * @author: timmer
  * Date: Feb 28, 2014
@@ -28,7 +40,7 @@ abstract class RingItemAdapter implements RingItem {
     /** ByteBuffer to wrap. If defined, event is null. */
     protected ByteBuffer buffer;
 
-    /** Object containing info about the buffer. */
+    /** Object containing info about specific evio event in the buffer. */
     protected EvioNode node;
 
    //---------------------
@@ -89,46 +101,23 @@ abstract class RingItemAdapter implements RingItem {
 
 
 
-
-
     /** Constructor. */
     public RingItemAdapter() {}
 
 
-    /**
-     * Constructor that sets several parameters
-     * and copies references from queue item (doesn't clone).
-     *
-     * @param qItem       queueItem to copy
-     * @param eventType   type of CODA events contained.
-     * @param controlType if Control eventType, the type of control.
-     * @param recordId    if Physics or RocRaw, the record id of CODA events.
-     * @param sourceId    If RocRaw, the CODA id of the source.
-     * @param sourceName  The name of the source of these CODA events.
-     */
-    public RingItemAdapter(RingItem qItem, EventType eventType, ControlType controlType,
-                           int recordId, int sourceId, String sourceName) {
-        this(qItem);
-        this.eventType   = eventType;
-        this.controlType = controlType;
-        this.recordId    = recordId;
-        this.sourceId    = sourceId;
-        this.sourceName  = sourceName;
-    }
-
 
     /**
      * Copy constructor which copies references and doesn't clone.
-     * @param qItem QueueItem to copy
+     * @param ringItem ring item to copy
      */
-    public RingItemAdapter(RingItem qItem) {
-        copy(qItem);
+    public RingItemAdapter(RingItem ringItem) {
+        copy(ringItem);
     }
 
 
     /**
      * Copy members of argument into this object (except for "reserved").
-     * @param ringItem object to copy.
+     * @param ringItem ring item to copy.
      */
     public void copy(RingItem ringItem) {
         event                 = ringItem.getEvent();
@@ -152,9 +141,8 @@ abstract class RingItemAdapter implements RingItem {
     }
 
 
-    // Methods that need to be overwritten
     /** {@inheritDoc} */
-    abstract public QueueItemType getQueueItemType();
+    abstract public ModuleIoType getQueueItemType();
 
     /** {@inheritDoc} */
     abstract public ByteOrder getByteOrder();
@@ -163,22 +151,29 @@ abstract class RingItemAdapter implements RingItem {
     abstract public int getTotalBytes();
 
 
+
+    /** {@inheritDoc} */
     public EvioEvent getEvent() {
         return event;
     }
 
+    /** {@inheritDoc} */
     public void setEvent(EvioEvent event) {
         this.event = event;
     }
 
+    /** {@inheritDoc} */
     public ByteBuffer getBuffer() {
         return buffer;
     }
 
+    /** {@inheritDoc} */
     public void setBuffer(ByteBuffer buffer) { this.buffer = buffer; }
 
+    /** {@inheritDoc} */
     public EvioNode getNode() { return node; }
 
+    /** {@inheritDoc} */
     public void setNode(EvioNode node) { this.node = node; }
 
 
@@ -205,8 +200,6 @@ abstract class RingItemAdapter implements RingItem {
     public ByteBufferItem getByteBufferItem() {
         return byteBufferItem;
     }
-
-
 
 
     /** {@inheritDoc} */
@@ -278,14 +271,15 @@ abstract class RingItemAdapter implements RingItem {
         this.nonFatalBuildingError = nonFatalBuildingError;
     }
 
+
+
     /**
      * All members of this class (except attachment) are
      * primitives/enums so bitwise copies are fine.
      */
     public Object clone() {
         try {
-            RingItemAdapter result = (RingItemAdapter) super.clone();
-            return result;
+            return super.clone();
         }
         catch (Exception e) {
             return null;
