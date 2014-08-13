@@ -331,7 +331,7 @@ logger.debug("      DataChannel File reset() : " + name + " - done");
 
     /**
      * Class <b>DataInputHelper</b>
-     * This class reads data from the file and queues it on the fifo.
+     * This class reads data from the file and puts it on the ring.
      * Don't know if this will ever be useful. Might as well generate
      * an END event when file is fully read.
      */
@@ -406,11 +406,6 @@ logger.debug("      DataChannel File reset() : " + name + " - done");
                         }
                     }
 
-//                    // Not a real copy, just points to stuff in bank
-//                    payloadBank = new PayloadBank(event, bankType,
-//                                                  controlType, recordId,
-//                                                  sourceId, name);
-
                     nextRingItem = ringBufferIn.next();
                     ringItem = ringBufferIn.get(nextRingItem);
 
@@ -425,17 +420,10 @@ logger.debug("      DataChannel File reset() : " + name + " - done");
 
                     ringBufferIn.publish(nextRingItem);
 
-//                    queue.put(payloadBank);  // will block
                     counter++;
                 }
 
                 // Put in END event
-//                EvioEvent controlEvent = Evio.createControlEvent(ControlType.END, 0, 0, counter, 0);
-//                PayloadBank bank = new PayloadBank(controlEvent);
-//                bank.setEventType(EventType.CONTROL);
-//                bank.setControlType(ControlType.END);
-//                queue.put(bank);  // will block
-
                 nextRingItem = ringBufferIn.next();
                 ringItem = ringBufferIn.get(nextRingItem);
 
@@ -525,17 +513,10 @@ logger.debug("      DataChannel File reset() : " + name + " - done");
 
                     ringBufferIn.publish(nextRingItem);
 
-//                    queue.put(payloadBuffer);  // will block
                     counter++;
                 }
 
                 // Put in END event
-//                EvioEvent controlEvent = Evio.createControlEvent(ControlType.END, 0, 0, counter, 0);
-//                PayloadBank bank = new PayloadBank(controlEvent);
-//                bank.setEventType(EventType.CONTROL);
-//                bank.setControlType(ControlType.END);
-//                queue.put(bank);  // will block
-
                 nextRingItem = ringBufferIn.next();
                 ringItem = ringBufferIn.get(nextRingItem);
 
@@ -709,115 +690,6 @@ System.out.println("      DataChannel File out helper: " + name + " I got END ev
 
         }
 
-
-
-
-//        /** {@inheritDoc} */
-//        public void run() {
-//
-//            // I've started
-//            latch.countDown();
-//
-//            RingItem qItem;
-//            PayloadBank bank  = null;
-//            PayloadBuffer buf = null;
-//            EventType eventType;
-//            ControlType controlType;
-//            boolean gotPrestart = false, gotEnd = false;
-//
-//            try {
-//
-//                while (!dataThread.isInterrupted()) {
-//
-//                    qItem = queue.take(); // will block
-//
-//                    if (queueItemType == QueueItemType.PayloadBank) {
-//                        bank = (PayloadBank)qItem;
-//                        eventType = bank.getEventType();
-//                        controlType = bank.getControlType();
-//                    }
-//                    else {
-//                        buf = (PayloadBuffer)qItem;
-//                        eventType = buf.getEventType();
-//                        controlType = buf.getControlType();
-//                    }
-//
-//                    if (eventType == EventType.CONTROL) {
-//                        if (controlType == ControlType.END) {
-//                            gotEnd = true;
-//                            if (endCallback != null) endCallback.endWait();
-//                            logger.info("      DataChannel File (" + name + "): got END, close file " + fileName);
-//                        }
-//                        else if (controlType == ControlType.PRESTART) {
-//                            gotPrestart = true;
-//                            logger.info("      DataChannel File (" + name + "): got PRESTART");
-//                        }
-//                    }
-//                    else {
-////logger.info("      DataChannel File (" + name + "): got bank of type " + eventType);
-//                    }
-//
-//                    // Don't start writing to file until we get PRESTART
-//                    if (!gotPrestart) {
-//logger.warn("      DataChannel File (" + name + "): got event but NO PRESTART, get another off Q");
-//                        continue;
-//                    }
-//
-//                    try {
-//                        // evioFileWriter will automatically split the file
-//                        if (queueItemType == QueueItemType.PayloadBank) {
-//                            evioFileWriter.writeEvent(bank.getEvent());
-////                            if (controlType == ControlType.PRESTART) {
-////                                evioFileWriter.flushToFile();
-////                            }
-//                        }
-//                        else {
-//                            evioFileWriter.writeEvent(buf.getBuffer());
-//                        }
-//                    }
-//                    catch (Exception e) {
-//                        errorMsg.compareAndSet(null, "Cannot write to file");
-//                        throw e;
-//                    }
-//
-//                    // If splitting the output, the file name may change.
-//                    // Inform the authorities about this.
-//                    if (split > 0L && evioFileWriter.getSplitCount() > splitCount) {
-//                        emu.setOutputDestination(evioFileWriter.getCurrentFilename());
-//                        splitCount = evioFileWriter.getSplitCount();
-//                    }
-//
-//                    if (gotEnd) {
-//                        try {
-//                            evioFileWriter.close();
-//                        }
-//                        catch (Exception e) {
-//                            errorMsg.compareAndSet(null, "Cannot write to file");
-//                            throw e;
-//                        }
-//                        return;
-//                    }
-//                }
-//
-//                logger.info("      DataChannel File (" + name + "): close file " + fileName);
-//
-//            }
-//            catch (InterruptedException e) {
-//                // time to quit
-//            }
-//            catch (Exception e) {
-////logger.warn("      DataChannel File (" + name + "): exit, " + e.getMessage());
-//                // If we haven't yet set the cause of error, do so now & inform run control
-//                errorMsg.compareAndSet(null, e.getMessage());
-//
-//                // set state
-//                state = CODAState.ERROR;
-//                emu.sendStatusMessage();
-//            }
-//
-//            try { evioFileWriter.close(); }
-//            catch (Exception e) {}
-//        }
     }
 
 }

@@ -19,8 +19,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * Implement a DataTransport that creates FIFO DataChannels based on the BlockingQueue.
- * There is one Fifo transport object for each EMU.
+ * Implement a DataTransport that creates FIFO DataChannels based on the RingBuffer.
  *
  * @author heyes
  * @author timmer
@@ -65,7 +64,7 @@ public class DataTransportImplFifo extends DataTransportAdapter {
 
         String channelName = name() + ":" + name;
 
-        // See if channel (queue) has already been created
+        // See if channel has already been created
         DataChannelImplFifo c = allChannels.get(channelName);
 
         // Fifos are both input and output channels at the same time.

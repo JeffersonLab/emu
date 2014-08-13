@@ -43,7 +43,7 @@ public class DataChannelImplEmu extends DataChannelAdapter {
     /** Do we pause the dataThread? */
     private volatile boolean pause;
 
-    /** Read END event from input queue. */
+    /** Read END event from input ring. */
     private volatile boolean haveInputEndEvent;
 
     /** Got END command from Run Control. */

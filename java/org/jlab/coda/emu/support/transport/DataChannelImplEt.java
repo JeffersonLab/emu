@@ -51,10 +51,10 @@ public class DataChannelImplEt extends DataChannelAdapter {
     /** Do we pause the dataThread? */
     private volatile boolean pause;
 
-    /** Read END event from input queue. */
+    /** Read END event from input ring. */
     private volatile boolean haveInputEndEvent;
 
-    /** Read END event from output queue. */
+    /** Read END event from output ring. */
     private volatile boolean haveOutputEndEvent;
 
     /** Got END command from Run Control. */
@@ -71,8 +71,8 @@ public class DataChannelImplEt extends DataChannelAdapter {
     /** Thread used to output data. */
     private DataOutputHelper dataOutputThread;
 
-    /** Place to store a bank off the queue for the next event out. */
-    private RingItem firstBankFromQueue;
+    /** Place to store a bank off the ring for the next event out. */
+    private RingItem firstBankFromRing;
 
     /** Is the EMU using this ET output channel as a simulated ROC ? */
     private boolean isROC;
@@ -644,7 +644,6 @@ System.out.println("\nSetting control[0] = " + id + "\n");
             e.printStackTrace();
         }
 
-//        queue.clear();
         state = CODAState.DOWNLOADED;
 System.out.println("      end() is done");
     }
@@ -694,7 +693,6 @@ logger.debug("      DataChannel Et reset() : " + name + " channel");
             e.printStackTrace();
         }
 
-//        queue.clear();
         errorMsg.set(null);
         state = CODAState.CONFIGURED;
 logger.debug("      DataChannel Et reset() : " + name + " - done");
@@ -705,9 +703,9 @@ logger.debug("      DataChannel Et reset() : " + name + " - done");
     /**
      * For input channel, start the DataInputHelper thread which takes ET events,
      * parses each, puts the events back into the ET system, and puts the parsed
-     * evio banks onto the queue.<p>
+     * evio banks onto the ring.<p>
      * For output channel, start the DataOutputHelper thread which takes a bank from
-     * the queue, puts it into a new ET event and puts that into the ET system.
+     * the ring, puts it into a new ET event and puts that into the ET system.
      */
     private void startHelper() {
         if (input) {
@@ -1362,14 +1360,14 @@ System.out.println("      DataChannel Et in helper: " + name + " got RESET cmd, 
          DataOutputHelperPhaser1(ThreadGroup group, String name) {
             super(group, name);
 
-            // Thread pool with "writeThreadCount" number of threads & queue
+            // Thread pool with "writeThreadCount" number of threads
             writeThreadPool = Executors.newFixedThreadPool(chunk);
 
             // Stuff for getting new ET events in parallel
             getBarrier = new CyclicBarrier(2);
             getter = new EvGetter(getBarrier);
 
-            // Thread pool with 1 thread & queue
+            // Thread pool with 1 thread
             getThreadPool = Executors.newSingleThreadExecutor();
         }
 
@@ -1564,9 +1562,9 @@ System.out.println("      DataChannel Et out helper: " + name + " got RESET cmd,
                     do {
 //System.out.println("rbIndex = " + rbIndex);
                         // Get bank off of Q, unless we already did so in a previous loop
-                        if (firstBankFromQueue != null) {
-                            ringItem = firstBankFromQueue;
-                            firstBankFromQueue = null;
+                        if (firstBankFromRing != null) {
+                            ringItem = firstBankFromRing;
+                            firstBankFromRing = null;
                         }
                         else {
 // TODO: How do we keep things from blocking here??? --- Interrupt thread!
@@ -1623,7 +1621,7 @@ System.out.println("      DataChannel Et out helper: " + name + " got RESET cmd,
                             // pulled off the Q to be the next bank!
                             if (nextEventIndex >= eventArrayLen) {
 //System.out.println("Used up " + nextEventIndex + " events, store bank for next round");
-                                firstBankFromQueue = ringItem;
+                                firstBankFromRing = ringItem;
                                 break;
                             }
 
@@ -2111,14 +2109,14 @@ logger.warn("      DataChannel Et out helper : exit thd: " + e.getMessage());
          DataOutputHelper(ThreadGroup group, String name) {
              super(group, name);
 
-             // Thread pool with "writeThreadCount" number of threads & queue
+             // Thread pool with "writeThreadCount" number of threads
              writeThreadPool = Executors.newFixedThreadPool(writeThreadCount);
 
              // Stuff for getting new ET events in parallel
              getBarrier = new CyclicBarrier(2);
              getter = new EvGetter(getBarrier);
 
-             // Thread pool with 1 thread & queue
+             // Thread pool with 1 thread
              getThreadPool = Executors.newSingleThreadExecutor();
          }
 
@@ -2250,9 +2248,9 @@ logger.warn("      DataChannel Et out helper : exit thd: " + e.getMessage());
                      do {
  //System.out.println("rbIndex = " + rbIndex);
                          // Get bank off of Q, unless we already did so in a previous loop
-                         if (firstBankFromQueue != null) {
-                             ringItem = firstBankFromQueue;
-                             firstBankFromQueue = null;
+                         if (firstBankFromRing != null) {
+                             ringItem = firstBankFromRing;
+                             firstBankFromRing = null;
                          }
                          else {
  // TODO: How do we keep things from blocking here??? --- Interrupt thread!
@@ -2309,7 +2307,7 @@ logger.warn("      DataChannel Et out helper : exit thd: " + e.getMessage());
                              // pulled off the Q to be the next bank!
                              if (nextEventIndex >= eventArrayLen) {
  //System.out.println("Used up " + nextEventIndex + " events, store bank for next round");
-                                 firstBankFromQueue = ringItem;
+                                 firstBankFromRing = ringItem;
                                  break;
                              }
 
@@ -2792,14 +2790,14 @@ logger.warn("      DataChannel Et out helper : exit thd: " + e.getMessage());
          DataOutputHelperDis(ThreadGroup group, String name) {
              super(group, name);
 
-             // Thread pool with "writeThreadCount" number of threads & queue
+             // Thread pool with "writeThreadCount" number of threads
              writeThreadPool = Executors.newFixedThreadPool(writeThreadCount);
 
              // Stuff for getting new ET events in parallel
              getter = new EvGetter();
              getter.start();
 
-             // Thread pool with 1 thread & queue
+             // Thread pool with 1 thread
              getThreadPool = Executors.newSingleThreadExecutor();
 
              eventSupply = new EtEventsSupply(32);
@@ -2938,9 +2936,9 @@ logger.warn("      DataChannel Et out helper : exit thd: " + e.getMessage());
                      do {
  //System.out.println("rbIndex = " + rbIndex);
                          // Get bank off of Q, unless we already did so in a previous loop
-                         if (firstBankFromQueue != null) {
-                             ringItem = firstBankFromQueue;
-                             firstBankFromQueue = null;
+                         if (firstBankFromRing != null) {
+                             ringItem = firstBankFromRing;
+                             firstBankFromRing = null;
                          }
                          else {
  // TODO: How do we keep things from blocking here??? --- Interrupt thread!
@@ -2997,7 +2995,7 @@ logger.warn("      DataChannel Et out helper : exit thd: " + e.getMessage());
                              // pulled off the Q to be the next bank!
                              if (nextEventIndex >= eventArrayLen) {
  //System.out.println("Used up " + nextEventIndex + " events, store bank for next round");
-                                 firstBankFromQueue = ringItem;
+                                 firstBankFromRing = ringItem;
                                  break;
                              }
 

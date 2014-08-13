@@ -51,10 +51,10 @@ public class DataChannelImplCmsg extends DataChannelAdapter {
     /** Enforce evio block header numbers to be sequential? */
     private boolean blockNumberChecking;
 
-    /** Read END event from input queue. */
+    /** Read END event from input ring. */
     private volatile boolean haveInputEndEvent;
 
-    /** Read END event from output queue. */
+    /** Read END event from output ring. */
     private volatile boolean haveOutputEndEvent;
 
     /** Got END command from Run Control. */
@@ -522,18 +522,6 @@ logger.debug("      DataChannel cMsg reset() : " + name + " - resetting this cha
     }
 
 
-    /**
-     * Start the startOutputHelper thread which takes a bank from
-     * the queue, puts it in a message, and sends it.
-     */
-    private void startOutputHelper() {
-        dataOutputThread = new DataOutputHelper(emu.getThreadGroup(),
-                                                           name() + " data out");
-    }
-
-
-
-
 
     /**
      * Class used to take Evio banks from ring, write them into cMsg messages.
@@ -967,7 +955,7 @@ System.out.println("      DataChannel cMsg out helper: " + name + " some thd got
             super(group, name);
 
             try {
-                // Thread pool with "writeThreadCount" number of threads & queue.
+                // Thread pool with "writeThreadCount" number of threads
                 writeThreadPool = Executors.newFixedThreadPool(writeThreadCount);
             }
             catch (Exception e) {
@@ -1038,8 +1026,8 @@ System.out.println("      DataChannel cMsg out helper: " + name + " some thd got
                 RingItem ringItem;
                 int nextMsgListIndex, thisMsgListIndex, pBankSize, listTotalSizeMax;
                 EvWriter[] writers = new EvWriter[writeThreadCount];
-                // Place to store a bank off the queue for the next message out
-                RingItem firstBankFromQueue = null;
+                // Place to store a bank off the ring for the next message out
+                RingItem firstBankFromRing = null;
 
                 int eventCount, messages2Write;
                 int[] recordIds = new int[writeThreadCount];
@@ -1097,9 +1085,9 @@ System.out.println("      DataChannel cMsg out helper: " + name + " some thd got
                     do {
 // System.out.println("      DataChannel cMsg out helper: try getting ring item");
                         // Get bank off of Q, unless we already did so in a previous loop
-                        if (firstBankFromQueue != null) {
-                            ringItem = firstBankFromQueue;
-                            firstBankFromQueue = null;
+                        if (firstBankFromRing != null) {
+                            ringItem = firstBankFromRing;
+                            firstBankFromRing = null;
                         }
                         else {
                             ringItem = getNextOutputRingItem(rbIndex);
@@ -1156,7 +1144,7 @@ System.out.println("      DataChannel cMsg out helper: " + name + " some thd got
 //                                        System.out.println("Already used " +
 //                                                            nextMessageIndex + " messages for " + writeThreadCount +
 //                                                            " write threads, store bank for next round");
-                                firstBankFromQueue = ringItem;
+                                firstBankFromRing = ringItem;
                                 break;
                             }
 

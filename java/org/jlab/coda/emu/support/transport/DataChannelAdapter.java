@@ -267,7 +267,7 @@ logger.info("      DataChannel Adapter : output type = " + ringItemType);
 logger.info("      DataChannel Adapter : # of ring buffers = " + outputRingCount);
 
 
-        // Create RingBuffers (will supplant queues eventually)
+        // Create RingBuffers
         if (input) {
             setupInputRingBuffers();
         }
