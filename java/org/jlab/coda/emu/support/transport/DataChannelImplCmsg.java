@@ -19,11 +19,7 @@ import org.jlab.coda.cMsg.*;
 import org.jlab.coda.jevio.*;
 
 
-import javax.xml.stream.XMLOutputFactory;
-import javax.xml.stream.XMLStreamException;
-import javax.xml.stream.XMLStreamWriter;
 import java.io.IOException;
-import java.io.StringWriter;
 import java.util.ArrayList;
 import java.util.BitSet;
 import java.util.concurrent.*;
@@ -323,9 +319,7 @@ public class DataChannelImplCmsg extends DataChannelAdapter {
                 }
             }
             catch (Exception e) {
-
                 e.printStackTrace();
-
 
                 // If we haven't yet set the cause of error, do so now & inform run control
                 errorMsg.compareAndSet(null, "cMsg message data has invalid format");
@@ -418,29 +412,6 @@ logger.info("      DataChannel cMsg : write threads = " + writeThreadCount);
             dataOutputThread = new DataOutputHelper(emu.getThreadGroup(), name() + " data out");
             dataOutputThread.start();
             dataOutputThread.waitUntilStarted();
-        }
-    }
-
-
-    /**
-     * Method to print out the bank for diagnostic purposes.
-     * @param bank bank to print out
-     * @param bankName name of bank for printout
-     */
-    private void printBank(EvioBank bank, String bankName) {
-        try {
-            StringWriter sw2 = new StringWriter(1000);
-            XMLStreamWriter xmlWriter = XMLOutputFactory.newInstance().createXMLStreamWriter(sw2);
-            bank.toXML(xmlWriter);
-            if (bankName == null) {
-                System.out.println("bank:\n" + sw2.toString());
-            }
-            else {
-                System.out.println("bank " + bankName + ":\n" + sw2.toString());
-            }
-        }
-        catch (XMLStreamException e) {
-            e.printStackTrace();
         }
     }
 
@@ -565,7 +536,11 @@ logger.debug("      DataChannel cMsg reset() : " + name + " - resetting this cha
 
 
     /**
-     * Class used to take Evio banks from Q, write them into cMsg messages.
+     * Class used to take Evio banks from ring, write them into cMsg messages.
+     * This is different than the other in that it starts an extra thread that
+     * does all the cmsg.send() calls. In the other, the output thread writes
+     * the msg and also sends it. In this, one thread fills msgs and the other
+     * writes. Doesn't seem to be any faster.
      */
     private class DataOutputHelperNew extends Thread {
 
@@ -573,7 +548,7 @@ logger.debug("      DataChannel cMsg reset() : " + name + " - resetting this cha
         private int pauseCounter;
 
         /** Let a single waiter know that the main thread has been started. */
-        private CountDownLatch startLatch = new CountDownLatch(1);
+        private CountDownLatch startLatch = new CountDownLatch(2);
 
         private ByteBufferSupply bufferSupply;
 
@@ -636,6 +611,8 @@ logger.debug("      DataChannel cMsg reset() : " + name + " - resetting this cha
             public void run() {
                 ByteBuffer buf;
                 ByteBufferItem item;
+
+                startLatch.countDown();
 
                 try {
                     while(true) {
