@@ -1,11 +1,21 @@
+/*
+ * Copyright (c) 2009, Jefferson Science Associates
+ *
+ * Thomas Jefferson National Accelerator Facility
+ * Data Acquisition Group
+ *
+ * 12000, Jefferson Ave, Newport News, VA 23606
+ * Phone : (757)-269-7100
+ *
+ */
+
 package org.jlab.coda.emu.test;
 
 
 import org.jlab.coda.emu.support.data.ByteBufferItem;
 import org.jlab.coda.emu.support.data.ByteBufferSupply;
 
-import java.io.IOException;
-import java.nio.ByteBuffer;
+import java.util.concurrent.CountDownLatch;
 
 /**
  * This class is designed to receive output from an EMU.
@@ -16,6 +26,10 @@ public class ByteBufferSupplyTest {
 
     private int size = 32, count = 4;
 
+    // Let us know that the consumer thread has been started
+    CountDownLatch startLatch;
+    ByteBufferSupply bbSupply;
+    boolean simpleTest = true;
 
     /** Constructor. */
     ByteBufferSupplyTest(String[] args) {
@@ -83,23 +97,49 @@ public class ByteBufferSupplyTest {
     public void run() {
 
         // Create a reusable supply of ByteBuffer objects
-        ByteBufferSupply bbSupply = new ByteBufferSupply(count, size);
+        bbSupply = new ByteBufferSupply(count, size);
         int index = 0;
         boolean releaseBuf = true;
+        boolean publishBuf = true;
+
+        if (!simpleTest) {
+            // Wait until consumer thread starts
+            try {
+                startLatch = new CountDownLatch(1);
+                RingConsumerThread rcThread = new RingConsumerThread();
+                rcThread.start();
+                startLatch.await();
+            }
+            catch (InterruptedException e) {}
+        }
+        else {
+            publishBuf = false;
+        }
 
         while (true) {
             // Grab a stored ByteBuffer
-            System.out.print("Get buf " + index++);
+            System.out.println("Try getting producer buf " + index++ + " ...");
             ByteBufferItem bufItem = bbSupply.get();
-            System.out.print(", id = " + bufItem.getMyId());
+            System.out.println(", got producer buf with id = " + bufItem.getMyId());
+
             if (!releaseBuf) {
-                System.out.print(", do NOT release buf");
+                System.out.println("do NOT release producer buf");
             }
             else {
-                System.out.print(", release buf");
+                System.out.println("release producer buf");
                 bbSupply.release(bufItem);
             }
-            System.out.println(", wait 1 sec");
+
+            if (!publishBuf) {
+                System.out.println("do NOT publish producer buf");
+            }
+            else {
+                System.out.println("publish producer buf");
+                bbSupply.publish(bufItem);
+            }
+
+
+            System.out.println("wait 2 sec\n");
             try {
                 Thread.sleep(1000);
             }
@@ -107,10 +147,53 @@ public class ByteBufferSupplyTest {
                 e.printStackTrace();
             }
         }
+    }
 
 
+    /**
+     * Thread to do consumer get & release on ring buffer items.
+     */
+    class RingConsumerThread extends Thread {
+
+        @Override
+        public void run() {
+            boolean releaseBuf = true;
+
+            // Tell the world I've started
+            startLatch.countDown();
+
+            try {
+                while (true) {
+                    System.out.println("     Try getting consumer buf ... ");
+                    ByteBufferItem bufItem = bbSupply.consumerGet();
+                    System.out.println("     Got consumer buf with id = " + bufItem.getMyId());
+
+                    if (!releaseBuf) {
+                        System.out.println("     do NOT release consumer buf");
+                    }
+                    else {
+                        System.out.println("     release consumer buf");
+                        bbSupply.consumerRelease(bufItem);
+                    }
+
+//                    System.out.println("     wait 4 sec\n");
+//                    try {
+//                        Thread.sleep(4000);
+//                    }
+//                    catch (InterruptedException e) {
+//                        e.printStackTrace();
+//                    }
+                }
+            }
+            catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+
+        }
 
     }
+
+
 
 
 }
