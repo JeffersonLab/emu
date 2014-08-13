@@ -17,7 +17,6 @@ import org.jlab.coda.emu.support.codaComponent.CODAState;
 import org.jlab.coda.emu.support.control.CmdExecException;
 import org.jlab.coda.emu.support.data.*;
 
-import java.nio.ByteBuffer;
 import java.util.*;
 
 /**
@@ -39,11 +38,10 @@ public class Dummy extends ModuleAdapter {
     /** Number of output channels. */
     private int outputChannelCount;
 
-    /** Thread which moves events from inputs to outputs. */
-    private EventMovingThread eventMovingThread;
-
     /** Container for threads used to move events. */
     private ArrayList<EventMovingThread> threadList = new ArrayList<EventMovingThread>();
+
+    private boolean isBufferIoType;
 
     //-------------------------------------------
     // Disruptor (RingBuffer)  stuff
@@ -62,20 +60,50 @@ public class Dummy extends ModuleAdapter {
 
 
     /**
-     * Constructor creates a new EventRecording instance.
+     * Constructor.
      *
      * @param name name of module
      * @param attributeMap map containing attributes of module
+     * @param emu emu that contains this module
      */
     public Dummy(String name, Map<String, String> attributeMap, Emu emu) {
         super(name, attributeMap, emu);
-        if (debug) System.out.println("Dummy: created object");
+
+        // This module may be configured to input & output either
+        // EvioEvent objects or ByteBuffer objects.
+        isBufferIoType = true;
+        String attribString = attributeMap.get("buffer");
+        if (attribString != null) {
+            if (attribString.equalsIgnoreCase("false") ||
+                    attribString.equalsIgnoreCase("off")   ||
+                    attribString.equalsIgnoreCase("no"))   {
+                isBufferIoType = false;
+            }
+        }
+    }
+
+
+    /** {@inheritDoc} */
+    public ModuleIoType getInputRingItemType() {
+        if (isBufferIoType) {
+            return ModuleIoType.PayloadBuffer;
+        }
+        return ModuleIoType.PayloadBank;
+    }
+
+
+    /** {@inheritDoc} */
+    public ModuleIoType getOutputRingItemType() {
+        if (isBufferIoType) {
+            return ModuleIoType.PayloadBuffer;
+        }
+        return ModuleIoType.PayloadBank;
     }
 
 
     /** {@inheritDoc} */
     public void reset() {
-        if (debug) System.out.println("Dummy: reset");
+        if (debug) System.out.println("  Dummy: reset");
         state = CODAState.CONFIGURED;
         paused = false;
         endThreads();
@@ -83,7 +111,7 @@ public class Dummy extends ModuleAdapter {
 
     /** {@inheritDoc} */
     public void end() throws CmdExecException {
-        if (debug) System.out.println("Dummy: end");
+        if (debug) System.out.println("  Dummy: end");
         state = CODAState.DOWNLOADED;
         paused = false;
         endThreads();
@@ -91,7 +119,7 @@ public class Dummy extends ModuleAdapter {
 
     /** {@inheritDoc} */
     public void prestart() throws CmdExecException {
-        if (debug) System.out.println("Dummy: prestart");
+        if (debug) System.out.println("  Dummy: prestart");
 
         state = CODAState.PAUSED;
 
@@ -102,9 +130,7 @@ public class Dummy extends ModuleAdapter {
         // Disruptor (RingBuffer) stuff for input channels
         //------------------------------------------------
 
-        // "One ring buffer to rule them all and in the darkness bind them."
-        //   -- JRR Tolkien
-        // Actually, one ring buffer for each input channel.
+        // 1 ring buffer for each input channel.
         ringBuffersIn = new RingBuffer[inputChannelCount];
 
         // For each input channel, 1 sequence per event-moving thread
@@ -116,7 +142,7 @@ public class Dummy extends ModuleAdapter {
         // For each input channel ...
         for (int i=0; i < inputChannelCount; i++) {
             // Get channel's ring buffer
-            RingBuffer<RingItem> rb = inputChannels.get(i).getRing();
+            RingBuffer<RingItem> rb = inputChannels.get(i).getRingBufferIn();
             ringBuffersIn[i] = rb;
 
             // We have 1 barrier for each channel (shared by event-moving threads)
@@ -131,9 +157,10 @@ public class Dummy extends ModuleAdapter {
                 rb.addGatingSequences(buildSequenceIn[j][i]);
             }
         }
+
         //------------------------------------------------
 
-        if (debug) System.out.println("Dummy: create & start event moving threads");
+        if (debug) System.out.println("  Dummy: create & start event moving threads");
 
         // Create & start event-moving threads
         threadList.clear();
@@ -164,10 +191,8 @@ public class Dummy extends ModuleAdapter {
 
     /**
      * End all event processing threads because an END cmd or event came through.
-     * The record thread calling this method is not interrupted.
      */
     private void endThreads() {
-        eventMovingThread.interrupt();
         for (Thread thd : threadList) {
             thd.interrupt();
         }
@@ -189,18 +214,11 @@ public class Dummy extends ModuleAdapter {
             return;
         }
 
-        RingBuffer rb = outputChannels.get(channelNum).getRingBuffers()[ringNum];
+        RingBuffer rb = outputChannels.get(channelNum).getRingBuffersOut()[ringNum];
         long nextRingItem = rb.next();
 
         RingItem ri = (RingItem) rb.get(nextRingItem);
-        ri.setBuffer(eventOut.getBuffer());
-        ri.setEventType(eventOut.getEventType());
-        ri.setControlType(eventOut.getControlType());
-        ri.setSourceName(eventOut.getSourceName());
-        ri.setAttachment(eventOut.getAttachment());
-        ri.setReusableByteBuffer(eventOut.getByteBufferSupply(),
-                                 eventOut.getByteBufferItem());
-
+        ri.copy(eventOut);
         rb.publish(nextRingItem);
     }
 
@@ -209,12 +227,12 @@ public class Dummy extends ModuleAdapter {
     /**
      * These threads (may be more than one) are started by the GO transition
      * and run while the state of the module is ACTIVE. When the state is ACTIVE,
-     * these threads pull one bank off an input DataChannel. That bank is copied
-     * and placed in each output channel.
+     * these threads pull one bank off an input DataChannel. That bank is placed
+     * in a single output channel.
      */
     private class EventMovingThread extends Thread {
 
-        /** The order of this thread, relative to other moving threads, starting at 0. */
+        /** The order of this thread, relative to other event moving threads, starting at 0. */
         private final int order;
 
         // RingBuffer Stuff
@@ -233,7 +251,6 @@ public class Dummy extends ModuleAdapter {
               super(group, name);
               this.order = order;
          }
-
 
 
         @Override
@@ -260,12 +277,14 @@ public class Dummy extends ModuleAdapter {
                     // Take turns reading from different input channels
                     inputChan = (inputChan+1) % inputChannelCount;
 
-                    // Only wait or read-volatile-memory if necessary ...
+                    // Only wait if necessary ...
                     if (availableSequences[inputChan] < nextSequences[inputChan]) {
                         // Will BLOCK here waiting for item if none available.
                         // Available sequence may be larger than what we desired.
                         availableSequences[inputChan] = buildBarrierIn[inputChan].waitFor(nextSequences[inputChan]);
                     }
+
+                    if (debug) System.out.println("  Dummy: get input item, chan# " + inputChan);
 
                     ringItem  = ringBuffersIn[inputChan].get(nextSequences[inputChan]);
                     eventType = ringItem.getEventType();
@@ -279,19 +298,22 @@ public class Dummy extends ModuleAdapter {
                         // PROCESS EVENT HERE
                     }
 
-                    // Take turns writing to different output channels (if any)
-                    outputChan = (outputChan+1) % outputChannelCount;
-                    if (outputChannelCount > 0) {
-                        eventToOutputChannel(ringItem, outputChan, order);
+                    // If we have any output channels ...
+                    if  (outputChannelCount > 0) {
+                        // Take turns writing to different output channels
+                        outputChan = (outputChan+1) % outputChannelCount;
+                        if (outputChannelCount > 0) {
+                            if (debug) System.out.println("  Dummy: output item");
+                            eventToOutputChannel(ringItem, outputChan, order);
+                        }
                     }
-
-                    // Take turns writing to different output channels
-                    // Release any reusable ByteBuffer used by the input channel
-                    ringItem.releaseByteBuffer();
+                    // If NO output channels, we're done with this data so release buffer
+                    else {
+                        ringItem.releaseByteBuffer();
+                    }
 
                     // Tell input ring buffer we're done with this event
                     buildSequences[inputChan].set(nextSequences[inputChan]++);
-
                 }
                 catch (Exception e) {
                     e.printStackTrace();
