@@ -1,3 +1,14 @@
+/*
+ * Copyright (c) 2008, Jefferson Science Associates
+ *
+ * Thomas Jefferson National Accelerator Facility
+ * Data Acquisition Group
+ *
+ * 12000, Jefferson Ave, Newport News, VA 23606
+ * Phone : (757)-269-7100
+ *
+ */
+
 package org.jlab.coda.emu.support.transport;
 
 import org.jlab.coda.cMsg.cMsgConstants;
@@ -12,7 +23,6 @@ import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
-import java.util.Date;
 import java.util.Iterator;
 
 /**
@@ -60,8 +70,8 @@ public class EmuDomainTcpServer extends Thread {
             System.out.println("Emu domain TCP server: running");
         }
 
-        // Direct buffer for reading 3 magic & 4 other integers with non-blocking IO
-        int BYTES_TO_READ = 4*7;
+        // Direct buffer for reading 3 magic & 3 other integers with non-blocking IO
+        int BYTES_TO_READ = 6*4;
         ByteBuffer buffer = ByteBuffer.allocateDirect(BYTES_TO_READ);
 
         Selector selector = null;
@@ -108,6 +118,7 @@ public class EmuDomainTcpServer extends Thread {
                     }
                     continue;
                 }
+//System.out.println("Emu domain server: someone trying to connect");
 
                 // Get an iterator of selected keys (ready sockets)
                 Iterator it = selector.selectedKeys().iterator();
@@ -126,7 +137,7 @@ public class EmuDomainTcpServer extends Thread {
                         // Check to see if this is a legit cMsg client or some imposter.
                         // Don't want to block on read here since it may not be a cMsg
                         // client and may block forever - tying up the server.
-                        int version, codaId=-1, bufferSizeDesired=-1, isBigEndian=0;
+                        int version, codaId=-1, bufferSizeDesired=-1;
                         int bytes, bytesRead=0, loops=0;
                         buffer.clear();
                         buffer.limit(BYTES_TO_READ);
@@ -211,19 +222,6 @@ public class EmuDomainTcpServer extends Thread {
                                     it.remove();
                                     continue keyLoop;
                                 }
-
-                                // Byte Order of evio data (useful if sending event only, no file format)
-                                isBigEndian = buffer.getInt();
-//System.out.println("Got isBigEndian = " + isBigEndian);
-                                if (isBigEndian != 0  && isBigEndian != 1) {
-                                    if (debug >= cMsgConstants.debugInfo) {
-                                        System.out.println("Emu domain server: bad is-big-endian (" +
-                                                                   isBigEndian + ")");
-                                    }
-                                    channel.close();
-                                    it.remove();
-                                    continue keyLoop;
-                                }
                             }
                             else {
                                 // Give client 10 loops (.1 sec) to send its stuff, else no deal
@@ -255,7 +253,7 @@ public class EmuDomainTcpServer extends Thread {
                         // The emu (not socket) channel will start a
                         // thread to handle all further communication.
                         try {
-                            emuChannel.attachToInput(channel, codaId, bufferSizeDesired, isBigEndian);
+                            emuChannel.attachToInput(channel, codaId, bufferSizeDesired);
                         }
                         catch (IOException e) {
                             if (debug >= cMsgConstants.debugInfo) {
