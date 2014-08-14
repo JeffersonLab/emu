@@ -65,7 +65,7 @@ public class CMSGPortal implements LoggerAppender {
 
         // UDL for connection to cMsg server was originally specified
         // with -DcmsgUDL=xxx flag to interpreter when running EMU.
-        rcUDL = emu.getCmsgUDL();
+        rcUDL = System.getProperty("cmsgUDL");
 
         // Construct default UDL if necessary
         if (rcUDL == null) {
@@ -119,17 +119,6 @@ public class CMSGPortal implements LoggerAppender {
      */
     synchronized public void cMsgServerConnect() throws  EmuException {
 
- //            // Find the host the platform (actually agent) is running on
- //            // so we can do an cMsg domain connection.
- //            cMsgMessage msg = rcServer.monitor("3000");
- //            if (msg == null) {
- //                System.out.println("\n\n PROBLEM: null msg in monitor\n\n");
- //                platformHost = "localhost";
- //            }
- //            else {
- //                platformHost = msg.getSenderHost();
- //            }
-
         // Only need one callback
         MvalReportingHandler mHandler = new MvalReportingHandler(CMSGPortal.this);
 
@@ -151,6 +140,7 @@ public class CMSGPortal implements LoggerAppender {
                 // To make a connection, try the IP addresses one-by-one
                 for (String ip : addrs) {
                     UDL = "cMsg://" + ip + ":" + tcpServerPort + "/cMsg/M";
+//System.out.println("Got IP = " + ip + "\n try connecting with udl = " + UDL);
                     try {
                         server = new cMsg(UDL, emu.name()+"_emu", "EmuInternal");
                         server.connect();
