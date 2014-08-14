@@ -122,8 +122,11 @@ public class Emu implements CODAComponent {
     /** A CMSGPortal object encapsulates all cMsg communication with Run Control. */
     private final CMSGPortal cmsgPortal;
 
-    /** The UDL of the cMsg server. */
-    private final String cmsgUDL;
+    /** All the dot-decimal format IP addresses of the platform's host. */
+    private String[] platformIpAddresses;
+
+    /** The TCP port of the platform's cMsg domain server. */
+    private int platformTcpPort;
 
     /** Path that the data takes through the parts of the emu. */
     private EmuDataPath dataPath;
@@ -264,12 +267,11 @@ public class Emu implements CODAComponent {
      * @param name            name of Emu
      * @param type            CODA component type of Emu
      * @param loadedConfig    parsed XML document object of Emu configuration file
-     * @param cmsgUDL         UDL used to connect to cMsg server to receive run control commands
      * @param debugUI         start a debug GUI
-     * @throws EmuException   if name is null
+     * @throws EmuException   if name is null, or cannot connect to rc server
      */
     public Emu(String name, String type, Document loadedConfig,
-               String cmsgUDL, boolean debugUI) throws EmuException {
+               boolean debugUI) throws EmuException {
 
         if (name == null) {
             throw new EmuException("Emu name not defined");
@@ -284,7 +286,6 @@ public class Emu implements CODAComponent {
         System.out.println("Emu created, name = " + name + ", type = " + codaClass);
 
         this.name = name;
-        this.cmsgUDL = cmsgUDL;  // may be null
         this.loadedConfig = loadedConfig;
 
         // Set the name of this EMU
@@ -336,6 +337,7 @@ public class Emu implements CODAComponent {
         }
 
         // Need the following info for this object's getter methods
+        // and possibly for connecting to platform.
         String tmp = System.getProperty("expid");
         if (tmp != null) expid = tmp;
         if (expid == null) {
@@ -349,8 +351,8 @@ public class Emu implements CODAComponent {
         tmp = System.getProperty("user.name");
         if (tmp != null) userName = tmp;
 
-        // Create object responsible for communication w/ runcontrol through cMsg server.
-        cmsgPortal = new CMSGPortal(this, expid);
+        // Create object for communication w/ run control through cMsg server
+        cmsgPortal = new CMSGPortal(this);
 
         Configurer.setLogger(null);
 
@@ -475,7 +477,23 @@ public class Emu implements CODAComponent {
     public String getRunType() {return runType;}
 
     /** {@inheritDoc} */
-    public String getCmsgUDL() {return cmsgUDL;}
+    public String getCmsgUDL() {return cmsgPortal.getRcUDL();}
+
+    /**
+     * Get the rc platform's IP addresses as dot-decimal strings.
+     * @return rc platform's IP addresses as dot-decimal strings, null if none.
+     */
+    public String[] getPlatformIpAddresses() {
+        return platformIpAddresses;
+    }
+
+    /**
+     * Get the platform's cMsg domain server's TCP port.
+     * @return platform's cMsg domain server's TCP port, 0 if none.
+     */
+    public int getPlatformTcpPort() {
+        return platformTcpPort;
+    }
 
     /**
      * Get the smallest number of evio-events/et-buffer that connected DC/PEB found.
@@ -1206,8 +1224,28 @@ System.out.println("SET buffer level to " + bufferLevel);
                         if (pItem != null) {
                             rcConfigFile = pItem.getString();
                         }
+
+                        // May have all if platform's IP addresses, dot-decimal format
+                        // along with platform's cMsg domain server's TCP port
+                        pItem = cmd.getArg(RCConstants.configPayloadPlatformHosts);
+                        if (pItem != null) {
+                            platformIpAddresses = pItem.getStringArray();
+                            pItem = cmd.getArg(RCConstants.configPayloadPlatformPort);
+                            if (pItem != null) {
+                                platformTcpPort = pItem.getInt();
+                            }
+                            // Use the platform's host & port to connect to
+                            // platform's cMsg domain server.
+                            cmsgPortal.cMsgServerConnect();
+                        }
                     }
                     catch (cMsgException e) {/* never happen */}
+                    catch (EmuException e) {
+logger.error("Emu: CONFIGURE failed", e.getMessage());
+                        errorMsg.compareAndSet(null, e.getMessage());
+                        setState(ERROR);
+                        return;
+                    }
                 }
 
                 // If this config is sent as a string from Run Control...
