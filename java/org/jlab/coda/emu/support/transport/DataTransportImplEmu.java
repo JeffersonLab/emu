@@ -84,7 +84,7 @@ public class DataTransportImplEmu extends DataTransportAdapter {
             }
             else {
                 port = cMsgNetworkConstants.emuTcpPort;
-                System.out.println("Port should be specified in config file, using default " + port);
+System.out.println("Port should be specified in config file, using default " + port);
                // throw new DataNotFoundException("Port MUST be specified in config file");
             }
 
