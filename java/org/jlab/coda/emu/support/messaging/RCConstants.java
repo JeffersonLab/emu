@@ -105,6 +105,10 @@ public class RCConstants {
     public static final String configPayloadFileContentRoc = "emuRocConfig";
     /** String used as payload name for item holding int (1 if file content changed, else 0). */
     public static final String configPayloadFileChanged = "fileChanged";
+    /** String used as payload name for item holding all IP addresses of platform's host. */
+    public static final String configPayloadPlatformHosts = "platformHost";
+    /** String used as payload name for item holding platform's cMsg domain server's TCP port. */
+    public static final String configPayloadPlatformPort = "platformPort";
 
     /** String used as payload name for item holding run type int. */
     public static final String prestartPayloadRunType = "configId";
