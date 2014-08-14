@@ -71,6 +71,7 @@ public class DataChannelImplEmu extends DataChannelAdapter {
     private int sourceId;
     private int tcpRecvBuf;
     private int tcpSendBuf;
+    private int connectTimeout;
     private boolean noDelay;
     private cMsg emuDomain;
     private cMsgMessage outGoingMsg = new cMsgMessage();
@@ -183,18 +184,31 @@ System.out.println("Sending on port " + sendPort);
 
 
             // Size of max buffer, input or output
-//TODO: fix this
-            maxBufferSize = 1000;
+            maxBufferSize = 2100000;
             attribString = attributeMap.get("maxBuf");
             if (attribString != null) {
                 try {
                     maxBufferSize = Integer.parseInt(attribString);
                     if (maxBufferSize < 0) {
-                        maxBufferSize = 20000;
+                        maxBufferSize = 2100000;
                     }
                 }
                 catch (NumberFormatException e) {}
             }
+
+            // Emu domain connection timeout in sec
+            connectTimeout = -1;
+            attribString = attributeMap.get("timeout");
+            if (attribString != null) {
+                try {
+                    connectTimeout = Integer.parseInt(attribString);
+                    if (connectTimeout < 0) {
+                        connectTimeout = 3;
+                    }
+                }
+                catch (NumberFormatException e) {}
+            }
+
         }
 
         // State after prestart transition -
@@ -206,7 +220,7 @@ System.out.println("Sending on port " + sendPort);
     /**
      * Once a client connects to the Emu domain server in the Emu transport object,
      * that socket is passed to this method and a thread is spawned to handle all
-     * communications over it.
+     * communications over it. Only used for input channel.
      *
      * @param channel
      */
@@ -238,23 +252,33 @@ System.out.println("Sending on port " + sendPort);
 
     private void openOutputChannel() throws cMsgException {
 
-        // UDL ->  emu://port/expid?myCodaId=id&bufSize=size&tcpSend=size&noDelay
+        // UDL ->  emu://port/expid?codaId=id&timeout=sec&bufSize=size&tcpSend=size&noDelay
 
         String udl = "emu://" + sendPort + "/" +
-                emu.getExpid() + "?myCodaId=" + getID();
+                emu.getExpid() + "?codaId=" + getID();
+
         if (maxBufferSize > 0) {
             udl += "&bufSize=" + maxBufferSize;
         }
+        else {
+            udl += "&bufSize=2100000";
+        }
+
+        if (connectTimeout > -1) {
+            udl += "&timeout=" + connectTimeout;
+        }
+
         if (tcpSendBuf > 0) {
             udl += "&tcpSend=" + tcpSendBuf;
         }
+
         if (noDelay) {
             udl += "&noDelay";
         }
+
         emuDomain = new cMsg(udl, name, "emu domain client");
-// TODO: Put timeout here!!!
         emuDomain.connect();
-System.out.println("UDL = " + udl);
+System.out.println("emu domain UDL = " + udl);
         startOutputThread();
     }
 
