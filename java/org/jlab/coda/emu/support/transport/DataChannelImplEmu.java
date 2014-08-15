@@ -57,24 +57,43 @@ public class DataChannelImplEmu extends DataChannelAdapter {
     /** Thread used to output data. */
     private DataOutputHelper dataOutputThread;
 
+    /** UDP port of emu domain server. */
     private int sendPort;
+
+    /** TCP send buffer size in bytes. */
+    private int tcpSendBuf;
+
+    /** TCP no delay setting. */
+    private boolean noDelay;
+
+    /** Time in seconds to wait for connection to emu server. */
+    private int connectTimeout;
+
+    /** Coda id of the data source. */
+    private int sourceId;
+
+    /** Connection to emu domain server. */
+    private cMsg emuDomain;
+
+    /** cMsg message into which out going data is placed in order to be written. */
+    private cMsgMessage outGoingMsg = new cMsgMessage();
 
     // INPUT
 
     /** Thread used to input data. */
     private DataInputHelper dataInputThread;
 
-
-
+    /** Data input stream from TCP socket. */
     private DataInputStream in;
-    private int maxBufferSize;
-    private int sourceId;
+
+    /** TCP receive buffer size in bytes. */
     private int tcpRecvBuf;
-    private int tcpSendBuf;
-    private int connectTimeout;
-    private boolean noDelay;
-    private cMsg emuDomain;
-    private cMsgMessage outGoingMsg = new cMsgMessage();
+
+    // INPUT & OUTPUT
+
+    /** Biggest chunk of data sent by data producer.
+     *  Allows good initial value of ByteBuffer size.  */
+    private int maxBufferSize;
 
     //-------------------------------------------
     // Disruptor (RingBuffer)  Stuff
@@ -448,6 +467,7 @@ logger.debug("      DataChannel Emu startOutputThread()");
         /** Read into ByteBuffers. */
         private EvioCompactReader compactReader;
 
+        /** Is the type of data in ring PayloadBuffer or PayloadBank? */
         private final boolean ringItemIsBuffer;
 
 
