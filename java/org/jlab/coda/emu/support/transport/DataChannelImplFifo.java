@@ -130,13 +130,12 @@ public class DataChannelImplFifo extends DataChannelAdapter {
 
 
         /** {@inheritDoc} */
-         @Override
-         public void run() {
+        public void run() {
 
-             // Tell the world I've started
-             latch.countDown();
+            // Tell the world I've started
+            latch.countDown();
 
-             try {
+            try {
                  RingItem ringItem;
                  int ringChunkCounter = outputRingChunk;
 
