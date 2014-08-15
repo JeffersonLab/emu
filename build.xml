@@ -18,11 +18,14 @@
     <property name="build.classes" value="${build.dir}/classes" />
     <property name="build.lib"     value="${build.dir}/lib" />
     <property name="doc.dir"       value="doc/javadoc" />
+
     <property name="jarName"       value="emu-${emu.version}.jar" />
     <property name="allJarNames"   value="emu-*.jar" />
     <property name="jarPath"       value="${build.lib}/${jarName}" />
     <property name="local.jars"    value="java/jars" />
 
+    <property name="disJarName"    value="disruptor-3.2.1.jar" />
+    <property name="disJarPath"    value="${local.jars}/${disJarName}" />
 
     <!-- Targets -->
     
@@ -235,19 +238,23 @@
     <!-- Install in prefix -->
     <target name="installInPrefix" if="prefixDefined">
         <echo>Install ${jarName} into ${prefix}</echo>
+        <echo>Install ${disJarName} into ${prefix}</echo>
         <delete>
             <fileset dir="${prefix}/jar" includes="${allJarNames}" />
         </delete>
-        <copy file="${jarPath}" todir="${prefix}/jar"/>
+        <copy file="${jarPath}"    todir="${prefix}/jar"/>
+        <copy file="${disJarPath}" todir="${prefix}/jar"/>
     </target>
 
     <!-- Install in $CODA -->
     <target name="installInCODA" unless="prefixDefined" if="codaDefined">
         <echo>Install ${jarName} into ${env.CODA}/common/jar</echo>
+        <echo>Install ${disJarName} into ${env.CODA}/common/jar</echo>
         <delete>
             <fileset dir="${env.CODA}/common/jar" includes="${allJarNames}" />
         </delete>
-        <copy file="${jarPath}" todir="${env.CODA}/common/jar"/>
+        <copy file="${jarPath}"    todir="${env.CODA}/common/jar"/>
+        <copy file="${disJarPath}" todir="${env.CODA}/common/jar"/>
     </target>
 
     <!-- No installation directory defined -->
@@ -267,13 +274,17 @@
     <!-- Uninstall from prefix -->
     <target name="uninstallFromPrefix" if="prefixDefined">
         <echo>Remove ${jarName} from ${prefix}</echo>
+        <echo>Remove ${disJarName} from ${prefix}</echo>
         <delete file="${prefix}/jar/${jarName}"/>
+        <delete file="${prefix}/jar/${disJarName}"/>
     </target>
 
     <!-- Uninstall from $CODA -->
     <target name="uninstallFromCODA" unless="prefixDefined" if="codaDefined">
         <echo>Remove ${jarName} from ${env.CODA}/common/jar</echo>
+        <echo>Remove ${disJarName} from ${env.CODA}/common/jar</echo>
         <delete file="${env.CODA}/common/jar/${jarName}"/>
+        <delete file="${env.CODA}/common/jar/${disJarName}"/>
     </target>
 
     <!-- No installation directory defined to uninstall from -->
