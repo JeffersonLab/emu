@@ -63,6 +63,13 @@ public class DataTransportImplCmsg extends DataTransportAdapter {
         String udl = attrib.get("udl");
         if (udl == null) throw new DataNotFoundException("Cannot find udl");
 
+        // If using the platform's cMsg server, construct the proper udl
+        // and put communication in the "CODA" namespace.
+        if (udl.equalsIgnoreCase("platform")) {
+            udl = "cMsg://" + emu.getCmsgPortal().getPlatformHost() + ":" +
+                              emu.getCmsgPortal().getPlatformPort() + "/cMsg/CODA";
+        }
+
         // create cmsg connection object (does NOT create connection yet)
         try {
             cmsgConnection = new cMsg(udl, pname , "");

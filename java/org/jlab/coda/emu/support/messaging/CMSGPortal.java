@@ -52,6 +52,9 @@ public class CMSGPortal implements LoggerAppender {
     /** IP address of host emu's agent (and presumably the platform) is running on. */
     private String platformHost;
 
+    /** TCP port of platform's cMsg domain server. */
+    private int platformPort;
+
     private Logger logger;
 
 
@@ -122,25 +125,28 @@ public class CMSGPortal implements LoggerAppender {
         // Only need one callback
         MvalReportingHandler mHandler = new MvalReportingHandler(CMSGPortal.this);
 
+        String[] addrs = emu.getPlatformIpAddresses();
+        if (addrs == null) {
+            throw new EmuException("Did not receive platform's IP addresses");
+        }
+
+        // Only set these if not set before
+        if (platformPort == 0)    platformPort = emu.getPlatformTcpPort();
+        if (platformHost == null) platformHost = addrs[0];
+
         // Install callback for reporting the smallest number of evio events per ET event
         if (emu.getCodaClass() == CODAClass.SEB ||
             emu.getCodaClass() == CODAClass.PEB)  {
 
-            String goodAddress=null;
-            String[] addrs = emu.getPlatformIpAddresses();
-            if (addrs == null) {
-                throw new EmuException("Did not receive platform's IP addresses");
-            }
-            int tcpServerPort = emu.getPlatformTcpPort();
             boolean foundServer = false;
+//System.out.println("cMsgPortal: got platform cMsg domain server port = " + platformPort);
 
             // Use this connection for internal communications on this emu to set M value.
             // But only need to do this once - at the first configure.
             if (server == null) {
                 // To make a connection, try the IP addresses one-by-one
                 for (String ip : addrs) {
-                    UDL = "cMsg://" + ip + ":" + tcpServerPort + "/cMsg/M";
-//System.out.println("Got IP = " + ip + "\n try connecting with udl = " + UDL);
+                    UDL = "cMsg://" + ip + ":" + platformPort + "/cMsg/M";
                     try {
                         server = new cMsg(UDL, emu.name()+"_emu", "EmuInternal");
                         server.connect();
@@ -149,7 +155,8 @@ public class CMSGPortal implements LoggerAppender {
                         continue;
                     }
                     foundServer = true;
-                    goodAddress = ip;
+//System.out.println("cMsgPortal: got IP = " + ip + "\n try connecting with udl = " + UDL);
+                    platformHost = ip;
                     break;
                 }
 
@@ -164,7 +171,7 @@ public class CMSGPortal implements LoggerAppender {
                     // cMsg subdomain with namespace = expid on platform of cMsg server at default port
                     // Use this connection to send messages to the connected ROCs (through platform/agent)
                     // That happens while data is flowing.
-                    rocUDL = "cMsg://" + goodAddress + ":" + tcpServerPort + "/cMsg/" + emu.getExpid();
+                    rocUDL = "cMsg://" + platformHost + ":" + platformPort + "/cMsg/" + emu.getExpid();
                     rocServer = new cMsg(rocUDL, emu.name()+"_toRoc", "EmuToRoc");
                     rocServer.connect();
                 }
@@ -206,6 +213,22 @@ public class CMSGPortal implements LoggerAppender {
         }
         rocServer = null;
     }
+
+
+    /**
+     * Get the IP address the platform is running on.
+     * Valid only after first config transition.
+     * @return IP address the platform is running on.
+     */
+    public String getPlatformHost() {return platformHost;}
+
+
+    /**
+     * Get the TCP port the platform's cMsg domain server is listening on.
+     * Valid only after first config transition.
+     * @return TCP port the platform's cMsg domain server is listening on.
+     */
+    public int getPlatformPort() {return platformPort;}
 
 
     /**
