@@ -51,13 +51,13 @@ public class DataChannelImplFile extends DataChannelAdapter {
     /** Dictionary to be include in file. */
     private String dictionaryXML;
 
-    /** Evio data file. */
+    /** Evio file reader. */
     private EvioReader evioFileReader;
 
-    /** Evio data file. */
+    /** Evio file reader which does NOT deserialize into objects. */
     private EvioCompactReader compactFileReader;
 
-    /** Object to write evio file. */
+    /** Evio file writer. */
     private EventWriter evioFileWriter;
 
     //----------------------------------------
@@ -78,6 +78,16 @@ public class DataChannelImplFile extends DataChannelAdapter {
 
     /** Number of evio events (banks) in file. */
     private int eventCount;
+
+
+    //-------------------------------------------
+    // Disruptor (RingBuffer)  Stuff
+    //-------------------------------------------
+
+    /** Ring buffer holding ByteBuffers when using EvioCompactEvent reader for incoming events. */
+    protected ByteBufferSupply bbSupply;
+
+    private int rbIndex;
 
 
     /**
@@ -192,7 +202,7 @@ logger.info("      DataChannel File: dictionary file cannot be read");
             if (input) {
 logger.info("      DataChannel File: try opening input file of " + fileName);
 
-                if (queueItemType == QueueItemType.PayloadBank) {
+                if (ringItemType == ModuleIoType.PayloadBank) {
                     evioFileReader = new EvioReader(fileName, blockNumberChecking);
 
                     // Only deal with evio version 4 files for simplicity
@@ -207,7 +217,7 @@ logger.info("      DataChannel File: try opening input file of " + fileName);
                     // Get the first block header
                     firstBlockHeader = (BlockHeaderV4)evioFileReader.getFirstBlockHeader();
                 }
-                else if  (queueItemType == QueueItemType.PayloadBuffer) {
+                else if  (ringItemType == ModuleIoType.PayloadBuffer) {
                     // This will throw an exception if evio version < 4
                     compactFileReader = new EvioCompactReader(fileName);
 
@@ -266,8 +276,39 @@ logger.info("      DataChannel File: try opening output base file of " + fileNam
     }
 
 
+
     /** {@inheritDoc} */
+    public void go() {
+        pause = false;
+        state = CODAState.ACTIVE;
+    }
+
+    /** {@inheritDoc} */
+    public void pause() {
+        pause = true;
+        state = CODAState.PAUSED;
+    }
+
+    /** {@inheritDoc}. Formerly this code was the close() method. */
+    public void end() {
+        logger.warn("      DataChannel File end() : " + name);
+
+        gotEndCmd = true;
+        gotResetCmd = false;
+
+        state = CODAState.DOWNLOADED;
+    }
+
+
+    /**
+     * {@inheritDoc}
+     */
     public void reset() {
+logger.debug("      DataChannel File reset() : " + name + " channel, in threads = 1");
+
+        gotEndCmd   = false;
+        gotResetCmd = true;
+
         if (dataThread != null) dataThread.interrupt();
 
         try {
@@ -282,15 +323,15 @@ logger.info("      DataChannel File: try opening output base file of " + fileNam
             if (evioFileWriter != null) evioFileWriter.close();
         } catch (Exception e) {}
 
-        queue.clear();
         errorMsg.set(null);
         state = CODAState.CONFIGURED;
+logger.debug("      DataChannel File reset() : " + name + " - done");
     }
 
 
     /**
      * Class <b>DataInputHelper</b>
-     * This class reads data from the file and queues it on the fifo.
+     * This class reads data from the file and puts it on the ring.
      * Don't know if this will ever be useful. Might as well generate
      * an END event when file is fully read.
      */
@@ -310,10 +351,10 @@ logger.info("      DataChannel File: try opening output base file of " + fileNam
 
         /** {@inheritDoc} */
         public void run() {
-            if (queueItemType == QueueItemType.PayloadBank) {
+            if (ringItemType == ModuleIoType.PayloadBank) {
                 runBanks();
             }
-            else if  (queueItemType == QueueItemType.PayloadBuffer) {
+            else if  (ringItemType == ModuleIoType.PayloadBuffer) {
                 runBuffers();
             }
         }
@@ -322,9 +363,10 @@ logger.info("      DataChannel File: try opening output base file of " + fileNam
         public void runBanks() {
 
             int counter = 0;
-            EventType  bankType;
+            long nextRingItem;
+            EventType bankType;
             ControlType controlType;
-            PayloadBank payloadBank;
+            RingItem ringItem;
 
             // I've started
             latch.countDown();
@@ -364,21 +406,35 @@ logger.info("      DataChannel File: try opening output base file of " + fileNam
                         }
                     }
 
-                    // Not a real copy, just points to stuff in bank
-                    payloadBank = new PayloadBank(event, bankType,
-                                                  controlType, recordId,
-                                                  sourceId, name);
+                    nextRingItem = ringBufferIn.next();
+                    ringItem = ringBufferIn.get(nextRingItem);
 
-                    queue.put(payloadBank);  // will block
+                    ringItem.setEvent(event);
+                    ringItem.setEventType(bankType);
+                    ringItem.setControlType(controlType);
+                    ringItem.setRecordId(recordId);
+                    ringItem.setSourceId(sourceId);
+                    ringItem.setSourceName(name);
+                    ringItem.setEventCount(1);
+                    ringItem.matchesId(sourceId == id);
+
+                    ringBufferIn.publish(nextRingItem);
+
                     counter++;
                 }
 
                 // Put in END event
-                EvioEvent controlEvent = Evio.createControlEvent(ControlType.END, 0, 0, counter, 0);
-                PayloadBank bank = new PayloadBank(controlEvent);
-                bank.setEventType(EventType.CONTROL);
-                bank.setControlType(ControlType.END);
-                queue.put(bank);  // will block
+                nextRingItem = ringBufferIn.next();
+                ringItem = ringBufferIn.get(nextRingItem);
+
+                ringItem.setEvent(Evio.createControlEvent(ControlType.END, 0, 0, counter, 0));
+                ringItem.setEventType(EventType.CONTROL);
+                ringItem.setControlType(ControlType.END);
+                ringItem.setSourceName(name);
+                ringItem.setEventCount(1);
+
+                ringBufferIn.publish(nextRingItem);
+
                 if (endCallback != null) endCallback.endWait();
 
             }
@@ -402,9 +458,10 @@ logger.info("      DataChannel File: try opening output base file of " + fileNam
         public void runBuffers() {
 
             int counter = 0;
+            long nextRingItem;
             EventType bankType;
             ControlType controlType;
-            PayloadBuffer payloadBuffer;
+            RingItem ringItem;
 
             // I've started
             latch.countDown();
@@ -437,26 +494,46 @@ logger.info("      DataChannel File: try opening output base file of " + fileNam
                     }
 
                     // Not a real copy, just points to stuff in bank
-                    payloadBuffer = new PayloadBuffer(compactFileReader.getEventBuffer(i),
-                                                      bankType, controlType, recordId,
-                                                      sourceId, name, node);
+//                    payloadBuffer = new PayloadBuffer(compactFileReader.getEventBuffer(i),
+//                                                      bankType, controlType, recordId,
+//                                                      sourceId, name, node);
 
-                    queue.put(payloadBuffer);  // will block
+                    nextRingItem = ringBufferIn.next();
+                    ringItem = ringBufferIn.get(nextRingItem);
+
+                    ringItem.setNode(node);
+                    ringItem.setBuffer(node.getStructureBuffer(false));
+                    ringItem.setEventType(bankType);
+                    ringItem.setControlType(controlType);
+                    ringItem.setRecordId(recordId);
+                    ringItem.setSourceId(sourceId);
+                    ringItem.setSourceName(name);
+                    ringItem.setEventCount(1);
+                    ringItem.matchesId(sourceId == id);
+
+                    ringBufferIn.publish(nextRingItem);
+
                     counter++;
                 }
 
                 // Put in END event
-                EvioEvent controlEvent = Evio.createControlEvent(ControlType.END, 0, 0, counter, 0);
-                PayloadBank bank = new PayloadBank(controlEvent);
-                bank.setEventType(EventType.CONTROL);
-                bank.setControlType(ControlType.END);
-                queue.put(bank);  // will block
+                nextRingItem = ringBufferIn.next();
+                ringItem = ringBufferIn.get(nextRingItem);
+
+                ringItem.setEvent(Evio.createControlEvent(ControlType.END, 0, 0, counter, 0));
+                ringItem.setEventType(EventType.CONTROL);
+                ringItem.setControlType(ControlType.END);
+                ringItem.setSourceName(name);
+                ringItem.setEventCount(1);
+
+                ringBufferIn.publish(nextRingItem);
+
                 if (endCallback != null) endCallback.endWait();
 
             }
-            catch (InterruptedException e) {
-                // time to quit
-            }
+//            catch (InterruptedException e) {
+//                // time to quit
+//            }
             catch (Exception e) {
 //logger.warn("      DataChannel File (" + name + "): close file");
 //logger.warn("      DataChannel File (" + name + "): exit " + e.getMessage());
@@ -484,6 +561,10 @@ logger.info("      DataChannel File: try opening output base file of " + fileNam
         /** Let a single waiter know that the main thread has been started. */
         private CountDownLatch latch = new CountDownLatch(1);
 
+        /** Help in pausing DAQ. */
+        private int pauseCounter;
+
+
         /** A single waiter can call this method which returns when thread was started. */
         private void waitUntilStarted() {
             try {
@@ -493,72 +574,76 @@ logger.info("      DataChannel File: try opening output base file of " + fileNam
         }
 
 
-        /** {@inheritDoc} */
-        public void run() {
+        private final void writeEvioData(RingItem ri) throws IOException, EvioException {
 
-            // I've started
+            if (ringItemType == ModuleIoType.PayloadBank) {
+                evioFileWriter.writeEvent(ri.getEvent());
+            }
+            else if  (ringItemType == ModuleIoType.PayloadBuffer) {
+                evioFileWriter.writeEvent(ri.getBuffer());
+                ri.releaseByteBuffer();
+            }
+        }
+
+
+
+        /** {@inheritDoc} */
+        @Override
+        public void run() {
+logger.debug("      DataChannel File out helper: started");
+
+            // Tell the world I've started
             latch.countDown();
 
-            QueueItem qItem;
-            PayloadBank bank  = null;
-            PayloadBuffer buf = null;
-            EventType eventType;
-            ControlType controlType;
-            boolean gotPrestart = false, gotEnd = false;
-
             try {
+                RingItem ringItem;
+                int ringChunkCounter = outputRingChunk;
 
-                while (!dataThread.isInterrupted()) {
+                // First event will be "prestart", by convention in ring 0
+                ringItem = getNextOutputRingItem(0);
+                writeEvioData(ringItem);
+                releaseOutputRingItem(0);
+logger.debug("      DataChannel File out helper: sent prestart");
 
-                    qItem = queue.take(); // will block
+                // First event will be "go", by convention in ring 0
+                ringItem = getNextOutputRingItem(0);
+                writeEvioData(ringItem);
+                releaseOutputRingItem(0);
+logger.debug("      DataChannel File out helper: sent go");
 
-                    if (queueItemType == QueueItemType.PayloadBank) {
-                        bank = (PayloadBank)qItem;
-                        eventType = bank.getEventType();
-                        controlType = bank.getControlType();
-                    }
-                    else {
-                        buf = (PayloadBuffer)qItem;
-                        eventType = buf.getEventType();
-                        controlType = buf.getControlType();
-                    }
+                while ( true ) {
 
-                    if (eventType == EventType.CONTROL) {
-                        if (controlType == ControlType.END) {
-                            gotEnd = true;
-                            if (endCallback != null) endCallback.endWait();
-                            logger.info("      DataChannel File (" + name + "): got END, close file " + fileName);
+                    if (pause) {
+                        if (pauseCounter++ % 400 == 0) {
+                            try {Thread.sleep(5);}
+                            catch (InterruptedException e1) {}
                         }
-                        else if (controlType == ControlType.PRESTART) {
-                            gotPrestart = true;
-                            logger.info("      DataChannel File (" + name + "): got PRESTART");
-                        }
-                    }
-                    else {
-//logger.info("      DataChannel File (" + name + "): got bank of type " + eventType);
-                    }
-
-                    // Don't start writing to file until we get PRESTART
-                    if (!gotPrestart) {
-logger.warn("      DataChannel File (" + name + "): got event but NO PRESTART, get another off Q");
                         continue;
                     }
 
+//logger.debug("      DataChannel Emu out helper: get next buffer from ring");
+                    ringItem = getNextOutputRingItem(rbIndex);
+                    ControlType pBankControlType = ringItem.getControlType();
+
                     try {
-                        // evioFileWriter will automatically split the file
-                        if (queueItemType == QueueItemType.PayloadBank) {
-                            evioFileWriter.writeEvent(bank.getEvent());
-//                            if (controlType == ControlType.PRESTART) {
-//                                evioFileWriter.flushToFile();
-//                            }
-                        }
-                        else {
-                            evioFileWriter.writeEvent(buf.getBuffer());
-                        }
+                        evioFileWriter.writeEvent(ringItem.getEvent());
                     }
                     catch (Exception e) {
                         errorMsg.compareAndSet(null, "Cannot write to file");
                         throw e;
+                    }
+
+//logger.debug("      DataChannel File out helper: sent event");
+
+//logger.debug("      DataChannel File out helper: release ring item");
+                    releaseOutputRingItem(rbIndex);
+                    if (--ringChunkCounter < 1) {
+                        rbIndex = ++rbIndex % outputRingCount;
+                        ringChunkCounter = outputRingChunk;
+//                        System.out.println("switch ring to "+ rbIndex);
+                    }
+                    else {
+//                        System.out.println(""+ ringChunkCounter);
                     }
 
                     // If splitting the output, the file name may change.
@@ -568,7 +653,8 @@ logger.warn("      DataChannel File (" + name + "): got event but NO PRESTART, g
                         splitCount = evioFileWriter.getSplitCount();
                     }
 
-                    if (gotEnd) {
+                    if (pBankControlType == ControlType.END) {
+System.out.println("      DataChannel File out helper: " + name + " I got END event, quitting");
                         try {
                             evioFileWriter.close();
                         }
@@ -576,29 +662,34 @@ logger.warn("      DataChannel File (" + name + "): got event but NO PRESTART, g
                             errorMsg.compareAndSet(null, "Cannot write to file");
                             throw e;
                         }
+                        // run callback saying we got end event
+                        if (endCallback != null) endCallback.endWait();
+                        return;
+                    }
+
+                    // If I've been told to RESET ...
+                    if (gotResetCmd) {
+                        System.out.println("      DataChannel File out helper: " + name + " got RESET/END cmd, quitting 1");
                         return;
                     }
                 }
 
-                logger.info("      DataChannel File (" + name + "): close file " + fileName);
-
-            }
-            catch (InterruptedException e) {
-                // time to quit
-            }
-            catch (Exception e) {
-//logger.warn("      DataChannel File (" + name + "): exit, " + e.getMessage());
+            } catch (InterruptedException e) {
+                logger.warn("      DataChannel File out helper: " + name + "  interrupted thd, exiting");
+            } catch (Exception e) {
+                logger.warn("      DataChannel File out helper : exit thd: " + e.getMessage());
                 // If we haven't yet set the cause of error, do so now & inform run control
                 errorMsg.compareAndSet(null, e.getMessage());
 
                 // set state
                 state = CODAState.ERROR;
                 emu.sendStatusMessage();
+
+                e.printStackTrace();
             }
 
-            try { evioFileWriter.close(); }
-            catch (Exception e) {}
         }
+
     }
 
 }

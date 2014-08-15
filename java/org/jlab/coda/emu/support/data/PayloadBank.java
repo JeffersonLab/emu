@@ -11,11 +11,7 @@ import java.nio.ByteOrder;
  * @author timmer
  * Date: Jan 29, 2010
  */
-public class PayloadBank extends QueueItemAdapter {
-
-    /** Event to wrap. */
-    private EvioEvent event;
-
+public class PayloadBank extends RingItemAdapter {
 
     /**
      * Copy constructor which stores reference to event and doesn't copy or clone.
@@ -31,6 +27,7 @@ public class PayloadBank extends QueueItemAdapter {
      */
     public PayloadBank(PayloadBank bank) {
         super(bank);
+        event = bank.getEvent();
     }
 
     /**
@@ -66,15 +63,8 @@ public class PayloadBank extends QueueItemAdapter {
         this.sourceName  = sourceName;
     }
 
-    public EvioEvent getEvent() {
-        return event;
-    }
 
-    public void setEvent(EvioEvent event) {
-        this.event = event;
-    }
-
-    public QueueItemType getQueueItemType() {return QueueItemType.PayloadBank;}
+    public ModuleIoType getQueueItemType() {return ModuleIoType.PayloadBank;}
 
     /**
      * What is the byte order of this data?

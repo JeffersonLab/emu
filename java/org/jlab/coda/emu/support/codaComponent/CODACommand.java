@@ -55,14 +55,14 @@ public enum CODACommand {
 
     // run/control/
 
-    /** Command to set run number. */
-//    SET_RUN_NUMBER("Set run number", setRunNumber, false, 1, InputType.PAYLOAD_INT, "runNumber"),
     /** Command to get run number .*/
     GET_RUN_NUMBER("Get run number", getRunNumber, false, -1, null, null),
     /** Command to set run type. */
     SET_RUN_TYPE("Set run type", setRunType, false, -1, null, null),
     /** Command to get run type. */
     GET_RUN_TYPE("Get run type", getRunType, false, -1, null, null),
+    /** Command to set buffer level - smallest evio-event/et-buffer for ROCs. */
+    SET_BUF_LEVEL("Set buffer level", setBufferLevel, false, -1, null, null),
 
     // session/setOption/    none implemented
 
@@ -146,7 +146,6 @@ public enum CODACommand {
     static {
         for (CODACommand item : CODACommand.values()) {
             commandTypeToEnumMap.put(item.getCmdString(), item);
-//System.out.println("map : " + item.getCmdString() + "  ->  " + item.name());
         }
     }
 

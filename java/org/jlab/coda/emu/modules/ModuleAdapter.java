@@ -19,7 +19,7 @@ import org.jlab.coda.emu.support.codaComponent.State;
 import org.jlab.coda.emu.support.configurer.DataNotFoundException;
 import org.jlab.coda.emu.support.control.CmdExecException;
 import org.jlab.coda.emu.support.data.Attached;
-import org.jlab.coda.emu.support.data.QueueItemType;
+import org.jlab.coda.emu.support.data.ModuleIoType;
 import org.jlab.coda.emu.support.logger.Logger;
 import org.jlab.coda.emu.support.transport.DataChannel;
 
@@ -40,6 +40,10 @@ public class ModuleAdapter implements EmuModule {
 
     /** ID number of this event recorder obtained from config file. */
     protected int id;
+
+    /** Number of event producing threads in operation. Each
+     *  must match up with its own output channel ring buffer. */
+    protected int eventProducingThreads;
 
     /** Name of this event recorder. */
     protected final String name;
@@ -74,9 +78,6 @@ public class ModuleAdapter implements EmuModule {
 
     /** Object used by Emu to be notified of END event arrival. */
     protected EmuEventNotify endCallback;
-
-    /** Flag used to kill eventMovingThread. */
-    protected volatile boolean killThread;
 
     /** Comparator which tells queue how to sort elements. */
     protected AttachComparator<Attached> comparator = new AttachComparator<Attached>();
@@ -129,6 +130,13 @@ public class ModuleAdapter implements EmuModule {
         catch (NumberFormatException e) { /* default to 0 */ }
         emu.setCodaid(id);
 
+        // Set number of event-producing threads
+        eventProducingThreads = 1;
+        try {
+            eventProducingThreads = Integer.parseInt(attributeMap.get("epThreads"));
+            if (eventProducingThreads < 1) eventProducingThreads = 1;
+        }
+        catch (NumberFormatException e) {}
 
         // Does this module accurately represent the whole EMU's stats?
         String str = attributeMap.get("statistics");
@@ -200,10 +208,10 @@ public class ModuleAdapter implements EmuModule {
     public String name() {return name;}
 
     /** {@inheritDoc} */
-    public QueueItemType getInputQueueItemType() {return QueueItemType.PayloadBank;}
+    public ModuleIoType getInputRingItemType() {return ModuleIoType.PayloadBank;}
 
     /** {@inheritDoc} */
-    public QueueItemType getOutputQueueItemType() {return QueueItemType.PayloadBank;}
+    public ModuleIoType getOutputRingItemType() {return ModuleIoType.PayloadBank;}
 
     /** {@inheritDoc} */
     public boolean representsEmuStatistics() {return representStatistics;}
@@ -252,11 +260,15 @@ public class ModuleAdapter implements EmuModule {
         outputChannels.clear();
     }
 
+    /** {@inheritDoc} */
+    public int getEventProducingThreadCount() {return eventProducingThreads;}
+
+
     //----------------------------------------------------------------
 
     /** Keep some data together and store as an event attachment.
      *  This class helps write events in the desired order.*/
-    protected class EventOrder {
+    final class EventOrder {
         /** Output channel to use. */
         DataChannel outputChannel;
         /** Index into arrays for this output channel. */
@@ -273,7 +285,7 @@ public class ModuleAdapter implements EmuModule {
      * Class defining comparator which tells priority queue how to sort elements.
      * @param <T> Must be PayloadBank or PayloadBuffer in this case
      */
-    protected class AttachComparator<T> implements Comparator<T> {
+    final class AttachComparator<T> implements Comparator<T> {
         public int compare(T o1, T o2) throws ClassCastException {
             Attached a1 = (Attached) o1;
             Attached a2 = (Attached) o2;
@@ -294,7 +306,7 @@ public class ModuleAdapter implements EmuModule {
      * once every few seconds. Rates can be sent to run control
      * (or stored in local xml config file).
      */
-    protected class RateCalculatorThread extends Thread {
+    final class RateCalculatorThread extends Thread {
         /**
          * Method run is the action loop of the thread.
          * Suggested creation & start on PRESTART.
@@ -337,7 +349,8 @@ public class ModuleAdapter implements EmuModule {
                     }
 
                 } catch (InterruptedException e) {
-                    logger.info("EventBuilding thread " + name() + " interrupted");
+                    logger.info("EventBuilding thread " + name() + " interrupted, so exiting");
+                    return;
                 }
             }
         }

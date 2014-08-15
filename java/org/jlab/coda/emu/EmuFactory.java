@@ -104,8 +104,6 @@ public class EmuFactory {
             debugUI = true;
         }
 
-        String cmsgUDL = System.getProperty("cmsgUDL");
-
         // Must set the names of the EMUs to create.
         String cmdLineNames = System.getProperty("name");
 
@@ -184,10 +182,10 @@ System.out.println("Found types:");
         // Create EMU objects here. By this time we should have all the names.
         for (int i=0; i < names.size(); i++) {
             if (types.size() > 0) {
-                new Emu(names.get(i), types.get(i), null, cmsgUDL, debugUI);
+                new Emu(names.get(i), types.get(i), null, debugUI);
             }
             else {
-                new Emu(names.get(i), null, null, cmsgUDL, debugUI);
+                new Emu(names.get(i), null, null, debugUI);
             }
         }
     }

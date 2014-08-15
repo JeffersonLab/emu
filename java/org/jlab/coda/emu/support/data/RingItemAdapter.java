@@ -1,18 +1,49 @@
+/*
+ * Copyright (c) 2014, Jefferson Science Associates
+ *
+ * Thomas Jefferson National Accelerator Facility
+ * Data Acquisition Group
+ *
+ * 12000, Jefferson Ave, Newport News, VA 23606
+ * Phone : (757)-269-7100
+ *
+ */
+
 package org.jlab.coda.emu.support.data;
 
 
+import org.jlab.coda.jevio.EvioEvent;
+import org.jlab.coda.jevio.EvioNode;
+
+import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 
 /**
- * This class provides the boilerplate methods of the QueueItem interface.
+ * This class provides the boilerplate methods of the RingItem interface.
  * This class is meant to be extended to handle a specific type of data
- * object to be placed in queues for consumption by emu modules and
- * transport channels.
+ * object to be placed in ring buffers for consumption by emu
+ * modules and transport channels.
+ * {@see PayloadBank, PayloadBuffer}.
  *
  * @author: timmer
  * Date: Feb 28, 2014
  */
-class QueueItemAdapter implements QueueItem {
+abstract class RingItemAdapter implements RingItem {
+
+    // If contains event
+
+    /** Event to wrap. If defined, buffer & node are null. */
+    protected EvioEvent event;
+
+    // If contains buffer
+
+    /** ByteBuffer to wrap. If defined, event is null. */
+    protected ByteBuffer buffer;
+
+    /** Object containing info about specific evio event in the buffer. */
+    protected EvioNode node;
+
+   //---------------------
 
     /** What type of CODA events are contained in this bank (RocRaw, Physics, Control, ...)?
      *  Only one type is stored in one PayloadBank object.
@@ -60,61 +91,116 @@ class QueueItemAdapter implements QueueItem {
     /** Associated object used to store things. */
     protected Object attachment;
 
+    // Deal with ring buffers
+
+    /** This refers to a reusable ByteBufferSupply used for buffer (if any). */
+    protected ByteBufferSupply byteBufferSupply;
+
+    /** This refers to the wrapper object of buffer in reusable ByteBufferSupply (if any). */
+    protected ByteBufferItem byteBufferItem;
+
 
 
     /** Constructor. */
-    public QueueItemAdapter() {}
+    public RingItemAdapter() {}
 
-
-    /**
-     * Constructor that sets several parameters
-     * and copies references from queue item (doesn't clone).
-     *
-     * @param qItem       queueItem to copy
-     * @param eventType   type of CODA events contained.
-     * @param controlType if Control eventType, the type of control.
-     * @param recordId    if Physics or RocRaw, the record id of CODA events.
-     * @param sourceId    If RocRaw, the CODA id of the source.
-     * @param sourceName  The name of the source of these CODA events.
-     */
-    public QueueItemAdapter(QueueItem qItem, EventType eventType, ControlType controlType,
-                            int recordId, int sourceId, String sourceName) {
-        this(qItem);
-        this.eventType   = eventType;
-        this.controlType = controlType;
-        this.recordId    = recordId;
-        this.sourceId    = sourceId;
-        this.sourceName  = sourceName;
-    }
 
 
     /**
      * Copy constructor which copies references and doesn't clone.
-     * @param qItem QueueItem to copy
+     * @param ringItem ring item to copy
      */
-    public QueueItemAdapter(QueueItem qItem) {
-        eventType             = qItem.getEventType();
-        controlType           = qItem.getControlType();
-        sourceId              = qItem.getSourceId();
-        matchesId             = qItem.matchesId();
-        sourceName            = qItem.getSourceName();
-        recordId              = qItem.getRecordId();
-        eventCount            = qItem.getEventCount();
-        firstEventNumber      = qItem.getFirstEventNumber();
-        isSync                = qItem.isSync();
-        isSingleEventMode     = qItem.isSingleEventMode();
-        hasError              = qItem.hasError();
-        nonFatalBuildingError = qItem.hasNonFatalBuildingError();
-        attachment            = qItem.getAttachment();
+    public RingItemAdapter(RingItem ringItem) {
+        copy(ringItem);
     }
 
-    // Will need to be overwritten
-    /** {@inheritDoc} */
-    public QueueItemType getQueueItemType() {return null;}
+
+    /**
+     * Copy members of argument into this object (except for "reserved").
+     * @param ringItem ring item to copy.
+     */
+    public void copy(RingItem ringItem) {
+        event                 = ringItem.getEvent();
+        buffer                = ringItem.getBuffer();
+        node                  = ringItem.getNode();
+        eventType             = ringItem.getEventType();
+        controlType           = ringItem.getControlType();
+        sourceId              = ringItem.getSourceId();
+        matchesId             = ringItem.matchesId();
+        sourceName            = ringItem.getSourceName();
+        recordId              = ringItem.getRecordId();
+        eventCount            = ringItem.getEventCount();
+        firstEventNumber      = ringItem.getFirstEventNumber();
+        isSync                = ringItem.isSync();
+        isSingleEventMode     = ringItem.isSingleEventMode();
+        hasError              = ringItem.hasError();
+        nonFatalBuildingError = ringItem.hasNonFatalBuildingError();
+        attachment            = ringItem.getAttachment();
+        byteBufferItem        = ringItem.getByteBufferItem();
+        byteBufferSupply      = ringItem.getByteBufferSupply();
+    }
+
 
     /** {@inheritDoc} */
-    public ByteOrder getByteOrder() {return ByteOrder.BIG_ENDIAN;}
-    //----------------------------
+    abstract public ModuleIoType getQueueItemType();
+
+    /** {@inheritDoc} */
+    abstract public ByteOrder getByteOrder();
+
+    /** {@inheritDoc} */
+    abstract public int getTotalBytes();
+
+
+
+    /** {@inheritDoc} */
+    public EvioEvent getEvent() {
+        return event;
+    }
+
+    /** {@inheritDoc} */
+    public void setEvent(EvioEvent event) {
+        this.event = event;
+    }
+
+    /** {@inheritDoc} */
+    public ByteBuffer getBuffer() {
+        return buffer;
+    }
+
+    /** {@inheritDoc} */
+    public void setBuffer(ByteBuffer buffer) { this.buffer = buffer; }
+
+    /** {@inheritDoc} */
+    public EvioNode getNode() { return node; }
+
+    /** {@inheritDoc} */
+    public void setNode(EvioNode node) { this.node = node; }
+
+
+
+    /** {@inheritDoc} */
+    public void releaseByteBuffer() {
+        if (byteBufferSupply == null) return;
+        byteBufferSupply.release(byteBufferItem);
+    }
+
+    /** {@inheritDoc} */
+    public void setReusableByteBuffer(ByteBufferSupply byteBufferSupply,
+                                      ByteBufferItem byteBufferItem) {
+        this.byteBufferItem = byteBufferItem;
+        this.byteBufferSupply = byteBufferSupply;
+    }
+
+    /** {@inheritDoc} */
+    public ByteBufferSupply getByteBufferSupply() {
+        return byteBufferSupply;
+    }
+
+    /** {@inheritDoc} */
+    public ByteBufferItem getByteBufferItem() {
+        return byteBufferItem;
+    }
+
 
     /** {@inheritDoc} */
     public Object getAttachment() {return attachment;}
@@ -150,6 +236,8 @@ class QueueItemAdapter implements QueueItem {
 
     /** {@inheritDoc} */
     public String getSourceName() {return sourceName;}
+    /** {@inheritDoc} */
+    public void setSourceName(String sourceName) {this.sourceName = sourceName;}
 
     /** {@inheritDoc} */
     public int getEventCount() {return eventCount;}
@@ -183,14 +271,15 @@ class QueueItemAdapter implements QueueItem {
         this.nonFatalBuildingError = nonFatalBuildingError;
     }
 
+
+
     /**
      * All members of this class (except attachment) are
      * primitives/enums so bitwise copies are fine.
      */
     public Object clone() {
         try {
-            QueueItemAdapter result = (QueueItemAdapter) super.clone();
-            return result;
+            return super.clone();
         }
         catch (Exception e) {
             return null;

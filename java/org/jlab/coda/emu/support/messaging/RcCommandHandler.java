@@ -59,14 +59,12 @@ class RcCommandHandler extends GenericCallback implements cMsgCallbackInterface 
             try {
                 codaCmd = CODACommand.get(type);
             } catch (IllegalArgumentException e) {
-                // TODO: bug bug: do we want this printed, logged, etc ???
-//System.out.println("callback: received an invalid command of type " + type);
+//System.out.println("callback: 1 received an invalid command of type " + type);
                 return;
             }
 
             if (codaCmd == null) {
-                // TODO: bug bug: do we want this printed, logged, etc ???
-//System.out.println("callback: received an invalid command of type " + type);
+//System.out.println("callback: 2 received an invalid command of type " + type);
                 return;
             }
 
@@ -74,7 +72,7 @@ class RcCommandHandler extends GenericCallback implements cMsgCallbackInterface 
             // the highest priority. We don't want them stuck in a Q
             // somewhere so treat them separately.
             if (codaCmd == CODACommand.RESET) {
-                cmsgPortal.comp.reset();
+                cmsgPortal.emu.reset();
                 return;
             }
 
@@ -98,7 +96,7 @@ class RcCommandHandler extends GenericCallback implements cMsgCallbackInterface 
             // Get the Emu object and have it post this new command
             // by putting it in a Q that is periodically checked by
             // the Emu's "run" (main thread) method.
-            cmsgPortal.comp.postCommand(cmd);
+            cmsgPortal.emu.postCommand(cmd);
 
         } catch (InterruptedException e) {
             e.printStackTrace();

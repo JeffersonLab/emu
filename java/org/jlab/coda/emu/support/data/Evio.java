@@ -830,6 +830,85 @@ System.out.println("checkPayloadBuffer: bank source id = " + pBank.getSourceId()
     /**
      * Check the given payload buffer (physics, ROC raw, control, or user format evio banks)
      * for correct format and place onto the specified queue.
+     * <b>All other buffers are ignored.</b><p>
+     *
+     * No checks done on arguments. However, format of payload buffers is checked here for
+     * the first time.<p>
+     *
+     * @param pBuf payload buffer to be examined
+     * @throws EmuException if physics or roc raw bank has improper format
+     */
+    public static void checkPayload(PayloadBuffer pBuf, DataChannel channel)
+            throws EmuException {
+
+        // check to make sure record ID is sequential - already checked by EvioCompactReader
+        int tag;
+        int recordId  = pBuf.getRecordId();
+        int sourceId  = pBuf.getSourceId();
+        EvioNode node = pBuf.getNode();
+        boolean nonFatalError = false;
+        boolean nonFatalRecordIdError = false;
+
+        // See what type of event this is
+        // Only interested in known types such as physics, roc raw, control, and user events.
+        EventType eventType = pBuf.getEventType();
+        if (eventType == null || !eventType.isEbFriendly()) {
+System.out.println("checkPayload: unknown type, dump payload buffer");
+            return;
+        }
+//System.out.println("checkPayloadBuffer: got bank of type " + eventType);
+
+        // Only worry about record id if event to be built.
+        // Initial recordId stored is 0, ignore that.
+        if (eventType.isAnyPhysics() || eventType.isROCRaw()) {
+            // The recordId associated with each bank is taken from the first
+            // evio block header in a single ET data buffer. For a physics or
+            // ROC raw type, it should start at zero and increase by one in the
+            // first evio block header of the next ET data buffer.
+            // NOTE: There may be multiple banks from the same ET buffer and
+            // they will all have the same recordId.
+            if (recordId != channel.getRecordId() &&
+                recordId != channel.getRecordId() + 1) {
+System.out.println("checkPayload: record ID out of sequence, got " + recordId +
+                   " but expecting " + channel.getRecordId() + " or " +
+                  (channel.getRecordId()+1) + ", type = " + eventType);
+                nonFatalRecordIdError = true;
+            }
+            // Store the current value here as a convenience for the next comparison
+            channel.setRecordId(recordId);
+
+            tag = node.getTag();
+
+            if (sourceId != getTagCodaId(tag)) {
+System.out.println("checkPayload: buf source Id (" + sourceId + ") != buf's id from tag (" + getTagCodaId(tag) + ")");
+                nonFatalError = true;
+            }
+
+            // pick this bank apart a little here
+            if (node.getDataTypeObj() != DataType.BANK &&
+                node.getDataTypeObj() != DataType.ALSOBANK) {
+                throw new EmuException("ROC raw / physics record not in proper format");
+            }
+
+            pBuf.setSync(Evio.isTagSyncEvent(tag));
+            pBuf.setError(Evio.tagHasError(tag));
+            pBuf.setSingleEventMode(Evio.isTagSingleEventMode(tag));
+        }
+
+        // Check source ID of bank to see if it matches channel id
+        if (!pBuf.matchesId()) {
+System.out.println("checkPayload: buf source id = " + pBuf.getSourceId() +
+                           " != input channel id = " + channel.getID());
+            nonFatalError = true;
+        }
+
+        pBuf.setNonFatalBuildingError(nonFatalError || nonFatalRecordIdError);
+    }
+
+
+    /**
+     * Check the given payload buffer (physics, ROC raw, control, or user format evio banks)
+     * for correct format and place onto the specified queue.
      * <b>All other buffers are thrown away.</b><p>
      *
      * No checks done on arguments. However, format of payload buffers is checked here for
@@ -2812,7 +2891,8 @@ System.out.println("Timestamps are NOT consistent!!!");
                                                     boolean includeRunData,
                                                     boolean sparsify,
                                                     boolean checkTimestamps,
-                                                    int timestampSlop)
+                                                    int timestampSlop,
+                                                    int buildThreadOrder)
             throws EmuException {
 
         if (builder == null || inputPayloadBanks == null || inputPayloadBanks.length < 1) {
@@ -2821,7 +2901,7 @@ System.out.println("Timestamps are NOT consistent!!!");
 
         boolean turnOffChecks = false;
 
-        int tag, firstTrigTag=0;
+        int firstTrigTag=0;
         int numROCs = inputPayloadBanks.length;
         int numEvents = inputPayloadBanks[0].getNode().getNum();
 
@@ -2950,7 +3030,7 @@ System.out.println("Timestamps are NOT consistent!!!");
         // across all ROCs, the event number & event type are the same.
         int[] triggerData = null;
         int firstEvNum = (int) firstEventNumber;
-        int[][][] trigIntArrays = new int[numEvents][numROCs][];
+        int[][][] trigIntArrays = new int[numROCs][numEvents][];
 
         for (int i=0; i < numEvents; i++) {
             for (int j=0; j < numROCs; j++) {
@@ -2964,7 +3044,7 @@ System.out.println("makeTriggerBankFromRocRaw: event type differs across ROCs");
                     // Check event number consistency
                     trigIntArrays[j][i] = triggerData = ByteDataTransformer.toIntArray(triggerSegments[j][i].getByteData(false));
                     if (firstEvNum + i != triggerData[0]) {
-System.out.println("makeTriggerBankFromRocRaw: EB event # differs from ROC id#" +
+System.out.println("makeTriggerBankFromRocRaw: EB event # differs from Bt# " + buildThreadOrder + ", ROC id#" +
                         getTagCodaId(inputPayloadBanks[j].getNode().getTag()) + "'s, " +
                         (firstEvNum+i) + " != " + (triggerData[0]));
                         nonFatalError = true;
@@ -3857,9 +3937,9 @@ System.out.println("Timestamps are NOT consistent !!!");
             data[index++] = (int) (timestamp >>> 32 & 0xFFFF); // high 16 of 48 bits
         }
 
-        for (int i=0; i < words; i++) {
-            data[index+i] = 0x1234;
-        }
+//        for (int i=0; i < words; i++) {
+//            data[index+i] = 0x1234;
+//        }
 
         return data;
     }
@@ -3913,7 +3993,6 @@ System.out.println("Timestamps are NOT consistent !!!");
     }
 
 
-//    static boolean onlyOnce = true;
     /**
      * Create an Evio ROC Raw record event/bank to be placed in a Data Transport record.
      *
@@ -4043,6 +4122,128 @@ System.out.println("Timestamps are NOT consistent !!!");
         return pBanks;
     }
 
+
+
+    /**
+     * Create an Evio ROC Raw record event/bank to be placed in a Data Transport record.
+     *
+     * @param rocID       ROC id number
+     * @param triggerType trigger type id number (0-15)
+     * @param detectorId  id of detector producing data in data block bank
+     * @param status      4-bit status associated with data
+     * @param eventNumber starting event number
+     * @param numEvents   number of physics events in created record
+     * @param timestamp   starting event's timestamp
+     * @param buf         ByteBuffer in which to write generated event
+     * @param builder     used to build evio events in buffer acquired from bbSupply
+     *
+     * @return created ROC Raw Record (EvioEvent object)
+     * @throws EvioException
+     */
+    public static void createRocRawRecordFast(int rocID,       int triggerType,
+                                              int detectorId,  int status,
+                                              int eventNumber, int numEvents,
+                                              long timestamp,  ByteBuffer buf,
+                                              CompactEventBuilder builder)
+            throws EvioException {
+
+        // Create a ROC Raw Data Record event/bank with numEvents physics events in it
+        builder.setBuffer(buf);
+
+        int rocTag = createCodaTag(status, rocID);
+        builder.openBank(rocTag, numEvents, DataType.ALSOBANK);
+
+        // Create the trigger bank (of segments)
+        builder.openBank(CODATag.RAW_TRIGGER_TS.getValue(), numEvents, DataType.ALSOSEGMENT);
+
+        int[] segmentData = new int[3];
+        for (int i = 0; i < numEvents; i++) {
+            // Each segment contains eventNumber & timestamp of corresponding event in data bank
+            builder.openSegment(triggerType, DataType.UINT32);
+            // Generate 3 segments per event (no miscellaneous data)
+            segmentData[0] = eventNumber + i;
+            segmentData[1] = (int)  timestamp; // low 32 bits
+            segmentData[2] = (int) (timestamp >>> 32 & 0xFFFF); // high 16 of 48 bits
+            timestamp += 4;
+
+            builder.addIntData(segmentData);
+            builder.closeStructure();
+        }
+        // Close trigger bank
+        builder.closeStructure();
+
+        // Create a single data block bank
+        int []data = generateData(eventNumber, numEvents * 40, false, timestamp);
+
+        int dataTag = createCodaTag(status, detectorId);
+        builder.openBank(dataTag, numEvents, DataType.UINT32);
+        builder.addIntData(data);
+
+        builder.closeAll();
+    }
+
+
+
+
+    /**
+     * Create an array of evio events with simulated ROC data
+     * in the form of ByteBuffer objects.
+     *
+     * @param rocId       ROC id number
+     * @param triggerType trigger type id number (0-15)
+     * @param detectorId  id of detector producing data in data block bank
+     * @param status      4-bit status associated with data
+     * @param eventNumber starting event number
+     * @param numEvents   number of physics events in created each payload bank
+     * @param timestamp   starting event's timestamp
+     * @param numPayloadBanks number of payload banks to generate
+     * @param bbSupply    supply of reusable ByteBuffers
+     * @param builder     used to build evio events in buffer acquired from bbSupply
+     *
+     * @return array of generated byte buffers
+     */
+    public static ByteBuffer[] createRocDataEventsFast(int rocId, int triggerType,
+                                                          int detectorId, int status,
+                                                          int eventNumber, int numEvents,
+                                                          long timestamp,
+                                                          int numPayloadBanks,
+                                                          boolean singleEventMode,
+                                                          ByteBufferSupply bbSupply,
+                                                          CompactEventBuilder builder,
+                                                          ByteBufferItem[] items)  {
+
+        if (singleEventMode) {
+            numEvents = 1;
+        }
+
+        ByteBuffer buf = null;
+        ByteBufferItem bufItem = null;
+        ByteBuffer[] buffers = new ByteBuffer[numPayloadBanks];
+
+        try {
+            for (int i=0; i < numPayloadBanks; i++)  {
+                // Add ROC Raw Records as PayloadBuffer objects
+                if (singleEventMode) {
+                    // nothing right now
+                }
+                else {
+                    bufItem = bbSupply.get();
+                    buf = bufItem.getBuffer();
+                    createRocRawRecordFast(rocId, triggerType, detectorId, status,
+                                           eventNumber, numEvents, timestamp, buf, builder);
+                }
+
+                buffers[i] = buf;
+                items[i] = bufItem;
+
+                eventNumber += numEvents;
+                timestamp   += 4*numEvents;
+            }
+        }
+        catch (EvioException e) {/* should not happen */}
+
+        return buffers;
+    }
 
 
 }

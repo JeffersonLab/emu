@@ -15,7 +15,6 @@ import org.jlab.coda.cMsg.cMsgException;
 import org.jlab.coda.cMsg.cMsgPayloadItem;
 import org.jlab.coda.cMsg.cMsgMessage;
 
-import org.jlab.coda.emu.modules.EventBuilding;
 import org.jlab.coda.emu.modules.EventRecording;
 import org.jlab.coda.emu.modules.FastEventBuilder;
 import org.jlab.coda.emu.modules.RocSimulation;
@@ -95,6 +94,9 @@ public class Emu implements CODAComponent {
     /** The numeric code representing the run type. */
     private volatile int runTypeId;
 
+    /** For a ROC, the smallest number of evio-events/et-buffer that DC/PEB found. */
+    private volatile int bufferLevel;
+
     /**
      * The Emu can display a window containing debug information, a message log
      * and toolbars that allow commands to be issued without Run Control.
@@ -120,8 +122,11 @@ public class Emu implements CODAComponent {
     /** A CMSGPortal object encapsulates all cMsg communication with Run Control. */
     private final CMSGPortal cmsgPortal;
 
-    /** The UDL of the cMsg server. */
-    private String cmsgUDL;
+    /** All the dot-decimal format IP addresses of the platform's host. */
+    private String[] platformIpAddresses;
+
+    /** The TCP port of the platform's cMsg domain server. */
+    private int platformTcpPort;
 
     /** Path that the data takes through the parts of the emu. */
     private EmuDataPath dataPath;
@@ -262,12 +267,11 @@ public class Emu implements CODAComponent {
      * @param name            name of Emu
      * @param type            CODA component type of Emu
      * @param loadedConfig    parsed XML document object of Emu configuration file
-     * @param cmsgUDL         UDL used to connect to cMsg server to receive run control commands
      * @param debugUI         start a debug GUI
-     * @throws EmuException   if name is null
+     * @throws EmuException   if name is null, or cannot connect to rc server
      */
     public Emu(String name, String type, Document loadedConfig,
-               String cmsgUDL, boolean debugUI) throws EmuException {
+               boolean debugUI) throws EmuException {
 
         if (name == null) {
             throw new EmuException("Emu name not defined");
@@ -282,7 +286,6 @@ public class Emu implements CODAComponent {
         System.out.println("Emu created, name = " + name + ", type = " + codaClass);
 
         this.name = name;
-        this.cmsgUDL = cmsgUDL;  // may be null
         this.loadedConfig = loadedConfig;
 
         // Set the name of this EMU
@@ -334,6 +337,7 @@ public class Emu implements CODAComponent {
         }
 
         // Need the following info for this object's getter methods
+        // and possibly for connecting to platform.
         String tmp = System.getProperty("expid");
         if (tmp != null) expid = tmp;
         if (expid == null) {
@@ -347,8 +351,8 @@ public class Emu implements CODAComponent {
         tmp = System.getProperty("user.name");
         if (tmp != null) userName = tmp;
 
-        // Create object responsible for communication w/ runcontrol through cMsg server.
-        cmsgPortal = new CMSGPortal(this, expid);
+        // Create object for communication w/ run control through cMsg server
+        cmsgPortal = new CMSGPortal(this);
 
         Configurer.setLogger(null);
 
@@ -473,7 +477,37 @@ public class Emu implements CODAComponent {
     public String getRunType() {return runType;}
 
     /** {@inheritDoc} */
-    public String getCmsgUDL() {return cmsgUDL;}
+    public String getCmsgUDL() {return cmsgPortal.getRcUDL();}
+
+    /**
+     * Get the rc platform's IP addresses as dot-decimal strings.
+     * @return rc platform's IP addresses as dot-decimal strings, null if none.
+     */
+    public String[] getPlatformIpAddresses() {
+        return platformIpAddresses;
+    }
+
+    /**
+     * Get the platform's cMsg domain server's TCP port.
+     * @return platform's cMsg domain server's TCP port, 0 if none.
+     */
+    public int getPlatformTcpPort() {
+        return platformTcpPort;
+    }
+
+    /**
+     * Get the smallest number of evio-events/et-buffer that connected DC/PEB found.
+     * Meaningful only for a ROC.
+     * @return smallest number of evio-events/et-buffer that connected DC/PEB found.
+     */
+    public int getBufferLevel() {return bufferLevel;}
+
+    /**
+     * Set the smallest number of evio-events/et-buffer that connected DC/PEB found.
+     * Meaningful only for a ROC.
+     * @param bufferLevel smallest number of evio-events/et-buffer that connected DC/PEB found.
+     */
+    public void setBufferLevel(int bufferLevel) {this.bufferLevel = bufferLevel;}
 
     /** {@inheritDoc} */
     public Document configuration() {return loadedConfig;}
@@ -784,8 +818,8 @@ System.out.println("Emu " + name + " sending special RC display error Msg:\n ***
          * this method. */
         synchronized void sendStatusMessage() {
             if (statusReportingOn &&
-               (cmsgPortal.getServer() != null) &&
-               (cmsgPortal.getServer().isConnected())) {
+               (cmsgPortal.getRcServer() != null) &&
+               (cmsgPortal.getRcServer().isConnected())) {
 
                 String state = state().name().toLowerCase();
 
@@ -809,7 +843,7 @@ System.out.println("Emu " + name + " sending special RC display error Msg:\n ***
                     // Over write any previously defined payload items
                     reportMsg.addPayloadItem(new cMsgPayloadItem(RCConstants.state, state));
                     reportMsg.addPayloadItem(new cMsgPayloadItem(RCConstants.codaClass, codaClass.name()));
-                    reportMsg.addPayloadItem(new cMsgPayloadItem(RCConstants.eventNumber, (int)eventCount));
+                    reportMsg.addPayloadItem(new cMsgPayloadItem(RCConstants.eventCount, (int)eventCount));
                     reportMsg.addPayloadItem(new cMsgPayloadItem(RCConstants.objectType, "coda3"));
                     // in Hz
                     reportMsg.addPayloadItem(new cMsgPayloadItem(RCConstants.eventRate, eventRate));
@@ -818,6 +852,9 @@ System.out.println("Emu " + name + " sending special RC display error Msg:\n ***
                     reportMsg.addPayloadItem(new cMsgPayloadItem(RCConstants.dataRate, (double)wordRate));
                     if (outputDestination != null) {
                         reportMsg.addPayloadItem(new cMsgPayloadItem(RCConstants.filename, outputDestination));
+                    }
+                    else {
+                        reportMsg.removePayloadItem(RCConstants.filename);
                     }
     //System.out.println("Emu " + name + " sending STATUS REPORTING Msg:");
     //                        System.out.println("   " + RCConstants.state + " = " + state);
@@ -828,7 +865,7 @@ System.out.println("Emu " + name + " sending special RC display error Msg:\n ***
     //                        System.out.println("   " + RCConstants.dataRate + " = " + (double)wordRate);
 
                     // Send msg
-                    cmsgPortal.getServer().send(reportMsg);
+                    cmsgPortal.getRcServer().send(reportMsg);
                 }
                 catch (cMsgException e) {
                     logger.warn(e.getMessage());
@@ -1042,10 +1079,24 @@ System.out.println("SET Run type to " + txt);
             }
             return;
         }
+        // Run Control tells us our ROC output buffer level
+        else if (codaCommand == SET_BUF_LEVEL) {
+            // Get the new run type and store it
+            int bufferLevel = cmd.getMessage().getUserInt();
+            if (bufferLevel > 0) {
+System.out.println("SET buffer level to " + bufferLevel);
+                setBufferLevel(bufferLevel);
+            }
+            else {
+                System.out.println("Got SET_BUF_LEVEL command but bad value ("+ bufferLevel + ")");
+            }
+            return;
+        }
         // Send back our state
         else if (codaCommand == GET_STATE) {
-            if ( (cmsgPortal.getServer() != null) &&
-                 (cmsgPortal.getServer().isConnected())) {
+            if ( (cmsgPortal != null) &&
+                 (cmsgPortal.getRcServer() != null) &&
+                 (cmsgPortal.getRcServer().isConnected())) {
 
                 // Need to reply to sendAndGet msg from Run Control
                 cMsgMessage msg = null;
@@ -1063,7 +1114,7 @@ System.out.println("SET Run type to " + txt);
                 msg.setText(state().name().toLowerCase());
 
                 try {
-                    cmsgPortal.getServer().send(msg);
+                    cmsgPortal.getRcServer().send(msg);
                 }
                 catch (cMsgException e) {
                     e.printStackTrace();
@@ -1074,8 +1125,9 @@ System.out.println("SET Run type to " + txt);
         }
         // Send back our CODA class
         else if (codaCommand == GET_CODA_CLASS) {
-            if ( (cmsgPortal.getServer() != null) &&
-                 (cmsgPortal.getServer().isConnected())) {
+            if ( (cmsgPortal != null) &&
+                 (cmsgPortal.getRcServer() != null) &&
+                 (cmsgPortal.getRcServer().isConnected())) {
 
                 cMsgMessage msg = new cMsgMessage();
                 msg.setSubject(name);
@@ -1083,7 +1135,7 @@ System.out.println("SET Run type to " + txt);
                 msg.setText(getCodaClass().name());  // CODA class set in module constructors
 
                 try {
-                    cmsgPortal.getServer().send(msg);
+                    cmsgPortal.getRcServer().send(msg);
                 }
                 catch (cMsgException e) {
                     e.printStackTrace();
@@ -1094,8 +1146,9 @@ System.out.println("SET Run type to " + txt);
         }
         // Send back our object type
         else if (codaCommand == GET_OBJECT_TYPE) {
-            if ( (cmsgPortal.getServer() != null) &&
-                 (cmsgPortal.getServer().isConnected())) {
+            if ( (cmsgPortal != null) &&
+                 (cmsgPortal.getRcServer() != null) &&
+                 (cmsgPortal.getRcServer().isConnected())) {
 
                 cMsgMessage msg = new cMsgMessage();
                 msg.setSubject(name);
@@ -1103,7 +1156,7 @@ System.out.println("SET Run type to " + txt);
                 msg.setText(objectType);
 
                 try {
-                    cmsgPortal.getServer().send(msg);
+                    cmsgPortal.getRcServer().send(msg);
                 }
                 catch (cMsgException e) {
                     e.printStackTrace();
@@ -1171,8 +1224,28 @@ System.out.println("SET Run type to " + txt);
                         if (pItem != null) {
                             rcConfigFile = pItem.getString();
                         }
+
+                        // May have all if platform's IP addresses, dot-decimal format
+                        // along with platform's cMsg domain server's TCP port
+                        pItem = cmd.getArg(RCConstants.configPayloadPlatformHosts);
+                        if (pItem != null) {
+                            platformIpAddresses = pItem.getStringArray();
+                            pItem = cmd.getArg(RCConstants.configPayloadPlatformPort);
+                            if (pItem != null) {
+                                platformTcpPort = pItem.getInt();
+                            }
+                            // Use the platform's host & port to connect to
+                            // platform's cMsg domain server.
+                            cmsgPortal.cMsgServerConnect();
+                        }
                     }
                     catch (cMsgException e) {/* never happen */}
+                    catch (EmuException e) {
+logger.error("Emu: CONFIGURE failed", e.getMessage());
+                        errorMsg.compareAndSet(null, e.getMessage());
+                        setState(ERROR);
+                        return;
+                    }
                 }
 
                 // If this config is sent as a string from Run Control...
@@ -1692,10 +1765,17 @@ logger.info("  Emu.execute(DOWNLOAD): creating " + transportName);
                                 continue;
                             }
 
+                            Class c;
                             try {
-                                Class c = Emu.class.getClassLoader().loadClass(implName);
+                                c = Emu.class.getClassLoader().loadClass(implName);
 //logger.info("  Emu.execute(DOWNLOAD): loaded class = " + c);
+                            }
+                            catch (Exception e) {
+                                e.printStackTrace();
+                                throw new CmdExecException("cannot load transport class", e);
+                            }
 
+                            try {
                                 // 2 constructor args
                                 Class[] parameterTypes = {String.class, Map.class, Emu.class};
                                 Constructor co = c.getConstructor(parameterTypes);
@@ -1703,11 +1783,11 @@ logger.info("  Emu.execute(DOWNLOAD): creating " + transportName);
                                 // create an instance & store reference
                                 Object[] args = {transportName, attrib, this};
                                 transports.add((DataTransport) co.newInstance(args));
-
 //logger.info("  Emu.execute(DOWNLOAD): created " + transportName + " of protocol " + transportClass);
-
-                            } catch (Exception e) {
-                                throw new CmdExecException("cannot load transport class", e);
+                            }
+                            catch (Exception e) {
+                                e.printStackTrace();
+                                throw new CmdExecException("cannot create transport object", e);
                             }
                         } // if node is element
                     } // for each child node
@@ -1753,13 +1833,10 @@ logger.debug("  Emu.execute(DOWNLOAD): pass download down to " + transport.name(
                         // What type of module are we creating?
                         EmuModule module;
 
-                        if (moduleClassName.equals("EventBuilding")) {
-                                module = new EventBuilding(n.getNodeName(), attributeMap, this);
-                        }
-                        else if (moduleClassName.equals("EventRecording")) {
+                        if (moduleClassName.equals("EventRecording")) {
                                 module = new EventRecording(n.getNodeName(), attributeMap, this);
                         }
-                        else if (moduleClassName.equals("FastEventBuilder")) {
+                        else if (moduleClassName.equals("EventBuilding")) {
                                 module = new FastEventBuilder(n.getNodeName(), attributeMap, this);
                         }
                         else if (moduleClassName.equals("RocSimulation")) {
@@ -1936,9 +2013,11 @@ logger.debug("Emu.execute(PRESTART): PRESTART to " + transport.name());
                                         inFifo.add(channel);
                                     }
                                     else {
-                                        // Give it object to notify Emu when END event comes through
-                                        channel.registerEndCallback(new EmuEventNotify());
-                                        in.add(channel);
+                                        if (channel != null) {
+                                            // Give it object to notify Emu when END event comes through
+                                            channel.registerEndCallback(new EmuEventNotify());
+                                            in.add(channel);
+                                        }
                                     }
                                 }
                                 // If it's an output channel ...
@@ -1950,8 +2029,10 @@ logger.debug("Emu.execute(PRESTART): PRESTART to " + transport.name());
                                         outFifo.add(channel);
                                     }
                                     else {
-                                        channel.registerEndCallback(new EmuEventNotify());
-                                        out.add(channel);
+                                        if (channel != null) {
+                                            channel.registerEndCallback(new EmuEventNotify());
+                                            out.add(channel);
+                                        }
                                     }
                                 }
                                 else {
@@ -2001,6 +2082,7 @@ logger.debug("Emu.execute(PRESTART): PRESTART to IN chan " + chan.name());
 
             } catch (Exception e) {
 logger.error("PRESTART threw " + e.getMessage());
+                e.printStackTrace();
                 errorMsg.compareAndSet(null, e.getMessage());
                 setState(ERROR);
                 return;

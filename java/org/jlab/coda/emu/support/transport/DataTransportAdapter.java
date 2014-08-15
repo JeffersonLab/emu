@@ -53,7 +53,7 @@ public abstract class DataTransportAdapter extends CODAStateMachineAdapter imple
     protected Logger logger;
 
     /** Does this DataTransport object receive data (server = true) or does it send data (server = false)? */
-    protected boolean server;
+    protected boolean isServer;
 
     /** Is this object connected? */
     protected boolean connected;
@@ -89,19 +89,10 @@ public abstract class DataTransportAdapter extends CODAStateMachineAdapter imple
         }
 
         transportClass = getAttr("class");
-        if (transportClass == null) {
-            throw new DataNotFoundException("Transport : " + name() + ", missing class attribute");
-        }
 
         String serverS = getAttr("server");
-        if (serverS == null) {
-            throw new DataNotFoundException("Transport : " + name() + ", missing server attribute");
-        }
-        server = Boolean.valueOf(serverS);
-
-//        if (logger != null) {
-//            logger.debug("INSTANCE " + pname + " of class " + this.getClass() + " : " + myInstance);
-//        }
+        isServer = Boolean.valueOf(serverS);
+        System.out.println("\n\n^^^^^^^^^^^^^  Emu Transport, isServer = " + isServer + " <<<<<<<<<<<<<<<<\n");
     }
 
     // createChannel needs to be defined in subclasses
@@ -134,11 +125,11 @@ public abstract class DataTransportAdapter extends CODAStateMachineAdapter imple
 
     /** {@inheritDoc} */
     public int getIntAttr(String name) throws DataNotFoundException {
-        return Integer.valueOf(getAttr(name));
+        return Integer.parseInt(getAttr(name));
     }
 
     /** {@inheritDoc} */
-    public boolean isServer() {return server;}
+    public boolean isServer() {return isServer;}
 
     /** {@inheritDoc} */
     public boolean isConnected() {return connected;}

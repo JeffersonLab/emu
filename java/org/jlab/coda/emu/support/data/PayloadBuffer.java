@@ -24,14 +24,13 @@ import java.nio.ByteOrder;
  * @author timmer
  * (5/16/13)
  */
-public class PayloadBuffer extends QueueItemAdapter {
+public class PayloadBuffer extends RingItemAdapter {
 
-    /** ByteBuffer to wrap. */
-    private ByteBuffer buffer;
 
-    /** Object containing info about the buffer. */
-    private EvioNode node;
-
+    /**
+     * Zero-arg constructor.
+     */
+    public PayloadBuffer() {}
 
 
     /**
@@ -89,19 +88,13 @@ public class PayloadBuffer extends QueueItemAdapter {
     }
 
     /**
-     * Get the ByteBuffer.
-     * @return the ByteBuffer object.
-     */
-    public ByteBuffer getBuffer() {
-        return buffer;
-    }
-
-    /**
      * Get the length of this structure in bytes, including the header.
      * @return the length of this structure in bytes, including the header.
      */
     public int getTotalBytes() {
-        return buffer.remaining();
+        // remaining() THIS DOES NOTTTTTTTTTT SEEM RIGHT!!!!!
+        //return buffer.remaining();
+        return buffer.limit();
     }
 
     /**
@@ -122,12 +115,8 @@ public class PayloadBuffer extends QueueItemAdapter {
         return 123;
     }
 
-    public EvioNode getNode() {
-        return node;
-    }
 
-    public QueueItemType getQueueItemType() {return QueueItemType.PayloadBuffer;}
-//    public void setQueueItemType(QueueItemType queueItemType) {;}
+    public ModuleIoType getQueueItemType() {return ModuleIoType.PayloadBuffer;}
 
     /** Clones this object setting the attachment to null. */
     public Object clone() {

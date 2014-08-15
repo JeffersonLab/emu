@@ -105,6 +105,10 @@ public class RCConstants {
     public static final String configPayloadFileContentRoc = "emuRocConfig";
     /** String used as payload name for item holding int (1 if file content changed, else 0). */
     public static final String configPayloadFileChanged = "fileChanged";
+    /** String used as payload name for item holding all IP addresses of platform's host. */
+    public static final String configPayloadPlatformHosts = "platformHost";
+    /** String used as payload name for item holding platform's cMsg domain server's TCP port. */
+    public static final String configPayloadPlatformPort = "platformPort";
 
     /** String used as payload name for item holding run type int. */
     public static final String prestartPayloadRunType = "configId";
@@ -122,6 +126,8 @@ public class RCConstants {
     public static final String getRunType       = runCommand + "getRunType";
     /** String used as type in message for the set-run-type command. */
     public static final String setRunType       = runCommand + "setRunType";
+    /** String used as type in message for the set-buffer-level command. */
+    public static final String setBufferLevel   = runCommand + "setRocBufferLevel";
 
     // Types in messages received in coda/info/* callback
 
@@ -160,7 +166,7 @@ public class RCConstants {
     public static final String    name                 = "codaName";
     public static final String    codaClass            = "codaClass";
     public static final String    state                = "state";
-    public static final String    eventNumber          = "eventCount";
+    public static final String    eventCount           = "eventCount";
     public static final String    eventRate            = "eventRate";
     public static final String    dataRate             = "dataRate";
     public static final String    numberOfLongs        = "dataCount";

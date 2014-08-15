@@ -19,13 +19,9 @@ import org.jlab.coda.cMsg.*;
 import org.jlab.coda.jevio.*;
 
 
-import javax.xml.stream.XMLOutputFactory;
-import javax.xml.stream.XMLStreamException;
-import javax.xml.stream.XMLStreamWriter;
 import java.io.IOException;
-import java.io.StringWriter;
+import java.util.ArrayList;
 import java.util.BitSet;
-import java.util.LinkedList;
 import java.util.concurrent.*;
 import java.util.Map;
 import java.nio.ByteBuffer;
@@ -55,10 +51,10 @@ public class DataChannelImplCmsg extends DataChannelAdapter {
     /** Enforce evio block header numbers to be sequential? */
     private boolean blockNumberChecking;
 
-    /** Read END event from input queue. */
+    /** Read END event from input ring. */
     private volatile boolean haveInputEndEvent;
 
-    /** Read END event from output queue. */
+    /** Read END event from output ring. */
     private volatile boolean haveOutputEndEvent;
 
     /** Got END command from Run Control. */
@@ -77,27 +73,9 @@ public class DataChannelImplCmsg extends DataChannelAdapter {
     /** Number of writing threads to ask for in copying data from banks to cMsg messages. */
     private int writeThreadCount;
 
-    /** Number of data output helper threads each of which has a pool of writeThreadCount. */
-    private int outputThreadCount;
-
     /** Array of threads used to output data. */
-    private DataOutputHelper[] dataOutputThreads;
+    private DataOutputHelper dataOutputThread;
 
-    /** Order number of next array of cMsg messages (containing
-     *  bank lists) to be sent to cMsg server. */
-    private int outputOrder;
-
-    /** Order of array of bank lists (to put into array of cMsg messages) taken off Q. */
-    private int inputOrder;
-
-    /** Synchronize getting banks off Q for multiple DataOutputHelpers. */
-    private Object lockIn  = new Object();
-
-    /** Synchronize sending cMsg messages to cMsg server for multiple DataOutputHelpers. */
-    private Object lockOut = new Object();
-
-    /** Place to store a bank off the queue for the next message out. */
-    private PayloadBank firstBankFromQueue;
 
     /**
      * Fill up a message with banks until it reaches this size limit in bytes
@@ -106,132 +84,243 @@ public class DataChannelImplCmsg extends DataChannelAdapter {
     private int outputSizeLimit = 256000;
 
     /** Fill up a message with at most this number of banks before another is used. */
-    private int outputCountLimit = 100;
+    private int outputCountLimit = 10000;
 
 
 // TODO: does this need to be reset? I think so ...
     /** Use the evio block header's block number as a record id. */
     private int recordId;
 
+    //-------------------------------------------
+    // Disruptor (RingBuffer)  Stuff
+    //-------------------------------------------
+
+//    /** Ring buffer holding ByteBuffers when using EvioCompactEvent reader for incoming events. */
+//    protected ByteBufferSupply bbSupply;   // input
+
+    private int rbIndex;
+
+
+
+    private final void messageToBank(cMsgMessage msg) throws IOException, EvioException {
+
+//logger.info("      DataChannel cmsg in helper: " + name + ": got BANK message in callback");
+
+        byte[] data = msg.getByteArray();
+        if (data == null) {
+            errorMsg.compareAndSet(null, "cMsg message data has no data");
+            throw new EvioException("cMsg message data has no data");
+        }
+
+        ByteBuffer buf = ByteBuffer.wrap(data);
+
+        try {
+            EvioReader eventReader = new EvioReader(buf, blockNumberChecking);
+
+            // Speed things up since no EvioListeners are used - doesn't do much
+            eventReader.getParser().setNotificationActive(false);
+
+            // First block header in buffer
+            IBlockHeader blockHeader = eventReader.getFirstBlockHeader();
+            int evioVersion = blockHeader.getVersion();
+            if (evioVersion < 4) {
+                errorMsg.compareAndSet(null, "Evio data needs to be written in version 4+ format");
+                throw new EvioException("Evio data needs to be written in version 4+ format");
+            }
+            BlockHeaderV4 header4 = (BlockHeaderV4)blockHeader;
+            // eventType may be null if no type info exists in block header.
+            // But it should always be there if reading from ROC or DC.
+            EventType eventType = EventType.getEventType(header4.getEventType());
+            ControlType controlType = null;
+            int sourceId = header4.getReserved1();
+
+            // The recordId associated with each bank is taken from the first
+            // evio block header in a single ET data buffer. For a physics or
+            // ROC raw type, it should start at zero and increase by one in the
+            // first evio block header of the next ET data buffer.
+            // There may be multiple banks from the same ET buffer and
+            // they will all have the same recordId.
+            //
+            // Thus, only the first block header # is significant. It is set sequentially
+            // by the evWriter object & incremented once per ET event with physics
+            // or ROC data (set to -1 for other data types). Copy it into each bank.
+            // Even though many banks will have the same number, it should only
+            // increment by one. This should work just fine as all evio events in
+            // a single ET event should always be there (not possible to skip any)
+            // since it is transferred all together.
+            //
+            // When the QFiller thread of the event builder gets a physics or ROC
+            // evio event, it checks to make sure this number is in sequence and
+            // prints a warning if it isn't.
+            int recordId = header4.getNumber();
+
+//logger.info("      DataChannel cmsg in helper: " + name + " block header, event type " + eventType +
+//            ", src id = " + sourceId + ", recd id = " + recordId);
+
+//System.out.println("      DataChannel cmsg in helper: parse next event");
+            EvioEvent event;
+            EventType bankType;
+            long nextRingItem;
+
+            while ((event = eventReader.parseNextEvent()) != null) {
+                // Complication: from the ROC, we'll be receiving USER events
+                // mixed in with and labeled as ROC Raw events. Check for that
+                // and fix it.
+                bankType = eventType;
+                if (eventType == EventType.ROC_RAW) {
+                    if (Evio.isUserEvent(event)) {
+                        bankType = EventType.USER;
+                    }
+                }
+                else if (eventType == EventType.CONTROL) {
+                    // Find out exactly what type of control event it is
+                    // (May be null if there is an error).
+                    controlType = ControlType.getControlType(event.getHeader().getTag());
+                    if (controlType == null) {
+                        errorMsg.compareAndSet(null, "Found unidentified control event");
+                        throw new EvioException("Found unidentified control event");
+                    }
+                }
+
+                nextRingItem = ringBufferIn.next();
+                RingItem ringItem = ringBufferIn.get(nextRingItem);
+
+                ringItem.setEvent(event);
+                ringItem.setEventType(bankType);
+                ringItem.setControlType(controlType);
+                ringItem.setRecordId(recordId);
+                ringItem.setSourceId(sourceId);
+                ringItem.setSourceName(name);
+                ringItem.setEventCount(1);
+                ringItem.matchesId(sourceId == id);
+
+                ringBufferIn.publish(nextRingItem);
+
+                // Handle end event ...
+                if (controlType == ControlType.END) {
+                    // There should be no more events coming down the pike so
+                    // go ahead write out existing events and then shut this
+                    // thread down.
+                    logger.info("      DataChannel cmsg in helper: " + name + " found END event");
+                    haveInputEndEvent = true;
+                    // run callback saying we got end event
+                    if (endCallback != null) endCallback.endWait();
+                    return;
+                }
+            }
+        }
+        catch (Exception e) {
+            // If we haven't yet set the cause of error, do so now & inform run control
+            errorMsg.compareAndSet(null, "cMsg message data has invalid format");
+
+            // set state
+            state = CODAState.ERROR;
+            emu.sendStatusMessage();
+        }
+    }
+
+
+    private final void messageToBuf(cMsgMessage msg) throws IOException, EvioException {
+
+        byte[] data = msg.getByteArray();
+        if (data == null) {
+            errorMsg.compareAndSet(null, "cMsg message data has no data");
+            throw new EvioException("cMsg message data has no data");
+        }
+
+        ByteBuffer buf = ByteBuffer.wrap(data);
+
+        try {
+            EvioCompactReader compactReader = new EvioCompactReader(buf);
+
+            BlockHeaderV4 blockHeader = compactReader.getFirstBlockHeader();
+            if (blockHeader.getVersion() < 4) {
+                errorMsg.compareAndSet(null, "Data is NOT evio v4 format");
+                throw new EvioException("Evio data needs to be written in version 4+ format");
+            }
+
+            EventType eventType = EventType.getEventType(blockHeader.getEventType());
+            int recordId = blockHeader.getNumber();
+            int sourceId = blockHeader.getReserved1();
+            int eventCount = compactReader.getEventCount();
+//logger.info("      DataChannel cmsg in helper: " + name + " block header, event type " + eventType +
+//            ", src id = " + sourceId + ", recd id = " + recordId + ", event cnt = " + eventCount);
+
+            EvioNode node;
+            EventType bankType;
+            ControlType controlType = null;
+            long nextRingItem;
+
+            for (int i=1; i < eventCount+1; i++) {
+                node = compactReader.getScannedEvent(i);
+
+                bankType = eventType;
+                if (eventType == EventType.ROC_RAW) {
+                    if (Evio.isUserEvent(node)) {
+                        bankType = EventType.USER;
+                    }
+                }
+                else if (eventType == EventType.CONTROL) {
+                    controlType = ControlType.getControlType(node.getTag());
+                    if (controlType == null) {
+                        errorMsg.compareAndSet(null, "Found unidentified control event");
+                        throw new EvioException("Found unidentified control event");
+                    }
+                }
+
+                nextRingItem = ringBufferIn.next();
+                RingItem ringItem = ringBufferIn.get(nextRingItem);
+
+                ringItem.setNode(node);
+                ringItem.setBuffer(node.getStructureBuffer(false));
+                ringItem.setBuffer(buf);
+                ringItem.setEventType(bankType);
+                ringItem.setControlType(controlType);
+                ringItem.setRecordId(recordId);
+                ringItem.setSourceId(sourceId);
+                ringItem.setSourceName(name);
+                ringItem.setEventCount(1);
+                ringItem.matchesId(sourceId == id);
+
+                ringBufferIn.publish(nextRingItem);
+
+                if (controlType == ControlType.END) {
+                    logger.info("      DataChannel Emu in helper: " + name + " found END event");
+                    haveInputEndEvent = true;
+                    if (endCallback != null) endCallback.endWait();
+                    return;
+                }
+            }
+        }
+        catch (EvioException e) {
+            e.printStackTrace();
+            errorMsg.compareAndSet(null, "Data is NOT evio v4 format");
+            throw e;
+        }
+
+    }
 
 
     /**
      * This class defines the callback to be run when a message matching the subscription arrives.
      */
     class ReceiveMsgCallback extends cMsgCallbackAdapter {
-        /**
-         * Callback method definition.
-         *
-         * @param msg message received from domain server
-         * @param userObject object passed as an argument which was set when the
-         *                   client originally subscribed to a subject and type of
-         *                   message.
-         */
+
+        /** Callback method definition. */
         public void callback(cMsgMessage msg, Object userObject) {
 
-            EvioEvent bank;
-            PayloadBank payloadBank;
-            int evioVersion, sourceId, recordId;
-            BlockHeaderV4 header4;
-            EventType eventType, bankType;
-            ControlType controlType;
-            EvioReader reader;
-
+//logger.info("      DataChannel cmsg in helper: " + name + ": got message in callback");
             try {
-//System.out.println("cmsg data channel " + name + ": got message in callback");
-                byte[] data = msg.getByteArray();
-                if (data == null) {
-                    errorMsg.compareAndSet(null, "cMsg message data has no data");
-                    throw new EvioException("cMsg message data has no data");
+                if (ringItemType == ModuleIoType.PayloadBank) {
+                    messageToBank(msg);
                 }
-
-                ByteBuffer buffer = ByteBuffer.wrap(data);
-                reader = new EvioReader(buffer, blockNumberChecking);
-
-                // Speed things up since no EvioListeners are used - doesn't do much
-                reader.getParser().setNotificationActive(false);
-
-                IBlockHeader blockHeader = reader.getCurrentBlockHeader();
-                evioVersion = blockHeader.getVersion();
-                if (evioVersion < 4) {
-                    errorMsg.compareAndSet(null, "Evio data needs to be written in version 4+ format");
-                    throw new EvioException("Evio data needs to be written in version 4+ format");
+                else if (ringItemType == ModuleIoType.PayloadBuffer) {
+                    messageToBuf(msg);
                 }
-                header4     = (BlockHeaderV4)blockHeader;
-                eventType   = EventType.getEventType(header4.getEventType());
-                controlType = null;
-                sourceId    = header4.getReserved1();
-
-                // The recordId associated with each bank is taken from the first
-                // evio block header in a single data buffer. For a physics or
-                // ROC raw type, it should start at zero and increase by one in the
-                // first evio block header of the next data buffer.
-                // There may be multiple banks from the same buffer and
-                // they will all have the same recordId.
-                //
-                // Thus, only the first block header # is significant. It is set sequentially
-                // by the evWriter object & incremented once per message with physics
-                // or ROC data (set to -1 for other data types). Copy it into each bank.
-                // Even though many banks will have the same number, it should only
-                // increment by one. This should work just fine as all evio events in
-                // a single message should always be there (not possible to skip any)
-                // since it is transferred all together.
-                //
-                // When the QFiller thread of the event builder gets a physics or ROC
-                // evio event, it checks to make sure this number is in sequence and
-                // prints a warning if it isn't.
-                recordId = header4.getNumber();
-
-                while ((bank = reader.parseNextEvent()) != null) {
-                    // Complication: from the ROC, we'll be receiving USER events
-                    // mixed in with and labeled as ROC Raw events. Check for that
-                    // and fix it.
-                    bankType = eventType;
-                    if (eventType == EventType.ROC_RAW) {
-                        if (Evio.isUserEvent(bank)) {
-                            bankType = EventType.USER;
-                        }
-                    }
-                    else if (eventType == EventType.CONTROL) {
-                        // Find out exactly what type of control event it is
-                        // (May be null if there is an error)
-                        // TODO: It may NOT be enough just to check the tag
-                        controlType = ControlType.getControlType(bank.getHeader().getTag());
-                        if (controlType == null) {
-                            errorMsg.compareAndSet(null, "Found unidentified control event");
-                            throw new EvioException("Found unidentified control event");
-                        }
-                    }
-
-                    // Not a real copy, just points to stuff in bank
-                    payloadBank = new PayloadBank(bank);
-                    // Add vital info from block header.
-                    payloadBank.setEventType(bankType);
-                    payloadBank.setControlType(controlType);
-                    payloadBank.setSourceId(sourceId);
-                    payloadBank.setRecordId(recordId);
-
-                    // Put evio bank (payload bank) on Q if it parses
-                    queue.put(payloadBank);
-
-                    // Handle end event ...
-                    if (controlType == ControlType.END) {
-                        // There should be no more events coming down the pike so
-                        // go ahead write out existing events and then shut this
-                        // thread down.
-//logger.info("      DataChannel cMsg : found END event");
-                        haveInputEndEvent = true;
-                        break;
-                    }
-                }
-
-                if (haveInputEndEvent) {
-                    // TODO: do something?
-                }
-            }
-            catch (InterruptedException e) {
             }
             catch (Exception e) {
+                e.printStackTrace();
+
                 // If we haven't yet set the cause of error, do so now & inform run control
                 errorMsg.compareAndSet(null, "cMsg message data has invalid format");
 
@@ -239,65 +328,13 @@ public class DataChannelImplCmsg extends DataChannelAdapter {
                 state = CODAState.ERROR;
                 emu.sendStatusMessage();
             }
-
-
-
-
-//            try {
-////                ByteOrder byteOrder = ByteOrder.BIG_ENDIAN;
-////
-////                if (msg.getByteArrayEndian() == cMsgConstants.endianLittle) {
-////                    byteOrder = ByteOrder.LITTLE_ENDIAN;
-////                }
-////
-////                buffer = PayloadBuffer.wrap(data).order(byteOrder);
-//                buffer = PayloadBuffer.wrap(data);
-//                parser = new EvioReader(buffer);
-//                EvioBank bank = parser.parseNextEvent();
-////System.out.println("cmsg data channel ("+ name +"): got bank over cmsg, try putting into channel Q");
-//                queue.put(bank);
-////System.out.println("cmsg data channel: put into channel Q");
-//
-////                System.out.println("\nReceiving msg:\n" + bank.toString());
-////
-////                PayloadBuffer bbuf = PayloadBuffer.allocate(1000);
-////                bbuf.clear();
-////                bank.write(bbuf);
-////
-////                StringWriter sw2 = new StringWriter(1000);
-////                XMLStreamWriter xmlWriter = XMLOutputFactory.newInstance().createXMLStreamWriter(sw2);
-////                bank.toXML(xmlWriter);
-////                System.out.println("Receiving msg:\n" + sw2.toString());
-////                bbuf.flip();
-////
-////                System.out.println("Receiving msg (bin):");
-////                sw2.getBuffer().delete(0, sw2.getBuffer().capacity());
-////                PrintWriter wr = new PrintWriter(sw2);
-////                while (bbuf.hasRemaining()) {
-////                    wr.printf("%#010x\n", bbuf.getInt());
-////                }
-////                System.out.println(sw2.toString() + "\n\n");
-////            }
-////            catch (XMLStreamException e) {
-////                e.printStackTrace();
-//            }
-//            catch (IOException e) {
-//                e.printStackTrace();
-//            }
-//            catch (EvioException e) {
-//                e.printStackTrace();
-//            }
-//            catch (InterruptedException e) {
-//                e.printStackTrace();
-//            }
-//
-
         }
 
         // Define "getMaximumCueSize" to set max number of unprocessed messages kept locally
         // before things "back up" (potentially slowing or stopping senders of messages of
         // this subject and type). Default = 1000.
     }
+
 
     /**
      * Constructor to create a new DataChannelImplCmsg instance. Used only by
@@ -342,12 +379,12 @@ public class DataChannelImplCmsg extends DataChannelAdapter {
 
         type = attributeMap.get("type");
         if (type == null) type = "data";
-System.out.println("\n\nDataChannel: subscribe to subject = " + subject + ", type = " + type + "\n\n");
 
         if (input) {
             try {
                 // create subscription for receiving messages containing data
                 ReceiveMsgCallback cb = new ReceiveMsgCallback();
+System.out.println("\n\nDataChannel: subscribe to subject = " + subject + ", type = " + type + "\n\n");
                 sub = dataTransportImplCmsg.getCmsgConnection().subscribe(subject, type, cb, null);
             }
             catch (cMsgException e) {
@@ -370,66 +407,36 @@ System.out.println("\n\nDataChannel: subscribe to subject = " + subject + ", typ
                 }
                 catch (NumberFormatException e) {}
             }
-//logger.info("      DataChannel cMsg : write threads = " + writeThreadCount);
+logger.info("      DataChannel cMsg : write threads = " + writeThreadCount);
 
-            // How may data writing threads?
-            outputThreadCount = 1;
-            attribString = attributeMap.get("othreads");
-            if (attribString != null) {
-                try {
-                    outputThreadCount = Integer.parseInt(attribString);
-                    if (outputThreadCount <  1) outputThreadCount = 1;
-                    if (outputThreadCount > 10) outputThreadCount = 10;
-                }
-                catch (NumberFormatException e) {}
-            }
-//logger.info("      DataChannel cMsg : output threads = " + outputThreadCount);
-            startOutputHelper();
+            dataOutputThread = new DataOutputHelper(emu.getThreadGroup(), name() + " data out");
+            dataOutputThread.start();
+            dataOutputThread.waitUntilStarted();
         }
     }
 
-
-    /**
-     * Method to print out the bank for diagnostic purposes.
-     * @param bank bank to print out
-     * @param bankName name of bank for printout
-     */
-    private void printBank(EvioBank bank, String bankName) {
-        try {
-            StringWriter sw2 = new StringWriter(1000);
-            XMLStreamWriter xmlWriter = XMLOutputFactory.newInstance().createXMLStreamWriter(sw2);
-            bank.toXML(xmlWriter);
-            if (bankName == null) {
-                System.out.println("bank:\n" + sw2.toString());
-            }
-            else {
-                System.out.println("bank " + bankName + ":\n" + sw2.toString());
-            }
-        }
-        catch (XMLStreamException e) {
-            e.printStackTrace();
-        }
-    }
 
     /** {@inheritDoc} */
     public void go() {
         if (input) {
-            sub.pause();
+            sub.restart();
         }
         else {
             pause = false;
         }
     }
 
+
     /** {@inheritDoc} */
     public void pause() {
         if (input) {
-            sub.restart();
+            sub.pause();
         }
         else {
             pause = true;
         }
     }
+
 
     /** {@inheritDoc} */
     public void end() {
@@ -451,16 +458,14 @@ System.out.println("\n\nDataChannel: subscribe to subject = " + subject + ", typ
 
         // Don't unsubscribe until helper threads are done
         try {
-            if (dataOutputThreads != null) {
-                waitTime = emu.getEndingTimeLimit() / outputThreadCount;
-                for (int i=0; i < outputThreadCount; i++) {
+            if (dataOutputThread != null) {
+                waitTime = emu.getEndingTimeLimit();
 //System.out.println("        try joining output thread #" + i + " for " + (waitTime/1000) + " sec");
-                    dataOutputThreads[i].join(waitTime);
-                    // kill everything since we waited as long as possible
-                    dataOutputThreads[i].interrupt();
-                    dataOutputThreads[i].shutdown();
+                dataOutputThread.join(waitTime);
+                // kill everything since we waited as long as possible
+                dataOutputThread.interrupt();
+                dataOutputThread.shutdown();
 //System.out.println("        out thread done");
-                }
             }
 //System.out.println("      helper thds done");
         }
@@ -475,11 +480,11 @@ System.out.println("\n\nDataChannel: subscribe to subject = " + subject + ", typ
             } catch (cMsgException e) {/* ignore */}
         }
 
-        queue.clear();
         errorMsg.set(null);
         state = CODAState.CONFIGURED;
 //logger.debug("      DataChannel cMsg reset() : " + name + " - done");
     }
+
 
     /**
      * {@inheritDoc}.
@@ -492,16 +497,15 @@ logger.debug("      DataChannel cMsg reset() : " + name + " - resetting this cha
         gotResetCmd = true;
 
         // Don't unsubscribe until helper threads are done
-        if (dataOutputThreads != null) {
-            for (int i=0; i < outputThreadCount; i++) {
+        if (dataOutputThread != null) {
 //System.out.println("        interrupt output thread #" + i + " ...");
-                dataOutputThreads[i].interrupt();
-                dataOutputThreads[i].shutdown();
-                // Make sure all threads are done.
-                try {dataOutputThreads[i].join(1000);}
-                catch (InterruptedException e) {}
+            dataOutputThread.interrupt();
+            dataOutputThread.shutdown();
+            // Make sure all threads are done.
+            try {
+                dataOutputThread.join(1000);}
+            catch (InterruptedException e) {}
 //System.out.println("        output thread done");
-            }
         }
 
         // At this point all threads should be done
@@ -511,7 +515,6 @@ logger.debug("      DataChannel cMsg reset() : " + name + " - resetting this cha
             } catch (cMsgException e) {/* ignore */}
         }
 
-        queue.clear();
         errorMsg.set(null);
         state = CODAState.CONFIGURED;
 
@@ -521,20 +524,411 @@ logger.debug("      DataChannel cMsg reset() : " + name + " - resetting this cha
 
 
     /**
-     * Start the startOutputHelper thread which takes a bank from
-     * the queue, puts it in a message, and sends it.
+     * Class used to take Evio banks from ring, write them into cMsg messages.
+     * This is different than the other in that it starts an extra thread that
+     * does all the cmsg.send() calls. In the other, the output thread writes
+     * the msg and also sends it. In this, one thread fills msgs and the other
+     * writes. Doesn't seem to be any faster.
      */
-    private void startOutputHelper() {
-        dataOutputThreads = new DataOutputHelper[outputThreadCount];
+    private class DataOutputHelperNew extends Thread {
 
-        for (int i=0; i < outputThreadCount; i++) {
-            DataOutputHelper helper = new DataOutputHelper(emu.getThreadGroup(),
-                                                           name() + " data out" + i);
-            dataOutputThreads[i] = helper;
-            dataOutputThreads[i].start();
-            helper.waitUntilStarted();
+        /** Help in pausing DAQ. */
+        private int pauseCounter;
+
+        /** Let a single waiter know that the main thread has been started. */
+        private CountDownLatch startLatch = new CountDownLatch(2);
+
+        private ByteBufferSupply bufferSupply;
+
+        private MessageWritingThread msgWritingThread;
+
+        private final cMsg serverConnection;
+
+        /** Object for writing banks into message's data buffer. */
+        private EventWriter evWriter;
+
+
+
+         /** Constructor. */
+        DataOutputHelperNew(ThreadGroup group, String name) {
+            super(group, name);
+
+            bufferSupply = new ByteBufferSupply(1024, outputSizeLimit);
+            serverConnection = dataTransportImplCmsg.getCmsgConnection();
+            msgWritingThread = new MessageWritingThread();
+            msgWritingThread.start();
         }
+
+
+        /** A single waiter can call this method which returns when thread was started. */
+        private void waitUntilStarted() {
+            try {
+                startLatch.await();
+            }
+            catch (InterruptedException e) {
+            }
+        }
+
+
+        /** Stop all this object's threads. */
+        private void shutdown() {
+        }
+
+
+        /**
+         * Thread to write cMsg messages.
+         */
+        class MessageWritingThread extends Thread {
+
+            private final int endian;
+            private final cMsgMessage message;
+
+
+            MessageWritingThread() {
+                endian = byteOrder == ByteOrder.BIG_ENDIAN ? cMsgConstants.endianBig :
+                                                             cMsgConstants.endianLittle;
+                message = new cMsgMessage();
+                message.setSubject(subject);
+                message.setType(type);
+                try { message.setByteArrayEndian(endian); }
+                catch (cMsgException e) {/* never happen */}
+            }
+
+
+            @Override
+            public void run() {
+                ByteBuffer buf;
+                ByteBufferItem item;
+
+                startLatch.countDown();
+
+                try {
+                    while(true) {
+                        item = bufferSupply.consumerGet();
+                        if (item != null) {
+                            // Put data into cMsg message
+                            buf = item.getBuffer();
+                            message.setByteArrayNoCopy(buf.array(), 0, buf.limit());
+                            // Send msg
+                            serverConnection.send(message);
+                            bufferSupply.consumerRelease(item);
+                        }
+                    }
+                }
+                catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+                catch (cMsgException e) {
+                    e.printStackTrace();
+                }
+            }
+
+        }
+
+
+
+
+        /**
+         * Encode the event type into the bit info word
+         * which will be in each evio block header.
+         *
+         * @param bSet bit set which will become part of the bit info word
+         * @param type event type to be encoded
+         */
+        void setEventType(BitSet bSet, int type) {
+            // check args
+            if (type < 0) type = 0;
+            else if (type > 15) type = 15;
+
+//            if (bSet == null || bSet.size() < 6) {
+//                return;
+//            }
+
+            bSet.clear();
+
+            // do the encoding
+            for (int i=2; i < 6; i++) {
+                bSet.set(i, ((type >>> i - 2) & 0x1) > 0);
+            }
+        }
+
+
+        @Override
+        public void run() {
+
+            // Tell the world I've started
+            startLatch.countDown();
+
+            try {
+                RingItem ringItem;
+                ByteBuffer buffer;
+                ByteBufferItem bufferItem;
+                int pBankSize=0, listTotalSizeMax, eventCount;
+
+                EventType previousType, pBanktype = null;
+                ControlType pBankControlType = null;
+                BitSet bitInfo = new BitSet(24);
+
+                // Place to store a bank off the ring buf when
+                // already have enough for one message to be filled.
+                RingItem firstBankFromRing = null;
+
+                // RocSimulation generates "ringChunk" sequential events at once,
+                // so, a single ring will have ringChunk sequential events together.
+                // Take this into account when reading from multiple rings.
+                // We must get the output order right.
+                int ringChunkCounter = outputRingChunk;
+
+                // Create an array of objects produced by preceding module
+                RingItem[] bankArray = new RingItem[outputCountLimit];
+                int bankArrayCount = 0;
+
+
+                while ( serverConnection.isConnected() ) {
+
+                    if (pause) {
+                        if (pauseCounter++ % 400 == 0) Thread.sleep(5);
+                        continue;
+                    }
+
+                    // If I've been told to RESET ...
+                    if (gotResetCmd) {
+                        shutdown();
+                        return;
+                    }
+
+                    // First, clear array (rather the index)
+                    bankArrayCount = 0;
+
+                    // Init variables
+                    eventCount = 0;
+                    listTotalSizeMax = 32;
+                    previousType = null;
+
+                    // Grab a bank to put into a cMsg buffer,
+                    // checking occasionally to see if we got an
+                    // RESET command or someone found an END event.
+                    while (!gotResetCmd) {
+// System.out.println("      DataChannel cMsg out helper: try getting ring item");
+                        // Get bank off of ring ...
+                        if (firstBankFromRing == null) {
+                            ringItem  = getNextOutputRingItem(rbIndex);
+//System.out.println("      DataChannel cMsg out helper: GOT ring item");
+
+                            pBanktype = ringItem.getEventType();
+                            pBankSize = ringItem.getTotalBytes();
+                            pBankControlType = ringItem.getControlType();
+                            eventCount++;
+                            // Assume worst case (largest size) of one block header/bank
+                            listTotalSizeMax += pBankSize + 32;
+                        }
+                        // Unless we already did so in the previous loop
+                        else {
+                            ringItem = firstBankFromRing;
+                            firstBankFromRing = null;
+                            listTotalSizeMax = pBankSize + 64;
+                            // Set recordId depending on what type this bank is
+                            if (pBanktype.isAnyPhysics() || pBanktype.isROCRaw()) {
+                                recordId++;
+                            }
+                            else {
+                                recordId = -1;
+                            }
+                        }
+
+                        // This the first time through the while loop
+                        if (previousType == null) {
+                            // Add bank to the array since there's always room for one
+                            bankArray[bankArrayCount++] = ringItem;
+
+                            // Set recordId depending on what type this bank is
+                            if (pBanktype.isAnyPhysics() || pBanktype.isROCRaw()) {
+                                recordId++;
+                            }
+                            else {
+                                recordId = -1;
+                            }
+                        }
+                        // Do we only want 1 evio event / message?
+                        // Is this bank a diff type as previous bank?
+                        // Will it not fit into the message target size?
+                        // Will it be > the target number of banks per message?
+                        // In all these cases start using a new list.
+                        else if (singleEventOut ||
+                                (previousType != pBanktype) ||
+                                (listTotalSizeMax >= outputSizeLimit) ||
+                                (bankArrayCount + 1 > outputCountLimit)) {
+//                            (bankList.size() + 1 > outputCountLimit)) {
+
+                            // Store final value of events' maximum possible size
+                            listTotalSizeMax -= pBankSize - 32;
+
+                            // Be sure to store what we just
+                            // pulled off the ring to be the next bank!
+                            firstBankFromRing = ringItem;
+
+                            // Write this list of events out
+                            break;
+                        }
+                        // It's OK to add this bank to the existing list.
+                        else {
+                            // Add bank to list since there's room and it's the right type
+//                            bankList.add(ringItem);
+                            bankArray[bankArrayCount++] = ringItem;
+                        }
+
+                        // Set this for next round
+                        previousType = pBanktype;
+
+                        // Not an "END" event
+                        ringItem.setAttachment(Boolean.FALSE);
+
+                        // Get ready to retrieve next ring item
+                        gotoNextRingItem(rbIndex);
+
+                        // If control event, quit loop and write what we have
+                        if (pBankControlType != null) {
+System.out.println("      DataChannel cMsg out helper: SEND CONTROL RIGHT THROUGH: " + pBankControlType);
+
+                            // Look for END event and mark it in attachment
+                            if (pBankControlType == ControlType.END) {
+                                ringItem.setAttachment(Boolean.TRUE);
+                                haveOutputEndEvent = true;
+System.out.println("      DataChannel cMsg out helper: " + name + " I got END event, quitting 2");
+                                // run callback saying we got end event
+                                if (endCallback != null) endCallback.endWait();
+                            }
+
+                            // Write this control event out
+                            break;
+                        }
+
+                        // Be careful not to use up all the events in the output
+                        // ring buffer before writing (& freeing up) some.
+                        if (eventCount >= outputRingItemCount /2) {
+                            break;
+                        }
+                    } // while no reset ...
+
+                    // If I've been told to RESET ...
+                    if (gotResetCmd) {
+                        shutdown();
+                        return;
+                    }
+
+                    // TODO: ??
+                    if (bankArrayCount < 1) continue;
+
+//                    if (bankList.size() < 1) {
+//                        continue;
+//                    }
+
+                    // Grab an empty byte buffer (will eventually
+                    // become the byte array of a cMsg message).
+                    bufferItem = bufferSupply.get();
+                    // Make sure it's big enough
+                    bufferItem.ensureCapacity(listTotalSizeMax);
+
+                    buffer = bufferItem.getBuffer();
+                    buffer.order(byteOrder);
+
+                    // Encode the event type into bits
+//                    setEventType(bitInfo, bankList.get(0).getEventType().getValue());
+                    setEventType(bitInfo, bankArray[0].getEventType().getValue());
+
+                    // Create object to write evio banks into message buffer
+                    if (evWriter == null) {
+                        evWriter = new EventWriter(buffer, 550000, 200, null, bitInfo, emu.getCodaid());
+                    }
+                    else {
+                        evWriter.setBuffer(buffer, bitInfo);
+                    }
+                    evWriter.setStartingBlockNumber(recordId);
+
+                    // Write banks into message buffer
+                    if (ringItemType == ModuleIoType.PayloadBank) {
+//                        for (RingItem ri : bankList) {
+//                            evWriter.writeEvent(ri.getEvent());
+//                            ri.releaseByteBuffer();
+//                        }
+                        for (int i=0; i < bankArrayCount; i++) {
+                            evWriter.writeEvent(bankArray[i].getEvent());
+                            bankArray[i].releaseByteBuffer();
+                        }
+                    }
+                    else {
+//                        for (RingItem ri : bankList) {
+//                            evWriter.writeEvent(ri.getBuffer());
+//                            ri.releaseByteBuffer();
+//                        }
+                        for (int i=0; i < bankArrayCount; i++) {
+                            evWriter.writeEvent(bankArray[i].getBuffer());
+                            bankArray[i].releaseByteBuffer();
+                        }
+                    }
+
+                    evWriter.close();
+                    buffer.flip();
+
+                    // Handle END event ...
+//                    for (RingItem ri : bankList) {
+//                        if (ri.getAttachment() == Boolean.TRUE) {
+//                            // There should be no more events coming down the pike so
+//                            // go ahead write out events and then shut this thread down.
+//                            break;
+//                        }
+//                    }
+                    for (int i=0; i < bankArrayCount; i++) {
+                        if (bankArray[i].getAttachment() == Boolean.TRUE) {
+                            // There should be no more events coming down the pike so
+                            // go ahead write out events and then shut this thread down.
+                            break;
+                        }
+                    }
+
+                    // Make buffer available for writing thread to use
+                    bufferSupply.publish(bufferItem);
+
+//System.out.println("      DataChannel cMsg: ring release " + rbIndex);
+                    releaseOutputRingItem(rbIndex);
+
+                    if (--ringChunkCounter < 1) {
+                        rbIndex = ++rbIndex % outputRingCount;
+                        ringChunkCounter = outputRingChunk;
+                    }
+
+                    if (haveOutputEndEvent) {
+System.out.println("      DataChannel cMsg out helper: " + name + " some thd got END event, quitting 4");
+                        shutdown();
+                        return;
+                    }
+                }
+
+            } catch (InterruptedException e) {
+                logger.warn("      DataChannel cMsg out helper: " + name + "  interrupted thd, exiting");
+
+            // only cMsgException thrown
+            } catch (Exception e) {
+                // If we haven't yet set the cause of error, do so now & inform run control
+                errorMsg.compareAndSet(null, e.getMessage());
+
+                // set state
+                state = CODAState.ERROR;
+                emu.sendStatusMessage();
+
+                e.printStackTrace();
+                logger.warn("      DataChannel cMsg out helper: " + name + " exit thd: " + e.getMessage());
+            }
+
+        }
+
+
     }
+
+
+
+
+
 
 
     /**
@@ -560,8 +954,13 @@ logger.debug("      DataChannel cMsg reset() : " + name + " - resetting this cha
         DataOutputHelper(ThreadGroup group, String name) {
             super(group, name);
 
-            // Thread pool with "writeThreadCount" number of threads & queue.
-            writeThreadPool = Executors.newFixedThreadPool(writeThreadCount);
+            try {
+                // Thread pool with "writeThreadCount" number of threads
+                writeThreadPool = Executors.newFixedThreadPool(writeThreadCount);
+            }
+            catch (Exception e) {
+                e.printStackTrace();
+            }
         }
 
 
@@ -595,44 +994,21 @@ logger.debug("      DataChannel cMsg reset() : " + name + " - resetting this cha
          * event order is preserved.
          *
          * @param msgs           the cMsg messages to send to cMsg server
-         * @param inputOrder     the order in which evio events were grabbed off Q
          * @param messages2Write number of messages to write
          *
          * @throws InterruptedException if wait interrupted
          * @throws IOException cMsg communication error
          * @throws cMsgException problems sending message(s) to cMsg server
          */
-        private void writeMessages(cMsgMessage[] msgs, int inputOrder, int messages2Write)
+        private void writeMessages(cMsgMessage[] msgs, int messages2Write)
                 throws InterruptedException, cMsgException {
 
-            if (dataOutputThreads.length > 1) {
-                synchronized (lockOut) {
-                    // Are the banks we grabbed next to be output? If not, wait.
-                    while (inputOrder != outputOrder) {
-                        lockOut.wait();
-                    }
-
-                    // Send messages to cMsg server
-System.out.println("multithreaded put: array len = " + msgs.length + ", send " + messages2Write +
-                     " # of messages to cMsg server");
-
-                    // Send all cMsg messages
-                    for (cMsgMessage msg : msgs) {
-                        dataTransportImplCmsg.getCmsgConnection().send(msg);
-                    }
-
-                    // Next one to be put on output channel
-                    outputOrder = ++outputOrder % Integer.MAX_VALUE;
-                    lockOut.notifyAll();
-                }
-            }
-            else {
-System.out.println("singlethreaded put: array len = " + msgs.length + ", send " + messages2Write +
- " # of messages to cMsg server");
+//System.out.println("singlethreaded put: array len = " + msgs.length + ", send " + messages2Write +
+// " # of messages to cMsg server");
                 for (cMsgMessage msg : msgs) {
                     dataTransportImplCmsg.getCmsgConnection().send(msg);
+                    if (--messages2Write < 1)  break;
                 }
-            }
         }
 
 
@@ -645,23 +1021,31 @@ System.out.println("singlethreaded put: array len = " + msgs.length + ", send " 
 
             try {
                 EventType previousType, pBanktype;
-                QueueItem qItem;
-                PayloadBank pBank;
-                LinkedList<PayloadBank> bankList;
-                boolean gotNothingYet;
-                int nextMessageIndex, thisMessageIndex, pBankSize, listTotalSizeMax;
-                int messages2Write, myInputOrder;
+                ControlType pBankControlType;
+                ArrayList<RingItem> bankList;
+                RingItem ringItem;
+                int nextMsgListIndex, thisMsgListIndex, pBankSize, listTotalSizeMax;
+                EvWriter[] writers = new EvWriter[writeThreadCount];
+                // Place to store a bank off the ring for the next message out
+                RingItem firstBankFromRing = null;
+
+                int eventCount, messages2Write;
                 int[] recordIds = new int[writeThreadCount];
                 int[] bankListSize = new int[writeThreadCount];
-
                 cMsgMessage[] msgs = new cMsgMessage[writeThreadCount];
+
+                // RocSimulation generates "ringChunk" sequential events at once,
+                // so, a single ring will have ringChunk sequential events together.
+                // Take this into account when reading from multiple rings.
+                // We must get the output order right.
+                int ringChunkCounter = outputRingChunk;
 
                 // Create an array of lists of PayloadBank objects by 2-step
                 // initialization to avoid "generic array creation" error.
                 // Create one list for each write thread.
-                LinkedList<PayloadBank>[] bankListArray = new LinkedList[writeThreadCount];
+                ArrayList<RingItem>[] bankListArray = new ArrayList[writeThreadCount];
                 for (int i=0; i < writeThreadCount; i++) {
-                    bankListArray[i] = new LinkedList<PayloadBank>();
+                    bankListArray[i] = new ArrayList<RingItem>();
                     msgs[i] = new cMsgMessage();
                     msgs[i].setSubject(subject);
                     msgs[i].setType(type);
@@ -688,270 +1072,178 @@ System.out.println("singlethreaded put: array len = " + msgs.length + ", send " 
                     }
 
                     // Init variables
+                    eventCount = 0;
                     messages2Write = 0;
-                    nextMessageIndex = thisMessageIndex = 0;
-                    previousType = null;
-                    gotNothingYet = true;
+                    nextMsgListIndex = thisMsgListIndex = 0;
                     listTotalSizeMax = 32;
-                    bankList = bankListArray[nextMessageIndex];
+                    previousType = null;
+                    bankList = bankListArray[nextMsgListIndex];
 
-                    // If more than 1 output thread, need to sync things
-                    if (dataOutputThreads.length > 1) {
+                    // Grab a bank to put into a cMsg buffer,
+                    // checking occasionally to see if we got an
+                    // RESET command or someone found an END event.
+                    do {
+// System.out.println("      DataChannel cMsg out helper: try getting ring item");
+                        // Get bank off of Q, unless we already did so in a previous loop
+                        if (firstBankFromRing != null) {
+                            ringItem = firstBankFromRing;
+                            firstBankFromRing = null;
+                        }
+                        else {
+                            ringItem = getNextOutputRingItem(rbIndex);
+                        }
+//System.out.println("      DataChannel cMsg out helper: GOT ring item");
 
-                        synchronized (lockIn) {
+                        eventCount++;
 
-                            // Because "haveOutputEndEvent" is set true only in this
-                            // synchronized code, we can check for it upon entering.
-                            // If found already, we can quit.
-                            if (haveOutputEndEvent) {
-                                shutdown();
-                                return;
+                        pBanktype = ringItem.getEventType();
+                        pBankSize = ringItem.getTotalBytes();
+                        pBankControlType = ringItem.getControlType();
+
+                        // Assume worst case of one block header/bank
+                        listTotalSizeMax += pBankSize + 32;
+
+                        // This the first time through the while loop
+                        if (previousType == null) {
+                            // Add bank to the list since there's always room for one
+                            bankList.add(ringItem);
+
+                            // First time through loop nextMessageIndex = thisMessageIndex,
+                            // at least until it gets incremented below.
+                            //
+                            // Set recordId depending on what type this bank is
+                            if (pBanktype.isAnyPhysics() || pBanktype.isROCRaw()) {
+                                recordIds[thisMsgListIndex] = recordId++;
+                            }
+                            else {
+                                recordIds[thisMsgListIndex] = -1;
                             }
 
-                            // Grab a bank to put into a cMsg buffer,
-                            // checking occasionally to see if we got an
-                            // RESET command or someone found an END event.
-                            do {
-                                // Get bank off of Q, unless we already did so in a previous loop
-                                if (firstBankFromQueue != null) {
-                                    pBank = firstBankFromQueue;
-                                    firstBankFromQueue = null;
-                                }
-                                else {
+                            // Keep track of list's maximum possible size
+                            bankListSize[thisMsgListIndex] = listTotalSizeMax;
 
-// TODO: This cast may not be correct!
-                                    pBank = (PayloadBank) queue.poll(100L, TimeUnit.MILLISECONDS);
+                            // Index of next list
+                            nextMsgListIndex++;
+                        }
+                        // Is this bank a diff type as previous bank?
+                        // Will it not fit into the target size per message?
+                        // Will it be > the target number of banks per message?
+                        // In all these cases start using a new list.
+                        else if (singleEventOut ||
+                                 (previousType != pBanktype) ||
+                                 (listTotalSizeMax >= outputSizeLimit) ||
+                                 (bankList.size() + 1 > outputCountLimit)) {
 
-                                    // If wait longer than 100ms, and there are things to write,
-                                    // send them to the cMsg server.
-                                    if (pBank == null) {
-                                        if (gotNothingYet) {
-                                            continue;
-                                        }
-                                        break;
-                                    }
-                                }
+                            // Store final value of previous list's maximum possible size
+                            bankListSize[thisMsgListIndex] = listTotalSizeMax - pBankSize - 32;
 
-                                gotNothingYet = false;
-                                pBanktype = pBank.getEventType();
-                                pBankSize = pBank.getTotalBytes();
-                                // Assume worst case of one block-header/bank when finding max size
-                                listTotalSizeMax += pBankSize + 32;
-
-                                // This the first time through the while loop
-                                if (previousType == null) {
-                                    // Add bank to the list since there's always room for one
-                                    bankList.add(pBank);
-
-                                    // First time thru loop nextMessageIndex = thisMessageIndex,
-                                    // at least until it gets incremented below.
-                                    //
-                                    // Set recordId depending on what type this bank is
-                                    if (pBanktype.isAnyPhysics() || pBanktype.isROCRaw()) {
-                                        recordIds[thisMessageIndex] = recordId++;
-                                    }
-                                    else {
-                                        recordIds[thisMessageIndex] = -1;
-                                    }
-
-                                    // Keep track of list's maximum possible size
-                                    bankListSize[thisMessageIndex] = listTotalSizeMax;
-
-                                    // Index of next list
-                                    nextMessageIndex++;
-                                }
-                                // Is this bank a diff type as previous bank?
-                                // Will it not fit into the target size per message?
-                                // Will it be > the target number of banks per message?
-                                // In all these cases start using a new list.
-                                else if ((previousType != pBanktype) ||
-                                        (listTotalSizeMax >= outputSizeLimit) ||
-                                        (bankList.size() + 1 > outputCountLimit)) {
-
-                                    // Store final value of previous list's maximum possible size
-                                    bankListSize[thisMessageIndex] = listTotalSizeMax - pBankSize - 32;
-
-//                                    if (listTotalSizeMax >= outputSizeLimit) {
-//                                        System.out.println("LIST IS TOO BIG, start another");
-//                                    }
-//                                    if (bankList.size() + 1 > outputCountLimit) {
-//                                        System.out.println("LIST HAS TOO MANY entries, start another");
-//                                    }
-
-                                    // If we've already used up the max number of messages,
-                                    // write things out first. Be sure to store what we just
-                                    // pulled off the Q to be the next bank!
-                                    if (nextMessageIndex >= writeThreadCount) {
+                            // If we've already used up the max number of messages,
+                            // write things out first. Be sure to store what we just
+                            // pulled off the Q to be the next bank!
+                            if (nextMsgListIndex >= writeThreadCount) {
 //                                        System.out.println("Already used " +
 //                                                            nextMessageIndex + " messages for " + writeThreadCount +
 //                                                            " write threads, store bank for next round");
-                                        firstBankFromQueue = pBank;
-                                        break;
-                                    }
-
-                                    // Get new list
-                                    bankList = bankListArray[nextMessageIndex];
-                                    // Add bank to new list
-                                    bankList.add(pBank);
-                                    // Size of new list (64 -> take ending header into account)
-                                    bankListSize[nextMessageIndex] = listTotalSizeMax = pBankSize + 64;
-
-                                    // Set recordId depending on what type this bank is
-                                    if (pBanktype.isAnyPhysics() || pBanktype.isROCRaw()) {
-                                        recordIds[nextMessageIndex] = recordId++;
-                                    }
-                                    else {
-                                        recordIds[nextMessageIndex] = -1;
-                                    }
-
-                                    // Index of this & next lists
-                                    thisMessageIndex++;
-                                    nextMessageIndex++;
-                                }
-                                // It's OK to add this bank to the existing list.
-                                else {
-                                    // Add bank to list since there's room and it's the right type
-                                    bankList.add(pBank);
-                                    // Keep track of list's maximum possible size
-                                    bankListSize[thisMessageIndex] = listTotalSizeMax;
-                                }
-
-                                // Look for END event and mark it in attachment
-                                if (Evio.isEndEvent(pBank.getEvent())) {
-                                    pBank.setAttachment(Boolean.TRUE);
-                                    haveOutputEndEvent = true;
-                                    if (endCallback != null) endCallback.endWait();
-                                    break;
-                                }
-
-                                // Set this for next round
-                                previousType = pBanktype;
-                                pBank.setAttachment(Boolean.FALSE);
-
-                            } while (!gotResetCmd && (thisMessageIndex < writeThreadCount));
-
-                            // If I've been told to RESET ...
-                            if (gotResetCmd) {
-                                shutdown();
-                                return;
-                            }
-
-                            myInputOrder = inputOrder;
-                            inputOrder = ++inputOrder % Integer.MAX_VALUE;
-                        }
-                    }
-                    else {
-
-                       do {
-                            if (firstBankFromQueue != null) {
-                                pBank = firstBankFromQueue;
-                                firstBankFromQueue = null;
-                            }
-                            else {
-// TODO: This cast may not be correct!
-                                pBank = (PayloadBank) queue.poll(100L, TimeUnit.MILLISECONDS);
-                                if (pBank == null) {
-                                    if (gotNothingYet) {
-                                        continue;
-                                    }
-                                    break;
-                                }
-                            }
-
-                            gotNothingYet = false;
-                            pBanktype = pBank.getEventType();
-                            pBankSize = pBank.getTotalBytes();
-                            listTotalSizeMax += pBankSize + 32;
-
-                            if (previousType == null) {
-                                bankList.add(pBank);
-
-                                if (pBanktype.isAnyPhysics() || pBanktype.isROCRaw()) {
-                                    recordIds[thisMessageIndex] = recordId++;
-                                }
-                                else {
-                                    recordIds[thisMessageIndex] = -1;
-                                }
-
-                                bankListSize[thisMessageIndex] = listTotalSizeMax;
-
-                                nextMessageIndex++;
-                            }
-                            else if ((previousType != pBanktype) ||
-                                    (listTotalSizeMax >= outputSizeLimit) ||
-                                    (bankList.size() + 1 > outputCountLimit)) {
-
-                                bankListSize[thisMessageIndex] = listTotalSizeMax - pBankSize - 32;
-
-                                if (nextMessageIndex >= writeThreadCount) {
-                                   firstBankFromQueue = pBank;
-                                    break;
-                                }
-
-                                bankList = bankListArray[nextMessageIndex];
-                                bankList.add(pBank);
-                                bankListSize[nextMessageIndex] = listTotalSizeMax = pBankSize + 64;
-
-                                if (pBanktype.isAnyPhysics() || pBanktype.isROCRaw()) {
-                                    recordIds[nextMessageIndex] = recordId++;
-                                }
-                                else {
-                                    recordIds[nextMessageIndex] = -1;
-                                }
-
-                                thisMessageIndex++;
-                                nextMessageIndex++;
-                            }
-                            else {
-                                bankList.add(pBank);
-                                bankListSize[thisMessageIndex] = listTotalSizeMax;
-                            }
-
-                            if (Evio.isEndEvent(pBank.getEvent())) {
-                                pBank.setAttachment(Boolean.TRUE);
-                                haveOutputEndEvent = true;
-                                if (endCallback != null) endCallback.endWait();
+                                firstBankFromRing = ringItem;
                                 break;
                             }
 
-                            previousType = pBanktype;
-                            pBank.setAttachment(Boolean.FALSE);
+                            // Get new list
+                            bankList = bankListArray[nextMsgListIndex];
+                            // Add bank to new list
+                            bankList.add(ringItem);
+                            // Size of new list (64 -> take ending header into account)
+                            bankListSize[nextMsgListIndex] = listTotalSizeMax = pBankSize + 64;
 
-                        } while (!gotResetCmd && (thisMessageIndex < writeThreadCount));
+                            // Set recordId depending on what type this bank is
+                            if (pBanktype.isAnyPhysics() || pBanktype.isROCRaw()) {
+                                recordIds[nextMsgListIndex] = recordId++;
+                            }
+                            else {
+                                recordIds[nextMsgListIndex] = -1;
+                            }
 
-                        if (gotResetCmd) {
-                            shutdown();
-                            return;
+                            // Index of this & next lists
+                            thisMsgListIndex++;
+                            nextMsgListIndex++;
+                        }
+                        // It's OK to add this bank to the existing list.
+                        else {
+                            // Add bank to list since there's room and it's the right type
+                            bankList.add(ringItem);
+                            // Keep track of list's maximum possible size
+                            bankListSize[thisMsgListIndex] = listTotalSizeMax;
                         }
 
-                        myInputOrder = inputOrder;
-                        inputOrder = ++inputOrder % Integer.MAX_VALUE;
+                        // Set this for next round
+                        previousType = pBanktype;
+                        ringItem.setAttachment(Boolean.FALSE);
+
+                        gotoNextRingItem(rbIndex);
+
+                        // If control event, quit loop and write what we have
+                        if (pBankControlType != null) {
+System.out.println("      DataChannel cMsg out helper: SEND CONTROL RIGHT THROUGH: " + pBankControlType);
+
+                            // Look for END event and mark it in attachment
+                            if (pBankControlType == ControlType.END) {
+                                ringItem.setAttachment(Boolean.TRUE);
+                                haveOutputEndEvent = true;
+System.out.println("      DataChannel cMsg out helper: " + name + " I got END event, quitting 2");
+                                // run callback saying we got end event
+                                if (endCallback != null) endCallback.endWait();
+                            }
+
+                            break;
+                        }
+
+                        // Be careful not to use up all the events in the output
+                        // ring buffer before writing (& freeing up) some.
+                        if (eventCount >= outputRingItemCount /2) {
+                            break;
+                        }
+
+                    } while (!gotResetCmd && (thisMsgListIndex < writeThreadCount));
+
+                    // If I've been told to RESET ...
+                    if (gotResetCmd) {
+                        shutdown();
+                        return;
                     }
 
-                    if (nextMessageIndex > 1) {
-                        latch = new CountDownLatch(nextMessageIndex);
-                    }
+//                    if (writeThreadCount > 1 && nextMsgListIndex > 1) {
+                        latch = new CountDownLatch(nextMsgListIndex);
+//                    }
 
                     // For each cMsg message that can be filled with something ...
-                    for (int i=0; i < nextMessageIndex; i++) {
+                    for (int i=0; i < nextMsgListIndex; i++) {
                         // Get one of the list of banks to put into this cMsg message
                         bankList = bankListArray[i];
-
+//System.out.println("  Looking at msg list " + i + ", with " + bankList.size() +
+//                        " # of events in it");
                         if (bankList.size() < 1) {
                             continue;
                         }
 
-                        // Write banks' data into cMsg message in separate thread
-                        EvWriter writer = new EvWriter(bankList, msgs[i],
-                                                       bankListSize[i], recordIds[i]);
-                        writeThreadPool.execute(writer);
+
+                        // Write banks' data into ET buffer in separate thread.
+                        // Do not recreate writer object if not necessary.
+                        if (writers[i] == null) {
+                            writers[i] = new EvWriter(bankList, msgs[i],
+                                                      bankListSize[i], recordIds[i]);
+                        }
+                        else {
+                            writers[i].setupWriter(bankList, msgs[i],
+                                                   bankListSize[i], recordIds[i]);
+                        }
+                        writeThreadPool.execute(writers[i]);
 
                         // Keep track of how many messages we want to write
                         messages2Write++;
 
                         // Handle END event ...
-                        for (PayloadBank bank : bankList) {
-                            if (bank.getAttachment() == Boolean.TRUE) {
+                        for (RingItem ri : bankList) {
+                            if (ri.getAttachment() == Boolean.TRUE) {
                                 // There should be no more events coming down the pike so
                                 // go ahead write out events and then shut this thread down.
                                 break;
@@ -960,22 +1252,30 @@ System.out.println("singlethreaded put: array len = " + msgs.length + ", send " 
                     }
 
                     // Wait for all events to finish processing
-                    if (nextMessageIndex > 1) {
+//                    if (writeThreadCount > 1 && nextMsgListIndex > 1) {
                         latch.await();
-                    }
+//                    }
 
                     try {
-System.out.println("      DataChannel cMsg: write " + messages2Write + " messages");
+//System.out.println("      DataChannel cMsg: write " + messages2Write + " messages");
                         // Write cMsg messages after gathering them all
-                        writeMessages(msgs, myInputOrder, messages2Write);
+                        writeMessages(msgs, messages2Write);
                     }
                     catch (cMsgException e) {
                         errorMsg.compareAndSet(null, "Cannot communicate with cMsg server");
                         throw e;
                     }
 
+//System.out.println("      DataChannel cMsg: ring release " + rbIndex);
+                    releaseOutputRingItem(rbIndex);
+
+                    if (--ringChunkCounter < 1) {
+                        rbIndex = ++rbIndex % outputRingCount;
+                        ringChunkCounter = outputRingChunk;
+                    }
+
                     if (haveOutputEndEvent) {
-System.out.println("Ending");
+System.out.println("      DataChannel cMsg out helper: " + name + " some thd got END event, quitting 4");
                         shutdown();
                         return;
                     }
@@ -999,6 +1299,8 @@ System.out.println("Ending");
 
         }
 
+
+
         /**
          * This class is designed to write an evio bank's
          * contents into a cMsg message by way of a thread pool.
@@ -1006,10 +1308,10 @@ System.out.println("Ending");
         private class EvWriter implements Runnable {
 
             /** List of evio banks to write. */
-            private LinkedList<PayloadBank> bankList;
+            private ArrayList<RingItem> bankList;
 
             /** cMsg message's data buffer. */
-            private ByteBuffer  buffer;
+            private ByteBuffer buffer;
 
             /** Object for writing banks into message's data buffer. */
             private EventWriter evWriter;
@@ -1047,23 +1349,43 @@ System.out.println("Ending");
              * @param bankByteSize total size of the banks in bytes <b>including block headers</b>
              * @param myRecordId value of starting block header's block number
              */
-            EvWriter(LinkedList<PayloadBank> bankList, cMsgMessage msg,
+            EvWriter(ArrayList<RingItem> bankList, cMsgMessage msg,
+                     int bankByteSize, int myRecordId) {
+                setupWriter(bankList, msg, bankByteSize, myRecordId);
+            }
+
+            /**
+             * Create and/or setup the object to write evio events into cmsg buffer.
+             *
+             * @param bankList list of banks to be written into a single cMsg message
+             * @param msg cMsg message in which to write the list of banks
+             * @param bankByteSize total size of the banks in bytes <b>including block headers</b>
+             * @param myRecordId value of starting block header's block number
+             */
+            void setupWriter(ArrayList<RingItem> bankList, cMsgMessage msg,
                      int bankByteSize, int myRecordId) {
 
                 this.msg = msg;
                 this.bankList = bankList;
 
                 // Need to account for block headers + a little extra just in case
+
+// TODO: use bufferSupply here!
                 buffer = ByteBuffer.allocate(bankByteSize);
                 buffer.order(byteOrder);
 
                 // Encode the event type into bits
                 BitSet bitInfo = new BitSet(24);
-                setEventType(bitInfo, bankList.getFirst().getEventType().getValue());
+                setEventType(bitInfo, bankList.get(0).getEventType().getValue());
 
                 try {
                     // Create object to write evio banks into message buffer
-                    evWriter = new EventWriter(buffer, 550000, 200, null, bitInfo, emu.getCodaid());
+                    if (evWriter == null) {
+                        evWriter = new EventWriter(buffer, 550000, 200, null, bitInfo, emu.getCodaid());
+                    }
+                    else {
+                        evWriter.setBuffer(buffer, bitInfo);
+                    }
                     evWriter.setStartingBlockNumber(myRecordId);
                 }
                 catch (EvioException e) {e.printStackTrace();/* never happen */}
@@ -1077,9 +1399,19 @@ System.out.println("Ending");
             public void run() {
                 try {
                     // Write banks into message buffer
-                    for (PayloadBank bank : bankList) {
-                        evWriter.writeEvent(bank.getEvent());
+                    if (ringItemType == ModuleIoType.PayloadBank) {
+                        for (RingItem ri : bankList) {
+                            evWriter.writeEvent(ri.getEvent());
+                            ri.releaseByteBuffer();
+                        }
                     }
+                    else {
+                        for (RingItem ri : bankList) {
+                            evWriter.writeEvent(ri.getBuffer());
+                            ri.releaseByteBuffer();
+                        }
+                    }
+
                     evWriter.close();
                     buffer.flip();
 
@@ -1087,8 +1419,11 @@ System.out.println("Ending");
                     msg.setByteArrayNoCopy(buffer.array(), 0, buffer.limit());
                     msg.setByteArrayEndian(byteOrder == ByteOrder.BIG_ENDIAN ? cMsgConstants.endianBig :
                                                                                cMsgConstants.endianLittle);
+
+
                     // Tell the DataOutputHelper thread that we're done
-                    latch.countDown();
+                    //if (writeThreadCount > 1)
+                        latch.countDown();
                 }
                 catch (EvioException e) {
                     e.printStackTrace();

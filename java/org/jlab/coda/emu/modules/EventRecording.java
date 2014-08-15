@@ -11,43 +11,65 @@
 
 package org.jlab.coda.emu.modules;
 
+import com.lmax.disruptor.*;
 import org.jlab.coda.emu.*;
 import org.jlab.coda.emu.support.codaComponent.CODAState;
 import org.jlab.coda.emu.support.configurer.Configurer;
 import org.jlab.coda.emu.support.configurer.DataNotFoundException;
 import org.jlab.coda.emu.support.control.CmdExecException;
-import org.jlab.coda.emu.support.codaComponent.State;
 import org.jlab.coda.emu.support.data.*;
 import org.jlab.coda.emu.support.transport.DataChannel;
 
 import java.util.*;
-import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.PriorityBlockingQueue;
-import java.util.concurrent.locks.ReentrantLock;
 
 /**
  * <pre><code>
- * Input Channel
- * (evio bank Q):         IC_1
- *                        | \ \
- *                        |  \ \
- *                        |   \ \
- *                        |    \  \
- *                        |     \   \
- *                        |      \    \
- *                        |       \     \
- *                        |        \      \
- *                        V        V       V
- *  RecordingThreads:    RT_1      RT_2      RT_M
- *  Grab 1 bank &         |        |        |
- *  place (IN ORDER)      |        |        |
- *    in module's         |        |        |
- *  output channels       |        |        |
- *                        |        |        |
- *                         \       |       /
- *                          \      |      /
- *                           V     V     V
- * Output Channel(s):         OC_1 - OC_Z
+ *
+ *
+ *
+ *                Ring Buffer (single producer, lock free)
+ *                   ____
+ *                 /  |  \
+ *         ^      /1 _|_ 2\
+ *         |     |__/   \__|
+ *     Producer->|6 |   | 3|
+ *               |__|___|__|
+ *                \ 5 | 4 / <-- Recording Threads 1, 2, ... M
+ *                 \__|__/         |
+ *                                 V
+ *
+ *
+ * Actual input channel ring buffer has 2048 events (not 6).
+ * The producer is a single input channel which reads incoming data,
+ * parses it and places it into the ring buffer.
+ *
+ * Recording threads are in no particular order.
+ * The producer will only take slots that the recording threads have finished using.
+ *
+ * 1 Input Channel
+ * (evio bank               RB1
+ *  ring buffer)             |\\
+ *                           | \ \
+ *                           |  \ \
+ *                           |   \ \
+ *                           |    \  \
+ *                           |     \   \
+ *                           |      \    \
+ *                           |       \     \
+ *                           |        \      \
+ *                           V        V       V
+ *  RecordingThreads:       RT1      RT2      RTM
+ *  Grab 1 event &           |        |        |
+ *  place in all module's    |        |        |
+ *  output channels          |        |        |
+ *                           |        |        |
+ *                           \        |       /
+ *                            \       |      /
+ *                             V      V     V
+ * Output Channel(s):    OC1: RB1    RB2   RBM
+ * (1 ring buffer for    OC2: RB1    RB2   RBM  ...
+ *  each recording thd
+ *  in each channel)
  *
  *
  *  M = 1 by default
@@ -67,31 +89,17 @@ public class EventRecording extends ModuleAdapter {
     /** There should only be one input DataChannel. */
     private DataChannel inputChannel;
 
-    /** Input channel's queue. */
-    private BlockingQueue<QueueItem> channelQ;
-
     /** Type of object to expect for input. */
-    private QueueItemType inputType = QueueItemType.PayloadBuffer;
+    private ModuleIoType inputType = ModuleIoType.PayloadBuffer;
 
     /** Type of object to place on output channels. */
-    private QueueItemType outputType = QueueItemType.PayloadBuffer;
-
-    /**
-     * There is one waiting list per output channel -
-     * each of which stores built events until their turn to go over the
-     * output channel has arrived.
-     */
-    private PriorityBlockingQueue<PayloadBank>   waitingListOfBanks[];
-    private PriorityBlockingQueue<PayloadBuffer> waitingListOfBuffers[];
+    private ModuleIoType outputType = ModuleIoType.PayloadBuffer;
 
     /** The number of RecordThread objects. */
     private int recordingThreadCount;
 
     /** Container for threads used to record events. */
     private LinkedList<RecordingThread> recordingThreadList = new LinkedList<RecordingThread>();
-
-    /** Lock to ensure that a RecordingThread grabs the same positioned event from each Q.  */
-    private ReentrantLock getLock = new ReentrantLock();
 
    /** END event detected by one of the recording threads. */
     private volatile boolean haveEndEvent;
@@ -101,42 +109,27 @@ public class EventRecording extends ModuleAdapter {
 
     // ---------------------------------------------------
 
-    /**
-     * If {@code true}, then each event recording thread can put its event
-     * onto a waiting list if it is not next in line for the Q. That allows it
-     * to continue recording events instead of waiting for another thread to
-     * record the event that is next in line.
-     */
-    private boolean useOutputWaitingList = false;
-
     /** If {@code true}, get debug print out. */
     private boolean debug = false;
 
     /** Number of output channels. */
     private int outputChannelCount;
 
-    /** Index to help cycle through output channels sequentially. */
-    private int outputChannelIndex;
+    //-------------------------------------------
+    // Disruptor (RingBuffer)  stuff
+    //-------------------------------------------
 
-    /**
-     * Array of locks - one for each output channel -
-     * so recording threads can synchronize their output.
-     */
-    private Object locks[];
+    /** One RingBuffer. */
+    private RingBuffer<RingItem> ringBufferIn;
 
-    /**
-     * Array of input orders - one for each output channel.
-     * Keeps track of a built event's output order for a
-     * particular output channel.
-     */
-    private int[] inputOrders;
+    /** One sequence per recording thread. */
+    public Sequence[] sequenceIn;
 
-    /**
-     * Array of output orders - one for each output channel.
-     * Keeps track of which built event is next to be output
-     * on a particular output channel.
-     */
-    private int[] outputOrders;
+    /** All recording threads share one barrier. */
+    public SequenceBarrier barrierIn;
+
+
+
 
 
 
@@ -151,15 +144,9 @@ public class EventRecording extends ModuleAdapter {
         super(name, attributeMap, emu);
 
         // default to 1 event recording thread
-        recordingThreadCount = 1;
-        try {
-            recordingThreadCount = Integer.parseInt(attributeMap.get("threads"));
-            if (recordingThreadCount < 1)  recordingThreadCount = 1;
-            if (recordingThreadCount > 10) recordingThreadCount = 10;
-        }
-        catch (NumberFormatException e) {}
-System.out.println("EventRecording constr: " + recordingThreadCount +
-                           " number of event recording threads");
+        recordingThreadCount = eventProducingThreads;
+System.out.println("EventRecording constructor: " + recordingThreadCount +
+                           " # recording threads");
 
         // Does this module accurately represent the whole EMU's stats?
         String str = attributeMap.get("statistics");
@@ -170,23 +157,6 @@ System.out.println("EventRecording constr: " + recordingThreadCount +
                 representStatistics = true;
             }
         }
-
-        // Do we want PayloadBuffer or EvioEvent input (PayloadBuffer is default)?
-        str = attributeMap.get("inputType");
-        if (str != null) {
-            if (str.equalsIgnoreCase("EvioEvent"))   {
-                inputType = QueueItemType.PayloadBank;
-            }
-        }
-
-        // Do we want PayloadBuffer or EvioEvent output (PayloadBuffer is default)?
-        str = attributeMap.get("outputType");
-        if (str != null) {
-            if (str.equalsIgnoreCase("EvioEvent"))   {
-                outputType = QueueItemType.PayloadBank;
-            }
-        }
-
     }
 
 
@@ -196,7 +166,6 @@ System.out.println("EventRecording constr: " + recordingThreadCount +
         this.inputChannels.addAll(input_channels);
         if (inputChannels.size() > 0) {
             inputChannel = inputChannels.get(0);
-            channelQ = inputChannel.getQueue();
         }
     }
 
@@ -218,14 +187,13 @@ System.out.println("EventRecording constr: " + recordingThreadCount +
         inputChannels.clear();
         outputChannels.clear();
         inputChannel = null;
-        channelQ = null;
     }
 
     /** {@inheritDoc} */
-    public QueueItemType getInputQueueItemType() {return inputType;}
+    public ModuleIoType getInputRingItemType() {return inputType;}
 
     /** {@inheritDoc} */
-    public QueueItemType getOutputQueueItemType() {return outputType;}
+    public ModuleIoType getOutputRingItemType() {return outputType;}
 
 
     //---------------------------------------
@@ -234,51 +202,24 @@ System.out.println("EventRecording constr: " + recordingThreadCount +
 
 
     /**
-     * Method to create thread objects for stats, filling Qs and recording events.
-     */
-    private void createThreads() {
-        RateCalculator = new Thread(emu.getThreadGroup(), new RateCalculatorThread(), name+":watcher");
-
-        for (int i=0; i < recordingThreadCount; i++) {
-            RecordingThread thd1 = new RecordingThread(emu.getThreadGroup(), new RecordingThread(), name+":recorder"+i);
-            recordingThreadList.add(thd1);
-        }
-
-        // Sanity check
-        if (recordingThreadList.size() != recordingThreadCount) {
-            System.out.println("Have " + recordingThreadList.size() + " recording threads, but want " +
-                    recordingThreadCount);
-        }
-    }
-
-
-    /**
      * Method to start threads for stats, filling Qs, and recording events.
      * It creates these threads if they don't exist yet.
      */
     private void startThreads() {
-        if (RateCalculator == null) {
-System.out.println("startThreads(): recreating watcher thread");
-            RateCalculator = new Thread(emu.getThreadGroup(), new RateCalculatorThread(), name+":watcher");
+        if (RateCalculator != null) {
+            RateCalculator.interrupt();
         }
+        RateCalculator = new Thread(emu.getThreadGroup(), new RateCalculatorThread(), name+":watcher");
 
         if (RateCalculator.getState() == Thread.State.NEW) {
             RateCalculator.start();
         }
 
-        if (recordingThreadList.size() < 1) {
-            for (int i=0; i < recordingThreadCount; i++) {
-                RecordingThread thd1 = new RecordingThread(emu.getThreadGroup(), new RecordingThread(), name+":recorder"+i);
-                recordingThreadList.add(thd1);
-            }
-System.out.println("startThreads(): recreated recording threads, # = " +
-                    recordingThreadList.size());
-        }
-
-        for (RecordingThread thd : recordingThreadList) {
-            if (thd.getState() == Thread.State.NEW) {
-                thd.start();
-            }
+        recordingThreadList.clear();
+        for (int i=0; i < recordingThreadCount; i++) {
+            RecordingThread thd = new RecordingThread(i, emu.getThreadGroup(), name+":recorder"+i);
+            recordingThreadList.add(thd);
+            thd.start();
         }
     }
 
@@ -297,8 +238,9 @@ System.out.println("startThreads(): recreated recording threads, # = " +
         if (wait) {
             // Look to see if anything still on the input channel Q
             long startTime = System.currentTimeMillis();
-
-            boolean haveUnprocessedEvents = channelQ.size() > 0;
+// TODO: fix this
+//            boolean haveUnprocessedEvents = channelQ.size() > 0;
+            boolean haveUnprocessedEvents = true;
 
             // Wait up to endingTimeLimit millisec for events to
             // be processed & END event to arrive, then proceed
@@ -306,8 +248,9 @@ System.out.println("startThreads(): recreated recording threads, # = " +
                    (System.currentTimeMillis() - startTime < endingTimeLimit)) {
                 try {Thread.sleep(200);}
                 catch (InterruptedException e) {}
-
-                haveUnprocessedEvents = channelQ.size() > 0;
+// TODO: fix this
+//                haveUnprocessedEvents = channelQ.size() > 0;
+                haveUnprocessedEvents = false;
             }
 
             if (haveUnprocessedEvents || !haveEndEvent) {
@@ -336,163 +279,33 @@ if (debug) System.out.println("endRecordThreads: will end threads but no END eve
 
 
     /**
-     * This method is called by a recording thread and is used to place
-     * a bank onto the queue of an output channel. If the event is
-     * not next in line for the Q, it can be put in a waiting list.
+     * This method is used to place an item onto a specified ring buffer of a
+     * single, specified output channel.
      *
-     * @param bankOut the built/control/user event to place on output channel queue
-     * @throws InterruptedException if wait, put, or take interrupted
+     * @param bankOut    the built/control/user event to place on output channel
+     * @param ringNum    which output channel ring buffer to place item on
+     * @param channelNum which output channel to place item on
      */
-    private void dataToOutputChannel(PayloadBank bankOut)
-                    throws InterruptedException {
+    private void dataToOutputChannel(RingItem bankOut, int ringNum, int channelNum) {
 
         // Have output channels?
         if (outputChannelCount < 1) {
             return;
         }
 
-        PayloadBank bank;
-        EventOrder evOrder;
-        EventOrder eo = (EventOrder)bankOut.getAttachment();
+        RingBuffer rb = outputChannels.get(channelNum).getRingBuffersOut()[ringNum];
+        long nextRingItem = rb.next();
 
-        synchronized (eo.lock) {
-            if (!useOutputWaitingList) {
-                // Is the bank we grabbed next to be output? If not, wait.
-                while (eo.inputOrder != outputOrders[eo.index]) {
-                    eo.lock.wait();
-                }
-                // Place bank on output channel
-//System.out.println("Put bank on output channel");
-                eo.outputChannel.getQueue().put(bankOut);
-                outputOrders[eo.index] = ++outputOrders[eo.index] % Integer.MAX_VALUE;
-                eo.lock.notifyAll();
-            }
-            // else if we're using waiting lists
-            else {
-                // Is the bank we grabbed next to be output?
-                // If not, put in waiting list and return.
-                if (eo.inputOrder != outputOrders[eo.index]) {
-                    bankOut.setAttachment(eo);
-                    waitingListOfBanks[eo.index].add(bankOut);
+        RingItem ri = (RingItem) rb.get(nextRingItem);
+        ri.setBuffer(bankOut.getBuffer());
+        ri.setEventType(bankOut.getEventType());
+        ri.setControlType(bankOut.getControlType());
+        ri.setSourceName(bankOut.getSourceName());
+        ri.setAttachment(bankOut.getAttachment());
+        ri.setReusableByteBuffer(bankOut.getByteBufferSupply(),
+                                 bankOut.getByteBufferItem());
 
-                    // If the waiting list gets too big, just wait here
-                    if (waitingListOfBanks[eo.index].size() > 9) {
-                        eo.lock.wait();
-                    }
-//if (debug) System.out.println("out of order = " + eo.inputOrder);
-//if (debug) System.out.println("waiting list = ");
-//                    for (EvioBank bk : waitingListOfBanks[eo.index]) {
-//                        if (debug) System.out.println("" + ((EventOrder)bk.getAttachment()).inputOrder);
-//                    }
-                    return;
-                }
-
-                // Place bank on output channel
-                eo.outputChannel.getQueue().put(bankOut);
-                outputOrders[eo.index] = ++outputOrders[eo.index] % Integer.MAX_VALUE;
-//if (debug) System.out.println("placing = " + eo.inputOrder);
-
-                // Take a look on the waiting list without removing ...
-                bank = waitingListOfBanks[eo.index].peek();
-                while (bank != null) {
-                    evOrder = (EventOrder) bank.getAttachment();
-                    // If it's not next to be output, skip this waiting list
-                    if (evOrder.inputOrder != outputOrders[eo.index]) {
-                        break;
-                    }
-                    // Remove from waiting list permanently
-                    bank = waitingListOfBanks[eo.index].take();
-                    // Place bank on output channel
-                    eo.outputChannel.getQueue().put(bank);
-                    outputOrders[eo.index] = ++outputOrders[eo.index] % Integer.MAX_VALUE;
-                    bank = waitingListOfBanks[eo.index].peek();
-//if (debug) System.out.println("placing = " + evOrder.inputOrder);
-                }
-                eo.lock.notifyAll();
-            }
-        }
-
-    }
-
-
-
-    /**
-     * This method is called by a recording thread and is used to place
-     * a buffer onto the queue of an output channel. If the event is
-     * not next in line for the Q, it can be put in a waiting list.
-     *
-     * @param bufferOut the built/control/user evio buffer to place on output channel queue
-     * @throws InterruptedException if wait, put, or take interrupted
-     */
-    private void dataToOutputChannel(PayloadBuffer bufferOut)
-            throws InterruptedException {
-
-        // Have output channels?
-        if (outputChannelCount < 1) {
-            return;
-        }
-
-        PayloadBuffer buffer;
-        EventOrder evOrder;
-        EventOrder eo = (EventOrder)bufferOut.getAttachment();
-
-        synchronized (eo.lock) {
-            if (!useOutputWaitingList) {
-                // Is the buf we grabbed next to be output? If not, wait.
-                while (eo.inputOrder != outputOrders[eo.index]) {
-                    eo.lock.wait();
-                }
-                // Place buf on output channel
-//System.out.println("Put buf on output channel");
-                eo.outputChannel.getQueue().put(bufferOut);
-                outputOrders[eo.index] = ++outputOrders[eo.index] % Integer.MAX_VALUE;
-                eo.lock.notifyAll();
-            }
-            // else if we're using waiting lists
-            else {
-                // Is the buf we grabbed next to be output?
-                // If not, put in waiting list and return.
-                if (eo.inputOrder != outputOrders[eo.index]) {
-                    bufferOut.setAttachment(eo);
-                    waitingListOfBuffers[eo.index].add(bufferOut);
-
-                    // If the waiting list gets too big, just wait here
-                    if (waitingListOfBuffers[eo.index].size() > 9) {
-                        eo.lock.wait();
-                    }
-//if (debug) System.out.println("out of order = " + eo.inputOrder);
-//if (debug) System.out.println("waiting list = ");
-//                    for (EvioBank bk : waitingListOfBuffers[eo.index]) {
-//                        if (debug) System.out.println("" + ((EventOrder)bk.getAttachment()).inputOrder);
-//                    }
-                    return;
-                }
-
-                // Place buf on output channel
-                eo.outputChannel.getQueue().put(bufferOut);
-                outputOrders[eo.index] = ++outputOrders[eo.index] % Integer.MAX_VALUE;
-//if (debug) System.out.println("placing = " + eo.inputOrder);
-
-                // Take a look on the waiting list without removing ...
-                buffer = waitingListOfBuffers[eo.index].peek();
-                while (buffer != null) {
-                    evOrder = (EventOrder) buffer.getAttachment();
-                    // If it's not next to be output, skip this waiting list
-                    if (evOrder.inputOrder != outputOrders[eo.index]) {
-                        break;
-                    }
-                    // Remove from waiting list permanently
-                    buffer = waitingListOfBuffers[eo.index].take();
-                    // Place buffer on output channel
-                    eo.outputChannel.getQueue().put(buffer);
-                    outputOrders[eo.index] = ++outputOrders[eo.index] % Integer.MAX_VALUE;
-                    buffer = waitingListOfBuffers[eo.index].peek();
-//if (debug) System.out.println("placing = " + evOrder.inputOrder);
-                }
-                eo.lock.notifyAll();
-            }
-        }
-
+        rb.publish(nextRingItem);
     }
 
 
@@ -505,211 +318,134 @@ if (debug) System.out.println("endRecordThreads: will end threads but no END eve
      */
     private class RecordingThread extends Thread {
 
-        RecordingThread(ThreadGroup group, Runnable target, String name) {
-            super(group, target, name);
+        /** The order of this recording thread, relative to the other recording threads,
+          * starting at zero. */
+        private final int order;
+
+        /** The total number of recording threads. */
+        private final int rtCount;
+
+        // RingBuffer Stuff
+
+        /** 1 sequence for this particular recording thread. */
+        private Sequence sequence;
+        /** Available sequence (largest index of items desired). */
+        private long availableSequence;
+        /** Next sequence (index of next item desired). */
+        private long nextSequence;
+
+
+
+        RecordingThread(int order, ThreadGroup group, String name) {
+            super(group, name);
+            this.order = order;
+            rtCount = recordingThreadCount;
         }
 
-        RecordingThread() {
-            super();
-        }
 
         @Override
         public void run() {
-            if (recordingThreadCount == 1) {
-                runOneThread();
-            }
-            else {
-                runMultipleThreads();
-            }
-        }
 
+            int totalNumberEvents=1, wordCount=0;
+            RingItem      ringItem     = null;
+            PayloadBuffer recordingBuf = null;
+            ControlType   controlType  = null;
 
-        /**
-         * When running more than 1 recording thread, things become
-         *  more complex since they must play together nicely.
-         */
-        private void runMultipleThreads() {
+            int skipCounter = order + 1;
+            boolean gotBank;
 
-//System.out.println("Running runMultipleThreads()");
-            int totalNumberEvents=1, wordCount;
-            QueueItem qItem;
-            PayloadBuffer recordingBuf  = null;
-            PayloadBank   recordingBank = null;
-            ControlType   controlType;
-            EventOrder[]  eventOrders = new EventOrder[outputChannelCount];
+            // Ring Buffer stuff
+            availableSequence = -2L;
+            sequence = sequenceIn[order];
+            nextSequence  = sequence.get() + 1L;
 
-            int myInputOrder;
-            int myOutputChannelIndex;
-            Object myOutputLock;
-
-            DataChannel myOutputChannel;
 
             while (state == CODAState.ACTIVE || paused) {
 
                 try {
+                    gotBank = false;
 
-                    try {
-                        // Grab lock so we can get the next bank & fix its output order
-                        getLock.lock();
+                    // Will BLOCK here waiting for item if none available
+                    // Only wait or read-volatile-memory if necessary ...
+                    if (availableSequence < nextSequence) {
+                        // Available sequence may be larger than what we desired
+                        availableSequence = barrierIn.waitFor(nextSequence);
+                    }
 
-                        // Will BLOCK here waiting for payload bank if none available
-                        qItem = channelQ.take();  // blocks, throws InterruptedException
-                        if (inputType == QueueItemType.PayloadBank) {
-                            recordingBank = (PayloadBank)qItem;
-                            controlType = recordingBank.getControlType();
-                            wordCount = recordingBank.getHeader().getLength() + 1;
+                    while (nextSequence <= availableSequence) {
+                        ringItem = ringBufferIn.get(nextSequence);
+                        controlType = ringItem.getControlType();
+                        totalNumberEvents = ringItem.getEventCount();
+
+                        recordingBuf = (PayloadBuffer)ringItem;
+                        wordCount = recordingBuf.getNode().getLength() + 1;
+
+                        // Skip over events being recorded by other recording threads
+                        if (skipCounter - 1 > 0)  {
+                            nextSequence++;
+                            skipCounter--;
                         }
+                        // Found a bank, so do something with it (skipCounter[i] - 1 == 0)
                         else {
-                            recordingBuf = (PayloadBuffer)qItem;
-                            controlType = recordingBuf.getControlType();
-                            wordCount = recordingBuf.getNode().getLength() + 1;
-                        }
-
-                        // If we're here, we've got an event.
-                        // We want one EventOrder object for each output channel
-                        // since we want one identical event placed on each.
-
-                        // Loop through the output channels and get
-                        // them ready to accept an event.
-                        for (int j=0; j < outputChannelCount; j++) {
-                            // Output channel it should go to.
-                            myOutputChannel = outputChannels.get(outputChannelIndex);
-                            myOutputChannelIndex = outputChannelIndex;
-                            outputChannelIndex = ++outputChannelIndex % outputChannelCount;
-
-                            // Order in which this will be placed into its output channel
-                            myInputOrder = inputOrders[myOutputChannelIndex];
-                            myOutputLock = locks[myOutputChannelIndex];
-
-                            // Keep track of the next slot in this output channel.
-                            inputOrders[myOutputChannelIndex] =
-                                    ++inputOrders[myOutputChannelIndex] % Integer.MAX_VALUE;
-
-                            EventOrder eo = new EventOrder();
-                            eo.index = myOutputChannelIndex;
-                            eo.outputChannel = myOutputChannel;
-                            eo.lock = myOutputLock;
-                            eo.inputOrder = myInputOrder;
-
-                            // Store control event output order info in array
-                            eventOrders[j] = eo;
+//System.out.println("btThread " + order + ": accept item " + nextSequence + ", type " + ringItem.getEventType());
+                            if (ringItem.getEventType() == EventType.CONTROL) {
+                                System.out.println("          : " + ringItem.getControlType());
+                            }
+                            gotBank = true;
+                            skipCounter = rtCount;
+                            break;
                         }
                     }
-                    finally {
-                        getLock.unlock();
+
+                    if (!gotBank) {
+                        continue;
                     }
 
                     if (outputChannelCount > 0) {
-                        // We must copy the event and place one on each output channel
-                        if (inputType == QueueItemType.PayloadBank) {
-                            recordingBank.setAttachment(eventOrders[0]);
-                            dataToOutputChannel(recordingBank);
-                        }
-                        else {
-                            recordingBuf.setAttachment(eventOrders[0]);
-                            dataToOutputChannel(recordingBuf);
-                        }
+                        // Place event on first output channel
+                        dataToOutputChannel(recordingBuf, order, 0);
 
+                        // Copy event and place one on each additional output channel
                         for (int j=1; j < outputChannelCount; j++) {
-                            if (inputType == QueueItemType.PayloadBank) {
-                                // Copy bank
-                                PayloadBank bb = new PayloadBank(recordingBank);
-                                bb.setAttachment(eventOrders[j]);
-                                // Write to other output Q's
-                                dataToOutputChannel(bb);
-                            }
-                            else {
-                                PayloadBuffer bb = new PayloadBuffer(recordingBuf);
-                                bb.setAttachment(eventOrders[j]);
-                                dataToOutputChannel(bb);
-                            }
+                            PayloadBuffer bb = new PayloadBuffer(recordingBuf);
+                            dataToOutputChannel(bb, order, j);
                         }
                     }
 
                     // If END event, interrupt other record threads then quit this one.
                     if (controlType == ControlType.END) {
-if (true) System.out.println("Found END event in record thread");
+                        System.out.println("Found END event in record thread");
                         haveEndEvent = true;
                         endRecordThreads(this, false);
                         if (endCallback != null) endCallback.endWait();
                         return;
                     }
 
-//                    synchronized (EventRecording.this) {
-                    // stats  // TODO: protect since in multithreaded environs
                     eventCountTotal += totalNumberEvents;
                     wordCountTotal  += wordCount;
-//                    }
+
+                    // Release the reusable ByteBuffers back to their supply
+                    ringItem.releaseByteBuffer();
+
+                    // Release the events back to the ring buffer for re-use
+                    sequence.set(nextSequence++);
+
                 }
                 catch (InterruptedException e) {
                     if (debug) System.out.println("INTERRUPTED thread " + Thread.currentThread().getName());
                     return;
                 }
-            }
-            if (debug) System.out.println("recording thread is ending !!!");
-        }
-
-
-        /** When running only 1 recording thread, things can be greatly simplified. */
-        private void runOneThread() {
-//System.out.println("Running runOneThread()");
-
-            // initialize
-            int totalNumberEvents=1, wordCount;
-            QueueItem qItem;
-            PayloadBuffer recordingBuf  = null;
-            PayloadBank   recordingBank = null;
-            ControlType controlType;
-
-            while (state == CODAState.ACTIVE || paused) {
-
-                try {
-                    // Will BLOCK here waiting for payload bank if none available
-                    qItem = channelQ.take();  // blocks, throws InterruptedException
-                    if (inputType == QueueItemType.PayloadBank) {
-                        recordingBank = (PayloadBank)qItem;
-                        controlType = recordingBank.getControlType();
-                        wordCount = recordingBank.getHeader().getLength() + 1;
-                    }
-                    else {
-                        recordingBuf = (PayloadBuffer)qItem;
-                        controlType = recordingBuf.getControlType();
-                        wordCount = recordingBuf.getNode().getLength() + 1;
-                    }
-
-                    if (outputChannelCount > 0) {
-                        // Place bank on first output channel queue
-                        outputChannels.get(0).getQueue().put(qItem);
-
-                        // Copy bank & write to other output channels' Q's
-                        for (int j=1; j < outputChannelCount; j++) {
-                            if (inputType == QueueItemType.PayloadBank) {
-                                qItem = new PayloadBank(recordingBank);
-                            }
-                            else {
-                                qItem = new PayloadBuffer(recordingBuf);
-                            }
-                            outputChannels.get(j).getQueue().put(qItem);
-                        }
-                    }
-
-                    // If END event, quit this one & only recording thread
-                    if (controlType == ControlType.END) {
-if (true) System.out.println("Found END event in record thread");
-                        haveEndEvent = true;
-                        if (endCallback != null) endCallback.endWait();
-                        return;
-                    }
-
-                    eventCountTotal += totalNumberEvents;
-                    wordCountTotal  += wordCount;
+                catch (AlertException e) {
+                    if (debug) System.out.println("Ring buf alert, " + Thread.currentThread().getName());
+                    return;
                 }
-                catch (InterruptedException e) {
-                    if (debug) System.out.println("INTERRUPTED thread " + Thread.currentThread().getName());
+                catch (TimeoutException e) {
+                    if (debug) System.out.println("Ring buf timeout, " + Thread.currentThread().getName());
                     return;
                 }
             }
-            if (debug) System.out.println("recording thread is ending !!!");
+
+System.out.println("recording thread is ending !!!");
         }
 
     }
@@ -723,7 +459,7 @@ if (true) System.out.println("Found END event in record thread");
     /** {@inheritDoc} */
     public void reset() {
         Date theDate = new Date();
-        State previousState = state;
+        org.jlab.coda.emu.support.codaComponent.State previousState = state;
         state = CODAState.CONFIGURED;
 
         if (RateCalculator != null) RateCalculator.interrupt();
@@ -733,9 +469,6 @@ if (true) System.out.println("Found END event in record thread");
 
         RateCalculator = null;
         recordingThreadList.clear();
-
-        if (inputOrders  != null) Arrays.fill(inputOrders, 0);
-        if (outputOrders != null) Arrays.fill(outputOrders, 0);
 
         paused = false;
 
@@ -777,9 +510,6 @@ if (true) System.out.println("Found END event in record thread");
         RateCalculator = null;
         recordingThreadList.clear();
 
-        if (inputOrders  != null) Arrays.fill(inputOrders, 0);
-        if (outputOrders != null) Arrays.fill(outputOrders, 0);
-
         paused = false;
 
         try {
@@ -792,17 +522,6 @@ if (true) System.out.println("Found END event in record thread");
 
     /** {@inheritDoc} */
     public void prestart() throws CmdExecException {
-        // Make sure each input channel is associated with a unique rocId
-        for (int i=0; i < inputChannels.size(); i++) {
-            for (int j=i+1; j < inputChannels.size(); j++) {
-                if (inputChannels.get(i).getID() == inputChannels.get(j).getID()) {;
-                    errorMsg.compareAndSet(null, "input channels duplicate rocIDs");
-                    state = CODAState.ERROR;
-                    emu.sendStatusMessage();
-                    throw new CmdExecException("input channels duplicate rocIDs");
-                }
-            }
-        }
 
         state = CODAState.PAUSED;
         paused = true;
@@ -813,44 +532,37 @@ if (true) System.out.println("Found END event in record thread");
             return;
         }
 
-        // Clear input channel queue
-        channelQ.clear();
+        //------------------------------------------------
+        // Disruptor (RingBuffer) stuff for input channels
+        //------------------------------------------------
+
+        // 1 sequence per recording thread
+        sequenceIn = new Sequence[recordingThreadCount];
+
+        // Get input channel's ring buffer
+        ringBufferIn = inputChannels.get(0).getRingBufferIn();
+
+        // For each recording thread ...
+        for (int j=0; j < recordingThreadCount; j++) {
+            // We have 1 sequence for each recording thread
+            sequenceIn[j] = new Sequence(Sequencer.INITIAL_CURSOR_VALUE);
+
+            // This sequence may be the last consumer before producer comes along
+            ringBufferIn.addGatingSequences(sequenceIn[j]);
+        }
+
+        // We have 1 barrier (shared by recording threads)
+        barrierIn = ringBufferIn.newBarrier();
+
 
         // How many output channels do we have?
 //            outputChannelCount = outputChannels.size();
-
-        // Allocate some arrays based on # of output channels
-        waitingListOfBanks = null;
-        waitingListOfBuffers = null;
-
-        if (outputChannelCount > 0 && recordingThreadCount > 1) {
-            locks = new Object[outputChannelCount];
-            for (int i=0; i < outputChannelCount; i++) {
-                locks[i] = new Object();
-            }
-            inputOrders  = new int[outputChannelCount];
-            outputOrders = new int[outputChannelCount];
-
-            if (outputType == QueueItemType.PayloadBank) {
-                waitingListOfBanks = new PriorityBlockingQueue[outputChannelCount];
-                for (int i=0; i < outputChannelCount; i++) {
-                    waitingListOfBanks[i] = new PriorityBlockingQueue<PayloadBank>(100, comparator);
-                }
-            }
-            else {
-                waitingListOfBuffers = new PriorityBlockingQueue[outputChannelCount];
-                for (int i=0; i < outputChannelCount; i++) {
-                    waitingListOfBuffers[i] = new PriorityBlockingQueue<PayloadBuffer>(100, comparator);
-                }
-            }
-        }
 
         // Reset some variables
         eventRate = wordRate = 0F;
         eventCountTotal = wordCountTotal = 0L;
 
         // Create & start threads
-        createThreads();
         startThreads();
 
         try {
@@ -859,6 +571,5 @@ if (true) System.out.println("Found END event in record thread");
         }
         catch (DataNotFoundException e) {}
     }
-
 
 }

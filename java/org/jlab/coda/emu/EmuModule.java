@@ -14,7 +14,7 @@ package org.jlab.coda.emu;
 import org.jlab.coda.emu.support.codaComponent.CODAStateMachine;
 import org.jlab.coda.emu.support.codaComponent.StatedObject;
 import org.jlab.coda.emu.support.configurer.DataNotFoundException;
-import org.jlab.coda.emu.support.data.QueueItemType;
+import org.jlab.coda.emu.support.data.ModuleIoType;
 import org.jlab.coda.emu.support.transport.DataChannel;
 
 import java.util.ArrayList;
@@ -68,16 +68,16 @@ public interface EmuModule extends StatedObject, CODAStateMachine {
      public ArrayList<DataChannel> getOutputChannels();
 
     /**
-     * Get the type of items this EmuModule object expects in its input queue.
-     * @return type of items this EmuModule object expects in its input queue.
+     * Get the type of items this EmuModule object expects in its input ring.
+     * @return type of items this EmuModule object expects in its input ring.
      */
-    public QueueItemType getInputQueueItemType();
+    public ModuleIoType getInputRingItemType();
 
     /**
-     * Get the type of items this EmuModule object expects in its output queue.
-     * @return type of items this EmuModule object expects in its output queue.
+     * Get the type of items this EmuModule object expects in its output rings.
+     * @return type of items this EmuModule object expects in its output rings.
      */
-    public QueueItemType getOutputQueueItemType();
+    public ModuleIoType getOutputRingItemType();
 
     /**
      * Remove all channels from this EmuModule object.
@@ -110,4 +110,10 @@ public interface EmuModule extends StatedObject, CODAStateMachine {
      * @return <code>true</code> if this module's statistics represents the EMU, else <code>false</code>.
      */
     public boolean representsEmuStatistics();
+
+    /**
+     * Get the number of threads which produce events to be placed in output channels.
+     * @return number of threads which produce events to be placed in output channels.
+     */
+    public int getEventProducingThreadCount();
 }
