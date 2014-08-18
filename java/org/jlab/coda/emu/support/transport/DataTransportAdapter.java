@@ -92,7 +92,6 @@ public abstract class DataTransportAdapter extends CODAStateMachineAdapter imple
 
         String serverS = getAttr("server");
         isServer = Boolean.valueOf(serverS);
-        System.out.println("\n\n^^^^^^^^^^^^^  Emu Transport, isServer = " + isServer + " <<<<<<<<<<<<<<<<\n");
     }
 
     // createChannel needs to be defined in subclasses
