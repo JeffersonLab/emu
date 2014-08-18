@@ -133,7 +133,7 @@ public class ModuleAdapter implements EmuModule {
         // Set number of event-producing threads
         eventProducingThreads = 1;
         try {
-            eventProducingThreads = Integer.parseInt(attributeMap.get("epThreads"));
+            eventProducingThreads = Integer.parseInt(attributeMap.get("threads"));
             if (eventProducingThreads < 1) eventProducingThreads = 1;
         }
         catch (NumberFormatException e) {}
