@@ -349,7 +349,7 @@ public class ModuleAdapter implements EmuModule {
                     }
 
                 } catch (InterruptedException e) {
-                    logger.info("EventBuilding thread " + name() + " interrupted, so exiting");
+                    logger.info("Rate calculating thread " + name() + " interrupted, so exiting");
                     return;
                 }
             }
