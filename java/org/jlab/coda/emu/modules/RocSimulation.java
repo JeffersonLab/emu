@@ -436,19 +436,22 @@ System.out.println("\n\nStart With (id=" + myId + "):\n    record id = " + myRoc
 
         paused = false;
 
-//            // Put in END event
-//            try {
-//System.out.println("          RocSim: Putting in END control event");
-//                EvioEvent controlEvent = Evio.createControlEvent(ControlType.END, 0, 0,
-//                                                                 (int)eventCountTotal, 0);
-//                PayloadBank bank = new PayloadBank(controlEvent);
-//                bank.setEventType(EventType.CONTROL);
-//                bank.setControlType(ControlType.END);
-//                outputChannels.get(0).getQueue().put(new RingItem(bank));
-//                if (endCallback != null) endCallback.endWait();
-//            }
-//            catch (InterruptedException e) {}
-//            catch (EvioException e) {/* never happen */}
+        // We're the only module, and the END event has made it through
+        endCallback.endWait();
+
+        // Put in END event
+        try {
+            ByteBuffer controlBuf = Evio.createControlBuffer(ControlType.END, 0, 0,
+                                                             (int)eventCountTotal, 0);
+            PayloadBuffer pBuf = new PayloadBuffer(controlBuf);
+            pBuf.setEventType(EventType.CONTROL);
+            pBuf.setControlType(ControlType.END);
+            // Send to first ring
+            eventToOutputRing(0, pBuf);
+System.out.println("          RocSim: Putting in END control event");
+        }
+        catch (InterruptedException e) {}
+        catch (EvioException e) {/* never happen */}
 
         // set end-of-run time in local XML config / debug GUI
         try {
@@ -456,6 +459,7 @@ System.out.println("\n\nStart With (id=" + myId + "):\n    record id = " + myRoc
             Configurer.setValue(emu.parameters(), "status/run_end_time", (new Date()).toString());
         }
         catch (DataNotFoundException e) {}
+
     }
 
 
