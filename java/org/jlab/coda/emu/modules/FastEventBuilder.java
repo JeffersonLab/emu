@@ -794,6 +794,7 @@ System.out.println("Have consistent GO event(s)");
                     // Set variables/flags
                     haveEnd = false;
                     firstToFindEnd = false;
+                    firstToGetEnd.set(false);
                     gotFirstBuildEvent = false;
                     endEventCount = 0;
 
@@ -824,7 +825,6 @@ System.out.println("Have consistent GO event(s)");
                                 // Ignore user events
                                 if (eventType.isUser())  {
 //System.out.println("btThread " + order + ": skip user item " + nextSequences[i]);
-// TODO: this needs to  be released!!!
                                     nextSequences[i]++;
                                 }
                                 // Skip over events being built by other build threads
