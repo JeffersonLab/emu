@@ -45,6 +45,9 @@ public class ModuleAdapter implements EmuModule {
      *  must match up with its own output channel ring buffer. */
     protected int eventProducingThreads;
 
+    /** Were the number of event producing threads explicitly set in config file? */
+    protected boolean epThreadsSetInConfig;
+
     /** Name of this event recorder. */
     protected final String name;
 
@@ -134,7 +137,15 @@ public class ModuleAdapter implements EmuModule {
         eventProducingThreads = 1;
         try {
             eventProducingThreads = Integer.parseInt(attributeMap.get("threads"));
-            if (eventProducingThreads < 1) eventProducingThreads = 1;
+            if (eventProducingThreads < 1) {
+                eventProducingThreads = 1;
+            }
+            else {
+                // # of threads explicitly (& properly) set in config file
+                // Need this when setting the # of threads in event builder
+                // since we want default to be 2 in that case.
+                epThreadsSetInConfig = true;
+            }
         }
         catch (NumberFormatException e) {}
 

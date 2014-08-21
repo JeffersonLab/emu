@@ -235,6 +235,11 @@ public class FastEventBuilder extends ModuleAdapter {
         buildingThreadCount = eventProducingThreads;
 System.out.println("EventBuilding constr: " + buildingThreadCount +
                            " number of event building threads");
+        // If # build threads not explicitly set in config, make it 2
+        // which seems to perform the best.
+        if (!epThreadsSetInConfig) {
+            buildingThreadCount = 2;
+        }
 
         // default is to swap data if necessary -
         // assume 32 bit ints
