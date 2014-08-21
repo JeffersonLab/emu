@@ -303,6 +303,7 @@ System.out.println("emu domain UDL = " + udl);
 
 
     private void closeOutputChannel() throws cMsgException {
+        if (input) return;
         emuDomain.disconnect();
     }
 
@@ -376,7 +377,6 @@ System.out.println("emu domain UDL = " + udl);
         }
 
         state = CODAState.DOWNLOADED;
-System.out.println("      end() is done");
 
         try {
             closeOutputChannel();
@@ -384,6 +384,8 @@ System.out.println("      end() is done");
         catch (cMsgException e) {
             e.printStackTrace();
         }
+
+        System.out.println("      end() is done");
     }
 
 
