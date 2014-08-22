@@ -557,7 +557,6 @@ System.out.println("      DataChannel Emu in helper: get emuEnd cmd");
                 state = CODAState.ERROR;
                 emu.sendStatusMessage();
 
-                e.printStackTrace();
                 logger.warn("      DataChannel Emu in helper: " + name + " exit thd: " + e.getMessage());
             }
 
@@ -1167,7 +1166,7 @@ System.out.println("      DataChannel Emu out helper: " + name + " I got END eve
          * @throws cMsgException
          * @throws EvioException
          */
-        private final void flushEvents() throws cMsgException, EvioException{
+        private final void flushEvents() throws cMsgException, EvioException {
 //System.out.println("    flushEvents: in");
             writer.close();
 
@@ -1270,7 +1269,7 @@ System.out.println("      DataChannel Emu out helper: " + name + " I got END eve
         /** {@inheritDoc} */
         @Override
         public void run() {
-logger.debug("      DataChannel Emu out helper: started");
+logger.debug("      DataChannel Emu out helper: started, w/ " + outputRingCount +  " output rings");
 
             // Tell the world I've started
             startLatch.countDown();
@@ -1344,7 +1343,7 @@ System.out.println("      DataChannel Emu out helper: " + name + " I got END eve
                 state = CODAState.ERROR;
                 emu.sendStatusMessage();
 
-                e.printStackTrace();
+                //e.printStackTrace();
             }
 
         }
