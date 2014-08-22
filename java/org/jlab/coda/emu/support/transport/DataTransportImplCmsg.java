@@ -72,7 +72,7 @@ public class DataTransportImplCmsg extends DataTransportAdapter {
 
         // create cmsg connection object (does NOT create connection yet)
         try {
-            cmsgConnection = new cMsg(udl, pname , "");
+            cmsgConnection = new cMsg(udl, pname+"_"+emu.name() , "");
         }
         catch (cMsgException e) {
             throw new DataNotFoundException("Cannot connect to cmsg server",e);
