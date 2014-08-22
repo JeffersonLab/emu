@@ -73,6 +73,8 @@ public class RocSimulation extends ModuleAdapter {
     /** The number of the last event that this ROC created. */
     private long lastEventNumberCreated;
 
+    private volatile boolean killThreads;
+
     /** Used in debugging output to track each time an array of evio events is generated. */
     static int jobNumber;
 
@@ -157,7 +159,7 @@ public class RocSimulation extends ModuleAdapter {
     //---------------------------------------
 
 
-    /** End all threads because a RESET/END cmd or END event came through.  */
+    /** End all threads because a END cmd or END event came through.  */
     private void endThreads() {
         // The order in which these threads are shutdown does(should) not matter.
         // Transport objects should already have been shutdown followed by this module.
@@ -167,15 +169,31 @@ public class RocSimulation extends ModuleAdapter {
         for (EventGeneratingThread thd : eventGeneratingThreads) {
             if (thd != null) {
                 try {
-                    // Kill this thread before thread pool threads to avoid exception.
-    //System.out.println("          RocSim endThreads: try joining ev-gen thread ...");
+                    thd.interrupt();
                     thd.join();
-    //System.out.println("          RocSim endThreads: done");
                 }
                 catch (InterruptedException e) {}
 
             }
-            thd = null;
+        }
+    }
+
+
+    /** Kill all threads immediately because a RESET cmd came through.  */
+    private void killThreads() {
+        // The order in which these threads are shutdown does(should) not matter.
+        // Transport objects should already have been shutdown followed by this module.
+        if (RateCalculator != null) RateCalculator.interrupt();
+        RateCalculator = null;
+
+        for (EventGeneratingThread thd : eventGeneratingThreads) {
+            if (thd != null) {
+                // Kill this thread with deprecated stop method because it can easily
+                // block on the un-interruptible rb.next() method call and RESET never
+                // completes.
+System.out.println("          RocSim endThreads: stop event generating thread");
+                thd.stop();
+            }
         }
     }
 
@@ -212,17 +230,16 @@ public class RocSimulation extends ModuleAdapter {
 
 
     /**
-     * This method is called by a DataGenerateJob running in a thread from a pool.
+     * This method is called by a running EventGeneratingThread.
      * It generates many ROC Raw events in it with simulated
      * FADC250 data, and places them onto the ring buffer of an output channel.
      *
      * @param ringNum the id number of the output channel ring buffer
      * @param bufs    the events to place on output channel ring buffer
      * @param items   item corresponding to the buffer allowing buffer to be reused
-     * @throws InterruptedException if put or wait interrupted
      */
     private void eventToOutputRing(int ringNum, ByteBuffer[] bufs,
-                                   ByteBufferItem[] items, ByteBufferSupply bbSupply) throws InterruptedException {
+                                   ByteBufferItem[] items, ByteBufferSupply bbSupply) {
 
         int index = 0;
         for (ByteBuffer buf : bufs) {
@@ -230,7 +247,10 @@ public class RocSimulation extends ModuleAdapter {
             RingBuffer rb = outputChannels.get(0).getRingBuffersOut()[ringNum];
 
 //System.out.println("     : wait for next ring buf for writing");
+//            System.out.print("Get . ");
             long nextRingItem = rb.next();
+//            System.out.println("!");
+
 //System.out.println("     : Got sequence " + nextRingItem);
             RingItem ri = (RingItem) rb.get(nextRingItem);
             ri.setBuffer(buf);
@@ -386,7 +406,6 @@ System.out.println("\n\nStart With (id=" + myId + "):\n    record id = " + myRoc
 
                 }
             }
-            catch (InterruptedException e) {}
             catch (Exception e) {
                 // If we haven't yet set the cause of error, do so now & inform run control
                 errorMsg.compareAndSet(null, e.getMessage());
@@ -414,7 +433,9 @@ System.out.println("\n\nStart With (id=" + myId + "):\n    record id = " + myRoc
         eventRate = wordRate = 0F;
         eventCountTotal = wordCountTotal = 0L;
 
-        endThreads();
+        // rb.next() can block in endThreads() when doin a RESET.
+        // So just kill threads by force instead of bein nice about it.
+        killThreads();
 
         paused = false;
 
