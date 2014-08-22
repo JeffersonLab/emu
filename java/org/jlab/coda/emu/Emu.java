@@ -919,11 +919,15 @@ System.out.println("Emu " + name + " sending special RC display error Msg:\n ***
         errorMsg.set(null);
 
         // Stop any more run control commands from being executed
-logger.info("Emu.reset(): set flag to STOP executin of rc commands");
+logger.info("Emu.reset(): set flag to STOP execution of rc commands");
         stopExecutingCmds = true;
 
         // Clear out any existing, un-executed commands
         mailbox.clear();
+
+        // The most difficult situation in which to do a RESET is when
+        // data is flowing. It's best to send RESET cmds to various components
+        // in the same manner in which ENDs are sent.
 
         // Reset channels first
         if (inChannels.size() > 0) {
@@ -933,17 +937,19 @@ logger.info("Emu.reset(): reset to in chan " + chan.name());
             }
         }
 
+        // Reset all modules
+        for (EmuModule module : modules) {
+logger.debug("  Emu.reset(): try to reset module " + module.name());
+            module.reset();
+logger.debug("  Emu.reset(): done resetting module " + module.name());
+        }
+
         if (outChannels.size() > 0) {
             for (DataChannel chan : outChannels) {
 logger.info("Emu.reset(): reset to out chan " + chan.name());
                 chan.reset();
             }
         }
-
-        // FIFO channels do *NOT* need to be reset since
-        // they run no threads and will all be cleared
-        // from the hash table in the FifoTransport object
-        // during DOWNLOAD.
 
         // Reset transport objects
         for (DataTransport t : transports) {
@@ -953,12 +959,6 @@ logger.debug("  Emu.reset(): reset transport " + t.name());
 
         // Reset Fifo transport (removes Fifo channels from its hash table)
         fifoTransport.reset();
-
-        // Reset all modules
-        for (EmuModule module : modules) {
-logger.debug("  Emu.reset(): reset modules " + module.name());
-            module.reset();
-        }
 
         // Set state
         if (previousState == ERROR || previousState == BOOTED) {
@@ -1026,7 +1026,12 @@ logger.info("Emu.reset(): set flag to ALLOW execution of rc commands");
      * @param cmd of type Command
      */
     synchronized void execute(Command cmd) {
-System.out.println("Emu: executing cmd = " + cmd.name());
+System.out.println("Emu: start executing cmd = " + cmd.name());
+
+        if (stopExecutingCmds) {
+System.out.println("Emu: do not execute cmd = " + cmd.name() + ", resetting");
+            return;
+        }
 
         CODACommand codaCommand = cmd.getCodaCommand();
 
