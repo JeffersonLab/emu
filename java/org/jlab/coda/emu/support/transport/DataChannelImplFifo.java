@@ -94,6 +94,9 @@ public class DataChannelImplFifo extends DataChannelAdapter {
         gotEndCmd   = false;
         gotResetCmd = true;
         state = CODAState.CONFIGURED;
+        if (movingThread != null) {
+            movingThread.stop();
+        }
     }
 
 
@@ -200,8 +203,6 @@ public class DataChannelImplFifo extends DataChannelAdapter {
                  // set state
                  state = CODAState.ERROR;
                  emu.sendStatusMessage();
-
-                 e.printStackTrace();
              }
 
          }
