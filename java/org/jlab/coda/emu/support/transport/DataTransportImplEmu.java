@@ -129,13 +129,4 @@ System.out.println("STARTING UP EMU SERVER in " + name + " with port " + port + 
         } catch (Exception e) {}
     }
 
-
-    /** {@inheritDoc}. Disconnect from cMsg server. */
-    public void end() {
-        try {
-            logger.debug("    DataTransportImplEmu.end(): emu server disconnect : " + name());
-            emuServer.stopServer();
-        } catch (Exception e) { }
-    }
-
  }
