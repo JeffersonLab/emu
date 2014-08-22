@@ -195,6 +195,13 @@ public class Dummy extends ModuleAdapter {
     private void endThreads() {
         for (Thread thd : threadList) {
             thd.interrupt();
+            try {
+                thd.join(250);
+                if (thd.isAlive()) {
+                    thd.stop();
+                }
+            }
+            catch (InterruptedException e) {}
         }
     }
 

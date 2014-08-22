@@ -189,10 +189,16 @@ public class RocSimulation extends ModuleAdapter {
         for (EventGeneratingThread thd : eventGeneratingThreads) {
             if (thd != null) {
                 // Kill this thread with deprecated stop method because it can easily
-                // block on the un-interruptible rb.next() method call and RESET never
-                // completes.
-System.out.println("          RocSim endThreads: stop event generating thread");
-                thd.stop();
+                // block on the uninterruptible rb.next() method call and RESET never
+                // completes. First give it a chance to end gracefully.
+                thd.interrupt();
+                try {
+                    thd.join(250);
+                    if (thd.isAlive()) {
+                        thd.stop();
+                    }
+                }
+                catch (InterruptedException e) {}
             }
         }
     }

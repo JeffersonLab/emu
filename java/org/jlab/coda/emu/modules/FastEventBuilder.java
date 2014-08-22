@@ -1333,15 +1333,31 @@ if (debug) System.out.println("Building thread is ending !!!");
         // Interrupt all Building threads except the one calling this method
         for (Thread thd : buildingThreadList) {
             if (thd == thisThread) continue;
+            // Try to thread nicely but it could hang on rb.next(), if so, kill it
             thd.interrupt();
+            try {
+                thd.join(250);
+                if (thd.isAlive()) {
+                    thd.stop();
+                }
+            }
+            catch (InterruptedException e) {}
         }
 
         // Interrupt all PreProcessor threads too
         if (preProcessors != null) {
             for (Thread qf : preProcessors) {
                 qf.interrupt();
+                try {
+                    qf.join(250);
+                    if (qf.isAlive()) {
+                        qf.stop();
+                    }
+                }
+                catch (InterruptedException e) {}
             }
         }
+        System.out.println("End threads DONE");
     }
 
 

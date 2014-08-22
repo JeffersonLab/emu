@@ -269,6 +269,13 @@ if (debug) System.out.println("endRecordThreads: will end threads but no END eve
         for (Thread thd : recordingThreadList) {
             if (thd == thisThread) continue;
             thd.interrupt();
+            try {
+                thd.join(250);
+                if (thd.isAlive()) {
+                    thd.stop();
+                }
+            }
+            catch (InterruptedException e) {}
         }
     }
 
