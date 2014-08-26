@@ -76,10 +76,10 @@ public class CMSGPortal implements LoggerAppender {
                 throw new EmuException("EXPID not defined");
             }
 
-            rcUDL = "cMsg:rc://multicast/" + emu.getExpid();
+            rcUDL = "cMsg:rc://multicast/" + emu.getExpid() + "?connectTO=25";
         }
 
-//System.out.println("\n CMSGPortal using rc UDL = " + rcUDL + "\n");
+System.out.println("\n CMSGPortal using rc UDL = " + rcUDL + "\n");
         logger = emu.getLogger();
         logger.addAppender(this);
 
