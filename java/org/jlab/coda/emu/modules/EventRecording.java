@@ -162,19 +162,12 @@ System.out.println("EventRecording constructor: " + recordingThreadCount +
 
     /** {@inheritDoc} */
     public void addInputChannels(ArrayList<DataChannel> input_channels) {
-        if (input_channels == null) return;
-        this.inputChannels.addAll(input_channels);
+        super.addInputChannels(input_channels);
         if (inputChannels.size() > 0) {
             inputChannel = inputChannels.get(0);
         }
     }
 
-    /** {@inheritDoc} */
-    public void addOutputChannels(ArrayList<DataChannel> output_channels) {
-        if (output_channels == null) return;
-        this.outputChannels.addAll(output_channels);
-        outputChannelCount = outputChannels.size();
-    }
 
     /**
      * Get the one input channel in use.
@@ -286,38 +279,6 @@ if (debug) System.out.println("endRecordThreads: will end threads but no END eve
 
 
     /**
-     * This method is used to place an item onto a specified ring buffer of a
-     * single, specified output channel.
-     *
-     * @param bankOut    the built/control/user event to place on output channel
-     * @param ringNum    which output channel ring buffer to place item on
-     * @param channelNum which output channel to place item on
-     */
-    private void dataToOutputChannel(RingItem bankOut, int ringNum, int channelNum) {
-
-        // Have output channels?
-        if (outputChannelCount < 1) {
-            return;
-        }
-
-        RingBuffer rb = outputChannels.get(channelNum).getRingBuffersOut()[ringNum];
-        long nextRingItem = rb.next();
-
-        RingItem ri = (RingItem) rb.get(nextRingItem);
-        ri.setBuffer(bankOut.getBuffer());
-        ri.setEventType(bankOut.getEventType());
-        ri.setControlType(bankOut.getControlType());
-        ri.setSourceName(bankOut.getSourceName());
-        ri.setAttachment(bankOut.getAttachment());
-        ri.setReusableByteBuffer(bankOut.getByteBufferSupply(),
-                                 bankOut.getByteBufferItem());
-
-        rb.publish(nextRingItem);
-    }
-
-
-
-    /**
      * This thread is started by the GO transition and runs while the state of the module is ACTIVE.
      * When the state is ACTIVE and the list of output DataChannels is not empty, this thread
      * pulls one bank off the input DataChannel. The bank is copied and placed in each output
@@ -410,12 +371,12 @@ if (debug) System.out.println("endRecordThreads: will end threads but no END eve
 
                     if (outputChannelCount > 0) {
                         // Place event on first output channel
-                        dataToOutputChannel(recordingBuf, order, 0);
+                        eventToOutputChannel(recordingBuf, 0, order);
 
                         // Copy event and place one on each additional output channel
                         for (int j=1; j < outputChannelCount; j++) {
                             PayloadBuffer bb = new PayloadBuffer(recordingBuf);
-                            dataToOutputChannel(bb, order, j);
+                            eventToOutputChannel(bb, j, order);
                         }
                     }
 

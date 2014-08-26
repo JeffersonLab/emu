@@ -32,8 +32,6 @@ public class FarmController extends ModuleAdapter {
     /** Thread which moves events from inputs to outputs. */
     private EventMovingThread eventMovingThread;
 
-    private int outputChannelCount;
-
     private boolean debug = false;
 
     //-------------------------------------------
@@ -137,38 +135,6 @@ public class FarmController extends ModuleAdapter {
 
 
     /**
-     * This method is used to place an item onto a specified ring buffer of a
-     * single, specified output channel.
-     *
-     * @param bankOut    the built/control/user event to place on output channel
-     * @param ringNum    which output channel ring buffer to place item on
-     * @param channelNum which output channel to place item on
-     */
-    private void dataToOutputChannel(RingItem bankOut, int ringNum, int channelNum) {
-
-        // Have output channels?
-        if (outputChannelCount < 1) {
-            return;
-        }
-
-        RingBuffer rb = outputChannels.get(channelNum).getRingBuffersOut()[ringNum];
-        long nextRingItem = rb.next();
-
-        RingItem ri = (RingItem) rb.get(nextRingItem);
-        ri.setBuffer(bankOut.getBuffer());
-        ri.setEventType(bankOut.getEventType());
-        ri.setControlType(bankOut.getControlType());
-        ri.setSourceName(bankOut.getSourceName());
-        ri.setAttachment(bankOut.getAttachment());
-        ri.setReusableByteBuffer(bankOut.getByteBufferSupply(),
-                                 bankOut.getByteBufferItem());
-
-        rb.publish(nextRingItem);
-    }
-
-
-
-    /**
      * This thread is started by the GO transition and runs while the state
      * of the module is ACTIVE. When the state is ACTIVE, this thread pulls
      * one bank off the first input DataChannel. That bank is copied and placed
@@ -227,7 +193,7 @@ public class FarmController extends ModuleAdapter {
 
                     if (outputChannelCount > 0) {
                         // Place event on only the first output channel
-                        dataToOutputChannel(ringItem, 0, 0);
+                        eventToOutputChannel(ringItem, 0, 0);
                     }
 
                     // If END event, end this thread

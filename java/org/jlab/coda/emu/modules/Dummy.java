@@ -32,12 +32,6 @@ public class Dummy extends ModuleAdapter {
 
     private boolean debug;
 
-    /** Number of output channels. */
-    private int inputChannelCount;
-
-    /** Number of output channels. */
-    private int outputChannelCount;
-
     /** Container for threads used to move events. */
     private ArrayList<EventMovingThread> threadList = new ArrayList<EventMovingThread>();
 
@@ -123,9 +117,6 @@ public class Dummy extends ModuleAdapter {
 
         state = CODAState.PAUSED;
 
-        inputChannelCount  = inputChannels.size();
-        outputChannelCount = outputChannels.size();
-
         //------------------------------------------------
         // Disruptor (RingBuffer) stuff for input channels
         //------------------------------------------------
@@ -204,31 +195,6 @@ public class Dummy extends ModuleAdapter {
             catch (InterruptedException e) {}
         }
     }
-
-
-    /**
-     * This method is used to place an item onto a specified ring buffer of a
-     * single, specified output channel.
-     *
-     * @param eventOut   the event to place on output channel
-     * @param ringNum    which output channel ring buffer to place item on
-     * @param channelNum which output channel to place item on
-     */
-    private void eventToOutputChannel(RingItem eventOut, int channelNum, int ringNum) {
-
-        // Have output channels?
-        if (outputChannelCount < 1) {
-            return;
-        }
-
-        RingBuffer rb = outputChannels.get(channelNum).getRingBuffersOut()[ringNum];
-        long nextRingItem = rb.next();
-
-        RingItem ri = (RingItem) rb.get(nextRingItem);
-        ri.copy(eventOut);
-        rb.publish(nextRingItem);
-    }
-
 
 
     /**

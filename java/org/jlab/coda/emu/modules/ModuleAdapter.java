@@ -11,6 +11,7 @@
 
 package org.jlab.coda.emu.modules;
 
+import com.lmax.disruptor.RingBuffer;
 import org.jlab.coda.emu.Emu;
 import org.jlab.coda.emu.EmuEventNotify;
 import org.jlab.coda.emu.EmuModule;
@@ -20,6 +21,7 @@ import org.jlab.coda.emu.support.configurer.DataNotFoundException;
 import org.jlab.coda.emu.support.control.CmdExecException;
 import org.jlab.coda.emu.support.data.Attached;
 import org.jlab.coda.emu.support.data.ModuleIoType;
+import org.jlab.coda.emu.support.data.RingItem;
 import org.jlab.coda.emu.support.logger.Logger;
 import org.jlab.coda.emu.support.transport.DataChannel;
 
@@ -75,6 +77,12 @@ public class ModuleAdapter implements EmuModule {
 
     /** ArrayList of DataChannel objects that are outputs. */
     protected ArrayList<DataChannel> outputChannels = new ArrayList<DataChannel>();
+
+    /** Number of output channels. */
+    protected int inputChannelCount;
+
+    /** Number of output channels. */
+    protected int outputChannelCount;
 
     /** User hit PAUSE button if {@code true}. */
     protected boolean paused;
@@ -161,6 +169,33 @@ public class ModuleAdapter implements EmuModule {
         }
 
     }
+
+
+    /**
+     * This method is used to place an item onto a specified ring buffer of a
+     * single, specified output channel.
+     *
+     * @param itemOut    the event to place on output channel
+     * @param ringNum    which output channel ring buffer to place item on
+     * @param channelNum which output channel to place item on
+     */
+    protected void eventToOutputChannel(RingItem itemOut, int channelNum, int ringNum) {
+
+        // Have any output channels?
+        if (outputChannelCount < 1) {
+ // TODO: check if supply == null
+            itemOut.getByteBufferSupply().release(itemOut.getByteBufferItem());
+            return;
+        }
+
+        RingBuffer rb = outputChannels.get(channelNum).getRingBuffersOut()[ringNum];
+        long nextRingItem = rb.next();
+
+        RingItem ri = (RingItem) rb.get(nextRingItem);
+        ri.copy(itemOut);
+        rb.publish(nextRingItem);
+    }
+
 
 
     //-----------------------------------------------------------
@@ -251,12 +286,16 @@ public class ModuleAdapter implements EmuModule {
 
     /** {@inheritDoc} */
     public void addInputChannels(ArrayList<DataChannel> input_channels) {
+        if (input_channels == null) return;
         this.inputChannels.addAll(input_channels);
+        inputChannelCount  = inputChannels.size();
     }
 
     /** {@inheritDoc} */
     public void addOutputChannels(ArrayList<DataChannel> output_channels) {
+        if (output_channels == null) return;
         this.outputChannels.addAll(output_channels);
+        outputChannelCount = outputChannels.size();
     }
 
     /** {@inheritDoc} */
@@ -269,6 +308,7 @@ public class ModuleAdapter implements EmuModule {
     public void clearChannels() {
         inputChannels.clear();
         outputChannels.clear();
+        inputChannelCount = outputChannelCount = 0;
     }
 
     /** {@inheritDoc} */

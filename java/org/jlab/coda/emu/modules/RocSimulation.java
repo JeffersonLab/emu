@@ -204,37 +204,6 @@ public class RocSimulation extends ModuleAdapter {
     }
 
 
-
-    /**
-     * This method is called by a DataGenerateJob running in a thread from a pool.
-     * It generates many ROC Raw events in it with simulated
-     * FADC250 data, and places them onto the ring buffer of an output channel.
-     *
-     * @param ringNum the id number of the output channel ring buffer
-     * @param bank    the event to place on output channel ring buffer
-     * @throws InterruptedException if put or wait interrupted
-     */
-    private void eventToOutputRing(int ringNum, PayloadBuffer bank) throws InterruptedException {
-
-        // Place Data Transport Record on output ring buffer
-//System.out.println("eventToOutput_RING: set event type");
-
-        RingBuffer rb = outputChannels.get(0).getRingBuffersOut()[ringNum];
-
-//System.out.println("     : wait for next ring buf for writing");
-        long nextRingItem = rb.next();
-//System.out.println("     : Get sequence " + nextRingItem);
-        RingItem ri = (RingItem) rb.get(nextRingItem);
-        ri.setBuffer(bank.getBuffer());
-        ri.setEventType(bank.getEventType());
-        ri.setControlType(bank.getControlType());
-        ri.setSourceName(bank.getSourceName());
-        ri.setRecordId(bank.getRecordId());
-
-        rb.publish(nextRingItem);
-    }
-
-
     /**
      * This method is called by a running EventGeneratingThread.
      * It generates many ROC Raw events in it with simulated
@@ -352,10 +321,9 @@ System.out.println("\n\nStart With (id=" + myId + "):\n    record id = " + myRoc
                             PayloadBuffer pBuf = new PayloadBuffer(controlBuf);
                             pBuf.setEventType(EventType.CONTROL);
                             pBuf.setControlType(ControlType.END);
-                            eventToOutputRing(myId, pBuf);
+                            eventToOutputChannel(pBuf, 0, myId);
                             if (endCallback != null) endCallback.endWait();
                         }
-                        catch (InterruptedException e) {}
                         catch (EvioException e) {/* never happen */}
 
                         return;
@@ -474,10 +442,9 @@ System.out.println("\n\nStart With (id=" + myId + "):\n    record id = " + myRoc
             pBuf.setEventType(EventType.CONTROL);
             pBuf.setControlType(ControlType.END);
             // Send to first ring
-            eventToOutputRing(0, pBuf);
+            eventToOutputChannel(pBuf, 0, 0);
 System.out.println("          RocSim: Putting in END control event");
         }
-        catch (InterruptedException e) {}
         catch (EvioException e) {/* never happen */}
 
         // set end-of-run time in local XML config / debug GUI
@@ -518,10 +485,9 @@ System.out.println("          RocSim: Putting in END control event");
             pBuf.setEventType(EventType.CONTROL);
             pBuf.setControlType(ControlType.PRESTART);
             // Send to first ring
-            eventToOutputRing(0, pBuf);
+            eventToOutputChannel(pBuf, 0, 0);
 System.out.println("          RocSim: Put in PRESTART control event");
         }
-        catch (InterruptedException e) {}
         catch (EvioException e) {/* never happen */}
 
         try {
@@ -545,10 +511,9 @@ System.out.println("          RocSim: Put in PRESTART control event");
             PayloadBuffer pBuf = new PayloadBuffer(controlBuf);
             pBuf.setEventType(EventType.CONTROL);
             pBuf.setControlType(ControlType.GO);
-            eventToOutputRing(0, pBuf);
+            eventToOutputChannel(pBuf, 0, 0);
 System.out.println("          RocSim: Put in GO control event");
         }
-        catch (InterruptedException e) {}
         catch (EvioException e) {/* never happen */}
 
         state = CODAState.ACTIVE;

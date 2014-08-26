@@ -172,12 +172,6 @@ public class FastEventBuilder extends ModuleAdapter {
 
     // ---------------------------------------------------
 
-    /** Number of output channels. */
-    private int inputChannelCount;
-
-    /** Number of output channels. */
-    private int outputChannelCount;
-
     /** Object used to start all event building after go event received. */
     private CountDownLatch waitForGo;
 
@@ -361,7 +355,7 @@ System.out.println("PreProcessing Thread running ...");
                                 // User events are thrown away if no output channels
                                 // since this event builder does nothing with them.
                                 // User events go into the first ring of the first channel.
-                                bankToOutputChannel(pBuf, 0, 0);
+                                eventToOutputChannel(pBuf, 0, 0);
                             }
 
                             nextSequence++;
@@ -390,42 +384,6 @@ if (debug) System.out.println("PreProcessor: Roc raw or physics event in wrong f
                 }
             }
         }
-    }
-
-
-
-    /**
-     * This method is used to place an item onto a ring buffer of an output channel.
-     *
-     * @param bankOut the built/control/user event to place on output channel
-     * @param ringNum the ring buffer to put it on (starting at 0)
-     * @throws InterruptedException if wait, put, or take interrupted
-     */
-    private void bankToOutputChannel(RingItem bankOut, int ringNum, int channelNum)
-                    throws InterruptedException {
-
-        // Have output channels?
-        if (outputChannelCount < 1) {
-            bankOut.getByteBufferSupply().release(bankOut.getByteBufferItem());
-            return;
-        }
-
-        RingBuffer rb = outputChannels.get(channelNum).getRingBuffersOut()[ringNum];
-
-//System.out.println("     : wait for next ring buf for writing");
-        long nextRingItem = rb.next();
-//System.out.println("     : Got sequence " + nextRingItem);
-        PayloadBuffer pb = (PayloadBuffer) rb.get(nextRingItem);
-        pb.setBuffer(bankOut.getBuffer());
-        pb.setEventType         (bankOut.getEventType());
-        pb.setControlType       (bankOut.getControlType());
-        pb.setSourceName        (bankOut.getSourceName());
-        pb.setAttachment        (bankOut.getAttachment());
-        pb.setReusableByteBuffer(bankOut.getByteBufferSupply(),
-                                 bankOut.getByteBufferItem());
-
-//System.out.println("published : seq " + nextRingItem + " to ring " + ringNum);
-        rb.publish(nextRingItem);
     }
 
 
@@ -599,7 +557,7 @@ System.out.println("Have consistent GO event(s)");
                                     runTypeId, (int)eventCountTotal, 0);
 
             // Place event on first output channel
-            bankToOutputChannel(controlEvent, 0, 0);
+            eventToOutputChannel(controlEvent, 0, 0);
 
             // Copy the newly-updated event & place on each
             // of the other output channels.
@@ -607,7 +565,7 @@ System.out.println("Have consistent GO event(s)");
                 // Copy control event
                 PayloadBuffer bb = new PayloadBuffer(controlEvent);
                 // Write to other output channels
-                bankToOutputChannel(bb, 0, j);
+                eventToOutputChannel(bb, j, 0);
             }
         }
 
@@ -1029,12 +987,12 @@ System.out.println("Have consistent END event(s)");
                                   (int)(firstEventNumber + totalNumberEvents - eventNumberAtLastSync));
 
                             // Send control event to first output channel
-                            bankToOutputChannel(buildingBanks[0], 0, 0);
+                            eventToOutputChannel(buildingBanks[0], 0, 0);
                             for (int j=1; j < outputChannelCount; j++) {
                                 // Copy control event
                                 PayloadBuffer bb = new PayloadBuffer(buildingBanks[0]);
                                 // Write to additional output channel
-                                bankToOutputChannel(bb, 0, j);
+                                eventToOutputChannel(bb, j, 0);
                             }
                         }
 
@@ -1473,8 +1431,6 @@ if (debug) System.out.println("Building thread is ending !!!");
     /** {@inheritDoc} */
     public void prestart() throws CmdExecException {
 
-        inputChannelCount = inputChannels.size();
-
         // Event builder needs inputs
         if (inputChannelCount < 1) {
             errorMsg.compareAndSet(null, "no input channels to EB");
@@ -1544,9 +1500,6 @@ if (debug) System.out.println("Building thread is ending !!!");
         //------------------------------------------------
         //
         //------------------------------------------------
-
-        // How many output channels do we have?
-        outputChannelCount = outputChannels.size();
 
         // Reset some variables
         eventRate = wordRate = 0F;
