@@ -1869,12 +1869,12 @@ System.out.println("      DataChannel Et in helper: " + name + " got RESET cmd, 
 
                      // Create object to write evio banks into ET buffer
                      if (evWriter == null) {
-                         evWriter = new EventWriter(etBuffer, 550000, 200, null, bitInfo, emu.getCodaid());
+                         evWriter = new EventWriter(etBuffer, 550000, 200, null,
+                                                    bitInfo, emu.getCodaid(), myRecordId);
                      }
                      else {
-                         evWriter.setBuffer(etBuffer, bitInfo);
+                         evWriter.setBuffer(etBuffer, bitInfo, myRecordId);
                      }
-                     evWriter.setStartingBlockNumber(myRecordId);
                  }
                  catch (EvioException e) {/* never happen */}
              }
@@ -2578,12 +2578,12 @@ System.out.println("      DataChannel Et in helper: " + name + " got RESET cmd, 
 
                      // Create object to write evio banks into ET buffer
                      if (evWriter == null) {
-                         evWriter = new EventWriter(etBuffer, 550000, 200, null, bitInfo, emu.getCodaid());
+                         evWriter = new EventWriter(etBuffer, 550000, 200, null,
+                                                    bitInfo, emu.getCodaid(), myRecordId);
                      }
                      else {
-                         evWriter.setBuffer(etBuffer, bitInfo);
+                         evWriter.setBuffer(etBuffer, bitInfo, myRecordId);
                      }
-                     evWriter.setStartingBlockNumber(myRecordId);
                  }
                  catch (EvioException e) {/* never happen */}
              }

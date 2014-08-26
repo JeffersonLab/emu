@@ -95,6 +95,9 @@ public class DataChannelImplEmu extends DataChannelAdapter {
      *  Allows good initial value of ByteBuffer size.  */
     private int maxBufferSize;
 
+    /** Use the evio block header's block number as a record id. */
+    private int recordId;
+
     //-------------------------------------------
     // Disruptor (RingBuffer)  Stuff
     //-------------------------------------------
@@ -939,10 +942,12 @@ System.out.println("      DataChannel Emu in helper: get emuEnd cmd");
                                                          throws cMsgException,
                                                                 IOException,
                                                                 EvioException {
+            int blockNum = 0;
+            boolean isBuildable = eType.isBuildable();
             int eventsWritten =  writer.getEventsWritten();
 
             // If we're sending out 1 event by itself ...
-            if (singleEventOut || eType.isControl()) {
+            if (singleEventOut || !isBuildable) {
 // System.out.println("  writeEvioData1: type = " + eType);
                 // If we already have something stored-up to write, send it out first
                 if (eventsWritten > 0 && !writer.isClosed()) {
@@ -950,12 +955,19 @@ System.out.println("      DataChannel Emu in helper: get emuEnd cmd");
                     flushEvents();
                 }
 
+                if (isBuildable) {
+                    blockNum = recordId++;
+                }
+                else {
+                    blockNum = -1;
+                }
+
 //System.out.println("  writeEvioData1: get new outBufSupply buf for control/single event");
                 bufferItem = outBufSupply.get();
 
                 // Write the event ..
                 EmuUtilities.setEventType(bitInfo, eType);
-                writer.setBuffer(bufferItem.getBuffer(), bitInfo);
+                writer.setBuffer(bufferItem.getBuffer(), bitInfo, blockNum);
                 if (ringItemIsBuffer) {
                     writer.writeEvent(rItem.getBuffer());
                 }
@@ -992,7 +1004,7 @@ System.out.println("      DataChannel Emu in helper: get emuEnd cmd");
 
                     // Init writer
                     EmuUtilities.setEventType(bitInfo, eType);
-                    writer.setBuffer(bufferItem.getBuffer(), bitInfo);
+                    writer.setBuffer(bufferItem.getBuffer(), bitInfo, recordId++);
 //System.out.println("  writeEvioData2: init writer");
                 }
 
@@ -1188,10 +1200,12 @@ System.out.println("      DataChannel Emu out helper: " + name + " I got END eve
                                                          throws cMsgException,
                                                                 IOException,
                                                                 EvioException {
-            int eventsWritten =  writer.getEventsWritten();
+            int blockNum = 0;
+            boolean isBuildable = eType.isBuildable();
+            int eventsWritten = writer.getEventsWritten();
 
             // If we're sending out 1 event by itself ...
-            if (singleEventOut || eType.isControl()) {
+            if (singleEventOut || !isBuildable) {
 // System.out.println("  writeEvioData1: type = " + eType);
                 // If we already have something stored-up to write, send it out first
                 if (eventsWritten > 0 && !writer.isClosed()) {
@@ -1199,10 +1213,17 @@ System.out.println("      DataChannel Emu out helper: " + name + " I got END eve
                     flushEvents();
                 }
 
+                if (isBuildable) {
+                    blockNum = recordId++;
+                }
+                else {
+                    blockNum = -1;
+                }
+
 //System.out.println("  writeEvioData1: write ev into buf");
                 // Write the event ..
                 EmuUtilities.setEventType(bitInfo, eType);
-                writer.setBuffer(byteBuffer, bitInfo);
+                writer.setBuffer(byteBuffer, bitInfo, blockNum);
                 if (ringItemIsBuffer) {
                     writer.writeEvent(rItem.getBuffer());
                 }
@@ -1247,7 +1268,7 @@ System.out.println("      DataChannel Emu out helper: " + name + " I got END eve
 
                     // Init writer
                     EmuUtilities.setEventType(bitInfo, eType);
-                    writer.setBuffer(byteBuffer, bitInfo);
+                    writer.setBuffer(byteBuffer, bitInfo, recordId++);
 //System.out.println("  writeEvioData2: init writer");
                 }
 

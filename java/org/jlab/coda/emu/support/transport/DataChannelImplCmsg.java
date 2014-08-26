@@ -86,8 +86,6 @@ public class DataChannelImplCmsg extends DataChannelAdapter {
     /** Fill up a message with at most this number of banks before another is used. */
     private int outputCountLimit = 10000;
 
-
-// TODO: does this need to be reset? I think so ...
     /** Use the evio block header's block number as a record id. */
     private int recordId;
 
@@ -113,6 +111,7 @@ public class DataChannelImplCmsg extends DataChannelAdapter {
         }
 
         ByteBuffer buf = ByteBuffer.wrap(data);
+//        Utilities.printBuffer(buf, 0, data.length/4, "bank, control?");
 
         try {
             EvioReader eventReader = new EvioReader(buf, blockNumberChecking);
@@ -135,21 +134,21 @@ public class DataChannelImplCmsg extends DataChannelAdapter {
             int sourceId = header4.getReserved1();
 
             // The recordId associated with each bank is taken from the first
-            // evio block header in a single ET data buffer. For a physics or
-            // ROC raw type, it should start at zero and increase by one in the
-            // first evio block header of the next ET data buffer.
-            // There may be multiple banks from the same ET buffer and
-            // they will all have the same recordId.
+            // evio block header in a single cMsg msg data buffer. For a physics or
+            // ROC raw type, the first msg's buffer should start at 0 and increase
+            // by one in the first evio block header of each succeeding msg's data buffer.
+            // There may be multiple banks from the same msg and they will all have
+            // the same recordId.
             //
             // Thus, only the first block header # is significant. It is set sequentially
-            // by the evWriter object & incremented once per ET event with physics
+            // by the evWriter object & incremented once per cMsg msg with physics
             // or ROC data (set to -1 for other data types). Copy it into each bank.
             // Even though many banks will have the same number, it should only
             // increment by one. This should work just fine as all evio events in
-            // a single ET event should always be there (not possible to skip any)
+            // a single cMsg msg should always be there (not possible to skip any)
             // since it is transferred all together.
             //
-            // When the QFiller thread of the event builder gets a physics or ROC
+            // When the pre-processing thread of the event builder gets a physics or ROC
             // evio event, it checks to make sure this number is in sequence and
             // prints a warning if it isn't.
             int recordId = header4.getNumber();
@@ -229,6 +228,7 @@ public class DataChannelImplCmsg extends DataChannelAdapter {
         }
 
         ByteBuffer buf = ByteBuffer.wrap(data);
+//        Utilities.printBuffer(buf, 0, data.length/4, "buf, control?");
 
         try {
             EvioCompactReader compactReader = new EvioCompactReader(buf);
@@ -272,7 +272,7 @@ public class DataChannelImplCmsg extends DataChannelAdapter {
                 RingItem ringItem = ringBufferIn.get(nextRingItem);
 
                 ringItem.setNode(node);
-                ringItem.setBuffer(node.getStructureBuffer(false));
+//                ringItem.setBuffer(node.getStructureBuffer(false));
                 ringItem.setBuffer(buf);
                 ringItem.setEventType(bankType);
                 ringItem.setControlType(controlType);
@@ -838,12 +838,12 @@ System.out.println("      DataChannel cMsg out helper: " + name + " I got END ev
 
                     // Create object to write evio banks into message buffer
                     if (evWriter == null) {
-                        evWriter = new EventWriter(buffer, 550000, 200, null, bitInfo, emu.getCodaid());
+                        evWriter = new EventWriter(buffer, 550000, 200, null, bitInfo,
+                                                   emu.getCodaid(), recordId);
                     }
                     else {
-                        evWriter.setBuffer(buffer, bitInfo);
+                        evWriter.setBuffer(buffer, bitInfo, recordId);
                     }
-                    evWriter.setStartingBlockNumber(recordId);
 
                     // Write banks into message buffer
                     if (ringItemType == ModuleIoType.PayloadBank) {
@@ -1381,12 +1381,12 @@ System.out.println("      DataChannel cMsg out helper: " + name + " some thd got
                 try {
                     // Create object to write evio banks into message buffer
                     if (evWriter == null) {
-                        evWriter = new EventWriter(buffer, 550000, 200, null, bitInfo, emu.getCodaid());
+                        evWriter = new EventWriter(buffer, 550000, 200, null, bitInfo,
+                                                   emu.getCodaid(), myRecordId);
                     }
                     else {
-                        evWriter.setBuffer(buffer, bitInfo);
+                        evWriter.setBuffer(buffer, bitInfo, myRecordId);
                     }
-                    evWriter.setStartingBlockNumber(myRecordId);
                 }
                 catch (EvioException e) {e.printStackTrace();/* never happen */}
             }
@@ -1406,8 +1406,15 @@ System.out.println("      DataChannel cMsg out helper: " + name + " some thd got
                         }
                     }
                     else {
+                        EvioNode node;
                         for (RingItem ri : bankList) {
-                            evWriter.writeEvent(ri.getBuffer());
+                            node = ri.getNode();
+                            if (node != null) {
+                                evWriter.writeEvent(ri.getNode().getStructureBuffer(false));
+                            }
+                            else {
+                                evWriter.writeEvent(ri.getBuffer());
+                            }
                             ri.releaseByteBuffer();
                         }
                     }
@@ -1416,6 +1423,8 @@ System.out.println("      DataChannel cMsg out helper: " + name + " some thd got
                     buffer.flip();
 
                     // Put data into cMsg message
+//System.out.println("cmsg channel output: put evio into cMsg msg: limit = " + buffer.limit());
+//Utilities.printBuffer(buffer, 0, buffer.limit()/4, " control event out");
                     msg.setByteArrayNoCopy(buffer.array(), 0, buffer.limit());
                     msg.setByteArrayEndian(byteOrder == ByteOrder.BIG_ENDIAN ? cMsgConstants.endianBig :
                                                                                cMsgConstants.endianLittle);
