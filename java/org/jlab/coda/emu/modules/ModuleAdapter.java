@@ -176,8 +176,8 @@ public class ModuleAdapter implements EmuModule {
      * single, specified output channel.
      *
      * @param itemOut    the event to place on output channel
-     * @param ringNum    which output channel ring buffer to place item on
      * @param channelNum which output channel to place item on
+     * @param ringNum    which output channel ring buffer to place item on
      */
     protected void eventToOutputChannel(RingItem itemOut, int channelNum, int ringNum) {
 
