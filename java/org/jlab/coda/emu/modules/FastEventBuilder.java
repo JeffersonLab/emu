@@ -232,7 +232,7 @@ System.out.println("EventBuilding constr: " + buildingThreadCount +
         // If # build threads not explicitly set in config, make it 2
         // which seems to perform the best.
         if (!epThreadsSetInConfig) {
-            buildingThreadCount = eventProducingThreads = 2;
+            buildingThreadCount = eventProducingThreads = 1;
         }
 
         // default is to swap data if necessary -
@@ -987,14 +987,18 @@ System.out.println("Have consistent END event(s)");
                                   (int)(firstEventNumber + totalNumberEvents - eventNumberAtLastSync));
 
                             // Send control event to first output channel
+System.out.println("Send END to output channel");
                             eventToOutputChannel(buildingBanks[0], 0, 0);
                             for (int j=1; j < outputChannelCount; j++) {
                                 // Copy control event
                                 PayloadBuffer bb = new PayloadBuffer(buildingBanks[0]);
                                 // Write to additional output channel
+System.out.println("Copy & Send END to output channel");
                                 eventToOutputChannel(bb, j, 0);
                             }
                         }
+System.out.println("Done with END in EB module");
+
 
                         // If this is a sync event, keep track of the next event # to be sent
                         if (Evio.isSyncEvent(buildingBanks[0].getNode())) {
