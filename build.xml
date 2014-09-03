@@ -105,9 +105,9 @@
             <fileset dir="${env.CODA}/common/jar" >
                 <include name="*.jar" />
             </fileset>
-            <!-- however, use swing-layout.jar from this distribution -->
+            <!-- however, use jars from this distribution if necessary -->
             <fileset dir="${local.jars}" >
-                <include name="swing-layout.jar" />
+                <include name="*.jar" />
             </fileset>
         </path>
         <echo message="Compile with jars in $CODA/common/jar" />
