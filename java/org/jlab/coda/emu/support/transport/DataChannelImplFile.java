@@ -438,9 +438,6 @@ logger.debug("      DataChannel File reset() : " + name + " - done");
                 if (endCallback != null) endCallback.endWait();
 
             }
-            catch (InterruptedException e) {
-                // time to quit
-            }
             catch (Exception e) {
 //logger.warn("      DataChannel File (" + name + "): close file");
 //logger.warn("      DataChannel File (" + name + "): exit " + e.getMessage());
