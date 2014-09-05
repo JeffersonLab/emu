@@ -201,16 +201,21 @@ public class FastEventBuilder extends ModuleAdapter {
     private RingBuffer<RingItem>[] ringBuffersIn;
 
     /** One pre-processing sequence for each input channel. */
-    public Sequence[] preBuildSequence;
+    private Sequence[] preBuildSequence;
 
     /** One pre-processing barrier for each input channel. */
-    public SequenceBarrier[] preBuildBarrier;
+    private SequenceBarrier[] preBuildBarrier;
 
     /** For each input channel, 1 sequence per build thread. */
-    public Sequence[][] buildSequenceIn;
+    private Sequence[][] buildSequenceIn;
 
     /** For each input channel, all build threads share one barrier. */
-    public SequenceBarrier[] buildBarrierIn;
+    private SequenceBarrier[] buildBarrierIn;
+
+    /** Which output ring in each output channel is next? */
+    private int[] outputRingIndex;
+
+
 
 
 
@@ -225,15 +230,18 @@ public class FastEventBuilder extends ModuleAdapter {
     public FastEventBuilder(String name, Map<String, String> attributeMap, Emu emu) {
         super(name, attributeMap, emu);
 
-        // Set number of building threads, by default, one for each queue
+        // Set number of building threads
         buildingThreadCount = eventProducingThreads;
 System.out.println("EventBuilding constr: " + buildingThreadCount +
                            " number of event building threads");
         // If # build threads not explicitly set in config, make it 2
         // which seems to perform the best.
         if (!epThreadsSetInConfig) {
-            buildingThreadCount = eventProducingThreads = 1;
+            buildingThreadCount = eventProducingThreads = 2;
         }
+
+        // One element for each output channel
+        outputRingIndex = new int[outputChannelCount];
 
         // default is to swap data if necessary -
         // assume 32 bit ints
@@ -585,10 +593,10 @@ System.out.println("Have consistent GO event(s)");
      * selects an output by taking the next one from a simple iterator. The thread then pulls
      * one DataBank off each input DataChannel and stores them in an ArrayList.
      * <p/>
-     * An empty DataBank big enough to store all of the banks pulled off the inputs is created.
+     * An empty buffer big enough to store all of the banks pulled off the inputs is created.
      * The incoming banks from the ArrayList are built into a new bank.
      * The count of outgoing banks and the count of data words are incremented.
-     * If the Module has outputs, the bank of banks is put on the output DataChannels.
+     * If this module has outputs, built banks are placed on an output DataChannel.
      */
     class BuildingThread extends Thread {
 
@@ -648,8 +656,8 @@ System.out.println("Have consistent GO event(s)");
             // One complication is the presence of user events. These must be skipped over
             // and completely ignored by all build threads.
             //
-            // Easiest to implement this with one counter per build thread.
-            int[] skipCounter = new int[btCount];
+            // Easiest to implement this with one counter per input channel.
+            int[] skipCounter = new int[inputChannelCount];
             Arrays.fill(skipCounter, order + 1);
 
              // Initialize
@@ -687,7 +695,7 @@ System.out.println("Have consistent GO event(s)");
                                                            nextSequences);
 
                 // If this is the first build thread to reach this point, then
-                // write prestart event on all output channels. Other build
+                // write prestart event on all output channels, ring 0. Other build
                 // threads ignore this.
                 if (firstToGetPrestart.compareAndSet(false, true)) {
                     controlToOutputAsync(cEvent, true);
@@ -739,17 +747,20 @@ System.out.println("Have consistent GO event(s)");
             }
             catch (InterruptedException e) {}
 
+
+            // Now do the event building
             while (state == CODAState.ACTIVE || paused) {
 
                 try {
                     nonFatalError = false;
 
-                    // The payload bank queues are filled by the PreProcessor thread.
+                    // The input channels' rings (1 per channel)
+                    // are filled by the PreProcessor threads.
 
                     // Here we have what we need to build:
                     // ROC raw events from all ROCs (or partially built events from
                     // each contributing EB) each with sequential record IDs.
-                    // However, there are also user and control events on queues.
+                    // However, there are also user and END events on rings.
 
                     // Put null into buildingBanks array elements
                     Arrays.fill(buildingBanks, null);
@@ -763,8 +774,6 @@ System.out.println("Have consistent GO event(s)");
 
                     // Fill array with actual banks
 
-//                    Thread.sleep(1000);
-
                     // Grab one buildable (non-user/control) bank from each channel.
                     for (int i=0; i < ringBuffersIn.length; i++) {
 
@@ -773,19 +782,22 @@ System.out.println("Have consistent GO event(s)");
 
                             gotBank = false;
 
-                            // Will BLOCK here waiting for item if none available
-                            // Only wait or read-volatile-memory if necessary ...
+                            // Only wait for read-volatile-memory if necessary ...
                             if (availableSequences[i] < nextSequences[i]) {
+                                // Will BLOCK here waiting for item if none available,
+                                // but it can be interrupted.
                                 // Available sequence may be larger than what we desired
                                 availableSequences[i] = buildBarrierIn[i].waitFor(nextSequences[i]);
 //System.out.println("btThread " + order + ": available Seq = " + availableSequences[i]);
                             }
 
+                            // While we have new data to work with ...
                             while (nextSequences[i] <= availableSequences[i]) {
                                 buildingBanks[i] = (PayloadBuffer) ringBuffersIn[i].get(nextSequences[i]);
                                 eventType = buildingBanks[i].getEventType();
 
-                                // Ignore user events
+                                // Skip over user events. These were actually already placed in
+                                // first output channel's first ring by pre-processing thread.
                                 if (eventType.isUser())  {
 //System.out.println("btThread " + order + ": skip user item " + nextSequences[i]);
                                     nextSequences[i]++;
@@ -874,92 +886,88 @@ System.out.println("Have consistent GO event(s)");
                         }
                     }
 
-                    // Do END event checks here
-                    if (haveEnd) {
+                    // Do END event stuff here
+                    if (haveEnd && endEventCount != buildingBanks.length) {
+                        // If we're here, not all channels got an END event.
+                        // See if we can find them in the ring buffers which didn't
+                        // have one. If we can, great. If not, major error.
+                        // If all our channels have an END, we can end normally
+                        // with a warning about the mismatch in number of events.
 
-                        // Since there is at least one END event, end everything
-                        if (endEventCount != buildingBanks.length) {
-                            // If we're here, not all channels got an END event.
-                            // See if we can find them in the ring buffers which didn't
-                            // have one. If we can, great. If not, major error.
-                            // If all our channels have an END, we can end normally
-                            // with a warning about the mismatch in number of events.
+                        int finalEndEventCount = endEventCount;
 
-                            int finalEndEventCount = endEventCount;
+                        // Look through ring buffers to see if we can find the rest ...
+                        for (int i=0; i < ringBuffersIn.length; i++) {
 
-                            // Look through ring buffers to see if we can find the rest ...
-                            for (int i=0; i < ringBuffersIn.length; i++) {
+                            EventType   eType = buildingBanks[i].getEventType();
+                            ControlType cType = buildingBanks[i].getControlType();
 
-                                EventType   eType = buildingBanks[i].getEventType();
-                                ControlType cType = buildingBanks[i].getControlType();
+                            if (cType != null)  {
+                                System.out.println("END paired with " + cType + " event from " +
+                                                           buildingBanks[i].getSourceName());
+                            }
+                            else {
+                                System.out.println("END paired with " + eType + " event from " +
+                                                           buildingBanks[i].getSourceName());
+                            }
 
-                                if (cType != null)  {
-                                    System.out.println("END paired with " + cType + " event from " +
-                                                               buildingBanks[i].getSourceName());
-                                }
-                                else {
-                                    System.out.println("END paired with " + eType + " event from " +
-                                                               buildingBanks[i].getSourceName());
-                                }
+                            // If this channel doesn't have an END, try finding it somewhere in ring
+                            if (cType != ControlType.END) {
+                                int offset = 0;
+                                boolean done = false;
+                                PayloadBuffer pBuf;
+                                long available, veryNextSequence = nextSequences[i]+1;
 
-                                // If this channel doesn't have an END, try finding it somewhere in ring
-                                if (cType != ControlType.END) {
-                                    int offset = 0;
-                                    boolean done = false;
-                                    PayloadBuffer pBuf;
-                                    long available, veryNextSequence = nextSequences[i]+1;
+                                try  {
+                                    while (true) {
+                                        // Check to see if there is anything to read so we don't block.
+                                        // If not, move on to the next ring.
+                                        if (!ringBuffersIn[i].isPublished(veryNextSequence)) {
+                                            break;
+                                        }
 
-                                    try  {
-                                        while (true) {
-                                            // Check to see if there is anything to read so we don't block.
-                                            // If not, move on to the next ring.
-                                            if (!ringBuffersIn[i].isPublished(veryNextSequence)) {
+                                        available = buildBarrierIn[i].waitFor(veryNextSequence);
+
+                                        while (veryNextSequence <= available) {
+                                            offset++;
+                                            pBuf = (PayloadBuffer) ringBuffersIn[i].get(veryNextSequence);
+                                            if (pBuf.getControlType() == ControlType.END) {
+                                                // Found the END event
+                                                System.out.println("got END from " + buildingBanks[i].getSourceName() +
+                                                                           ", back " + offset + " places in Q");
+                                                finalEndEventCount++;
+                                                done = true;
                                                 break;
                                             }
+                                            buildSequences[i].set(veryNextSequence++);
+                                        }
 
-                                            available = buildBarrierIn[i].waitFor(veryNextSequence);
-
-                                            while (veryNextSequence <= available) {
-                                                offset++;
-                                                pBuf = (PayloadBuffer) ringBuffersIn[i].get(veryNextSequence);
-                                                if (pBuf.getControlType() == ControlType.END) {
-                                                    // Found the END event
-                                                    System.out.println("got END from " + buildingBanks[i].getSourceName() +
-                                                                       ", back " + offset + " places in Q");
-                                                    finalEndEventCount++;
-                                                    done = true;
-                                                    break;
-                                                }
-                                                buildSequences[i].set(veryNextSequence++);
-                                            }
-
-                                            if (done) {
-                                                break;
-                                            }
+                                        if (done) {
+                                            break;
                                         }
                                     }
-                                    catch (final TimeoutException e) {}
-                                    catch (final AlertException e)   {}
                                 }
+                                catch (final TimeoutException e) {}
+                                catch (final AlertException e)   {}
                             }
-
-                            // If we still can't find all ENDs, throw exception - major error
-                            if (finalEndEventCount!= buildingBanks.length) {
-                                throw new EmuException("only " + finalEndEventCount + " ENDs for " +
-                                                               buildingBanks.length + " channels");
-                            }
-
-                            // If we're here, we've found all ENDs, continue on with warning ...
-                            nonFatalError = true;
-System.out.println("Have all ENDs, but differing # of physics events in channels");
                         }
+
+                        // If we still can't find all ENDs, throw exception - major error
+                        if (finalEndEventCount!= buildingBanks.length) {
+                            throw new EmuException("only " + finalEndEventCount + " ENDs for " +
+                                                           buildingBanks.length + " channels");
+                        }
+
+                        // If we're here, we've found all ENDs, continue on with warning ...
+                        nonFatalError = true;
+                        System.out.println("Have all ENDs, but differing # of physics events in channels");
                     }
 
 
                     // If we have all END events ...
                     if (haveEnd) {
-                        // Only the first to find all ENDs will place
-                        // END on output channels.
+                        // Only the first build thread to find all
+                        // ENDs will place END on output channels.
                         if (!firstToFindEnd) return;
 
                         haveEndEvent = true;
@@ -978,7 +986,7 @@ System.out.println("Found END events on all input channels");
 
 System.out.println("Have consistent END event(s)");
 
-                        // Put 1 event on each output channel
+                        // Put 1 END event on each output channel
                         if (outputChannelCount > 0) {
                             // Take one of the control events and update
                             // it with the latest event builder data.
@@ -986,11 +994,11 @@ System.out.println("Have consistent END event(s)");
                                   runTypeId, (int)eventCountTotal,
                                   (int)(firstEventNumber + totalNumberEvents - eventNumberAtLastSync));
 
-                            // Send control event to first output channel
+                            // Send END event to first output channel
 System.out.println("Send END to output channel");
                             eventToOutputChannel(buildingBanks[0], 0, 0);
                             for (int j=1; j < outputChannelCount; j++) {
-                                // Copy control event
+                                // Copy END event
                                 PayloadBuffer bb = new PayloadBuffer(buildingBanks[0]);
                                 // Write to additional output channel
 System.out.println("Copy & Send END to output channel");
@@ -1129,11 +1137,8 @@ if (debug) System.out.println("BuildingThread: create trigger bank from Rocs, sp
                     }
 
 if (debug && nonFatalError) System.out.println("\nERROR 3\n");
-                    // Print out trigger bank
-//                    printEvent(combinedTrigger, "combined trigger");
 
-                    // Check payload banks for non-fatal errors when
-                    // extracting them onto the payload queues.
+                    // Check input banks for non-fatal errors
                     for (PayloadBuffer pBank : buildingBanks)  {
                         nonFatalError |= pBank.hasNonFatalBuildingError();
                     }
