@@ -15,6 +15,7 @@ import com.lmax.disruptor.RingBuffer;
 import org.jlab.coda.emu.Emu;
 import org.jlab.coda.emu.EmuEventNotify;
 import org.jlab.coda.emu.EmuModule;
+import org.jlab.coda.emu.support.codaComponent.CODAClass;
 import org.jlab.coda.emu.support.codaComponent.CODAState;
 import org.jlab.coda.emu.support.codaComponent.State;
 import org.jlab.coda.emu.support.configurer.DataNotFoundException;
@@ -25,6 +26,7 @@ import org.jlab.coda.emu.support.data.RingItem;
 import org.jlab.coda.emu.support.logger.Logger;
 import org.jlab.coda.emu.support.transport.DataChannel;
 
+import java.nio.ByteOrder;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.Map;
@@ -49,6 +51,28 @@ public class ModuleAdapter implements EmuModule {
 
     /** Were the number of event producing threads explicitly set in config file? */
     protected boolean epThreadsSetInConfig;
+
+    /**
+     * Number of output items to be written sequentially to a single output ring buffer.
+     * This becomes necessary only if there is more than one eventProducingThreads.
+     * Necessary for RocSimulation in which a number of sequential events are
+     * produced by a single thread to a single output ring buffer.
+     */
+    protected int outputRingChunk = 1;
+
+    /**
+     * If multiple SEBs exist, since all DCs are connected to all SEBs, each DC must send
+     * the same number of buildable events to each SEB in the proper sequence for building
+     * to take place.
+     * This value should be set in the config file by jcedit.
+     */
+    protected int sebChunk;
+
+    /**
+     * True if we're outputting from DC to multiple SEBs and so we need to chunk up events
+     * sent into batches of "sebChunk".
+     */
+    protected boolean chunkForSeb;
 
     /** Name of this event recorder. */
     protected final String name;
@@ -92,6 +116,9 @@ public class ModuleAdapter implements EmuModule {
 
     /** Comparator which tells queue how to sort elements. */
     protected AttachComparator<Attached> comparator = new AttachComparator<Attached>();
+
+    /** Do we produce big or little endian output in ByteBuffers? */
+    protected ByteOrder outputOrder;
 
     //---------------------------
     // For generating statistics
@@ -141,6 +168,7 @@ public class ModuleAdapter implements EmuModule {
         catch (NumberFormatException e) { /* default to 0 */ }
         emu.setCodaid(id);
 
+
         // Set number of event-producing threads
         eventProducingThreads = 1;
         try {
@@ -157,8 +185,39 @@ public class ModuleAdapter implements EmuModule {
         }
         catch (NumberFormatException e) {}
 
+
+        // Is output written in big or little endian?
+        outputOrder = ByteOrder.BIG_ENDIAN;
+        String str = attributeMap.get("endian");
+        if (str != null && str.equalsIgnoreCase("little"))   {
+            outputOrder = ByteOrder.LITTLE_ENDIAN;
+        }
+logger.info("  Module Adapter : output byte order = " + outputOrder);
+
+
+        // If this is a DC and there are multiple SEBs, set the number of
+        // evio events to be sent, in sequence, to a single SEB, before
+        // sending the same amount to the next SEB.
+        sebChunk = 50;
+        str = attributeMap.get("sebChunk");
+        if (str != null) {
+            try {
+                // If this attribute is set, assume we're a DC outputting to multiple SEBs.
+                // Can double check by seeing if there are multiple output channels.
+                if (emu.getCodaClass() == CODAClass.DC) {
+                    chunkForSeb = true;
+                }
+                int val = Integer.parseInt(str);
+                if (val > 0) {
+                    sebChunk = val;
+                }
+            }
+            catch (NumberFormatException e) {}
+        }
+
+
         // Does this module accurately represent the whole EMU's stats?
-        String str = attributeMap.get("statistics");
+        str = attributeMap.get("statistics");
         if (str != null) {
             if (str.equalsIgnoreCase("true") ||
                 str.equalsIgnoreCase("on")   ||
@@ -313,6 +372,12 @@ public class ModuleAdapter implements EmuModule {
 
     /** {@inheritDoc} */
     public int getEventProducingThreadCount() {return eventProducingThreads;}
+
+    /** {@inheritDoc} */
+    public int getOutputRingChunk() {return outputRingChunk;}
+
+    /** {@inheritDoc} */
+    public ByteOrder getOutputOrder() {return outputOrder;}
 
 
     //----------------------------------------------------------------
