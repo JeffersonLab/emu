@@ -862,10 +862,10 @@ System.out.println("checkPayload: unknown type, dump payload buffer");
         // Initial recordId stored is 0, ignore that.
         if (eventType.isAnyPhysics() || eventType.isROCRaw()) {
             // The recordId associated with each bank is taken from the first
-            // evio block header in a single ET data buffer. For a physics or
+            // evio block header in a single ET/cMsg-msg data buffer. For a physics or
             // ROC raw type, it should start at zero and increase by one in the
-            // first evio block header of the next ET data buffer.
-            // NOTE: There may be multiple banks from the same ET buffer and
+            // first evio block header of the next ET/cMsg-msg data buffer.
+            // NOTE: There may be multiple banks from the same buffer and
             // they will all have the same recordId.
             if (recordId != channel.getRecordId() &&
                 recordId != channel.getRecordId() + 1) {
@@ -1500,19 +1500,21 @@ if (debug) System.out.println("gotValidControlEvents: found control event of typ
      * This method takes an existing control event and updates its data.
      * This is useful for the event builder which receives control events
      * from ROCs or other EBs and needs to pass it "updated" further
-     * downstream.
+     * downstream. It swaps the data to get the desired endianness if necessary.
      *
      * @param controlEvent    control event to be updated; if not a valid type, false is returned
      * @param runNumber       current run number for prestart event
      * @param runType         current run type for prestart event
      * @param eventsInRun     number of events so far in run for all except prestart event
      * @param eventsSinceSync number of events since last sync for sync event
+     * @param byteOrder       final byte order of the updated control event
      *
      * @return <code>true</code> if a proper control event found and updated,
      *         else <code>false</code>
      */
     public static boolean updateControlEvent(PayloadBuffer controlEvent, int runNumber,
-                                       int runType, int eventsInRun, int eventsSinceSync) {
+                                       int runType, int eventsInRun, int eventsSinceSync,
+                                       ByteOrder byteOrder) {
 
         ControlType type = controlEvent.getControlType();
         if (type == null) return false;
@@ -1543,6 +1545,15 @@ if (debug) System.out.println("gotValidControlEvents: found control event of typ
                 break;
             default:
                 return false;
+        }
+
+        // Swap if necessary
+        if (byteOrder != controlEvent.getByteOrder()) {
+            try {
+                ByteDataTransformer.swapEvent(controlEvent.buffer, controlEvent.buffer, 0, 0);
+                controlEvent.buffer.order(byteOrder);
+            }
+            catch (EvioException e) {/* never happen */}
         }
 
         return true;
@@ -1649,16 +1660,17 @@ if (debug) System.out.println("gotValidControlEvents: found control event of typ
      * @param runType         current run type for prestart event
      * @param eventsInRun     number of events so far in run for all except prestart event
      * @param eventsSinceSync number of events since last sync for sync event
+     * @param order           byte order in which to write event into buffer
      *
      * @return created Control event (EvioEvent object) in byte buffer
      * @throws EvioException if bad event type
      */
     public static ByteBuffer createControlBuffer(ControlType type, int runNumber, int runType,
-                                                int eventsInRun, int eventsSinceSync)
+                                                int eventsInRun, int eventsSinceSync, ByteOrder order)
             throws EvioException {
 
         int[] data;
-        CompactEventBuilder builder = new CompactEventBuilder(20, ByteOrder.BIG_ENDIAN);
+        CompactEventBuilder builder = new CompactEventBuilder(20, order);
 
         // Current time in seconds since Jan 1, 1970 GMT
         int time = (int) (System.currentTimeMillis()/1000L);
@@ -1685,6 +1697,34 @@ if (debug) System.out.println("gotValidControlEvents: found control event of typ
         builder.closeStructure();
 
         return builder.getBuffer();
+    }
+
+
+    /**
+     * Create a User event in a RingItem.
+     * @param order  byte order in which to write event into buffer
+     *
+     * @return created User event in byte buffer
+     * @throws EvioException if bad event type
+     */
+    public static RingItem createUserBuffer(ByteOrder order)
+            throws EvioException {
+
+        CompactEventBuilder builder = new CompactEventBuilder(20, order);
+
+        // Bank of banks, contains ...
+        builder.openBank(1, 1, DataType.BANK);
+
+        // Bank of ints
+        builder.openBank(2, 2, DataType.INT32);
+        builder.addIntData(new int[] {999});
+
+        builder.closeAll();
+
+        RingItem ri = new PayloadBuffer(builder.getBuffer());
+        ri.setEventType(EventType.USER);
+
+        return ri;
     }
 
 
@@ -4050,7 +4090,8 @@ System.out.println("Timestamps are NOT consistent !!!");
 //        int []data = generateEntangledDataFADC250(eventNumber, numEvents, recordId,
 //                                                  10, false, 0L);
         int []data = generateData(eventNumber, numEvents * 40, false, timestamp);
- 
+//        int []data = generateData(eventNumber, 0, false, timestamp);
+
 //        // put some data into event -- one int per event
 //        int[] data = new int[numEvents+1];
 //        data[0] = firstEvNum;
@@ -4174,6 +4215,7 @@ System.out.println("Timestamps are NOT consistent !!!");
 
         // Create a single data block bank
         int []data = generateData(eventNumber, numEvents * 40, false, timestamp);
+//        int []data = generateData(eventNumber, 0, false, timestamp);
 
         int dataTag = createCodaTag(status, detectorId);
         builder.openBank(dataTag, numEvents, DataType.UINT32);
@@ -4244,6 +4286,72 @@ System.out.println("Timestamps are NOT consistent !!!");
 
         return buffers;
     }
+
+
+    /**
+     * Create an array of evio events with simulated ROC data
+     * in the form of ByteBuffer objects.
+     *
+     * @param rocId       ROC id number
+     * @param triggerType trigger type id number (0-15)
+     * @param detectorId  id of detector producing data in data block bank
+     * @param status      4-bit status associated with data
+     * @param eventNumber starting event number
+     * @param numEvents   number of physics events in created each payload bank
+     * @param timestamp   starting event's timestamp
+     * @param numPayloadBanks number of payload banks to generate
+     * @param bbSupply    supply of reusable ByteBuffers
+     * @param builder     used to build evio events in buffer acquired from bbSupply
+     * @param order       byte order in which to write event into buffer
+     *
+     * @return array of generated byte buffers
+     */
+    public static ByteBuffer[] createRocDataEventsFast(int rocId, int triggerType,
+                                                       int detectorId, int status,
+                                                       int eventNumber, int numEvents,
+                                                       long timestamp,
+                                                       int numPayloadBanks,
+                                                       boolean singleEventMode,
+                                                       ByteBufferSupply bbSupply,
+                                                       CompactEventBuilder builder,
+                                                       ByteBufferItem[] items,
+                                                       ByteOrder order)  {
+
+        if (singleEventMode) {
+            numEvents = 1;
+        }
+
+        ByteBuffer buf = null;
+        ByteBufferItem bufItem = null;
+        ByteBuffer[] buffers = new ByteBuffer[numPayloadBanks];
+
+        try {
+            for (int i=0; i < numPayloadBanks; i++)  {
+                // Add ROC Raw Records as PayloadBuffer objects
+                if (singleEventMode) {
+                    // nothing right now
+                }
+                else {
+                    bufItem = bbSupply.get();
+                    buf = bufItem.getBuffer();
+                    buf.order(order);
+                    createRocRawRecordFast(rocId, triggerType, detectorId, status,
+                                           eventNumber, numEvents, timestamp, buf, builder);
+                }
+
+                buffers[i] = buf;
+                items[i] = bufItem;
+
+                eventNumber += numEvents;
+                timestamp   += 4*numEvents;
+            }
+        }
+        catch (EvioException e) { /* should not happen */ }
+
+        return buffers;
+    }
+
+
 
 
 }
