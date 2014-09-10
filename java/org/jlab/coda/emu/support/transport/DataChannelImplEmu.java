@@ -1144,6 +1144,7 @@ System.out.println("      DataChannel Emu out helper: " + name + " I got END eve
         DataOutputHelper() {
             super(emu.getThreadGroup(), name() + "_data_out");
             byteBuffer = ByteBuffer.allocate(maxBufferSize);
+            byteBuffer.order(byteOrder);
 
             // Speed things up with local variable
             ringItemIsBuffer = (ringItemType == ModuleIoType.PayloadBuffer);
@@ -1327,15 +1328,15 @@ logger.debug("      DataChannel Emu out helper: sent go");
                     writeEvioData(ringItem, ringItem.getEventType());
 //logger.debug("      DataChannel Emu out helper: sent event");
 
-//logger.debug("      DataChannel Emu out helper: release ring item");
+///logger.debug("      DataChannel Emu out helper: release ring item");
                     releaseCurrentAndGetNextOutputRingItem(rbIndex);
                     if (--ringChunkCounter < 1) {
                         rbIndex = ++rbIndex % outputRingCount;
                         ringChunkCounter = outputRingChunk;
-//                        System.out.println("switch ring to "+ rbIndex);
+//System.out.println("switch ring to "+ rbIndex);
                     }
                     else {
-//                        System.out.println(""+ ringChunkCounter);
+//System.out.println(""+ ringChunkCounter);
                     }
 
                     if (pBankControlType == ControlType.END) {
