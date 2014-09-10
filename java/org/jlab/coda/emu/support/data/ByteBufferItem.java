@@ -12,6 +12,7 @@
 package org.jlab.coda.emu.support.data;
 
 import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
@@ -64,6 +65,18 @@ public class ByteBufferItem {
     public ByteBufferItem(int bufferSize) {
         this.bufferSize = bufferSize;
         buffer = ByteBuffer.allocate(bufferSize);
+        myId = idCounter++;
+    }
+
+
+    /**
+     * Constructor.
+     * @param bufferSize size in bytes of ByteBuffer to construct.
+     * @param order byte order of ByteBuffer to construct.
+     */
+    public ByteBufferItem(int bufferSize, ByteOrder order) {
+        this.bufferSize = bufferSize;
+        buffer = ByteBuffer.allocate(bufferSize).order(order);
         myId = idCounter++;
     }
 

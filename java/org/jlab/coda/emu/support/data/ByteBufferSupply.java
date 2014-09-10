@@ -14,6 +14,8 @@ package org.jlab.coda.emu.support.data;
 
 import com.lmax.disruptor.*;
 
+import java.nio.ByteOrder;
+
 import static com.lmax.disruptor.RingBuffer.createSingleProducer;
 
 /**
@@ -42,6 +44,9 @@ public class ByteBufferSupply {
     /** Initial size, in bytes, of ByteBuffers contained in each ByteBufferItem in ring. */
     private final int bufferSize;
 
+    /** Byte order of ByteBuffer in each ByteBufferItem. */
+    private ByteOrder order;
+
     /** Ring buffer. */
     private final RingBuffer<ByteBufferItem> ringBuffer;
 
@@ -62,7 +67,7 @@ public class ByteBufferSupply {
     /** Class used to initially create all items in ring buffer. */
     private final class ByteBufferFactory implements EventFactory<ByteBufferItem> {
         public ByteBufferItem newInstance() {
-            return new ByteBufferItem(bufferSize);
+            return new ByteBufferItem(bufferSize, order);
         }
     }
 
@@ -77,6 +82,21 @@ public class ByteBufferSupply {
     public ByteBufferSupply(int ringSize, int bufferSize)
             throws IllegalArgumentException {
 
+        this(ringSize, bufferSize, ByteOrder.BIG_ENDIAN);
+    }
+
+
+    /**
+     * Constructor.
+     *
+     * @param ringSize    number of ByteBufferItem objects in ring buffer.
+     * @param bufferSize  initial size (bytes) of ByteBuffer in each ByteBufferItem object.
+     * @param order       byte order of ByteBuffer in each ByteBufferItem object.
+     * @throws IllegalArgumentException if args < 1 or ringSize not power of 2.
+     */
+    public ByteBufferSupply(int ringSize, int bufferSize, ByteOrder order)
+            throws IllegalArgumentException {
+
         if (ringSize < 1 || bufferSize < 1) {
             throw new IllegalArgumentException("positive args only");
         }
@@ -85,6 +105,7 @@ public class ByteBufferSupply {
             throw new IllegalArgumentException("ringSize must be a power of 2");
         }
 
+        this.order = order;
         this.bufferSize = bufferSize;
 
         // Create ring buffer with "ringSize" # of elements,
