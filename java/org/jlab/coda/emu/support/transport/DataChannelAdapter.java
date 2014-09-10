@@ -54,21 +54,6 @@ public class DataChannelAdapter extends CODAStateMachineAdapter implements DataC
     protected int recordId;
 
     /**
-     * When DCs are connected to an SEB, each DC must send the same number of events
-     * to SEB as all others. This is due to the fact that there may be more than one
-     * SEB and so the DCs would have to ping-pong sending events between each SEB.
-     * This value may be set in the config file, settable by jcedit.
-     */
-    protected int sebChunk;
-
-    /**
-     * True if we're outputting from DC to SEB and so we need to chunk up events
-     * sent into batches of "sebChunk".
-     * TODO: How do we know to set this to true???????????????????????????????????
-     */
-    protected boolean chunkForSeb;
-
-    /**
      * If we're a PEB or SEB and want to send 1 evio event per et-buffer/cmsg-message,
      * then this is true. If we want to cram as many evio events as possible in each
      * et-buffer/cmsg-message, then this is false.
@@ -137,7 +122,7 @@ public class DataChannelAdapter extends CODAStateMachineAdapter implements DataC
 
     /**
      * Number of output items to be taken sequentially from a single output ring buffer.
-     * Necessary for RocSimulation in which "ringChunk" number of sequential events are
+     * Necessary for RocSimulation in which this number of sequential events are
      * produced by a single thread to a single output ring buffer.
      */
     protected int outputRingChunk;
@@ -219,24 +204,6 @@ logger.info("      DataChannel Adapter : output type = " + ringItemType);
         }
 
         if (!input) {
-            // Set the number of evio events in a single et-buffer (or cmsg message)
-            // when sending from DC to SEB.
-            sebChunk = 50;
-            attribString = attributeMap.get("sebChunk");
-            if (attribString != null) {
-                try {
-                    // If this attribute is set, assume we're a DC outputting to an SEB
-                    if (emu.getCodaClass() == CODAClass.DC) {
-                        chunkForSeb = true;
-                    }
-                    int val = Integer.parseInt(attribString);
-                    if (val > 0) {
-                        sebChunk = val;
-                    }
-                }
-                catch (NumberFormatException e) {}
-            }
-
             // Do we send out single events or do we
             // marshall them into one output buffer?
             singleEventOut = false;
@@ -249,15 +216,9 @@ logger.info("      DataChannel Adapter : output type = " + ringItemType);
                 }
             }
 
-            // Set endianness of output data
-            byteOrder = ByteOrder.BIG_ENDIAN;
-            try {
-                String order = attributeMap.get("endian");
-                if (order != null && order.equalsIgnoreCase("little")) {
-                    byteOrder = ByteOrder.LITTLE_ENDIAN;
-                }
-            } catch (Exception e) {}
-
+            // Set endianness of output data, must be same as its module
+            byteOrder = module.getOutputOrder();
+            logger.info("      DataChannel Adapter : byte order = " + byteOrder);
         }
 
 
@@ -277,17 +238,7 @@ logger.info("      DataChannel Adapter : # of ring buffers = " + outputRingCount
         }
 
         // Number of sequential items in a single ring buffer.
-        outputRingChunk = 1;
-        attribString = attributeMap.get("ringChunk");
-        if (attribString != null) {
-            try {
-                outputRingChunk = Integer.parseInt(attribString);
-                if (outputRingChunk < 1) {
-                    outputRingChunk = 1;
-                }
-            }
-            catch (NumberFormatException e) {}
-        }
+        outputRingChunk = module.getOutputRingChunk();
 logger.info("      DataChannel Adapter : ring chunk = " + outputRingChunk);
 
 
