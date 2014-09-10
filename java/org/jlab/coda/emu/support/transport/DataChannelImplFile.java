@@ -249,6 +249,7 @@ logger.info("      DataChannel File: try opening output base file of " + fileNam
                 evioFileWriter = new EventWriter(fileName, directory, runType,
                                                  runNumber, split, byteOrder,
                                                  dictionaryXML, overWriteOK);
+logger.info("      DataChannel File: create EventWriter with order = " + byteOrder);
 
                 // Tell emu what that output name is for stat reporting.
                 // Get the name from the file writer object so that the
@@ -574,6 +575,7 @@ logger.debug("      DataChannel File reset() : " + name + " - done");
                 evioFileWriter.writeEvent(ri.getEvent());
             }
             else if  (ringItemType == ModuleIoType.PayloadBuffer) {
+//logger.info("      DataChannel File: write buffer with order = " + ri.getBuffer().order());
                 evioFileWriter.writeEvent(ri.getBuffer());
                 ri.releaseByteBuffer();
             }
@@ -619,7 +621,7 @@ logger.debug("      DataChannel File out helper: sent go");
                     ControlType pBankControlType = ringItem.getControlType();
 
                     try {
-                        evioFileWriter.writeEvent(ringItem.getEvent());
+                        writeEvioData(ringItem);
                     }
                     catch (Exception e) {
                         errorMsg.compareAndSet(null, "Cannot write to file");
