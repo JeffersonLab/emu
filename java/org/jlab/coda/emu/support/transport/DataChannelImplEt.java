@@ -144,7 +144,8 @@ public class DataChannelImplEt extends DataChannelAdapter {
     /** Ring buffer holding ByteBuffers when using EvioCompactEvent reader for incoming events. */
     protected ByteBufferSupply bbSupply;   // input
 
-    private int rbIndex;
+    /** Index representing next ring buffer to get evio event from. */
+    private int rbIndex;    // output
 
 
 
@@ -385,7 +386,9 @@ logger.info("      DataChannel Et : chunk = " + chunk);
                         }
 //System.out.println("Figure out # of buffers in supply -> " + numEtBufs);
                     }
-                    bbSupply = new ByteBufferSupply(numEtBufs, etEventSize);
+
+// TODO: Is the byte order thing right???
+                    bbSupply = new ByteBufferSupply(numEtBufs, etEventSize, module.getOutputOrder());
                 }
             }
             catch (Exception e) {
@@ -1160,6 +1163,7 @@ System.out.println("      DataChannel Et in helper: " + name + " got RESET cmd, 
                         bbItem.ensureCapacity(ev.getLength());
 
                         buf = bbItem.getBuffer();
+//System.out.println("      DataChannel Et in helper: get empty buf, order = " + buf.order());
                         copyBuffer(ev.getDataBuffer(), buf, ev.getLength());
 
                         try {
@@ -1177,6 +1181,7 @@ System.out.println("      DataChannel Et in helper: " + name + " got RESET cmd, 
 
                         // First block header in ET buffer
                         header4 = compactReader.getFirstBlockHeader();
+//System.out.println("      DataChannel Et in helper: blk header, order = " + header4.getByteOrder());
                         evioVersion = header4.getVersion();
                         if (evioVersion < 4) {
                             errorMsg.compareAndSet(null, "ET data is NOT evio v4 format");
@@ -1356,6 +1361,9 @@ System.out.println("      DataChannel Et in helper: " + name + " got RESET cmd, 
         /** Let a single waiter know that the main thread has been started. */
         private final CountDownLatch startLatch = new CountDownLatch(1);
 
+        /** Did we just get a prestart or go event? */
+        private boolean havePrestartOrGo;
+
 
         /** Constructor. */
         DataOutputHelper(ThreadGroup group, String name) {
@@ -1495,12 +1503,13 @@ System.out.println("      DataChannel Et in helper: " + name + " got RESET cmd, 
                      listTotalSizeMax = 32;   // first (or last) block header
                      previousType = null;
                      bankList = bankListArray[nextEventIndex];
+                     havePrestartOrGo = false;
 
                      // Grab a bank to put into an ET event buffer,
                      // checking occasionally to see if we got an
                      // RESET command or someone found an END event.
                      do {
- //System.out.println("rbIndex = " + rbIndex);
+// System.out.println("rbIndex = " + rbIndex);
                          // Get bank off of Q, unless we already did so in a previous loop
                          if (firstBankFromRing != null) {
                              ringItem = firstBankFromRing;
@@ -1508,8 +1517,9 @@ System.out.println("      DataChannel Et in helper: " + name + " got RESET cmd, 
                          }
                          else {
  // TODO: How do we keep things from blocking here??? --- Interrupt thread!
-                             //logger.debug("      DataChannel Et out helper: get next buffer from ring");
+//System.out.print("      DataChannel Et out helper: get next buffer from ring ... ");
                              ringItem = getNextOutputRingItem(rbIndex);
+//System.out.println("done");
                          }
 
                          eventCount++;
@@ -1599,18 +1609,30 @@ System.out.println("      DataChannel Et in helper: " + name + " got RESET cmd, 
 
                          // If control event, quit loop and write what we have
                          if (pBankControlType != null) {
-                             System.out.println("SEND CONTROL RIGHT THROUGH: " + pBankControlType);
-
                              // Look for END event and mark it in attachment
                              if (pBankControlType == ControlType.END) {
                                  ringItem.setAttachment(Boolean.TRUE);
                                  haveOutputEndEvent = true;
-                                 System.out.println("      DataChannel Et out helper: " + name + " I got END event, quitting 2");
+System.out.println("      DataChannel Et out helper: " + name + " I got END event, quitting 2");
                                  // run callback saying we got end event
                                  if (endCallback != null) endCallback.endWait();
                              }
+                             else {
+                                 havePrestartOrGo = true;
+System.out.println("HAVE " + pBankControlType + ", rbIndex = " + rbIndex);
+                             }
 
                              break;
+                         }
+
+                         // Do not go to the next ring if we got a control or user event.
+                         // All controls & users go to the first ring. Just keep reading
+                         // until we get to a buildable event. Then start keeping count so
+                         // we know when to switch to the next ring.
+                         if (outputRingCount > 1 && !pBankType.isUser() && --ringChunkCounter < 1) {
+                             rbIndex = ++rbIndex % outputRingCount;
+//System.out.println("SWITCH TO rbIndex = " + rbIndex);
+                             ringChunkCounter = outputRingChunk;
                          }
 
                          // Be careful not to use up all the events in the output
@@ -1752,14 +1774,9 @@ System.out.println("      DataChannel Et in helper: " + name + " got RESET cmd, 
                          throw e;
                      }
 
-                     // FREE UP STUFF
-
-                     //logger.debug("      DataChannel Emu out helper: release ring item");
-                     releaseOutputRingItem(rbIndex);
-
-                     if (--ringChunkCounter < 1) {
-                         rbIndex = ++rbIndex % outputRingCount;
-                         ringChunkCounter = outputRingChunk;
+                     // FREE UP ring buffer items for reuse
+                     for (int i=0; i < outputRingCount; i++) {
+                        releaseOutputRingItem(i);
                      }
 
                      if (haveOutputEndEvent) {
@@ -1871,6 +1888,7 @@ System.out.println("      DataChannel Et in helper: " + name + " got RESET cmd, 
                      if (evWriter == null) {
                          evWriter = new EventWriter(etBuffer, 550000, 200, null,
                                                     bitInfo, emu.getCodaid(), myRecordId);
+//System.out.println("evWriter: created with order " + evWriter.getByteOrder());
                      }
                      else {
                          evWriter.setBuffer(etBuffer, bitInfo, myRecordId);
@@ -1895,6 +1913,7 @@ System.out.println("      DataChannel Et in helper: " + name + " got RESET cmd, 
                      }
                      else {
                          for (RingItem ri : bankList) {
+//System.out.println("evWriter: write buffer of order " + ri.getByteOrder());
                              evWriter.writeEvent(ri.getBuffer());
                              ri.releaseByteBuffer();
                          }
