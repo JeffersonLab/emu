@@ -354,7 +354,7 @@ System.out.println("PreProcessing Thread running ...");
 
                             // Take user event and place on output channel
                             if (pBuf.getEventType().isUser()) {
-                                if (debug) System.out.println("BuildingThread: Got user event");
+System.out.println("PreProcessing Thread: Got user event");
 
                                 // This is a user event
                                 pBuf.setAttachment(true);
@@ -500,7 +500,7 @@ if (debug) System.out.println("PreProcessor: Roc raw or physics event in wrong f
         for (int i=0; i < inputChannelCount; i++) {
             try  {
                 final long availableSequence = barriers[i].waitFor(nextSequences[i]);
-                System.out.println("gotAllControlEvents: available Seq = " + availableSequence);
+System.out.println("gotAllControlEvents: available Seq = " + availableSequence);
 
                 buildingBanks[i] = (PayloadBuffer) ringBuffersIn[i].get(nextSequences[i]);
                 ControlType cType = buildingBanks[i].getControlType();
@@ -562,7 +562,7 @@ System.out.println("Have consistent GO event(s)");
             // Take one of the go/prestart events and update
             // it with the latest event builder data.
             Evio.updateControlEvent(controlEvent, runNumber,
-                                    runTypeId, (int)eventCountTotal, 0);
+                                    runTypeId, (int)eventCountTotal, 0, outputOrder);
 
             // Place event on first output channel
             eventToOutputChannel(controlEvent, 0, 0);
@@ -604,7 +604,7 @@ System.out.println("Have consistent GO event(s)");
         private int outputChannelIndex = -1;
         /** The order of this build thread, relative to the other build threads,
           * starting at zero. */
-        private final int order;
+        private final int btIndex;
         /** The total number of build threads. */
         private final int btCount;
 
@@ -618,11 +618,11 @@ System.out.println("Have consistent GO event(s)");
 
 
 
-        BuildingThread(int order, ThreadGroup group, String name) {
+        BuildingThread(int btIndex, ThreadGroup group, String name) {
             super(group, name);
-            this.order = order;
+            this.btIndex = btIndex;
             btCount = buildingThreadCount;
-            System.out.println("                 Create BT with order " + order);
+            System.out.println("                 Create BT with index " + btIndex);
         }
 
 
@@ -631,13 +631,13 @@ System.out.println("Have consistent GO event(s)");
 
             // Create a reusable supply of ByteBuffer objects
             // for writing built physics events into.
-            ByteBufferSupply bbSupply = new ByteBufferSupply(8192, 2000);
+            ByteBufferSupply bbSupply = new ByteBufferSupply(8192, 2000, outputOrder);
 
             // Object for building physics events in a ByteBuffer
             CompactEventBuilder builder = null;
             try {
                 // Internal buffer of 8 bytes will be overwritten later
-                builder = new CompactEventBuilder(8, ByteOrder.BIG_ENDIAN, true);
+                builder = new CompactEventBuilder(8, outputOrder, true);
             }
             catch (EvioException e) {/*never happen */}
 
@@ -658,7 +658,7 @@ System.out.println("Have consistent GO event(s)");
             //
             // Easiest to implement this with one counter per input channel.
             int[] skipCounter = new int[inputChannelCount];
-            Arrays.fill(skipCounter, order + 1);
+            Arrays.fill(skipCounter, btIndex + 1);
 
              // Initialize
             int totalNumberEvents=1;
@@ -684,7 +684,7 @@ System.out.println("Have consistent GO event(s)");
             Arrays.fill(availableSequences, -2L);
             buildSequences = new Sequence[inputChannelCount];
             for (int i=0; i < inputChannelCount; i++) {
-                buildSequences[i] = buildSequenceIn[order][i];
+                buildSequences[i] = buildSequenceIn[btIndex][i];
                 nextSequences[i]  = buildSequences[i].get() + 1L;
             }
 
@@ -694,12 +694,14 @@ System.out.println("Have consistent GO event(s)");
                                                            buildBarrierIn,
                                                            nextSequences);
 
+//System.out.println("btThread: prestart order = " + cEvent.getByteOrder());
                 // If this is the first build thread to reach this point, then
                 // write prestart event on all output channels, ring 0. Other build
                 // threads ignore this.
                 if (firstToGetPrestart.compareAndSet(false, true)) {
                     controlToOutputAsync(cEvent, true);
                 }
+//System.out.println("btThread: final, updated prestart order = " + cEvent.getByteOrder());
                 // This thread is ready to look for "go"
                 waitForPrestart.countDown();
             }
@@ -794,6 +796,7 @@ System.out.println("Have consistent GO event(s)");
                             // While we have new data to work with ...
                             while (nextSequences[i] <= availableSequences[i]) {
                                 buildingBanks[i] = (PayloadBuffer) ringBuffersIn[i].get(nextSequences[i]);
+//System.out.println("btThread: event order = " + buildingBanks[i].getByteOrder());
                                 eventType = buildingBanks[i].getEventType();
 
                                 // Skip over user events. These were actually already placed in
@@ -839,7 +842,7 @@ System.out.println("Have consistent GO event(s)");
                                     // each thread must set its expected event number according to the
                                     // blockLevel.
                                     if (!isEventNumberInitiallySet)  {
-                                        firstEventNumber = 1L + (order * totalNumberEvents);
+                                        firstEventNumber = 1L + (btIndex * totalNumberEvents);
                                         isEventNumberInitiallySet = true;
                                     }
                                     else {
@@ -992,17 +995,18 @@ System.out.println("Have consistent END event(s)");
                             // it with the latest event builder data.
                             Evio.updateControlEvent(buildingBanks[0], runNumber,
                                   runTypeId, (int)eventCountTotal,
-                                  (int)(firstEventNumber + totalNumberEvents - eventNumberAtLastSync));
+                                  (int)(firstEventNumber + totalNumberEvents - eventNumberAtLastSync),
+                                  outputOrder);
 
                             // Send END event to first output channel
 System.out.println("Send END to output channel");
-                            eventToOutputChannel(buildingBanks[0], 0, 0);
+                            eventToOutputChannel(buildingBanks[0], 0, outputRingIndex[0]);
                             for (int j=1; j < outputChannelCount; j++) {
                                 // Copy END event
                                 PayloadBuffer bb = new PayloadBuffer(buildingBanks[0]);
                                 // Write to additional output channel
 System.out.println("Copy & Send END to output channel");
-                                eventToOutputChannel(bb, j, 0);
+                                eventToOutputChannel(bb, j, outputRingIndex[j]);
                             }
                         }
 System.out.println("Done with END in EB module");
@@ -1132,7 +1136,7 @@ if (debug) System.out.println("BuildingThread: create trigger bank from Rocs, sp
                                                                             runNumber, runTypeId,
                                                                             includeRunData, sparsify,
                                                                             checkTimestamps,
-                                                                            timestampSlop, order);
+                                                                            timestampSlop, btIndex);
                         }
                     }
 
@@ -1167,7 +1171,7 @@ if (debug && nonFatalError) System.out.println("\nERROR 4\n");
                     // Important to use builder.getBuffer() instead of evBuf directly.
                     // That's because in that method, the limit and position are set
                     // properly for reading.
-                    eventToOutputRing(order, outputChannelIndex, builder.getBuffer(),
+                    eventToOutputRing(btIndex, outputChannelIndex, builder.getBuffer(),
                                       eventType, bufItem, bbSupply);
 
                     // TODO: Do we actually want to send a sync event ???
@@ -1180,7 +1184,8 @@ if (debug && nonFatalError) System.out.println("\nERROR 4\n");
                             ByteBuffer controlEvent =
                                     Evio.createControlBuffer(ControlType.SYNC,
                                          0, 0, (int) eventCountTotal,
-                                         (int) (firstEventNumber + totalNumberEvents - eventNumberAtLastSync));
+                                         (int) (firstEventNumber + totalNumberEvents - eventNumberAtLastSync),
+                                         ByteOrder.BIG_ENDIAN);
                             PayloadBuffer controlPBuf = new PayloadBuffer(controlEvent);
                             eventNumberAtLastSync = firstEventNumber + totalNumberEvents;
                             controlToOutputAsync(controlPBuf, false);
