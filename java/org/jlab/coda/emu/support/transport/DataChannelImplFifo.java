@@ -145,13 +145,13 @@ public class DataChannelImplFifo extends DataChannelAdapter {
                  // First event will be "prestart", by convention in ring 0
                  ringItem = getNextOutputRingItem(0);
                  writeEvioData(ringItem);
-                 releaseCurrentAndGetNextOutputRingItem(0);
+                 releaseCurrentAndGoToNextOutputRingItem(0);
  logger.debug("      DataChannel Fifo helper: sent prestart");
 
                  // First event will be "go", by convention in ring 0
                  ringItem = getNextOutputRingItem(0);
                  writeEvioData(ringItem);
-                 releaseCurrentAndGetNextOutputRingItem(0);
+                 releaseCurrentAndGoToNextOutputRingItem(0);
  logger.debug("      DataChannel Fifo out helper: sent go");
 
                  while ( state == CODAState.PAUSED || state == CODAState.ACTIVE ) {
@@ -172,7 +172,7 @@ public class DataChannelImplFifo extends DataChannelAdapter {
 //logger.debug("      DataChannel Fifo helper: sent event");
 
 //logger.debug("      DataChannel Fifo helper: release ring item");
-                     releaseCurrentAndGetNextOutputRingItem(rbIndex);
+                     releaseCurrentAndGoToNextOutputRingItem(rbIndex);
                      if (--ringChunkCounter < 1) {
                          rbIndex = ++rbIndex % outputRingCount;
                          ringChunkCounter = outputRingChunk;

@@ -17,7 +17,6 @@ import org.jlab.coda.emu.Emu;
 import org.jlab.coda.emu.EmuEventNotify;
 import org.jlab.coda.emu.EmuException;
 import org.jlab.coda.emu.EmuModule;
-import org.jlab.coda.emu.support.codaComponent.CODAClass;
 import org.jlab.coda.emu.support.codaComponent.CODAStateMachineAdapter;
 import org.jlab.coda.emu.support.codaComponent.State;
 import org.jlab.coda.emu.support.data.ModuleIoType;
@@ -392,7 +391,7 @@ logger.info("      DataChannel Adapter : ring chunk = " + outputRingChunk);
      *
      * @param ringIndex ring buffer to release item to
      */
-    protected void releaseCurrentAndGetNextOutputRingItem(int ringIndex) {
+    protected void releaseCurrentAndGoToNextOutputRingItem(int ringIndex) {
         sequences[ringIndex].set(nextSequences[ringIndex]);
         nextSequences[ringIndex]++;
     }
@@ -404,7 +403,7 @@ logger.info("      DataChannel Adapter : ring chunk = " + outputRingChunk);
     /**
      * Releases the item obtained by calling {@link #getNextOutputRingItem(int)},
      * so that it may be reused for writing into by the last module.
-     * Must NOT be used in conjunction with {@link #releaseCurrentAndGetNextOutputRingItem(int)}
+     * Must NOT be used in conjunction with {@link #releaseCurrentAndGoToNextOutputRingItem(int)}
      * and must be called after {@link #gotoNextRingItem(int)}.
      * @param ringIndex ring buffer to release item to
      */
@@ -416,7 +415,7 @@ logger.info("      DataChannel Adapter : ring chunk = " + outputRingChunk);
     /**
      * It prepares to get the next ring item after {@link #getNextOutputRingItem(int)}
      * is called.
-     * Must NOT be used in conjunction with {@link #releaseCurrentAndGetNextOutputRingItem(int)}
+     * Must NOT be used in conjunction with {@link #releaseCurrentAndGoToNextOutputRingItem(int)}
      * and must be called before {@link #releaseOutputRingItem(int)}.
      * @param ringIndex ring buffer to release item to
      */

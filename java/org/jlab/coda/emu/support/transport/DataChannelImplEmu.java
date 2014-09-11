@@ -1040,13 +1040,13 @@ logger.debug("      DataChannel Emu out helper: started");
                 // First event will be "prestart", by convention in ring 0
                 ringItem = getNextOutputRingItem(0);
                 writeEvioData(ringItem, ringItem.getEventType());
-                releaseCurrentAndGetNextOutputRingItem(0);
+                releaseCurrentAndGoToNextOutputRingItem(0);
 logger.debug("      DataChannel Emu out helper: sent prestart");
 
                 // First event will be "go", by convention in ring 0
                 ringItem = getNextOutputRingItem(0);
                 writeEvioData(ringItem, ringItem.getEventType());
-                releaseCurrentAndGetNextOutputRingItem(0);
+                releaseCurrentAndGoToNextOutputRingItem(0);
 logger.debug("      DataChannel Emu out helper: sent go");
 
                 while ( true ) {
@@ -1066,7 +1066,7 @@ logger.debug("      DataChannel Emu out helper: sent go");
 //logger.debug("      DataChannel Emu out helper: sent event");
 
 //logger.debug("      DataChannel Emu out helper: release ring item");
-                    releaseCurrentAndGetNextOutputRingItem(rbIndex);
+                    releaseCurrentAndGoToNextOutputRingItem(rbIndex);
                     if (--ringChunkCounter < 1) {
                         rbIndex = ++rbIndex % outputRingCount;
                         ringChunkCounter = outputRingChunk;
@@ -1303,13 +1303,13 @@ logger.debug("      DataChannel Emu out helper: started, w/ " + outputRingCount 
                 // First event will be "prestart", by convention in ring 0
                 ringItem = getNextOutputRingItem(0);
                 writeEvioData(ringItem, ringItem.getEventType());
-                releaseCurrentAndGetNextOutputRingItem(0);
+                releaseCurrentAndGoToNextOutputRingItem(0);
 logger.debug("      DataChannel Emu out helper: sent prestart");
 
                 // First event will be "go", by convention in ring 0
                 ringItem = getNextOutputRingItem(0);
                 writeEvioData(ringItem, ringItem.getEventType());
-                releaseCurrentAndGetNextOutputRingItem(0);
+                releaseCurrentAndGoToNextOutputRingItem(0);
 logger.debug("      DataChannel Emu out helper: sent go");
 
                 while ( true ) {
@@ -1329,7 +1329,7 @@ logger.debug("      DataChannel Emu out helper: sent go");
 //logger.debug("      DataChannel Emu out helper: sent event");
 
 ///logger.debug("      DataChannel Emu out helper: release ring item");
-                    releaseCurrentAndGetNextOutputRingItem(rbIndex);
+                    releaseCurrentAndGoToNextOutputRingItem(rbIndex);
                     if (--ringChunkCounter < 1) {
                         rbIndex = ++rbIndex % outputRingCount;
                         ringChunkCounter = outputRingChunk;
