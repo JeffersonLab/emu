@@ -212,11 +212,6 @@ public class FastEventBuilder extends ModuleAdapter {
     /** For each input channel, all build threads share one barrier. */
     private SequenceBarrier[] buildBarrierIn;
 
-    /** Which output ring in each output channel is next? */
-    private int[] outputRingIndex;
-
-
-
 
 
 
@@ -239,9 +234,6 @@ System.out.println("EventBuilding constr: " + buildingThreadCount +
         if (!epThreadsSetInConfig) {
             buildingThreadCount = eventProducingThreads = 2;
         }
-
-        // One element for each output channel
-        outputRingIndex = new int[outputChannelCount];
 
         // default is to swap data if necessary -
         // assume 32 bit ints
@@ -600,15 +592,32 @@ System.out.println("Have consistent GO event(s)");
      */
     class BuildingThread extends Thread {
 
-        /** Which channel does this thread currently output to (starting at 0)? */
-        private int outputChannelIndex = -1;
-        /** The order of this build thread, relative to the other build threads,
-          * starting at zero. */
-        private final int btIndex;
         /** The total number of build threads. */
         private final int btCount;
 
+        /** The order of this build thread, relative to the other build threads,
+          * starting at zero. */
+        private final int btIndex;
+
+        // Stuff needed to direct built events to proper output channel(s)
+
+        /** Number (index) of the current, sequential-between-all-built-thds,
+         * built event produced from this EMU.
+         * 1st build thread starts at 0, 2nd starts at 1, etc.
+         * 1st build thread's 2nd event is btCount, 2nd thread's 2nd event is btCount + 1, etc.*/
+        private long evIndex = 0;
+
+        /** If each output (SEB) channel gets sebChunk contiguous events, then this is the
+         * index of that group or chunk being currently written by this EMU.
+         * evGroupIndex = evIndex/sebChunk. */
+        private long evGroupIndex = 0;
+
+        /** Which channel does this thread currently output to, starting at 0?
+         * outputChannelIndex = evGroupIndex % outputChannelCount.*/
+        private int outputChannelIndex = 0;
+
         // RingBuffer Stuff
+
         /** 1 sequence for each input channel in this particular build thread. */
         private Sequence[] buildSequences;
         /** Array of available sequences (largest index of items desired), one per input channel. */
@@ -621,6 +630,7 @@ System.out.println("Have consistent GO event(s)");
         BuildingThread(int btIndex, ThreadGroup group, String name) {
             super(group, name);
             this.btIndex = btIndex;
+            evIndex = btIndex;
             btCount = buildingThreadCount;
             System.out.println("                 Create BT with index " + btIndex);
         }
@@ -643,10 +653,10 @@ System.out.println("Have consistent GO event(s)");
 
 
             // Skipping events is necessary if there are multiple build threads.
-            // This is the way of dividing up events among them without contention
-            // and mutex locking.
+            // This is the way of dividing up events among build threads without
+            // contention and mutex locking.
             //
-            // For 3 build threads,
+            // For example, with 3 build threads:
             // the 1st build thread gets item #1, the 2nd item #2, and the 3rd item #3.
             // In the next round,
             // the 1st thread gets item #4, the 2nd item #5, and the 3rd, item #6, etc.
@@ -661,8 +671,8 @@ System.out.println("Have consistent GO event(s)");
             Arrays.fill(skipCounter, btIndex + 1);
 
              // Initialize
-            int totalNumberEvents=1;
-            long firstEventNumber=1;
+            int     totalNumberEvents=1;
+            long    firstEventNumber=1;
             boolean haveEnd;
             boolean firstToFindEnd;
             boolean nonFatalError;
@@ -762,7 +772,7 @@ System.out.println("Have consistent GO event(s)");
                     // Here we have what we need to build:
                     // ROC raw events from all ROCs (or partially built events from
                     // each contributing EB) each with sequential record IDs.
-                    // However, there are also user and END events on rings.
+                    // However, there are also user and END events in the rings.
 
                     // Put null into buildingBanks array elements
                     Arrays.fill(buildingBanks, null);
@@ -784,11 +794,11 @@ System.out.println("Have consistent GO event(s)");
 
                             gotBank = false;
 
-                            // Only wait for read-volatile-memory if necessary ...
+                            // Only wait for a read of volatile memory if necessary ...
                             if (availableSequences[i] < nextSequences[i]) {
                                 // Will BLOCK here waiting for item if none available,
                                 // but it can be interrupted.
-                                // Available sequence may be larger than what we desired
+                                // Available sequence may be larger than what we desired.
                                 availableSequences[i] = buildBarrierIn[i].waitFor(nextSequences[i]);
 //System.out.println("btThread " + order + ": available Seq = " + availableSequences[i]);
                             }
@@ -847,12 +857,6 @@ System.out.println("Have consistent GO event(s)");
                                     }
                                     else {
                                         firstEventNumber += btCount*totalNumberEvents;
-                                    }
-
-                                    if (outputChannelCount > 0) {
-                                        // We can already figure out which output channel it should go to.
-                                        // We simply need to cycle through all the output channels.
-                                        outputChannelIndex = (outputChannelIndex + 1) % outputChannelCount;
                                     }
                                 }
 
@@ -1000,13 +1004,13 @@ System.out.println("Have consistent END event(s)");
 
                             // Send END event to first output channel
 System.out.println("Send END to output channel");
-                            eventToOutputChannel(buildingBanks[0], 0, outputRingIndex[0]);
+                            eventToOutputChannel(buildingBanks[0], 0, btIndex);
                             for (int j=1; j < outputChannelCount; j++) {
                                 // Copy END event
                                 PayloadBuffer bb = new PayloadBuffer(buildingBanks[0]);
                                 // Write to additional output channel
 System.out.println("Copy & Send END to output channel");
-                                eventToOutputChannel(bb, j, outputRingIndex[j]);
+                                eventToOutputChannel(bb, j, btIndex);
                             }
                         }
 System.out.println("Done with END in EB module");
@@ -1167,9 +1171,16 @@ if (debug && nonFatalError) System.out.println("\nERROR 4\n");
                     eventCountTotal += totalNumberEvents;
                     wordCountTotal  += builder.getTotalBytes()/4 + 1;
 
+                    // Which output channel do we use?
+                    if (chunkingForSebs) {
+                        evGroupIndex = evIndex/sebChunk;
+                        outputChannelIndex = (int) (evGroupIndex % outputChannelCount);
+                        evIndex += btCount;
+                    }
+
                     // Put it in the correct output channel.
-                    // Important to use builder.getBuffer() instead of evBuf directly.
-                    // That's because in that method, the limit and position are set
+                    // Important to use builder.getBuffer() method instead of evBuf directly.
+                    // That's because in the method, the limit and position are set
                     // properly for reading.
                     eventToOutputRing(btIndex, outputChannelIndex, builder.getBuffer(),
                                       eventType, bufItem, bbSupply);
