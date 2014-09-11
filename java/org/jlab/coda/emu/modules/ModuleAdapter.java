@@ -72,7 +72,7 @@ public class ModuleAdapter implements EmuModule {
      * True if we're outputting from DC to multiple SEBs and so we need to chunk up events
      * sent into batches of "sebChunk".
      */
-    protected boolean chunkForSeb;
+    protected boolean chunkingForSebs;
 
     /** Name of this event recorder. */
     protected final String name;
@@ -196,17 +196,18 @@ logger.info("  Module Adapter : output byte order = " + outputOrder);
 
 
         // If this is a DC and there are multiple SEBs, set the number of
-        // evio events to be sent, in sequence, to a single SEB, before
-        // sending the same amount to the next SEB.
-        sebChunk = 50;
+        // evio events (all of the very same block level) to be sent,
+        // in sequence, to a single SEB before sending the same amount
+        // to the next SEB. Each SEB must get the same # of events from
+        // each DC.
+        sebChunk = 100;
         str = attributeMap.get("sebChunk");
         if (str != null) {
             try {
-                // If this attribute is set, assume we're a DC outputting to multiple SEBs.
-                // Can double check by seeing if there are multiple output channels.
-                if (emu.getCodaClass() == CODAClass.DC) {
-                    chunkForSeb = true;
-                }
+                // Note that the boolean "chunkingforSebs" is set in prestart
+                // by adding more than one output channel (see the method
+                // addOutputChannels()). Only when that is true, does sebChunk
+                // do anything.
                 int val = Integer.parseInt(str);
                 if (val > 0) {
                     sebChunk = val;
@@ -355,6 +356,17 @@ logger.info("  Module Adapter : output byte order = " + outputOrder);
         if (output_channels == null) return;
         this.outputChannels.addAll(output_channels);
         outputChannelCount = outputChannels.size();
+
+        if (outputChannelCount > 1) {
+            // This is a DC outputting to multiple SEBs (output channels).
+            // Since this is the case, we need to write a fixed, contiguous
+            // # of events to a single SEB before moving on to the next and
+            // writing the same amount of events there.
+            if (emu.getCodaClass() == CODAClass.DC) {
+                chunkingForSebs = true;
+            }
+        }
+
     }
 
     /** {@inheritDoc} */
