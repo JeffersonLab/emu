@@ -631,7 +631,7 @@ logger.debug("      DataChannel File out helper: sent go");
 //logger.debug("      DataChannel File out helper: sent event");
 
 //logger.debug("      DataChannel File out helper: release ring item");
-                    releaseOutputRingItem(rbIndex);
+                    releaseCurrentAndGoToNextOutputRingItem(rbIndex);
                     if (--ringChunkCounter < 1) {
                         rbIndex = ++rbIndex % outputRingCount;
                         ringChunkCounter = outputRingChunk;
