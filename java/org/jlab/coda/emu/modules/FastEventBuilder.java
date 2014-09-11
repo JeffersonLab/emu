@@ -23,10 +23,7 @@ import org.jlab.coda.emu.support.configurer.DataNotFoundException;
 import org.jlab.coda.emu.support.control.CmdExecException;
 import org.jlab.coda.emu.support.data.*;
 import org.jlab.coda.emu.support.transport.DataChannel;
-import org.jlab.coda.jevio.CompactEventBuilder;
-import org.jlab.coda.jevio.DataType;
-import org.jlab.coda.jevio.EvioException;
-import org.jlab.coda.jevio.Utilities;
+import org.jlab.coda.jevio.*;
 
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
@@ -350,8 +347,15 @@ System.out.println("PreProcessing Thread running ...");
                             if (pBuf.getEventType().isUser()) {
 System.out.println("PreProcessing Thread: Got user event");
 
-                                // This is a user event
-                                pBuf.setAttachment(true);
+                                // Swap headers, NOT DATA, if necessary
+                                if (outputOrder != pBuf.getByteOrder()) {
+                                    try {
+System.out.println("PreProcessing Thread: Swap user event headers");
+                                        ByteDataTransformer.swapEvent(pBuf.getBuffer(), pBuf.getBuffer(),
+                                                                      0, 0, false, null);
+                                    }
+                                    catch (EvioException e) {/* should never happen */ }
+                                }
 
                                 // Send it on.
                                 // User events are thrown away if no output channels
