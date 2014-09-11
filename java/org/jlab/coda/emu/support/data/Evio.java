@@ -1716,8 +1716,8 @@ if (debug) System.out.println("gotValidControlEvents: found control event of typ
         builder.openBank(1, 1, DataType.BANK);
 
         // Bank of ints
-        builder.openBank(2, 2, DataType.INT32);
-        builder.addIntData(new int[] {999});
+        builder.openBank(2, 2, DataType.UNKNOWN32);
+        builder.addIntData(new int[] {0x999});
 
         builder.closeAll();
 
