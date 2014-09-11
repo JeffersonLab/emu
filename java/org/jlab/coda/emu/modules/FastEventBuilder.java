@@ -50,7 +50,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  *                                         V
  *
  *
- * Actual input channel ring buffers have 2048 events (not 6).
+ * Actual input channel ring buffers have thousands of events (not 6).
  * The producer is a single input channel which reads incoming data,
  * parses it and places it into the ring buffer.
  *
@@ -92,7 +92,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  *
  *
  *  M != N in general
- *  M = 3 by default
+ *  M = 2 by default
  *
  * </code></pre><p>
  *
@@ -105,13 +105,15 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * After pre-processing, each BuildingThread - of which there may be any number - takes
  * one bank from each ring buffer (and therefore input channel), skipping every Mth,
  * and builds them into a single event. The built event is placed in a ring buffer of
- * an output channel (by round robin if more than one channel or on all output channels
- * if wrapping a control event). Each output channel has the same number of ring buffers
+ * an output channel. This is by round robin if more than one channel or on all output channels
+ * if a control event. If this EB is a DC and has multiple SEBs as output channels,
+ * then the output is more complex - sebChunk number of contiguous events go to one channel
+ * before being switched to the next channel. Each output channel has the same number of ring buffers
  * as build threads. This avoids any contention & locking while writing. Each build thread
  * only writes to a fixed, single ring buffer of each output channel. It is the job of each
- * output channel to merge the contents of their rings into a single output stream.<p>
+ * output channel to merge the contents of their rings into a single, ordered output stream.<p>
  *
- * NOTE: When building, any Control events must appear on each channel in the same position.
+ * NOTE: When building, any Control events must appear on each channel in the same order.
  * If not, an exception may be thrown. If so, the Control event is passed along to all output channels.
  * If no output channels are defined in the config file, this module builds, but discards all events.
  */
