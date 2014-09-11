@@ -597,13 +597,13 @@ logger.debug("      DataChannel File out helper: started");
                 // First event will be "prestart", by convention in ring 0
                 ringItem = getNextOutputRingItem(0);
                 writeEvioData(ringItem);
-                releaseOutputRingItem(0);
+                releaseCurrentAndGoToNextOutputRingItem(0);
 logger.debug("      DataChannel File out helper: sent prestart");
 
-                // First event will be "go", by convention in ring 0
+                // Second event will be "go", by convention in ring 0
                 ringItem = getNextOutputRingItem(0);
                 writeEvioData(ringItem);
-                releaseOutputRingItem(0);
+                releaseCurrentAndGoToNextOutputRingItem(0);
 logger.debug("      DataChannel File out helper: sent go");
 
                 while ( true ) {
