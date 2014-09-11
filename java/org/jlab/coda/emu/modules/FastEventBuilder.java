@@ -234,7 +234,7 @@ System.out.println("EventBuilding constr: " + buildingThreadCount +
         // If # build threads not explicitly set in config, make it 2
         // which seems to perform the best.
         if (!epThreadsSetInConfig) {
-            buildingThreadCount = eventProducingThreads = 2;
+            buildingThreadCount = eventProducingThreads = 1;
         }
 
         // default is to swap data if necessary -
