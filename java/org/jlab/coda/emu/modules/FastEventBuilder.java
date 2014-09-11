@@ -632,7 +632,7 @@ System.out.println("Have consistent GO event(s)");
             this.btIndex = btIndex;
             evIndex = btIndex;
             btCount = buildingThreadCount;
-            System.out.println("                 Create BT with index " + btIndex);
+            System.out.println("                 Create Build-Thread with index " + btIndex);
         }
 
 
@@ -679,12 +679,11 @@ System.out.println("Have consistent GO event(s)");
             boolean havePhysicsEvents;
             boolean gotFirstBuildEvent;
             boolean gotBank;
-            // Has the firstEventNumber been set for the first time?
             boolean isEventNumberInitiallySet = false;
             EventType eventType = null;
+            if (outputChannelCount > 1) outputChannelIndex = -1;
 
             PayloadBuffer[] buildingBanks = new PayloadBuffer[inputChannelCount];
-
 
             int endEventCount;
 
@@ -1172,10 +1171,17 @@ if (debug && nonFatalError) System.out.println("\nERROR 4\n");
                     wordCountTotal  += builder.getTotalBytes()/4 + 1;
 
                     // Which output channel do we use?
-                    if (chunkingForSebs) {
-                        evGroupIndex = evIndex/sebChunk;
-                        outputChannelIndex = (int) (evGroupIndex % outputChannelCount);
-                        evIndex += btCount;
+                    if (outputChannelCount > 1) {
+                        // If we're a DC with multiple SEBs ...
+                        if (chunkingForSebs) {
+                            evGroupIndex = evIndex/sebChunk;
+                            outputChannelIndex = (int) (evGroupIndex % outputChannelCount);
+                            evIndex += btCount;
+                        }
+                        else {
+                            // Round-robin between all output channels
+                            outputChannelIndex = (outputChannelCount + 1) % outputChannelCount;
+                        }
                     }
 
                     // Put it in the correct output channel.
