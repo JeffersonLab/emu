@@ -102,7 +102,7 @@ public class DataChannelImplCmsg extends DataChannelAdapter {
 
     private final void messageToBank(cMsgMessage msg) throws IOException, EvioException {
 
-//logger.info("      DataChannel cmsg in helper: " + name + ": got BANK message in callback");
+//logger.info("      DataChannel cmsg in: " + name + ": got BANK message in callback");
 
         byte[] data = msg.getByteArray();
         if (data == null) {
@@ -153,10 +153,10 @@ public class DataChannelImplCmsg extends DataChannelAdapter {
             // prints a warning if it isn't.
             int recordId = header4.getNumber();
 
-//logger.info("      DataChannel cmsg in helper: " + name + " block header, event type " + eventType +
+//logger.info("      DataChannel cmsg in: " + name + " block header, event type " + eventType +
 //            ", src id = " + sourceId + ", recd id = " + recordId);
 
-//System.out.println("      DataChannel cmsg in helper: parse next event");
+//System.out.println("      DataChannel cmsg in: parse next event");
             EvioEvent event;
             EventType bankType;
             long nextRingItem;
@@ -200,7 +200,7 @@ public class DataChannelImplCmsg extends DataChannelAdapter {
                     // There should be no more events coming down the pike so
                     // go ahead write out existing events and then shut this
                     // thread down.
-                    logger.info("      DataChannel cmsg in helper: " + name + " found END event");
+                    logger.info("      DataChannel cmsg in: " + name + " found END event");
                     haveInputEndEvent = true;
                     // run callback saying we got end event
                     if (endCallback != null) endCallback.endWait();
@@ -243,7 +243,7 @@ public class DataChannelImplCmsg extends DataChannelAdapter {
             int recordId = blockHeader.getNumber();
             int sourceId = blockHeader.getReserved1();
             int eventCount = compactReader.getEventCount();
-//logger.info("      DataChannel cmsg in helper: " + name + " block header, event type " + eventType +
+//logger.info("      DataChannel cmsg in: " + name + " block header, event type " + eventType +
 //            ", src id = " + sourceId + ", recd id = " + recordId + ", event cnt = " + eventCount);
 
             EvioNode node;
@@ -285,7 +285,7 @@ public class DataChannelImplCmsg extends DataChannelAdapter {
                 ringBufferIn.publish(nextRingItem);
 
                 if (controlType == ControlType.END) {
-                    logger.info("      DataChannel Emu in helper: " + name + " found END event");
+                    logger.info("      DataChannel Emu in: " + name + " found END event");
                     haveInputEndEvent = true;
                     if (endCallback != null) endCallback.endWait();
                     return;
@@ -309,7 +309,7 @@ public class DataChannelImplCmsg extends DataChannelAdapter {
         /** Callback method definition. */
         public void callback(cMsgMessage msg, Object userObject) {
 
-//logger.info("      DataChannel cmsg in helper: " + name + ": got message in callback");
+//logger.info("      DataChannel cmsg in: " + name + ": got message in callback");
             try {
                 if (ringItemType == ModuleIoType.PayloadBank) {
                     messageToBank(msg);
@@ -384,11 +384,11 @@ public class DataChannelImplCmsg extends DataChannelAdapter {
             try {
                 // create subscription for receiving messages containing data
                 ReceiveMsgCallback cb = new ReceiveMsgCallback();
-System.out.println("\n\nDataChannel: subscribe to subject = " + subject + ", type = " + type + "\n\n");
+System.out.println("      DataChannel cmsg: subscribe to subject = " + subject + ", type = " + type + "\n\n");
                 sub = dataTransportImplCmsg.getCmsgConnection().subscribe(subject, type, cb, null);
             }
             catch (cMsgException e) {
-                logger.info("      DataChannelImplCmsg.const : " + e.getMessage());
+logger.info("      DataChannel cmsg: " + e.getMessage());
                 throw new DataTransportException(e);
             }
         }
@@ -407,7 +407,7 @@ System.out.println("\n\nDataChannel: subscribe to subject = " + subject + ", typ
                 }
                 catch (NumberFormatException e) {}
             }
-logger.info("      DataChannel cMsg : write threads = " + writeThreadCount);
+logger.info("      DataChannel cmsg: write threads = " + writeThreadCount);
 
             dataOutputThread = new DataOutputHelper(emu.getThreadGroup(), name() + " data out");
             dataOutputThread.start();
@@ -441,7 +441,7 @@ logger.info("      DataChannel cMsg : write threads = " + writeThreadCount);
     /** {@inheritDoc} */
     public void end() {
 
-        logger.warn("      DataChannel cMsg close() : " + name + " - closing this channel");
+        logger.warn("      DataChannel cmsg: end() " + name);
 
         gotEndCmd = true;
         gotResetCmd = false;
@@ -460,14 +460,14 @@ logger.info("      DataChannel cMsg : write threads = " + writeThreadCount);
         try {
             if (dataOutputThread != null) {
                 waitTime = emu.getEndingTimeLimit();
-//System.out.println("        try joining output thread #" + i + " for " + (waitTime/1000) + " sec");
+//System.out.println("      DataChannel cmsg: try joining output thread for " + (waitTime/1000) + " sec");
                 dataOutputThread.join(waitTime);
                 // kill everything since we waited as long as possible
                 dataOutputThread.interrupt();
                 dataOutputThread.shutdown();
-//System.out.println("        out thread done");
+//System.out.println("      DataChannel cmsg: output thread done");
             }
-//System.out.println("      helper thds done");
+//System.out.println("      DataChannel cmsg: all helper thds done");
         }
         catch (InterruptedException e) {
             e.printStackTrace();
@@ -482,7 +482,7 @@ logger.info("      DataChannel cMsg : write threads = " + writeThreadCount);
 
         errorMsg.set(null);
         state = CODAState.CONFIGURED;
-//logger.debug("      DataChannel cMsg reset() : " + name + " - done");
+logger.debug("      DataChannel cmsg: end() " + name + " done");
     }
 
 
@@ -491,21 +491,21 @@ logger.info("      DataChannel cMsg : write threads = " + writeThreadCount);
      * Reset this channel by interrupting the message sending threads and unsubscribing.
      */
     public void reset() {
-logger.debug("      DataChannel cMsg reset() : " + name + " - resetting this channel");
+logger.debug("      DataChannel cmsg: reset() " + name);
 
         gotEndCmd   = false;
         gotResetCmd = true;
 
         // Don't unsubscribe until helper threads are done
         if (dataOutputThread != null) {
-//System.out.println("        interrupt output thread #" + i + " ...");
+//System.out.println("      DataChannel cmsg: interrupt output thread ...");
             dataOutputThread.interrupt();
             dataOutputThread.shutdown();
             // Make sure all threads are done.
             try {
                 dataOutputThread.join(1000);}
             catch (InterruptedException e) {}
-//System.out.println("        output thread done");
+//System.out.println("      DataChannel cmsg: output thread done");
         }
 
         // At this point all threads should be done
@@ -518,7 +518,7 @@ logger.debug("      DataChannel cMsg reset() : " + name + " - resetting this cha
         errorMsg.set(null);
         state = CODAState.CONFIGURED;
 
-//logger.debug("      DataChannel cMsg reset() : " + name + " - done");
+logger.debug("      DataChannel cmsg: reset() " + name + " done");
     }
 
 
@@ -709,11 +709,11 @@ logger.debug("      DataChannel cMsg reset() : " + name + " - resetting this cha
                     // checking occasionally to see if we got an
                     // RESET command or someone found an END event.
                     while (!gotResetCmd) {
-// System.out.println("      DataChannel cMsg out helper: try getting ring item");
+// System.out.println("      DataChannel cmsg out: try getting ring item");
                         // Get bank off of ring ...
                         if (firstBankFromRing == null) {
                             ringItem  = getNextOutputRingItem(rbIndex);
-//System.out.println("      DataChannel cMsg out helper: GOT ring item");
+//System.out.println("      DataChannel cmsg out: GOT ring item");
 
                             pBanktype = ringItem.getEventType();
                             pBankSize = ringItem.getTotalBytes();
@@ -788,13 +788,13 @@ logger.debug("      DataChannel cMsg reset() : " + name + " - resetting this cha
 
                         // If control event, quit loop and write what we have
                         if (pBankControlType != null) {
-System.out.println("      DataChannel cMsg out helper: SEND CONTROL RIGHT THROUGH: " + pBankControlType);
+System.out.println("      DataChannel cmsg out: SEND CONTROL RIGHT THROUGH: " + pBankControlType);
 
                             // Look for END event and mark it in attachment
                             if (pBankControlType == ControlType.END) {
                                 ringItem.setAttachment(Boolean.TRUE);
                                 haveOutputEndEvent = true;
-System.out.println("      DataChannel cMsg out helper: " + name + " I got END event, quitting 2");
+System.out.println("      DataChannel cmsg out: " + name + " I got END event, quitting 2");
                                 // run callback saying we got end event
                                 if (endCallback != null) endCallback.endWait();
                             }
@@ -889,7 +889,7 @@ System.out.println("      DataChannel cMsg out helper: " + name + " I got END ev
                     // Make buffer available for writing thread to use
                     bufferSupply.publish(bufferItem);
 
-//System.out.println("      DataChannel cMsg: ring release " + rbIndex);
+//System.out.println("      DataChannel cmsg out: ring release " + rbIndex);
                     releaseOutputRingItem(rbIndex);
 
                     if (--ringChunkCounter < 1) {
@@ -898,14 +898,14 @@ System.out.println("      DataChannel cMsg out helper: " + name + " I got END ev
                     }
 
                     if (haveOutputEndEvent) {
-System.out.println("      DataChannel cMsg out helper: " + name + " some thd got END event, quitting 4");
+System.out.println("      DataChannel cmsg out: " + name + " some thd got END event, quitting 4");
                         shutdown();
                         return;
                     }
                 }
 
             } catch (InterruptedException e) {
-                logger.warn("      DataChannel cMsg out helper: " + name + "  interrupted thd, exiting");
+logger.warn("      DataChannel cmsg out: " + name + "  interrupted thd, exiting");
 
             // only cMsgException thrown
             } catch (Exception e) {
@@ -917,7 +917,7 @@ System.out.println("      DataChannel cMsg out helper: " + name + " some thd got
                 emu.sendStatusMessage();
 
                 e.printStackTrace();
-                logger.warn("      DataChannel cMsg out helper: " + name + " exit thd: " + e.getMessage());
+logger.warn("      DataChannel cmsg out: " + name + " exit thd: " + e.getMessage());
             }
 
         }
@@ -1003,7 +1003,7 @@ System.out.println("      DataChannel cMsg out helper: " + name + " some thd got
         private void writeMessages(cMsgMessage[] msgs, int messages2Write)
                 throws InterruptedException, cMsgException {
 
-//System.out.println("singlethreaded put: array len = " + msgs.length + ", send " + messages2Write +
+//System.out.println("      DataChannel cmsg out: array len = " + msgs.length + ", send " + messages2Write +
 // " # of messages to cMsg server");
                 for (cMsgMessage msg : msgs) {
                     dataTransportImplCmsg.getCmsgConnection().send(msg);
@@ -1083,7 +1083,7 @@ System.out.println("      DataChannel cMsg out helper: " + name + " some thd got
                     // checking occasionally to see if we got an
                     // RESET command or someone found an END event.
                     do {
-// System.out.println("      DataChannel cMsg out helper: try getting ring item");
+// System.out.println("      DataChannel cmsg out: try getting ring item");
                         // Get bank off of Q, unless we already did so in a previous loop
                         if (firstBankFromRing != null) {
                             ringItem = firstBankFromRing;
@@ -1092,7 +1092,7 @@ System.out.println("      DataChannel cMsg out helper: " + name + " some thd got
                         else {
                             ringItem = getNextOutputRingItem(rbIndex);
                         }
-//System.out.println("      DataChannel cMsg out helper: GOT ring item");
+//System.out.println("      DataChannel cmsg out: GOT ring item");
 
                         eventCount++;
 
@@ -1183,13 +1183,13 @@ System.out.println("      DataChannel cMsg out helper: " + name + " some thd got
 
                         // If control event, quit loop and write what we have
                         if (pBankControlType != null) {
-System.out.println("      DataChannel cMsg out helper: SEND CONTROL RIGHT THROUGH: " + pBankControlType);
+System.out.println("      DataChannel cmsg out: SEND CONTROL RIGHT THROUGH: " + pBankControlType);
 
                             // Look for END event and mark it in attachment
                             if (pBankControlType == ControlType.END) {
                                 ringItem.setAttachment(Boolean.TRUE);
                                 haveOutputEndEvent = true;
-System.out.println("      DataChannel cMsg out helper: " + name + " I got END event, quitting 2");
+System.out.println("      DataChannel cmsg out: " + name + " I got END event, quitting 2");
                                 // run callback saying we got end event
                                 if (endCallback != null) endCallback.endWait();
                             }
@@ -1219,7 +1219,7 @@ System.out.println("      DataChannel cMsg out helper: " + name + " I got END ev
                     for (int i=0; i < nextMsgListIndex; i++) {
                         // Get one of the list of banks to put into this cMsg message
                         bankList = bankListArray[i];
-//System.out.println("  Looking at msg list " + i + ", with " + bankList.size() +
+//System.out.println("      DataChannel cmsg: looking at msg list " + i + ", with " + bankList.size() +
 //                        " # of events in it");
                         if (bankList.size() < 1) {
                             continue;
@@ -1257,7 +1257,7 @@ System.out.println("      DataChannel cMsg out helper: " + name + " I got END ev
 //                    }
 
                     try {
-//System.out.println("      DataChannel cMsg: write " + messages2Write + " messages");
+//System.out.println("      DataChannel cmsg out: write " + messages2Write + " messages");
                         // Write cMsg messages after gathering them all
                         writeMessages(msgs, messages2Write);
                     }
@@ -1266,7 +1266,7 @@ System.out.println("      DataChannel cMsg out helper: " + name + " I got END ev
                         throw e;
                     }
 
-//System.out.println("      DataChannel cMsg: ring release " + rbIndex);
+//System.out.println("      DataChannel cmsg out: ring release " + rbIndex);
                     releaseOutputRingItem(rbIndex);
 
                     if (--ringChunkCounter < 1) {
@@ -1275,14 +1275,14 @@ System.out.println("      DataChannel cMsg out helper: " + name + " I got END ev
                     }
 
                     if (haveOutputEndEvent) {
-System.out.println("      DataChannel cMsg out helper: " + name + " some thd got END event, quitting 4");
+System.out.println("      DataChannel cmsg out: " + name + " some thd got END event, quitting 4");
                         shutdown();
                         return;
                     }
                 }
 
             } catch (InterruptedException e) {
-                logger.warn("      DataChannel cMsg out helper: " + name + "  interrupted thd, exiting");
+logger.warn("      DataChannel cmsg out: " + name + "  interrupted thd, exiting");
 
             // only cMsgException thrown
             } catch (Exception e) {
@@ -1294,7 +1294,7 @@ System.out.println("      DataChannel cMsg out helper: " + name + " some thd got
                 emu.sendStatusMessage();
 
                 e.printStackTrace();
-                logger.warn("      DataChannel cMsg out helper: " + name + " exit thd: " + e.getMessage());
+logger.warn("      DataChannel cmsg out: " + name + " exit thd: " + e.getMessage());
             }
 
         }
@@ -1423,7 +1423,7 @@ System.out.println("      DataChannel cMsg out helper: " + name + " some thd got
                     buffer.flip();
 
                     // Put data into cMsg message
-//System.out.println("cmsg channel output: put evio into cMsg msg: limit = " + buffer.limit());
+//System.out.println("      DataChannel cmsg out: put evio into cMsg msg: limit = " + buffer.limit());
 //Utilities.printBuffer(buffer, 0, buffer.limit()/4, " control event out");
                     msg.setByteArrayNoCopy(buffer.array(), 0, buffer.limit());
                     msg.setByteArrayEndian(byteOrder == ByteOrder.BIG_ENDIAN ? cMsgConstants.endianBig :
