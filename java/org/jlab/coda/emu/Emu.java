@@ -2208,6 +2208,7 @@ logger.info("Emu end: input chan " + chan.name() + " already got END event");
                 // Look at the last module next if END made it thru all input channels
                 if (gotAllEnds && mods.size() > 0) {
                     try {
+logger.info("Emu end: wait for END event in module " + mods.getLast().name());
                         gotEndEvent = mods.getLast().getEndCallback().waitForEvent();
                         if (!gotEndEvent) {
 logger.info("Emu end: timeout (2 sec) waiting for END event in module " + mods.getLast().name());
