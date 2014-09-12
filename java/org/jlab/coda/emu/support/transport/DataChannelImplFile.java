@@ -271,10 +271,10 @@ logger.info("      DataChannel File: try writing to file " + evioFileWriter.getC
         }
         catch (Exception e) {
             if (input) {
-                throw new DataTransportException("DataChannelImplFile : Cannot open data file " + e.getMessage(), e);
+                throw new DataTransportException("      DataChannel File: Cannot open data file " + e.getMessage(), e);
             }
             else {
-                throw new DataTransportException("DataChannelImplFile : Cannot create data file" + e.getMessage(), e);
+                throw new DataTransportException("      DataChannel File: Cannot create data file" + e.getMessage(), e);
             }
         }
     }
@@ -295,7 +295,7 @@ logger.info("      DataChannel File: try writing to file " + evioFileWriter.getC
 
     /** {@inheritDoc}. Formerly this code was the close() method. */
     public void end() {
-        logger.warn("      DataChannel File end() : " + name);
+        logger.warn("      DataChannel File: end() " + name);
 
         gotEndCmd = true;
         gotResetCmd = false;
@@ -308,7 +308,7 @@ logger.info("      DataChannel File: try writing to file " + evioFileWriter.getC
      * {@inheritDoc}
      */
     public void reset() {
-logger.debug("      DataChannel File reset() : " + name + " channel, in threads = 1");
+logger.debug("      DataChannel File: reset() " + name + " channel");
 
         gotEndCmd   = false;
         gotResetCmd = true;
@@ -329,7 +329,7 @@ logger.debug("      DataChannel File reset() : " + name + " channel, in threads 
 
         errorMsg.set(null);
         state = CODAState.CONFIGURED;
-logger.debug("      DataChannel File reset() : " + name + " - done");
+logger.debug("      DataChannel File: reset() " + name + " - done");
     }
 
 
@@ -443,8 +443,8 @@ logger.debug("      DataChannel File reset() : " + name + " - done");
 
             }
             catch (Exception e) {
-//logger.warn("      DataChannel File (" + name + "): close file");
-//logger.warn("      DataChannel File (" + name + "): exit " + e.getMessage());
+//logger.warn("      DataChannel File in: (" + name + ") close file");
+//logger.warn("      DataChannel File in: (" + name + ") exit " + e.getMessage());
                 // If we haven't yet set the cause of error, do so now & inform run control
                 errorMsg.compareAndSet(null, e.getMessage());
 
@@ -533,8 +533,8 @@ logger.debug("      DataChannel File reset() : " + name + " - done");
 
             }
             catch (Exception e) {
-//logger.warn("      DataChannel File (" + name + "): close file");
-//logger.warn("      DataChannel File (" + name + "): exit " + e.getMessage());
+//logger.warn("      DataChannel File in: (" + name + ") close file");
+//logger.warn("      DataChannel File in: (" + name + ") exit " + e.getMessage());
                 // If we haven't yet set the cause of error, do so now & inform run control
                 errorMsg.compareAndSet(null, e.getMessage());
 
@@ -578,7 +578,7 @@ logger.debug("      DataChannel File reset() : " + name + " - done");
                 evioFileWriter.writeEvent(ri.getEvent());
             }
             else if  (ringItemType == ModuleIoType.PayloadBuffer) {
-//logger.info("      DataChannel File: write buffer with order = " + ri.getBuffer().order());
+//logger.info("      DataChannel File out: write buffer with order = " + ri.getBuffer().order());
                 evioFileWriter.writeEvent(ri.getBuffer());
                 ri.releaseByteBuffer();
             }
@@ -599,13 +599,13 @@ logger.debug("      DataChannel File reset() : " + name + " - done");
                 // First event will be "prestart", by convention in ring 0
                 ringItem = getNextOutputRingItem(0);
                 writeEvioData(ringItem);
-logger.debug("      DataChannel File out helper: wrote prestart");
+logger.debug("      DataChannel File out: wrote prestart");
                 releaseCurrentAndGoToNextOutputRingItem(0);
 
                 // Second event will be "go", by convention in ring 0
                 ringItem = getNextOutputRingItem(0);
                 writeEvioData(ringItem);
-logger.debug("      DataChannel File out helper: wrote go");
+logger.debug("      DataChannel File out: wrote go");
                 releaseCurrentAndGoToNextOutputRingItem(0);
 
                 while ( true ) {
@@ -618,7 +618,7 @@ logger.debug("      DataChannel File out helper: wrote go");
                         continue;
                     }
 
-//logger.debug("      DataChannel File out helper: get next buffer from ring");
+//logger.debug("      DataChannel File out: get next buffer from ring");
                     ringItem = getNextOutputRingItem(rbIndex);
                     ControlType pBankControlType = ringItem.getControlType();
 
@@ -630,9 +630,9 @@ logger.debug("      DataChannel File out helper: wrote go");
                         throw e;
                     }
 
-//logger.debug("      DataChannel File out helper: wrote event");
+//logger.debug("      DataChannel File out: wrote event");
 
-//logger.debug("      DataChannel File out helper: release ring item");
+//logger.debug("      DataChannel File out: release ring item");
                     releaseCurrentAndGoToNextOutputRingItem(rbIndex);
                     if (--ringChunkCounter < 1) {
                         rbIndex = ++rbIndex % outputRingCount;
@@ -651,7 +651,7 @@ logger.debug("      DataChannel File out helper: wrote go");
                     }
 
                     if (pBankControlType == ControlType.END) {
-System.out.println("      DataChannel File out helper: " + name + " I got END event");
+System.out.println("      DataChannel File out: " + name + " I got END event");
                         try {
                             evioFileWriter.close();
                         }
@@ -666,15 +666,15 @@ System.out.println("      DataChannel File out helper: " + name + " I got END ev
 
                     // If I've been told to RESET ...
                     if (gotResetCmd) {
-                        System.out.println("      DataChannel File out helper: " + name + " got RESET/END cmd, quitting 1");
+System.out.println("      DataChannel File out: " + name + " got RESET/END cmd, quitting 1");
                         return;
                     }
                 }
 
             } catch (InterruptedException e) {
-                logger.warn("      DataChannel File out helper: " + name + "  interrupted thd, exiting");
+                logger.warn("      DataChannel File out: " + name + "  interrupted thd, exiting");
             } catch (Exception e) {
-                logger.warn("      DataChannel File out helper : exit thd: " + e.getMessage());
+                logger.warn("      DataChannel File out : exit thd: " + e.getMessage());
                 // If we haven't yet set the cause of error, do so now & inform run control
                 errorMsg.compareAndSet(null, e.getMessage());
 

@@ -192,7 +192,7 @@ public class ModuleAdapter implements EmuModule {
         if (str != null && str.equalsIgnoreCase("little"))   {
             outputOrder = ByteOrder.LITTLE_ENDIAN;
         }
-logger.info("  Module Adapter : output byte order = " + outputOrder);
+logger.info("  Module Adapter: output byte order = " + outputOrder);
 
 
         // If this is a DC and there are multiple SEBs, set the number of
@@ -477,7 +477,7 @@ logger.info("  Module Adapter : output byte order = " + outputOrder);
                     }
 
                 } catch (InterruptedException e) {
-                    logger.info("Rate calculating thread " + name() + " interrupted, so exiting");
+                    logger.info("  Module Adapter: rate calculating thread for " + name() + " exiting");
                     return;
                 }
             }

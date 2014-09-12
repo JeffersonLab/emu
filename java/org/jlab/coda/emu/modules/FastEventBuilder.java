@@ -226,7 +226,7 @@ public class FastEventBuilder extends ModuleAdapter {
 
         // Set number of building threads
         buildingThreadCount = eventProducingThreads;
-System.out.println("EventBuilding constr: " + buildingThreadCount +
+System.out.println("  EB mod: " + buildingThreadCount +
                            " number of event building threads");
         // If # build threads not explicitly set in config, make it 2
         // which seems to perform the best.
@@ -334,22 +334,22 @@ System.out.println("EventBuilding constr: " + buildingThreadCount +
                 try {
 
                     while (state == CODAState.ACTIVE || paused) {
-//System.out.println("PreProcessing: wait for Seq = " + nextSequence);
+//System.out.println("  EB mod: wait for Seq = " + nextSequence + " in pre-processing");
                         final long availableSequence = barrier.waitFor(nextSequence);
 
-//System.out.println("PreProcessing: available Seq = " + availableSequence);
+//System.out.println("  EB mod: available Seq = " + availableSequence + " in pre-processing");
                         while (nextSequence <= availableSequence) {
                             pBuf = ringBuffer.get(nextSequence);
                             Evio.checkPayload((PayloadBuffer)pBuf, channel);
 
                             // Take user event and place on output channel
                             if (pBuf.getEventType().isUser()) {
-System.out.println("PreProcessing Thread: Got user event");
+System.out.println("  EB mod: got user event in pre-processing");
 
                                 // Swap headers, NOT DATA, if necessary
                                 if (outputOrder != pBuf.getByteOrder()) {
                                     try {
-System.out.println("PreProcessing Thread: Swap user event headers");
+System.out.println("  EB mod: swap user event headers");
                                         ByteDataTransformer.swapEvent(pBuf.getBuffer(), pBuf.getBuffer(),
                                                                       0, 0, false, null);
                                     }
@@ -364,10 +364,10 @@ System.out.println("PreProcessing Thread: Swap user event headers");
                             }
 
                             nextSequence++;
-//System.out.println("PreProcessing: next Seq = " + nextSequence);
+//System.out.println("  EB mod:PreProcessing: next Seq = " + nextSequence + " in pre-processing");
                         }
 
-//System.out.println("PreProcessing: set Seq = " + availableSequence);
+//System.out.println("  EB mod:PreProcessing: set Seq = " + availableSequence + " in pre-processing");
                         sequence.set(availableSequence);
                     }
 
@@ -379,7 +379,7 @@ System.out.println("PreProcessing Thread: Swap user event headers");
                 } catch (EmuException e) {
                     // EmuException from Evio.checkPayload() if
                     // Roc raw or physics banks are in the wrong format
-if (debug) System.out.println("PreProcessor: Roc raw or physics event in wrong format");
+if (debug) System.out.println("  EB mod: Roc raw or physics event in wrong format");
                     errorMsg.compareAndSet(null, "Roc raw or physics banks are in the wrong format");
                     state = CODAState.ERROR;
                     emu.sendStatusMessage();
@@ -413,10 +413,10 @@ if (debug) System.out.println("PreProcessor: Roc raw or physics event in wrong f
 
         RingBuffer rb = outputChannels.get(channelNum).getRingBuffersOut()[ringNum];
 
-//System.out.println("     : wait for next ring buf for writing");
+//System.out.println(  EB mod: wait for next ring buf for writing");
         long lastRingItem = rb.next(banksOut.size());
         long ringItem = lastRingItem - banksOut.size() + 1;
-//System.out.println("     : Got last sequence " + lastRingItem);
+//System.out.println("  EB mod: Got last sequence " + lastRingItem);
 
         for (int i = 0; i < banksOut.size(); i++) {
             ringItem += i;
@@ -429,7 +429,7 @@ if (debug) System.out.println("PreProcessor: Roc raw or physics event in wrong f
             pb.setReusableByteBuffer(banksOut.get(i).getByteBufferSupply(),
                                      banksOut.get(i).getByteBufferItem());
 
-//System.out.println("published : item " + ringItem + " to ring " + ringNum);
+//System.out.println("  EB mod: published item " + ringItem + " to ring " + ringNum);
             rb.publish(ringItem);
         }
     }
@@ -456,9 +456,9 @@ if (debug) System.out.println("PreProcessor: Roc raw or physics event in wrong f
 
         RingBuffer rb = outputChannels.get(channelNum).getRingBuffersOut()[ringNum];
 
-//System.out.println("          : wait for next ring buf for writing");
+//System.out.println("  EB mod: wait for next ring buf for writing");
         long nextRingItem = rb.next();
-//System.out.println("          : Got sequence " + nextRingItem);
+//System.out.println("  EB mod: Got sequence " + nextRingItem);
         RingItem ri = (RingItem) rb.get(nextRingItem);
         ri.setBuffer(buf);
         ri.setEventType(eventType);
@@ -466,7 +466,7 @@ if (debug) System.out.println("PreProcessor: Roc raw or physics event in wrong f
         ri.setSourceName(null);
         ri.setReusableByteBuffer(bbSupply, item);
 
-//System.out.println("         : published to ring " + ringNum);
+//System.out.println("  EB mod: published to ring " + ringNum);
         rb.publish(nextRingItem);
     }
 
@@ -498,11 +498,11 @@ if (debug) System.out.println("PreProcessor: Roc raw or physics event in wrong f
         for (int i=0; i < inputChannelCount; i++) {
             try  {
                 final long availableSequence = barriers[i].waitFor(nextSequences[i]);
-//System.out.println("gotAllControlEvents: available Seq = " + availableSequence);
+//System.out.println("  EB mod: gotAllControlEvents: available Seq = " + availableSequence);
 
                 buildingBanks[i] = (PayloadBuffer) ringBuffersIn[i].get(nextSequences[i]);
                 ControlType cType = buildingBanks[i].getControlType();
-//System.out.println("gotAllControlEvents: Seq[" + i + "] = " + nextSequences[i] + " has control type " + cType);
+//System.out.println("  EB mod: gotAllControlEvents: Seq[" + i + "] = " + nextSequences[i] + " has control type " + cType);
                 if (cType == null) {
                     throw new EmuException("Expecting control event, got something else");
                 }
@@ -515,11 +515,11 @@ if (debug) System.out.println("PreProcessor: Roc raw or physics event in wrong f
                     throw new EmuException("Expecting go or prestart, got " + cType);
                 }
 
-//System.out.println("gotAllControlEvents: set Seq[" + i + "] = " + nextSequences[i]);
+//System.out.println("  EB mod: gotAllControlEvents: set Seq[" + i + "] = " + nextSequences[i]);
                 sequences[i].set(nextSequences[i]);
 
                 nextSequences[i]++;
-//System.out.println("gotAllControlEvents: next Seq[" + i + "] = " + nextSequences[i]);
+//System.out.println("  EB mod: gotAllControlEvents: next Seq[" + i + "] = " + nextSequences[i]);
             }
             catch (final TimeoutException e) {
                 e.printStackTrace();
@@ -535,10 +535,10 @@ if (debug) System.out.println("PreProcessor: Roc raw or physics event in wrong f
         Evio.gotConsistentControlEvents(buildingBanks, runNumber, runTypeId);
 
         if (isPrestart) {
-System.out.println("Have consistent PRESTART event(s)");
+System.out.println("  EB mod: have consistent PRESTART event(s)");
         }
         else {
-System.out.println("Have consistent GO event(s)");
+System.out.println("  EB mod: have consistent GO event(s)");
         }
 
         return buildingBanks[0];
@@ -576,10 +576,10 @@ System.out.println("Have consistent GO event(s)");
         }
 
         if (isPrestart) {
-            System.out.println("\n\nWrote PRESTART from build thread\n");
+            System.out.println("  EB mod: wrote PRESTART from build thread");
         }
         else {
-            System.out.println("\n\nWrote GO from build thread\n");
+            System.out.println("  EB mod: wrote GO from build thread");
         }
     }
 
@@ -638,7 +638,7 @@ System.out.println("Have consistent GO event(s)");
             this.btIndex = btIndex;
             evIndex = btIndex;
             btCount = buildingThreadCount;
-            System.out.println("                 Create Build-Thread with index " + btIndex);
+System.out.println("  EB mod: create Build-Thread with index " + btIndex);
         }
 
 
@@ -709,20 +709,20 @@ System.out.println("Have consistent GO event(s)");
                                                            buildBarrierIn,
                                                            nextSequences);
 
-//System.out.println("btThread: got prestart, order = " + cEvent.getByteOrder());
+//System.out.println("  EB mod: got prestart, order = " + cEvent.getByteOrder());
                 // If this is the first build thread to reach this point, then
                 // write prestart event on all output channels, ring 0. Other build
                 // threads ignore this.
                 if (firstToGetPrestart.compareAndSet(false, true)) {
                     controlToOutputAsync(cEvent, true);
                 }
-//System.out.println("btThread: final, updated prestart order = " + cEvent.getByteOrder());
+//System.out.println("  EB mod: final, updated prestart order = " + cEvent.getByteOrder());
                 // This thread is ready to look for "go"
                 waitForPrestart.countDown();
             }
             catch (Exception e) {
                 e.printStackTrace();
-                if (debug) System.out.println("Interrupted while waiting for prestart event");
+                if (debug) System.out.println("  EB mod: interrupted while waiting for prestart event");
                 // If we haven't yet set the cause of error, do so now & inform run control
                 errorMsg.compareAndSet(null,"Interrupted waiting for prestart event");
 
@@ -751,7 +751,7 @@ System.out.println("Have consistent GO event(s)");
             }
             catch (Exception e) {
                 e.printStackTrace();
-                if (debug) System.out.println("Interrupted while waiting for go event");
+                if (debug) System.out.println("  EB mod: interrupted while waiting for go event");
                 errorMsg.compareAndSet(null,"Interrupted waiting for go event");
                 state = CODAState.ERROR;
                 emu.sendStatusMessage();
@@ -805,30 +805,30 @@ System.out.println("Have consistent GO event(s)");
                                 // but it can be interrupted.
                                 // Available sequence may be larger than what we desired.
                                 availableSequences[i] = buildBarrierIn[i].waitFor(nextSequences[i]);
-//System.out.println("btThread " + order + ": available Seq = " + availableSequences[i]);
+//System.out.println("  EB mod: " + btIndex + ", available Seq = " + availableSequences[i]);
                             }
 
                             // While we have new data to work with ...
                             while (nextSequences[i] <= availableSequences[i]) {
                                 buildingBanks[i] = (PayloadBuffer) ringBuffersIn[i].get(nextSequences[i]);
-//System.out.println("btThread: event order = " + buildingBanks[i].getByteOrder());
+//System.out.println("  EB mod: " + btIndex + ", event order = " + buildingBanks[i].getByteOrder());
                                 eventType = buildingBanks[i].getEventType();
 
                                 // Skip over user events. These were actually already placed in
                                 // first output channel's first ring by pre-processing thread.
                                 if (eventType.isUser())  {
-//System.out.println("btThread " + order + ": skip user item " + nextSequences[i]);
+//System.out.println("  EB mod: " + btIndex + ", skip user item " + nextSequences[i]);
                                     nextSequences[i]++;
                                 }
                                 // Skip over events being built by other build threads
                                 else if (skipCounter[i] - 1 > 0)  {
-//System.out.println("btThread " + order + ": skip item " + nextSequences[i]);
+//System.out.println("  EB mod: " + btIndex + ", skip item " + nextSequences[i]);
                                     nextSequences[i]++;
                                     skipCounter[i]--;
                                 }
                                 // Found a bank, so do something with it (skipCounter[i] - 1 == 0)
                                 else {
-//System.out.println("btThread " + order + ": accept item " + nextSequences[i]);
+//System.out.println("  EB mod: " + btIndex + ", accept item " + nextSequences[i]);
                                     gotBank = true;
                                     break;
                                 }
@@ -915,11 +915,11 @@ System.out.println("Have consistent GO event(s)");
                             ControlType cType = buildingBanks[i].getControlType();
 
                             if (cType != null)  {
-                                System.out.println("END paired with " + cType + " event from " +
+                                System.out.println("  EB mod: END paired with " + cType + " event from " +
                                                            buildingBanks[i].getSourceName());
                             }
                             else {
-                                System.out.println("END paired with " + eType + " event from " +
+                                System.out.println("  EB mod: END paired with " + eType + " event from " +
                                                            buildingBanks[i].getSourceName());
                             }
 
@@ -945,8 +945,8 @@ System.out.println("Have consistent GO event(s)");
                                             pBuf = (PayloadBuffer) ringBuffersIn[i].get(veryNextSequence);
                                             if (pBuf.getControlType() == ControlType.END) {
                                                 // Found the END event
-                                                System.out.println("got END from " + buildingBanks[i].getSourceName() +
-                                                                           ", back " + offset + " places in Q");
+System.out.println("  EB mod: got END from " + buildingBanks[i].getSourceName() +
+                   ", back " + offset + " places in ring");
                                                 finalEndEventCount++;
                                                 done = true;
                                                 break;
@@ -972,7 +972,7 @@ System.out.println("Have consistent GO event(s)");
 
                         // If we're here, we've found all ENDs, continue on with warning ...
                         nonFatalError = true;
-                        System.out.println("Have all ENDs, but differing # of physics events in channels");
+System.out.println("  EB mod: have all ENDs, but differing # of physics events in channels");
                     }
 
 
@@ -983,7 +983,7 @@ System.out.println("Have consistent GO event(s)");
                         if (!firstToFindEnd) return;
 
                         haveEndEvent = true;
-System.out.println("Found END events on all input channels");
+System.out.println("  EB mod: found END events on all input channels");
 
                         // Interrupt the other BT threads which may not have processed
                         // the END event yet or experienced some error.
@@ -997,7 +997,7 @@ System.out.println("Found END events on all input channels");
                         // Throw exception if inconsistent
                         Evio.gotConsistentControlEvents(buildingBanks, runNumber, runTypeId);
 
-System.out.println("Have consistent END event(s)");
+System.out.println("  EB mod: have consistent END event(s)");
 
                         // Put 1 END event on each output channel
                         if (outputChannelCount > 0) {
@@ -1009,13 +1009,13 @@ System.out.println("Have consistent END event(s)");
                                   outputOrder);
 
                             // Send END event to first output channel
-System.out.println("Send END to output channel");
+System.out.println("  EB mod: send END event to first output channel");
                             eventToOutputChannel(buildingBanks[0], 0, btIndex);
                             for (int j=1; j < outputChannelCount; j++) {
                                 // Copy END event
                                 PayloadBuffer bb = new PayloadBuffer(buildingBanks[0]);
                                 // Write to additional output channel
-System.out.println("Copy & Send END to output channel");
+System.out.println("  EB mod: copy & send END event to another output channel");
                                 eventToOutputChannel(bb, j, btIndex);
                             }
                         }
@@ -1041,14 +1041,14 @@ System.out.println("Copy & Send END to output channel");
                     // Are events in single event mode?
                     boolean eventsInSEM = buildingBanks[0].isSingleEventMode();
 
-if (debug && nonFatalError) System.out.println("\nERROR 2\n");
+if (debug && nonFatalError) System.out.println("\n  EB mod: non-fatal ERROR 1\n");
 
                     //--------------------------------------------------------------------
                     // Build trigger bank, number of ROCs given by number of buildingBanks
                     //--------------------------------------------------------------------
                     // The tag will be finally set when this trigger bank is fully created
 if (debug && havePhysicsEvents)
-    System.out.println("BuildingThread: create combined trig w/ num (# Rocs) = " + buildingBanks.length);
+    System.out.println("  EB mod: create combined trig w/ num (# Rocs) = " + buildingBanks.length);
 
                     // Get an estimate on the buffer memory needed.
                     // Start with 1K and add roughly the amount of trigger bank data
@@ -1100,7 +1100,7 @@ if (debug && havePhysicsEvents)
                                                  buildingBanks[0].getByteOrder() == ByteOrder.BIG_ENDIAN,
                                                  buildingBanks[0].isSingleEventMode(),
                                                  id);
-//if (debug) System.out.println("tag = " + tag + ", is sync = " + buildingBanks[0].isSync() +
+//if (debug) System.out.println("  EB mod: tag = " + tag + ", is sync = " + buildingBanks[0].isSync() +
 //                   ", has error = " + (buildingBanks[0].hasError() || nonFatalError) +
 //                   ", is big endian = " + buildingBanks[0].getByteOrder() == ByteOrder.BIG_ENDIAN +
 //                   ", is single mode = " + buildingBanks[0].isSingleEventMode());
@@ -1118,7 +1118,7 @@ if (debug && havePhysicsEvents)
                         // The actual number of rocs will replace num in combinedTrigger definition above
                         //-----------------------------------------------------------------------------------
                         // Combine the trigger banks of input events into one (same if single event mode)
-if (debug) System.out.println("BuildingThread: create trig bank from built banks, sparsify = " + sparsify);
+if (debug) System.out.println("  EB mod: create trig bank from built banks, sparsify = " + sparsify);
                         nonFatalError |= Evio.makeTriggerBankFromPhysics(buildingBanks, builder, id,
                                                                     runNumber, runTypeId, includeRunData,
                                                                     eventsInSEM, sparsify,
@@ -1129,7 +1129,7 @@ if (debug) System.out.println("BuildingThread: create trig bank from built banks
                         // If in single event mode, build trigger bank differently
                         if (eventsInSEM) {
                             // Create a trigger bank from data in Data Block banks
-//if (debug) System.out.println("BuildingThread: create trigger bank in SEM");
+//if (debug) System.out.println("  EB mod: create trigger bank in SEM");
                             nonFatalError |= Evio.makeTriggerBankFromSemRocRaw(buildingBanks, builder,
                                                                                id, firstEventNumber,
                                                                                runNumber, runTypeId,
@@ -1139,7 +1139,7 @@ if (debug) System.out.println("BuildingThread: create trig bank from built banks
                         }
                         else {
                             // Combine the trigger banks of input events into one
-if (debug) System.out.println("BuildingThread: create trigger bank from Rocs, sparsify = " + sparsify);
+if (debug) System.out.println("  EB mod: create trigger bank from Rocs, sparsify = " + sparsify);
                             nonFatalError |= Evio.makeTriggerBankFromRocRaw(buildingBanks, builder,
                                                                             id, firstEventNumber,
                                                                             runNumber, runTypeId,
@@ -1149,21 +1149,21 @@ if (debug) System.out.println("BuildingThread: create trigger bank from Rocs, sp
                         }
                     }
 
-if (debug && nonFatalError) System.out.println("\nERROR 3\n");
+if (debug && nonFatalError) System.out.println("\n  EB mod: non-fatal ERROR 2\n");
 
                     // Check input banks for non-fatal errors
                     for (PayloadBuffer pBank : buildingBanks)  {
                         nonFatalError |= pBank.hasNonFatalBuildingError();
                     }
 
-if (debug && nonFatalError) System.out.println("\nERROR 4\n");
+if (debug && nonFatalError) System.out.println("\n  EB mod: non-fatal ERROR 3\n");
 
                     if (havePhysicsEvents) {
-//if (debug) System.out.println("BuildingThread: build physics event with physics banks");
+//if (debug) System.out.println("  EB mod: build physics event with physics banks");
                         Evio.buildPhysicsEventWithPhysics(buildingBanks, builder);
                     }
                     else {
-//if (debug) System.out.println("BuildingThread: build physics event with ROC raw banks");
+//if (debug) System.out.println("  EB mod: build physics event with ROC raw banks");
                         Evio.buildPhysicsEventWithRocRaw(buildingBanks,
                                                          builder, eventsInSEM);
                     }
@@ -1223,18 +1223,18 @@ if (debug && nonFatalError) System.out.println("\nERROR 4\n");
 
                     // Tell input ring buffers we're done with these events
                     for (int i=0; i < ringBuffersIn.length; i++) {
-//System.out.println("btThread " + order + ": set seq " + nextSequences[i]);
+//System.out.println("  EB mod: " + order + ", set seq " + nextSequences[i]);
                         buildSequences[i].set(nextSequences[i]++);
                     }
 
                 }
                 catch (InterruptedException e) {
-if (debug) System.out.println("INTERRUPTED thread " + Thread.currentThread().getName());
+if (debug) System.out.println("  EB mod: INTERRUPTED thread " + Thread.currentThread().getName());
                     return;
                 }
                 catch (final TimeoutException e) {
                     e.printStackTrace();
-                    if (debug) System.out.println("Timeout in ring buffer");
+if (debug) System.out.println("  EB mod: timeout in ring buffer");
                     // If we haven't yet set the cause of error, do so now & inform run control
                     errorMsg.compareAndSet(null, e.getMessage());
 
@@ -1247,7 +1247,7 @@ if (debug) System.out.println("INTERRUPTED thread " + Thread.currentThread().get
                 }
                 catch (final AlertException e) {
                     e.printStackTrace();
-                    if (debug) System.out.println("Alert in ring buffer");
+if (debug) System.out.println("  EB mod: alert in ring buffer");
                     // If we haven't yet set the cause of error, do so now & inform run control
                     errorMsg.compareAndSet(null, e.getMessage());
 
@@ -1260,7 +1260,7 @@ if (debug) System.out.println("INTERRUPTED thread " + Thread.currentThread().get
                 }
 
                 catch (EmuException e) {
-if (debug) System.out.println("MAJOR ERROR building events");
+if (debug) System.out.println("  EB mod: MAJOR ERROR building events");
                     // If we haven't yet set the cause of error, do so now & inform run control
                     errorMsg.compareAndSet(null, e.getMessage());
 
@@ -1272,7 +1272,7 @@ if (debug) System.out.println("MAJOR ERROR building events");
                     return;
                 }
                 catch (EvioException e) {
-if (debug) System.out.println("MAJOR ERROR building events");
+if (debug) System.out.println("  EB mod: MAJOR ERROR building events");
                     // If we haven't yet set the cause of error, do so now & inform run control
                     errorMsg.compareAndSet(null, e.getMessage());
 
@@ -1284,7 +1284,7 @@ if (debug) System.out.println("MAJOR ERROR building events");
                     return;
                 }
             }
-if (debug) System.out.println("Building thread is ending !!!");
+if (debug) System.out.println("  EB mod: Building thread is ending");
         }
     }
 
@@ -1316,7 +1316,7 @@ if (debug) System.out.println("Building thread is ending !!!");
             }
 
             if (haveUnprocessedEvents || !haveEndEvent) {
-                if (debug) System.out.println("endBuildThreads: will end building/filling threads but no END event or Qs not empty !!!");
+                if (debug) System.out.println("  EB mod: endBuildThreads: will end building/filling threads but no END event or Qs not empty !!!");
                 state = CODAState.ERROR;
             }
         }
@@ -1352,7 +1352,7 @@ if (debug) System.out.println("Building thread is ending !!!");
                 catch (InterruptedException e) {}
             }
         }
-        System.out.println("End threads DONE");
+        System.out.println("  EB mod: endThreads() done");
     }
 
 

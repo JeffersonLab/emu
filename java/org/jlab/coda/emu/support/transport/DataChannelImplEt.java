@@ -201,10 +201,10 @@ public class DataChannelImplEt extends DataChannelAdapter {
         dataTransportImplEt = transport;
 
         if (input) {
-logger.info("      DataChannel Et : creating input channel " + name);
+logger.info("      DataChannel Et: creating input channel " + name);
         }
         else {
-logger.info("      DataChannel Et : creating output channel " + name);
+logger.info("      DataChannel Et: creating output channel " + name);
         }
 
         // size of TCP send buffer (0 means use operating system default)
@@ -270,7 +270,7 @@ logger.info("      DataChannel Et : creating output channel " + name);
             }
             catch (NumberFormatException e) {}
         }
-//logger.info("      DataChannel Et : write threads = " + writeThreadCount);
+//logger.info("      DataChannel Et: write threads = " + writeThreadCount);
 
         // How may buffers do we grab at a time?
         chunk = 10;
@@ -282,7 +282,7 @@ logger.info("      DataChannel Et : creating output channel " + name);
             }
             catch (NumberFormatException e) {}
         }
-logger.info("      DataChannel Et : chunk = " + chunk);
+logger.info("      DataChannel Et: chunk = " + chunk);
 
         // From which group do we grab new events? (default = 1)
         group = 1;
@@ -296,12 +296,12 @@ logger.info("      DataChannel Et : chunk = " + chunk);
                 e.printStackTrace();
             }
         }
-//logger.info("      DataChannel Et : group = " + group);
+//logger.info("      DataChannel Et: group = " + group);
 
         // Set station name. Use any defined in config file else use
         // "station"+id for input and "GRAND_CENTRAL" for output.
         stationName = attributeMap.get("stationName");
-//logger.info("      DataChannel Et : station name = " + stationName);
+//logger.info("      DataChannel Et: station name = " + stationName);
 
 
         // Set station position. Use any defined in config file else use default (1)
@@ -312,7 +312,7 @@ logger.info("      DataChannel Et : chunk = " + chunk);
             }
             catch (NumberFormatException e) {  }
         }
-//logger.info("      DataChannel Et : position = " + stationPosition);
+//logger.info("      DataChannel Et: position = " + stationPosition);
 
         // if INPUT channel
         if (input) {
@@ -384,7 +384,7 @@ logger.info("      DataChannel Et : chunk = " + chunk);
                             numEtBufs *= 2;
                             newVal /= 2;
                         }
-//System.out.println("Figure out # of buffers in supply -> " + numEtBufs);
+//System.out.println("      DataChannel Et out: figure out # of buffers in supply -> " + numEtBufs);
                     }
 
 // TODO: Is the byte order thing right???
@@ -427,7 +427,7 @@ logger.info("      DataChannel Et : chunk = " + chunk);
 
                 // The first control word is this EB's coda id
                 control[0] = id;
-System.out.println("\nSetting control[0] = " + id + "\n");
+System.out.println("      DataChannel Et: setting control[0] = " + id);
                 // Is this the last level event builder (not a DC)?
                 // In this case, we want the first control word to indicate
                 // what type of event is being sent.
@@ -484,7 +484,7 @@ System.out.println("\nSetting control[0] = " + id + "\n");
         // Otherwise open in usual manner, use sockets
         else {
             try {
-                System.out.println("      DataChannel Et: try to open " + dataTransportImplEt.getOpenConfig().getEtName() );
+                System.out.println("      DataChannel Et: try opening " + dataTransportImplEt.getOpenConfig().getEtName() );
                 etSystem.open();
             }
             catch (Exception e) {
@@ -541,7 +541,7 @@ System.out.println("\nSetting control[0] = " + id + "\n");
     private void closeEtSystem() throws DataTransportException {
         if (etSysLocal != null) {
             try {
-//System.out.println("closeEtSystem: detach from station " + attachmentLocal.getStation().getName());
+//System.out.println("      DataChannel Et: detach from station " + attachmentLocal.getStation().getName());
                 etSysLocal.detach(attachmentLocal);
             }
             catch (Exception e) {
@@ -550,7 +550,7 @@ System.out.println("\nSetting control[0] = " + id + "\n");
 
             try {
                 if (!stationName.equals("GRAND_CENTRAL")) {
-//System.out.println("closeEtSystem: remove station " + stationName);
+//System.out.println("      DataChannel Et: remove station " + stationName);
                     etSysLocal.removeStation(stationLocal.getStationId());
                 }
             }
@@ -561,7 +561,7 @@ System.out.println("\nSetting control[0] = " + id + "\n");
         }
         else {
             try {
-//System.out.println("closeEtSystem: detach from station " + attachment.getStation().getName());
+//System.out.println("      DataChannel Et: detach from station " + attachment.getStation().getName());
                 etSystem.detach(attachment);
             }
             catch (Exception e) {
@@ -570,7 +570,7 @@ System.out.println("\nSetting control[0] = " + id + "\n");
 
             try {
                 if (!stationName.equals("GRAND_CENTRAL")) {
-//System.out.println("closeEtSystem: remove station " + stationName);
+//System.out.println("      DataChannel Et: remove station " + stationName);
                     etSystem.removeStation(station);
                 }
             }
@@ -579,7 +579,7 @@ System.out.println("\nSetting control[0] = " + id + "\n");
                 // cannot communicate with ET
             }
 
-            System.out.println("closeEtSystem: close ET connection");
+System.out.println("      DataChannel Et out: close ET connection");
             etSystem.close();
         }
     }
@@ -599,7 +599,7 @@ System.out.println("\nSetting control[0] = " + id + "\n");
 
     /** {@inheritDoc}. Formerly this code was the close() method. */
     public void end() {
-        logger.warn("      DataChannel Et end() : " + name + " - end threads & close ET system");
+        logger.warn("      DataChannel Et: " + name + " - end threads & close ET system");
 
         gotEndCmd = true;
         gotResetCmd = false;
@@ -617,7 +617,7 @@ System.out.println("\nSetting control[0] = " + id + "\n");
         // Don't close ET system until helper threads are done
         try {
             waitTime = emu.getEndingTimeLimit();
-//System.out.println("      DataChannelImplEt.end : waiting for helper threads to end ...");
+//System.out.println("      DataChannel Et: waiting for input thread to end ...");
             if (dataInputThread != null) {
                 dataInputThread.join(waitTime);
                 // kill it if not already dead since we waited as long as possible
@@ -626,14 +626,14 @@ System.out.println("\nSetting control[0] = " + id + "\n");
 
             if (dataOutputThread != null) {
                 waitTime = emu.getEndingTimeLimit();
-//System.out.println("        try joining output thread #" + i + " for " + (waitTime/1000) + " sec");
+//System.out.println("      DataChannel Et: try joining output thread for " + (waitTime/1000) + " sec");
                 dataOutputThread.join(waitTime);
                 // kill everything since we waited as long as possible
                 dataOutputThread.interrupt();
                 dataOutputThread.shutdown();
-//System.out.println("        out thread done");
+//System.out.println("      DataChannel Et: output thread done");
             }
-//System.out.println("      helper thds done");
+//System.out.println("      DataChannel Et: all helper thds done");
         }
         catch (InterruptedException e) {
             e.printStackTrace();
@@ -648,7 +648,7 @@ System.out.println("\nSetting control[0] = " + id + "\n");
         }
 
         state = CODAState.DOWNLOADED;
-System.out.println("      end() is done");
+System.out.println("      DataChannel Et: end() done");
     }
 
 
@@ -657,14 +657,14 @@ System.out.println("      end() is done");
      * Reset this channel by interrupting the data sending threads and closing ET system.
      */
     public void reset() {
-logger.debug("      DataChannel Et reset() : " + name + " channel");
+logger.debug("      DataChannel Et: reset " + name + " channel");
 
         gotEndCmd   = false;
         gotResetCmd = true;
 
         // Don't close ET system until helper threads are done
         if (dataInputThread != null) {
-//System.out.println("        interrupt input thread #" + i + " ...");
+//System.out.println("      DataChannel Et: interrupt input thread ...");
                 dataInputThread.interrupt();
                 // Make sure the thread is done, otherwise you risk
                 // killing the ET system while a getEvents() call is
@@ -672,11 +672,11 @@ logger.debug("      DataChannel Et reset() : " + name + " channel");
                 // Give it 25% more time than the wait.
                 try {dataInputThread.join(400);}  // 625
                 catch (InterruptedException e) {}
-//System.out.println("        input thread done");
+//System.out.println("      DataChannel Et: input thread done");
         }
 
         if (dataOutputThread != null) {
-//System.out.println("        interrupt output thread #" + i + " ...");
+//System.out.println("      DataChannel Et: interrupt output thread ...");
             dataOutputThread.interrupt();
             dataOutputThread.shutdown();
             // Make sure all threads are done, otherwise you risk
@@ -685,7 +685,7 @@ logger.debug("      DataChannel Et reset() : " + name + " channel");
             // Give it 25% more time than the wait.
             try {dataOutputThread.join(1000);}
             catch (InterruptedException e) {}
-//System.out.println("        output thread done");
+//System.out.println("      DataChannel Et: output thread done");
         }
 
         // At this point all threads should be done
@@ -698,7 +698,7 @@ logger.debug("      DataChannel Et reset() : " + name + " channel");
 
         errorMsg.set(null);
         state = CODAState.CONFIGURED;
-logger.debug("      DataChannel Et reset() : " + name + " - done");
+logger.debug("      DataChannel Et: reset " + name + " - done");
     }
 
 
@@ -804,7 +804,7 @@ logger.debug("      DataChannel Et reset() : " + name + " - done");
 
                     if (pause) {
                         if (pauseCounter++ % 400 == 0)
-logger.warn("      DataChannel Et in helper: " + name + " - PAUSED");
+logger.warn("      DataChannel Et in: " + name + " - PAUSED");
                         Thread.sleep(5);
                         continue;
                     }
@@ -812,7 +812,7 @@ logger.warn("      DataChannel Et in helper: " + name + " - PAUSED");
                     // Get events while checking periodically to see if we must go away.
                     // Do some work to get accurate error msgs back to run control.
                     try {
-//System.out.println("      DataChannel Et in helper: " + name + " getEvents() ...");
+//System.out.println("      DataChannel Et in: " + name + " getEvents() ...");
                         events = etSystem.getEvents(attachment, Mode.TIMED,
                                                     Modify.NOTHING, etWaitTime, chunk);
                     }
@@ -835,24 +835,24 @@ logger.warn("      DataChannel Et in helper: " + name + " - PAUSED");
                     catch (EtWakeUpException e) {
                         // Told to wake up because we're ending or resetting
                         if (haveInputEndEvent) {
-System.out.println("      DataChannel Et in helper: wake up " + name + ", other thd found END, quit");
+System.out.println("      DataChannel Et in: wake up " + name + ", other thd found END, quit");
                         }
                         else if (gotResetCmd) {
-System.out.println("      DataChannel Et in helper: " + name + " got RESET cmd, quit");
+System.out.println("      DataChannel Et in: " + name + " got RESET cmd, quit");
                         }
-//System.out.println("      DataChannel Et in helper: wake up exception");
+//System.out.println("      DataChannel Et in: wake up exception");
                         return;
                     }
                     catch (EtTimeoutException e) {
                         if (haveInputEndEvent) {
-System.out.println("      DataChannel Et in helper: timeout " + name + ", other thd found END, quit");
+System.out.println("      DataChannel Et in: timeout " + name + ", other thd found END, quit");
                             return;
                         }
                         else if (gotResetCmd) {
-System.out.println("      DataChannel Et in helper: " + name + " got RESET cmd, quit");
+System.out.println("      DataChannel Et in: " + name + " got RESET cmd, quit");
                             return;
                         }
-//System.out.println("      DataChannel Et in helper: timeout exception");
+//System.out.println("      DataChannel Et in: timeout exception");
 
                         // Want to delay before calling getEvents again
                         // but don't do it here in a synchronized block.
@@ -927,11 +927,11 @@ System.out.println("      DataChannel Et in helper: " + name + " got RESET cmd, 
                         // prints a warning if it isn't.
                         recordId = header4.getNumber();
 
-//logger.info("      DataChannel Et in helper: " + name + " block header, event type " + eventType +
+//logger.info("      DataChannel Et in: " + name + " block header, event type " + eventType +
 //            ", src id = " + sourceId + ", recd id = " + recordId);
 
                         try {
-//System.out.println("      DataChannel Et in helper: parse next event");
+//System.out.println("      DataChannel Et in: parse next event");
                             while ((event = reader.parseNextEvent()) != null) {
                                 // Complication: from the ROC, we'll be receiving USER events
                                 // mixed in with and labeled as ROC Raw events. Check for that
@@ -953,9 +953,9 @@ System.out.println("      DataChannel Et in helper: " + name + " got RESET cmd, 
                                     }
                                 }
 
-//System.out.println("      DataChannel Et in helper: wait for next ring buf for writing");
+//System.out.println("      DataChannel Et in: wait for next ring buf for writing");
                                 nextRingItem = ringBufferIn.next();
-//System.out.println("      DataChannel Et in helper: Got sequence " + nextRingItem);
+//System.out.println("      DataChannel Et in: Got sequence " + nextRingItem);
                                 payloadBank = (PayloadBank) ringBufferIn.get(nextRingItem);
 
                                 payloadBank.setEvent(event);
@@ -968,14 +968,14 @@ System.out.println("      DataChannel Et in helper: " + name + " got RESET cmd, 
                                 payloadBank.matchesId(sourceId == id);
 
                                 ringBufferIn.publish(nextRingItem);
-//System.out.println("      DataChannel Et in helper: published sequence " + nextRingItem);
+//System.out.println("      DataChannel Et in: published sequence " + nextRingItem);
 
                                 // Handle end event ...
                                 if (controlType == ControlType.END) {
                                     // There should be no more events coming down the pike so
                                     // go ahead write out existing events and then shut this
                                     // thread down.
-                                    logger.info("      DataChannel Et in helper: " + name + " found END event");
+logger.info("      DataChannel Et in: " + name + " found END event");
                                     haveInputEndEvent = true;
                                     // run callback saying we got end event
                                     if (endCallback != null) endCallback.endWait();
@@ -1000,7 +1000,7 @@ System.out.println("      DataChannel Et in helper: " + name + " got RESET cmd, 
                     // back to RC that we're ended.
 
                     // Do some work to get accurate error msgs back to run control.
-//System.out.println("      DataChannel Et in helper: 4 " + name + " putEvents() ...");
+//System.out.println("      DataChannel Et in: 4 " + name + " putEvents() ...");
                     try {
                         etSystem.putEvents(attachment, events);
                     }
@@ -1022,13 +1022,13 @@ System.out.println("      DataChannel Et in helper: " + name + " got RESET cmd, 
                     }
 
                     if (haveInputEndEvent) {
-                        logger.info("      DataChannel Et in helper: have END, " + name + " quit thd");
+logger.info("      DataChannel Et in: have END, " + name + " quit thd");
                         return;
                     }
                 }
 
             } catch (InterruptedException e) {
-                logger.warn("      DataChannel Et in helper: " + name + "  interrupted thd, exiting");
+logger.warn("      DataChannel Et in: " + name + "  interrupted thd, exiting");
             } catch (Exception e) {
                 // If we haven't yet set the cause of error, do so now & inform run control
                 errorMsg.compareAndSet(null, e.getMessage());
@@ -1038,7 +1038,7 @@ System.out.println("      DataChannel Et in helper: " + name + " got RESET cmd, 
                 emu.sendStatusMessage();
 
                 e.printStackTrace();
-                logger.warn("      DataChannel Et in helper: " + name + " exit thd: " + e.getMessage());
+logger.warn("      DataChannel Et in: " + name + " exit thd: " + e.getMessage());
             }
         }
 
@@ -1078,7 +1078,7 @@ System.out.println("      DataChannel Et in helper: " + name + " got RESET cmd, 
 
                     if (pause) {
                         if (pauseCounter++ % 400 == 0)
-                            logger.warn("      DataChannel Et in helper: " + name + " - PAUSED");
+logger.warn("      DataChannel Et in: " + name + " - PAUSED");
                         Thread.sleep(5);
                         continue;
                     }
@@ -1086,7 +1086,7 @@ System.out.println("      DataChannel Et in helper: " + name + " got RESET cmd, 
                     // Get events while checking periodically to see if we must go away.
                     // Do some work to get accurate error msgs back to run control.
                     try {
-//System.out.println("      DataChannel Et in helper: 4 " + name + " getEvents() ...");
+//System.out.println("      DataChannel Et in: 4 " + name + " getEvents() ...");
                         if (useDirectEt) {
                             eventsDirect = etSysLocal.getEvents(attachmentLocal, Mode.TIMED.getValue(),
                                                                 etWaitTime, chunk);
@@ -1116,21 +1116,21 @@ System.out.println("      DataChannel Et in helper: " + name + " got RESET cmd, 
                     catch (EtWakeUpException e) {
                         // Told to wake up because we're ending or resetting
                         if (haveInputEndEvent) {
-System.out.println("      DataChannel Et in helper: wake up " + name + ", other thd found END, quit");
+System.out.println("      DataChannel Et in: wake up " + name + ", other thd found END, quit");
                         }
                         else if (gotResetCmd) {
-System.out.println("      DataChannel Et in helper: " + name + " got RESET cmd, quitting");
+System.out.println("      DataChannel Et in: " + name + " got RESET cmd, quitting");
                         }
                         return;
                     }
                     catch (EtTimeoutException e) {
-//System.out.println("      DataChannel Et in helper: timeout in " + name);
+//System.out.println("      DataChannel Et in: timeout in " + name);
                         if (haveInputEndEvent) {
-System.out.println("      DataChannel Et in helper: timeout " + name + ", other thd found END, quit");
+System.out.println("      DataChannel Et in: timeout " + name + ", other thd found END, quit");
                             return;
                         }
                         else if (gotResetCmd) {
-System.out.println("      DataChannel Et in helper: " + name + " got RESET cmd, quitting");
+System.out.println("      DataChannel Et in: " + name + " got RESET cmd, quitting");
                             return;
                         }
 
@@ -1163,7 +1163,7 @@ System.out.println("      DataChannel Et in helper: " + name + " got RESET cmd, 
                         bbItem.ensureCapacity(ev.getLength());
 
                         buf = bbItem.getBuffer();
-//System.out.println("      DataChannel Et in helper: get empty buf, order = " + buf.order());
+//System.out.println("      DataChannel Et in: get empty buf, order = " + buf.order());
                         copyBuffer(ev.getDataBuffer(), buf, ev.getLength());
 
                         try {
@@ -1181,7 +1181,7 @@ System.out.println("      DataChannel Et in helper: " + name + " got RESET cmd, 
 
                         // First block header in ET buffer
                         header4 = compactReader.getFirstBlockHeader();
-//System.out.println("      DataChannel Et in helper: blk header, order = " + header4.getByteOrder());
+//System.out.println("      DataChannel Et in: blk header, order = " + header4.getByteOrder());
                         evioVersion = header4.getVersion();
                         if (evioVersion < 4) {
                             errorMsg.compareAndSet(null, "ET data is NOT evio v4 format");
@@ -1205,11 +1205,11 @@ System.out.println("      DataChannel Et in helper: " + name + " got RESET cmd, 
                             emu.getCmsgPortal().sendMHandlerMessage(eventCount, "M");
                             t1 = t2;
                         }
-//logger.info("      DataChannel Et in helper: isFirstEb = " + isFirstEB + ", eventCount = " + eventCount +
+//logger.info("      DataChannel Et in: isFirstEb = " + isFirstEB + ", eventCount = " + eventCount +
 //", last val = " + lastMvalue + ", isBuildable = " + eventType.isBuildable());
                         EvioNode node;
 
-//logger.info("      DataChannel Et in helper: " + name + " block header, event type " + eventType +
+//logger.info("      DataChannel Et in: " + name + " block header, event type " + eventType +
 //            ", src id = " + sourceId + ", recd id = " + recordId + ", event cnt = " + eventCount);
 
                         for (int i=1; i < eventCount+1; i++) {
@@ -1235,9 +1235,9 @@ System.out.println("      DataChannel Et in helper: " + name + " got RESET cmd, 
                                 }
                             }
 
-//System.out.println("      DataChannel Et in helper: wait for next ring buf for writing");
+//System.out.println("      DataChannel Et in: wait for next ring buf for writing");
                             nextRingItem = ringBufferIn.next();
-//System.out.println("      DataChannel Et in helper: Got sequence " + nextRingItem);
+//System.out.println("      DataChannel Et in: Got sequence " + nextRingItem);
                             payloadBuffer = (PayloadBuffer) ringBufferIn.get(nextRingItem);
                             payloadBuffer.setBuffer(node.getStructureBuffer(false));
                             payloadBuffer.setEventType(bankType);
@@ -1251,14 +1251,14 @@ System.out.println("      DataChannel Et in helper: " + name + " got RESET cmd, 
                             payloadBuffer.matchesId(sourceId == id);
 
                             ringBufferIn.publish(nextRingItem);
-//System.out.println("      DataChannel Et in helper: published sequence " + nextRingItem);
+//System.out.println("      DataChannel Et in: published sequence " + nextRingItem);
 
                             // Handle end event ...
                             if (controlType == ControlType.END) {
                                 // There should be no more events coming down the pike so
                                 // go ahead write out existing events and then shut this
                                 // thread down.
-                                logger.info("      DataChannel Et in helper: " + name + " found END event");
+logger.info("      DataChannel Et in: " + name + " found END event");
                                 haveInputEndEvent = true;
                                 // run callback saying we got end event
                                 if (endCallback != null) endCallback.endWait();
@@ -1299,7 +1299,7 @@ System.out.println("      DataChannel Et in helper: " + name + " got RESET cmd, 
                     }
 
                     if (haveInputEndEvent) {
-                        logger.info("      DataChannel Et in helper: have END, " + name + " quit thd");
+logger.info("      DataChannel Et in: have END, " + name + " quit thd");
                         return;
                     }
 
@@ -1309,7 +1309,7 @@ System.out.println("      DataChannel Et in helper: " + name + " got RESET cmd, 
                 }
 
             } catch (InterruptedException e) {
-                logger.warn("      DataChannel Et in helper: " + name + "  interrupted thd, exiting");
+logger.warn("      DataChannel Et in: " + name + "  interrupted thd, exiting");
             } catch (Exception e) {
                 // If we haven't yet set the cause of error, do so now & inform run control
                 errorMsg.compareAndSet(null, e.getMessage());
@@ -1319,7 +1319,7 @@ System.out.println("      DataChannel Et in helper: " + name + " got RESET cmd, 
                 emu.sendStatusMessage();
 
                 e.printStackTrace();
-                logger.warn("      DataChannel Et in helper: " + name + " exit thd: " + e.getMessage());
+logger.warn("      DataChannel Et in: " + name + " exit thd: " + e.getMessage());
             }
         }
 
@@ -1398,7 +1398,7 @@ System.out.println("      DataChannel Et in helper: " + name + " got RESET cmd, 
 
             // If any EvGetter thread is stuck on etSystem.newEvents(), unstuck it
             try {
-                System.out.println("      DataChannel Et out helper: wake up attachment #" + attachment.getId());
+                System.out.println("      DataChannel Et out: wake up attachment #" + attachment.getId());
                 etSystem.wakeUpAttachment(attachment);
                 // It may take 0.2 sec to detach
                 Thread.sleep(250);
@@ -1476,7 +1476,7 @@ System.out.println("      DataChannel Et in helper: " + name + " got RESET cmd, 
                          // If I've been told to RESET ...
                          if (gotResetCmd) {
                              shutdown();
- System.out.println("      DataChannel Et out helper: " + name + " got RESET cmd, quitting 1");
+ System.out.println("      DataChannel Et out: " + name + " got RESET cmd, quitting 1");
                              return;
                          }
                          continue;
@@ -1509,7 +1509,7 @@ System.out.println("      DataChannel Et in helper: " + name + " got RESET cmd, 
                      // checking occasionally to see if we got an
                      // RESET command or someone found an END event.
                      do {
-// System.out.println("rbIndex = " + rbIndex);
+// System.out.println("      DataChannel Et out: rbIndex = " + rbIndex);
                          // Get bank off of Q, unless we already did so in a previous loop
                          if (firstBankFromRing != null) {
                              ringItem = firstBankFromRing;
@@ -1517,7 +1517,7 @@ System.out.println("      DataChannel Et in helper: " + name + " got RESET cmd, 
                          }
                          else {
  // TODO: How do we keep things from blocking here??? --- Interrupt thread!
-//System.out.print("      DataChannel Et out helper: get next buffer from ring ... ");
+//System.out.print("      DataChannel Et out: get next buffer from ring ... ");
                              ringItem = getNextOutputRingItem(rbIndex);
 //System.out.println("done");
                          }
@@ -1570,7 +1570,7 @@ System.out.println("      DataChannel Et in helper: " + name + " got RESET cmd, 
                              // write things out first. Be sure to store what we just
                              // pulled off the Q to be the next bank!
                              if (nextEventIndex >= eventArrayLen) {
- //System.out.println("Used up " + nextEventIndex + " events, store bank for next round");
+//System.out.println("      DataChannel Et out: used up " + nextEventIndex + " events, store bank for next round");
                                  firstBankFromRing = ringItem;
                                  break;
                              }
@@ -1613,13 +1613,13 @@ System.out.println("      DataChannel Et in helper: " + name + " got RESET cmd, 
                              if (pBankControlType == ControlType.END) {
                                  ringItem.setAttachment(Boolean.TRUE);
                                  haveOutputEndEvent = true;
-System.out.println("      DataChannel Et out helper: " + name + " I got END event, quitting 2");
+System.out.println("      DataChannel Et out: " + name + " I got END event, quitting 2");
                                  // run callback saying we got end event
                                  if (endCallback != null) endCallback.endWait();
                              }
                              else {
                                  havePrestartOrGo = true;
-System.out.println("HAVE " + pBankControlType + ", rbIndex = " + rbIndex);
+System.out.println("      DataChannel Et out: have " + pBankControlType + ", rbIndex = " + rbIndex);
                              }
 
                              break;
@@ -1631,7 +1631,7 @@ System.out.println("HAVE " + pBankControlType + ", rbIndex = " + rbIndex);
                          // we know when to switch to the next ring.
                          if (outputRingCount > 1 && !pBankType.isUser() && --ringChunkCounter < 1) {
                              rbIndex = ++rbIndex % outputRingCount;
-//System.out.println("SWITCH TO rbIndex = " + rbIndex);
+//System.out.println("      DataChannel Et out: SWITCH TO rbIndex = " + rbIndex);
                              ringChunkCounter = outputRingChunk;
                          }
 
@@ -1645,12 +1645,12 @@ System.out.println("HAVE " + pBankControlType + ", rbIndex = " + rbIndex);
 
                      // If I've been told to RESET ...
                      if (gotResetCmd) {
-                         System.out.println("      DataChannel Et out helper: " + name + " got RESET cmd, quitting 2");
+System.out.println("      DataChannel Et out: " + name + " got RESET cmd, quitting 2");
                          shutdown();
                          return;
                      }
 
- //logger.info("      DataChannel Et DataOutputHelper : nextEvIndx = " + nextEventIndex +
+ //logger.info("      DataChannel Et out : nextEvIndx = " + nextEventIndex +
  //                    ", evArrayLen = " + eventArrayLen);
 
 //                     latch = new CountDownLatch(nextEventIndex);
@@ -1671,12 +1671,12 @@ System.out.println("HAVE " + pBankControlType + ", rbIndex = " + rbIndex);
                              // Max # of bytes to write this bank into buffer
                              int bankWrittenSize = bankList.get(0).getTotalBytes() + 64;
                              if (bankWrittenSize > etSize) {
- logger.warn("      DataChannel Et DataOutputHelper : " + name + " ET event too small to contain built event");
+ logger.warn("      DataChannel Et out : " + name + " ET event too small to contain built event");
                                  // This new event is not large enough, so dump it and replace it
                                  // with a larger one. Performance will be terrible but it'll work.
                                  try {
                                      etSystem.dumpEvents(attachment, new EtEvent[]{events[i]});
- //System.out.println("      DataChannel Et out helper: 4 " + name + " newEvents() ...");
+ //System.out.println("      DataChannel Et out: 4 " + name + " newEvents() ...");
                                      EtEvent[] evts = etSystem.newEvents(attachment, Mode.SLEEP, false,
                                                                          0, 1, bankWrittenSize, group);
                                      events[i] = evts[0];
@@ -1700,10 +1700,10 @@ System.out.println("HAVE " + pBankControlType + ", rbIndex = " + rbIndex);
                                  catch (EtWakeUpException e) {
                                      // Told to wake up because we're ending or resetting
                                      if (haveOutputEndEvent) {
- System.out.println("      DataChannel Et out helper: " + name + " have END event, quitting");
+ System.out.println("      DataChannel Et out: " + name + " have END event, quitting");
                                      }
                                      else if (gotResetCmd) {
- System.out.println("      DataChannel Et out helper: " + name + " got RESET cmd, quitting");
+ System.out.println("      DataChannel Et out: " + name + " got RESET cmd, quitting");
                                      }
                                      return;
                                  }
@@ -1747,13 +1747,13 @@ System.out.println("HAVE " + pBankControlType + ", rbIndex = " + rbIndex);
                      phaser.arriveAndAwaitAdvance();
 
                      try {
- //System.out.println("      DataChannel Et: write " + events2Write + " events");
+ //System.out.println("      DataChannel Et out: write " + events2Write + " events");
                          // Put events back in ET system
                          etSystem.putEvents(attachment, events, 0, events2Write);
 
                          // Dump any left over new ET events.
                          if (events2Write < eventArrayLen) {
- //System.out.println("Dumping " + (eventArrayLen - events2Write) + " unused new events");
+ //System.out.println(""      DataChannel Et out: dumping " + (eventArrayLen - events2Write) + " unused new events");
                              etSystem.dumpEvents(attachment, events, events2Write, (eventArrayLen - events2Write));
                          }
                      }
@@ -1780,16 +1780,16 @@ System.out.println("HAVE " + pBankControlType + ", rbIndex = " + rbIndex);
                      }
 
                      if (haveOutputEndEvent) {
- System.out.println("      DataChannel Et out helper: " + name + " some thd got END event, quitting 4");
+ System.out.println("      DataChannel Et out: " + name + " some thd got END event, quitting 4");
                          shutdown();
                          return;
                      }
                  }
 
              } catch (InterruptedException e) {
- logger.warn("      DataChannel Et out helper: " + name + "  interrupted thd, exiting");
+ logger.warn("      DataChannel Et out: " + name + "  interrupted thd, exiting");
              } catch (Exception e) {
- logger.warn("      DataChannel Et out helper : exit thd: " + e.getMessage());
+ logger.warn("      DataChannel Et out : exit thd: " + e.getMessage());
                  // If we haven't yet set the cause of error, do so now & inform run control
                  errorMsg.compareAndSet(null, e.getMessage());
 
@@ -1888,7 +1888,7 @@ System.out.println("HAVE " + pBankControlType + ", rbIndex = " + rbIndex);
                      if (evWriter == null) {
                          evWriter = new EventWriter(etBuffer, 550000, 200, null,
                                                     bitInfo, emu.getCodaid(), myRecordId);
-//System.out.println("evWriter: created with order " + evWriter.getByteOrder());
+//System.out.println("      DataChannel Et out: evWriter created with order " + evWriter.getByteOrder());
                      }
                      else {
                          evWriter.setBuffer(etBuffer, bitInfo, myRecordId);
@@ -1913,7 +1913,7 @@ System.out.println("HAVE " + pBankControlType + ", rbIndex = " + rbIndex);
                      }
                      else {
                          for (RingItem ri : bankList) {
-//System.out.println("evWriter: write buffer of order " + ri.getByteOrder());
+//System.out.println("      DataChannel Et out: write buffer of order " + ri.getByteOrder());
                              evWriter.writeEvent(ri.getBuffer());
                              ri.releaseByteBuffer();
                          }
@@ -1974,7 +1974,7 @@ System.out.println("HAVE " + pBankControlType + ", rbIndex = " + rbIndex);
                      events = null;
                      events = etSystem.newEvents(attachment, Mode.SLEEP, false, 0,
                                                  chunk, (int)etSystem.getEventSize(), group);
- //System.out.println("I got " + events.length + " new events");
+//System.out.println("      DataChannel Et out: got " + events.length + " new events");
                      barrier.await();
                  }
                  catch (EtWakeUpException e) {
