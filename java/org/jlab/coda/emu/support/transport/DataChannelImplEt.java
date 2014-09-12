@@ -427,7 +427,7 @@ logger.info("      DataChannel Et: chunk = " + chunk);
 
                 // The first control word is this EB's coda id
                 control[0] = id;
-System.out.println("      DataChannel Et: setting control[0] = " + id);
+//System.out.println("      DataChannel Et: setting control[0] = " + id);
                 // Is this the last level event builder (not a DC)?
                 // In this case, we want the first control word to indicate
                 // what type of event is being sent.
