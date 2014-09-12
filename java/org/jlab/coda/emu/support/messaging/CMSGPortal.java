@@ -79,7 +79,7 @@ public class CMSGPortal implements LoggerAppender {
             rcUDL = "cMsg:rc://multicast/" + emu.getExpid() + "?connectTO=25";
         }
 
-System.out.println("emu: CMSGPortal using rc UDL = " + rcUDL);
+System.out.println("Emu: CMSGPortal using rc UDL = " + rcUDL);
         logger = emu.getLogger();
         logger.addAppender(this);
 
@@ -106,7 +106,7 @@ System.out.println("emu: CMSGPortal using rc UDL = " + rcUDL);
 
         } catch (Exception e) {
             e.printStackTrace();
-logger.warn("emu: exit due to rc/cMsg connect error: " + e.getMessage());
+logger.warn("Emu: exit due to rc/cMsg connect error: " + e.getMessage());
             System.exit(-1);
         }
     }
@@ -139,7 +139,7 @@ logger.warn("emu: exit due to rc/cMsg connect error: " + e.getMessage());
             emu.getCodaClass() == CODAClass.PEB)  {
 
             boolean foundServer = false;
-//System.out.println("emu: cMsgPortal got platform cMsg domain server port = " + platformPort);
+//System.out.println("Emu: cMsgPortal got platform cMsg domain server port = " + platformPort);
 
             // Use this connection for internal communications on this emu to set M value.
             // But only need to do this once - at the first configure.
@@ -155,7 +155,7 @@ logger.warn("emu: exit due to rc/cMsg connect error: " + e.getMessage());
                         continue;
                     }
                     foundServer = true;
-//System.out.println("emu: cMsgPortal got IP = " + ip + "\n try connecting with udl = " + UDL);
+//System.out.println("Emu: cMsgPortal got IP = " + ip + "\n try connecting with udl = " + UDL);
                     platformHost = ip;
                     break;
                 }
