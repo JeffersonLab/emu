@@ -168,16 +168,16 @@ public class RocSimulation extends ModuleAdapter {
         for (EventGeneratingThread thd : eventGeneratingThreads) {
             if (thd != null) {
                 try {
-//System.out.println("RocSim endThreads: event generating thd, try interrupting " + thd.getName());
+//System.out.println("  Roc mod: endThreads() event generating thd, try interrupting " + thd.getName());
                     thd.interrupt();
                     thd.join();
-//System.out.println("RocSim endThreads: event generating thd, joined " + thd.getName());
+//System.out.println("  Roc mod: endThreads() event generating thd, joined " + thd.getName());
                 }
                 catch (InterruptedException e) {
                 }
             }
         }
-//System.out.println("RocSim endThreads: DONE");
+//System.out.println("  Roc mod: endThreads() DONE");
     }
 
 
@@ -223,12 +223,12 @@ public class RocSimulation extends ModuleAdapter {
             // TODO: assumes only one output channel ...
             RingBuffer rb = outputChannels.get(0).getRingBuffersOut()[ringNum];
 
-//System.out.println("     : wait for next ring buf for writing");
+//System.out.println("  Roc mod: wait for next ring buf for writing");
 //            System.out.print("Get . ");
             long nextRingItem = rb.next();
 //            System.out.println("!");
 
-//System.out.println("     : Got sequence " + nextRingItem);
+//System.out.println("  Roc mod: got sequence " + nextRingItem);
             RingItem ri = (RingItem) rb.get(nextRingItem);
             ri.setBuffer(buf);
             ri.setEventType(EventType.ROC_RAW);
@@ -236,7 +236,7 @@ public class RocSimulation extends ModuleAdapter {
             ri.setSourceName(null);
             ri.setReusableByteBuffer(bbSupply, items[index++]);
 
-//System.out.println("published : record id " + rrId + " to ring " + ringNum);
+//System.out.println("  Roc mod: published record id " + rrId + " to ring " + ringNum);
             rb.publish(nextRingItem);
         }
     }
@@ -274,7 +274,7 @@ public class RocSimulation extends ModuleAdapter {
                                                          isSingleEventMode);
 
             eventWordSize = evs[0].getHeader().getLength() + 1;
-System.out.println("ROCSim: each generated event size = " + (4*eventWordSize) +
+System.out.println("  Roc mod: each generated event size = " + (4*eventWordSize) +
                    " bytes, words = " + (eventWordSize) + ", tag = " +
                    evs[0].getHeader().getTag() + ", num = " + evs[0].getHeader().getNumber());
 
@@ -283,7 +283,7 @@ System.out.println("ROCSim: each generated event size = " + (4*eventWordSize) +
             myEventNumber = eventNumber + myId*eventBlockSize*outputRingChunk;
             timestamp = myId*4*eventBlockSize*outputRingChunk;
 
-System.out.println("\n\nStart With (id=" + myId + "):\n    record id = " + myRocRecordId +
+System.out.println("  Roc mod: start With (id=" + myId + "):\n    record id = " + myRocRecordId +
                            ", ev # = " +myEventNumber + ", ts = " + timestamp);
 
             bbSupply = new ByteBufferSupply(32768, 4*eventWordSize);
@@ -316,11 +316,11 @@ System.out.println("\n\nStart With (id=" + myId + "):\n    record id = " + myRoc
                     }
                     else {
                         if (sentOneAlready && (endLimit > 0) && (myEventNumber + outputRingChunk > endLimit)) {
-                            System.out.println("\nRocSim: hit event number limit of " + endLimit + ", quitting\n");
+                            System.out.println("  Roc mod: hit event number limit of " + endLimit + ", quitting");
 
                             // Put in END event
                             try {
-                                System.out.println("          RocSim: Putting in END control event");
+                                System.out.println("  Roc mod: insert END event");
                                 ByteBuffer controlBuf = Evio.createControlBuffer(ControlType.END, 0, 0,
                                                                                  (int) eventCountTotal, 0,
                                                                                  outputOrder);
@@ -356,7 +356,7 @@ System.out.println("\n\nStart With (id=" + myId + "):\n    record id = " + myRoc
                         eventToOutputRing(myId, evs, items, bbSupply);
 
                         if (--userEventLoop == 0) {
-                            System.out.println("                              INSERT USER EVENT ####");
+System.out.println("  Roc mod: INSERT USER EVENT");
                             eventToOutputChannel(Evio.createUserBuffer(outputOrder), 0, 0);
                         }
 
@@ -368,7 +368,7 @@ System.out.println("\n\nStart With (id=" + myId + "):\n    record id = " + myRoc
                         myEventNumber += eventProducingThreads*eventBlockSize*outputRingChunk;
                         timestamp     += 4*eventProducingThreads*eventBlockSize*outputRingChunk;
                         myRocRecordId += eventProducingThreads;
-//System.out.println("Next (id=" + myId + "):\n    record id = " + myRocRecordId +
+//System.out.println("  Roc mod: next (id=" + myId + "):\n    record id = " + myRocRecordId +
 //                           ", ev # = " +myEventNumber + ", ts = " + timestamp);
 //
                     }
@@ -380,11 +380,11 @@ System.out.println("\n\nStart With (id=" + myId + "):\n    record id = " + myRoc
                         if (skip-- < 1) {
                             totalT += deltaT;
                             totalCount += myEventNumber-oldVal;
-                            System.out.println("event rate = " + String.format("%.3g", ((myEventNumber-oldVal)*1000./deltaT) ) +
+                            System.out.println("  Roc mod: event rate = " + String.format("%.3g", ((myEventNumber-oldVal)*1000./deltaT) ) +
                                                        " Hz,  avg = " + String.format("%.3g", (totalCount*1000.)/totalT));
                         }
                         else {
-                            System.out.println("event rate = " + String.format("%.3g", ((myEventNumber-oldVal)*1000./deltaT) ) + " Hz");
+                            System.out.println("  Roc mod: event rate = " + String.format("%.3g", ((myEventNumber-oldVal)*1000./deltaT) ) + " Hz");
                         }
                         start_time = now;
                         oldVal = myEventNumber;
@@ -440,7 +440,7 @@ System.out.println("\n\nStart With (id=" + myId + "):\n    record id = " + myRoc
     /** {@inheritDoc} */
     public void end() throws CmdExecException {
         state = CODAState.DOWNLOADED;
-System.out.println("          RocSim: Got END command, kill threads");
+System.out.println("  Roc mod: got END command, kill threads");
 
         killThreads();
 
@@ -459,7 +459,7 @@ System.out.println("          RocSim: Got END command, kill threads");
             pBuf.setControlType(ControlType.END);
             // Send to first ring
             eventToOutputChannel(pBuf, 0, 0);
-System.out.println("          RocSim: Putting in END control event");
+System.out.println("  Roc mod: insert END event");
         }
         catch (EvioException e) {/* never happen */}
 
@@ -503,7 +503,7 @@ System.out.println("          RocSim: Putting in END control event");
             pBuf.setControlType(ControlType.PRESTART);
             // Send to first ring
             eventToOutputChannel(pBuf, 0, 0);
-System.out.println("          RocSim: Put in PRESTART control event");
+System.out.println("  Roc mod: insert PRESTART event");
         }
         catch (EvioException e) {/* never happen */}
 
@@ -518,7 +518,7 @@ System.out.println("          RocSim: Put in PRESTART control event");
     /** {@inheritDoc} */
     public void go() {
         if (state == CODAState.ACTIVE) {
-//System.out.println("          RocSim: We musta hit go after PAUSE");
+//System.out.println("  Roc mod: we must have hit go after PAUSE");
         }
 
         // Put in GO event
@@ -530,7 +530,7 @@ System.out.println("          RocSim: Put in PRESTART control event");
             pBuf.setEventType(EventType.CONTROL);
             pBuf.setControlType(ControlType.GO);
             eventToOutputChannel(pBuf, 0, 0);
-System.out.println("          RocSim: Put in GO control event");
+System.out.println("  Roc mod: insert GO event");
         }
         catch (EvioException e) {/* never happen */}
 
@@ -551,10 +551,10 @@ System.out.println("          RocSim: Put in GO control event");
                                                                       name+":generator");
             }
 
-//System.out.println("ROC: event generating thread " + eventGeneratingThreads[i].getName() + " isAlive = " +
+//System.out.println("  Roc mod: event generating thread " + eventGeneratingThreads[i].getName() + " isAlive = " +
 //                    eventGeneratingThread.isAlive());
             if (eventGeneratingThreads[i].getState() == Thread.State.NEW) {
-    //System.out.println("starting event generating thread");
+//System.out.println("  Roc mod: starting event generating thread");
                 eventGeneratingThreads[i].start();
             }
         }
