@@ -328,7 +328,6 @@ System.out.println("EventBuilding constr: " + buildingThreadCount +
 
         @Override
         public void run() {
-System.out.println("PreProcessing Thread running ...");
             RingItem pBuf;
 
             while (state == CODAState.ACTIVE || paused) {
@@ -389,6 +388,7 @@ if (debug) System.out.println("PreProcessor: Roc raw or physics event in wrong f
                     return;
                 }
             }
+
         }
     }
 
@@ -498,7 +498,7 @@ if (debug) System.out.println("PreProcessor: Roc raw or physics event in wrong f
         for (int i=0; i < inputChannelCount; i++) {
             try  {
                 final long availableSequence = barriers[i].waitFor(nextSequences[i]);
-System.out.println("gotAllControlEvents: available Seq = " + availableSequence);
+//System.out.println("gotAllControlEvents: available Seq = " + availableSequence);
 
                 buildingBanks[i] = (PayloadBuffer) ringBuffersIn[i].get(nextSequences[i]);
                 ControlType cType = buildingBanks[i].getControlType();
@@ -709,7 +709,7 @@ System.out.println("Have consistent GO event(s)");
                                                            buildBarrierIn,
                                                            nextSequences);
 
-//System.out.println("btThread: prestart order = " + cEvent.getByteOrder());
+//System.out.println("btThread: got prestart, order = " + cEvent.getByteOrder());
                 // If this is the first build thread to reach this point, then
                 // write prestart event on all output channels, ring 0. Other build
                 // threads ignore this.
@@ -991,6 +991,7 @@ System.out.println("Found END events on all input channels");
                         // never finish if there are differing numbers of events on each
                         // input channel.
                         Thread.sleep(250);
+
                         endBuildAndPreProcessingThreads(this, false);
 
                         // Throw exception if inconsistent
@@ -1018,7 +1019,6 @@ System.out.println("Copy & Send END to output channel");
                                 eventToOutputChannel(bb, j, btIndex);
                             }
                         }
-System.out.println("Done with END in EB module");
 
 
                         // If this is a sync event, keep track of the next event # to be sent
@@ -1328,7 +1328,7 @@ if (debug) System.out.println("Building thread is ending !!!");
         // Interrupt all Building threads except the one calling this method
         for (Thread thd : buildingThreadList) {
             if (thd == thisThread) continue;
-            // Try to thread nicely but it could hang on rb.next(), if so, kill it
+            // Try to end thread nicely but it could hang on rb.next(), if so, kill it
             thd.interrupt();
             try {
                 thd.join(250);
@@ -1545,9 +1545,12 @@ if (debug) System.out.println("Building thread is ending !!!");
         runNumber = emu.getRunNumber();
         eventNumberAtLastSync = 1L;
 
-        // do this before starting build threads
+        // Do this before starting build threads
         waitForGo = new CountDownLatch(buildingThreadCount);
         waitForPrestart = new CountDownLatch(buildingThreadCount);
+        firstToGetGo.set(false);
+        firstToGetEnd.set(false);
+        firstToGetPrestart.set(false);
 
         // Create & start threads
         startThreads();
