@@ -238,8 +238,6 @@ logger.info("      DataChannel File: try opening input file of " + fileName);
                 helper.waitUntilStarted();
 
             } else {
-logger.info("      DataChannel File: try opening output base file of " + fileName);
-
                 // Make overwriting the file OK if there is NO splitting of the file.
                 // If there is no file splitting, overwriting the file will occur when
                 // the file name is static or if the run # is repeated.
@@ -249,7 +247,8 @@ logger.info("      DataChannel File: try opening output base file of " + fileNam
                 evioFileWriter = new EventWriter(fileName, directory, runType,
                                                  runNumber, split, byteOrder,
                                                  dictionaryXML, overWriteOK);
-logger.info("      DataChannel File: create EventWriter with order = " + byteOrder);
+logger.info("      DataChannel File: create EventWriter of order = " + byteOrder);
+logger.info("      DataChannel File: try writing to file " + evioFileWriter.getCurrentFilename());
 
                 // Tell emu what that output name is for stat reporting.
                 // Get the name from the file writer object so that the
@@ -585,7 +584,6 @@ logger.debug("      DataChannel File reset() : " + name + " - done");
 
         /** {@inheritDoc} */
         public void run() {
-logger.debug("      DataChannel File out helper: started");
 
             // Tell the world I've started
             latch.countDown();
@@ -597,14 +595,14 @@ logger.debug("      DataChannel File out helper: started");
                 // First event will be "prestart", by convention in ring 0
                 ringItem = getNextOutputRingItem(0);
                 writeEvioData(ringItem);
+logger.debug("      DataChannel File out helper: wrote prestart");
                 releaseCurrentAndGoToNextOutputRingItem(0);
-logger.debug("      DataChannel File out helper: sent prestart");
 
                 // Second event will be "go", by convention in ring 0
                 ringItem = getNextOutputRingItem(0);
                 writeEvioData(ringItem);
+logger.debug("      DataChannel File out helper: wrote go");
                 releaseCurrentAndGoToNextOutputRingItem(0);
-logger.debug("      DataChannel File out helper: sent go");
 
                 while ( true ) {
 
@@ -616,7 +614,7 @@ logger.debug("      DataChannel File out helper: sent go");
                         continue;
                     }
 
-//logger.debug("      DataChannel Emu out helper: get next buffer from ring");
+//logger.debug("      DataChannel File out helper: get next buffer from ring");
                     ringItem = getNextOutputRingItem(rbIndex);
                     ControlType pBankControlType = ringItem.getControlType();
 
@@ -628,7 +626,7 @@ logger.debug("      DataChannel File out helper: sent go");
                         throw e;
                     }
 
-//logger.debug("      DataChannel File out helper: sent event");
+//logger.debug("      DataChannel File out helper: wrote event");
 
 //logger.debug("      DataChannel File out helper: release ring item");
                     releaseCurrentAndGoToNextOutputRingItem(rbIndex);
@@ -649,7 +647,7 @@ logger.debug("      DataChannel File out helper: sent go");
                     }
 
                     if (pBankControlType == ControlType.END) {
-System.out.println("      DataChannel File out helper: " + name + " I got END event, quitting");
+System.out.println("      DataChannel File out helper: " + name + " I got END event");
                         try {
                             evioFileWriter.close();
                         }
