@@ -168,13 +168,16 @@ public class RocSimulation extends ModuleAdapter {
         for (EventGeneratingThread thd : eventGeneratingThreads) {
             if (thd != null) {
                 try {
+//System.out.println("RocSim endThreads: event generating thd, try interrupting " + thd.getName());
                     thd.interrupt();
                     thd.join();
+//System.out.println("RocSim endThreads: event generating thd, joined " + thd.getName());
                 }
-                catch (InterruptedException e) {}
-
+                catch (InterruptedException e) {
+                }
             }
         }
+//System.out.println("RocSim endThreads: DONE");
     }
 
 
@@ -304,38 +307,44 @@ System.out.println("\n\nStart With (id=" + myId + "):\n    record id = " + myRoc
                 // Use dummy arg that's overwritten later
                 builder = new CompactEventBuilder(buf);
 
+                boolean noBuildableEvents = true;
+
                 while (state == CODAState.ACTIVE || paused) {
 
-                    if (sentOneAlready && (endLimit > 0) && (myEventNumber + outputRingChunk > endLimit)) {
-                        System.out.println("\nRocSim: hit event number limit of " + endLimit + ", quitting\n");
-
-                        // Put in END event
-                        try {
-                            System.out.println("          RocSim: Putting in END control event");
-                            ByteBuffer controlBuf = Evio.createControlBuffer(ControlType.END, 0, 0,
-                                                                             (int) eventCountTotal, 0,
-                                                                             outputOrder);
-                            PayloadBuffer pBuf = new PayloadBuffer(controlBuf);
-                            pBuf.setEventType(EventType.CONTROL);
-                            pBuf.setControlType(ControlType.END);
-                            eventToOutputChannel(pBuf, 0, myId);
-                            if (endCallback != null) endCallback.endWait();
-                        }
-                        catch (EvioException e) {/* never happen */}
-
-                        return;
+                    if (noBuildableEvents) {
+                        Thread.sleep(250);
                     }
-                    sentOneAlready = true;
+                    else {
+                        if (sentOneAlready && (endLimit > 0) && (myEventNumber + outputRingChunk > endLimit)) {
+                            System.out.println("\nRocSim: hit event number limit of " + endLimit + ", quitting\n");
 
-                    // Get "outputRingChunk" number of ByteBuffer objects to write events into
-                    evs = Evio.createRocDataEventsFast(id, triggerType,
-                                                       detectorId, status,
-                                                       (int) myEventNumber, eventBlockSize,
-                                                       timestamp,
-                                                       outputRingChunk,
-                                                       isSingleEventMode,
-                                                       bbSupply, builder,
-                                                       items, outputOrder);
+                            // Put in END event
+                            try {
+                                System.out.println("          RocSim: Putting in END control event");
+                                ByteBuffer controlBuf = Evio.createControlBuffer(ControlType.END, 0, 0,
+                                                                                 (int) eventCountTotal, 0,
+                                                                                 outputOrder);
+                                PayloadBuffer pBuf = new PayloadBuffer(controlBuf);
+                                pBuf.setEventType(EventType.CONTROL);
+                                pBuf.setControlType(ControlType.END);
+                                eventToOutputChannel(pBuf, 0, myId);
+                                if (endCallback != null) endCallback.endWait();
+                            }
+                            catch (EvioException e) {/* never happen */}
+
+                            return;
+                        }
+                        sentOneAlready = true;
+
+                        // Get "outputRingChunk" number of ByteBuffer objects to write events into
+                        evs = Evio.createRocDataEventsFast(id, triggerType,
+                                                           detectorId, status,
+                                                           (int) myEventNumber, eventBlockSize,
+                                                           timestamp,
+                                                           outputRingChunk,
+                                                           isSingleEventMode,
+                                                           bbSupply, builder,
+                                                           items, outputOrder);
 
 //                    Utilities.printBuffer(evs[0], 0, evs[0].limit()/4, "one event");
 //
@@ -343,26 +352,26 @@ System.out.println("\n\nStart With (id=" + myId + "):\n    record id = " + myRoc
 //                        System.exit(-1);
 //                    }
 //
-                    // Put generated events into output channel
-                    eventToOutputRing(myId, evs, items, bbSupply);
+                        // Put generated events into output channel
+                        eventToOutputRing(myId, evs, items, bbSupply);
 
-                    if (--userEventLoop == 0) {
-                        System.out.println("                              INSERT USER EVENT ####");
-                        eventToOutputChannel(Evio.createUserBuffer(outputOrder), 0, 0);
-                    }
+                        if (--userEventLoop == 0) {
+                            System.out.println("                              INSERT USER EVENT ####");
+                            eventToOutputChannel(Evio.createUserBuffer(outputOrder), 0, 0);
+                        }
 
-                    // stats // TODO: problem with multiple threads writing to these stat values
-                    //assert(evs.length == outputRingChunk);
-                    eventCountTotal += outputRingChunk * eventBlockSize;
-                    wordCountTotal  += outputRingChunk * eventWordSize;
+                        // stats // TODO: problem with multiple threads writing to these stat values
+                        //assert(evs.length == outputRingChunk);
+                        eventCountTotal += outputRingChunk * eventBlockSize;
+                        wordCountTotal  += outputRingChunk * eventWordSize;
 
-                    myEventNumber += eventProducingThreads*eventBlockSize*outputRingChunk;
-                    timestamp     += 4*eventProducingThreads*eventBlockSize*outputRingChunk;
-                    myRocRecordId += eventProducingThreads;
+                        myEventNumber += eventProducingThreads*eventBlockSize*outputRingChunk;
+                        timestamp     += 4*eventProducingThreads*eventBlockSize*outputRingChunk;
+                        myRocRecordId += eventProducingThreads;
 //System.out.println("Next (id=" + myId + "):\n    record id = " + myRocRecordId +
 //                           ", ev # = " +myEventNumber + ", ts = " + timestamp);
 //
-//                    Thread.sleep(20);
+                    }
 
                     now = System.currentTimeMillis();
                     deltaT = now - start_time;
@@ -383,6 +392,9 @@ System.out.println("\n\nStart With (id=" + myId + "):\n    record id = " + myRoc
 
                 }
             }
+            catch (InterruptedException e) {
+                // End or Reset most likely
+            }
             catch (Exception e) {
                 // If we haven't yet set the cause of error, do so now & inform run control
                 errorMsg.compareAndSet(null, e.getMessage());
@@ -391,7 +403,6 @@ System.out.println("\n\nStart With (id=" + myId + "):\n    record id = " + myRoc
                 return;
             }
         }
-
 
     }
 
@@ -429,8 +440,9 @@ System.out.println("\n\nStart With (id=" + myId + "):\n    record id = " + myRoc
     /** {@inheritDoc} */
     public void end() throws CmdExecException {
         state = CODAState.DOWNLOADED;
+System.out.println("          RocSim: Got END command, kill threads");
 
-        endThreads();
+        killThreads();
 
         paused = false;
 
