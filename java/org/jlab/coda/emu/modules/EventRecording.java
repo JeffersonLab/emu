@@ -145,8 +145,7 @@ public class EventRecording extends ModuleAdapter {
 
         // default to 1 event recording thread
         recordingThreadCount = eventProducingThreads;
-System.out.println("EventRecording constructor: " + recordingThreadCount +
-                           " # recording threads");
+System.out.println("  ER mod: " + recordingThreadCount + " # recording threads");
 
         // Does this module accurately represent the whole EMU's stats?
         String str = attributeMap.get("statistics");
@@ -247,8 +246,8 @@ System.out.println("EventRecording constructor: " + recordingThreadCount +
             }
 
             if (haveUnprocessedEvents || !haveEndEvent) {
-if (debug) System.out.println("endRecordThreads: will end threads but no END event or Q not empty!!!");
-                errorMsg.compareAndSet(null, "ending threads but no END event or Q not empty");
+if (debug) System.out.println("  ER mod: will end threads but no END event or ring not empty!");
+                errorMsg.compareAndSet(null, "ending threads but no END event or ring not empty");
                 state = CODAState.ERROR;
                 emu.sendStatusMessage();
             }
@@ -355,7 +354,7 @@ if (debug) System.out.println("endRecordThreads: will end threads but no END eve
                         }
                         // Found a bank, so do something with it (skipCounter[i] - 1 == 0)
                         else {
-//System.out.println("btThread " + order + ": accept item " + nextSequence + ", type " + ringItem.getEventType());
+//System.out.println("  ER mod: " + order + ", accept item " + nextSequence + ", type " + ringItem.getEventType());
                             if (ringItem.getEventType() == EventType.CONTROL) {
                                 System.out.println("          : " + ringItem.getControlType());
                             }
@@ -382,7 +381,7 @@ if (debug) System.out.println("endRecordThreads: will end threads but no END eve
 
                     // If END event, interrupt other record threads then quit this one.
                     if (controlType == ControlType.END) {
-                        System.out.println("Found END event in record thread");
+System.out.println("  ER mod: found END event");
                         haveEndEvent = true;
                         endRecordThreads(this, false);
                         if (endCallback != null) endCallback.endWait();
@@ -400,20 +399,20 @@ if (debug) System.out.println("endRecordThreads: will end threads but no END eve
 
                 }
                 catch (InterruptedException e) {
-                    if (debug) System.out.println("INTERRUPTED thread " + Thread.currentThread().getName());
+                    if (debug) System.out.println("  ER mod: INTERRUPTED thread " + Thread.currentThread().getName());
                     return;
                 }
                 catch (AlertException e) {
-                    if (debug) System.out.println("Ring buf alert, " + Thread.currentThread().getName());
+                    if (debug) System.out.println("  ER mod: ring buf alert, " + Thread.currentThread().getName());
                     return;
                 }
                 catch (TimeoutException e) {
-                    if (debug) System.out.println("Ring buf timeout, " + Thread.currentThread().getName());
+                    if (debug) System.out.println("  ER mod: ring buf timeout, " + Thread.currentThread().getName());
                     return;
                 }
             }
 
-System.out.println("recording thread is ending !!!");
+System.out.println("  ER mod: recording thread ending");
         }
 
     }
