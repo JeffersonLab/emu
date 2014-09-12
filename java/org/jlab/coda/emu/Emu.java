@@ -406,7 +406,7 @@ public class Emu implements CODAComponent {
                     state = state();
 
                     if ((state != null) && (state != oldState)) {
-                        System.out.println("Emu: state changed to " + state.name());
+                        System.out.println("Emu: state changed to " + state.name() + "\n\n");
                         if (debugGUI != null) {
                             // Enable/disable transition GUI buttons depending on
                             // which transitions are allowed out of our current state.
@@ -816,59 +816,67 @@ System.out.println("Emu " + name + " sending special RC display error Msg:\n ***
          * Send a cMsg message with the status of this EMU to run control's cMsg server.
          * cMsg messages are not thread-safe when it comes to adding payloads so synchronize
          * this method. */
-        synchronized void sendStatusMessage() {
-            if (statusReportingOn &&
-               (cmsgPortal.getRcServer() != null) &&
-               (cmsgPortal.getRcServer().isConnected())) {
+        void sendStatusMessage() {
+            // Do NOT place the following line in the synchronized block
+            // as this method is called by the execute() method which also is synchronized
+            // to the emu object. This can lead to a mutex deadlock with the thread of
+            // this object which enters this synchronized code and the state()
+            // method's synchronized code in reverse order (to execute()).
+            String state = state().name().toLowerCase();
 
-                String state = state().name().toLowerCase();
+            synchronized (this) {
 
-                // clear stats
-                long  eventCount=0L, wordCount=0L;
-                float eventRate=0.F, wordRate=0.F;
+                if (statusReportingOn &&
+                   (cmsgPortal.getRcServer() != null) &&
+                   (cmsgPortal.getRcServer().isConnected())) {
 
-                // get new statistics from a single representative module
-                EmuModule statsModule = getStatisticsModule();
-                if (statsModule != null) {
-                    Object[] stats = statsModule.getStatistics();
-                    if (stats != null) {
-                        eventCount = (Long) stats[0];
-                        wordCount  = (Long) stats[1];
-                        eventRate  = (Float)stats[2];
-                        wordRate   = (Float)stats[3];
+                    // clear stats
+                    long  eventCount=0L, wordCount=0L;
+                    float eventRate=0.F, wordRate=0.F;
+
+                    // get new statistics from a single representative module
+                    EmuModule statsModule = getStatisticsModule();
+                    if (statsModule != null) {
+                        Object[] stats = statsModule.getStatistics();
+                        if (stats != null) {
+                            eventCount = (Long) stats[0];
+                            wordCount  = (Long) stats[1];
+                            eventRate  = (Float)stats[2];
+                            wordRate   = (Float)stats[3];
+                        }
                     }
-                }
 
-                try {
-                    // Over write any previously defined payload items
-                    reportMsg.addPayloadItem(new cMsgPayloadItem(RCConstants.state, state));
-                    reportMsg.addPayloadItem(new cMsgPayloadItem(RCConstants.codaClass, codaClass.name()));
-                    reportMsg.addPayloadItem(new cMsgPayloadItem(RCConstants.eventCount, (int)eventCount));
-                    reportMsg.addPayloadItem(new cMsgPayloadItem(RCConstants.objectType, "coda3"));
-                    // in Hz
-                    reportMsg.addPayloadItem(new cMsgPayloadItem(RCConstants.eventRate, eventRate));
-                    reportMsg.addPayloadItem(new cMsgPayloadItem(RCConstants.numberOfLongs, wordCount));
-                    // in kBytes/sec
-                    reportMsg.addPayloadItem(new cMsgPayloadItem(RCConstants.dataRate, (double)wordRate));
-                    if (outputDestination != null) {
-                        reportMsg.addPayloadItem(new cMsgPayloadItem(RCConstants.filename, outputDestination));
-                    }
-                    else {
-                        reportMsg.removePayloadItem(RCConstants.filename);
-                    }
-    //System.out.println("Emu " + name + " sending STATUS REPORTING Msg:");
-    //                        System.out.println("   " + RCConstants.state + " = " + state);
-    //                        System.out.println("   " + RCConstants.codaClass + " = " + codaClass.name());
-    //                        System.out.println("   " + RCConstants.eventNumber + " = " + (int)eventCount);
-    //                        System.out.println("   " + RCConstants.eventRate + " = " + eventRate);
-    //                        System.out.println("   " + RCConstants.numberOfLongs + " = " + wordCount);
-    //                        System.out.println("   " + RCConstants.dataRate + " = " + (double)wordRate);
+                    try {
+                        // Over write any previously defined payload items
+                        reportMsg.addPayloadItem(new cMsgPayloadItem(RCConstants.state, state));
+                        reportMsg.addPayloadItem(new cMsgPayloadItem(RCConstants.codaClass, codaClass.name()));
+                        reportMsg.addPayloadItem(new cMsgPayloadItem(RCConstants.eventCount, (int)eventCount));
+                        reportMsg.addPayloadItem(new cMsgPayloadItem(RCConstants.objectType, "coda3"));
+                        // in Hz
+                        reportMsg.addPayloadItem(new cMsgPayloadItem(RCConstants.eventRate, eventRate));
+                        reportMsg.addPayloadItem(new cMsgPayloadItem(RCConstants.numberOfLongs, wordCount));
+                        // in kBytes/sec
+                        reportMsg.addPayloadItem(new cMsgPayloadItem(RCConstants.dataRate, (double)wordRate));
+                        if (outputDestination != null) {
+                            reportMsg.addPayloadItem(new cMsgPayloadItem(RCConstants.filename, outputDestination));
+                        }
+                        else {
+                            reportMsg.removePayloadItem(RCConstants.filename);
+                        }
+    //System.out.println("Emu: try sending STATUS REPORTING Msg:");
+    //                            System.out.println("   " + RCConstants.state + " = " + state);
+    //                            System.out.println("   " + RCConstants.codaClass + " = " + codaClass.name());
+    //                            System.out.println("   " + RCConstants.eventCount + " = " + (int)eventCount);
+    //                            System.out.println("   " + RCConstants.eventRate + " = " + eventRate);
+    //                            System.out.println("   " + RCConstants.numberOfLongs + " = " + wordCount);
+    //                            System.out.println("   " + RCConstants.dataRate + " = " + (double)wordRate);
 
-                    // Send msg
-                    cmsgPortal.getRcServer().send(reportMsg);
-                }
-                catch (cMsgException e) {
-                    logger.warn(e.getMessage());
+                        // Send msg
+                        cmsgPortal.getRcServer().send(reportMsg);
+                    }
+                    catch (cMsgException e) {
+                        logger.warn(e.getMessage());
+                    }
                 }
             }
         }
@@ -2128,7 +2136,7 @@ logger.info("Emu go: GO cmd to module " + mods.get(i).name());
                 // (4) GO to input channels (of FIRST module)
                 if (inChannels.size() > 0) {
                     for (DataChannel chan : inChannels) {
-logger.info("EEmu go: GO cmd to in chan " + chan.name());
+logger.info("Emu go: GO cmd to in chan " + chan.name());
                         chan.go();
                     }
                 }
@@ -2188,6 +2196,9 @@ logger.info("Emu end: timeout (2 sec) waiting for END event in input chan " + ch
                                 setState(ERROR);
                                 sendStatusMessage();
                             }
+                            else {
+logger.info("Emu end: input chan " + chan.name() + " already got END event");
+                            }
                             gotAllEnds = gotAllEnds && gotEndEvent;
                         }
                         catch (InterruptedException e) {}
@@ -2204,6 +2215,9 @@ logger.info("Emu end: timeout (2 sec) waiting for END event in module " + mods.g
                             setState(ERROR);
                             sendStatusMessage();
                         }
+                        else {
+logger.info("Emu end: module " + mods.getLast().name() + " already got END event");
+                        }
                         gotAllEnds = gotAllEnds && gotEndEvent;
                     }
                     catch (InterruptedException e) {}
@@ -2213,12 +2227,16 @@ logger.info("Emu end: timeout (2 sec) waiting for END event in module " + mods.g
                 if (gotAllEnds && outChannels.size() > 0) {
                     for (DataChannel chan : outChannels) {
                         try {
+logger.info("Emu end: output chan " + chan.name() + " call waitForEvent()");
                             gotEndEvent = chan.getEndCallback().waitForEvent();
                             if (!gotEndEvent) {
 logger.info("Emu end: timeout waiting for END event in output chan " + chan.name());
                                 errorMsg.compareAndSet(null, "timeout waiting for END event in output chan " + chan.name());
                                 setState(ERROR);
                                 sendStatusMessage();
+                            }
+                            else {
+logger.info("Emu end: output chan " + chan.name() + " already got END event");
                             }
                             gotAllEnds = gotAllEnds && gotEndEvent;
                         }
