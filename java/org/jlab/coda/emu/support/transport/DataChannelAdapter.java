@@ -184,11 +184,11 @@ public class DataChannelAdapter extends CODAStateMachineAdapter implements DataC
 
         if (input) {
             ringItemType = module.getInputRingItemType();
-logger.info("      DataChannel Adapter : input type = " + ringItemType);
+//logger.info("      DataChannel Adapter : input type = " + ringItemType);
         }
         else {
             ringItemType = module.getOutputRingItemType();
-logger.info("      DataChannel Adapter : output type = " + ringItemType);
+//logger.info("      DataChannel Adapter : output type = " + ringItemType);
         }
 
 
@@ -238,9 +238,7 @@ logger.info("      DataChannel Adapter : # of ring buffers = " + outputRingCount
 
         // Number of sequential items in a single ring buffer.
         outputRingChunk = module.getOutputRingChunk();
-logger.info("      DataChannel Adapter : ring chunk = " + outputRingChunk);
-
-
+if (outputRingChunk != 1) logger.info("      DataChannel Adapter : ring chunk = " + outputRingChunk);
     }
 
 
