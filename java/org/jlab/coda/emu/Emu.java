@@ -2184,7 +2184,7 @@ logger.error("Emu.execute(END) : no modules in data path");
                         try {
                             gotEndEvent = chan.getEndCallback().waitForEvent();
                             if (!gotEndEvent) {
-logger.info("Emu.execute(END): timeout waiting for END event in input chan " + chan.name());
+logger.info("Emu.execute(END): timeout (2 sec) waiting for END event in input chan " + chan.name());
                                 errorMsg.compareAndSet(null, "timeout waiting for END event in input chan " + chan.name());
                                 setState(ERROR);
                                 sendStatusMessage();
@@ -2200,7 +2200,7 @@ logger.info("Emu.execute(END): timeout waiting for END event in input chan " + c
                     try {
                         gotEndEvent = mods.getLast().getEndCallback().waitForEvent();
                         if (!gotEndEvent) {
-logger.info("Emu.execute(END): timeout waiting for END event in module " + mods.getLast().name());
+logger.info("Emu.execute(END): timeout (2 sec) waiting for END event in module " + mods.getLast().name());
                             errorMsg.compareAndSet(null, "timeout waiting for END event in module " + mods.getLast().name());
                             setState(ERROR);
                             sendStatusMessage();
