@@ -484,7 +484,7 @@ System.out.println("\nSetting control[0] = " + id + "\n");
         // Otherwise open in usual manner, use sockets
         else {
             try {
-                System.out.println("      DataChannel Et: try to open" + dataTransportImplEt.getOpenConfig().getEtName() );
+                System.out.println("      DataChannel Et: try to open " + dataTransportImplEt.getOpenConfig().getEtName() );
                 etSystem.open();
             }
             catch (Exception e) {
