@@ -93,11 +93,11 @@ public class DataTransportImplEt extends DataTransportAdapter {
 
         public void run() {
 
-//System.out.println("\nHEY, I'm running control-C handling thread!\n");
+//System.out.println("    DataTransport Et: HEY, I'm running control-C handling thread!\n");
             // Try killing ET system (should also delete file)
             if (etSys != null && etSys.alive()) {
                 try {
-//System.out.println("Try killing ET");
+//System.out.println("    DataTransport Et: try killing ET");
                     etSys.kill();
                 }
                 catch (Exception e) {}
@@ -108,7 +108,7 @@ public class DataTransportImplEt extends DataTransportAdapter {
                 try {
                     File etFile = new File(etFileName);
                     if (etFile.exists() && etFile.isFile()) {
-//System.out.println("Try deleting file");
+//System.out.println("    DataTransport Et: try deleting file");
                         etFile.delete();
                     }
                 }
@@ -232,7 +232,7 @@ public class DataTransportImplEt extends DataTransportAdapter {
                     isJavaSystem = true;
                 }
             }
-if (isJavaSystem) System.out.println("Create a Java ET system in this JVM");
+if (isJavaSystem) System.out.println("    DataTransport Et: create Java ET system within this JVM");
 
             // number of events
             int eventNum = 0;
@@ -621,14 +621,14 @@ if (isJavaSystem) System.out.println("Create a Java ET system in this JVM");
             errorMsg.compareAndSet(null, "self-contradictory ET system config");
             state = CODAState.ERROR;
             emu.sendStatusMessage();
-            logger.debug("    DataTransport Et execute DOWNLOAD: self-contradictory ET system config : " + name());
+            logger.debug("    DataTransport Et: self-contradictory ET system config : " + name());
             throw new CmdExecException("Self-contradictory ET system config", e);
         }
 
         try {
             while (true) {
                 etSystem.open();
-                logger.debug("    DataTransport Et execute DOWNLOAD: kill existing ET system: " + name() +
+                logger.debug("    DataTransport Et: kill existing ET system: " + name() +
                         " on " + etSystem.getHost());
                 killEtSystem();
             }
