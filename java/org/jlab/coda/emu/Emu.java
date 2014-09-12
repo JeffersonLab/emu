@@ -919,7 +919,7 @@ System.out.println("Emu " + name + " sending special RC display error Msg:\n ***
         errorMsg.set(null);
 
         // Stop any more run control commands from being executed
-logger.info("Emu.reset(): set flag to STOP execution of rc commands");
+logger.info("Emu reset: set flag to STOP execution of rc commands");
         stopExecutingCmds = true;
 
         // Clear out any existing, un-executed commands
@@ -932,28 +932,28 @@ logger.info("Emu.reset(): set flag to STOP execution of rc commands");
         // Reset channels first
         if (inChannels.size() > 0) {
             for (DataChannel chan : inChannels) {
-logger.info("Emu.reset(): reset to in chan " + chan.name());
+logger.info("Emu reset: reset to in chan " + chan.name());
                 chan.reset();
             }
         }
 
         // Reset all modules
         for (EmuModule module : modules) {
-logger.debug("  Emu.reset(): try to reset module " + module.name());
+logger.debug("Emu reset: try to reset module " + module.name());
             module.reset();
-logger.debug("  Emu.reset(): done resetting module " + module.name());
+logger.debug("Emu reset: done resetting module " + module.name());
         }
 
         if (outChannels.size() > 0) {
             for (DataChannel chan : outChannels) {
-logger.info("Emu.reset(): reset to out chan " + chan.name());
+logger.info("Emu reset: reset to out chan " + chan.name());
                 chan.reset();
             }
         }
 
         // Reset transport objects
         for (DataTransport t : transports) {
-logger.debug("  Emu.reset(): reset transport " + t.name());
+logger.debug("Emu reset: reset transport " + t.name());
             t.reset();
         }
 
@@ -967,10 +967,10 @@ logger.debug("  Emu.reset(): reset transport " + t.name());
         else {
             setState(CONFIGURED);
         }
-logger.info("Emu.reset(): done, setting state to " + state);
+logger.info("Emu reset: done, setting state to " + state);
 
         // Allow run control commands to be executed once again
-logger.info("Emu.reset(): set flag to ALLOW execution of rc commands");
+logger.info("Emu reset: set flag to ALLOW execution of rc commands");
         stopExecutingCmds = false;
     }
 
