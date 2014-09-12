@@ -36,26 +36,24 @@ public class DataChannelImplFile extends DataChannelAdapter {
     /** Thread used to input or output data. */
     private Thread dataThread;
 
+    /** Name of file being written -to / read-from. */
+    private String fileName;
+
+    //----------------------------------------
+    // Output file parameters
+    //----------------------------------------
+
     /** The default size in bytes at which a new file is created. */
     private long split;
 
     /** If splitting files, the number file being written currently to. */
     private int splitCount;
 
-    /** For input or output files, the directory. */
+    /** For output files, the directory. */
     private String directory;
-
-    /** Name of file currently being written to. */
-    private String fileName;
 
     /** Dictionary to be include in file. */
     private String dictionaryXML;
-
-    /** Evio file reader. */
-    private EvioReader evioFileReader;
-
-    /** Evio file reader which does NOT deserialize into objects. */
-    private EvioCompactReader compactFileReader;
 
     /** Evio file writer. */
     private EventWriter evioFileWriter;
@@ -63,6 +61,12 @@ public class DataChannelImplFile extends DataChannelAdapter {
     //----------------------------------------
     // Input file parameters
     //----------------------------------------
+
+    /** Evio file reader. */
+    private EvioReader evioFileReader;
+
+    /** Evio file reader which does NOT deserialize into objects. */
+    private EvioCompactReader compactFileReader;
 
     /** First evio block header read from a version 4 file. */
     private BlockHeaderV4 firstBlockHeader;
@@ -248,13 +252,13 @@ logger.info("      DataChannel File: try opening input file of " + fileName);
                                                  runNumber, split, byteOrder,
                                                  dictionaryXML, overWriteOK);
 logger.info("      DataChannel File: create EventWriter of order = " + byteOrder);
-logger.info("      DataChannel File: try writing to file " + evioFileWriter.getCurrentFilename());
+logger.info("      DataChannel File: try writing to file " + evioFileWriter.getCurrentFilePath());
 
                 // Tell emu what that output name is for stat reporting.
                 // Get the name from the file writer object so that the
                 // final filename is used with all string substitutions made.
                 // This must be done each time the file is split.
-                emu.setOutputDestination(evioFileWriter.getCurrentFilename());
+                emu.setOutputDestination(evioFileWriter.getCurrentFilePath());
 
                 // Keep track of how many files we create
                 if (split > 0L) splitCount = evioFileWriter.getSplitCount();
