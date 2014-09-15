@@ -307,7 +307,7 @@ System.out.println("  Roc mod: start With (id=" + myId + "):\n    record id = " 
                 // Use dummy arg that's overwritten later
                 builder = new CompactEventBuilder(buf);
 
-                boolean noBuildableEvents = true;
+                boolean noBuildableEvents = false;
 
                 while (state == CODAState.ACTIVE || paused) {
 
