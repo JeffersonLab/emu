@@ -1062,18 +1062,18 @@ if (debug && havePhysicsEvents)
 
                     // Get an estimate on the buffer memory needed.
                     // Start with 1K and add roughly the amount of trigger bank data + data wrapper
-                    int memSize = 1000 + buildingBanks.length * totalNumberEvents * 10 * 4;
-System.out.println("  EB mod: estimate trigger bank bytes <= " + memSize);
+                    int memSize = 1000 + buildingBanks.length * totalNumberEvents * 40;
+//System.out.println("  EB mod: estimate trigger bank bytes <= " + memSize);
                     for (PayloadBuffer buildingBank : buildingBanks) {
                         //memSize += buildingBank.getBuffer().capacity();
                         memSize += buildingBank.getNode().getTotalBytes();
-System.out.println("  EB mod: add data bytes from ev, " + buildingBank.getNode().getTotalBytes());
+//System.out.println("  EB mod: add data bytes from ev, " + buildingBank.getNode().getTotalBytes());
                     }
 
                     // Grab a stored ByteBuffer
                     ByteBufferItem bufItem = bbSupply.get();
                     bufItem.ensureCapacity(memSize);
-System.out.println("  EB mod: ensure buf has size " + memSize + "\n");
+//System.out.println("  EB mod: ensure buf has size " + memSize + "\n");
                     ByteBuffer evBuf = bufItem.getBuffer();
                     builder.setBuffer(evBuf);
 
