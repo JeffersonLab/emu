@@ -804,8 +804,10 @@ System.out.println("  EB mod: create Build-Thread with index " + btIndex);
                                 // Will BLOCK here waiting for item if none available,
                                 // but it can be interrupted.
                                 // Available sequence may be larger than what we desired.
+//System.out.println("  EB mod: " + btIndex + ", wait for event (seq [" + i + "] = " +
+//                           nextSequences[i] + ")");
                                 availableSequences[i] = buildBarrierIn[i].waitFor(nextSequences[i]);
-//System.out.println("  EB mod: " + btIndex + ", available Seq = " + availableSequences[i]);
+//System.out.println("  EB mod: " + btIndex + ", available seq[" + i + "]  = " + availableSequences[i]);
                             }
 
                             // While we have new data to work with ...
@@ -881,7 +883,12 @@ System.out.println("  EB mod: create Build-Thread with index " + btIndex);
                             // At this point all controls are END events
 
                             // Is this build thread the first to get the END event?
-                            firstToFindEnd = firstToGetEnd.compareAndSet(false, true);
+                            // Can only set this once even though we look on each
+                            // channel for an END event.
+                            if (!firstToFindEnd) {
+                                firstToFindEnd = firstToGetEnd.compareAndSet(false, true);
+//System.out.println("  EB mod: " + btIndex + ", firstToFindEnd = " + firstToFindEnd);
+                            }
 
                             haveEnd = true;
                             endEventCount++;
@@ -980,7 +987,10 @@ System.out.println("  EB mod: have all ENDs, but differing # of physics events i
                     if (haveEnd) {
                         // Only the first build thread to find all
                         // ENDs will place END on output channels.
-                        if (!firstToFindEnd) return;
+                        if (!firstToFindEnd) {
+System.out.println("  EB mod: found END event, but not first so exit bt");
+                            return;
+                        }
 
                         haveEndEvent = true;
 System.out.println("  EB mod: found END events on all input channels");
