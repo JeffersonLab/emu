@@ -3084,9 +3084,9 @@ System.out.println("makeTriggerBankFromRocRaw: event type differs across ROCs");
                     // Check event number consistency
                     trigIntArrays[j][i] = triggerData = ByteDataTransformer.toIntArray(triggerSegments[j][i].getByteData(false));
                     if (firstEvNum + i != triggerData[0]) {
-System.out.println("makeTriggerBankFromRocRaw: EB event # differs from Bt# " + buildThreadOrder + ", ROC id#" +
-                        getTagCodaId(inputPayloadBanks[j].getNode().getTag()) + "'s, " +
-                        (firstEvNum+i) + " != " + (triggerData[0]));
+System.out.println("makeTriggerBankFromRocRaw: event # differs (in Bt# " + buildThreadOrder + ") for ROC id#" +
+                        getTagCodaId(inputPayloadBanks[j].getNode().getTag()) + ", expected " +
+                        (firstEvNum+i) + " got " + (triggerData[0]) + " (0x" + Integer.toHexString(triggerData[0]) + ")");
                         nonFatalError = true;
                     }
 
@@ -3822,7 +3822,7 @@ System.out.println("Timestamps are NOT consistent !!!");
                                                        CompactEventBuilder builder,
                                                        boolean semMode) {
 
-        int childrenCount;
+        int childrenCount, i=0;
         EvioNode blockBank, inputBank;
 
         try {
@@ -3835,12 +3835,13 @@ System.out.println("Timestamps are NOT consistent !!!");
                 // Create physics data bank with same tag & num as Roc Raw bank
                 // in order to wrap the data block bank from Roc.
                 builder.openBank(inputBank.getTag(), inputBank.getNum(), DataType.BANK);
-//System.out.println("    created a wrapping data-bank");
+//System.out.println("    created a wrapping data-bank of tag " + inputBank.getTag() +
+//", num " + inputBank.getNum());
 
                 // How many banks inside Roc Raw bank ?
                 childrenCount = inputBank.getChildCount();
 
-//System.out.println("    roc raw ev #" + i + " has " + childrenCount + " banks");
+//System.out.println("    roc raw ev #" + (i++) + " has " + childrenCount + " banks");
                 // Add Roc Raw's data block banks to our data bank.
                 // Ignore any trigger bank. If in SEM, there is no trigger bank.
                 // If not in SEM, the trigger bank is always the first one.
@@ -3860,8 +3861,8 @@ System.out.println("Timestamps are NOT consistent !!!");
 
                     // Don't mess with user data banks since we don't know what's inside.
                     // Just copy whole thing over (with swapped headers if necessary).
+//System.out.println("    try adding data-block-bank to wrapping data-bank");
                     builder.addEvioNode(blockBank);
-//System.out.println("    get data-block-bank & add to wrapping data-bank");
                 }
 
                 builder.closeStructure();
@@ -3977,9 +3978,9 @@ System.out.println("Timestamps are NOT consistent !!!");
             data[index++] = (int) (timestamp >>> 32 & 0xFFFF); // high 16 of 48 bits
         }
 
-//        for (int i=0; i < words; i++) {
-//            data[index+i] = 0x1234;
-//        }
+        for (int i=0; i < words; i++) {
+            data[index+i] = i;
+        }
 
         return data;
     }
@@ -4056,12 +4057,12 @@ System.out.println("Timestamps are NOT consistent !!!");
 
         // Create a ROC Raw Data Record event/bank with numEvents physics events in it
         int rocTag = createCodaTag(status, rocID);
-        EventBuilder eventBuilder = new EventBuilder(rocTag, DataType.ALSOBANK, numEvents);
+        EventBuilder eventBuilder = new EventBuilder(rocTag, DataType.BANK, numEvents);
         EvioEvent rocRawEvent = eventBuilder.getEvent();
 
         // Create the trigger bank (of segments)
         EvioBank triggerBank = new EvioBank(CODATag.RAW_TRIGGER_TS.getValue(),
-                                            DataType.ALSOSEGMENT, numEvents);
+                                            DataType.SEGMENT, numEvents);
         eventBuilder.addChild(rocRawEvent, triggerBank);
 
         EvioSegment segment;
@@ -4089,6 +4090,7 @@ System.out.println("Timestamps are NOT consistent !!!");
         // Create a single data block bank for 10 modules
 //        int []data = generateEntangledDataFADC250(eventNumber, numEvents, recordId,
 //                                                  10, false, 0L);
+//        int []data = generateData(eventNumber, 5, false, timestamp);
         int []data = generateData(eventNumber, numEvents * 40, false, timestamp);
 //        int []data = generateData(eventNumber, 0, false, timestamp);
 
@@ -4192,10 +4194,10 @@ System.out.println("Timestamps are NOT consistent !!!");
         builder.setBuffer(buf);
 
         int rocTag = createCodaTag(status, rocID);
-        builder.openBank(rocTag, numEvents, DataType.ALSOBANK);
+        builder.openBank(rocTag, numEvents, DataType.BANK);
 
         // Create the trigger bank (of segments)
-        builder.openBank(CODATag.RAW_TRIGGER_TS.getValue(), numEvents, DataType.ALSOSEGMENT);
+        builder.openBank(CODATag.RAW_TRIGGER_TS.getValue(), numEvents, DataType.SEGMENT);
 
         int[] segmentData = new int[3];
         for (int i = 0; i < numEvents; i++) {
@@ -4214,6 +4216,7 @@ System.out.println("Timestamps are NOT consistent !!!");
         builder.closeStructure();
 
         // Create a single data block bank
+//        int []data = generateData(eventNumber, 5, false, timestamp);
         int []data = generateData(eventNumber, numEvents * 40, false, timestamp);
 //        int []data = generateData(eventNumber, 0, false, timestamp);
 
