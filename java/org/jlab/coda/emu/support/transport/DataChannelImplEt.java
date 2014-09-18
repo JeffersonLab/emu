@@ -144,8 +144,6 @@ public class DataChannelImplEt extends DataChannelAdapter {
     /** Ring buffer holding ByteBuffers when using EvioCompactEvent reader for incoming events. */
     protected ByteBufferSupply bbSupply;   // input
 
-    /** Index representing next ring buffer to get evio event from. */
-    private int rbIndex;    // output
 
 
 
@@ -178,7 +176,7 @@ public class DataChannelImplEt extends DataChannelAdapter {
 
     /**
      * Constructor to create a new DataChannelImplEt instance. Used only by
-     * {@link DataTransportImplEt#createChannel(String, Map, boolean, Emu, EmuModule)}
+     * {@link DataTransportImplEt#createChannel(String, Map, boolean, Emu, EmuModule, int)}
      * which is only used during PRESTART in {@link Emu}.
      *
      * @param name          the name of this channel
@@ -187,16 +185,18 @@ public class DataChannelImplEt extends DataChannelAdapter {
      * @param input         true if this is an input data channel, otherwise false
      * @param emu           emu this channel belongs to
      * @param module        module this channel belongs to
+     * @param outputIndex   order in which module's events will be sent to this
+     *                      output channel (0 for first output channel, 1 for next, etc.).
      *
      * @throws DataTransportException - unable to create buffers or socket.
      */
     DataChannelImplEt(String name, DataTransportImplEt transport,
                          Map<String, String> attributeMap, boolean input, Emu emu,
-                         EmuModule module)
+                         EmuModule module, int outputIndex)
         throws DataTransportException {
 
         // constructor of super class
-        super(name, transport, attributeMap, input, emu, module);
+        super(name, transport, attributeMap, input, emu, module, outputIndex);
 
         dataTransportImplEt = transport;
 
@@ -369,7 +369,7 @@ logger.info("      DataChannel Et: chunk = " + chunk);
                 if (ringItemType == ModuleIoType.PayloadBuffer) {
                     // ET system parameters
                     int etEventSize = transport.getSystemConfig().getEventSize();
-
+// TODO: increase this to 80MB so we get 32 instead of 16 buffers
                     // Create reusable supply of ByteBuffer objects.
                     // Put a limit on the amount of memory (40MB). That may be
                     // the easiest way to figure out how many buffers to use.
@@ -384,10 +384,9 @@ logger.info("      DataChannel Et: chunk = " + chunk);
                             numEtBufs *= 2;
                             newVal /= 2;
                         }
-//System.out.println("      DataChannel Et out: figure out # of buffers in supply -> " + numEtBufs);
+System.out.println("      DataChannel Et: # of buffers in input supply -> " + numEtBufs);
                     }
 
-// TODO: Is the byte order thing right???
                     bbSupply = new ByteBufferSupply(numEtBufs, etEventSize, module.getOutputOrder());
                 }
             }
@@ -713,13 +712,13 @@ logger.debug("      DataChannel Et: reset " + name + " - done");
     private void startHelper() {
         if (input) {
             dataInputThread = new DataInputHelper(emu.getThreadGroup(),
-                                                  name() + " data in");
+                                                  name() + "et_in");
             dataInputThread.start();
             dataInputThread.waitUntilStarted();
         }
         else {
             dataOutputThread = new DataOutputHelper(emu.getThreadGroup(),
-                                                               name() + " data out");
+                                                               name() + "et_out");
             dataOutputThread.start();
             dataOutputThread.waitUntilStarted();
         }
@@ -1145,7 +1144,8 @@ System.out.println("      DataChannel Et in: " + name + " got RESET cmd, quittin
 
                         // Get a local, reusable ByteBuffer
                         bbItem = bbSupply.get();
-                        bbItem.setUsers(events.length);
+                        // TODO: bad code in line following!
+                        //bbItem.setUsers(events.length);
 
                         // Copy ET data into this buffer.
                         // The reason we do this is because if we're connected to a local
@@ -1197,9 +1197,14 @@ System.out.println("      DataChannel Et in: " + name + " got RESET cmd, quittin
                         }
                         recordId = header4.getNumber();
 
-                        // Send the # of (buildable) evio events / ET event for ROC feedback.
-                        // But only if this is the DC or PEB.
+                        // Number of evio event associated with this buffer.
                         int eventCount = compactReader.getEventCount();
+                        // When the emu is done processing all evio events,
+                        // this buffer is released, so use this to keep count.
+                        bbItem.setUsers(eventCount);
+
+                        // Send the # of (buildable) evio events / ET event for ROC feedback,
+                        // tut only if this is the DC or PEB.
                         t2 = System.currentTimeMillis();
                         if (isFirstEB && eventType.isBuildable() && (t2-t1 > timeBetweenMupdates)) {
                             emu.getCmsgPortal().sendMHandlerMessage(eventCount, "M");
@@ -1398,7 +1403,7 @@ logger.warn("      DataChannel Et in: " + name + " exit thd: " + e.getMessage())
 
             // If any EvGetter thread is stuck on etSystem.newEvents(), unstuck it
             try {
-                System.out.println("      DataChannel Et out: wake up attachment #" + attachment.getId());
+System.out.println("      DataChannel Et out: wake up attachment #" + attachment.getId());
                 etSystem.wakeUpAttachment(attachment);
                 // It may take 0.2 sec to detach
                 Thread.sleep(250);
@@ -1509,7 +1514,7 @@ logger.warn("      DataChannel Et in: " + name + " exit thd: " + e.getMessage())
                      // checking occasionally to see if we got an
                      // RESET command or someone found an END event.
                      do {
-// System.out.println("      DataChannel Et out: rbIndex = " + rbIndex);
+// System.out.println("      DataChannel Et out: ringIndex = " + ringIndex);
                          // Get bank off of Q, unless we already did so in a previous loop
                          if (firstBankFromRing != null) {
                              ringItem = firstBankFromRing;
@@ -1518,7 +1523,7 @@ logger.warn("      DataChannel Et in: " + name + " exit thd: " + e.getMessage())
                          else {
  // TODO: How do we keep things from blocking here??? --- Interrupt thread!
 //System.out.print("      DataChannel Et out: get next buffer from ring ... ");
-                             ringItem = getNextOutputRingItem(rbIndex);
+                             ringItem = getNextOutputRingItem(ringIndex);
 //System.out.println("done");
                          }
 
@@ -1605,7 +1610,7 @@ logger.warn("      DataChannel Et in: " + name + " exit thd: " + e.getMessage())
                          previousType = pBankType;
                          ringItem.setAttachment(Boolean.FALSE);
 
-                         gotoNextRingItem(rbIndex);
+                         gotoNextRingItem(ringIndex);
 
                          // If control event, quit loop and write what we have
                          if (pBankControlType != null) {
@@ -1614,24 +1619,24 @@ logger.warn("      DataChannel Et in: " + name + " exit thd: " + e.getMessage())
                                  ringItem.setAttachment(Boolean.TRUE);
                                  haveOutputEndEvent = true;
 System.out.println("      DataChannel Et out: " + name + " I got END event, quitting 2");
-                                 // run callback saying we got end event
+                                 // Run callback saying we got end event
                                  if (endCallback != null) endCallback.endWait();
                              }
                              else {
                                  havePrestartOrGo = true;
-System.out.println("      DataChannel Et out: have " + pBankControlType + ", rbIndex = " + rbIndex);
+System.out.println("      DataChannel Et out: have " + pBankControlType + ", ringIndex = " + ringIndex);
                              }
 
                              break;
                          }
 
                          // Do not go to the next ring if we got a control or user event.
-                         // All controls & users go to the first ring. Just keep reading
+                         // All prestart, go, & users go to the first ring. Just keep reading
                          // until we get to a buildable event. Then start keeping count so
                          // we know when to switch to the next ring.
                          if (outputRingCount > 1 && !pBankType.isUser() && --ringChunkCounter < 1) {
-                             rbIndex = ++rbIndex % outputRingCount;
-//System.out.println("      DataChannel Et out: SWITCH TO rbIndex = " + rbIndex);
+                             setNextEventAndRing();
+//System.out.println("      DataChannel Et out: SWITCH TO ringIndex = " + ringIndex);
                              ringChunkCounter = outputRingChunk;
                          }
 
@@ -1774,7 +1779,10 @@ System.out.println("      DataChannel Et out: " + name + " got RESET cmd, quitti
                          throw e;
                      }
 
-                     // FREE UP ring buffer items for reuse
+                     // FREE UP ring buffer items for reuse.
+                     // If we did NOT read from a particular ring, there is still no
+                     // problem since its sequence was never increased and we only
+                     // end up releasing something already released.
                      for (int i=0; i < outputRingCount; i++) {
                         releaseOutputRingItem(i);
                      }
@@ -2032,6 +2040,8 @@ System.out.println("      DataChannel Et out: " + name + " got RESET cmd, quitti
     // events so quickly that it only gets them in chunks of 2 or 3 instead
     // of 5. After all that effort, no improvement in performance.
 
+    // This code is out of date with the recent changes to DataOutputHelper.
+    // Need to change handling of ringIndex, etc.
     /**
       * Class used to take Evio banks from ring buffers, write them into ET events
       * and put them into an ET system.
@@ -2210,7 +2220,7 @@ System.out.println("      DataChannel Et out: " + name + " got RESET cmd, quitti
                      // checking occasionally to see if we got an
                      // RESET command or someone found an END event.
                      do {
- //System.out.println("rbIndex = " + rbIndex);
+ //System.out.println("ringIndex = " + ringIndex);
                          // Get bank off of Q, unless we already did so in a previous loop
                          if (firstBankFromRing != null) {
                              ringItem = firstBankFromRing;
@@ -2219,7 +2229,7 @@ System.out.println("      DataChannel Et out: " + name + " got RESET cmd, quitti
                          else {
  // TODO: How do we keep things from blocking here??? --- Interrupt thread!
                              //logger.debug("      DataChannel Et out helper: get next buffer from ring");
-                             ringItem = getNextOutputRingItem(rbIndex);
+                             ringItem = getNextOutputRingItem(ringIndex);
                          }
 
                          eventCount++;
@@ -2305,7 +2315,7 @@ System.out.println("      DataChannel Et out: " + name + " got RESET cmd, quitti
                          previousType = pBankType;
                          ringItem.setAttachment(Boolean.FALSE);
 
-                         gotoNextRingItem(rbIndex);
+                         gotoNextRingItem(ringIndex);
 
                          // If control event, quit loop and write what we have
                          if (pBankControlType != null) {
@@ -2443,10 +2453,10 @@ System.out.println("      DataChannel Et out: " + name + " got RESET cmd, quitti
                      // FREE UP STUFF
 
 //logger.debug("      DataChannel Emu out helper: release ring item");
-                     releaseOutputRingItem(rbIndex);
+                     releaseOutputRingItem(ringIndex);
 
                      if (--ringChunkCounter < 1) {
-                         rbIndex = ++rbIndex % outputRingCount;
+                         ringIndex = ++ringIndex % outputRingCount;
                          ringChunkCounter = outputRingChunk;
                      }
 
