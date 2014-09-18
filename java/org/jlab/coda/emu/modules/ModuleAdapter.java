@@ -68,6 +68,10 @@ public class ModuleAdapter implements EmuModule {
      */
     protected int sebChunk;
 
+    protected int endEventRingIndex;
+
+    protected long endEventIndex;
+
     /**
      * True if we're outputting from DC to multiple SEBs and so we need to chunk up events
      * sent into batches of "sebChunk".
@@ -200,7 +204,7 @@ logger.info("  Module Adapter: output byte order = " + outputOrder);
         // in sequence, to a single SEB before sending the same amount
         // to the next SEB. Each SEB must get the same # of events from
         // each DC.
-        sebChunk = 100;
+        sebChunk = 3;
         str = attributeMap.get("sebChunk");
         if (str != null) {
             try {
@@ -390,6 +394,14 @@ logger.info("  Module Adapter: output byte order = " + outputOrder);
 
     /** {@inheritDoc} */
     public ByteOrder getOutputOrder() {return outputOrder;}
+
+
+    public int getSebChunk() {return sebChunk;}
+
+    public int getEndEventRingIndex() {return endEventRingIndex;}
+
+    public long getEndEventIndex() {return endEventIndex;}
+
 
 
     //----------------------------------------------------------------
