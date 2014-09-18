@@ -91,7 +91,6 @@ public class DataChannelImplFile extends DataChannelAdapter {
     /** Ring buffer holding ByteBuffers when using EvioCompactEvent reader for incoming events. */
     protected ByteBufferSupply bbSupply;
 
-    private int rbIndex;
 
 
     /**
@@ -103,15 +102,17 @@ public class DataChannelImplFile extends DataChannelAdapter {
      * @param input         true if this is an input
      * @param emu           emu this channel belongs to
      * @param module        module this channel belongs to
+     * @param outputIndex   order in which module's events will be sent to this
+     *                      output channel (0 for first output channel, 1 for next, etc.).
      * @throws DataTransportException if unable to create fifo buffer.
      */
     DataChannelImplFile(String name, DataTransportImplFile transport,
                         Map<String, String> attributeMap, boolean input, Emu emu,
-                        EmuModule module)
+                        EmuModule module, int outputIndex)
             throws DataTransportException {
 
         // constructor of super class
-        super(name, transport, attributeMap, input, emu, module);
+        super(name, transport, attributeMap, input, emu, module, outputIndex);
 
         // Set option whether or not to enforce evio block header
         // numbers to be sequential (throw an exception if not).
@@ -595,6 +596,8 @@ logger.debug("      DataChannel File: reset() " + name + " - done");
             try {
                 RingItem ringItem;
                 int ringChunkCounter = outputRingChunk;
+                EventType pBankType;
+                ControlType pBankControlType;
 
                 // First event will be "prestart", by convention in ring 0
                 ringItem = getNextOutputRingItem(0);
@@ -618,9 +621,11 @@ logger.debug("      DataChannel File out: wrote go");
                         continue;
                     }
 
-//logger.debug("      DataChannel File out: get next buffer from ring");
-                    ringItem = getNextOutputRingItem(rbIndex);
-                    ControlType pBankControlType = ringItem.getControlType();
+//logger.debug("      DataChannel File out: try getting next buffer from ring");
+                    ringItem = getNextOutputRingItem(ringIndex);
+//logger.debug("      DataChannel File out: GOT buffer");
+                    pBankType = ringItem.getEventType();
+                    pBankControlType = ringItem.getControlType();
 
                     try {
                         writeEvioData(ringItem);
@@ -633,15 +638,43 @@ logger.debug("      DataChannel File out: wrote go");
 //logger.debug("      DataChannel File out: wrote event");
 
 //logger.debug("      DataChannel File out: release ring item");
-                    releaseCurrentAndGoToNextOutputRingItem(rbIndex);
+                    releaseCurrentAndGoToNextOutputRingItem(ringIndex);
+
                     if (--ringChunkCounter < 1) {
-                        rbIndex = ++rbIndex % outputRingCount;
+                        ringIndex = ++ringIndex % outputRingCount;
                         ringChunkCounter = outputRingChunk;
-//                        System.out.println("switch ring to "+ rbIndex);
+//System.out.println("switch ring to "+ ringIndex);
                     }
                     else {
-//                        System.out.println(""+ ringChunkCounter);
+                        System.out.println(""+ ringChunkCounter);
                     }
+
+//                    // Do not go to the next ring if we got a control or user event.
+//                    // All prestart, go, & users go to the first ring. Just keep reading
+//                    // until we get to a built event. Then start keeping count so
+//                    // we know when to switch to the next ring.
+//                    if (outputRingCount > 1 && pBankControlType == null &&
+//                            !pBankType.isUser()) {
+//
+//                        // Deal with RocSimulation stuff if applicable
+//                        if (outputRingChunk > 1) {
+//                            if (--ringChunkCounter < 1) {
+//                                setNextEventAndRing();
+//                                ringChunkCounter = outputRingChunk;
+//                            }
+//                        }
+//                        else {
+//                            setNextEventAndRing();
+//System.out.println("      DataChannel File out: SWITCH TO ringIndex = " + ringIndex);
+//                        }
+//                    }
+//                    else {
+//System.out.println("      DataChannel File out: Stay at ringIndex = " + ringIndex);
+//System.out.println("      DataChannel File out: output ring count = " + outputRingCount +
+//                           ", control type = " + pBankControlType + ", bank type = " + pBankType +
+//                           ", ringChunkCounter = " + ringChunkCounter);
+//                    }
+//
 
                     // If splitting the output, the file name may change.
                     // Inform the authorities about this.
