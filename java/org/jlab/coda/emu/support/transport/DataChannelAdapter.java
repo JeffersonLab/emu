@@ -337,7 +337,7 @@ System.out.println("      DataChannel Adapter: prestart, nextEv (" + nextEvent +
      */
     protected void setNextEventAndRing() {
         if (--sebChunkCounter > 0) {
-            nextEvent--;
+            nextEvent++;
             ringIndex = (int) (nextEvent % outputRingCount);
 System.out.println("      DataChannel Adapter: set next ev (" + nextEvent + "), ring (" + ringIndex +
                            "), sebChunkCounter = " + sebChunkCounter);
