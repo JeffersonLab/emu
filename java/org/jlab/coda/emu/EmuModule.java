@@ -121,7 +121,8 @@ public interface EmuModule extends StatedObject, CODAStateMachine {
     /**
      * Get the number of contiguous output events written to one ring before the same
      * number are written to the next ring. Used when multiple event producing threads
-     * exist each of which produces this number of contiguous events (see RocSimulation module).
+     * exist each of which produces this number of contiguous events (currently
+     * used only in RocSimulation module).
      * @return number of contiguous output events written to one ring before the same
      *         number are written to the next ring.
      */
@@ -130,4 +131,11 @@ public interface EmuModule extends StatedObject, CODAStateMachine {
 
     /** Get the byte order of the module's output. Defaults to big endian. */
     public ByteOrder getOutputOrder();
+
+
+    public int getSebChunk();
+
+    public int getEndEventRingIndex();
+
+    public long getEndEventIndex();
 }

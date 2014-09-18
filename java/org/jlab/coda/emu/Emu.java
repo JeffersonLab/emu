@@ -1967,6 +1967,8 @@ logger.debug("Emu prestart: PRESTART cmd to " + transport.name());
                             ArrayList<DataChannel> inFifo  = new ArrayList<DataChannel>();
                             ArrayList<DataChannel> outFifo = new ArrayList<DataChannel>();
 
+                            int outputChannelCount=0;
+
                             // For each channel in (children of) the module ...
                             NodeList childList = moduleNode.getChildNodes();
                             for (int i=0; i < childList.getLength(); i++) {
@@ -2017,7 +2019,7 @@ logger.debug("Emu prestart: PRESTART cmd to " + transport.name());
                                 if (channelNode.getNodeName().equalsIgnoreCase("inchannel")) {
                                     // Create channel
                                     DataChannel channel = trans.createChannel(channelName, attributeMap,
-                                                                              true, this, module);
+                                                                              true, this, module, 0);
                                     // Add to list while keeping fifos separate
                                     if (channelTransName.equals("Fifo")) {
                                         // Fifo does NOT notify Emu when END event comes through
@@ -2035,7 +2037,8 @@ logger.debug("Emu prestart: PRESTART cmd to " + transport.name());
                                 // If it's an output channel ...
                                 else if (channelNode.getNodeName().equalsIgnoreCase("outchannel")) {
                                     DataChannel channel = trans.createChannel(channelName, attributeMap,
-                                                                              false, this, module);
+                                                                              false, this, module,
+                                                                              outputChannelCount++);
                                     if (channelTransName.equals("Fifo")) {
                                         channel.registerEndCallback(null);
                                         outFifo.add(channel);
