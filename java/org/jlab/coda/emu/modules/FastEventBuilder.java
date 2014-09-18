@@ -1018,16 +1018,28 @@ System.out.println("  EB mod: have consistent END event(s)");
                                   (int)(firstEventNumber + totalNumberEvents - eventNumberAtLastSync),
                                   outputOrder);
 
+                            // END event is the Nth "built" event through this EB (after go)
+                            endEventIndex = evIndex;
+
+                            // END event will be found on this ring in all output channels
+                            endEventRingIndex = btIndex;
+
                             // Send END event to first output channel
 System.out.println("  EB mod: send END event to first output channel");
-                            eventToOutputChannel(buildingBanks[0], 0, btIndex);
+                            eventToOutputChannel(buildingBanks[0], 0, endEventRingIndex);
+
+                            // Send END event to other output channels
                             for (int j=1; j < outputChannelCount; j++) {
                                 // Copy END event
                                 PayloadBuffer bb = new PayloadBuffer(buildingBanks[0]);
-                                // Write to additional output channel
 System.out.println("  EB mod: copy & send END event to another output channel");
-                                eventToOutputChannel(bb, j, btIndex);
+                                eventToOutputChannel(bb, j, endEventRingIndex);
                             }
+
+                            // Set flag
+
+                            // Interrupt all output channels
+
                         }
 
 
@@ -1187,6 +1199,7 @@ if (debug && nonFatalError) System.out.println("\n  EB mod: non-fatal ERROR 3\n"
 
                     // stats
                     // TODO: protect since in multithreaded environs ?
+                    // TODO: perhaps keep a local running total to keep from getting off track
                     eventCountTotal += totalNumberEvents;
                     wordCountTotal  += builder.getTotalBytes()/4 + 1;
 
@@ -1200,7 +1213,7 @@ if (debug && nonFatalError) System.out.println("\n  EB mod: non-fatal ERROR 3\n"
                         }
                         else {
                             // Round-robin between all output channels
-                            outputChannelIndex = (outputChannelCount + 1) % outputChannelCount;
+                            outputChannelIndex = (outputChannelIndex + 1) % outputChannelCount;
                         }
                     }
 
