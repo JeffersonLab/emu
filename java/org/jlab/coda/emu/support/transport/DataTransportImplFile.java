@@ -32,11 +32,11 @@ public class DataTransportImplFile extends DataTransportAdapter {
 
     /** {@inheritDoc} */
     public DataChannel createChannel(String name, Map<String,String> attributeMap,
-                                     boolean isInput, Emu emu,
-                                     EmuModule module)
+                                     boolean isInput, Emu emu, EmuModule module,
+                                     int outputIndex)
             throws DataTransportException {
 
         return new DataChannelImplFile(name() + ":" + name, this, attributeMap,
-                                       isInput, emu, module);
+                                       isInput, emu, module, outputIndex);
     }
 }

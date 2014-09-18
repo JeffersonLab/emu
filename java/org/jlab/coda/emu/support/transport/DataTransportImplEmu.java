@@ -105,11 +105,12 @@ System.out.println("STARTING UP EMU SERVER in " + name + " with port " + port + 
 
     /** {@inheritDoc} */
     public DataChannel createChannel(String name, Map<String,String> attributeMap,
-                                     boolean isInput, Emu emu,
-                                     EmuModule module)
+                                     boolean isInput, Emu emu, EmuModule module,
+                                     int outputIndex)
                 throws DataTransportException {
 
-        DataChannelImplEmu newChannel = new DataChannelImplEmu(name, this, attributeMap, isInput, emu, module);
+        DataChannelImplEmu newChannel = new DataChannelImplEmu(name, this, attributeMap,
+                                                               isInput, emu, module, outputIndex);
 
         if (isInput) {
             // Store this channel so it can be looked up, once the emu domain

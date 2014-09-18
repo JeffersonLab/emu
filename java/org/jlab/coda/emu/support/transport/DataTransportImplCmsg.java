@@ -82,11 +82,12 @@ public class DataTransportImplCmsg extends DataTransportAdapter {
 
     /** {@inheritDoc} */
     public DataChannel createChannel(String name, Map<String,String> attributeMap,
-                                     boolean isInput, Emu emu,
-                                     EmuModule module)
+                                     boolean isInput, Emu emu, EmuModule module,
+                                     int outputIndex)
                 throws DataTransportException {
 
-        return new DataChannelImplCmsg(name, this, attributeMap, isInput, emu, module);
+        return new DataChannelImplCmsg(name, this, attributeMap, isInput,
+                                       emu, module, outputIndex);
     }
 
 

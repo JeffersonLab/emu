@@ -19,6 +19,7 @@ import org.jlab.coda.emu.EmuException;
 import org.jlab.coda.emu.EmuModule;
 import org.jlab.coda.emu.support.codaComponent.CODAStateMachineAdapter;
 import org.jlab.coda.emu.support.codaComponent.State;
+import org.jlab.coda.emu.support.control.CmdExecException;
 import org.jlab.coda.emu.support.data.ModuleIoType;
 import org.jlab.coda.emu.support.data.RingItem;
 import org.jlab.coda.emu.support.data.RingItemFactory;
@@ -98,8 +99,6 @@ public class DataChannelAdapter extends CODAStateMachineAdapter implements DataC
     /** Type of object to expect in each ring item. */
     protected ModuleIoType ringItemType;
 
-
-
     /** Do we pause the dataThread? */
     protected volatile boolean pause;
 
@@ -109,15 +108,45 @@ public class DataChannelAdapter extends CODAStateMachineAdapter implements DataC
     /** Got RESET command from Run Control. */
     protected volatile boolean gotResetCmd;
 
+    //---------------------------------------------------------------------------
+    // Used to determine which ring to get event from if multiple output channels
+    //---------------------------------------------------------------------------
 
+    /** Total number of module's output channels. */
+    protected int outputChannelCount;
 
+    /** Total number of module's event-building threads and therefore output ring buffers. */
+    protected int outputRingCount;
+
+    /** This output channel's order in relation to the other output channels
+     * for module, starting at 0. First event goes to channel 0, etc. */
+    protected int outputIndex;
+
+    /**
+     * If multiple SEBs exist, since all DCs are connected to all SEBs, each DC must send
+     * the same number of buildable events to each SEB in the proper sequence for building
+     * to take place. This value should be set in the config file by jcedit for module.
+     * If module is not a DC or there is only 1 SEB, this is 1.
+     */
+    protected int sebChunk;
+
+    /** Counter to help read events from correct ring. */
+    private int sebChunkCounter;
+
+    /** Ring that the next event will show up on. */
+    protected int ringIndex;
+
+    /**
+     * Number of the module's buildable event produced
+     * which this channel will output next (starting at 0).
+     * Depends on the # of output channels as well as the order of this
+     * channel (outputIndex).
+     */
+    protected long nextEvent;
 
     //-------------------------------------------
     // Disruptor (RingBuffer)  Stuff
     //-------------------------------------------
-
-    /** Number of output ring buffers. */
-    protected int outputRingCount;
 
     /**
      * Number of output items to be taken sequentially from a single output ring buffer.
@@ -146,16 +175,6 @@ public class DataChannelAdapter extends CODAStateMachineAdapter implements DataC
     protected long[] availableSequences;
 
 
-//    //-------------------------------------------
-//    // Disruptor (RingBuffer)  Stuff
-//    //-------------------------------------------
-//    private long nextRingItem;
-//
-//    /** Ring buffer holding ByteBuffers when using EvioCompactEvent reader for incoming events. */
-//    protected ByteBufferSupply bbSupply;
-//    private int rbIndex;
-
-
 
 
 
@@ -170,25 +189,28 @@ public class DataChannelAdapter extends CODAStateMachineAdapter implements DataC
      * @param input         true if this is an input data channel, otherwise false
      * @param emu           emu this channel belongs to
      * @param module        module this channel belongs to
+     * @param outputIndex   order in which module's events will be sent to this
+     *                      output channel (0 for first output channel, 1 for next, etc.).
     */
     public DataChannelAdapter(String name, DataTransport transport,
                               Map<String, String> attributeMap,
-                              boolean input, Emu emu,
-                              EmuModule module) {
+                              boolean input, Emu emu, EmuModule module,
+                              int outputIndex) {
         this.emu = emu;
         this.name = name;
         this.input = input;
         this.module = module;
+        this.outputIndex = outputIndex;
         this.dataTransport = transport;
         logger = emu.getLogger();
 
         if (input) {
             ringItemType = module.getInputRingItemType();
-//logger.info("      DataChannel Adapter : input type = " + ringItemType);
+//logger.info("      DataChannel Adapter: input type = " + ringItemType);
         }
         else {
             ringItemType = module.getOutputRingItemType();
-//logger.info("      DataChannel Adapter : output type = " + ringItemType);
+//logger.info("      DataChannel Adapter: output type = " + ringItemType);
         }
 
 
@@ -217,14 +239,14 @@ public class DataChannelAdapter extends CODAStateMachineAdapter implements DataC
 
             // Set endianness of output data, must be same as its module
             byteOrder = module.getOutputOrder();
-            logger.info("      DataChannel Adapter : byte order = " + byteOrder);
+            logger.info("      DataChannel Adapter: byte order = " + byteOrder);
         }
 
 
-        // Set number of data output ring buffers
+        // Set number of data output ring buffers (1 for each build thread)
         outputRingCount = module.getEventProducingThreadCount();
 
-logger.info("      DataChannel Adapter : # of ring buffers = " + outputRingCount);
+logger.info("      DataChannel Adapter: # of ring buffers = " + outputRingCount);
 
 
         // Create RingBuffers
@@ -238,7 +260,7 @@ logger.info("      DataChannel Adapter : # of ring buffers = " + outputRingCount
 
         // Number of sequential items in a single ring buffer.
         outputRingChunk = module.getOutputRingChunk();
-if (outputRingChunk != 1) logger.info("      DataChannel Adapter : ring chunk = " + outputRingChunk);
+if (outputRingChunk != 1) logger.info("      DataChannel Adapter: ring chunk = " + outputRingChunk);
     }
 
 
@@ -287,6 +309,45 @@ if (outputRingChunk != 1) logger.info("      DataChannel Adapter : ring chunk = 
                     createSingleProducer(new RingItemFactory(ModuleIoType.PayloadBank),
                                          inputRingItemCount, new YieldingWaitStrategy());
         }
+    }
+
+
+    /** {@inheritDoc} */
+    public void prestart() throws CmdExecException {
+        // Need to set up a few things for all output channels
+        if (input) return;
+
+        // Get more info from module
+        sebChunk = module.getSebChunk();
+        outputChannelCount = module.getOutputChannels().size();
+
+        // Initialize counter
+        sebChunkCounter = sebChunk;
+        // Initialize the event number
+        nextEvent = outputIndex * sebChunk;
+        // Initialize the ring number
+        ringIndex = (int) (nextEvent % outputRingCount);
+System.out.println("      DataChannel Adapter: prestart, nextEv (" + nextEvent + "), ringIndex (" + ringIndex + ")");
+    }
+
+
+    /**
+     * Set the index of the next event to get from the module
+     * and the ring it will appear on.
+     */
+    protected void setNextEventAndRing() {
+        if (--sebChunkCounter > 0) {
+            nextEvent--;
+            ringIndex = (int) (nextEvent % outputRingCount);
+System.out.println("      DataChannel Adapter: set next ev (" + nextEvent + "), ring (" + ringIndex +
+                           "), sebChunkCounter = " + sebChunkCounter);
+            return;
+        }
+
+        sebChunkCounter = sebChunk;
+        nextEvent += sebChunk*(outputChannelCount - 1) + 1;
+        ringIndex = (int) (nextEvent % outputRingCount);
+System.out.println("      DataChannel Adapter: set next ev (" + nextEvent + "), ring (" + ringIndex + ")");
     }
 
 
@@ -423,8 +484,14 @@ if (outputRingChunk != 1) logger.info("      DataChannel Adapter : ring chunk = 
     }
 
 
+    /**
+     * If an output channel is blocked on reading from a module,
+     * this method interrupts it and allows it to find and read
+     * the END event from the proper ring.
+     */
+    protected void processEndEvent() {
 
-
+    }
 
 
 

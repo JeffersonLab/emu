@@ -76,13 +76,15 @@ public interface DataTransport extends CODAStateMachine, StatedObject {
      * @param attributeMap  hashmap of attributes taken from XML config file
      * @param isInput       true if this channel puts data into the Emu, else false
      * @param module        module creating this channel
+     * @param outputIndex   order in which module's events will be sent to this
+     *                      output channel (0 for first output channel, 1 for next, etc.).
      *
      * @return DataChannel object
      * @throws DataTransportException if transport problem
      */
     public DataChannel createChannel(String name, Map<String, String> attributeMap,
-                                     boolean isInput, Emu emu,
-                                     EmuModule module)
+                                     boolean isInput, Emu emu, EmuModule module,
+                                     int outputIndex)
             throws DataTransportException;
 
     /**

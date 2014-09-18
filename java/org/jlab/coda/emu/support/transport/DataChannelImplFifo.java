@@ -55,11 +55,11 @@ public class DataChannelImplFifo extends DataChannelAdapter {
      * @throws DataTransportException - unable to create fifo buffer.
      */
     DataChannelImplFifo(String name, DataTransportImplFifo transport,
-                        Map<String, String> attributeMap, boolean input, Emu emu ,
+                        Map<String, String> attributeMap, boolean input, Emu emu,
                         EmuModule module) {
 
         // constructor of super class
-        super(name, transport, attributeMap, input, emu, module);
+        super(name, transport, attributeMap, input, emu, module, 0);
 
         state = CODAState.PAUSED;
 

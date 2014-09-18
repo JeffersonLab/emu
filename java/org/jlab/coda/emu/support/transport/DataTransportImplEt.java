@@ -433,11 +433,11 @@ if (isJavaSystem) System.out.println("    DataTransport Et: create Java ET syste
 
     /** {@inheritDoc} */
     public DataChannel createChannel(String name, Map<String,String> attributeMap,
-                                     boolean isInput, Emu emu,
-                                     EmuModule module)
+                                     boolean isInput, Emu emu, EmuModule module,
+                                     int outputIndex)
                     throws DataTransportException {
 
-        return new DataChannelImplEt(name, this, attributeMap, isInput, emu, module);
+        return new DataChannelImplEt(name, this, attributeMap, isInput, emu, module, outputIndex);
     }
 
 

@@ -123,16 +123,18 @@ public class DataChannelImplEmu extends DataChannelAdapter {
      * @param input         true if this is an input data channel, otherwise false
      * @param emu           emu this channel belongs to
      * @param module        module this channel belongs to
+     * @param outputIndex   order in which module's events will be sent to this
+     *                      output channel (0 for first output channel, 1 for next, etc.).
      *
      * @throws DataTransportException - unable to create buffers or socket.
      */
     DataChannelImplEmu(String name, DataTransportImplEmu transport,
                        Map<String, String> attributeMap, boolean input, Emu emu,
-                       EmuModule module)
+                       EmuModule module, int outputIndex)
         throws DataTransportException {
 
         // constructor of super class
-        super(name, transport, attributeMap, input, emu, module);
+        super(name, transport, attributeMap, input, emu, module, outputIndex);
 
         dataTransportImplEmu = transport;
 
