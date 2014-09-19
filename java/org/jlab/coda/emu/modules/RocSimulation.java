@@ -319,18 +319,15 @@ System.out.println("  Roc mod: start With (id=" + myId + "):\n    record id = " 
                             System.out.println("  Roc mod: hit event number limit of " + endLimit + ", quitting");
 
                             // Put in END event
-                            try {
-                                System.out.println("  Roc mod: insert END event");
-                                ByteBuffer controlBuf = Evio.createControlBuffer(ControlType.END, 0, 0,
-                                                                                 (int) eventCountTotal, 0,
-                                                                                 outputOrder);
-                                PayloadBuffer pBuf = new PayloadBuffer(controlBuf);
-                                pBuf.setEventType(EventType.CONTROL);
-                                pBuf.setControlType(ControlType.END);
-                                eventToOutputChannel(pBuf, 0, myId);
-                                if (endCallback != null) endCallback.endWait();
-                            }
-                            catch (EvioException e) {/* never happen */}
+                            System.out.println("  Roc mod: insert END event");
+                            ByteBuffer controlBuf = Evio.createControlBuffer(ControlType.END, 0, 0,
+                                                                             (int) eventCountTotal, 0,
+                                                                             outputOrder);
+                            PayloadBuffer pBuf = new PayloadBuffer(controlBuf);
+                            pBuf.setEventType(EventType.CONTROL);
+                            pBuf.setControlType(ControlType.END);
+                            eventToOutputChannel(pBuf, 0, myId);
+                            if (endCallback != null) endCallback.endWait();
 
                             return;
                         }
@@ -354,6 +351,7 @@ System.out.println("  Roc mod: start With (id=" + myId + "):\n    record id = " 
 //
                         // Put generated events into output channel
                         eventToOutputRing(myId, evs, items, bbSupply);
+//                        Thread.sleep(2000);
 
                         if (--userEventLoop == 0) {
 System.out.println("  Roc mod: INSERT USER EVENT");
@@ -450,18 +448,15 @@ System.out.println("  Roc mod: got END command, kill threads");
         endCallback.endWait();
 
         // Put in END event
-        try {
-            ByteBuffer controlBuf = Evio.createControlBuffer(ControlType.END, 0, 0,
-                                                             (int)eventCountTotal, 0,
-                                                             outputOrder);
-            PayloadBuffer pBuf = new PayloadBuffer(controlBuf);
-            pBuf.setEventType(EventType.CONTROL);
-            pBuf.setControlType(ControlType.END);
-            // Send to first ring
-            eventToOutputChannel(pBuf, 0, 0);
+        ByteBuffer controlBuf = Evio.createControlBuffer(ControlType.END, 0, 0,
+                                                         (int)eventCountTotal, 0,
+                                                         outputOrder);
+        PayloadBuffer pBuf = new PayloadBuffer(controlBuf);
+        pBuf.setEventType(EventType.CONTROL);
+        pBuf.setControlType(ControlType.END);
+        // Send to first ring
+        eventToOutputChannel(pBuf, 0, 0);
 System.out.println("  Roc mod: insert END event");
-        }
-        catch (EvioException e) {/* never happen */}
 
         // set end-of-run time in local XML config / debug GUI
         try {
@@ -494,18 +489,15 @@ System.out.println("  Roc mod: insert END event");
         }
 
         // Put in PRESTART event
-        try {
-            ByteBuffer controlBuf = Evio.createControlBuffer(ControlType.PRESTART, emu.getRunNumber(),
-                                                             emu.getRunTypeId(), 0, 0,
-                                                             outputOrder);
-            PayloadBuffer pBuf = new PayloadBuffer(controlBuf);
-            pBuf.setEventType(EventType.CONTROL);
-            pBuf.setControlType(ControlType.PRESTART);
-            // Send to first ring
-            eventToOutputChannel(pBuf, 0, 0);
+        ByteBuffer controlBuf = Evio.createControlBuffer(ControlType.PRESTART, emu.getRunNumber(),
+                                                         emu.getRunTypeId(), 0, 0,
+                                                         outputOrder);
+        PayloadBuffer pBuf = new PayloadBuffer(controlBuf);
+        pBuf.setEventType(EventType.CONTROL);
+        pBuf.setControlType(ControlType.PRESTART);
+        // Send to first ring
+        eventToOutputChannel(pBuf, 0, 0);
 System.out.println("  Roc mod: insert PRESTART event");
-        }
-        catch (EvioException e) {/* never happen */}
 
         try {
             // Set start-of-run time in local XML config / debug GUI
@@ -522,17 +514,14 @@ System.out.println("  Roc mod: insert PRESTART event");
         }
 
         // Put in GO event
-        try {
-            ByteBuffer controlBuf = Evio.createControlBuffer(ControlType.GO, 0, 0,
-                                                             (int) eventCountTotal, 0,
-                                                             outputOrder);
-            PayloadBuffer pBuf = new PayloadBuffer(controlBuf);
-            pBuf.setEventType(EventType.CONTROL);
-            pBuf.setControlType(ControlType.GO);
-            eventToOutputChannel(pBuf, 0, 0);
+        ByteBuffer controlBuf = Evio.createControlBuffer(ControlType.GO, 0, 0,
+                                                         (int) eventCountTotal, 0,
+                                                         outputOrder);
+        PayloadBuffer pBuf = new PayloadBuffer(controlBuf);
+        pBuf.setEventType(EventType.CONTROL);
+        pBuf.setControlType(ControlType.GO);
+        eventToOutputChannel(pBuf, 0, 0);
 System.out.println("  Roc mod: insert GO event");
-        }
-        catch (EvioException e) {/* never happen */}
 
         state = CODAState.ACTIVE;
 
