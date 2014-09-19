@@ -481,11 +481,11 @@ if (debug) System.out.println("  EB mod: Roc raw or physics event in wrong forma
      *                      keep track of which event each thread is at
      *                      in each ring buffer
      *
-     * @return a copy of the control event found
+     * @return array of all control events found (1 on each input channel)
      * @throws EmuException if got non-control or non-prestart/go event
      * @throws InterruptedException if taking of event off of Q is interrupted
      */
-    private PayloadBuffer gotAllControlEvents(Sequence[] sequences,
+    private PayloadBuffer[] gotAllControlEvents(Sequence[] sequences,
                                               SequenceBarrier barriers[],
                                               long nextSequences[])
             throws EmuException, InterruptedException {
@@ -541,37 +541,67 @@ System.out.println("  EB mod: have consistent PRESTART event(s)");
 System.out.println("  EB mod: have consistent GO event(s)");
         }
 
-        return buildingBanks[0];
+        return buildingBanks;
     }
 
 
     /**
      * This method writes the given control event into all the output channels.
      *
-     * @param controlEvent control event to be written to output channels.
-     * @param isPrestart   {@code true} if prestart event being written, else go event
+     * @param controlEvents control events to be written to output channels.
+     * @param isPrestart    {@code true} if prestart event being written, else go event
      * @throws InterruptedException if writing of event to output channels is interrupted
      */
-    private void controlToOutputAsync(PayloadBuffer controlEvent, boolean isPrestart)
+    private void controlToOutputAsync(PayloadBuffer[] controlEvents, boolean isPrestart)
             throws InterruptedException {
 
-        // Put 1 event on each output Q
-        if (outputChannelCount > 0) {
-            // Take one of the go/prestart events and update
+        if (outputChannelCount < 1) {
+            // We have no outputs so release buffers for reuse
+            for (PayloadBuffer b : controlEvents) {
+                b.releaseByteBuffer();
+            }
+        }
+        else {
+            // Put 1 control event on each output channel
+
+            // Take first input channel's control event and update
             // it with the latest event builder data.
-            Evio.updateControlEvent(controlEvent, runNumber,
+            Evio.updateControlEvent(controlEvents[0], runNumber,
                                     runTypeId, (int)eventCountTotal, 0, outputOrder);
 
             // Place event on first output channel
-            eventToOutputChannel(controlEvent, 0, 0);
+            eventToOutputChannel(controlEvents[0], 0, 0);
 
-            // Copy the newly-updated event & place on each
-            // of the other output channels.
-            for (int j = 1; j < outputChannelCount; j++) {
-                // Copy control event
-                PayloadBuffer bb = new PayloadBuffer(controlEvent);
-                // Write to other output channels
-                eventToOutputChannel(bb, j, 0);
+            // If multiple output channels ...
+            if (outputChannelCount > 1) {
+                // Here's where things get a little tricky.
+                // The updated control event needs to go out on the remaining channels.
+                // It's easiest just to copy the first. However, the copied PayloadBuffer
+                // objects are referencing a buffer that may have already been released
+                // for reuse when it's being written out over the channel.
+                // So forget about copying it. We'll just create new control events each
+                // with a ByteBuffer we create now and so we don't have to worry about it
+                // being overwritten.
+
+                // Create new byte buffer with control data in it
+                ByteBuffer bb = Evio.createControlBuffer(controlEvents[0].getControlType(),
+                                                         runNumber, runTypeId,
+                                                         (int)eventCountTotal, 0, outputOrder);
+
+                for (int i = 1; i < outputChannelCount; i++) {
+                    // Create new control event
+                    PayloadBuffer pb = new PayloadBuffer(bb.duplicate(),
+                                                         controlEvents[0].getEventType(),
+                                                         controlEvents[0].getControlType(),
+                                                         0, 0, null, null);
+                    // Write event to output channel
+                    eventToOutputChannel(pb, i, 0);
+                }
+
+                // Release buffers of unused original control events
+                for (int i=1; i < controlEvents.length; i++) {
+                    controlEvents[i].releaseByteBuffer();
+                }
             }
         }
 
@@ -705,16 +735,17 @@ System.out.println("  EB mod: create Build-Thread with index " + btIndex);
 
             // First thing we do is look for the prestart event(s) and pass it on
             try {
-                PayloadBuffer cEvent = gotAllControlEvents(buildSequences,
-                                                           buildBarrierIn,
-                                                           nextSequences);
+                // Get prestart from each input channel
+                PayloadBuffer[] prestartEvents = gotAllControlEvents(buildSequences,
+                                                              buildBarrierIn,
+                                                              nextSequences);
 
 //System.out.println("  EB mod: got prestart, order = " + cEvent.getByteOrder());
                 // If this is the first build thread to reach this point, then
                 // write prestart event on all output channels, ring 0. Other build
                 // threads ignore this.
                 if (firstToGetPrestart.compareAndSet(false, true)) {
-                    controlToOutputAsync(cEvent, true);
+                    controlToOutputAsync(prestartEvents, true);
                 }
 //System.out.println("  EB mod: final, updated prestart order = " + cEvent.getByteOrder());
                 // This thread is ready to look for "go"
@@ -740,11 +771,12 @@ System.out.println("  EB mod: create Build-Thread with index " + btIndex);
 
             // Second thing we do is look for the go event and pass it on
             try {
-                PayloadBuffer gEvent = gotAllControlEvents(buildSequences,
-                                                           buildBarrierIn,
-                                                           nextSequences);
+                // Get go from each input channel
+                PayloadBuffer[] goEvents = gotAllControlEvents(buildSequences,
+                                                              buildBarrierIn,
+                                                              nextSequences);
                 if (firstToGetGo.compareAndSet(false, true)) {
-                    controlToOutputAsync(gEvent, false);
+                    controlToOutputAsync(goEvents, false);
                 }
                 // This thread is ready to build
                 waitForGo.countDown();
@@ -1122,10 +1154,10 @@ if (debug && havePhysicsEvents)
                         default:
                             eventType = EventType.PARTIAL_PHYSICS;
                             tag = Evio.createCodaTag(buildingBanks[0].isSync(),
-                                                 buildingBanks[0].hasError() || nonFatalError,
-                                                 buildingBanks[0].getByteOrder() == ByteOrder.BIG_ENDIAN,
-                                                 buildingBanks[0].isSingleEventMode(),
-                                                 id);
+                                                     buildingBanks[0].hasError() || nonFatalError,
+                                                     buildingBanks[0].getByteOrder() == ByteOrder.BIG_ENDIAN,
+                                                     buildingBanks[0].isSingleEventMode(),
+                                                     id);
 //if (debug) System.out.println("  EB mod: tag = " + tag + ", is sync = " + buildingBanks[0].isSync() +
 //                   ", has error = " + (buildingBanks[0].hasError() || nonFatalError) +
 //                   ", is big endian = " + buildingBanks[0].getByteOrder() == ByteOrder.BIG_ENDIAN +
@@ -1224,23 +1256,9 @@ if (debug && nonFatalError) System.out.println("\n  EB mod: non-fatal ERROR 3\n"
                     eventToOutputRing(btIndex, outputChannelIndex, builder.getBuffer(),
                                       eventType, bufItem, bbSupply);
 
-                    // TODO: Do we actually want to send a sync event ???
-                    // But wait! One more thing.
-                    // We must check for the sync bits being set. If they are set,
-                    // generate a SYNC event and write both the PHYSICS & SYNC events
-                    // in that order.
+                    // If sync bit being set ...
                     if (buildingBanks[0].isSync()) {
-                        try {
-                            ByteBuffer controlEvent =
-                                    Evio.createControlBuffer(ControlType.SYNC,
-                                         0, 0, (int) eventCountTotal,
-                                         (int) (firstEventNumber + totalNumberEvents - eventNumberAtLastSync),
-                                         ByteOrder.BIG_ENDIAN);
-                            PayloadBuffer controlPBuf = new PayloadBuffer(controlEvent);
-                            eventNumberAtLastSync = firstEventNumber + totalNumberEvents;
-                            controlToOutputAsync(controlPBuf, false);
-                        }
-                        catch (EvioException e) {/* never happen */}
+                        eventNumberAtLastSync = firstEventNumber + totalNumberEvents;
                     }
 
                     // Release the reusable ByteBuffers used by the input channel
