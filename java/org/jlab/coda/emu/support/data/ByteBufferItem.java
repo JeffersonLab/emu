@@ -166,7 +166,7 @@ public class ByteBufferItem {
 
 
     /**
-     * Called by buffer user if longer using it so it may be reused later.
+     * Called by buffer user if no longer using it so it may be reused later.
      * @return {@code true} if no one using buffer now, else {@code false}.
      */
     public boolean decrementCounter() {
