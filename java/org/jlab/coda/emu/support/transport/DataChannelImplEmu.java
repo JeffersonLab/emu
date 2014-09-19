@@ -114,7 +114,7 @@ public class DataChannelImplEmu extends DataChannelAdapter {
 
     /**
      * Constructor to create a new DataChannelImplEt instance. Used only by
-     * {@link DataTransportImplEt#createChannel(String, Map, boolean, Emu, EmuModule)}
+     * {@link DataTransportImplEt#createChannel(String, Map, boolean, Emu, EmuModule, int)}
      * which is only used during PRESTART in {@link Emu}.
      *
      * @param name          the name of this channel
