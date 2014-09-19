@@ -1206,6 +1206,7 @@ System.out.println("checkPayloadBuffer: bank source Id (" + sourceId + ") != ban
                 if ( buildingBanks[i].getSourceId() == buildingBanks[j].getSourceId()  ) {
                     // ROCs have duplicate IDs
                     nonFatalError = true;
+System.out.println("  EB mod: events have duplicate source ids");
                 }
             }
 
@@ -1229,6 +1230,7 @@ System.out.println("checkPayloadBuffer: bank source Id (" + sourceId + ") != ban
         if (syncBankCount > 0 && syncBankCount != numBanks) {
             // Some banks are sync banks and some are not
             nonFatalError = true;
+System.out.println("  EB mod: events out of sync");
         }
 
         // If one is a single-event-mode, all must be
@@ -1613,47 +1615,48 @@ if (debug) System.out.println("gotValidControlEvents: found control event of typ
      * @param eventsSinceSync number of events since last sync for sync event
      *
      * @return created Control event (EvioEvent object)
-     * @throws EvioException if bad event type
      */
     public static EvioEvent createControlEvent(ControlType type, int runNumber, int runType,
-                                               int eventsInRun, int eventsSinceSync)
-            throws EvioException {
+                                               int eventsInRun, int eventsSinceSync) {
 
-        int[] data;
-        EventBuilder eventBuilder;
+        try {
+            int[] data;
+            EventBuilder eventBuilder;
 
-        // Current time in seconds since Jan 1, 1970 GMT
-        int time = (int) (System.currentTimeMillis()/1000L);
+            // Current time in seconds since Jan 1, 1970 GMT
+            int time = (int) (System.currentTimeMillis()/1000L);
 
-        // create a single bank of integers which is the user bank
-        switch (type) {
-            case SYNC:
-                data = new int[] {time, eventsSinceSync, eventsInRun};
-                eventBuilder = new EventBuilder(type.getValue(), DataType.UINT32, 0);
-                break;
-            case PRESTART:
-                data = new int[] {time, runNumber, runType};
-                eventBuilder = new EventBuilder(type.getValue(), DataType.UINT32, 0);
-                break;
-            case GO:
-            case PAUSE:
-            case END:
-                data = new int[] {time, 0, eventsInRun};
-                eventBuilder = new EventBuilder(type.getValue(), DataType.UINT32, 0);
-                break;
-            default:
-                throw new EvioException("bad ControlType arg");
+            // create a single bank of integers which is the user bank
+            switch (type) {
+                case SYNC:
+                    data = new int[] {time, eventsSinceSync, eventsInRun};
+                    eventBuilder = new EventBuilder(type.getValue(), DataType.UINT32, 0);
+                    break;
+                case PRESTART:
+                    data = new int[] {time, runNumber, runType};
+                    eventBuilder = new EventBuilder(type.getValue(), DataType.UINT32, 0);
+                    break;
+                case GO:
+                case PAUSE:
+                case END:
+                default:
+                    data = new int[] {time, 0, eventsInRun};
+                    eventBuilder = new EventBuilder(type.getValue(), DataType.UINT32, 0);
+                    break;
+            }
+
+            EvioEvent ev = eventBuilder.getEvent();
+            eventBuilder.appendIntData(ev, data);
+            return ev;
         }
+        catch (EvioException e) {/* never happen */}
 
-        EvioEvent ev = eventBuilder.getEvent();
-        eventBuilder.appendIntData(ev, data);
-
-        return ev;
+        return null;
     }
 
 
     /**
-     * Create a Control event in a ByteBuffer.
+     * Create a Control event in a ByteBuffer which is ready to read.
      *
      * @param type            control type, must be SYNC, PRESTART, GO, PAUSE, or END
      * @param runNumber       current run number for prestart event
@@ -1662,41 +1665,42 @@ if (debug) System.out.println("gotValidControlEvents: found control event of typ
      * @param eventsSinceSync number of events since last sync for sync event
      * @param order           byte order in which to write event into buffer
      *
-     * @return created Control event (EvioEvent object) in byte buffer
-     * @throws EvioException if bad event type
+     * @return created Control event in byte buffer
      */
     public static ByteBuffer createControlBuffer(ControlType type, int runNumber, int runType,
-                                                int eventsInRun, int eventsSinceSync, ByteOrder order)
-            throws EvioException {
+                                                int eventsInRun, int eventsSinceSync, ByteOrder order) {
 
-        int[] data;
-        CompactEventBuilder builder = new CompactEventBuilder(20, order);
 
-        // Current time in seconds since Jan 1, 1970 GMT
-        int time = (int) (System.currentTimeMillis()/1000L);
+        try {
+            int[] data;
+            CompactEventBuilder builder = new CompactEventBuilder(20, order);
 
-        // create a single bank of integers which is the user bank
-        switch (type) {
-            case SYNC:
-                data = new int[] {time, eventsSinceSync, eventsInRun};
-                break;
-            case PRESTART:
-                data = new int[] {time, runNumber, runType};
-                break;
-            case GO:
-            case PAUSE:
-            case END:
-                data = new int[] {time, 0, eventsInRun};
-                break;
-            default:
-                throw new EvioException("bad ControlType arg");
+            // Current time in seconds since Jan 1, 1970 GMT
+            int time = (int) (System.currentTimeMillis()/1000L);
+
+            // create a single bank of integers which is the user bank
+            switch (type) {
+                case SYNC:
+                    data = new int[] {time, eventsSinceSync, eventsInRun};
+                    break;
+                case PRESTART:
+                    data = new int[] {time, runNumber, runType};
+                    break;
+                case GO:
+                case PAUSE:
+                case END:
+                default:
+                    data = new int[] {time, 0, eventsInRun};
+            }
+
+            builder.openBank(type.getValue(), 0, DataType.UINT32);
+            builder.addIntData(data);
+            builder.closeStructure();
+            return builder.getBuffer(); // Ready to read buffer
         }
+        catch (EvioException e) {/* never happen */}
 
-        builder.openBank(type.getValue(), 0, DataType.UINT32);
-        builder.addIntData(data);
-        builder.closeStructure();
-
-        return builder.getBuffer();
+        return null;
     }
 
 
