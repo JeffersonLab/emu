@@ -75,10 +75,10 @@ public class RCConstants {
     public static final String stop             = sessionCommand + "stop";
     /** String used as type in message for the exit command. */
     public static final String exit             = sessionCommand + "exit";
+    /** String used as payload name for item holding session name. */
+    public static final String sessionPayload   = "session";
 
     // Types in messages received in run/transition/* callback.
-    // The 2 command immediately above (configure & reset) should
-    // really be below in the transition section. But they ain't.
 
     /** String used as type in message for the configure command. */
     public static final String configure = transitionCommand + "configure";
