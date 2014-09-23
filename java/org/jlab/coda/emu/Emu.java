@@ -1069,13 +1069,18 @@ System.out.println("Emu: do not execute cmd = " + cmd.name() + ", resetting");
         // Run Control tells us our session
         else if (codaCommand == SET_SESSION) {
             // Get the new session and store it
-            String txt = cmd.getMessage().getText();
-            if (txt != null) {
-System.out.println("Emu SET_SESSION: set to " + txt);
-                session = txt;
+            cMsgPayloadItem pItem = cmd.getArg(RCConstants.sessionPayload);
+            if (pItem != null) {
+                try {
+                    session = pItem.getString();
+System.out.println("Emu SET_SESSION: set to " + session);
+                }
+                catch (cMsgException e) {
+System.out.println("Got SET_SESSION command but no session specified 1");
+                }
             }
             else {
-                System.out.println("Got SET_SESSION command but no session specified");
+System.out.println("Got SET_SESSION command but no session specified 2");
             }
             return;
         }
