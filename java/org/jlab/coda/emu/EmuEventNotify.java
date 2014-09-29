@@ -31,8 +31,8 @@ public class EmuEventNotify {
     private CountDownLatch latch = new CountDownLatch(1);
 
     /** How long do we wait for the event (in milliseconds)?
-     *  Defaults to 1 second. */
-    private long timeout = 2000;
+     *  Defaults to 30 seconds. */
+    private long timeout = 30000;
 
     /** Unit of time for waiting is milliseconds. */
     private TimeUnit timeUnits = TimeUnit.MILLISECONDS;
