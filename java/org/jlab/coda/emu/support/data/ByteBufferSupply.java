@@ -159,7 +159,7 @@ public class ByteBufferSupply {
             }
 
             item = ringBuffer.get(nextConsumerSequence);
-            item.setConsumerSequence(nextConsumerSequence);
+            item.setConsumerSequence(nextConsumerSequence++);
         }
         catch (final com.lmax.disruptor.TimeoutException ex) {
             // never happen since we don't use timeout wait strategy
@@ -198,7 +198,6 @@ public class ByteBufferSupply {
         if (byteBufferItem == null) return;
 
         sequence.set(byteBufferItem.getConsumerSequence());
-        nextConsumerSequence++;
     }
 
 
