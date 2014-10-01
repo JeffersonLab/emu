@@ -183,6 +183,36 @@ logger.warn("Emu: exit due to rc/cMsg connect error: " + e.getMessage());
                 }
             }
         }
+        else if (emu.getCodaClass() == CODAClass.ROC) {
+
+            boolean foundServer = false;
+
+            // Use this connection as a way of synchronizing the output of fake
+            // ROCs so that they all produce the same number of events - allowing
+            // runs to end properly. Do this once - at the first configure.
+            if (server == null) {
+                // To make a connection, try the IP addresses one-by-one
+                for (String ip : addrs) {
+                    UDL = "cMsg://" + ip + ":" + platformPort + "/cMsg/RocSync";
+                    try {
+                        server = new cMsg(UDL, emu.name()+"_emu", "RocSync");
+                        server.connect();
+                        server.start();
+                    }
+                    catch (cMsgException e) {
+                        continue;
+                    }
+                    foundServer = true;
+//System.out.println("Emu: cMsgPortal got IP = " + ip + "\n try connecting with udl = " + UDL);
+                    platformHost = ip;
+                    break;
+                }
+
+                if (!foundServer) {
+                    throw new EmuException("Cannot synchronize ROCs");
+                }
+            }
+        }
     }
 
 
@@ -236,6 +266,13 @@ logger.warn("Emu: exit due to rc/cMsg connect error: " + e.getMessage());
      * @return connection object to the rc multicast server of runcontrol platform.
      */
     public cMsg getRcServer() {return rcServer;}
+
+
+    /**
+     * Get the connection object to the cMsg server of runcontrol platform.
+     * @return connection object to the cMsg server of runcontrol platform.
+     */
+    public cMsg getCmsgServer() {return server;}
 
 
     /**
