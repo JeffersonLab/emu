@@ -701,6 +701,41 @@ logger.debug("      DataChannel Et: reset " + name + " - done");
     }
 
 
+    /**
+     * If this is an output channel, it may be blocked on reading from a module
+     * because the END event arrived on an unexpected ring
+     * (possible if module has more than one event-producing thread
+     * AND there is more than one output channel),
+     * this method interrupts and allows this channel to read the
+     * END event from the proper ring.
+     *
+     * @param eventIndex index of last buildable event before END event.
+     * @param ringIndex  ring to read END event on.
+     */
+    public void processEnd(long eventIndex, int ringIndex) {
+
+        eventIndexEnd = eventIndex;
+        ringIndexEnd  = ringIndex;
+
+        if (input || !dataOutputThread.isAlive()) return;
+
+        // Don't wait more than 1/4 second
+        int loopCount = 10;
+        while (dataOutputThread.threadState != ThreadState.DONE && (loopCount-- > 0)) {
+            try {
+                Thread.sleep(25);
+            }
+            catch (InterruptedException e) { break; }
+        }
+
+        if (dataOutputThread.threadState == ThreadState.DONE) return;
+
+        // Probably stuck trying to get item from ring buffer,
+        // so interrupt it and get it to read the END event from
+        // the correct ring.
+        dataOutputThread.interrupt();
+    }
+
 
     /**
      * For input channel, start the DataInputHelper thread which takes ET events,
@@ -1202,6 +1237,7 @@ System.out.println("      DataChannel Et in: " + name + " got RESET cmd, quittin
                         // When the emu is done processing all evio events,
                         // this buffer is released, so use this to keep count.
                         bbItem.setUsers(eventCount);
+//System.out.println("      DataChannel Et in: buf user cnt = " + eventCount);
 
                         // Send the # of (buildable) evio events / ET event for ROC feedback,
                         // tut only if this is the DC or PEB.
@@ -1369,6 +1405,9 @@ logger.warn("      DataChannel Et in: " + name + " exit thd: " + e.getMessage())
         /** Did we just get a prestart or go event? */
         private boolean havePrestartOrGo;
 
+        /** What state is this thread in? */
+        private volatile ThreadState threadState;
+
 
         /** Constructor. */
         DataOutputHelper(ThreadGroup group, String name) {
@@ -1427,6 +1466,8 @@ System.out.println("      DataChannel Et out: wake up attachment #" + attachment
          /** {@inheritDoc} */
          @Override
          public void run() {
+
+             threadState = ThreadState.RUNNING;
 
              // Tell the world I've started
              startLatch.countDown();
@@ -1523,7 +1564,19 @@ System.out.println("      DataChannel Et out: wake up attachment #" + attachment
                          else {
  // TODO: How do we keep things from blocking here??? --- Interrupt thread!
 //System.out.print("      DataChannel Et out: get next buffer from ring ... ");
-                             ringItem = getNextOutputRingItem(ringIndex);
+                             try {
+                                 ringItem = getNextOutputRingItem(ringIndex);
+                             }
+                             catch (InterruptedException e) {
+                                 threadState = ThreadState.INTERRUPTED;
+                                 // If we're here we were blocked trying to read the next
+                                 // (END) event from the wrong ring. We've had 1/4 second
+                                 // to read everything else so let's try reading END from
+                                 // given ring.
+System.out.println("      DataChannel Et out: try again, read END from ringIndex " + ringIndexEnd +
+" not " + ringIndex);
+                                 ringItem = getNextOutputRingItem(ringIndexEnd);
+                             }
 //System.out.println("done");
                          }
 
@@ -1532,8 +1585,7 @@ System.out.println("      DataChannel Et out: wake up attachment #" + attachment
                          pBankType = ringItem.getEventType();
                          pBankSize = ringItem.getTotalBytes();
                          pBankControlType = ringItem.getControlType();
-
-  //Utilities.printBuffer(ringItem.getBuffer(), 0, 10, "event");
+//Utilities.printBuffer(ringItem.getBuffer(), 0, 10, "event");
 
                          // Assume worst case of one block header / bank
                          listTotalSizeMax += pBankSize + 64;
@@ -1634,6 +1686,10 @@ System.out.println("      DataChannel Et out: have " + pBankControlType + ", rin
                          // All prestart, go, & users go to the first ring. Just keep reading
                          // until we get to a buildable event. Then start keeping count so
                          // we know when to switch to the next ring.
+                         //
+                         // NOTE: ringChunkCounter is only used in RocSimulation emu (fake ROC).
+                         // It will only be used with 1 output channel and sebChunk will always
+                         // be 1.
                          if (outputRingCount > 1 && !pBankType.isUser() && --ringChunkCounter < 1) {
                              setNextEventAndRing();
 //System.out.println("      DataChannel Et out: SWITCH TO ringIndex = " + ringIndex);
@@ -1790,6 +1846,7 @@ System.out.println("      DataChannel Et out: " + name + " got RESET cmd, quitti
                      if (haveOutputEndEvent) {
  System.out.println("      DataChannel Et out: " + name + " some thd got END event, quitting 4");
                          shutdown();
+                         threadState = ThreadState.DONE;
                          return;
                      }
                  }
@@ -1808,6 +1865,7 @@ System.out.println("      DataChannel Et out: " + name + " got RESET cmd, quitti
                  e.printStackTrace();
              }
 
+             threadState = ThreadState.DONE;
          }
 
 
