@@ -128,14 +128,13 @@ public interface EmuModule extends StatedObject, CODAStateMachine {
      */
     public int getOutputRingChunk();
 
-
     /** Get the byte order of the module's output. Defaults to big endian. */
     public ByteOrder getOutputOrder();
 
-
+    /**
+     * Get the number of contiguous evio events to send to one output channel before
+     * switching to the next. Used when sending events from multiple final event
+     * builders (SEBs & PEBs).
+     */
     public int getSebChunk();
-
-    public int getEndEventRingIndex();
-
-    public long getEndEventIndex();
 }
