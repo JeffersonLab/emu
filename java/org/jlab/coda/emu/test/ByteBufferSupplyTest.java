@@ -24,12 +24,12 @@ import java.util.concurrent.CountDownLatch;
  */
 public class ByteBufferSupplyTest {
 
-    private int size = 32, count = 4;
+    private int size = 32, count = 4, getChunk=1;
 
     // Let us know that the consumer thread has been started
     CountDownLatch startLatch;
     ByteBufferSupply bbSupply;
-    boolean simpleTest = true;
+    boolean simpleTest = false;
 
     /** Constructor. */
     ByteBufferSupplyTest(String[] args) {
@@ -44,7 +44,7 @@ public class ByteBufferSupplyTest {
     private void decodeCommandLine(String[] args) {
 
         // loop over all args
-        for (int i = 0; i < args.length; i++) {
+        for (int i=0; i < args.length; i++) {
 
             if (args[i].equalsIgnoreCase("-h")) {
                 usage();
@@ -52,14 +52,27 @@ public class ByteBufferSupplyTest {
             }
             else if (args[i].equalsIgnoreCase("-s")) {
                 size = Integer.parseInt(args[i + 1]);
-                if (size < 1)
+                if (size < 1) {
+                    System.out.println("Buffer size must be > 0");
                     System.exit(-1);
+                }
                 i++;
             }
             else if (args[i].equalsIgnoreCase("-c")) {
                 count = Integer.parseInt(args[i + 1]);
-                if (count < 1)
+                if (count < 1) {
+                    System.out.println("Buffer count must be > 0");
                     System.exit(-1);
+                }
+                i++;
+            }
+            else if (args[i].equalsIgnoreCase("-g")) {
+                getChunk = Integer.parseInt(args[i + 1]);
+                if (getChunk < 1) {
+                    System.out.println("Get chunk must be > 0");
+                    System.exit(-1);
+                }
+                System.out.println("Get chunk = " + getChunk);
                 i++;
             }
             else {
@@ -78,6 +91,7 @@ public class ByteBufferSupplyTest {
             "   java ByteBufferSupplyTest\n" +
             "        [-s <size>]    size in bytes of buffers\n" +
             "        [-c <count>]   number of buffer in ring (must be power of 2)\n" +
+            "        [-g <chunk>]   number of buffers to get from ring at once (> 0)\n" +
             "        [-h]           print this help\n");
     }
 
@@ -99,7 +113,7 @@ public class ByteBufferSupplyTest {
         // Create a reusable supply of ByteBuffer objects
         bbSupply = new ByteBufferSupply(count, size);
         int index = 0;
-        boolean releaseBuf = true;
+        boolean releaseBuf = false;
         boolean publishBuf = true;
 
         if (!simpleTest) {
@@ -163,17 +177,23 @@ public class ByteBufferSupplyTest {
             startLatch.countDown();
 
             try {
+                ByteBufferItem[] bufItems = new ByteBufferItem[getChunk];
+
                 while (true) {
-                    System.out.println("     Try getting consumer buf ... ");
-                    ByteBufferItem bufItem = bbSupply.consumerGet();
-                    System.out.println("     Got consumer buf with id = " + bufItem.getMyId());
+                    for (int i=0; i < getChunk; i++) {
+                        System.out.println("     Try getting consumer buf ... ");
+                        bufItems[i] = bbSupply.consumerGet();
+                        System.out.println("     Got consumer buf with id = " + bufItems[i].getMyId());
+                    }
 
                     if (!releaseBuf) {
-                        System.out.println("     do NOT release consumer buf");
+                        System.out.println("     do NOT release consumer bufs");
                     }
                     else {
-                        System.out.println("     release consumer buf");
-                        bbSupply.consumerRelease(bufItem);
+                        for (int i=0; i < getChunk; i++) {
+                            System.out.println("     Release consumer buf with id = " + bufItems[i].getMyId());
+                            bbSupply.consumerRelease(bufItems[i]);
+                        }
                     }
 
 //                    System.out.println("     wait 4 sec\n");
