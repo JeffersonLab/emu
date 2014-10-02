@@ -36,6 +36,9 @@ public class DataChannelImplFile extends DataChannelAdapter {
     /** Thread used to input or output data. */
     private Thread dataThread;
 
+    /** Thread used to output data. */
+    private DataOutputHelper dataOutputThread;
+
     /** Name of file being written -to / read-from. */
     private String fileName;
 
@@ -82,14 +85,6 @@ public class DataChannelImplFile extends DataChannelAdapter {
 
     /** Number of evio events (banks) in file. */
     private int eventCount;
-
-
-    //-------------------------------------------
-    // Disruptor (RingBuffer)  Stuff
-    //-------------------------------------------
-
-    /** Ring buffer holding ByteBuffers when using EvioCompactEvent reader for incoming events. */
-    protected ByteBufferSupply bbSupply;
 
 
 
@@ -264,10 +259,9 @@ logger.info("      DataChannel File: try writing to file " + evioFileWriter.getC
                 // Keep track of how many files we create
                 if (split > 0L) splitCount = evioFileWriter.getSplitCount();
 
-                DataOutputHelper helper = new DataOutputHelper();
-                dataThread = new Thread(emu.getThreadGroup(), helper, name() + " data out");
-                dataThread.start();
-                helper.waitUntilStarted();
+                dataOutputThread = new DataOutputHelper((emu.getThreadGroup()),  name() + " data out");
+                dataOutputThread.start();
+                dataOutputThread.waitUntilStarted();
             }
         }
         catch (Exception e) {
@@ -331,6 +325,52 @@ logger.debug("      DataChannel File: reset() " + name + " channel");
         errorMsg.set(null);
         state = CODAState.CONFIGURED;
 logger.debug("      DataChannel File: reset() " + name + " - done");
+    }
+
+
+    /**
+     * If this is an output channel, it may be blocked on reading from a module
+     * because the END event arrived on an unexpected ring
+     * (possible if module has more than one event-producing thread
+     * AND there is more than one output channel),
+     * this method interrupts and allows this channel to read the
+     * END event from the proper ring.
+     *
+     * @param eventIndex index of last buildable event before END event.
+     * @param ringIndex  ring to read END event on.
+     */
+    public void processEnd(long eventIndex, int ringIndex) {
+
+//        super.processEnd(eventIndex, ringIndex);
+
+        eventIndexEnd = eventIndex;
+        ringIndexEnd  = ringIndex;
+
+        if (input || !dataOutputThread.isAlive()) {
+logger.debug("      DataChannel File out " + outputIndex + ": processEnd(), thread already done");
+            return;
+        }
+
+        // Don't wait more than 1/2 second
+        int loopCount = 20;
+        while (dataOutputThread.threadState != ThreadState.DONE && (loopCount-- > 0)) {
+            try {
+                Thread.sleep(25);
+            }
+            catch (InterruptedException e) { break; }
+        }
+
+        if (dataOutputThread.threadState == ThreadState.DONE) {
+logger.debug("      DataChannel File out " + outputIndex + ": processEnd(), thread done after waiting");
+            return;
+        }
+
+        // Probably stuck trying to get item from ring buffer,
+        // so interrupt it and get it to read the END event from
+        // the correct ring.
+logger.debug("      DataChannel File out " + outputIndex + ": processEnd(), interrupt thread in state " +
+                     dataOutputThread.threadState);
+        dataOutputThread.interrupt();
     }
 
 
@@ -555,13 +595,21 @@ logger.debug("      DataChannel File: reset() " + name + " - done");
      * Handles writing evio events (banks) to a file.
      * A lot of the work is done in jevio such as splitting files.
      */
-    private class DataOutputHelper implements Runnable {
+    private class DataOutputHelper extends Thread {
 
         /** Let a single waiter know that the main thread has been started. */
         private CountDownLatch latch = new CountDownLatch(1);
 
         /** Help in pausing DAQ. */
         private int pauseCounter;
+
+        /** What state is this thread in? */
+        private volatile ThreadState threadState;
+
+
+        DataOutputHelper(ThreadGroup group, String name) {
+            super(group, name);
+        }
 
 
         /** A single waiter can call this method which returns when thread was started. */
@@ -590,6 +638,8 @@ logger.debug("      DataChannel File: reset() " + name + " - done");
         /** {@inheritDoc} */
         public void run() {
 
+            threadState = ThreadState.RUNNING;
+
             // Tell the world I've started
             latch.countDown();
 
@@ -601,14 +651,16 @@ logger.debug("      DataChannel File: reset() " + name + " - done");
 
                 // First event will be "prestart", by convention in ring 0
                 ringItem = getNextOutputRingItem(0);
+//Utilities.printBuffer(ringItem.getBuffer(), 0, 5, name+" prestart?");
                 writeEvioData(ringItem);
-logger.debug("      DataChannel File out: wrote prestart");
+logger.debug("      DataChannel File out  " + outputIndex + ": wrote prestart");
                 releaseCurrentAndGoToNextOutputRingItem(0);
 
                 // Second event will be "go", by convention in ring 0
                 ringItem = getNextOutputRingItem(0);
+//Utilities.printBuffer(ringItem.getBuffer(), 0, 5, name+" go?");
                 writeEvioData(ringItem);
-logger.debug("      DataChannel File out: wrote go");
+logger.debug("      DataChannel File out " + outputIndex + ": wrote go");
                 releaseCurrentAndGoToNextOutputRingItem(0);
 
                 while ( true ) {
@@ -621,11 +673,34 @@ logger.debug("      DataChannel File out: wrote go");
                         continue;
                     }
 
-//logger.debug("      DataChannel File out: try getting next buffer from ring");
-                    ringItem = getNextOutputRingItem(ringIndex);
-//logger.debug("      DataChannel File out: GOT buffer");
+                    try {
+//logger.debug("      DataChannel File out " + outputIndex + ": try getting next buffer from ring");
+                        ringItem = getNextOutputRingItem(ringIndex);
+//logger.debug("      DataChannel File out " + outputIndex + ": got next buffer");
+//Utilities.printBuffer(ringItem.getBuffer(), 0, 6, name+": ev" + nextEvent + ", ring " + ringIndex);
+                    }
+                    catch (InterruptedException e) {
+                        threadState = ThreadState.INTERRUPTED;
+                        // If we're here we were blocked trying to read the next
+                        // (END) event from the wrong ring. We've had 1/4 second
+                        // to read everything else so let's try reading END from
+                        // given ring.
+System.out.println("      DataChannel File out " + outputIndex + ": try again, read END from ringIndex " + ringIndexEnd +
+" not " + ringIndex);
+                        ringItem = getNextOutputRingItem(ringIndexEnd);
+                    }
+
                     pBankType = ringItem.getEventType();
                     pBankControlType = ringItem.getControlType();
+
+                    if (pBankControlType == ControlType.END) {
+logger.debug("      DataChannel File out " + outputIndex + ": got  ev " + nextEvent +
+                     ", ring " + ringIndex + " (END!)");
+                    }
+//                    else {
+//logger.debug("      DataChannel File out " + outputIndex + ": got  ev " + nextEvent +
+//                     ", ring " + ringIndex);
+//                    }
 
                     try {
                         writeEvioData(ringItem);
@@ -635,46 +710,47 @@ logger.debug("      DataChannel File out: wrote go");
                         throw e;
                     }
 
-//logger.debug("      DataChannel File out: wrote event");
+//logger.debug("      DataChannel File out, " + name + ": wrote event");
 
 //logger.debug("      DataChannel File out: release ring item");
                     releaseCurrentAndGoToNextOutputRingItem(ringIndex);
 
-                    if (--ringChunkCounter < 1) {
-                        ringIndex = ++ringIndex % outputRingCount;
-                        ringChunkCounter = outputRingChunk;
-//System.out.println("switch ring to "+ ringIndex);
-                    }
-                    else {
-                        System.out.println(""+ ringChunkCounter);
-                    }
-
-//                    // Do not go to the next ring if we got a control or user event.
-//                    // All prestart, go, & users go to the first ring. Just keep reading
-//                    // until we get to a built event. Then start keeping count so
-//                    // we know when to switch to the next ring.
-//                    if (outputRingCount > 1 && pBankControlType == null &&
-//                            !pBankType.isUser()) {
-//
-//                        // Deal with RocSimulation stuff if applicable
-//                        if (outputRingChunk > 1) {
-//                            if (--ringChunkCounter < 1) {
-//                                setNextEventAndRing();
-//                                ringChunkCounter = outputRingChunk;
-//                            }
-//                        }
-//                        else {
-//                            setNextEventAndRing();
-//System.out.println("      DataChannel File out: SWITCH TO ringIndex = " + ringIndex);
-//                        }
+//                    if (--ringChunkCounter < 1) {
+//                        ringIndex = ++ringIndex % outputRingCount;
+//                        ringChunkCounter = outputRingChunk;
+//                        System.out.println("switch ring to "+ ringIndex);
 //                    }
 //                    else {
-//System.out.println("      DataChannel File out: Stay at ringIndex = " + ringIndex);
-//System.out.println("      DataChannel File out: output ring count = " + outputRingCount +
+//                        System.out.println(""+ ringChunkCounter);
+//                    }
+
+                    // Do not go to the next ring if we got a control or user event.
+                    // All prestart, go, & users go to the first ring. Just keep reading
+                    // until we get to a built event. Then start keeping count so
+                    // we know when to switch to the next ring.
+                    if (outputRingCount > 1 && pBankControlType == null &&
+                            !pBankType.isUser()) {
+
+                        // Deal with RocSimulation stuff if applicable
+                        if (outputRingChunk > 1) {
+                            if (--ringChunkCounter < 1) {
+                                setNextEventAndRing();
+                                ringChunkCounter = outputRingChunk;
+//System.out.println("      DataChannel File out, " + name + ": for next ev " + nextEvent + " SWITCH TO ring = " + ringIndex +
+//                   ", (outputRingChunk = " + outputRingChunk + ")");
+                            }
+                        }
+                        else {
+                            setNextEventAndRing();
+//System.out.println("      DataChannel File out, " + name + ": for next ev " + nextEvent + " SWITCH TO ring = " + ringIndex);
+                        }
+                    }
+//                    else {
+//System.out.println("      DataChannel File out, " + name + ": Stay at ring = " + ringIndex +
 //                           ", control type = " + pBankControlType + ", bank type = " + pBankType +
 //                           ", ringChunkCounter = " + ringChunkCounter);
 //                    }
-//
+
 
                     // If splitting the output, the file name may change.
                     // Inform the authorities about this.
@@ -684,7 +760,7 @@ logger.debug("      DataChannel File out: wrote go");
                     }
 
                     if (pBankControlType == ControlType.END) {
-System.out.println("      DataChannel File out: " + name + " I got END event");
+//System.out.println("      DataChannel File out, " + outputIndex + ": got END event");
                         try {
                             evioFileWriter.close();
                         }
@@ -694,20 +770,23 @@ System.out.println("      DataChannel File out: " + name + " I got END event");
                         }
                         // run callback saying we got end event
                         if (endCallback != null) endCallback.endWait();
+                        threadState = ThreadState.DONE;
                         return;
                     }
 
                     // If I've been told to RESET ...
                     if (gotResetCmd) {
-System.out.println("      DataChannel File out: " + name + " got RESET/END cmd, quitting 1");
+System.out.println("      DataChannel File out, " + outputIndex + ": got RESET/END cmd, quitting 1");
+                        threadState = ThreadState.DONE;
                         return;
                     }
                 }
 
             } catch (InterruptedException e) {
-                logger.warn("      DataChannel File out: " + name + "  interrupted thd, exiting");
+                logger.warn("      DataChannel File out, " + outputIndex + ": interrupted thd, exiting");
+                e.printStackTrace();
             } catch (Exception e) {
-                logger.warn("      DataChannel File out : exit thd: " + e.getMessage());
+                logger.warn("      DataChannel File out, " + outputIndex + " : exit thd: " + e.getMessage());
                 // If we haven't yet set the cause of error, do so now & inform run control
                 errorMsg.compareAndSet(null, e.getMessage());
 
@@ -718,6 +797,7 @@ System.out.println("      DataChannel File out: " + name + " got RESET/END cmd, 
                 e.printStackTrace();
             }
 
+            threadState = ThreadState.DONE;
         }
 
     }
