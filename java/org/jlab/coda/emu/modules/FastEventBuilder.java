@@ -1057,21 +1057,21 @@ System.out.println("  EB mod: have consistent END event(s)");
                             endEventRingIndex = btIndex;
 
                             // Send END event to first output channel
-System.out.println("  EB mod: send END event to first output channel");
+System.out.println("  EB mod: send END event to output channel 0, ring " + endEventRingIndex +
+                   ", ev# = " + evIndex);
                             eventToOutputChannel(buildingBanks[0], 0, endEventRingIndex);
 
                             // Send END event to other output channels
                             for (int j=1; j < outputChannelCount; j++) {
                                 // Copy END event
                                 PayloadBuffer bb = new PayloadBuffer(buildingBanks[0]);
-System.out.println("  EB mod: copy & send END event to another output channel");
+System.out.println("  EB mod: send END event to output channel " + j + ", ring " + endEventRingIndex +
+                   ", ev# = " + evIndex);
                                 eventToOutputChannel(bb, j, endEventRingIndex);
                             }
 
-                            // Set flag
-
-                            // Interrupt all output channels
-
+                            // Make sure all output channels process the END event properly
+                            processEndInOutput(endEventIndex, endEventRingIndex);
                         }
 
 
@@ -1236,6 +1236,7 @@ if (debug && nonFatalError) System.out.println("\n  EB mod: non-fatal ERROR 3\n"
                     wordCountTotal  += builder.getTotalBytes()/4 + 1;
 
                     // Which output channel do we use?
+//                    long oldEvIndex = evIndex;
                     if (outputChannelCount > 1) {
                         // If we're a DC with multiple SEBs ...
                         if (chunkingForSebs) {
@@ -1248,6 +1249,7 @@ if (debug && nonFatalError) System.out.println("\n  EB mod: non-fatal ERROR 3\n"
                             outputChannelIndex = (outputChannelIndex + 1) % outputChannelCount;
                         }
                     }
+//System.out.println("  EB mod: BT " + btIndex + ", built ev" + oldEvIndex + " to chan " + outputChannelIndex);
 
                     // Put it in the correct output channel.
                     // Important to use builder.getBuffer() method instead of evBuf directly.
@@ -1263,12 +1265,15 @@ if (debug && nonFatalError) System.out.println("\n  EB mod: non-fatal ERROR 3\n"
 
                     // Release the reusable ByteBuffers used by the input channel
                     for (int i=0; i < inputChannelCount; i++) {
+                        // This release ensures the earlier sequenced buffers
+                        // are not released after the latter. Takes care of issues
+                        // when # evio-events/buffer < # build-threads.
                         buildingBanks[i].releaseByteBuffer();
                     }
 
                     // Tell input ring buffers we're done with these events
                     for (int i=0; i < ringBuffersIn.length; i++) {
-//System.out.println("  EB mod: " + order + ", set seq " + nextSequences[i]);
+//System.out.println("  EB mod: " + btIndex + ", chan " + outputChannelIndex + ", seq " + nextSequences[i]);
                         buildSequences[i].set(nextSequences[i]++);
                     }
 
@@ -1330,6 +1335,26 @@ if (debug) System.out.println("  EB mod: MAJOR ERROR building events");
                 }
             }
 if (debug) System.out.println("  EB mod: Building thread is ending");
+        }
+    }
+
+
+    /**
+     * If some output channels are blocked on reading from this module
+     * because the END event arrived on an unexpected ring
+     * (possible if module has more than one event-producing thread
+     * AND there is more than one output channel),
+     * this method interrupts and allows the channels to read the
+     * END event from the proper ring.
+     */
+    private void processEndInOutput(long evIndex, int ringIndex) {
+        if (buildingThreadCount < 2 || outputChannelCount < 2) {
+            return;
+        }
+
+        for (int i=0; i < outputChannelCount; i++) {
+System.out.println("\n  EB mod: calling processEnd() for chan " + i + "\n");
+            outputChannels.get(i).processEnd(evIndex, ringIndex);
         }
     }
 
