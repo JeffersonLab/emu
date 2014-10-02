@@ -21,6 +21,7 @@ import org.jlab.coda.emu.support.codaComponent.State;
 import org.jlab.coda.emu.support.configurer.DataNotFoundException;
 import org.jlab.coda.emu.support.control.CmdExecException;
 import org.jlab.coda.emu.support.data.Attached;
+import org.jlab.coda.emu.support.data.ByteBufferSupply;
 import org.jlab.coda.emu.support.data.ModuleIoType;
 import org.jlab.coda.emu.support.data.RingItem;
 import org.jlab.coda.emu.support.logger.Logger;
@@ -61,16 +62,18 @@ public class ModuleAdapter implements EmuModule {
     protected int outputRingChunk = 1;
 
     /**
-     * If multiple SEBs exist, since all DCs are connected to all SEBs, each DC must send
-     * the same number of buildable events to each SEB in the proper sequence for building
-     * to take place.
+     * If multiple final event builders (SEBs or PEBs) exist, since all DCs are connected
+     * to all SEBs, each DC must send the same number of contiguous buildable events to
+     * each SEB in the proper sequence for building to take place.
      * This value should be set in the config file by jcedit.
      */
     protected int sebChunk;
 
-    protected int endEventRingIndex;
-
+    /** When the END event arrives this is its index, starting with 0 for prestart. */
     protected long endEventIndex;
+
+    /** When the END event arrives this the output channel ring it is placed on. */
+    protected int endEventRingIndex;
 
     /**
      * True if we're outputting from DC to multiple SEBs and so we need to chunk up events
@@ -204,7 +207,7 @@ logger.info("  Module Adapter: output byte order = " + outputOrder);
         // in sequence, to a single SEB before sending the same amount
         // to the next SEB. Each SEB must get the same # of events from
         // each DC.
-        sebChunk = 3;
+        sebChunk = 1;
         str = attributeMap.get("sebChunk");
         if (str != null) {
             try {
@@ -215,6 +218,7 @@ logger.info("  Module Adapter: output byte order = " + outputOrder);
                 int val = Integer.parseInt(str);
                 if (val > 0) {
                     sebChunk = val;
+logger.info("  Module Adapter: SEB chunk = " + sebChunk);
                 }
             }
             catch (NumberFormatException e) {}
@@ -247,8 +251,10 @@ logger.info("  Module Adapter: output byte order = " + outputOrder);
 
         // Have any output channels?
         if (outputChannelCount < 1) {
- // TODO: check if supply == null
-            itemOut.getByteBufferSupply().release(itemOut.getByteBufferItem());
+            ByteBufferSupply supply = itemOut.getByteBufferSupply();
+            if (supply != null) {
+                supply.release(itemOut.getByteBufferItem());
+            }
             return;
         }
 
@@ -366,7 +372,9 @@ logger.info("  Module Adapter: output byte order = " + outputOrder);
             // Since this is the case, we need to write a fixed, contiguous
             // # of events to a single SEB before moving on to the next and
             // writing the same amount of events there.
-            if (emu.getCodaClass() == CODAClass.DC) {
+// TODO: set this back !!!!   if (emu.getCodaClass() == CODAClass.DC) {
+                if (emu.getCodaClass().isEventBuilder()) {
+System.out.println("Set chunking FOR SEB (remember to remove this), chunk = " + sebChunk);
                 chunkingForSebs = true;
             }
         }
@@ -395,14 +403,8 @@ logger.info("  Module Adapter: output byte order = " + outputOrder);
     /** {@inheritDoc} */
     public ByteOrder getOutputOrder() {return outputOrder;}
 
-
+    /** {@inheritDoc} */
     public int getSebChunk() {return sebChunk;}
-
-    public int getEndEventRingIndex() {return endEventRingIndex;}
-
-    public long getEndEventIndex() {return endEventIndex;}
-
-
 
     //----------------------------------------------------------------
 
