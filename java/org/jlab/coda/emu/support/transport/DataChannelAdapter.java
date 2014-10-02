@@ -144,9 +144,32 @@ public class DataChannelAdapter extends CODAStateMachineAdapter implements DataC
      */
     protected long nextEvent;
 
+    /** Ring that the END event will show up on. */
+    protected volatile int ringIndexEnd;
+
+    /** END event's number or index (currently not used). */
+    protected volatile long eventIndexEnd;
+
+    /** Keep track of output channel thread's state. */
+    protected enum ThreadState {RUNNING, DONE, INTERRUPTED};
+
     //-------------------------------------------
     // Disruptor (RingBuffer)  Stuff
     //-------------------------------------------
+
+    // Input
+    /** Ring buffer - one per input channel. */
+    protected RingBuffer<RingItem> ringBufferIn;
+
+    /** Number of items in input ring buffer. */
+    protected int inputRingItemCount  = 2048;
+
+    // Output
+    /** Array holding all ring buffers for output. */
+    protected RingBuffer<RingItem>[] ringBuffersOut;
+
+    /** Number of items in output ring buffers. */
+    protected int outputRingItemCount = 4096;
 
     /**
      * Number of output items to be taken sequentially from a single output ring buffer.
@@ -155,26 +178,17 @@ public class DataChannelAdapter extends CODAStateMachineAdapter implements DataC
      */
     protected int outputRingChunk;
 
-    protected int inputRingItemCount  = 2048;
-    protected int outputRingItemCount = 4096;
-
-    // Input
-    /** Ring buffer - one per input channel. */
-    protected RingBuffer<RingItem> ringBufferIn;
-
-    // Output
-    /** Array holding all ring buffers for output. */
-    protected RingBuffer<RingItem>[] ringBuffersOut;
-
+    /** One barrier for each output ring. */
     protected SequenceBarrier[] sequenceBarriers;
 
+    /** One sequence for each output ring. */
     protected Sequence[] sequences;
 
+    /** Index of next ring item. */
     protected long[] nextSequences;
 
+    /** Maximum index of available ring items. */
     protected long[] availableSequences;
-
-
 
 
 
@@ -327,7 +341,7 @@ if (outputRingChunk != 1) logger.info("      DataChannel Adapter: ring chunk = "
         nextEvent = outputIndex * sebChunk;
         // Initialize the ring number
         ringIndex = (int) (nextEvent % outputRingCount);
-System.out.println("      DataChannel Adapter: prestart, nextEv (" + nextEvent + "), ringIndex (" + ringIndex + ")");
+//System.out.println("      DataChannel Adapter: prestart, nextEv (" + nextEvent + "), ringIndex (" + ringIndex + ")");
     }
 
 
@@ -339,15 +353,15 @@ System.out.println("      DataChannel Adapter: prestart, nextEv (" + nextEvent +
         if (--sebChunkCounter > 0) {
             nextEvent++;
             ringIndex = (int) (nextEvent % outputRingCount);
-System.out.println("      DataChannel Adapter: set next ev (" + nextEvent + "), ring (" + ringIndex +
-                           "), sebChunkCounter = " + sebChunkCounter);
+//System.out.println("      DataChannel Adapter: set next ev (" + nextEvent + "), ring (" + ringIndex +
+//                           "), sebChunkCounter = " + sebChunkCounter);
             return;
         }
 
         sebChunkCounter = sebChunk;
         nextEvent += sebChunk*(outputChannelCount - 1) + 1;
         ringIndex = (int) (nextEvent % outputRingCount);
-System.out.println("      DataChannel Adapter: set next ev (" + nextEvent + "), ring (" + ringIndex + ")");
+//System.out.println("      DataChannel Adapter: set next ev (" + nextEvent + "), ring (" + ringIndex + ")");
     }
 
 
@@ -397,6 +411,11 @@ System.out.println("      DataChannel Adapter: set next ev (" + nextEvent + "), 
     /** {@inheritDoc} */
     public EmuEventNotify getEndCallback() {return endCallback;}
 
+    /** {@inheritDoc} */
+    public void processEnd(long eventIndex, int ringIndex) {
+        eventIndexEnd = eventIndex;
+        ringIndexEnd  = ringIndex;
+    }
 
     /**
      * Gets the next ring buffer item placed there by the last module.
@@ -482,17 +501,5 @@ System.out.println("      DataChannel Adapter: set next ev (" + nextEvent + "), 
 //System.out.println("gotoNextRingItem: got seq = " + (nextSequences[ringIndex]+1));
         nextSequences[ringIndex]++;
     }
-
-
-    /**
-     * If an output channel is blocked on reading from a module,
-     * this method interrupts it and allows it to find and read
-     * the END event from the proper ring.
-     */
-    protected void processEndEvent() {
-
-    }
-
-
 
 }
