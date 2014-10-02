@@ -112,9 +112,6 @@ public class EventRecording extends ModuleAdapter {
     /** If {@code true}, get debug print out. */
     private boolean debug = false;
 
-    /** Number of output channels. */
-//    private int outputChannelCount;
-
     //-------------------------------------------
     // Disruptor (RingBuffer)  stuff
     //-------------------------------------------
