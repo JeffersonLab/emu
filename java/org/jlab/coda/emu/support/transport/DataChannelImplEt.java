@@ -1562,7 +1562,6 @@ System.out.println("      DataChannel Et out: wake up attachment #" + attachment
                              firstBankFromRing = null;
                          }
                          else {
- // TODO: How do we keep things from blocking here??? --- Interrupt thread!
 //System.out.print("      DataChannel Et out: get next buffer from ring ... ");
                              try {
                                  ringItem = getNextOutputRingItem(ringIndex);
@@ -1682,7 +1681,8 @@ System.out.println("      DataChannel Et out: have " + pBankControlType + ", rin
                              break;
                          }
 
-                         // Do not go to the next ring if we got a control or user event.
+                         // Do not go to the next ring if we got a control (previously taken
+                         // care of) or user event.
                          // All prestart, go, & users go to the first ring. Just keep reading
                          // until we get to a buildable event. Then start keeping count so
                          // we know when to switch to the next ring.
@@ -1690,11 +1690,27 @@ System.out.println("      DataChannel Et out: have " + pBankControlType + ", rin
                          // NOTE: ringChunkCounter is only used in RocSimulation emu (fake ROC).
                          // It will only be used with 1 output channel and sebChunk will always
                          // be 1.
-                         if (outputRingCount > 1 && !pBankType.isUser() && --ringChunkCounter < 1) {
-                             setNextEventAndRing();
-//System.out.println("      DataChannel Et out: SWITCH TO ringIndex = " + ringIndex);
-                             ringChunkCounter = outputRingChunk;
-                         }
+                         if (outputRingCount > 1 && !pBankType.isUser()) {
+                              // Deal with RocSimulation stuff if applicable
+                              if (outputRingChunk > 1) {
+                                  if (--ringChunkCounter < 1) {
+                                      setNextEventAndRing();
+                                      ringChunkCounter = outputRingChunk;
+//System.out.println("      DataChannel Emu out, " + name + ": for next ev " + nextEvent + " SWITCH TO ring = " + ringIndex +
+//                   ", (outputRingChunk = " + outputRingChunk + ")");
+                                  }
+                              }
+                              else {
+                                  setNextEventAndRing();
+//System.out.println("      DataChannel Emu out, " + name + ": for next ev " + nextEvent + " SWITCH TO ring = " + ringIndex);
+                              }
+                          }
+
+//                         if (outputRingCount > 1 && !pBankType.isUser() && --ringChunkCounter < 1) {
+//                             setNextEventAndRing();
+////System.out.println("      DataChannel Et out: SWITCH TO ringIndex = " + ringIndex);
+//                             ringChunkCounter = outputRingChunk;
+//                         }
 
                          // Be careful not to use up all the events in the output
                          // ring buffer before writing (& freeing up) some.
@@ -2089,7 +2105,7 @@ System.out.println("      DataChannel Et out: " + name + " got RESET cmd, quitti
 
 
 
-
+    // TODO: Needs updating to be used.
 
     // This works well but gets no better performance than the original
     // design of this class. And it uses an extra thread.
