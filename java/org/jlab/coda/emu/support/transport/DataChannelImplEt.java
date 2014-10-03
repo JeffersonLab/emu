@@ -1704,13 +1704,7 @@ System.out.println("      DataChannel Et out: have " + pBankControlType + ", rin
                                   setNextEventAndRing();
 //System.out.println("      DataChannel Emu out, " + name + ": for next ev " + nextEvent + " SWITCH TO ring = " + ringIndex);
                               }
-                          }
-
-//                         if (outputRingCount > 1 && !pBankType.isUser() && --ringChunkCounter < 1) {
-//                             setNextEventAndRing();
-////System.out.println("      DataChannel Et out: SWITCH TO ringIndex = " + ringIndex);
-//                             ringChunkCounter = outputRingChunk;
-//                         }
+                         }
 
                          // Be careful not to use up all the events in the output
                          // ring buffer before writing (& freeing up) some.

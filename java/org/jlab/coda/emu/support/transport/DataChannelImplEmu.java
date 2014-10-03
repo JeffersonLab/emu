@@ -847,7 +847,7 @@ System.out.println("      DataChannel Emu in: get emuEnd cmd");
     }
 
 
-
+    // TODO: most likely needs updating
     /**
      * Class used to take Evio banks from ring buffer (placed there by a module),
      * and write them over network to an Emu domain input channel using the Emu
@@ -1138,31 +1138,23 @@ System.out.println("      DataChannel Emu out " + outputIndex + ": try again, re
                     // All prestart, go, & users go to the first ring. Just keep reading
                     // until we get to a built event. Then start keeping count so
                     // we know when to switch to the next ring.
-                    if (pBankControlType == null && !pBankType.isUser()) {
+                    if (outputRingCount > 1 && pBankControlType == null &&
+                            !pBankType.isUser()) {
 
                         // Deal with RocSimulation stuff if applicable
-                        if (outputRingCount > 1 && outputRingChunk > 1) {
+                        if (outputRingChunk > 1) {
                             if (--ringChunkCounter < 1) {
                                 setNextEventAndRing();
                                 ringChunkCounter = outputRingChunk;
 //System.out.println("      DataChannel Emu out, " + name + ": for next ev " + nextEvent + " SWITCH TO ring = " + ringIndex +
 //                   ", (outputRingChunk = " + outputRingChunk + ")");
                             }
-//                            else {
-//System.out.println("      DataChannel Emu out, " + name + ": Stay at ring = " + ringIndex +
-//                   " since we're chunking output, ringChunkCounter = " + ringChunkCounter);
-//                            }
                         }
                         else {
                             setNextEventAndRing();
 //System.out.println("      DataChannel Emu out, " + name + ": for next ev " + nextEvent + " SWITCH TO ring = " + ringIndex);
                         }
                     }
-//                    else {
-//System.out.println("      DataChannel Emu out, " + name + ": Stay at ring = " + ringIndex +
-//                           ", control type = " + pBankControlType + ", bank type = " + pBankType +
-//                           ", ringChunkCounter = " + ringChunkCounter);
-//                    }
 
                     if (pBankControlType == ControlType.END) {
                         flushEvents();
@@ -1420,7 +1412,6 @@ logger.debug("      DataChannel Emu out: sent go");
                         continue;
                     }
 
-
                     try {
 //logger.debug("      DataChannel Emu out " + outputIndex + ": try getting next buffer from ring");
                         ringItem = getNextOutputRingItem(ringIndex);
@@ -1455,32 +1446,23 @@ System.out.println("      DataChannel Emu out " + outputIndex + ": try again, re
                     // All prestart, go, & users go to the first ring. Just keep reading
                     // until we get to a built event. Then start keeping count so
                     // we know when to switch to the next ring.
-                    if (pBankControlType == null && !pBankType.isUser()) {
+                    if (outputRingCount > 1 && pBankControlType == null &&
+                            !pBankType.isUser()) {
 
                         // Deal with RocSimulation stuff if applicable
-                        if (outputRingCount > 1 && outputRingChunk > 1) {
+                        if (outputRingChunk > 1) {
                             if (--ringChunkCounter < 1) {
                                 setNextEventAndRing();
                                 ringChunkCounter = outputRingChunk;
 //System.out.println("      DataChannel Emu out, " + name + ": for next ev " + nextEvent + " SWITCH TO ring = " + ringIndex +
 //                   ", (outputRingChunk = " + outputRingChunk + ")");
                             }
-//                            else {
-//System.out.println("      DataChannel Emu out, " + name + ": Stay at ring = " + ringIndex +
-//                   " since we're chunking output, ringChunkCounter = " + ringChunkCounter);
-//                            }
                         }
                         else {
                             setNextEventAndRing();
 //System.out.println("      DataChannel Emu out, " + name + ": for next ev " + nextEvent + " SWITCH TO ring = " + ringIndex);
                         }
                     }
-//                    else {
-//System.out.println("      DataChannel Emu out, " + name + ": Stay at ring = " + ringIndex +
-//                           ", control type = " + pBankControlType + ", bank type = " + pBankType +
-//                           ", ringChunkCounter = " + ringChunkCounter);
-//                    }
-
 
                     if (pBankControlType == ControlType.END) {
                         flushEvents();

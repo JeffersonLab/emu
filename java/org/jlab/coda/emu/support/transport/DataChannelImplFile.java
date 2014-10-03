@@ -745,11 +745,6 @@ logger.debug("      DataChannel File out " + outputIndex + ": got  ev " + nextEv
 //System.out.println("      DataChannel File out, " + name + ": for next ev " + nextEvent + " SWITCH TO ring = " + ringIndex);
                         }
                     }
-//                    else {
-//System.out.println("      DataChannel File out, " + name + ": Stay at ring = " + ringIndex +
-//                           ", control type = " + pBankControlType + ", bank type = " + pBankType +
-//                           ", ringChunkCounter = " + ringChunkCounter);
-//                    }
 
 
                     // If splitting the output, the file name may change.
