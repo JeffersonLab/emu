@@ -106,10 +106,6 @@ public class DataChannelImplEmu extends DataChannelAdapter {
     /** Ring buffer holding ByteBuffers when using EvioCompactEvent reader for incoming events. */
     protected ByteBufferSupply bbSupply;
 
-    private int rbIndex;
-
-
-
 
 
     /**
@@ -315,6 +311,8 @@ System.out.println("      DataChannel Emu: UDL = " + udl);
 
     /** {@inheritDoc} */
     public void prestart() throws CmdExecException {
+        super.prestart();
+
         if (input) return;
         try {
             openOutputChannel();
@@ -323,6 +321,8 @@ System.out.println("      DataChannel Emu: UDL = " + udl);
             e.printStackTrace();
             throw new CmdExecException(e);
         }
+
+        state = CODAState.PAUSED;
     }
 
     /** {@inheritDoc} */
@@ -451,6 +451,52 @@ logger.debug("      DataChannel Emu startOutputThread()");
         dataOutputThread = new DataOutputHelper();
         dataOutputThread.start();
         dataOutputThread.waitUntilStarted();
+    }
+
+
+    /**
+     * If this is an output channel, it may be blocked on reading from a module
+     * because the END event arrived on an unexpected ring
+     * (possible if module has more than one event-producing thread
+     * AND there is more than one output channel),
+     * this method interrupts and allows this channel to read the
+     * END event from the proper ring.
+     *
+     * @param eventIndex index of last buildable event before END event.
+     * @param ringIndex  ring to read END event on.
+     */
+    public void processEnd(long eventIndex, int ringIndex) {
+
+//        super.processEnd(eventIndex, ringIndex);
+
+        eventIndexEnd = eventIndex;
+        ringIndexEnd  = ringIndex;
+
+        if (input || !dataOutputThread.isAlive()) {
+logger.debug("      DataChannel Emu out " + outputIndex + ": processEnd(), thread already done");
+            return;
+        }
+
+        // Don't wait more than 1/2 second
+        int loopCount = 20;
+        while (dataOutputThread.threadState != ThreadState.DONE && (loopCount-- > 0)) {
+            try {
+                Thread.sleep(25);
+            }
+            catch (InterruptedException e) { break; }
+        }
+
+        if (dataOutputThread.threadState == ThreadState.DONE) {
+logger.debug("      DataChannel Emu out " + outputIndex + ": processEnd(), thread done after waiting");
+            return;
+        }
+
+        // Probably stuck trying to get item from ring buffer,
+        // so interrupt it and get it to read the END event from
+        // the correct ring.
+logger.debug("      DataChannel Emu out " + outputIndex + ": processEnd(), interrupt thread in state " +
+                     dataOutputThread.threadState);
+        dataOutputThread.interrupt();
     }
 
 
@@ -583,10 +629,7 @@ System.out.println("      DataChannel Emu in: get emuEnd cmd");
             int evioBytes = in.readInt();
 
             // If buffer is too small, make a bigger one
-            if (evioBytes > bbItem.getBufferSize()) {
-                buf = ByteBuffer.allocate(evioBytes);
-                bbItem.setBuffer(buf);
-            }
+            bbItem.ensureCapacity(evioBytes);
 
             // Read evio file-format data
             in.readFully(buf.array(), 0, evioBytes);
@@ -709,10 +752,7 @@ System.out.println("      DataChannel Emu in: get emuEnd cmd");
             int evioBytes = in.readInt();
 //System.out.println("      DataChannel Emu in: len = " + evioBytes);
             // If buffer is too small, make a bigger one
-            if (evioBytes > bbItem.getBufferSize()) {
-                buf = ByteBuffer.allocate(evioBytes);
-                bbItem.setBuffer(buf);
-            }
+            bbItem.ensureCapacity(evioBytes);
 
             // Read evio file-format data
             in.readFully(buf.array(), 0, evioBytes);
@@ -845,6 +885,8 @@ System.out.println("      DataChannel Emu in: get emuEnd cmd");
 
         private OutputThread outputThread;
 
+        /** What state is this thread in? */
+        private volatile ThreadState threadState;
 
 
          /** Constructor. */
@@ -1035,6 +1077,8 @@ logger.debug("      DataChannel Emu out: started");
             startLatch.countDown();
 
             try {
+                EventType pBankType;
+                ControlType pBankControlType;
                 RingItem ringItem;
                 int ringChunkCounter = outputRingChunk;
 
@@ -1060,22 +1104,65 @@ logger.debug("      DataChannel Emu out: sent go");
                         continue;
                     }
 
-//logger.debug("      DataChannel Emu out: get next buffer from ring");
-                    ringItem = getNextOutputRingItem(rbIndex);
-                    ControlType pBankControlType = ringItem.getControlType();
-                    writeEvioData(ringItem, ringItem.getEventType());
-//logger.debug("      DataChannel Emu out: sent event");
+                    try {
+//logger.debug("      DataChannel Emu out " + outputIndex + ": try getting next buffer from ring");
+                        ringItem = getNextOutputRingItem(ringIndex);
+//logger.debug("      DataChannel Emu out " + outputIndex + ": got next buffer");
+                    }
+                    catch (InterruptedException e) {
+                        threadState = ThreadState.INTERRUPTED;
+                        // If we're here we were blocked trying to read the next
+                        // (END) event from the wrong ring. We've had 1/4 second
+                        // to read everything else so let's try reading END from
+                        // given ring.
+System.out.println("      DataChannel Emu out " + outputIndex + ": try again, read END from ringIndex " + ringIndexEnd +
+" not " + ringIndex);
+                        ringItem = getNextOutputRingItem(ringIndexEnd);
+                    }
 
-//logger.debug("      DataChannel Emu out: release ring item");
-                    releaseCurrentAndGoToNextOutputRingItem(rbIndex);
-                    if (--ringChunkCounter < 1) {
-                        rbIndex = ++rbIndex % outputRingCount;
-                        ringChunkCounter = outputRingChunk;
-//                        System.out.println("switch ring to "+ rbIndex);
+                    pBankType = ringItem.getEventType();
+                    pBankControlType = ringItem.getControlType();
+
+                    try {
+                        writeEvioData(ringItem, ringItem.getEventType());
                     }
-                    else {
-//                        System.out.println(""+ ringChunkCounter);
+                    catch (Exception e) {
+                        errorMsg.compareAndSet(null, "Cannot write to file");
+                        throw e;
                     }
+
+//logger.debug("      DataChannel Emu out: send event " + (nextEvent) + ", release ring item");
+                    releaseCurrentAndGoToNextOutputRingItem(ringIndex);
+
+                    // Do not go to the next ring if we got a control or user event.
+                    // All prestart, go, & users go to the first ring. Just keep reading
+                    // until we get to a built event. Then start keeping count so
+                    // we know when to switch to the next ring.
+                    if (pBankControlType == null && !pBankType.isUser()) {
+
+                        // Deal with RocSimulation stuff if applicable
+                        if (outputRingCount > 1 && outputRingChunk > 1) {
+                            if (--ringChunkCounter < 1) {
+                                setNextEventAndRing();
+                                ringChunkCounter = outputRingChunk;
+//System.out.println("      DataChannel Emu out, " + name + ": for next ev " + nextEvent + " SWITCH TO ring = " + ringIndex +
+//                   ", (outputRingChunk = " + outputRingChunk + ")");
+                            }
+//                            else {
+//System.out.println("      DataChannel Emu out, " + name + ": Stay at ring = " + ringIndex +
+//                   " since we're chunking output, ringChunkCounter = " + ringChunkCounter);
+//                            }
+                        }
+                        else {
+                            setNextEventAndRing();
+//System.out.println("      DataChannel Emu out, " + name + ": for next ev " + nextEvent + " SWITCH TO ring = " + ringIndex);
+                        }
+                    }
+//                    else {
+//System.out.println("      DataChannel Emu out, " + name + ": Stay at ring = " + ringIndex +
+//                           ", control type = " + pBankControlType + ", bank type = " + pBankType +
+//                           ", ringChunkCounter = " + ringChunkCounter);
+//                    }
 
                     if (pBankControlType == ControlType.END) {
                         flushEvents();
@@ -1134,11 +1221,17 @@ System.out.println("      DataChannel Emu out: " + name + " I got END event, qui
         /** Buffer to write events into so it can be sent in a cMsg message. */
         private ByteBuffer byteBuffer;
 
+        /** Entry in evio block header. */
         private final BitSet bitInfo = new BitSet(24);
 
+        /** Type of last event written out. */
         private EventType previousEventType;
 
+        /** Is ring item a PayloadBuffer (true) or not? */
         private final boolean ringItemIsBuffer;
+
+        /** What state is this thread in? */
+        private volatile ThreadState threadState;
 
 
          /** Constructor. */
@@ -1181,7 +1274,7 @@ System.out.println("      DataChannel Emu out: " + name + " I got END event, qui
          * @throws EvioException
          */
         private final void flushEvents() throws cMsgException, EvioException {
-//System.out.println("      DataChannel Emu out: into flushEvents()");
+//System.out.println("\n      DataChannel Emu out: into flushEvents()\n");
             writer.close();
 
             // We must have something to write
@@ -1282,6 +1375,7 @@ System.out.println("      DataChannel Emu out: " + name + " I got END event, qui
                 else {
                     writer.writeEvent(rItem.getEvent());
                 }
+//System.out.println("      DataChannel Emu out: writeEvioData(), release buf");
                 rItem.releaseByteBuffer();
             }
 
@@ -1293,11 +1387,14 @@ System.out.println("      DataChannel Emu out: " + name + " I got END event, qui
         @Override
         public void run() {
 logger.debug("      DataChannel Emu out: started, w/ " + outputRingCount +  " output rings");
+            threadState = ThreadState.RUNNING;
 
             // Tell the world I've started
             startLatch.countDown();
 
             try {
+                EventType pBankType;
+                ControlType pBankControlType;
                 RingItem ringItem;
                 int ringChunkCounter = outputRingChunk;
 
@@ -1323,34 +1420,81 @@ logger.debug("      DataChannel Emu out: sent go");
                         continue;
                     }
 
-//logger.debug("      DataChannel Emu out: get next buffer from ring");
-                    ringItem = getNextOutputRingItem(rbIndex);
-                    ControlType pBankControlType = ringItem.getControlType();
-                    writeEvioData(ringItem, ringItem.getEventType());
-//logger.debug("      DataChannel Emu out: sent event");
 
-///logger.debug("      DataChannel Emu out: release ring item");
-                    releaseCurrentAndGoToNextOutputRingItem(rbIndex);
-                    if (--ringChunkCounter < 1) {
-                        rbIndex = ++rbIndex % outputRingCount;
-                        ringChunkCounter = outputRingChunk;
-//System.out.println("switch ring to "+ rbIndex);
+                    try {
+//logger.debug("      DataChannel Emu out " + outputIndex + ": try getting next buffer from ring");
+                        ringItem = getNextOutputRingItem(ringIndex);
+//logger.debug("      DataChannel Emu out " + outputIndex + ": got next buffer");
                     }
-                    else {
-//System.out.println(""+ ringChunkCounter);
+                    catch (InterruptedException e) {
+                        threadState = ThreadState.INTERRUPTED;
+                        // If we're here we were blocked trying to read the next
+                        // (END) event from the wrong ring. We've had 1/4 second
+                        // to read everything else so let's try reading END from
+                        // given ring.
+System.out.println("      DataChannel Emu out " + outputIndex + ": try again, read END from ringIndex " + ringIndexEnd +
+" not " + ringIndex);
+                        ringItem = getNextOutputRingItem(ringIndexEnd);
                     }
+
+                    pBankType = ringItem.getEventType();
+                    pBankControlType = ringItem.getControlType();
+
+                    try {
+                        writeEvioData(ringItem, ringItem.getEventType());
+                    }
+                    catch (Exception e) {
+                        errorMsg.compareAndSet(null, "Cannot write to file");
+                        throw e;
+                    }
+
+//logger.debug("      DataChannel Emu out: send event " + (nextEvent) + ", release ring item");
+                    releaseCurrentAndGoToNextOutputRingItem(ringIndex);
+
+                    // Do not go to the next ring if we got a control or user event.
+                    // All prestart, go, & users go to the first ring. Just keep reading
+                    // until we get to a built event. Then start keeping count so
+                    // we know when to switch to the next ring.
+                    if (pBankControlType == null && !pBankType.isUser()) {
+
+                        // Deal with RocSimulation stuff if applicable
+                        if (outputRingCount > 1 && outputRingChunk > 1) {
+                            if (--ringChunkCounter < 1) {
+                                setNextEventAndRing();
+                                ringChunkCounter = outputRingChunk;
+//System.out.println("      DataChannel Emu out, " + name + ": for next ev " + nextEvent + " SWITCH TO ring = " + ringIndex +
+//                   ", (outputRingChunk = " + outputRingChunk + ")");
+                            }
+//                            else {
+//System.out.println("      DataChannel Emu out, " + name + ": Stay at ring = " + ringIndex +
+//                   " since we're chunking output, ringChunkCounter = " + ringChunkCounter);
+//                            }
+                        }
+                        else {
+                            setNextEventAndRing();
+//System.out.println("      DataChannel Emu out, " + name + ": for next ev " + nextEvent + " SWITCH TO ring = " + ringIndex);
+                        }
+                    }
+//                    else {
+//System.out.println("      DataChannel Emu out, " + name + ": Stay at ring = " + ringIndex +
+//                           ", control type = " + pBankControlType + ", bank type = " + pBankType +
+//                           ", ringChunkCounter = " + ringChunkCounter);
+//                    }
+
 
                     if (pBankControlType == ControlType.END) {
                         flushEvents();
 System.out.println("      DataChannel Emu out: " + name + " I got END event, quitting");
                         // run callback saying we got end event
                         if (endCallback != null) endCallback.endWait();
+                        threadState = ThreadState.DONE;
                         return;
                     }
 
                     // If I've been told to RESET ...
                     if (gotResetCmd) {
-                        System.out.println("      DataChannel Emu out: " + name + " got RESET/END cmd, quitting 1");
+System.out.println("      DataChannel Emu out: " + name + " got RESET/END cmd, quitting 1");
+                        threadState = ThreadState.DONE;
                         return;
                     }
                 }
