@@ -54,14 +54,6 @@ public class ModuleAdapter implements EmuModule {
     protected boolean epThreadsSetInConfig;
 
     /**
-     * Number of output items to be written sequentially to a single output ring buffer.
-     * This becomes necessary only if there is more than one eventProducingThreads.
-     * Necessary for RocSimulation in which a number of sequential events are
-     * produced by a single thread to a single output ring buffer.
-     */
-    protected int outputRingChunk = 1;
-
-    /**
      * If multiple final event builders (SEBs or PEBs) exist, since all DCs are connected
      * to all SEBs, each DC must send the same number of contiguous buildable events to
      * each SEB in the proper sequence for building to take place.
@@ -396,9 +388,6 @@ System.out.println("Set chunking FOR SEB (remember to remove this), chunk = " + 
 
     /** {@inheritDoc} */
     public int getEventProducingThreadCount() {return eventProducingThreads;}
-
-    /** {@inheritDoc} */
-    public int getOutputRingChunk() {return outputRingChunk;}
 
     /** {@inheritDoc} */
     public ByteOrder getOutputOrder() {return outputOrder;}
