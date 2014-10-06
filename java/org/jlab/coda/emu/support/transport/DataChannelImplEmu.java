@@ -1080,7 +1080,6 @@ logger.debug("      DataChannel Emu out: started");
                 EventType pBankType;
                 ControlType pBankControlType;
                 RingItem ringItem;
-                int ringChunkCounter = outputRingChunk;
 
                 // First event will be "prestart", by convention in ring 0
                 ringItem = getNextOutputRingItem(0);
@@ -1141,19 +1140,8 @@ System.out.println("      DataChannel Emu out " + outputIndex + ": try again, re
                     if (outputRingCount > 1 && pBankControlType == null &&
                             !pBankType.isUser()) {
 
-                        // Deal with RocSimulation stuff if applicable
-                        if (outputRingChunk > 1) {
-                            if (--ringChunkCounter < 1) {
-                                setNextEventAndRing();
-                                ringChunkCounter = outputRingChunk;
-//System.out.println("      DataChannel Emu out, " + name + ": for next ev " + nextEvent + " SWITCH TO ring = " + ringIndex +
-//                   ", (outputRingChunk = " + outputRingChunk + ")");
-                            }
-                        }
-                        else {
-                            setNextEventAndRing();
+                        setNextEventAndRing();
 //System.out.println("      DataChannel Emu out, " + name + ": for next ev " + nextEvent + " SWITCH TO ring = " + ringIndex);
-                        }
                     }
 
                     if (pBankControlType == ControlType.END) {
@@ -1388,7 +1376,6 @@ logger.debug("      DataChannel Emu out: started, w/ " + outputRingCount +  " ou
                 EventType pBankType;
                 ControlType pBankControlType;
                 RingItem ringItem;
-                int ringChunkCounter = outputRingChunk;
 
                 // First event will be "prestart", by convention in ring 0
                 ringItem = getNextOutputRingItem(0);
@@ -1449,19 +1436,8 @@ System.out.println("      DataChannel Emu out " + outputIndex + ": try again, re
                     if (outputRingCount > 1 && pBankControlType == null &&
                             !pBankType.isUser()) {
 
-                        // Deal with RocSimulation stuff if applicable
-                        if (outputRingChunk > 1) {
-                            if (--ringChunkCounter < 1) {
-                                setNextEventAndRing();
-                                ringChunkCounter = outputRingChunk;
-//System.out.println("      DataChannel Emu out, " + name + ": for next ev " + nextEvent + " SWITCH TO ring = " + ringIndex +
-//                   ", (outputRingChunk = " + outputRingChunk + ")");
-                            }
-                        }
-                        else {
-                            setNextEventAndRing();
+                        setNextEventAndRing();
 //System.out.println("      DataChannel Emu out, " + name + ": for next ev " + nextEvent + " SWITCH TO ring = " + ringIndex);
-                        }
                     }
 
                     if (pBankControlType == ControlType.END) {

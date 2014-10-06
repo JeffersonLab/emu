@@ -645,7 +645,6 @@ logger.debug("      DataChannel File out " + outputIndex + ": processEnd(), inte
 
             try {
                 RingItem ringItem;
-                int ringChunkCounter = outputRingChunk;
                 EventType pBankType;
                 ControlType pBankControlType;
 
@@ -731,19 +730,8 @@ logger.debug("      DataChannel File out " + outputIndex + ": got  ev " + nextEv
                     if (outputRingCount > 1 && pBankControlType == null &&
                             !pBankType.isUser()) {
 
-                        // Deal with RocSimulation stuff if applicable
-                        if (outputRingChunk > 1) {
-                            if (--ringChunkCounter < 1) {
-                                setNextEventAndRing();
-                                ringChunkCounter = outputRingChunk;
-//System.out.println("      DataChannel File out, " + name + ": for next ev " + nextEvent + " SWITCH TO ring = " + ringIndex +
-//                   ", (outputRingChunk = " + outputRingChunk + ")");
-                            }
-                        }
-                        else {
-                            setNextEventAndRing();
+                        setNextEventAndRing();
 //System.out.println("      DataChannel File out, " + name + ": for next ev " + nextEvent + " SWITCH TO ring = " + ringIndex);
-                        }
                     }
 
 

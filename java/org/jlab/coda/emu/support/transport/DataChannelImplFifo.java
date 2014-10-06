@@ -140,7 +140,6 @@ public class DataChannelImplFifo extends DataChannelAdapter {
 
             try {
                  RingItem ringItem;
-                 int ringChunkCounter = outputRingChunk;
 
                  // First event will be "prestart", by convention in ring 0
                  ringItem = getNextOutputRingItem(0);
@@ -173,14 +172,9 @@ public class DataChannelImplFifo extends DataChannelAdapter {
 
 //logger.debug("      DataChannel Fifo helper: release ring item");
                      releaseCurrentAndGoToNextOutputRingItem(rbIndex);
-                     if (--ringChunkCounter < 1) {
-                         rbIndex = ++rbIndex % outputRingCount;
-                         ringChunkCounter = outputRingChunk;
+
+                     rbIndex = ++rbIndex % outputRingCount;
 //System.out.println("      DataChannel Fifo helper: switch ring to "+ rbIndex);
-                     }
-                     else {
-                        System.out.println(""+ ringChunkCounter);
-                     }
 
                      if (pBankControlType == ControlType.END) {
  System.out.println("      DataChannel Fifo helper: " + name + " I got END event, quitting");

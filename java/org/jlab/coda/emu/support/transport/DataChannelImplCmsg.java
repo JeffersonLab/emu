@@ -89,15 +89,6 @@ public class DataChannelImplCmsg extends DataChannelAdapter {
     /** Use the evio block header's block number as a record id. */
     private int recordId;
 
-    //-------------------------------------------
-    // Disruptor (RingBuffer)  Stuff
-    //-------------------------------------------
-
-//    /** Ring buffer holding ByteBuffers when using EvioCompactEvent reader for incoming events. */
-//    protected ByteBufferSupply bbSupply;   // input
-
-    private int rbIndex;
-
 
 
     private final void messageToBank(cMsgMessage msg) throws IOException, EvioException {
@@ -329,11 +320,54 @@ public class DataChannelImplCmsg extends DataChannelAdapter {
                 emu.sendStatusMessage();
             }
         }
-
-        // Define "getMaximumCueSize" to set max number of unprocessed messages kept locally
-        // before things "back up" (potentially slowing or stopping senders of messages of
-        // this subject and type). Default = 1000.
     }
+
+
+    /**
+     * If this is an output channel, it may be blocked on reading from a module
+     * because the END event arrived on an unexpected ring
+     * (possible if module has more than one event-producing thread
+     * AND there is more than one output channel),
+     * this method interrupts and allows this channel to read the
+     * END event from the proper ring.
+     *
+     * @param eventIndex index of last buildable event before END event.
+     * @param ringIndex  ring to read END event on.
+     */
+    public void processEnd(long eventIndex, int ringIndex) {
+
+//        super.processEnd(eventIndex, ringIndex);
+
+        eventIndexEnd = eventIndex;
+        ringIndexEnd  = ringIndex;
+
+        if (input || !dataOutputThread.isAlive()) {
+logger.debug("      DataChannel File out " + outputIndex + ": processEnd(), thread already done");
+            return;
+        }
+
+        // Don't wait more than 1/2 second
+        int loopCount = 20;
+        while (dataOutputThread.threadState != ThreadState.DONE && (loopCount-- > 0)) {
+            try {
+                Thread.sleep(25);
+            }
+            catch (InterruptedException e) { break; }
+        }
+
+        if (dataOutputThread.threadState == ThreadState.DONE) {
+logger.debug("      DataChannel File out " + outputIndex + ": processEnd(), thread done after waiting");
+            return;
+        }
+
+        // Probably stuck trying to get item from ring buffer,
+        // so interrupt it and get it to read the END event from
+        // the correct ring.
+logger.debug("      DataChannel File out " + outputIndex + ": processEnd(), interrupt thread in state " +
+                     dataOutputThread.threadState);
+        dataOutputThread.interrupt();
+    }
+
 
 
     /**
@@ -675,12 +709,6 @@ logger.debug("      DataChannel cmsg: reset() " + name + " done");
                 // already have enough for one message to be filled.
                 RingItem firstBankFromRing = null;
 
-                // RocSimulation generates "ringChunk" sequential events at once,
-                // so, a single ring will have ringChunk sequential events together.
-                // Take this into account when reading from multiple rings.
-                // We must get the output order right.
-                int ringChunkCounter = outputRingChunk;
-
                 // Create an array of objects produced by preceding module
                 RingItem[] bankArray = new RingItem[outputCountLimit];
                 int bankArrayCount = 0;
@@ -714,7 +742,7 @@ logger.debug("      DataChannel cmsg: reset() " + name + " done");
 // System.out.println("      DataChannel cmsg out: try getting ring item");
                         // Get bank off of ring ...
                         if (firstBankFromRing == null) {
-                            ringItem  = getNextOutputRingItem(rbIndex);
+                            ringItem  = getNextOutputRingItem(ringIndex);
 //System.out.println("      DataChannel cmsg out: GOT ring item");
 
                             pBanktype = ringItem.getEventType();
@@ -786,7 +814,7 @@ logger.debug("      DataChannel cmsg: reset() " + name + " done");
                         ringItem.setAttachment(Boolean.FALSE);
 
                         // Get ready to retrieve next ring item
-                        gotoNextRingItem(rbIndex);
+                        gotoNextRingItem(ringIndex);
 
                         // If control event, quit loop and write what we have
                         if (pBankControlType != null) {
@@ -891,13 +919,10 @@ System.out.println("      DataChannel cmsg out: " + name + " I got END event, qu
                     // Make buffer available for writing thread to use
                     bufferSupply.publish(bufferItem);
 
-//System.out.println("      DataChannel cmsg out: ring release " + rbIndex);
-                    releaseOutputRingItem(rbIndex);
+//System.out.println("      DataChannel cmsg out: ring release " + ringIndex);
+                    releaseOutputRingItem(ringIndex);
 
-                    if (--ringChunkCounter < 1) {
-                        rbIndex = ++rbIndex % outputRingCount;
-                        ringChunkCounter = outputRingChunk;
-                    }
+                    ringIndex = ++ringIndex % outputRingCount;
 
                     if (haveOutputEndEvent) {
 System.out.println("      DataChannel cmsg out: " + name + " some thd got END event, quitting 4");
@@ -949,6 +974,9 @@ logger.warn("      DataChannel cmsg out: " + name + " exit thd: " + e.getMessage
 
         /** Let a single waiter know that the main thread has been started. */
         private CountDownLatch startLatch = new CountDownLatch(1);
+
+        /** What state is this thread in? */
+        private volatile ThreadState threadState;
 
 
 
@@ -1018,6 +1046,8 @@ logger.warn("      DataChannel cmsg out: " + name + " exit thd: " + e.getMessage
         @Override
         public void run() {
 
+            threadState = ThreadState.RUNNING;
+
             // Tell the world I've started
             startLatch.countDown();
 
@@ -1035,12 +1065,6 @@ logger.warn("      DataChannel cmsg out: " + name + " exit thd: " + e.getMessage
                 int[] recordIds = new int[writeThreadCount];
                 int[] bankListSize = new int[writeThreadCount];
                 cMsgMessage[] msgs = new cMsgMessage[writeThreadCount];
-
-                // RocSimulation generates "ringChunk" sequential events at once,
-                // so, a single ring will have ringChunk sequential events together.
-                // Take this into account when reading from multiple rings.
-                // We must get the output order right.
-                int ringChunkCounter = outputRingChunk;
 
                 // Create an array of lists of PayloadBank objects by 2-step
                 // initialization to avoid "generic array creation" error.
@@ -1092,8 +1116,22 @@ logger.warn("      DataChannel cmsg out: " + name + " exit thd: " + e.getMessage
                             firstBankFromRing = null;
                         }
                         else {
-                            ringItem = getNextOutputRingItem(rbIndex);
+//System.out.print("      DataChannel cmsg out: get next buffer from ring ... ");
+                            try {
+                                ringItem = getNextOutputRingItem(ringIndex);
+                            }
+                            catch (InterruptedException e) {
+                                threadState = ThreadState.INTERRUPTED;
+                                // If we're here we were blocked trying to read the next
+                                // (END) event from the wrong ring. We've had 1/4 second
+                                // to read everything else so let's try reading END from
+                                // given ring.
+System.out.println("      DataChannel cmsg out: try again, read END from ringIndex " + ringIndexEnd +
+                   " not " + ringIndex);
+                                ringItem = getNextOutputRingItem(ringIndexEnd);
+                            }
                         }
+
 //System.out.println("      DataChannel cmsg out: GOT ring item");
 
                         eventCount++;
@@ -1181,7 +1219,7 @@ logger.warn("      DataChannel cmsg out: " + name + " exit thd: " + e.getMessage
                         previousType = pBanktype;
                         ringItem.setAttachment(Boolean.FALSE);
 
-                        gotoNextRingItem(rbIndex);
+                        gotoNextRingItem(ringIndex);
 
                         // If control event, quit loop and write what we have
                         if (pBankControlType != null) {
@@ -1197,6 +1235,20 @@ System.out.println("      DataChannel cmsg out: " + name + " I got END event, qu
                             }
 
                             break;
+                        }
+
+                        // Do not go to the next ring if we got a control (previously taken
+                        // care of) or user event.
+                        // All prestart, go, & users go to the first ring. Just keep reading
+                        // until we get to a buildable event. Then start keeping count so
+                        // we know when to switch to the next ring.
+                        //
+                        // NOTE: ringChunkCounter is only used in RocSimulation emu (fake ROC).
+                        // It will only be used with 1 output channel and sebChunk will always
+                        // be 1.
+                        if (outputRingCount > 1 && !pBanktype.isUser()) {
+                            setNextEventAndRing();
+//System.out.println("      DataChannel cmsg out, " + name + ": for next ev " + nextEvent + " SWITCH TO ring = " + ringIndex);
                         }
 
                         // Be careful not to use up all the events in the output
@@ -1226,7 +1278,6 @@ System.out.println("      DataChannel cmsg out: " + name + " I got END event, qu
                         if (bankList.size() < 1) {
                             continue;
                         }
-
 
                         // Write banks' data into ET buffer in separate thread.
                         // Do not recreate writer object if not necessary.
@@ -1268,12 +1319,12 @@ System.out.println("      DataChannel cmsg out: " + name + " I got END event, qu
                         throw e;
                     }
 
-//System.out.println("      DataChannel cmsg out: ring release " + rbIndex);
-                    releaseOutputRingItem(rbIndex);
-
-                    if (--ringChunkCounter < 1) {
-                        rbIndex = ++rbIndex % outputRingCount;
-                        ringChunkCounter = outputRingChunk;
+                    // FREE UP ring buffer items for reuse.
+                    // If we did NOT read from a particular ring, there is still no
+                    // problem since its sequence was never increased and we only
+                    // end up releasing something already released.
+                    for (int i=0; i < outputRingCount; i++) {
+                        releaseOutputRingItem(i);
                     }
 
                     if (haveOutputEndEvent) {

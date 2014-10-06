@@ -171,13 +171,6 @@ public class DataChannelAdapter extends CODAStateMachineAdapter implements DataC
     /** Number of items in output ring buffers. */
     protected int outputRingItemCount = 4096;
 
-    /**
-     * Number of output items to be taken sequentially from a single output ring buffer.
-     * Necessary for RocSimulation in which this number of sequential events are
-     * produced by a single thread to a single output ring buffer.
-     */
-    protected int outputRingChunk;
-
     /** One barrier for each output ring. */
     protected SequenceBarrier[] sequenceBarriers;
 
@@ -271,10 +264,6 @@ logger.info("      DataChannel Adapter: # of ring buffers = " + outputRingCount)
             ringBuffersOut = new RingBuffer[outputRingCount];
             setupOutputRingBuffers();
         }
-
-        // Number of sequential items in a single ring buffer.
-        outputRingChunk = module.getOutputRingChunk();
-if (outputRingChunk != 1) logger.info("      DataChannel Adapter: ring chunk = " + outputRingChunk);
     }
 
 

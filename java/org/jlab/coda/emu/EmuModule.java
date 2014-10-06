@@ -118,16 +118,6 @@ public interface EmuModule extends StatedObject, CODAStateMachine {
      */
     public int getEventProducingThreadCount();
 
-    /**
-     * Get the number of contiguous output events written to one ring before the same
-     * number are written to the next ring. Used when multiple event producing threads
-     * exist each of which produces this number of contiguous events (currently
-     * used only in RocSimulation module).
-     * @return number of contiguous output events written to one ring before the same
-     *         number are written to the next ring.
-     */
-    public int getOutputRingChunk();
-
     /** Get the byte order of the module's output. Defaults to big endian. */
     public ByteOrder getOutputOrder();
 

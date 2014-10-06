@@ -1485,12 +1485,6 @@ System.out.println("      DataChannel Et out: wake up attachment #" + attachment
                  int[] recordIds = new int[chunk];
                  etSize = (int) etSystem.getEventSize();
 
-                 // RocSimulation generates "ringChunk" sequential events at once,
-                 // so, a single ring will have ringChunk sequential events together.
-                 // Take this into account when reading from multiple rings.
-                 // We must get the output order right.
-                 int ringChunkCounter = outputRingChunk;
-
                  // Create an array of lists of RingItem objects by 2-step
                  // initialization to avoid "generic array creation" error.
                  // Create one list for every possible ET event.
@@ -1691,19 +1685,8 @@ System.out.println("      DataChannel Et out: have " + pBankControlType + ", rin
                          // It will only be used with 1 output channel and sebChunk will always
                          // be 1.
                          if (outputRingCount > 1 && !pBankType.isUser()) {
-                              // Deal with RocSimulation stuff if applicable
-                              if (outputRingChunk > 1) {
-                                  if (--ringChunkCounter < 1) {
-                                      setNextEventAndRing();
-                                      ringChunkCounter = outputRingChunk;
-//System.out.println("      DataChannel Emu out, " + name + ": for next ev " + nextEvent + " SWITCH TO ring = " + ringIndex +
-//                   ", (outputRingChunk = " + outputRingChunk + ")");
-                                  }
-                              }
-                              else {
-                                  setNextEventAndRing();
+                              setNextEventAndRing();
 //System.out.println("      DataChannel Emu out, " + name + ": for next ev " + nextEvent + " SWITCH TO ring = " + ringIndex);
-                              }
                          }
 
                          // Be careful not to use up all the events in the output
@@ -2221,12 +2204,6 @@ System.out.println("      DataChannel Et out: " + name + " got RESET cmd, quitti
                  int[] recordIds = new int[chunk];
                  etSize = (int) etSystem.getEventSize();
 
-                 // RocSimulation generates "ringChunk" sequential events at once,
-                 // so, a single ring will have ringChunk sequential events together.
-                 // Take this into account when reading from multiple rings.
-                 // We must get the output order right.
-                 int ringChunkCounter = outputRingChunk;
-
                  // Create an array of lists of RingItem objects by 2-step
                  // initialization to avoid "generic array creation" error.
                  // Create one list for every possible ET event.
@@ -2523,10 +2500,7 @@ System.out.println("      DataChannel Et out: " + name + " got RESET cmd, quitti
 //logger.debug("      DataChannel Emu out helper: release ring item");
                      releaseOutputRingItem(ringIndex);
 
-                     if (--ringChunkCounter < 1) {
-                         ringIndex = ++ringIndex % outputRingCount;
-                         ringChunkCounter = outputRingChunk;
-                     }
+                     ringIndex = ++ringIndex % outputRingCount;
 
                      if (haveOutputEndEvent) {
  System.out.println("      DataChannel Et out helper: " + name + " some thd got END event, quitting 4");
