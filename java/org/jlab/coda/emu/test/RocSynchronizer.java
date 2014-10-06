@@ -236,6 +236,7 @@ System.out.println("  connected");
         message = new cMsgMessage();
         message.setSubject("sync");
         message.setType("ROC");
+        message.setHistoryLengthMax(0);
 
         myCallback cb = new myCallback();
         sub = coda.subscribe(subjectIn, "*", cb, null);
