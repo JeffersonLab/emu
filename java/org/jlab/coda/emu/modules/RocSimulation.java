@@ -13,20 +13,21 @@ package org.jlab.coda.emu.modules;
 
 import com.lmax.disruptor.RingBuffer;
 import org.jlab.coda.cMsg.*;
-import org.jlab.coda.emu.*;
+import org.jlab.coda.emu.Emu;
 import org.jlab.coda.emu.support.codaComponent.CODAClass;
 import org.jlab.coda.emu.support.codaComponent.CODAState;
-
+import org.jlab.coda.emu.support.codaComponent.State;
 import org.jlab.coda.emu.support.configurer.Configurer;
 import org.jlab.coda.emu.support.configurer.DataNotFoundException;
 import org.jlab.coda.emu.support.control.CmdExecException;
-import org.jlab.coda.emu.support.codaComponent.State;
 import org.jlab.coda.emu.support.data.*;
 import org.jlab.coda.emu.support.transport.DataChannel;
-import org.jlab.coda.jevio.*;
+import org.jlab.coda.jevio.CompactEventBuilder;
 
 import java.nio.ByteBuffer;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Date;
+import java.util.Map;
 import java.util.concurrent.Phaser;
 
 /**
@@ -449,8 +450,11 @@ System.out.println("  Roc mod: start With (id=" + myId + "):\n    record id = " 
                             }
 
                             // Send message to synchronizer that we're waiting
-                            // and whether or not we got the END command.
-                            sendMsgToSynchronizer(gotEndCommand);
+                            // and whether or not we got the END command. Only
+                            // want 1 msg sent, so have the first thread do it.
+                            if (myId == 0) {
+                                sendMsgToSynchronizer(gotEndCommand);
+                            }
 
                             // Wait for synchronizer's response before continuing
 //System.out.println("  Roc mod: phaser await advance");
@@ -605,7 +609,7 @@ System.out.println("  Roc mod: start With (id=" + myId + "):\n    record id = " 
         lastEventNumberCreated = 0L;
 
         if (synced) {
-            phaser = new Phaser(2);
+            phaser = new Phaser(eventProducingThreads + 1);
             endPhaser = new Phaser(2);
             timeToEnd = false;
             gotEndCommand = false;
