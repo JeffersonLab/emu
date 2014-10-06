@@ -709,19 +709,8 @@ logger.debug("      DataChannel File out " + outputIndex + ": got  ev " + nextEv
                         throw e;
                     }
 
-//logger.debug("      DataChannel File out, " + name + ": wrote event");
-
 //logger.debug("      DataChannel File out: release ring item");
                     releaseCurrentAndGoToNextOutputRingItem(ringIndex);
-
-//                    if (--ringChunkCounter < 1) {
-//                        ringIndex = ++ringIndex % outputRingCount;
-//                        ringChunkCounter = outputRingChunk;
-//                        System.out.println("switch ring to "+ ringIndex);
-//                    }
-//                    else {
-//                        System.out.println(""+ ringChunkCounter);
-//                    }
 
                     // Do not go to the next ring if we got a control or user event.
                     // All prestart, go, & users go to the first ring. Just keep reading
@@ -729,7 +718,6 @@ logger.debug("      DataChannel File out " + outputIndex + ": got  ev " + nextEv
                     // we know when to switch to the next ring.
                     if (outputRingCount > 1 && pBankControlType == null &&
                             !pBankType.isUser()) {
-
                         setNextEventAndRing();
 //System.out.println("      DataChannel File out, " + name + ": for next ev " + nextEvent + " SWITCH TO ring = " + ringIndex);
                     }

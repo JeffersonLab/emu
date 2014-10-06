@@ -1680,10 +1680,6 @@ System.out.println("      DataChannel Et out: have " + pBankControlType + ", rin
                          // All prestart, go, & users go to the first ring. Just keep reading
                          // until we get to a buildable event. Then start keeping count so
                          // we know when to switch to the next ring.
-                         //
-                         // NOTE: ringChunkCounter is only used in RocSimulation emu (fake ROC).
-                         // It will only be used with 1 output channel and sebChunk will always
-                         // be 1.
                          if (outputRingCount > 1 && !pBankType.isUser()) {
                               setNextEventAndRing();
 //System.out.println("      DataChannel Emu out, " + name + ": for next ev " + nextEvent + " SWITCH TO ring = " + ringIndex);

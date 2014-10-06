@@ -1435,7 +1435,6 @@ System.out.println("      DataChannel Emu out " + outputIndex + ": try again, re
                     // we know when to switch to the next ring.
                     if (outputRingCount > 1 && pBankControlType == null &&
                             !pBankType.isUser()) {
-
                         setNextEventAndRing();
 //System.out.println("      DataChannel Emu out, " + name + ": for next ev " + nextEvent + " SWITCH TO ring = " + ringIndex);
                     }
