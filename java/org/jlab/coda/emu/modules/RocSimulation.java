@@ -327,18 +327,22 @@ public class RocSimulation extends ModuleAdapter {
         private CompactEventBuilder builder;
         /** Ring buffer containing ByteBuffers - used to hold events for writing. */
         private ByteBufferSupply bbSupply;
+        // Number of data words in each event
+        private int generatedDataWords;
+
 
 
         EventGeneratingThread(int id, ThreadGroup group, String name) {
             super(group, name);
             this.myId = id;
 
-            // Need to coordinate between amount of data words used in the
-            // following call and the amount of words used in "run()".
+            // Need to coordinate amount of data words
+            generatedDataWords = eventBlockSize * 40;
+
             PayloadBank[] evs = Evio.createRocDataEvents(id, triggerType,
                                                          detectorId, 0,
                                                          0, eventBlockSize,
-                                                         0L, 0,  2,
+                                                         0L, 0,  2, generatedDataWords,
                                                          isSingleEventMode);
 
             eventWordSize = evs[0].getHeader().getLength() + 1;
@@ -364,7 +368,7 @@ System.out.println("  Roc mod: start With (id=" + myId + "):\n    record id = " 
         public void run() {
 
             int  userEventLoopMax=1000, eventNumber;
-            int  status=0, skip=3,  userEventLoop = userEventLoopMax;
+            int  index, status=0, skip=3,  userEventLoop = userEventLoopMax;
             long oldVal=0L, totalT=0L, totalCount=0l;
             long now, deltaT, start_time = System.currentTimeMillis();
             ByteBuffer buf = ByteBuffer.allocate(8);
@@ -372,13 +376,12 @@ System.out.println("  Roc mod: start With (id=" + myId + "):\n    record id = " 
             int[] segmentData = new int[3];
 
             // Determine data size of events right here
-            int words = eventBlockSize * 40;
             int[] data;
             if (isSingleEventMode) {
-                data = new int[3 + words];
+                data = new int[3 + generatedDataWords];
             }
             else {
-                data = new int[1 + words];
+                data = new int[1 + generatedDataWords];
             }
 
 
@@ -436,7 +439,7 @@ System.out.println("  Roc mod: start With (id=" + myId + "):\n    record id = " 
                                 builder.closeStructure();
 
                                 // Create a single data block bank
-                                int index=0;
+                                index = 0;
 
                                 // First put in starting event # (32 bits)
                                 data[index++] = eventNumber;
@@ -447,7 +450,7 @@ System.out.println("  Roc mod: start With (id=" + myId + "):\n    record id = " 
                                     data[index++] = (int) (timestamp >>> 32 & 0xFFFF); // high 16 of 48 bits
                                 }
 
-                                for (int i=0; i < words; i++) {
+                                for (int i=0; i < generatedDataWords; i++) {
                                     data[index+i] = i;
                                 }
 
