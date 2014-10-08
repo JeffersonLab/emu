@@ -621,14 +621,22 @@ logger.debug("      DataChannel File out " + outputIndex + ": processEnd(), inte
         }
 
 
-        private final void writeEvioData(RingItem ri) throws IOException, EvioException {
+        /**
+         * Write event to file.
+         *
+         * @param ri          item to write to disk
+         * @param forceToDisk if true, force event to hard disk
+         * @throws IOException
+         * @throws EvioException
+         */
+        private final void writeEvioData(RingItem ri, boolean forceToDisk) throws IOException, EvioException {
 
             if (ringItemType == ModuleIoType.PayloadBank) {
                 evioFileWriter.writeEvent(ri.getEvent());
             }
             else if  (ringItemType == ModuleIoType.PayloadBuffer) {
 //logger.info("      DataChannel File out: write buffer with order = " + ri.getBuffer().order());
-                evioFileWriter.writeEvent(ri.getBuffer());
+                evioFileWriter.writeEvent(ri.getBuffer(), forceToDisk);
                 ri.releaseByteBuffer();
             }
         }
@@ -650,15 +658,16 @@ logger.debug("      DataChannel File out " + outputIndex + ": processEnd(), inte
 
                 // First event will be "prestart", by convention in ring 0
                 ringItem = getNextOutputRingItem(0);
-//Utilities.printBuffer(ringItem.getBuffer(), 0, 5, name+" prestart?");
-                writeEvioData(ringItem);
+                // Force "prestart" event to hard disk
+                writeEvioData(ringItem, true);
 logger.debug("      DataChannel File out  " + outputIndex + ": wrote prestart");
                 releaseCurrentAndGoToNextOutputRingItem(0);
 
                 // Second event will be "go", by convention in ring 0
                 ringItem = getNextOutputRingItem(0);
-//Utilities.printBuffer(ringItem.getBuffer(), 0, 5, name+" go?");
-                writeEvioData(ringItem);
+                // Do not force "go" event to hard disk as data will
+                // soon follow and things will be written out shortly.
+                writeEvioData(ringItem, false);
 logger.debug("      DataChannel File out " + outputIndex + ": wrote go");
                 releaseCurrentAndGoToNextOutputRingItem(0);
 
@@ -702,7 +711,7 @@ logger.debug("      DataChannel File out " + outputIndex + ": got  ev " + nextEv
 //                    }
 
                     try {
-                        writeEvioData(ringItem);
+                        writeEvioData(ringItem, false);
                     }
                     catch (Exception e) {
                         errorMsg.compareAndSet(null, "Cannot write to file");
