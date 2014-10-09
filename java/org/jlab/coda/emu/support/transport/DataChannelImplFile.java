@@ -705,10 +705,6 @@ System.out.println("      DataChannel File out " + outputIndex + ": try again, r
 logger.debug("      DataChannel File out " + outputIndex + ": got  ev " + nextEvent +
                      ", ring " + ringIndex + " (END!)");
                     }
-//                    else {
-//logger.debug("      DataChannel File out " + outputIndex + ": got  ev " + nextEvent +
-//                     ", ring " + ringIndex);
-//                    }
 
                     try {
                         writeEvioData(ringItem, false);
@@ -721,16 +717,17 @@ logger.debug("      DataChannel File out " + outputIndex + ": got  ev " + nextEv
 //logger.debug("      DataChannel File out: release ring item");
                     releaseCurrentAndGoToNextOutputRingItem(ringIndex);
 
-                    // Do not go to the next ring if we got a control or user event.
-                    // All prestart, go, & users go to the first ring. Just keep reading
-                    // until we get to a built event. Then start keeping count so
-                    // we know when to switch to the next ring.
-                    if (outputRingCount > 1 && pBankControlType == null &&
-                            !pBankType.isUser()) {
+                    // Do not go to the next ring if we got a user event.
+                    // Just keep reading until we get to a built event.
+                    // Then start keeping count so we know when to switch to the next ring.
+                    //
+                    // Prestart & go went to the first ring and have already been
+                    // dealt with. End event will stop this thread so don't worry about
+                    // not switching rings.
+                    if (outputRingCount > 1 && !pBankType.isUser()) {
                         setNextEventAndRing();
 //System.out.println("      DataChannel File out, " + name + ": for next ev " + nextEvent + " SWITCH TO ring = " + ringIndex);
                     }
-
 
                     // If splitting the output, the file name may change.
                     // Inform the authorities about this.
