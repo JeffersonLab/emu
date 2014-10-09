@@ -3960,7 +3960,7 @@ System.out.println("Timestamps are NOT consistent !!!");
      * @param isSEM         in single event mode if <code>true</code>
      * @param timestamp     48-bit timestamp used only in single event mode
      */
-    private static int[] generateData(int firstEvNum, int words,
+    public static int[] generateData(int firstEvNum, int words,
                                       boolean isSEM, long timestamp) {
 
         int index=0;
@@ -4049,6 +4049,7 @@ System.out.println("Timestamps are NOT consistent !!!");
      * @param numEvents   number of physics events in created record
      * @param recordId    number of ROC raw event from ROC
      * @param timestamp   starting event's timestamp
+     * @param rocRawDataWords number of Roc Raw data words to generate in single event
      *
      * @return created ROC Raw Record (EvioEvent object)
      * @throws EvioException
@@ -4056,7 +4057,8 @@ System.out.println("Timestamps are NOT consistent !!!");
     public static EvioEvent createRocRawRecord(int rocID,       int triggerType,
                                                int detectorId,  int status,
                                                int eventNumber, int numEvents,
-                                               int recordId,    long timestamp)
+                                               int recordId,    long timestamp,
+                                               int rocRawDataWords)
             throws EvioException {
 
         // Create a ROC Raw Data Record event/bank with numEvents physics events in it
@@ -4095,7 +4097,7 @@ System.out.println("Timestamps are NOT consistent !!!");
 //        int []data = generateEntangledDataFADC250(eventNumber, numEvents, recordId,
 //                                                  10, false, 0L);
 //        int []data = generateData(eventNumber, 5, false, timestamp);
-        int []data = generateData(eventNumber, numEvents * 40, false, timestamp);
+        int []data = generateData(eventNumber, rocRawDataWords, false, timestamp);
 //        int []data = generateData(eventNumber, 0, false, timestamp);
 
 //        // put some data into event -- one int per event
@@ -4127,6 +4129,7 @@ System.out.println("Timestamps are NOT consistent !!!");
      * @param timestamp   starting event's timestamp
      * @param recordId    record count
      * @param numPayloadBanks number of payload banks to generate
+     * @param rocRawDataWords number of Roc Raw data words to generate in single event
      * @param singleEventMode true if creating events in single event mode
      *
      * @return array of generated events
@@ -4135,7 +4138,7 @@ System.out.println("Timestamps are NOT consistent !!!");
                                                     int detectorId, int status,
                                                     int eventNumber, int numEvents,
                                                     long timestamp, int recordId,
-                                                    int numPayloadBanks,
+                                                    int numPayloadBanks, int rocRawDataWords,
                                                     boolean singleEventMode)  {
 
         if (singleEventMode) {
@@ -4155,7 +4158,7 @@ System.out.println("Timestamps are NOT consistent !!!");
                 }
                 else {
                     ev = createRocRawRecord(rocId, triggerType, detectorId, status,
-                            eventNumber, numEvents, recordId, timestamp);
+                            eventNumber, numEvents, recordId, timestamp, rocRawDataWords);
                 }
                 pBanks[i] = new PayloadBank(ev);
                 pBanks[i].setEventType(EventType.ROC_RAW);
