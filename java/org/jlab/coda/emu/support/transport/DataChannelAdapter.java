@@ -133,6 +133,8 @@ public class DataChannelAdapter extends CODAStateMachineAdapter implements DataC
     /** Counter to help read events from correct ring. */
     private int sebChunkCounter;
 
+    private boolean chunkingForSebs;
+
     /** Ring that the next event will show up on. */
     protected int ringIndex;
 
@@ -247,24 +249,20 @@ public class DataChannelAdapter extends CODAStateMachineAdapter implements DataC
             // Set endianness of output data, must be same as its module
             byteOrder = module.getOutputOrder();
             logger.info("      DataChannel Adapter: byte order = " + byteOrder);
-        }
 
-
-        // Set number of data output ring buffers (1 for each build thread)
-        outputRingCount = module.getEventProducingThreadCount();
-
+            // Set number of data output ring buffers (1 for each build thread)
+            outputRingCount = module.getEventProducingThreadCount();
 logger.info("      DataChannel Adapter: # of ring buffers = " + outputRingCount);
 
-
-        // Create RingBuffers
-        if (input) {
-            setupInputRingBuffers();
-        }
-        else {
+            // Create RingBuffers
             ringBuffersOut = new RingBuffer[outputRingCount];
             setupOutputRingBuffers();
         }
-    }
+        else {
+           // Create RingBuffers
+            setupInputRingBuffers();
+        }
+     }
 
 
     /** Setup the output channel ring buffers. */
@@ -323,6 +321,10 @@ logger.info("      DataChannel Adapter: # of ring buffers = " + outputRingCount)
         // Get more info from module
         sebChunk = module.getSebChunk();
         outputChannelCount = module.getOutputChannels().size();
+        // This method is run after all channels are created
+        // and therefore module knows if it is seb chunking.
+        chunkingForSebs = module.getSebChunking();
+System.out.println("      DataChannel Adapter: chunking for SEBs = " + chunkingForSebs);
 
         // Initialize counter
         sebChunkCounter = sebChunk;
@@ -334,23 +336,60 @@ logger.info("      DataChannel Adapter: # of ring buffers = " + outputRingCount)
     }
 
 
+//    /**
+//     * Set the index of the next event to get from the module
+//     * and the ring it will appear on.
+//     */
+//    protected void setNextEventAndRing() {
+//        if (chunkingForSebs && (--sebChunkCounter > 0)) {
+//            nextEvent++;
+//            ringIndex = (int) (nextEvent % outputRingCount);
+////System.out.println("      DataChannel Adapter: set next ev (" + nextEvent + "), ring (" + ringIndex +
+////                           "), sebChunkCounter = " + sebChunkCounter);
+//            return;
+//        }
+//
+//        sebChunkCounter = sebChunk;
+//        nextEvent += sebChunk*(outputChannelCount - 1) + 1;
+//        ringIndex = (int) (nextEvent % outputRingCount);
+////System.out.println("      DataChannel Adapter: set next ev (" + nextEvent + "), ring (" + ringIndex + ")");
+//    }
+//
+
     /**
      * Set the index of the next event to get from the module
-     * and the ring it will appear on.
+     * and the ring it will appear on.<p>
+     * NOTE: only called IFF outputRingCount > 1.
      */
     protected void setNextEventAndRing() {
-        if (--sebChunkCounter > 0) {
-            nextEvent++;
-            ringIndex = (int) (nextEvent % outputRingCount);
+        if (chunkingForSebs) {
+            if (--sebChunkCounter > 0) {
+                nextEvent++;
+                ringIndex = (int) (nextEvent % outputRingCount);
 //System.out.println("      DataChannel Adapter: set next ev (" + nextEvent + "), ring (" + ringIndex +
 //                           "), sebChunkCounter = " + sebChunkCounter);
-            return;
-        }
+                return;
+            }
 
-        sebChunkCounter = sebChunk;
-        nextEvent += sebChunk*(outputChannelCount - 1) + 1;
-        ringIndex = (int) (nextEvent % outputRingCount);
+            sebChunkCounter = sebChunk;
+            nextEvent += sebChunk*(outputChannelCount - 1) + 1;
+            ringIndex = (int) (nextEvent % outputRingCount);
 //System.out.println("      DataChannel Adapter: set next ev (" + nextEvent + "), ring (" + ringIndex + ")");
+        }
+        // We may have multiple build threads (but are NOT chunking).
+        // In this case, just switch between output channel rings,
+        // (nextEvent is not used). NOTE: only here if outputRingCount > 1.
+        else {
+
+            nextEvent += sebChunk*(outputChannelCount - 1) + 1;
+            ringIndex = (int) (nextEvent % outputRingCount);
+//System.out.println("      DataChannel Adapter: set next ev (" + nextEvent + "), ring (" + ringIndex + ")");
+
+
+
+//            ringIndex = ++ringIndex % outputRingCount;
+//System.out.println("      DataChannel Adapter: set next ring (" + ringIndex + ")");
+        }
     }
 
 
@@ -430,6 +469,7 @@ logger.info("      DataChannel Adapter: # of ring buffers = " + outputRingCount)
                 availableSequences[ringIndex] = sequenceBarriers[ringIndex].waitFor(nextSequences[ringIndex]);
             }
 //System.out.println("getNextOutputRingITem: available seq = " + availableSequences[ringIndex]);
+//System.out.println("getNextOutputRingITem: try seq = " + nextSequences[ringIndex]);
 
             item = ringBuffersOut[ringIndex].get(nextSequences[ringIndex]);
 //System.out.println("getNextOutputRingITem: got seq = " + nextSequences[ringIndex]);
