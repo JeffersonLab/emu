@@ -367,7 +367,7 @@ System.out.println("  Roc mod: start With (id=" + myId + "):\n    record id = " 
 
         public void run() {
 
-            int  userEventLoopMax=1000, eventNumber;
+            int  userEventLoopMax=10000, eventNumber;
             int  index, status=0, skip=3,  userEventLoop = userEventLoopMax;
             long oldVal=0L, totalT=0L, totalCount=0l;
             long now, deltaT, start_time = System.currentTimeMillis();
@@ -477,7 +477,7 @@ System.out.println("  Roc mod: start With (id=" + myId + "):\n    record id = " 
 //System.out.println("  Roc mod: next (id=" + myId + "):\n    record id = " + myRocRecordId +
 //                           ", ev # = " +myEventNumber + ", ts = " + timestamp);
 
-//                        Thread.sleep(1500);
+//                        Thread.sleep(1);
 
 //                        if (userEventLoop == userEventLoopMax - 10) {
 //System.out.println("  Roc mod: INSERT USER EVENT");
@@ -699,6 +699,11 @@ System.out.println("  Roc mod: insert PRESTART event");
         pBuf.setControlType(ControlType.GO);
         eventToOutputChannel(pBuf, 0, 0);
 System.out.println("  Roc mod: insert GO event");
+
+//        try {
+//            Thread.sleep(500);
+//        }
+//        catch (InterruptedException e) {}
 
         state = CODAState.ACTIVE;
 
