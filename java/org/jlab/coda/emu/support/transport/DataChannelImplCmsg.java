@@ -342,7 +342,7 @@ public class DataChannelImplCmsg extends DataChannelAdapter {
         ringIndexEnd  = ringIndex;
 
         if (input || !dataOutputThread.isAlive()) {
-logger.debug("      DataChannel File out " + outputIndex + ": processEnd(), thread already done");
+logger.debug("      DataChannel cmsg out " + outputIndex + ": processEnd(), thread already done");
             return;
         }
 
@@ -356,14 +356,14 @@ logger.debug("      DataChannel File out " + outputIndex + ": processEnd(), thre
         }
 
         if (dataOutputThread.threadState == ThreadState.DONE) {
-logger.debug("      DataChannel File out " + outputIndex + ": processEnd(), thread done after waiting");
+logger.debug("      DataChannel cmsg out " + outputIndex + ": processEnd(), thread done after waiting");
             return;
         }
 
         // Probably stuck trying to get item from ring buffer,
         // so interrupt it and get it to read the END event from
         // the correct ring.
-logger.debug("      DataChannel File out " + outputIndex + ": processEnd(), interrupt thread in state " +
+logger.debug("      DataChannel cmsg out " + outputIndex + ": processEnd(), interrupt thread in state " +
                      dataOutputThread.threadState);
         dataOutputThread.interrupt();
     }
@@ -558,7 +558,7 @@ logger.debug("      DataChannel cmsg: reset() " + name + " done");
     }
 
 
-
+    // TODO: out-of-date, will need to look at DataOutputHelper  / NOT USED
     /**
      * Class used to take Evio banks from ring, write them into cMsg messages.
      * This is different than the other in that it starts an extra thread that
@@ -963,8 +963,11 @@ logger.warn("      DataChannel cmsg out: " + name + " exit thd: " + e.getMessage
      */
     private class DataOutputHelper extends Thread {
 
-        /** Used to sync things before putting new cMsg messages. */
-        private CountDownLatch latch;
+//        /** Used to sync things before putting new cMsg messages. */
+//        private CountDownLatch latch;
+
+        /** Used to sync things before putting new ET events. */
+        private Phaser phaser;
 
         /** Help in pausing DAQ. */
         private int pauseCounter;
@@ -1077,6 +1080,7 @@ logger.warn("      DataChannel cmsg out: " + name + " exit thd: " + e.getMessage
                     msgs[i].setType(type);
                 }
 
+                phaser = new Phaser(1);
 
                 while ( dataTransportImplCmsg.getCmsgConnection().isConnected() ) {
 
@@ -1262,7 +1266,8 @@ System.out.println("      DataChannel cmsg out: " + name + " I got END event, qu
                     }
 
 //                    if (writeThreadCount > 1 && nextMsgListIndex > 1) {
-                        latch = new CountDownLatch(nextMsgListIndex);
+//                        latch = new CountDownLatch(nextMsgListIndex);
+                    phaser.bulkRegister(nextMsgListIndex);
 //                    }
 
                     // For each cMsg message that can be filled with something ...
@@ -1302,7 +1307,8 @@ System.out.println("      DataChannel cmsg out: " + name + " I got END event, qu
 
                     // Wait for all events to finish processing
 //                    if (writeThreadCount > 1 && nextMsgListIndex > 1) {
-                        latch.await();
+//                        latch.await();
+                    phaser.arriveAndAwaitAdvance();
 //                    }
 
                     try {
@@ -1478,10 +1484,10 @@ logger.warn("      DataChannel cmsg out: " + name + " exit thd: " + e.getMessage
                     msg.setByteArrayEndian(byteOrder == ByteOrder.BIG_ENDIAN ? cMsgConstants.endianBig :
                                                                                cMsgConstants.endianLittle);
 
-
                     // Tell the DataOutputHelper thread that we're done
                     //if (writeThreadCount > 1)
-                        latch.countDown();
+//                        latch.countDown();
+                    phaser.arriveAndDeregister();
                 }
                 catch (EvioException e) {
                     e.printStackTrace();
