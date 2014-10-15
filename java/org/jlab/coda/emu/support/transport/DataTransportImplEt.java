@@ -512,11 +512,21 @@ if (isJavaSystem) System.out.println("    DataTransport Et: create Java ET syste
 
         // Kill any ET system this object started
         if (createdET) {
-            killEtSystem();
-        }
+            try {
+                killEtSystem();
+            }
+            catch (Exception e) {
+                e.printStackTrace();
+            }
 
-        // Remove any shutdown handler
-        Runtime.getRuntime().removeShutdownHook(shutdownThread);
+            try {
+                // Remove any shutdown handler
+                Runtime.getRuntime().removeShutdownHook(shutdownThread);
+            }
+            catch (Exception e) {
+                e.printStackTrace();
+            }
+        }
     }
 
 
@@ -563,7 +573,6 @@ if (isJavaSystem) System.out.println("    DataTransport Et: create Java ET syste
         // Remove the ET system file
         File etFile = new File(openConfig.getEtName());
         etFile.delete();
-
 
         return killedIt;
     }
