@@ -370,6 +370,7 @@ System.out.println("Set chunking FOR SEB (remember to remove this), chunk = " + 
                 chunkingForSebs = true;
             }
         }
+        System.out.println("So far, chunkingForSebs = " + chunkingForSebs);
 
     }
 
@@ -394,6 +395,9 @@ System.out.println("Set chunking FOR SEB (remember to remove this), chunk = " + 
 
     /** {@inheritDoc} */
     public int getSebChunk() {return sebChunk;}
+
+    /** {@inheritDoc} */
+    public boolean getSebChunking() {return chunkingForSebs;}
 
     //----------------------------------------------------------------
 

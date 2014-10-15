@@ -127,4 +127,12 @@ public interface EmuModule extends StatedObject, CODAStateMachine {
      * builders (SEBs & PEBs).
      */
     public int getSebChunk();
+
+    /**
+     * Get the whether this module is doing seb chunking or not.
+     * Used when sending events from multiple final event
+     * builders (SEBs & PEBs).
+     */
+    public boolean getSebChunking();
+
 }
