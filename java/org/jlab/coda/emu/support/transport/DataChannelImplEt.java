@@ -717,10 +717,13 @@ logger.debug("      DataChannel Et: reset " + name + " - done");
         eventIndexEnd = eventIndex;
         ringIndexEnd  = ringIndex;
 
-        if (input || !dataOutputThread.isAlive()) return;
+        if (input || !dataOutputThread.isAlive()) {
+logger.debug("      DataChannel Et out " + outputIndex + ": processEnd(), thread already done");
+            return;
+        }
 
-        // Don't wait more than 1/4 second
-        int loopCount = 10;
+        // Don't wait more than 1/2 second
+        int loopCount = 20;
         while (dataOutputThread.threadState != ThreadState.DONE && (loopCount-- > 0)) {
             try {
                 Thread.sleep(25);
@@ -728,11 +731,16 @@ logger.debug("      DataChannel Et: reset " + name + " - done");
             catch (InterruptedException e) { break; }
         }
 
-        if (dataOutputThread.threadState == ThreadState.DONE) return;
+        if (dataOutputThread.threadState == ThreadState.DONE) {
+logger.debug("      DataChannel Et out " + outputIndex + ": processEnd(), thread done after waiting");
+            return;
+        }
 
         // Probably stuck trying to get item from ring buffer,
         // so interrupt it and get it to read the END event from
         // the correct ring.
+logger.debug("      DataChannel Et out " + outputIndex + ": processEnd(), interrupt thread in state " +
+                     dataOutputThread.threadState);
         dataOutputThread.interrupt();
     }
 
@@ -1210,6 +1218,8 @@ System.out.println("      DataChannel Et in: " + name + " got RESET cmd, quittin
                             }
                         }
                         catch (EvioException e) {
+Utilities.printBuffer(buf, 0, 20, "BAD EVENT ");
+                            e.printStackTrace();
                             errorMsg.compareAndSet(null, "ET data is NOT evio v4 format");
                             throw e;
                         }
@@ -1240,7 +1250,7 @@ System.out.println("      DataChannel Et in: " + name + " got RESET cmd, quittin
 //System.out.println("      DataChannel Et in: buf user cnt = " + eventCount);
 
                         // Send the # of (buildable) evio events / ET event for ROC feedback,
-                        // tut only if this is the DC or PEB.
+                        // but only if this is the DC or PEB.
                         t2 = System.currentTimeMillis();
                         if (isFirstEB && eventType.isBuildable() && (t2-t1 > timeBetweenMupdates)) {
                             emu.getCmsgPortal().sendMHandlerMessage(eventCount, "M");
@@ -1275,6 +1285,9 @@ System.out.println("      DataChannel Et in: " + name + " got RESET cmd, quittin
                                     throw new EvioException("Found unidentified control event");
                                 }
                             }
+
+                            // Don't need to set controlType = null for each loop since each
+                            // ET event contains only one event type (CONTROL, PHYSICS, etc).
 
 //System.out.println("      DataChannel Et in: wait for next ring buf for writing");
                             nextRingItem = ringBufferIn.next();
@@ -1525,6 +1538,7 @@ System.out.println("      DataChannel Et out: wake up attachment #" + attachment
                      // Number of events obtained in a newEvents() call will
                      // always be <= chunk. Convenience variable.
                      eventArrayLen = events.length;
+//System.out.println("      DataChannel Et out: " + name + " got " + eventArrayLen + " ET events");
 
                      // Execute thread to get more new events while we're
                      // filling and putting the ones we have.
@@ -1550,14 +1564,14 @@ System.out.println("      DataChannel Et out: wake up attachment #" + attachment
                      // RESET command or someone found an END event.
                      do {
 // System.out.println("      DataChannel Et out: ringIndex = " + ringIndex);
-                         // Get bank off of Q, unless we already did so in a previous loop
+                         // Get bank off of ring, unless we already did so in a previous loop
                          if (firstBankFromRing != null) {
                              ringItem = firstBankFromRing;
                              firstBankFromRing = null;
                          }
                          else {
-//System.out.print("      DataChannel Et out: get next buffer from ring ... ");
                              try {
+//System.out.print("      DataChannel Et out: get next buffer from ring " + ringIndex + " ...");
                                  ringItem = getNextOutputRingItem(ringIndex);
                              }
                              catch (InterruptedException e) {
@@ -1566,7 +1580,7 @@ System.out.println("      DataChannel Et out: wake up attachment #" + attachment
                                  // (END) event from the wrong ring. We've had 1/4 second
                                  // to read everything else so let's try reading END from
                                  // given ring.
-System.out.println("      DataChannel Et out: try again, read END from ringIndex " + ringIndexEnd +
+System.out.println("      DataChannel Et out, " + name + ": try again, read END from ringIndex " + ringIndexEnd +
 " not " + ringIndex);
                                  ringItem = getNextOutputRingItem(ringIndexEnd);
                              }
@@ -1590,6 +1604,9 @@ System.out.println("      DataChannel Et out: try again, read END from ringIndex
 
                          // This the first time through the while loop
                          if (previousType == null) {
+                             // If firstBankFromRing != null at the top of this do loop,
+                             // then we end up here.
+
                              // Add bank to the list since there's always room for one
                              bankList.add(ringItem);
 
@@ -1620,7 +1637,8 @@ System.out.println("      DataChannel Et out: try again, read END from ringIndex
                              // write things out first. Be sure to store what we just
                              // pulled off the Q to be the next bank!
                              if (nextEventIndex >= eventArrayLen) {
-//System.out.println("      DataChannel Et out: used up " + nextEventIndex + " events, store bank for next round");
+//System.out.println("      DataChannel Et out: used up " + nextEventIndex +
+//                           " events, max = " + eventArrayLen);
                                  firstBankFromRing = ringItem;
                                  break;
                              }
@@ -1656,6 +1674,8 @@ System.out.println("      DataChannel Et out: try again, read END from ringIndex
                          ringItem.setAttachment(Boolean.FALSE);
 
                          gotoNextRingItem(ringIndex);
+//System.out.println("      DataChannel Et out: " + name + " go to item " + nextSequences[ringIndex] +
+//" on ring " + ringIndex);
 
                          // If control event, quit loop and write what we have
                          if (pBankControlType != null) {
@@ -1682,14 +1702,24 @@ System.out.println("      DataChannel Et out: have " + pBankControlType + ", rin
                          // we know when to switch to the next ring.
                          if (outputRingCount > 1 && !pBankType.isUser()) {
                               setNextEventAndRing();
-//System.out.println("      DataChannel Emu out, " + name + ": for next ev " + nextEvent + " SWITCH TO ring = " + ringIndex);
+//System.out.println("      DataChannel Et out, " + name + ": for next ev " + nextEvent +
+//                           " SWITCH TO ring " + ringIndex);
                          }
+//                         else {
+//                             if (emu.getCodaClass().isEventBuilder())
+//System.out.println("      DataChannel Et out, " + name + ": for next ev " + nextEvent +
+//                           " do NOT switch ring from " + ringIndex);
+//                         }
 
                          // Be careful not to use up all the events in the output
-                         // ring buffer before writing (& freeing up) some.
+                         // ring buffer before writing some (& freeing up).
                          if (eventCount >= outputRingItemCount /2) {
+//logger.warn("      DataChannel Et out : " + name + " break since eventCount(" + eventCount +
+//        ") > outputRingItemCount/2(" + ( outputRingItemCount /2) +")");
                              break;
                          }
+//logger.warn("      DataChannel Et out : " + name + " end while, nextEventIndex(" + nextEventIndex +
+//") <? eventArrayLen(" + eventArrayLen + ")");
 
                      } while (!gotResetCmd && (thisEventIndex < eventArrayLen));
 
@@ -1705,6 +1735,7 @@ System.out.println("      DataChannel Et out: " + name + " got RESET cmd, quitti
 
 //                     latch = new CountDownLatch(nextEventIndex);
                      phaser.bulkRegister(nextEventIndex);
+//logger.warn("      DataChannel Et out : " + name + " bulkRegister(" + nextEventIndex + ")");
 
                      // For each ET event that can be filled with something ...
                      for (int i=0; i < nextEventIndex; i++) {
@@ -1726,7 +1757,7 @@ System.out.println("      DataChannel Et out: " + name + " got RESET cmd, quitti
                                  // with a larger one. Performance will be terrible but it'll work.
                                  try {
                                      etSystem.dumpEvents(attachment, new EtEvent[]{events[i]});
- //System.out.println("      DataChannel Et out: 4 " + name + " newEvents() ...");
+//System.out.println("      DataChannel Et out: " + name + " newEvents() ...");
                                      EtEvent[] evts = etSystem.newEvents(attachment, Mode.SLEEP, false,
                                                                          0, 1, bankWrittenSize, group);
                                      events[i] = evts[0];
@@ -1795,15 +1826,16 @@ System.out.println("      DataChannel Et out: " + name + " got RESET cmd, quitti
                      // Wait for all events to finish processing
 //                     latch.await();
                      phaser.arriveAndAwaitAdvance();
+//System.out.println("      DataChannel Et out: past phaser block");
 
                      try {
- //System.out.println("      DataChannel Et out: write " + events2Write + " events");
+//System.out.println("      DataChannel Et out: write " + events2Write + " events");
                          // Put events back in ET system
                          etSystem.putEvents(attachment, events, 0, events2Write);
 
                          // Dump any left over new ET events.
                          if (events2Write < eventArrayLen) {
- //System.out.println(""      DataChannel Et out: dumping " + (eventArrayLen - events2Write) + " unused new events");
+//System.out.println("      DataChannel Et out: dumping " + (eventArrayLen - events2Write) + " unused new events");
                              etSystem.dumpEvents(attachment, events, events2Write, (eventArrayLen - events2Write));
                          }
                      }
@@ -1828,12 +1860,15 @@ System.out.println("      DataChannel Et out: " + name + " got RESET cmd, quitti
                      // If we did NOT read from a particular ring, there is still no
                      // problem since its sequence was never increased and we only
                      // end up releasing something already released.
+//System.out.print("      DataChannel Et out: " + name + " release from rings: ");
                      for (int i=0; i < outputRingCount; i++) {
                         releaseOutputRingItem(i);
+//System.out.print("item " + (nextSequences[i] - 1) + " from ring " + i + ", ");
                      }
+//                     System.out.println();
 
                      if (haveOutputEndEvent) {
- System.out.println("      DataChannel Et out: " + name + " some thd got END event, quitting 4");
+System.out.println("      DataChannel Et out: " + name + " some thd got END event, quitting 4");
                          shutdown();
                          threadState = ThreadState.DONE;
                          return;
@@ -1970,6 +2005,7 @@ System.out.println("      DataChannel Et out: " + name + " got RESET cmd, quitti
                          for (RingItem ri : bankList) {
 //System.out.println("      DataChannel Et out: write buffer of order " + ri.getByteOrder());
                              evWriter.writeEvent(ri.getBuffer());
+//System.out.println("      DataChannel Et out: release ring item");
                              ri.releaseByteBuffer();
                          }
                      }
@@ -1980,6 +2016,7 @@ System.out.println("      DataChannel Et out: " + name + " got RESET cmd, quitti
                      // Tell the DataOutputHelper thread that we're done
 //                     latch.countDown();
                      phaser.arriveAndDeregister();
+//System.out.println("      DataChannel Et out: writer deregister");
                  }
                  catch (Exception e) {
                      // Doubt this would ever happen
@@ -2031,6 +2068,7 @@ System.out.println("      DataChannel Et out: " + name + " got RESET cmd, quitti
                                                  chunk, (int)etSystem.getEventSize(), group);
 //System.out.println("      DataChannel Et out: got " + events.length + " new events");
                      barrier.await();
+//System.out.println("      DataChannel Et out: past barrier!");
                  }
                  catch (EtWakeUpException e) {
                      // Told to wake up because we're ending or resetting
@@ -2485,7 +2523,7 @@ System.out.println("      DataChannel Et out: " + name + " got RESET cmd, quitti
 
                      // Put stuff in a ring buffer to be written out by another thread
                      eventItem = eventSupply.get();
-//logger.debug("      DataChannel Emu out helper: place event into output ring, ev1 = " + events[0] +
+//logger.debug("      DataChannel Et out helper: place event into output ring, ev1 = " + events[0] +
 //", # out = " + events2Write);
                      eventItem.setParameters(events, events2Write, eventArrayLen);
                      eventSupply.publish(eventItem);
@@ -2493,7 +2531,7 @@ System.out.println("      DataChannel Et out: " + name + " got RESET cmd, quitti
 
                      // FREE UP STUFF
 
-//logger.debug("      DataChannel Emu out helper: release ring item");
+//logger.debug("      DataChannel Et out helper: release ring item");
                      releaseOutputRingItem(ringIndex);
 
                      ringIndex = ++ringIndex % outputRingCount;
