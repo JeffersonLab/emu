@@ -847,7 +847,7 @@ System.out.println("      DataChannel Emu in: get emuEnd cmd");
     }
 
 
-    // TODO: most likely needs updating
+    // TODO: most likely needs updating / NOT USED
     /**
      * Class used to take Evio banks from ring buffer (placed there by a module),
      * and write them over network to an Emu domain input channel using the Emu
