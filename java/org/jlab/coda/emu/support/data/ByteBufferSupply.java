@@ -221,16 +221,18 @@ public class ByteBufferSupply {
 
                     // Set the new max
                     maxSequence = seq;
+//System.out.println(myId + " bbSupply: release, new max = " + maxSequence);
                 }
                 // If we're < max and > last, then we're in between
                 else if (seq > lastSequenceReleased) {
                     between++;
+//System.out.println(myId + " bbSupply: release, between = " + between);
                 }
 
                 // If we now have everything between last & max, release it all.
                 // This way higher sequences are never released before lower.
                 if ((maxSequence - lastSequenceReleased - 1L) == between) {
-//if (myId == 2) System.out.println(myId + " Free up to seq " + maxSequence);
+//System.out.println(myId + " bbSupply: release, free up to seq " + maxSequence);
                     sequence.set(maxSequence);
                     lastSequenceReleased = maxSequence;
                     between = 0;
