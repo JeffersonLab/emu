@@ -1171,7 +1171,8 @@ System.out.println("checkPayloadBuffer: bank source Id (" + sourceId + ") != ban
      * @return <code>true</code> if non-fatal error occurred, else <code>false</code>
      * @throws EmuException if some events are in single event mode and others are not;
      *                      if some physics and others ROC raw event types;
-     *                      if there are a differing number of events in each payload bank
+     *                      if there are a differing number of events in each payload bank;
+     *                      if some events have a sync bit set and others do not.
      */
     public static boolean checkConsistency(PayloadBuffer[] buildingBanks) throws EmuException {
         boolean nonFatalError = false;
@@ -1229,8 +1230,13 @@ System.out.println("  EB mod: events have duplicate source ids");
         // If one is a sync, all must be syncs
         if (syncBankCount > 0 && syncBankCount != numBanks) {
             // Some banks are sync banks and some are not
-            nonFatalError = true;
-System.out.println("  EB mod: events out of sync");
+            System.out.print("  EB mod: only these channels have a sync: ");
+            for (PayloadBuffer buildingBank : buildingBanks) {
+                System.out.print(buildingBank.getSourceName() + ", ");
+            }
+            System.out.println();
+
+            throw new EmuException("events out of sync");
         }
 
         // If one is a single-event-mode, all must be
