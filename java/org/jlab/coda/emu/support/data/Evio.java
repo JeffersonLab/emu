@@ -1230,9 +1230,11 @@ System.out.println("  EB mod: events have duplicate source ids");
         // If one is a sync, all must be syncs
         if (syncBankCount > 0 && syncBankCount != numBanks) {
             // Some banks are sync banks and some are not
-            System.out.print("  EB mod: only these channels have a sync: ");
+            System.out.print("  EB mod: these channels have NO sync: ");
             for (PayloadBuffer buildingBank : buildingBanks) {
-                System.out.print(buildingBank.getSourceName() + ", ");
+                if (!buildingBank.isSync()) {
+                    System.out.print(buildingBank.getSourceName() + ", ");
+                }
             }
             System.out.println();
 
