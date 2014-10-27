@@ -55,6 +55,9 @@ public final class Statistics {
     /** The starting value of the histogram's first bin. */
     private int startingBinValue;
 
+    /** Do we calculate the bin size or is it set in constructor? */
+    private boolean calculateBinSize;
+
 
     /**
      * Constructor.
@@ -99,6 +102,11 @@ public final class Statistics {
     public Statistics(int window, int binCount, int binSize) {
         if (window   < 100) window   = 100;
         if (binCount < 10)  binCount = 10;
+
+        if (binSize <= 0) {
+            binSize = 0;
+            calculateBinSize = true;
+        }
 
         this.window = window;
         this.binSize = binSize;
@@ -175,7 +183,7 @@ public final class Statistics {
         int cutOffMax = 5*mean;
 
         // If binSize has not been given, find a reasonable value
-        if (binSize < 1) {
+        if (calculateBinSize) {
             binSize = (cutOffMax - min)/binCount;
             // Round it up
             if (binSize < 100) binSize = 100;
