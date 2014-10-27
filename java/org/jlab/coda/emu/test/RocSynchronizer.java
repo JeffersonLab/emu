@@ -175,6 +175,7 @@ public class RocSynchronizer {
             respondingRocs.add(msg.getType());
             // Int = 1 (got End cmd) or 0 (no End received)
             respondingStates.add(msg.getUserInt());
+//System.out.println("Got type = " + msg.getType() + " & user int = " + msg.getUserInt());
 
             // If we got the expected number of responses, see if
             // we got them from the expected ROCs.
