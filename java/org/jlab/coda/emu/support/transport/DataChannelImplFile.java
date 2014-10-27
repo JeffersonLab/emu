@@ -269,7 +269,7 @@ logger.info("      DataChannel File: try writing to file " + evioFileWriter.getC
                 throw new DataTransportException("      DataChannel File: Cannot open data file " + e.getMessage(), e);
             }
             else {
-                throw new DataTransportException("      DataChannel File: Cannot create data file" + e.getMessage(), e);
+                throw new DataTransportException("      DataChannel File: Cannot create data file " + e.getMessage(), e);
             }
         }
     }
