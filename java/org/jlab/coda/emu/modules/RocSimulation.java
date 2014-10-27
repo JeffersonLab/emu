@@ -600,12 +600,9 @@ System.out.println("  Roc mod: start With (id=" + myId + "):\n    record id = " 
         state = CODAState.DOWNLOADED;
 
         // Put in END event
-        ByteBuffer controlBuf = Evio.createControlBuffer(ControlType.END, 0, 0,
-                                                         (int)eventCountTotal, 0,
-                                                         outputOrder);
-        PayloadBuffer pBuf = new PayloadBuffer(controlBuf);
-        pBuf.setEventType(EventType.CONTROL);
-        pBuf.setControlType(ControlType.END);
+        PayloadBuffer pBuf = Evio.createControlBuffer(ControlType.END, 0, 0,
+                                                      (int)eventCountTotal, 0,
+                                                      outputOrder);
         // Send to first ring
         eventToOutputChannel(pBuf, 0, 0);
 
@@ -656,12 +653,9 @@ System.out.println("  Roc mod: start With (id=" + myId + "):\n    record id = " 
         }
 
         // Put in PRESTART event
-        ByteBuffer controlBuf = Evio.createControlBuffer(ControlType.PRESTART, emu.getRunNumber(),
-                                                         emu.getRunTypeId(), 0, 0,
-                                                         outputOrder);
-        PayloadBuffer pBuf = new PayloadBuffer(controlBuf);
-        pBuf.setEventType(EventType.CONTROL);
-        pBuf.setControlType(ControlType.PRESTART);
+        PayloadBuffer pBuf = Evio.createControlBuffer(ControlType.PRESTART, emu.getRunNumber(),
+                                                      emu.getRunTypeId(), 0, 0,
+                                                      outputOrder);
         // Send to first ring
         eventToOutputChannel(pBuf, 0, 0);
 System.out.println("  Roc mod: insert PRESTART event");
@@ -691,12 +685,9 @@ System.out.println("  Roc mod: insert PRESTART event");
         }
 
         // Put in GO event
-        ByteBuffer controlBuf = Evio.createControlBuffer(ControlType.GO, 0, 0,
-                                                         (int) eventCountTotal, 0,
-                                                         outputOrder);
-        PayloadBuffer pBuf = new PayloadBuffer(controlBuf);
-        pBuf.setEventType(EventType.CONTROL);
-        pBuf.setControlType(ControlType.GO);
+        PayloadBuffer pBuf = Evio.createControlBuffer(ControlType.GO, 0, 0,
+                                                      (int) eventCountTotal, 0,
+                                                      outputOrder);
         eventToOutputChannel(pBuf, 0, 0);
 System.out.println("  Roc mod: insert GO event");
 
