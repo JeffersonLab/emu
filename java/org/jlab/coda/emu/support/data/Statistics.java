@@ -158,7 +158,7 @@ public final class Statistics {
             total += data[i];
         }
 
-        mean = (int) (total/size);
+        if (size != 0) mean = (int) (total/size);
         return size;
     }
 
