@@ -175,4 +175,8 @@ public class RCConstants {
     public static final String    objectType           = "objectType";
     public static final String    runStartTime         = "runStartTime";
     public static final String    runEndTime           = "runEndTime";
+    public static final String    maxEventSize         = "maxEventSize";
+    public static final String    minEventSize         = "minEventSize";
+    public static final String    avgEventSize         = "avgEventSize";
+    public static final String    timeToBuild          = "timeToBuild";
   }
