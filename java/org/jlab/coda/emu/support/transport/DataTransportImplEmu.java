@@ -37,8 +37,6 @@ public class DataTransportImplEmu extends DataTransportAdapter {
 
     private EmuDomainServer emuServer;
 
-    private EmuDomainTcpServer tcpServer;
-
     final HashMap<Integer, DataChannelImplEmu> inputChannelTable =
             new HashMap<Integer, DataChannelImplEmu>(16);
 
@@ -92,7 +90,6 @@ System.out.println("Port should be specified in config file, using default " + p
 System.out.println("STARTING UP EMU SERVER in " + name + " with port " + port + " &&&&&&&&&&&&&&&&&&&&&&&&&&&&");
             emuServer = new EmuDomainServer(port, emu.getExpid(), name, this);
             emuServer.start();
-            tcpServer = emuServer.getTcpServer();
         }
         else {
             // We'll have a TCP client (but config server) connect to the downstream Emu's
