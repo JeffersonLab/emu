@@ -328,11 +328,14 @@ System.out.println("      DataChannel Adapter: chunking for SEBs = " + chunkingF
 
         // Initialize counter
         sebChunkCounter = sebChunk;
-        // Initialize the event number
+
+        // Initialize the event number (first buildable event)
         nextEvent = outputIndex * sebChunk;
-        // Initialize the ring number
+
+        // Initialize the ring number (of first buildable event)
         ringIndex = (int) (nextEvent % outputRingCount);
-//System.out.println("      DataChannel Adapter: prestart, nextEv (" + nextEvent + "), ringIndex (" + ringIndex + ")");
+
+System.out.println("      DataChannel Adapter: prestart, nextEv (" + nextEvent + "), ringIndex (" + ringIndex + ")");
     }
 
 
@@ -357,18 +360,20 @@ System.out.println("      DataChannel Adapter: chunking for SEBs = " + chunkingF
 //
 
     /**
-     * Set the index of the next event to get from the module
+     * Set the index of the next buildable event to get from the module
      * and the ring it will appear on.<p>
      * NOTE: only called IFF outputRingCount > 1.
+     *
+     * @return index of ring that next event will be placed in
      */
-    protected void setNextEventAndRing() {
+    protected int setNextEventAndRing() {
         if (chunkingForSebs) {
             if (--sebChunkCounter > 0) {
                 nextEvent++;
                 ringIndex = (int) (nextEvent % outputRingCount);
 //System.out.println("      DataChannel Adapter: set next ev (" + nextEvent + "), ring (" + ringIndex +
 //                           "), sebChunkCounter = " + sebChunkCounter);
-                return;
+                return ringIndex;
             }
 
             sebChunkCounter = sebChunk;
@@ -376,20 +381,19 @@ System.out.println("      DataChannel Adapter: chunking for SEBs = " + chunkingF
             ringIndex = (int) (nextEvent % outputRingCount);
 //System.out.println("      DataChannel Adapter: set next ev (" + nextEvent + "), ring (" + ringIndex + ")");
         }
-        // We may have multiple build threads (but are NOT chunking).
-        // In this case, just switch between output channel rings,
-        // (nextEvent is not used). NOTE: only here if outputRingCount > 1.
+        // We may have multiple build threads (but are NOT chunking, sebChunk = 1).
+        // In this case, just switch between output channel rings.
+        // NOTE: only here if outputRingCount > 1.
         else {
-
             nextEvent += sebChunk*(outputChannelCount - 1) + 1;
             ringIndex = (int) (nextEvent % outputRingCount);
 //System.out.println("      DataChannel Adapter: set next ev (" + nextEvent + "), ring (" + ringIndex + ")");
 
-
-
 //            ringIndex = ++ringIndex % outputRingCount;
 //System.out.println("      DataChannel Adapter: set next ring (" + ringIndex + ")");
         }
+
+        return ringIndex;
     }
 
 
