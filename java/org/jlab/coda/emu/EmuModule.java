@@ -87,17 +87,24 @@ public interface EmuModule extends StatedObject, CODAStateMachine {
 
     /**
      * Get the <b>output</b> statistics of this EmuModule object. The output statistics
-     * consists of an array of 2 longs and 2 floats in object form:<p>
+     * consists of an array of 2 longs, 3 floats, and 3 ints in object form:<p>
      * <ol>
-     * <li>event count<p>
-     * <li>word (32 bit int) count<p>
-     * <li>event rate (Hz)<p>
-     * <li>word rate (Hz)<p>
+     * <li>event count (Long)<p>
+     * <li>word count  (Long)<p>
+     * <li>event rate in Hz (Float<p>
+     * <li>data rate in kBytes/sec  (Float)<p>
+     * <li>max event size in bytes (Integer) if module is an EB<p>
+     * <li>min event size in bytes (Integer) if module is an EB<p>
+     * <li>avg event size in bytes (Integer) if module is an EB<p>
+     * <li>if EB & switched on, histogram of time to build 1 event in nanoseconds (Integer)<p>
      * </ol>
      *
-     * @return array of objects containing in order: 1) event count, 2) word count,
-     *         3) event rate and, 4) word rate, or<p>
-     *         null if no statistics reported for this module.
+     * @return array of objects containing in order: 1) event count (Long),
+     *          2) word count (Long), 3) event rate(Float), 4) data rate (Float), optionally
+     *          5) max event byte size (Integer), 6) min event byte size (Integer),
+     *          7) average event byte size (Integer), and
+     *          8) histogram of time to build 1 event in nanosec (Integer), or
+     *          null if no statistics reported for this module.
      */
     public Object[] getStatistics();
 
