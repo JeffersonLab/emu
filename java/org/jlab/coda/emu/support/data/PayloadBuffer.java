@@ -84,6 +84,7 @@ public class PayloadBuffer extends RingItemAdapter {
         // Share content but keep different limit, position, mark.
         // This will work if and only if the buffer is written to.
         buffer = buf.buffer.duplicate();
+        buffer.order(buf.getByteOrder());
     }
 
     /**
@@ -91,8 +92,6 @@ public class PayloadBuffer extends RingItemAdapter {
      * @return the length of this structure in bytes, including the header.
      */
     public int getTotalBytes() {
-        // remaining() THIS DOES NOTTTTTTTTTT SEEM RIGHT!!!!!
-        //return buffer.remaining();
         return buffer.limit();
     }
 
