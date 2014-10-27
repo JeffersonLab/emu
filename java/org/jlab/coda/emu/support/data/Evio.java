@@ -1168,13 +1168,16 @@ System.out.println("checkPayloadBuffer: bank source Id (" + sourceId + ") != ban
      * </ol>
      *
      * @param buildingBanks array containing banks that will be built together
+     * @param eventNumber   first event number in each bank (used for diagnostic output)
+     *
      * @return <code>true</code> if non-fatal error occurred, else <code>false</code>
      * @throws EmuException if some events are in single event mode and others are not;
      *                      if some physics and others ROC raw event types;
      *                      if there are a differing number of events in each payload bank;
      *                      if some events have a sync bit set and others do not.
      */
-    public static boolean checkConsistency(PayloadBuffer[] buildingBanks) throws EmuException {
+    public static boolean checkConsistency(PayloadBuffer[] buildingBanks, long eventNumber)
+            throws EmuException {
         boolean nonFatalError = false;
 
         // For each ROC raw data record check the sync bit
@@ -1215,11 +1218,11 @@ System.out.println("  EB mod: events have duplicate source ids");
             if (numEvents != buildingBanks[i].getNode().getNum()) {
                 System.out.println("Differing # of events sent by each ROC:\n");
                 System.out.println("numEvents       name      codaID");
-                for (int j=0; j < buildingBanks.length; j++) {
+                for (PayloadBuffer bank : buildingBanks) {
                     System.out.println("   " +
-                                       buildingBanks[j].getNode().getNum() + "        " +
-                                       buildingBanks[j].getSourceName() + "        " +
-                                       buildingBanks[j].getSourceId());
+                                       bank.getNode().getNum() + "        " +
+                                       bank.getSourceName() + "        " +
+                                       bank.getSourceId());
                 }
                 throw new EmuException("differing # of events sent by each ROC");
             }
@@ -1230,7 +1233,7 @@ System.out.println("  EB mod: events have duplicate source ids");
         // If one is a sync, all must be syncs
         if (syncBankCount > 0 && syncBankCount != numBanks) {
             // Some banks are sync banks and some are not
-            System.out.print("  EB mod: these channels have NO sync: ");
+            System.out.print("  EB mod: these channels have NO sync at event " + eventNumber + ": ");
             for (PayloadBuffer buildingBank : buildingBanks) {
                 if (!buildingBank.isSync()) {
                     System.out.print(buildingBank.getSourceName() + ", ");
@@ -1238,7 +1241,7 @@ System.out.println("  EB mod: events have duplicate source ids");
             }
             System.out.println();
 
-            throw new EmuException("events out of sync");
+            throw new EmuException("events out of sync at event " + eventNumber);
         }
 
         // If one is a single-event-mode, all must be
@@ -1664,7 +1667,7 @@ if (debug) System.out.println("gotValidControlEvents: found control event of typ
 
 
     /**
-     * Create a Control event in a ByteBuffer which is ready to read.
+     * Create a Control event with a ByteBuffer which is ready to read.
      *
      * @param type            control type, must be SYNC, PRESTART, GO, PAUSE, or END
      * @param runNumber       current run number for prestart event
@@ -1673,11 +1676,11 @@ if (debug) System.out.println("gotValidControlEvents: found control event of typ
      * @param eventsSinceSync number of events since last sync for sync event
      * @param order           byte order in which to write event into buffer
      *
-     * @return created Control event in byte buffer
+     * @return created PayloadBuffer object containing Control event in byte buffer
      */
-    public static ByteBuffer createControlBuffer(ControlType type, int runNumber, int runType,
-                                                int eventsInRun, int eventsSinceSync, ByteOrder order) {
-
+    public static PayloadBuffer createControlBuffer(ControlType type, int runNumber,
+                                                    int runType, int eventsInRun,
+                                                    int eventsSinceSync, ByteOrder order) {
 
         try {
             int[] data;
@@ -1704,7 +1707,11 @@ if (debug) System.out.println("gotValidControlEvents: found control event of typ
             builder.openBank(type.getValue(), 0, DataType.UINT32);
             builder.addIntData(data);
             builder.closeStructure();
-            return builder.getBuffer(); // Ready to read buffer
+            PayloadBuffer pBuf = new PayloadBuffer(builder.getBuffer());  // Ready to read buffer
+            pBuf.setEventType(EventType.CONTROL);
+            pBuf.setControlType(type);
+
+            return pBuf;
         }
         catch (EvioException e) {/* never happen */}
 
