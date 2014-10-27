@@ -120,7 +120,7 @@ public final class Statistics {
      * <li>The 5rd element contains the data's maximum value<p>
      * </ol>
      * The rest of the array contains the histogram itself.
-     * @return
+     * @return histogram
      */
     public int[] getHistogram() {
         return histogram;
@@ -166,8 +166,10 @@ public final class Statistics {
     /**
      * Fill the histogram integer array with data points.
      * Only data points with a value < 5*mean are used.
+     *
+     * @return histogram just filled
      */
-    public void fillHistogram() {
+    public int[] fillHistogram() {
 
         int numValidDataPts = calculateStats();
         int cutOffMax = 5*mean;
@@ -200,6 +202,8 @@ public final class Statistics {
                 histogram[bin+5] += 1;
             }
         }
+
+        return histogram;
     }
 
 
