@@ -15,15 +15,11 @@ import com.lmax.disruptor.RingBuffer;
 import org.jlab.coda.emu.Emu;
 import org.jlab.coda.emu.EmuEventNotify;
 import org.jlab.coda.emu.EmuModule;
-import org.jlab.coda.emu.support.codaComponent.CODAClass;
 import org.jlab.coda.emu.support.codaComponent.CODAState;
 import org.jlab.coda.emu.support.codaComponent.State;
 import org.jlab.coda.emu.support.configurer.DataNotFoundException;
 import org.jlab.coda.emu.support.control.CmdExecException;
-import org.jlab.coda.emu.support.data.Attached;
-import org.jlab.coda.emu.support.data.ByteBufferSupply;
-import org.jlab.coda.emu.support.data.ModuleIoType;
-import org.jlab.coda.emu.support.data.RingItem;
+import org.jlab.coda.emu.support.data.*;
 import org.jlab.coda.emu.support.logger.Logger;
 import org.jlab.coda.emu.support.transport.DataChannel;
 
@@ -135,11 +131,30 @@ public class ModuleAdapter implements EmuModule {
     /** Instantaneous word rate in Hz over the last time period of length {@link #statGatheringPeriod}. */
     protected float wordRate;
 
+    /** Maximum-sized built event in bytes. */
+    protected int maxEventSize;
+
+    /** Minimum-sized built event in bytes. */
+    protected int minEventSize;
+
+    /** Average-sized built event in bytes. */
+    protected int avgEventSize;
+
+    /** Histogram of time to build 1 event in nanoseconds
+     * (metadata in first 5 elements). */
+    protected int[] timeToBuild;
+
     /** Targeted time period in milliseconds over which instantaneous rates will be calculated. */
     protected static final int statGatheringPeriod = 2000;
 
     /** If {@code true}, this module's statistics represents that of the EMU. */
     protected boolean representStatistics;
+
+    /** If true, collect statistics on event build times (performance drag). */
+    protected boolean timeStatsOn;
+
+    /** Handle histogram of event build times. */
+    protected Statistics statistics;
 
     /** Thread to calculate event & data rates. */
     protected Thread RateCalculator;
@@ -218,16 +233,28 @@ logger.info("  Module Adapter: SEB chunk = " + sebChunk);
 
 
         // Does this module accurately represent the whole EMU's stats?
-        str = attributeMap.get("statistics");
+        representStatistics = true;
+        str = attributeMap.get("repStats");
+        if (str != null) {
+            if (str.equalsIgnoreCase("false") ||
+                str.equalsIgnoreCase("off")   ||
+                str.equalsIgnoreCase("no"))   {
+                representStatistics = false;
+            }
+        }
+
+        // In EB, make histogram of time to build event.
+        // Default is NOT to collect stats of time to build events
+        // since it's a real performance killer.
+        timeStatsOn = false;
+        str = attributeMap.get("timeStats");
         if (str != null) {
             if (str.equalsIgnoreCase("true") ||
                 str.equalsIgnoreCase("on")   ||
                 str.equalsIgnoreCase("yes"))   {
-
-                representStatistics = true;
+                timeStatsOn = true;
             }
         }
-
     }
 
 
@@ -326,21 +353,36 @@ logger.info("  Module Adapter: SEB chunk = " + sebChunk);
 
     /** {@inheritDoc} */
     synchronized public Object[] getStatistics() {
-        Object[] stats = new Object[4];
+
+        Object[] stats = new Object[8];
 
         // If we're not active, keep the accumulated
-        // totals, but the rates are zero.
+        // totals and sizes, but the rates are zero.
         if (state != CODAState.ACTIVE) {
             stats[0] = eventCountTotal;
             stats[1] = wordCountTotal;
             stats[2] = 0F;
             stats[3] = 0F;
+
+            stats[4] = maxEventSize;
+            stats[5] = minEventSize;
+            stats[6] = avgEventSize;
+            stats[7] = timeToBuild;
         }
         else {
+            if (timeStatsOn && statistics != null) {
+                timeToBuild = statistics.fillHistogram();
+            }
+
             stats[0] = eventCountTotal;
             stats[1] = wordCountTotal;
             stats[2] = eventRate;
             stats[3] = wordRate;
+
+            stats[4] = maxEventSize;
+            stats[5] = minEventSize;
+            stats[6] = avgEventSize;
+            stats[7] = timeToBuild;
         }
 
         return stats;
