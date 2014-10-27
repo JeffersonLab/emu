@@ -1080,6 +1080,9 @@ logger.warn("      DataChannel cmsg out: " + name + " exit thd: " + e.getMessage
                     msgs[i].setType(type);
                 }
 
+                // Always start out reading prestart & go events from ring 0
+                int outputRingIndex=0;
+
                 phaser = new Phaser(1);
 
                 while ( dataTransportImplCmsg.getCmsgConnection().isConnected() ) {
@@ -1122,7 +1125,7 @@ logger.warn("      DataChannel cmsg out: " + name + " exit thd: " + e.getMessage
                         else {
 //System.out.print("      DataChannel cmsg out: get next buffer from ring ... ");
                             try {
-                                ringItem = getNextOutputRingItem(ringIndex);
+                                ringItem = getNextOutputRingItem(outputRingIndex);
                             }
                             catch (InterruptedException e) {
                                 threadState = ThreadState.INTERRUPTED;
@@ -1131,7 +1134,7 @@ logger.warn("      DataChannel cmsg out: " + name + " exit thd: " + e.getMessage
                                 // to read everything else so let's try reading END from
                                 // given ring.
 System.out.println("      DataChannel cmsg out: try again, read END from ringIndex " + ringIndexEnd +
-                   " not " + ringIndex);
+                   " not " + outputRingIndex);
                                 ringItem = getNextOutputRingItem(ringIndexEnd);
                             }
                         }
@@ -1223,19 +1226,30 @@ System.out.println("      DataChannel cmsg out: try again, read END from ringInd
                         previousType = pBanktype;
                         ringItem.setAttachment(Boolean.FALSE);
 
-                        gotoNextRingItem(ringIndex);
+                        gotoNextRingItem(outputRingIndex);
 
                         // If control event, quit loop and write what we have
                         if (pBankControlType != null) {
-System.out.println("      DataChannel cmsg out: SEND CONTROL RIGHT THROUGH: " + pBankControlType);
-
                             // Look for END event and mark it in attachment
                             if (pBankControlType == ControlType.END) {
                                 ringItem.setAttachment(Boolean.TRUE);
                                 haveOutputEndEvent = true;
-System.out.println("      DataChannel cmsg out: " + name + " I got END event, quitting 2");
+System.out.println("      DataChannel cmsg out " + outputIndex + ": I got END event, quitting 2, byteOrder = " +
+ringItem.getByteOrder());
                                 // run callback saying we got end event
                                 if (endCallback != null) endCallback.endWait();
+                            }
+                            else if (pBankControlType == ControlType.PRESTART) {
+System.out.println("      DataChannel cmsg out " + outputIndex + ": have PRESTART, ringIndex = " + outputRingIndex);
+                            }
+                            else if (pBankControlType == ControlType.GO) {
+System.out.println("      DataChannel cmsg out " + outputIndex + ": have GO, ringIndex = " + outputRingIndex);
+                                // If the module has multiple build threads, then it's possible
+                                // that the first buildable event (next one in this case)
+                                // will NOT come on ring 0. Make sure we're looking for it
+                                // on the right ring. It was set to the correct value in
+                                // DataChannelAdapter.prestart().
+                                outputRingIndex = ringIndex;
                             }
 
                             break;
@@ -1247,8 +1261,9 @@ System.out.println("      DataChannel cmsg out: " + name + " I got END event, qu
                         // until we get to a buildable event. Then start keeping count so
                         // we know when to switch to the next ring.
                         if (outputRingCount > 1 && !pBanktype.isUser()) {
-                            setNextEventAndRing();
-//System.out.println("      DataChannel cmsg out, " + name + ": for next ev " + nextEvent + " SWITCH TO ring = " + ringIndex);
+                            outputRingIndex = setNextEventAndRing();
+//System.out.println("      DataChannel cmsg out " + outputIndex + ": for next ev " + nextEvent +
+//                   " SWITCH TO ring = " + outputRingIndex);
                         }
 
                         // Be careful not to use up all the events in the output
@@ -1462,13 +1477,16 @@ logger.warn("      DataChannel cmsg out: " + name + " exit thd: " + e.getMessage
                     }
                     else {
                         EvioNode node;
+                        ByteBuffer buf;
+
                         for (RingItem ri : bankList) {
+                            buf = ri.getBuffer();
                             node = ri.getNode();
-                            if (node != null) {
-                                evWriter.writeEvent(ri.getNode().getStructureBuffer(false));
+                            if (buf != null) {
+                                evWriter.writeEvent(buf);
                             }
-                            else {
-                                evWriter.writeEvent(ri.getBuffer());
+                            else if (node != null) {
+                                evWriter.writeEvent(ri.getNode().getStructureBuffer(false));
                             }
                             ri.releaseByteBuffer();
                         }
