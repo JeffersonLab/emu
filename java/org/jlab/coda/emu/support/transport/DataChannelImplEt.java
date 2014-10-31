@@ -387,7 +387,7 @@ logger.info("      DataChannel Et: chunk = " + chunk);
 System.out.println("      DataChannel Et: # of buffers in input supply -> " + numEtBufs);
                     }
 
-                    bbSupply = new ByteBufferSupply(numEtBufs, etEventSize, module.getOutputOrder());
+                    bbSupply = new ByteBufferSupply(numEtBufs, etEventSize, module.getOutputOrder(), false);
                 }
             }
             catch (Exception e) {
