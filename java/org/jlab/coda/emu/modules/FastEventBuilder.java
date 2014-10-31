@@ -731,7 +731,10 @@ System.out.println("  EB mod: create Build Thread with index " + btIndex + ", co
 
             // Create a reusable supply of ByteBuffer objects
             // for writing built physics events into.
-            ByteBufferSupply bbSupply = new ByteBufferSupply(8192, 2000, outputOrder);
+            //--------------------------------------------
+            // Direct buffers give 15% better performance
+            //--------------------------------------------
+            ByteBufferSupply bbSupply = new ByteBufferSupply(8192, 2000, outputOrder, true);
 
             // Object for building physics events in a ByteBuffer
             CompactEventBuilder builder = null;
@@ -1165,6 +1168,7 @@ if (debug && nonFatalError) System.out.println("\n  EB mod: non-fatal ERROR 1\n"
                     bufItem.ensureCapacity(memSize);
 //System.out.println("  EB mod: ensure buf has size " + memSize + "\n");
                     ByteBuffer evBuf = bufItem.getBuffer();
+                    //evBuf.clear();
                     builder.setBuffer(evBuf);
 
                     // Create a (top-level) physics event from payload banks
@@ -1616,38 +1620,6 @@ System.out.println("\n  EB mod: calling processEnd() for chan " + i + "\n");
     }
 
 
-//    private final static void printBuildTimeHistogram(DescriptiveStatistics stats, int numBins) {
-//
-//        double mean   = stats.getMean();
-//        double max    = 5*mean;
-//        double min    = stats.getMin();
-//        double[] data = stats.getValues();
-//
-//        final int[] result = new int[numBins];
-//        final double binSize = (max - min)/numBins;
-//
-//        for (double d : data) {
-//            int bin = (int) ((d - min) / binSize);
-//
-//            if (bin < 0) { /* this data is smaller than min */ }
-//            else if (bin >= numBins) { /* this data point is bigger than max */ }
-//            else {
-//                result[bin] += 1;
-//            }
-//        }
-//
-//        System.out.println("\nTime to build one event:");
-//        System.out.println("    Mean = " + (int)mean + " nsec, min = " + (int)min +
-//                                   ", max = " + String.format("%.3e", (stats.getMax())));
-//        for (int i=0; i < numBins; i++) {
-//            System.out.println( ((int)(min + i*binSize)) + " - " +
-//                                        ((int)(min + (i+1)*binSize)) +
-//                                        " nsec = " + result[i]);
-//        }
-//        System.out.println();
-//    }
-
-
     /** {@inheritDoc} */
     public void end() {
 
@@ -1679,8 +1651,6 @@ System.out.println("  EB mod: in end()");
         }
         catch (DataNotFoundException e) {}
     }
-
-
 
 
     /** {@inheritDoc} */
