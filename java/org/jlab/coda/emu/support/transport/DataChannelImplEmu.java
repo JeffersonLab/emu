@@ -24,6 +24,7 @@ import org.jlab.coda.jevio.*;
 import java.io.*;
 import java.net.Socket;
 import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.nio.channels.SocketChannel;
 import java.util.*;
 import java.util.concurrent.*;
@@ -86,6 +87,8 @@ public class DataChannelImplEmu extends DataChannelAdapter {
     /** Data input stream from TCP socket. */
     private DataInputStream in;
 
+//    private SocketChannel inChannel;
+
     /** TCP receive buffer size in bytes. */
     private int tcpRecvBuf;
 
@@ -141,52 +144,47 @@ logger.info("      DataChannel Emu: creating input channel " + name);
 logger.info("      DataChannel Emu: creating output channel " + name);
         }
 
-        // size of TCP send buffer (0 means use operating system default)
-        tcpSendBuf = 0;
-        String attribString = attributeMap.get("sendBuf");
-        if (attribString != null) {
-            try {
-                tcpSendBuf = Integer.parseInt(attribString);
-                if (tcpSendBuf < 0) {
-                    tcpSendBuf = 0;
-                }
-logger.info("      DataChannel Emu: set sendBuf to " + tcpSendBuf);
-            }
-            catch (NumberFormatException e) {}
-        }
-
-        // size of TCP receive buffer (0 means use operating system default)
-        tcpRecvBuf = 0;
-        attribString = attributeMap.get("recvBuf");
-        if (attribString != null) {
-            try {
-                tcpRecvBuf = Integer.parseInt(attribString);
-                if (tcpRecvBuf < 0) {
-                    tcpRecvBuf = 0;
-                }
-logger.info("      DataChannel Emu: set recvBuf to " + tcpRecvBuf);
-            }
-            catch (NumberFormatException e) {}
-        }
-
-        // set TCP_NODELAY option on
-        noDelay = false;
-        attribString = attributeMap.get("noDelay");
-        if (attribString != null) {
-            if (attribString.equalsIgnoreCase("true") ||
-                attribString.equalsIgnoreCase("on")   ||
-                attribString.equalsIgnoreCase("yes"))   {
-                noDelay = true;
-            }
-        }
-
         // if INPUT channel
         if (input) {
-
-
+            // size of TCP receive buffer (0 means use operating system default)
+            tcpRecvBuf = 0;
+            String attribString = attributeMap.get("recvBuf");
+            if (attribString != null) {
+                try {
+                    tcpRecvBuf = Integer.parseInt(attribString);
+                    if (tcpRecvBuf < 0) {
+                        tcpRecvBuf = 0;
+                    }
+                    logger.info("      DataChannel Emu: set recvBuf to " + tcpRecvBuf);
+                }
+                catch (NumberFormatException e) {}
+            }
         }
         // if OUTPUT channel
         else {
+            // set TCP_NODELAY option on
+            noDelay = false;
+            String attribString = attributeMap.get("noDelay");
+            if (attribString != null) {
+                if (attribString.equalsIgnoreCase("true") ||
+                        attribString.equalsIgnoreCase("on")   ||
+                        attribString.equalsIgnoreCase("yes"))   {
+                    noDelay = true;
+                }
+            }
+            // size of TCP send buffer (0 means use operating system default)
+            tcpSendBuf = 0;
+            attribString = attributeMap.get("sendBuf");
+            if (attribString != null) {
+                try {
+                    tcpSendBuf = Integer.parseInt(attribString);
+                    if (tcpSendBuf < 0) {
+                        tcpSendBuf = 0;
+                    }
+                    logger.info("      DataChannel Emu: set sendBuf to " + tcpSendBuf);
+                }
+                catch (NumberFormatException e) {}
+            }
 
             // Send port
             sendPort = cMsgNetworkConstants.emuTcpPort;
@@ -203,7 +201,7 @@ logger.info("      DataChannel Emu: set recvBuf to " + tcpRecvBuf);
 System.out.println("      DataChannel Emu: sending on port " + sendPort);
 
 
-            // Size of max buffer, input or output
+            // Size of max buffer
             maxBufferSize = 2100000;
             attribString = attributeMap.get("maxBuf");
             if (attribString != null) {
@@ -228,7 +226,6 @@ System.out.println("      DataChannel Emu: sending on port " + sendPort);
                 }
                 catch (NumberFormatException e) {}
             }
-
         }
 
         // State after prestart transition -
@@ -245,13 +242,17 @@ System.out.println("      DataChannel Emu: sending on port " + sendPort);
      * @param channel
      */
     void attachToInput(SocketChannel channel, int sourceId, int maxBufferSize) throws IOException {
+//        this.inChannel = channel;
         this.sourceId = sourceId;
         this.maxBufferSize = maxBufferSize;
 
         // Set socket options
         Socket socket = channel.socket();
+
+        // TODO: why noDelay on input channel?
         // Set TCP no-delay so no packets are delayed
-        socket.setTcpNoDelay(noDelay);
+        //socket.setTcpNoDelay(noDelay);
+
         // Set TCP receive buffer size
         if (tcpRecvBuf > 0) {
             socket.setReceiveBufferSize(tcpRecvBuf);
@@ -262,7 +263,9 @@ System.out.println("      DataChannel Emu: sending on port " + sendPort);
 
         // Create a ring buffer full of empty ByteBuffer objects
         // in which to copy incoming data from client.
-        bbSupply = new ByteBufferSupply(128, maxBufferSize);
+        // NOTE: Using direct buffers works but performance is poor and fluctuates
+        // quite a bit in speed.
+        bbSupply = new ByteBufferSupply(128, maxBufferSize, ByteOrder.BIG_ENDIAN, false);
 
         // Start thread to handle all socket input
         startInputThread();
@@ -545,14 +548,18 @@ System.out.println("      DataChannel Emu in: start EMU input thread");
         @Override
         public void run() {
 
+            ByteBuffer cmdAndSize = ByteBuffer.allocateDirect(8);
+
             // Tell the world I've started
             latch.countDown();
 
             try {
-                int command;
+                int command, size=0;
                 boolean delay = false;
 
                 while ( true ) {
+
+                    cmdAndSize.clear();
 
                     if (delay) {
                         Thread.sleep(5);
@@ -567,6 +574,12 @@ System.out.println("      DataChannel Emu in: start EMU input thread");
                     }
 
                     // Read the command first
+//                    inChannel.read(cmdAndSize);
+
+//                    command = cmdAndSize.getInt(0);
+//                    size = cmdAndSize.getInt(4);
+
+
                     command = in.readInt();
 //System.out.println("      DataChannel Emu in: cmd = 0x" + Integer.toHexString(command));
 //                    Thread.sleep(1000);
@@ -576,10 +589,10 @@ System.out.println("      DataChannel Emu in: start EMU input thread");
                         case cMsgConstants.emuEvioFileFormat:
                             if  (ringItemIsBuffer) {
 //System.out.println("      DataChannel Emu in: event to handleEvioFileToBuf(), name = " + name);
-                                handleEvioFileToBuf();
+                                handleEvioFileToBuf(size);
                             }
                             else {
-                                handleEvioFileToBank();
+                                handleEvioFileToBank(size);
                             }
 
                             break;
@@ -608,13 +621,14 @@ System.out.println("      DataChannel Emu in: get emuEnd cmd");
                 emu.sendStatusMessage();
 
                 logger.warn("      DataChannel Emu in: " + name + " exit thd: " + e.getMessage());
+                e.printStackTrace();
             }
 
         }
 
 
 
-        private final void handleEvioFileToBank() throws IOException, EvioException {
+        private final void handleEvioFileToBank(int evioBytes) throws IOException, EvioException {
 
             EvioEvent event;
             EventType bankType;
@@ -623,15 +637,21 @@ System.out.println("      DataChannel Emu in: get emuEnd cmd");
 
             // Get a reusable ByteBuffer
             ByteBufferItem bbItem = bbSupply.get();
-            ByteBuffer buf = bbItem.getBuffer();
 
             // Read the length of evio file-format data to come
-            int evioBytes = in.readInt();
+            evioBytes = in.readInt();
 
             // If buffer is too small, make a bigger one
             bbItem.ensureCapacity(evioBytes);
+            ByteBuffer buf = bbItem.getBuffer();
+            buf.position(0).limit(evioBytes);
 
-            // Read evio file-format data
+//            // Read all evio file-format data
+//            while (buf.hasRemaining()) {
+//                inChannel.read(buf);
+//            }
+//            buf.flip();
+
             in.readFully(buf.array(), 0, evioBytes);
 
             try {
@@ -737,7 +757,7 @@ System.out.println("      DataChannel Emu in: get emuEnd cmd");
         }
 
 
-        private final void handleEvioFileToBuf() throws IOException, EvioException {
+        private final void handleEvioFileToBuf(int evioBytes) throws IOException, EvioException {
 
             EvioNode node;
             EventType bankType;
@@ -746,15 +766,23 @@ System.out.println("      DataChannel Emu in: get emuEnd cmd");
 
             // Get a reusable ByteBuffer
             ByteBufferItem bbItem = bbSupply.get();
-            ByteBuffer buf = bbItem.getBuffer();
 
             // Read the length of evio file-format data to come
-            int evioBytes = in.readInt();
-//System.out.println("      DataChannel Emu in: len = " + evioBytes);
+            evioBytes = in.readInt();
+
             // If buffer is too small, make a bigger one
             bbItem.ensureCapacity(evioBytes);
+            ByteBuffer buf = bbItem.getBuffer();
+            buf.position(0).limit(evioBytes);
+//            if (buf.order() == ByteOrder.LITTLE_ENDIAN)
+//                System.out.println("supply buf -> LITTLE ENDIAN");
 
-            // Read evio file-format data
+//            // Read all evio file-format data
+//            while (buf.hasRemaining()) {
+//                inChannel.read(buf);
+//            }
+//            buf.flip();
+
             in.readFully(buf.array(), 0, evioBytes);
 
             try {
@@ -792,6 +820,7 @@ System.out.println("      DataChannel Emu in: get emuEnd cmd");
 //            ", src id = " + sourceId + ", recd id = " + recordId + ", event cnt = " + eventCount);
 
             for (int i=1; i < eventCount+1; i++) {
+                //System.out.println(name + "->" + i);
                 node = compactReader.getScannedEvent(i);
 
                 // Complication: from the ROC, we'll be receiving USER events
