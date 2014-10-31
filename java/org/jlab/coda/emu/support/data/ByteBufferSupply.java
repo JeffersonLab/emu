@@ -51,6 +51,9 @@ public class ByteBufferSupply {
     /** Byte order of ByteBuffer in each ByteBufferItem. */
     private ByteOrder order;
 
+    /** Are the buffers created, direct? */
+    private boolean direct;
+
     /** Ring buffer. */
     private final RingBuffer<ByteBufferItem> ringBuffer;
 
@@ -85,14 +88,14 @@ public class ByteBufferSupply {
     /** Class used to initially create all items in ring buffer. */
     private final class ByteBufferFactory implements EventFactory<ByteBufferItem> {
         public ByteBufferItem newInstance() {
-            return new ByteBufferItem(bufferSize, order);
+            return new ByteBufferItem(bufferSize, order, direct);
         }
     }
 
 
     /**
      * Constructor.
-     *
+     * Buffers are big endian and not direct.
      * @param ringSize    number of ByteBufferItem objects in ring buffer.
      * @param bufferSize  initial size (bytes) of ByteBuffer in each ByteBufferItem object.
      * @throws IllegalArgumentException if args < 1 or ringSize not power of 2.
@@ -100,7 +103,7 @@ public class ByteBufferSupply {
     public ByteBufferSupply(int ringSize, int bufferSize)
             throws IllegalArgumentException {
 
-        this(ringSize, bufferSize, ByteOrder.BIG_ENDIAN);
+        this(ringSize, bufferSize, ByteOrder.BIG_ENDIAN, false);
     }
 
 
@@ -112,7 +115,7 @@ public class ByteBufferSupply {
      * @param order       byte order of ByteBuffer in each ByteBufferItem object.
      * @throws IllegalArgumentException if args < 1 or ringSize not power of 2.
      */
-    public ByteBufferSupply(int ringSize, int bufferSize, ByteOrder order)
+    public ByteBufferSupply(int ringSize, int bufferSize, ByteOrder order, boolean direct)
             throws IllegalArgumentException {
 
         if (ringSize < 1 || bufferSize < 1) {
@@ -124,6 +127,7 @@ public class ByteBufferSupply {
         }
 
         this.order = order;
+        this.direct = direct;
         this.bufferSize = bufferSize;
 //        myId = id++;
 

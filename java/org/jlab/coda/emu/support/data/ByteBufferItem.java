@@ -30,6 +30,12 @@ public class ByteBufferItem {
     /** ByteBuffer object. */
     private ByteBuffer buffer;
 
+    /** Byte order of buffer. */
+    private ByteOrder order;
+
+    /** Is this byte buffer direct? */
+    private boolean direct;
+
     /** Sequence in which this object was taken from ring for use by a producer with get(). */
     private long producerSequence;
 
@@ -56,16 +62,32 @@ public class ByteBufferItem {
      */
     public int getMyId() {return myId;}
 
+    /**
+     * Is this a direct buffer or not?
+     * @return {@code true} if direct buffer, else {@code false}.
+     */
+    public boolean isDirect() {return direct;}
+
     //--------------------------------
 
     /**
      * Constructor.
+     * Buffer is big endian and is not direct.
      * @param bufferSize size in bytes of ByteBuffer to construct.
      */
     public ByteBufferItem(int bufferSize) {
-        this.bufferSize = bufferSize;
-        buffer = ByteBuffer.allocate(bufferSize);
-        myId = idCounter++;
+        this(bufferSize, ByteOrder.BIG_ENDIAN, false);
+    }
+
+
+    /**
+     * Constructor.
+     * Buffer is not direct.
+     * @param bufferSize size in bytes of ByteBuffer to construct.
+     * @param order byte order of ByteBuffer to construct.
+     */
+    public ByteBufferItem(int bufferSize, ByteOrder order) {
+        this(bufferSize, order, false);
     }
 
 
@@ -74,9 +96,18 @@ public class ByteBufferItem {
      * @param bufferSize size in bytes of ByteBuffer to construct.
      * @param order byte order of ByteBuffer to construct.
      */
-    public ByteBufferItem(int bufferSize, ByteOrder order) {
+    public ByteBufferItem(int bufferSize, ByteOrder order, boolean direct) {
+        this.order = order;
+        this.direct = direct;
         this.bufferSize = bufferSize;
-        buffer = ByteBuffer.allocate(bufferSize).order(order);
+
+        if (direct) {
+            buffer = ByteBuffer.allocateDirect(bufferSize).order(order);
+        }
+        else {
+            buffer = ByteBuffer.allocate(bufferSize).order(order);
+        }
+
         myId = idCounter++;
     }
 
@@ -129,7 +160,12 @@ public class ByteBufferItem {
      */
     public void ensureCapacity(int capacity) {
         if (bufferSize < capacity) {
-            buffer = ByteBuffer.allocate(capacity);
+            if (direct) {
+                buffer = ByteBuffer.allocateDirect(capacity).order(order);
+            }
+            else {
+                buffer = ByteBuffer.allocate(capacity).order(order);
+            }
             bufferSize = capacity;
         }
     }
