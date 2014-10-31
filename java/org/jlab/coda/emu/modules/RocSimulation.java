@@ -24,7 +24,6 @@ import org.jlab.coda.emu.support.data.*;
 import org.jlab.coda.emu.support.transport.DataChannel;
 import org.jlab.coda.jevio.CompactEventBuilder;
 import org.jlab.coda.jevio.DataType;
-import org.jlab.coda.jevio.EvioException;
 
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
@@ -309,6 +308,155 @@ public class RocSimulation extends ModuleAdapter {
     }
 
 
+    private int getSingleEventBufferWords(int generatedDataWords) {
+
+        int dataWordLength = 1 + generatedDataWords;
+
+        if (isSingleEventMode) {
+            dataWordLength += 2;
+        }
+
+        // bank header + bank header +  eventBlockSize segments + data,
+        // seg  = (1 seg header + 3 data)
+        // data = bank header + int data
+
+        //  totalEventWords = 2 + 2 + eventBlockSize*(1+3) + (2 + data.length);
+        int totalEventWords = 6 + 4*eventBlockSize + dataWordLength;
+
+        return totalEventWords;
+    }
+
+
+    private ByteBuffer createSingleEventBuffer(int generatedDataWords, long eventNumber,
+                                              long timestamp ) {
+        int status = 0, writeIndex=0;
+
+        int[] data;
+        if (isSingleEventMode) {
+            data = new int[3 + generatedDataWords];
+        }
+        else {
+            data = new int[1 + generatedDataWords];
+        }
+
+        ByteBuffer buf = ByteBuffer.allocate(4*eventWordSize);
+        buf.order(outputOrder);
+
+        // Event bank header
+        //int rocTag = Evio.createCodaTag(status, id);
+        // Data is big endian ...
+        int rocTag = Evio.createCodaTag(false, false, true, false, id);
+
+        // 2nd bank header word = tag << 16 | ((padding & 0x3) << 14) | ((type & 0x3f) << 8) | num
+        int secondWord = rocTag << 16 |
+                         (DataType.BANK.getValue() << 8) |
+                         (eventBlockSize & 0xff);
+
+        buf.putInt(writeIndex, (eventWordSize - 1)); writeIndex += 4;
+        buf.putInt(writeIndex, secondWord); writeIndex += 4;
+
+        // Trigger bank header
+        secondWord = CODATag.RAW_TRIGGER_TS.getValue() << 16 |
+                     (DataType.SEGMENT.getValue() << 8) |
+                     (eventBlockSize & 0xff);
+
+        buf.putInt(writeIndex, (eventWordSize - 2 - data.length - 2 - 1)); writeIndex += 4;
+        buf.putInt(writeIndex, secondWord); writeIndex += 4;
+
+        int segWord;
+
+        // Add each segment
+        for (int i = 0; i < eventBlockSize; i++) {
+            // segment header word = tag << 24 | ((padding << 22) & 0x3) | ((type << 16) & 0x3f) | length
+            segWord = triggerType << 24 |
+                      (DataType.UINT32.getValue() << 16) | 3;
+            buf.putInt(writeIndex, segWord); writeIndex += 4;
+
+            // Generate 3 integers per event (no miscellaneous data)
+            buf.putInt(writeIndex, (int) (eventNumber + i)); writeIndex += 4;
+            buf.putInt(writeIndex, (int)  timestamp); writeIndex += 4;// low 32 bits
+            buf.putInt(writeIndex, (int) (timestamp >>> 32 & 0xFFFF)); writeIndex += 4;// high 16 of 48 bits
+            timestamp += 4;
+        }
+
+        // Create a single data block bank
+        int index = 0;
+
+        // First put in starting event # (32 bits)
+        data[index++] = (int)eventNumber;
+
+        // if single event mode, put in timestamp
+        if (isSingleEventMode) {
+            data[index++] = (int)  timestamp; // low 32 bits
+            data[index]   = (int) (timestamp >>> 32 & 0xFFFF); // high 16 of 48 bits
+        }
+
+        int dataTag = Evio.createCodaTag(false, false, true, false, detectorId);
+        secondWord = dataTag << 16 |
+                     (DataType.UINT32.getValue() << 8) |
+                     (eventBlockSize & 0xff);
+
+        buf.putInt(writeIndex, data.length + 1); writeIndex += 4;
+        buf.putInt(writeIndex, secondWord); writeIndex += 4;
+        for (int i : data) {
+            buf.putInt(writeIndex, i); writeIndex += 4;
+        }
+
+        // buf is ready to read
+        return buf;
+    }
+
+    // TODO: Do we make byte buffers DIRECT????????????????????????????????????????????????????????
+
+
+    private void writeEventBuffer(ByteBuffer buf, ByteBuffer templateBuf,
+                                   long eventNumber, long timestamp, boolean copy) {
+
+        // Since we're using recirculating buffers, we do NOT need to copy everything
+        // into the buffer each time. Once each of the buffers in the BufferSupply object
+        // have been copied into, we only need to change the few places that need updating
+        // with event number and timestamp!
+        if (copy) {
+            // This will be the case if buf is direct
+            if (!buf.hasArray()) {
+                templateBuf.position(0);
+                buf.put(templateBuf);
+            }
+            else {
+                System.arraycopy(templateBuf.array(), 0, buf.array(), 0, templateBuf.limit());
+            }
+        }
+
+        // Get buf ready to read for output channel
+        buf.position(0).limit(templateBuf.limit());
+
+        // Skip over 2 bank headers
+        int writeIndex = 16;
+
+        // Write event number and timestamp into trigger bank segments
+        for (int i = 0; i < eventBlockSize; i++) {
+            // Skip segment header
+            writeIndex += 4;
+
+            // Generate 3 integers per event (no miscellaneous data)
+            buf.putInt(writeIndex, (int) (eventNumber + i)); writeIndex += 4;
+            buf.putInt(writeIndex, (int)  timestamp); writeIndex += 4;// low 32 bits
+            buf.putInt(writeIndex, (int) (timestamp >>> 32 & 0xFFFF)); writeIndex += 4;// high 16 of 48 bits
+            timestamp += 4;
+        }
+
+        // Move past data bank header
+        writeIndex += 8;
+
+        // Write event number and timestamp into data bank
+        buf.putInt(writeIndex, (int) eventNumber); writeIndex += 4;
+        if (isSingleEventMode) {
+            buf.putInt(writeIndex, (int)  timestamp); writeIndex += 4;
+            buf.putInt(writeIndex, (int) (timestamp >>> 32 & 0xFFFF));
+        }
+    }
+
+
     /**
      * This thread generates events with simulated FADC250 data in it.
      * It is started by the GO transition and runs while the state of the module is ACTIVE.
@@ -327,39 +475,38 @@ public class RocSimulation extends ModuleAdapter {
         private CompactEventBuilder builder;
         /** Ring buffer containing ByteBuffers - used to hold events for writing. */
         private ByteBufferSupply bbSupply;
+        private int bufSupplySize = 4096;
         // Number of data words in each event
         private int generatedDataWords;
-
+        private ByteBuffer templateBuffer;
 
 
         EventGeneratingThread(int id, ThreadGroup group, String name) {
             super(group, name);
             this.myId = id;
 
-            // Need to coordinate amount of data words
-            generatedDataWords = eventBlockSize * 40;
-
-            PayloadBank[] evs = Evio.createRocDataEvents(id, triggerType,
-                                                         detectorId, 0,
-                                                         0, eventBlockSize,
-                                                         0L, 0,  2, generatedDataWords,
-                                                         isSingleEventMode);
-
-            eventWordSize = evs[0].getHeader().getLength() + 1;
-System.out.println("  Roc mod: each generated event size = " + (4*eventWordSize) +
-                   " bytes, words = " + (eventWordSize) + ", tag = " +
-                   evs[0].getHeader().getTag() + ", num = " + evs[0].getHeader().getNumber());
 
             // Set & initialize values
             myRocRecordId = rocRecordId + myId;
             myEventNumber = 1L + myId*eventBlockSize;
             timestamp = myId*4*eventBlockSize;
 
+            // Need to coordinate amount of data words
+            generatedDataWords = eventBlockSize * 40;
+System.out.println("  Roc mod: generatedDataWords = " + generatedDataWords);
+
+
+            eventWordSize  = getSingleEventBufferWords(generatedDataWords);
+System.out.println("  Roc mod: eventWordSize = " + eventWordSize);
+
+            templateBuffer = createSingleEventBuffer(generatedDataWords, myEventNumber, timestamp);
+
+
 System.out.println("  Roc mod: start With (id=" + myId + "):\n    record id = " + myRocRecordId +
                            ", ev # = " +myEventNumber + ", ts = " + timestamp +
                            ", blockSize = " + eventBlockSize);
 
-            bbSupply = new ByteBufferSupply(32768, 4*eventWordSize);
+            bbSupply = new ByteBufferSupply(bufSupplySize, 4*eventWordSize, ByteOrder.BIG_ENDIAN, true);
         }
 
 
@@ -367,29 +514,17 @@ System.out.println("  Roc mod: start With (id=" + myId + "):\n    record id = " 
 
         public void run() {
 
-            int  userEventLoopMax=10000, eventNumber;
-            int  index, status=0, skip=3,  userEventLoop = userEventLoopMax;
-            long oldVal=0L, totalT=0L, totalCount=0l;
+            int  userEventLoopMax=100000;
+            int  skip=3,  userEventLoop = userEventLoopMax;
+            long oldVal=0L, totalT=0L, totalCount=0l, bufCounter=0L;
             long now, deltaT, start_time = System.currentTimeMillis();
-            ByteBuffer buf = ByteBuffer.allocate(8);
+            ByteBuffer buf = null;
             ByteBufferItem bufItem = null;
-            int[] segmentData = new int[3];
-
-            // Determine data size of events right here
-            int[] data;
-            if (isSingleEventMode) {
-                data = new int[3 + generatedDataWords];
-            }
-            else {
-                data = new int[1 + generatedDataWords];
-            }
+            boolean copyWholeBuf = true;
 
 
             try {
-
                 // Use dummy arg that's overwritten later
-                builder = new CompactEventBuilder(buf);
-
                 boolean noBuildableEvents = false;
 
                 while (state == CODAState.ACTIVE || paused) {
@@ -398,75 +533,33 @@ System.out.println("  Roc mod: start With (id=" + myId + "):\n    record id = " 
                         Thread.sleep(250);
                     }
                     else {
+                        // Add ROC Raw Records as PayloadBuffer objects
+                        if (isSingleEventMode) {
+                            // nothing right now
+                        }
+                        else {
+                            // Get buffer from recirculating supply
+                            bufItem = bbSupply.get();
+                            buf = bufItem.getBuffer();
 
-
-                        try {
-                            // Add ROC Raw Records as PayloadBuffer objects
-                            if (isSingleEventMode) {
-                                // nothing right now
-                            }
-                            else {
-                                bufItem = bbSupply.get();
-                                buf = bufItem.getBuffer();
+                            // Some logic to allow us to copy everything into buffer
+                            // only once. After that, just update it.
+                            if (copyWholeBuf) {
+                                // Only need to do this once too
                                 buf.order(outputOrder);
 
-                                eventNumber = (int) myEventNumber;
-
-                                // Create a ROC Raw Data Record event/bank
-                                // with eventBlockSize physics events in it.
-                                builder.setBuffer(buf);
-
-                                int rocTag = Evio.createCodaTag(status, id);
-                                builder.openBank(rocTag, eventBlockSize, DataType.BANK);
-
-                                // Create the trigger bank (of segments)
-                                builder.openBank(CODATag.RAW_TRIGGER_TS.getValue(), eventBlockSize, DataType.SEGMENT);
-
-
-                                for (int i = 0; i < eventBlockSize; i++) {
-                                    // Each segment contains eventNumber & timestamp of corresponding event in data bank
-                                    builder.openSegment(triggerType, DataType.UINT32);
-                                    // Generate 3 segments per event (no miscellaneous data)
-                                    segmentData[0] = eventNumber + i;
-                                    segmentData[1] = (int)  timestamp; // low 32 bits
-                                    segmentData[2] = (int) (timestamp >>> 32 & 0xFFFF); // high 16 of 48 bits
-                                    timestamp += 4;
-
-                                    builder.addIntData(segmentData);
-                                    builder.closeStructure();
+                                if (++bufCounter > bufSupplySize) {
+                                    copyWholeBuf = false;
                                 }
-                                // Close trigger bank
-                                builder.closeStructure();
-
-                                // Create a single data block bank
-                                index = 0;
-
-                                // First put in starting event # (32 bits)
-                                data[index++] = eventNumber;
-
-                                // if single event mode, put in timestamp
-                                if (isSingleEventMode) {
-                                    data[index++] = (int)  timestamp; // low 32 bits
-                                    data[index++] = (int) (timestamp >>> 32 & 0xFFFF); // high 16 of 48 bits
-                                }
-
-                                for (int i=0; i < generatedDataWords; i++) {
-                                    data[index+i] = i;
-                                }
-
-                                int dataTag = Evio.createCodaTag(status, detectorId);
-                                builder.openBank(dataTag, eventBlockSize, DataType.UINT32);
-                                builder.addIntData(data);
-
-                                builder.closeAll();
                             }
-                        }
-                        catch (EvioException e) { /* should not happen */ }
 
+                            writeEventBuffer(buf, templateBuffer, myEventNumber,
+                                             timestamp, copyWholeBuf);
+
+                        }
 
                         // Put generated events into output channel
                         eventToOutputRing(myId, buf, bufItem, bbSupply);
-
 
                         eventCountTotal += eventBlockSize;
                         wordCountTotal  += eventWordSize;
