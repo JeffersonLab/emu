@@ -1482,13 +1482,12 @@ System.out.println("\n  EB mod: calling processEnd() for chan " + i + "\n");
      *
      * @param thisThread the build thread calling this method; if null,
      *                   all build & pre-processing threads are interrupted
-     * @param wait if <code>true</code> check if END event has arrived and
-     *             if all the input ring buffers are empty, if not, wait up to 1/2 second.
+     * @param end if <code>true</code> called from end(), else called from reset()
      */
-    private void endBuildAndPreProcessingThreads(BuildingThread thisThread, boolean wait) {
-
-        if (wait) {
-            // Look to see if anything still on the payload bank or input channel Qs
+    private void endBuildAndPreProcessingThreads(BuildingThread thisThread, boolean end) {
+        // Check if END event has arrived and if all the input ring buffers
+        // are empty, if not, wait up to endingTimeLimit (30) seconds.
+        if (end) {
             long startTime = System.currentTimeMillis();
 
             // Wait up to endingTimeLimit millisec for events to
@@ -1500,9 +1499,24 @@ System.out.println("\n  EB mod: calling processEnd() for chan " + i + "\n");
             }
 
             if (!haveEndEvent) {
-                if (debug) System.out.println("  EB mod: endBuildThreads: will end building/filling threads but no END event or Qs not empty !!!");
+                if (debug) System.out.println("  EB mod: endBuildThreads: will end building/filling threads but no END event or rings not empty !!!");
                 state = CODAState.ERROR;
             }
+        }
+        else {
+            // If resetting, kill the rate calculating thread too
+            if (RateCalculator != null) {
+                System.out.println("Interrupt RATE CALCULATOR THREAD");
+                RateCalculator.interrupt();
+            }
+            try {
+                RateCalculator.join(250);
+                if (RateCalculator.isAlive()) {
+                    System.out.println("Stop RATE CALCULATOR THREAD");
+                    RateCalculator.stop();
+                }
+            }
+            catch (InterruptedException e) {}
         }
 
         // NOTE: EMU has a command executing thread which calls this EB module's execute
@@ -1744,6 +1758,13 @@ System.out.println("  EB mod: in end()");
         releaseIndex.set(0L);
 
         // Create & start threads
+//        int thdCount = Thread.activeCount();
+//        Thread[] thds = new Thread[thdCount];
+//        Thread.enumerate(thds);
+//        System.out.println("Running thd count = " + thdCount + " :");
+//        for (Thread t : thds) {
+//            System.out.println(t.getName());
+//        }
         startThreads();
 
         try {
