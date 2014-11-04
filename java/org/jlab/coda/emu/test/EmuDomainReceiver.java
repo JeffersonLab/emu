@@ -12,8 +12,6 @@
 package org.jlab.coda.emu.test;
 
 
-import com.lmax.disruptor.RingBuffer;
-import com.lmax.disruptor.YieldingWaitStrategy;
 import org.jlab.coda.cMsg.*;
 import org.jlab.coda.emu.support.data.*;
 import org.jlab.coda.emu.support.transport.DataTransportImplEmu;
@@ -30,7 +28,6 @@ import java.util.*;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
-import static com.lmax.disruptor.RingBuffer.createSingleProducer;
 
 /**
  * This class is designed to be a test receiver for a module who
