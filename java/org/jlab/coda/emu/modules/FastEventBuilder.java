@@ -1506,17 +1506,16 @@ System.out.println("\n  EB mod: calling processEnd() for chan " + i + "\n");
         else {
             // If resetting, kill the rate calculating thread too
             if (RateCalculator != null) {
-                System.out.println("Interrupt RATE CALCULATOR THREAD");
                 RateCalculator.interrupt();
-            }
-            try {
-                RateCalculator.join(250);
-                if (RateCalculator.isAlive()) {
-                    System.out.println("Stop RATE CALCULATOR THREAD");
-                    RateCalculator.stop();
+                try {
+                    RateCalculator.join(250);
+                    if (RateCalculator.isAlive()) {
+                        RateCalculator.stop();
+                    }
                 }
+                catch (InterruptedException e) {}
+                RateCalculator = null;
             }
-            catch (InterruptedException e) {}
         }
 
         // NOTE: EMU has a command executing thread which calls this EB module's execute
@@ -1536,6 +1535,7 @@ System.out.println("\n  EB mod: calling processEnd() for chan " + i + "\n");
             }
             catch (InterruptedException e) {}
         }
+        buildingThreadList.clear();
 
         // Interrupt all PreProcessor threads too
         if (preProcessors != null) {
@@ -1550,6 +1550,8 @@ System.out.println("\n  EB mod: calling processEnd() for chan " + i + "\n");
                 catch (InterruptedException e) {}
             }
         }
+        preProcessors =null;
+
         System.out.println("  EB mod: endThreads() done");
     }
 
