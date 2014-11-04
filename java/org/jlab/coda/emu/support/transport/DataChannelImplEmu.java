@@ -347,36 +347,42 @@ System.out.println("      DataChannel Emu: UDL = " + udl);
         gotEndCmd = true;
         gotResetCmd = false;
 
-        // Do NOT interrupt threads which are communicating with the ET server.
-        // This will mess up future communications !!!
-
         // How long do we wait for each input or output thread
         // to end before we just terminate them?
-        // The total time for an emu to wait for the END transition
-        // is emu.endingTimeLimit. Dividing that by the number of
-        // in/output threads is probably a good guess.
         long waitTime;
 
-        // Don't close ET system until helper threads are done
         try {
             waitTime = emu.getEndingTimeLimit();
+
             if (dataInputThread != null) {
-//System.out.println("      DataChannel Emu: try joining input thread ...");
-                    dataInputThread.join(waitTime);
-                    // kill it if not already dead since we waited as long as possible
-                    dataInputThread.interrupt();
+                dataInputThread.join(waitTime);
+                dataInputThread.interrupt();
+                try {
+                    dataInputThread.join(250);
+                    if (dataInputThread.isAlive()) {
+                        // kill it since we waited as long as possible
+                        dataInputThread.stop();
+                    }
+                }
+                catch (InterruptedException e) {}
+
+                try {in.close();}
+                catch (IOException e) {}
 //System.out.println("      DataChannel Emu: input thread done");
             }
 
             if (dataOutputThread != null) {
-                waitTime = emu.getEndingTimeLimit();
-//System.out.println("      DataChannel Emu: try joining output thread for " + (waitTime/1000) + " sec");
-                    dataOutputThread.join(waitTime);
-                    // kill everything since we waited as long as possible
-                    dataOutputThread.interrupt();
-                    dataOutputThread.shutdown();
-//System.out.println("      DataChannel Emu: output thread done");
+                dataOutputThread.join(waitTime);
+                dataOutputThread.interrupt();
+                try {
+                    dataOutputThread.join(250);
+                    if (dataOutputThread.isAlive()) {
+                        dataOutputThread.stop();
+                    }
                 }
+                catch (InterruptedException e) {}
+//System.out.println("      DataChannel Emu: output thread done");
+            }
 //System.out.println("      DataChannel Emu: all helper thds done");
         }
         catch (InterruptedException e) {
@@ -406,30 +412,32 @@ logger.debug("      DataChannel Emu: reset() " + name);
         gotEndCmd   = false;
         gotResetCmd = true;
 
-        // Don't close ET system until helper threads are done
+        // Close input channel, this should allow it to check value of "gotResetCmd"
+        if (input) {
+            try {in.close();}
+            catch (IOException e) {}
+        }
+
         if (dataInputThread != null) {
-//System.out.println("      DataChannel Emu: interrupt input thread ...");
-                dataInputThread.interrupt();
-                // Make sure the thread is done, otherwise you risk
-                // killing the ET system while a getEvents() call is
-                // still in progress (with et-14.0 this is OK).
-                // Give it 25% more time than the wait.
-                try {dataInputThread.join(400);}  // 625
-                catch (InterruptedException e) {}
-//System.out.println("      DataChannel Emu: input thread done");
+            dataInputThread.interrupt();
+            try {
+                dataInputThread.join(250);
+                if (dataInputThread.isAlive()) {
+                    dataInputThread.stop();
+                }
+            }
+            catch (InterruptedException e) {}
         }
 
         if (dataOutputThread != null) {
-//System.out.println("      DataChannel Emu: interrupt output thread ...");
-                dataOutputThread.interrupt();
-                dataOutputThread.shutdown();
-                // Make sure all threads are done, otherwise you risk
-                // killing the ET system while a new/put/dumpEvents() call
-                // is still in progress (with et-14.0 this is OK).
-                // Give it 25% more time than the wait.
-                try {dataOutputThread.join(1000);}
-                catch (InterruptedException e) {}
-//System.out.println("      DataChannel Emu: output thread done");
+            dataOutputThread.interrupt();
+            try {
+                dataOutputThread.join(250);
+                if (dataOutputThread.isAlive()) {
+                    dataOutputThread.stop();
+                }
+            }
+            catch (InterruptedException e) {}
         }
 
         errorMsg.set(null);
@@ -548,7 +556,7 @@ System.out.println("      DataChannel Emu in: start EMU input thread");
         @Override
         public void run() {
 
-            ByteBuffer cmdAndSize = ByteBuffer.allocateDirect(8);
+//            ByteBuffer cmdAndSize = ByteBuffer.allocateDirect(8);
 
             // Tell the world I've started
             latch.countDown();
@@ -558,8 +566,12 @@ System.out.println("      DataChannel Emu in: start EMU input thread");
                 boolean delay = false;
 
                 while ( true ) {
+                    // If I've been told to RESET ...
+                    if (gotResetCmd) {
+                        return;
+                    }
 
-                    cmdAndSize.clear();
+//                    cmdAndSize.clear();
 
                     if (delay) {
                         Thread.sleep(5);
@@ -579,10 +591,8 @@ System.out.println("      DataChannel Emu in: start EMU input thread");
 //                    command = cmdAndSize.getInt(0);
 //                    size = cmdAndSize.getInt(4);
 
-
                     command = in.readInt();
 //System.out.println("      DataChannel Emu in: cmd = 0x" + Integer.toHexString(command));
-//                    Thread.sleep(1000);
 
                     // 1st byte has command
                     switch (command & 0xff) {
@@ -623,6 +633,7 @@ System.out.println("      DataChannel Emu in: get emuEnd cmd");
                 logger.warn("      DataChannel Emu in: " + name + " exit thd: " + e.getMessage());
                 e.printStackTrace();
             }
+System.out.println("      DataChannel Emu in helper: " + name + " RETURN");
 
         }
 
@@ -1271,10 +1282,6 @@ System.out.println("      DataChannel Emu out: " + name + " I got END event, qui
             }
             catch (InterruptedException e) {}
         }
-
-
-        /** Stop all this object's threads. */
-        private void shutdown() { }
 
 
         /**
