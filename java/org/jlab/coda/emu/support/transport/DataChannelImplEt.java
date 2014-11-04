@@ -621,6 +621,14 @@ System.out.println("      DataChannel Et: closeEtSystem(), closed ET connection"
                 dataInputThread.join(waitTime);
                 // kill it if not already dead since we waited as long as possible
                 dataInputThread.interrupt();
+                try {
+                    dataInputThread.join(250);
+                    if (dataInputThread.isAlive()) {
+                        // kill it since we waited as long as possible
+                        dataInputThread.stop();
+                    }
+                }
+                catch (InterruptedException e) {}
             }
 
             if (dataOutputThread != null) {
@@ -629,6 +637,14 @@ System.out.println("      DataChannel Et: closeEtSystem(), closed ET connection"
                 dataOutputThread.join(waitTime);
                 // kill everything since we waited as long as possible
                 dataOutputThread.interrupt();
+                try {
+                    dataOutputThread.join(250);
+                    if (dataOutputThread.isAlive()) {
+                        dataOutputThread.stop();
+                    }
+                }
+                catch (InterruptedException e) {}
+
                 dataOutputThread.shutdown();
 //System.out.println("      DataChannel Et: output thread done");
             }
@@ -661,30 +677,26 @@ logger.debug("      DataChannel Et: reset " + name + " channel");
         gotEndCmd   = false;
         gotResetCmd = true;
 
-        // Don't close ET system until helper threads are done
         if (dataInputThread != null) {
-//System.out.println("      DataChannel Et: interrupt input thread ...");
-                dataInputThread.interrupt();
-                // Make sure the thread is done, otherwise you risk
-                // killing the ET system while a getEvents() call is
-                // still in progress (with et-14.0 this is OK).
-                // Give it 25% more time than the wait.
-                try {dataInputThread.join(400);}  // 625
-                catch (InterruptedException e) {}
-//System.out.println("      DataChannel Et: input thread done");
+            dataInputThread.interrupt();
+            try {
+                dataInputThread.join(250);
+                if (dataInputThread.isAlive()) {
+                    dataInputThread.stop();
+                }
+            }
+            catch (InterruptedException e) {}
         }
 
         if (dataOutputThread != null) {
-//System.out.println("      DataChannel Et: interrupt output thread ...");
             dataOutputThread.interrupt();
-            dataOutputThread.shutdown();
-            // Make sure all threads are done, otherwise you risk
-            // killing the ET system while a new/put/dumpEvents() call
-            // is still in progress (with et-14.0 this is OK).
-            // Give it 25% more time than the wait.
-            try {dataOutputThread.join(1000);}
+            try {
+                dataOutputThread.join(250);
+                if (dataOutputThread.isAlive()) {
+                    dataOutputThread.stop();
+                }
+            }
             catch (InterruptedException e) {}
-//System.out.println("      DataChannel Et: output thread done");
         }
 
         // At this point all threads should be done
@@ -1849,7 +1861,7 @@ System.out.println("      DataChannel Et out: " + name + " got RESET cmd, quitti
 
                          // Dump any left over new ET events.
                          if (events2Write < eventArrayLen) {
-//System.out.println("      DataChannel Et out: dumping " + (eventArrayLen - events2Write) + " unused new events");
+//System.out.println("      DataChannel Et out: dumping " + (eventArrayLen - events2Write) + " events");
                              etSystem.dumpEvents(attachment, events, events2Write, (eventArrayLen - events2Write));
                          }
                      }
