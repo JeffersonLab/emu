@@ -3133,9 +3133,9 @@ System.out.println("makeTriggerBankFromRocRaw: event # differs (in Bt# " + build
         // Allow a slop of timestampSlop from the max to min.
         if (checkTimestamps) {
             for (int i=0; i < numEvents; i++) {
-                if (timestampsMax[i] - timestampsMin[i] > 0)  {
+//                if (timestampsMax[i] - timestampsMin[i] > 0)  {
 //System.out.println("Timestamps differing by " + (timestampsMax[i] - timestampsMin[i]));
-                }
+//                }
                 if (timestampsMax[i] - timestampsMin[i] > timestampSlop)  {
                     nonFatalError = true;
 System.out.println("Timestamps are NOT consistent!!!");
@@ -3309,13 +3309,13 @@ System.out.println("Timestamps are NOT consistent!!!");
         int numROCs = inputPayloadBanks.length;
         boolean nonFatalError = false;
 
-        for (int i=0; i < numROCs; i++) {
+        for (PayloadBank inputPayloadBank : inputPayloadBanks) {
             // check to see if all payload banks think they have 1 event
-            if (inputPayloadBanks[i].getHeader().getNumber() != 1) {
+            if (inputPayloadBank.getHeader().getNumber() != 1) {
                 throw new EmuException("Data blocks contain different numbers of events");
             }
 
-            inputPayloadBanks[i].setEventCount(1);
+            inputPayloadBank.setEventCount(1);
         }
 
         // event we are trying to build
@@ -3374,8 +3374,8 @@ System.out.println("Timestamps are NOT consistent!!!");
         // We are not checking info from additional Data Block banks
         // if more than one from a ROC.
         int[] data;
-        for (int j=0; j < numROCs; j++) {
-            blockBank = (EvioBank) (inputPayloadBanks[j].getEvent().getChildAt(0));
+        for (PayloadBank inputPayloadBank : inputPayloadBanks) {
+            blockBank = (EvioBank) (inputPayloadBank.getEvent().getChildAt(0));
 
             // check event type consistency
             if (evData[0] != (short) (blockBank.getHeader().getNumber())) {
@@ -3384,7 +3384,7 @@ System.out.println("Timestamps are NOT consistent!!!");
 
             // check event number consistency
             data = blockBank.getIntData();
-            if ((int)firstEventNumber != data[0]) {
+            if ((int) firstEventNumber != data[0]) {
                 nonFatalError = true;
             }
 
@@ -3396,11 +3396,11 @@ System.out.println("Timestamps are NOT consistent!!!");
 
             // store timestamp related values so consistency can be checked later
             if (checkTimestamps && data.length > 2) {
-                ts = (   ((0xffffL & (long)data[2]) << 32) |
-                      (0xffffffffL & (long)data[1]));
+                ts = (((0xffffL & (long) data[2]) << 32) |
+                   (0xffffffffL & (long) data[1]));
                 timestampsAvg += ts;
-                timestampsMax  = ts > timestampsMax ? ts : timestampsMax;
-                timestampsMin  = ts < timestampsMin ? ts : timestampsMin;
+                timestampsMax = ts > timestampsMax ? ts : timestampsMax;
+                timestampsMin = ts < timestampsMin ? ts : timestampsMin;
             }
         }
 
@@ -3506,13 +3506,13 @@ System.out.println("Timestamps are NOT consistent !!!");
         int numROCs = inputPayloadBanks.length;
         boolean nonFatalError = false;
 
-        for (int i=0; i < numROCs; i++) {
+        for (PayloadBuffer inputPayloadBank : inputPayloadBanks) {
             // check to see if all payload banks think they have 1 event
-            if (inputPayloadBanks[i].getNode().getNum() != 1) {
+            if (inputPayloadBank.getNode().getNum() != 1) {
                 throw new EmuException("Data blocks contain different numbers of events");
             }
 
-            inputPayloadBanks[i].setEventCount(1);
+            inputPayloadBank.setEventCount(1);
         }
 
         // Start building combined trigger bank
@@ -3570,8 +3570,8 @@ System.out.println("Timestamps are NOT consistent !!!");
         // We are not checking info from additional Data Block banks
         // if more than one from a ROC.
         int[] data;
-        for (int j=0; j < numROCs; j++) {
-            blockBank = inputPayloadBanks[j].getNode().getChildNodes().get(0);
+        for (PayloadBuffer inputPayloadBank : inputPayloadBanks) {
+            blockBank = inputPayloadBank.getNode().getChildNodes().get(0);
 
             // check event type consistency
             if (evData[0] != (short) (blockBank.getNum())) {
@@ -3580,7 +3580,7 @@ System.out.println("Timestamps are NOT consistent !!!");
 
             // check event number consistency
             data = ByteDataTransformer.toIntArray(blockBank.getByteData(false));
-            if ((int)firstEventNumber != data[0]) {
+            if ((int) firstEventNumber != data[0]) {
                 nonFatalError = true;
             }
 
@@ -3592,11 +3592,11 @@ System.out.println("Timestamps are NOT consistent !!!");
 
             // store timestamp related values so consistency can be checked later
             if (checkTimestamps && data.length > 2) {
-                ts = (   ((0xffffL & (long)data[2]) << 32) |
-                      (0xffffffffL & (long)data[1]));
+                ts = (((0xffffL & (long) data[2]) << 32) |
+                   (0xffffffffL & (long) data[1]));
                 timestampsAvg += ts;
-                timestampsMax  = ts > timestampsMax ? ts : timestampsMax;
-                timestampsMin  = ts < timestampsMin ? ts : timestampsMin;
+                timestampsMax = ts > timestampsMax ? ts : timestampsMax;
+                timestampsMin = ts < timestampsMin ? ts : timestampsMin;
             }
         }
 
