@@ -1502,7 +1502,7 @@ System.out.println("      DataChannel Et out: wake up attachment #" + attachment
                  ControlType pBankControlType;
                  ArrayList<RingItem> bankList;
                  RingItem ringItem;
-                 int nextEventIndex, thisEventIndex, pBankSize, listTotalSizeMax;
+                 int nextListIndex, thisListIndex, pBankSize, listTotalSizeMax;
                  EvWriter[] writers = new EvWriter[chunk];
 
                  // Always start out reading prestart & go events from ring 0
@@ -1568,10 +1568,16 @@ System.out.println("      DataChannel Et out: wake up attachment #" + attachment
                      // Init variables
                      eventCount = 0;
                      events2Write = 0;
-                     nextEventIndex = thisEventIndex = 0;
-                     listTotalSizeMax = 32;   // first (or last) block header
+                     // Index into bankListArray of current bankList
+                     thisListIndex = 0;
+                     bankList = bankListArray[thisListIndex];
+                     // Index into bankListArray of next bankList to use.
+                     // Also is # of bankLists used so far in do-loop.
+                     nextListIndex = 0;
+                     // First (or last) block header
+                     listTotalSizeMax = 32;
+                     // EventType of events contained in the previous list
                      previousType = null;
-                     bankList = bankListArray[nextEventIndex];
                      havePrestartOrGo = false;
 
                      // Grab a bank to put into an ET event buffer,
@@ -1589,7 +1595,8 @@ System.out.println("      DataChannel Et out: wake up attachment #" + attachment
 //                                 if (nextSequences[0] > 4090)
 //System.out.print("      DataChannel Et out " + outputIndex + ": get next ring " + outputRingIndex + " ...");
                                  ringItem = getNextOutputRingItem(outputRingIndex);
-//if (counter++ < 20) System.out.println(outputIndex + " : " + outputRingIndex + " : " + nextEvent);
+//                                 if (nextSequences[0] > 4090)
+//System.out.println(outputIndex + " : " + outputRingIndex + " : " + nextEvent);
                              }
                              catch (InterruptedException e) {
                                  threadState = ThreadState.INTERRUPTED;
@@ -1633,14 +1640,14 @@ System.out.println("\n      DataChannel Et out " + outputIndex + ": try again, r
                              //
                              // Set recordId depending on what type this bank is
                              if (pBankType.isAnyPhysics() || pBankType.isROCRaw()) {
-                                 recordIds[thisEventIndex] = recordId++;
+                                 recordIds[thisListIndex] = recordId++;
                              }
                              else {
-                                 recordIds[thisEventIndex] = -1;
+                                 recordIds[thisListIndex] = -1;
                              }
 
                              // Index of next list
-                             nextEventIndex++;
+                             nextListIndex++;
                          }
                          // Is this bank a diff type as previous bank?
                          // Will it not fit into the et buffer?
@@ -1654,7 +1661,7 @@ System.out.println("\n      DataChannel Et out " + outputIndex + ": try again, r
                              // If we've already used up all the events,
                              // write things out first. Be sure to store what we just
                              // pulled off the Q to be the next bank!
-                             if (nextEventIndex >= eventArrayLen) {
+                             if (nextListIndex >= eventArrayLen) {
 //System.out.println("      DataChannel Et out " + outputIndex + ": used up " + nextEventIndex +
 //                           " events, max = " + eventArrayLen);
                                  firstBankFromRing = ringItem;
@@ -1665,21 +1672,21 @@ System.out.println("\n      DataChannel Et out " + outputIndex + ": try again, r
                              listTotalSizeMax = pBankSize + 64;
 
                              // Get new list
-                             bankList = bankListArray[nextEventIndex];
+                             bankList = bankListArray[nextListIndex];
                              // Add bank to new list
                              bankList.add(ringItem);
 
                              // Set recordId depending on what type this bank is
                              if (pBankType.isAnyPhysics() || pBankType.isROCRaw()) {
-                                 recordIds[nextEventIndex] = recordId++;
+                                 recordIds[nextListIndex] = recordId++;
                              }
                              else {
-                                 recordIds[nextEventIndex] = -1;
+                                 recordIds[nextListIndex] = -1;
                              }
 
                              // Index of this & next lists
-                             thisEventIndex++;
-                             nextEventIndex++;
+                             thisListIndex++;
+                             nextListIndex++;
                          }
                          // It's OK to add this bank to the existing list.
                          else {
@@ -1739,15 +1746,15 @@ System.out.println("      DataChannel Et out " + outputIndex + ": have GO, ringI
 
                          // Be careful not to use up all the events in the output
                          // ring buffer before writing some (& freeing up).
-                         if (eventCount >= outputRingItemCount /2) {
+                         if (eventCount >= outputRingItemCount*3/4) {
 //logger.warn("      DataChannel Et out : " + name + " break since eventCount(" + eventCount +
-//        ") > outputRingItemCount/2(" + ( outputRingItemCount /2) +")");
+//        ") > outputRingItemCount*3/4(" + ( outputRingItemCount*3/4) +")");
                              break;
                          }
-//logger.warn("      DataChannel Et out : " + name + " end while, nextEventIndex(" + nextEventIndex +
-//") <? eventArrayLen(" + eventArrayLen + ")");
+//logger.warn("      DataChannel Et out : " + name + " end while, eventCount(" + eventCount + "), thisEventIndex(" + thisListIndex +
+//            "), nextEventIndex(" + nextListIndex + ") <? eventArrayLen(" + eventArrayLen + ")");
 
-                     } while (!gotResetCmd && (thisEventIndex < eventArrayLen));
+                     } while (!gotResetCmd && (nextListIndex < eventArrayLen));
 
                      // If I've been told to RESET ...
                      if (gotResetCmd) {
@@ -1760,11 +1767,11 @@ System.out.println("      DataChannel Et out: " + name + " got RESET cmd, quitti
  //                    ", evArrayLen = " + eventArrayLen);
 
 //                     latch = new CountDownLatch(nextEventIndex);
-                     phaser.bulkRegister(nextEventIndex);
+                     phaser.bulkRegister(nextListIndex);
 //logger.warn("      DataChannel Et out : " + name + " bulkRegister(" + nextEventIndex + ")");
 
                      // For each ET event that can be filled with something ...
-                     for (int i=0; i < nextEventIndex; i++) {
+                     for (int i=0; i < nextListIndex; i++) {
                          // Get one of the list of banks to put into this ET event
                          bankList = bankListArray[i];
 
