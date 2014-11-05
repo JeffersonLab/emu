@@ -506,7 +506,7 @@ System.out.println("  Roc mod: start With (id=" + myId + "):\n    record id = " 
                            ", ev # = " +myEventNumber + ", ts = " + timestamp +
                            ", blockSize = " + eventBlockSize);
 
-            bbSupply = new ByteBufferSupply(bufSupplySize, 4*eventWordSize, ByteOrder.BIG_ENDIAN, true);
+//            bbSupply = new ByteBufferSupply(bufSupplySize, 4*eventWordSize, ByteOrder.BIG_ENDIAN, true);
         }
 
 
@@ -522,6 +522,15 @@ System.out.println("  Roc mod: start With (id=" + myId + "):\n    record id = " 
             ByteBufferItem bufItem = null;
             boolean copyWholeBuf = true;
 
+            // We need for the # of buffers in our bbSupply object to be >=
+            // the # of ring buffer slots in the output channel or we can get
+            // a deadlock. Although we get the value from the first channel's
+            // first ring, it's the same for all output channels.
+            int outputRingSize = outputChannels.get(0).getRingBuffersOut()[0].getBufferSize();
+
+            // Now create our own buffer supply to match
+            bufSupplySize = outputRingSize;
+            bbSupply = new ByteBufferSupply(bufSupplySize, 4*eventWordSize, ByteOrder.BIG_ENDIAN, true);
 
             try {
                 // Use dummy arg that's overwritten later

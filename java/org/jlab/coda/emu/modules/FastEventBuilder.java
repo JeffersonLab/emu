@@ -732,9 +732,19 @@ System.out.println("  EB mod: create Build Thread with index " + btIndex + ", co
             // Create a reusable supply of ByteBuffer objects
             // for writing built physics events into.
             //--------------------------------------------
-            // Direct buffers give 15% better performance
+            // Direct buffers give better performance
             //--------------------------------------------
-            ByteBufferSupply bbSupply = new ByteBufferSupply(8192, 2000, outputOrder, true);
+            // Number of slots in each output channel ring buffer
+            int outputRingSize = 0;
+            if (outputChannelCount > 0) {
+                outputRingSize = outputChannels.get(0).getRingBuffersOut()[0].getBufferSize();
+            }
+            // Must have at least outputRingSize # of buffers here
+            // or we could get a deadlock with out channel waiting to read
+            // more events than this thread can produce with the already-read
+            // events still not written out.
+            int supplySize = (outputRingSize > 4096) ? outputRingSize : 4096;
+            ByteBufferSupply bbSupply = new ByteBufferSupply(supplySize, 2000, outputOrder, true);
 
             // Object for building physics events in a ByteBuffer
             CompactEventBuilder builder = null;
