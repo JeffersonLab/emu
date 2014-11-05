@@ -1274,7 +1274,7 @@ System.out.println("      DataChannel cmsg out " + outputIndex + ": have GO, rin
 
                         // Be careful not to use up all the events in the output
                         // ring buffer before writing (& freeing up) some.
-                        if (eventCount >= outputRingItemCount /2) {
+                        if (eventCount >= outputRingItemCount*3/4) {
                             break;
                         }
 
