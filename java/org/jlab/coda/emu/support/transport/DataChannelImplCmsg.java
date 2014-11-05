@@ -1107,10 +1107,16 @@ logger.warn("      DataChannel cmsg out: " + name + " exit thd: " + e.getMessage
                     // Init variables
                     eventCount = 0;
                     messages2Write = 0;
-                    nextMsgListIndex = thisMsgListIndex = 0;
+
+                    // Index into bankListArray of next bankList to use.
+                    nextMsgListIndex = 0;
+                    // Index into bankListArray of current bankList
+                    thisMsgListIndex = 0;
+                    bankList = bankListArray[thisMsgListIndex];
+
                     listTotalSizeMax = 32;
+                    // EventType of events contained in the previous list
                     previousType = null;
-                    bankList = bankListArray[nextMsgListIndex];
 
                     // Grab a bank to put into a cMsg buffer,
                     // checking occasionally to see if we got an
@@ -1272,7 +1278,7 @@ System.out.println("      DataChannel cmsg out " + outputIndex + ": have GO, rin
                             break;
                         }
 
-                    } while (!gotResetCmd && (thisMsgListIndex < writeThreadCount));
+                    } while (!gotResetCmd && (nextMsgListIndex < writeThreadCount));
 
                     // If I've been told to RESET ...
                     if (gotResetCmd) {
