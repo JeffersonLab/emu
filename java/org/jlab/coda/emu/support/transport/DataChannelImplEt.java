@@ -1104,14 +1104,14 @@ logger.warn("      DataChannel Et in: " + name + " exit thd: " + e.getMessage())
             latch.countDown();
 
             try {
-                int evioVersion, sourceId, recordId;
+                int sourceId, recordId;
                 BlockHeaderV4 header4;
                 EventType eventType, bankType;
                 ControlType controlType;
                 ByteBufferItem bbItem;
                 ByteBuffer buf;
                 EvioCompactReader compactReader = null;
-                PayloadBuffer payloadBuffer;
+                RingItem ri;
                 long t1, t2;
                 boolean delay = false;
                 boolean useDirectEt = (etSysLocal != null);
@@ -1239,8 +1239,7 @@ Utilities.printBuffer(buf, 0, 20, "BAD EVENT ");
                         // First block header in ET buffer
                         header4 = compactReader.getFirstBlockHeader();
 //System.out.println("      DataChannel Et in: blk header, order = " + header4.getByteOrder());
-                        evioVersion = header4.getVersion();
-                        if (evioVersion < 4) {
+                        if (header4.getVersion() < 4) {
                             errorMsg.compareAndSet(null, "ET data is NOT evio v4 format");
                             throw new EvioException("Evio data needs to be written in version 4+ format");
                         }
@@ -1304,17 +1303,18 @@ Utilities.printBuffer(buf, 0, 20, "BAD EVENT ");
 //System.out.println("      DataChannel Et in: wait for next ring buf for writing");
                             nextRingItem = ringBufferIn.next();
 //System.out.println("      DataChannel Et in: Got sequence " + nextRingItem);
-                            payloadBuffer = (PayloadBuffer) ringBufferIn.get(nextRingItem);
-                            payloadBuffer.setBuffer(node.getStructureBuffer(false));
-                            payloadBuffer.setEventType(bankType);
-                            payloadBuffer.setControlType(controlType);
-                            payloadBuffer.setRecordId(recordId);
-                            payloadBuffer.setSourceId(sourceId);
-                            payloadBuffer.setSourceName(name);
-                            payloadBuffer.setEventCount(1);
-                            payloadBuffer.setNode(node);
-                            payloadBuffer.setReusableByteBuffer(bbSupply, bbItem);
-                            payloadBuffer.matchesId(sourceId == id);
+                            ri = ringBufferIn.get(nextRingItem);
+                            // TODO: this does NOT have to be a buffer with only structure right???
+                            ri.setBuffer(node.getStructureBuffer(false));
+                            ri.setEventType(bankType);
+                            ri.setControlType(controlType);
+                            ri.setRecordId(recordId);
+                            ri.setSourceId(sourceId);
+                            ri.setSourceName(name);
+                            ri.setEventCount(1);
+                            ri.setNode(node);
+                            ri.setReusableByteBuffer(bbSupply, bbItem);
+                            ri.matchesId(sourceId == id);
 
                             ringBufferIn.publish(nextRingItem);
 //System.out.println("      DataChannel Et in: published sequence " + nextRingItem);
