@@ -365,6 +365,7 @@ System.out.println("      DataChannel Emu: UDL = " + udl);
                     }
                 }
                 catch (InterruptedException e) {}
+                dataInputThread = null;
 
                 try {in.close();}
                 catch (IOException e) {}
@@ -381,6 +382,7 @@ System.out.println("      DataChannel Emu: UDL = " + udl);
                     }
                 }
                 catch (InterruptedException e) {}
+                dataOutputThread = null;
 //System.out.println("      DataChannel Emu: output thread done");
             }
 //System.out.println("      DataChannel Emu: all helper thds done");
@@ -412,11 +414,6 @@ logger.debug("      DataChannel Emu: reset() " + name);
         gotEndCmd   = false;
         gotResetCmd = true;
 
-        // Close input channel, this should allow it to check value of "gotResetCmd"
-        if (input) {
-            try {in.close();}
-            catch (IOException e) {}
-        }
 
         if (dataInputThread != null) {
             dataInputThread.interrupt();
@@ -427,6 +424,10 @@ logger.debug("      DataChannel Emu: reset() " + name);
                 }
             }
             catch (InterruptedException e) {}
+
+            // Close input channel, this should allow it to check value of "gotResetCmd"
+            try {in.close();}
+            catch (IOException e) {}
         }
 
         if (dataOutputThread != null) {
