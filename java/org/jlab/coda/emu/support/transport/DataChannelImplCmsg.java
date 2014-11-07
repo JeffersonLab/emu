@@ -1064,6 +1064,9 @@ logger.warn("      DataChannel cmsg out: " + name + " exit thd: " + e.getMessage
                 // Place to store a bank off the ring for the next message out
                 RingItem firstBankFromRing = null;
 
+                // Time in milliseconds for writing if time expired
+                long startTime, endTime, timeout = 2000L;
+
                 int eventCount, messages2Write;
                 int[] recordIds = new int[writeThreadCount];
                 int[] bankListSize = new int[writeThreadCount];
@@ -1117,6 +1120,9 @@ logger.warn("      DataChannel cmsg out: " + name + " exit thd: " + e.getMessage
                     listTotalSizeMax = 32;
                     // EventType of events contained in the previous list
                     previousType = null;
+
+                    // Set time of entering do-loop
+                    startTime = System.currentTimeMillis();
 
                     // Grab a bank to put into a cMsg buffer,
                     // checking occasionally to see if we got an
@@ -1273,8 +1279,10 @@ System.out.println("      DataChannel cmsg out " + outputIndex + ": have GO, rin
                         }
 
                         // Be careful not to use up all the events in the output
-                        // ring buffer before writing (& freeing up) some.
-                        if (eventCount >= outputRingItemCount*3/4) {
+                        // ring buffer before writing some (& freeing them up).
+                        // Also write what we have if time (2 sec) has expired.
+                        endTime = System.currentTimeMillis();
+                        if ((eventCount >= outputRingItemCount*3/4) || (endTime - startTime > timeout)) {
                             break;
                         }
 
@@ -1316,14 +1324,14 @@ System.out.println("      DataChannel cmsg out " + outputIndex + ": have GO, rin
                         // Keep track of how many messages we want to write
                         messages2Write++;
 
-                        // Handle END event ...
-                        for (RingItem ri : bankList) {
-                            if (ri.getAttachment() == Boolean.TRUE) {
-                                // There should be no more events coming down the pike so
-                                // go ahead write out events and then shut this thread down.
-                                break;
-                            }
-                        }
+//                        // Handle END event ...
+//                        for (RingItem ri : bankList) {
+//                            if (ri.getAttachment() == Boolean.TRUE) {
+//                                // There should be no more events coming down the pike so
+//                                // go ahead write out events and then shut this thread down.
+//                                break;
+//                            }
+//                        }
                     }
 
                     // Wait for all events to finish processing
@@ -1353,6 +1361,7 @@ System.out.println("      DataChannel cmsg out " + outputIndex + ": have GO, rin
                     if (haveOutputEndEvent) {
 System.out.println("      DataChannel cmsg out: " + name + " some thd got END event, quitting 4");
                         shutdown();
+                        threadState = ThreadState.DONE;
                         return;
                     }
                 }
@@ -1373,6 +1382,7 @@ logger.warn("      DataChannel cmsg out: " + name + "  interrupted thd, exiting"
 logger.warn("      DataChannel cmsg out: " + name + " exit thd: " + e.getMessage());
             }
 
+            threadState = ThreadState.DONE;
         }
 
 
