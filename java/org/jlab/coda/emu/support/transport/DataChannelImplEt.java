@@ -1506,7 +1506,7 @@ System.out.println("      DataChannel Et out: wake up attachment #" + attachment
                  EvWriter[] writers = new EvWriter[chunk];
 
                  // Time in milliseconds for writing if time expired
-                 long startTime, endTime, timeout = 2000L;
+                 long startTime, timeout = 2000L;
 
                  // Always start out reading prestart & go events from ring 0
                  int outputRingIndex=0;
@@ -1752,8 +1752,8 @@ System.out.println("      DataChannel Et out " + outputIndex + ": have GO, ringI
                          // Be careful not to use up all the events in the output
                          // ring buffer before writing some (& freeing them up).
                          // Also write what we have if time (2 sec) has expired.
-                         endTime = System.currentTimeMillis();
-                         if ((eventCount >= outputRingItemCount*3/4) || (endTime - startTime > timeout)) {
+                         if ((eventCount >= outputRingItemCount*3/4) ||
+                             (System.currentTimeMillis() - startTime > timeout)) {
 //logger.warn("      DataChannel Et out : " + name + " break since eventCount(" + eventCount +
 //        ") > outputRingItemCount*3/4(" + ( outputRingItemCount*3/4) +")");
                              break;

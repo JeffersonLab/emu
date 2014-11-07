@@ -1065,7 +1065,7 @@ logger.warn("      DataChannel cmsg out: " + name + " exit thd: " + e.getMessage
                 RingItem firstBankFromRing = null;
 
                 // Time in milliseconds for writing if time expired
-                long startTime, endTime, timeout = 2000L;
+                long startTime, timeout = 2000L;
 
                 int eventCount, messages2Write;
                 int[] recordIds = new int[writeThreadCount];
@@ -1281,8 +1281,8 @@ System.out.println("      DataChannel cmsg out " + outputIndex + ": have GO, rin
                         // Be careful not to use up all the events in the output
                         // ring buffer before writing some (& freeing them up).
                         // Also write what we have if time (2 sec) has expired.
-                        endTime = System.currentTimeMillis();
-                        if ((eventCount >= outputRingItemCount*3/4) || (endTime - startTime > timeout)) {
+                        if ((eventCount >= outputRingItemCount*3/4) ||
+                            (System.currentTimeMillis() - startTime > timeout)) {
                             break;
                         }
 

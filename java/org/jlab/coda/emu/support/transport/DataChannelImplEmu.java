@@ -1254,6 +1254,9 @@ System.out.println("      DataChannel Emu out: " + name + " I got END event, qui
         /** What state is this thread in? */
         private volatile ThreadState threadState;
 
+        /** Time at which events were sent over socket. */
+        private long lastSendTime;
+
 
          /** Constructor. */
         DataOutputHelper() {
@@ -1305,9 +1308,20 @@ System.out.println("      DataChannel Emu out: " + name + " I got END event, qui
             outGoingMsg.setByteArrayNoCopy(writer.getByteBuffer().array(), 0,
                                            (int) writer.getBytesWrittenToBuffer());
             emuDomain.send(outGoingMsg);
+            lastSendTime = System.currentTimeMillis();
         }
 
 
+        /**
+         * Write events into internal buffer and, if need be, flush
+         * them over socket.
+         *
+         * @param rItem  event to write
+         * @param eType  type of event
+         * @throws cMsgException
+         * @throws IOException
+         * @throws EvioException
+         */
         private final void writeEvioData(RingItem rItem, EventType eType)
                                                          throws cMsgException,
                                                                 IOException,
@@ -1414,6 +1428,10 @@ logger.debug("      DataChannel Emu out: started, w/ " + outputRingCount +  " ou
                 ControlType pBankControlType;
                 RingItem ringItem;
 
+                // Time in milliseconds for writing if time expired
+                long timeout = 2000L;
+                lastSendTime = System.currentTimeMillis();
+
                 // First event will be "prestart", by convention in ring 0
                 ringItem = getNextOutputRingItem(0);
                 writeEvioData(ringItem, ringItem.getEventType());
@@ -1490,6 +1508,11 @@ System.out.println("      DataChannel Emu out: " + name + " I got END event, qui
 System.out.println("      DataChannel Emu out: " + name + " got RESET/END cmd, quitting 1");
                         threadState = ThreadState.DONE;
                         return;
+                    }
+
+                    // Time expired so send out events we have
+                    if (System.currentTimeMillis() - lastSendTime > timeout) {
+                        flushEvents();
                     }
                 }
 
