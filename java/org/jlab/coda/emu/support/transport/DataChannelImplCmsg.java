@@ -320,6 +320,9 @@ public class DataChannelImplCmsg extends DataChannelAdapter {
                 emu.sendStatusMessage();
             }
         }
+
+        public int getMaximumQueueSize() { return 100000; }
+
     }
 
 
