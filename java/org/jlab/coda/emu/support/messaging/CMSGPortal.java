@@ -93,16 +93,16 @@ System.out.println("Emu: CMSGPortal using rc UDL = " + rcUDL);
             rcServer.start();
             // only need one callback
             RcCommandHandler handler = new RcCommandHandler(CMSGPortal.this);
-            // install callback for download, prestart, go, etc
-            rcServer.subscribe("*", RCConstants.transitionCommandType, handler, null);
-            // install callback for reset, configure, start, stop, getsession, setsession, etc
-            rcServer.subscribe("*", RCConstants.runCommandType, handler, null);
-            // install callback for set/get run number, set/get run type
-            rcServer.subscribe("*", RCConstants.sessionCommandType, handler, null);
-            // install callback for getting state, status, codaClass, & objectType
-            rcServer.subscribe("*", RCConstants.infoCommandType, handler, null);
-            // for future use
-            rcServer.subscribe("*", RCConstants.setOptionType, handler, null);
+            // install callback for all transitions commands
+            rcServer.subscribe(emu.name(), RCConstants.transitionCommandType, handler, null);
+            // install callback to set roc buffer level
+            rcServer.subscribe(emu.name(), RCConstants.runCommandType, handler, null);
+            // install callback for setting run #, run type, session, interval,
+            // for getting session, run #, run type, config id, and roc buffer level,
+            // for starting & stopping reporting, and for exiting
+            rcServer.subscribe(emu.name(), RCConstants.sessionCommandType, handler, null);
+            // install callback for getting objectType, codaClass, state and status
+            rcServer.subscribe(emu.name(), RCConstants.codaInfoCommandType, handler, null);
 
         } catch (Exception e) {
             e.printStackTrace();
@@ -166,7 +166,7 @@ logger.warn("Emu: exit due to rc/cMsg connect error: " + e.getMessage());
 
                 try {
                     server.start();
-                    server.subscribe(this.emu.name(), "*", mHandler, null);
+                    server.subscribe(emu.name(), "*", mHandler, null);
 
                     // cMsg subdomain with namespace = expid on platform of cMsg server at default port
                     // Use this connection to send messages to the connected ROCs (through platform/agent)
