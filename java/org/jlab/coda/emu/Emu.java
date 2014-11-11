@@ -32,9 +32,7 @@ import org.jlab.coda.emu.support.transport.*;
 import org.jlab.coda.emu.support.ui.DebugFrame;
 
 import static org.jlab.coda.emu.support.codaComponent.CODACommand.*;
-import static org.jlab.coda.emu.support.codaComponent.CODAState.BOOTED;
-import static org.jlab.coda.emu.support.codaComponent.CODAState.CONFIGURED;
-import static org.jlab.coda.emu.support.codaComponent.CODAState.ERROR;
+import static org.jlab.coda.emu.support.codaComponent.CODAState.*;
 
 import org.w3c.dom.Document;
 import org.w3c.dom.NamedNodeMap;
@@ -386,7 +384,7 @@ public class Emu implements CODAComponent {
                 }
 
                 // Do NOT block forever here
-                Command cmd = mailbox.poll(1, TimeUnit.SECONDS);
+                final Command cmd = mailbox.poll(1, TimeUnit.SECONDS);
 
                 if (!Thread.interrupted()) {
                     if (cmd != null) {
@@ -425,7 +423,7 @@ public class Emu implements CODAComponent {
                 }
 
             } catch (InterruptedException e) {
-                break;
+                statusMonitor.isInterrupted(); // clear interrupt flag
             }
 
         } while (!Thread.interrupted());
@@ -756,7 +754,7 @@ public class Emu implements CODAComponent {
     }
 
     //-----------------------------------------------------
-    // Status reporting methods
+    // Time & Status reporting methods
     //-----------------------------------------------------
 
     /**
@@ -783,11 +781,40 @@ System.out.println("Emu " + name + " sending special RC display error Msg:\n ***
         statusReportingThread.sendStatusMessage();
     }
 
-    /** Class defining thread which reports the EMU status to Run Control. */
+    /**
+     * Get the time from System.currentTimeMillis(), but it's updated
+     * only every second or thereabouts.
+     * @return time from System.currentTimeMillis()
+     */
+    public long getTime() {
+        return statusReportingThread.getTime();
+    }
+
+    /**
+     * Class defining thread which reports the EMU status to Run Control.<p>
+     *
+     * Java calls to get the time are notoriously slow -
+     * System.currentTimeMillis() & .nanoTime(). We implement a low resolution
+     * clock here, for things like flushing output channels when there are
+     * low rates, which allows other code to avoid calling these expensive methods
+     * directly.
+     */
     class StatusReportingThread extends Thread {
 
         /** Reuse this msg - overwriting fields each time. */
         private final cMsgMessage reportMsg;
+
+        /** Time - updated every statusReportingPeriod milliseconds. */
+        private volatile long time;
+
+        /**
+         * Get the time from System.currentTimeMillis(), but it's updated
+         * only every second or thereabouts.
+         * @return time from System.currentTimeMillis()
+         */
+        public long getTime() {
+            return time;
+        }
 
         StatusReportingThread() {
             reportMsg = new cMsgMessage();
@@ -799,12 +826,20 @@ System.out.println("Emu " + name + " sending special RC display error Msg:\n ***
 
         /** Send a status message every 2 (statusReportingPeriod/1000) seconds. */
         public void run() {
+
+            long lastMsgTime = 0L;
+            time = System.currentTimeMillis();
+
             while (!Thread.interrupted()) {
 
-                sendStatusMessage();
+                if (time - lastMsgTime >= statusReportingPeriod) {
+                    sendStatusMessage();
+                    lastMsgTime = time;
+                }
 
                 try {
-                    Thread.sleep(statusReportingPeriod);
+                    Thread.sleep(1000);
+                    time = System.currentTimeMillis();
                 }
                 catch (InterruptedException e) {
                     return;
@@ -935,16 +970,15 @@ System.out.println("Emu " + name + " sending special RC display error Msg:\n ***
         // Interrupt both of Emu's threads
         statusReportingThread.interrupt();
 
-        // This thread is currently interrupting itself
-        statusMonitor.interrupt();
+        // This thread is currently stopping itself
+        statusMonitor.stop();
     }
 
 
     /**
      * This method executes a RESET command.
-     * Do not use {@link #execute(Command)} to do a reset since we
-     * don't want to have it queued up and possibly waiting like a regular command.
-     * RESET must always have top priority and therefore its own thread of execution.
+     * We don't queued it up and possibly have it wait like a transition command.
+     * RESET must always have top priority and is executed in the cMsg callback.
      */
     synchronized public void reset() {
         // Clear error until next one occurs
@@ -957,6 +991,12 @@ logger.info("Emu reset: set flag to STOP execution of rc commands");
 
         // Clear out any existing, un-executed commands
         mailbox.clear();
+
+        // Interrupt the main emu thread which is processing transition commands
+        // since it may be stuck in the middle of a transition. This thread
+        // should recover. This method is executed from a cMsg callback thread
+        // and is not affected by this call.
+        statusMonitor.interrupt();
 
         // The most difficult situation in which to do a RESET is when
         // data is flowing. It's best to send RESET cmds to various components
@@ -1054,11 +1094,171 @@ logger.info("Emu reset: set flag to ALLOW execution of rc commands");
 
 
     /**
+     * This method encapsulates a required response
+     * to a run control command to send info.
+     * Used if msg contains a String.
+     *
+     * @param type        type of cMsg message
+     * @param payloadName name of String payload in cMsg message
+     * @param val         value of payload
+     * @param rcMsg       original message from run control
+     */
+    private void replyToRunControl(String type,
+                                   String payloadName, String val,
+                                   cMsgMessage rcMsg) {
+
+        if (val == null) {
+            System.out.println("Emu: cannot send cMsg msg since type is null");
+            return;
+        }
+
+        // Msg to reply to run control
+        cMsgMessage msg = null;
+
+        // If received msg is sendAndGet ...
+        if (rcMsg.isGetRequest()) {
+            try {
+                msg = rcMsg.response();
+            }
+            catch (cMsgException e) {/* never happen */}
+        }
+        // else if just a regular msg ...
+        else {
+            msg = new cMsgMessage();
+            msg.setSubject(name);
+            msg.setType(type);
+            return;
+        }
+
+        if (payloadName == null) {
+            msg.setText(val);
+        }
+        else {
+            try {
+                cMsgPayloadItem item = new cMsgPayloadItem(payloadName, val);
+                msg.addPayloadItem(item);
+            }
+            catch (cMsgException e) {/* never happen */}
+        }
+
+        try {
+            cmsgPortal.getRcServer().send(msg);
+        }
+        catch (cMsgException e) {
+            e.printStackTrace();
+        }
+    }
+
+
+    /**
+     * This method encapsulates a required response
+     * to a run control command to send info.
+     * Used if msg contains an int.
+     *
+     * @param type        type of cMsg message
+     * @param payloadName name of String payload in cMsg message
+     * @param val         value of payload
+     * @param rcMsg       original message from run control
+     */
+    private void replyToRunControl(String type,
+                                   String payloadName, int val,
+                                   cMsgMessage rcMsg) {
+
+        // Msg to reply to run control
+        cMsgMessage msg = null;
+
+        // If received msg is sendAndGet ...
+        if (rcMsg.isGetRequest()) {
+            try {
+                msg = rcMsg.response();
+            }
+            catch (cMsgException e) {/* never happen */}
+        }
+        // else if just a regular msg ...
+        else {
+            msg = new cMsgMessage();
+            msg.setSubject(name);
+            msg.setType(type);
+            return;
+        }
+
+        if (payloadName == null) {
+            msg.setUserInt(val);
+        }
+        else {
+            try {
+                cMsgPayloadItem item = new cMsgPayloadItem(payloadName, val);
+                msg.addPayloadItem(item);
+            }
+            catch (cMsgException e) {/* never happen */}
+        }
+
+        try {
+            cmsgPortal.getRcServer().send(msg);
+        }
+        catch (cMsgException e) {
+            e.printStackTrace();
+        }
+    }
+
+
+    /**
+     * This method encapsulates a required response
+     * to a run control command to send info.
+     * Used if msg contains a long and requires a payloadName.
+     *
+     * @param type        type of cMsg message
+     * @param payloadName name of String payload in cMsg message
+     * @param val         value of payload
+     * @param rcMsg       original message from run control
+     */
+    private void replyToRunControl(String type,
+                                   String payloadName, long val,
+                                   cMsgMessage rcMsg) {
+
+        if (payloadName == null) {
+            return;
+        }
+
+        // Msg to reply to run control
+        cMsgMessage msg = null;
+
+        // If received msg is sendAndGet ...
+        if (rcMsg.isGetRequest()) {
+            try {
+                msg = rcMsg.response();
+            }
+            catch (cMsgException e) {/* never happen */}
+        }
+        // else if just a regular msg ...
+        else {
+            msg = new cMsgMessage();
+            msg.setSubject(name);
+            msg.setType(type);
+            return;
+        }
+
+        try {
+            cMsgPayloadItem item = new cMsgPayloadItem(payloadName, val);
+            msg.addPayloadItem(item);
+        }
+        catch (cMsgException e) {/* never happen */}
+
+        try {
+            cmsgPortal.getRcServer().send(msg);
+        }
+        catch (cMsgException e) {
+            e.printStackTrace();
+        }
+    }
+
+
+    /**
      * This method takes a Command object and attempts to execute it.
      *
      * @param cmd of type Command
      */
-    synchronized void execute(Command cmd) {
+    public void execute(Command cmd) {
 System.out.println("Emu: start executing cmd = " + cmd.name());
 
         if (stopExecutingCmds) {
@@ -1068,29 +1268,19 @@ System.out.println("Emu: do not execute cmd = " + cmd.name() + ", resetting");
 
         CODACommand codaCommand = cmd.getCodaCommand();
 
-        // Use the reset method, not this method to do a RESET.
-        // RESET commands <should> never make it here.
-        if (codaCommand == RESET) {
-            reset();
-            return;
-        }
-
-        // Save the current state if attempting a transition
-        if (codaCommand.isTransition()) {
-            previousState = state;
-        }
-
-
         // Some commands are for the EMU itself and not
         // the EMU subcomponents, so return immediately.
+
         if (codaCommand == START_REPORTING) {
             statusReportingOn = true;
             return;
         }
+
         else if (codaCommand == STOP_REPORTING) {
             statusReportingOn = false;
             return;
         }
+
         // Run Control tells us our session
         else if (codaCommand == SET_SESSION) {
             // Get the new session and store it
@@ -1109,19 +1299,27 @@ System.out.println("Got SET_SESSION command but no session specified 2");
             }
             return;
         }
-        // Run Control tells us our session
+
+        // Run Control tells us our run type
         else if (codaCommand == SET_RUN_TYPE) {
             // Get the new run type and store it
-            String txt = cmd.getMessage().getText();
-            if (txt != null) {
+            cMsgPayloadItem pItem = cmd.getArg(RCConstants.runTypePayload);
+            if (pItem != null) {
+                try {
+                    String txt = pItem.getString();
+                    setRunType(txt);
 System.out.println("Emu SET_RUN_TYPE: set to " + txt);
-                setRunType(txt);
+                }
+                catch (cMsgException e) {
+System.out.println("Got SET_RUN_TYPE command but no run type specified 1");
+                }
             }
             else {
-                System.out.println("Got SET_RUN_TYPE command but no run type specified");
+System.out.println("Got SET_RUN_TYPE command but no run type specified 2");
             }
             return;
         }
+
         // Run Control tells us our ROC output buffer level
         else if (codaCommand == SET_BUF_LEVEL) {
             // Get the new run type and store it
@@ -1131,94 +1329,143 @@ System.out.println("Emu SET_BUF_LEVEL: set to " + bufferLevel);
                 setBufferLevel(bufferLevel);
             }
             else {
-                System.out.println("Got SET_BUF_LEVEL command but bad value ("+ bufferLevel + ")");
+System.out.println("Got SET_BUF_LEVEL command but bad value (" + bufferLevel + ")");
             }
             return;
         }
+
+        //------------------------------------
+        // SENDING INFO BACK TO RUN CONTROL
+        //------------------------------------
+
         // Send back our state
         else if (codaCommand == GET_STATE) {
             if ( (cmsgPortal != null) &&
                  (cmsgPortal.getRcServer() != null) &&
                  (cmsgPortal.getRcServer().isConnected())) {
 
-                // Need to reply to sendAndGet msg from Run Control
-                cMsgMessage msg = null;
-                cMsgMessage rcMsg = cmd.getMessage();
-
-                if (!rcMsg.isGetRequest()) {
-                    return;
-                }
-
-                try {
-                    msg = rcMsg.response();
-                }
-                catch (cMsgException e) {/* never happen */}
-
-                msg.setText(state().name().toLowerCase());
-
-                try {
-                    cmsgPortal.getRcServer().send(msg);
-                }
-                catch (cMsgException e) {
-                    e.printStackTrace();
-                }
+                replyToRunControl(RCConstants.getStatusResponse,
+                                  null, state().name().toLowerCase(),
+                                  cmd.getMessage());
             }
-
             return;
         }
+
         // Send back our CODA class
         else if (codaCommand == GET_CODA_CLASS) {
             if ( (cmsgPortal != null) &&
                  (cmsgPortal.getRcServer() != null) &&
                  (cmsgPortal.getRcServer().isConnected())) {
 
-                cMsgMessage msg = new cMsgMessage();
-                msg.setSubject(name);
-                msg.setType(RCConstants.rcGetCodaClassResponse);
-                msg.setText(getCodaClass().name());  // CODA class set in module constructors
-
-                try {
-                    cmsgPortal.getRcServer().send(msg);
-                }
-                catch (cMsgException e) {
-                    e.printStackTrace();
-                }
+                // CODA class set in module constructors
+                replyToRunControl(RCConstants.getCodaClassResponse,
+                                  null, getCodaClass().name(),
+                                  cmd.getMessage());
             }
-
             return;
         }
+
         // Send back our object type
         else if (codaCommand == GET_OBJECT_TYPE) {
             if ( (cmsgPortal != null) &&
                  (cmsgPortal.getRcServer() != null) &&
                  (cmsgPortal.getRcServer().isConnected())) {
 
-                cMsgMessage msg = new cMsgMessage();
-                msg.setSubject(name);
-                msg.setType(RCConstants.getObjectType);
-                msg.setText(objectType);
-
-                try {
-                    cmsgPortal.getRcServer().send(msg);
-                }
-                catch (cMsgException e) {
-                    e.printStackTrace();
-                }
+                replyToRunControl(RCConstants.getObjectTypeResponse,
+                                  null, objectType,
+                                  cmd.getMessage());
             }
-
             return;
         }
 
+        // Send back our session
+        else if (codaCommand == GET_SESSION) {
+            if ( (cmsgPortal != null) &&
+                 (cmsgPortal.getRcServer() != null) &&
+                 (cmsgPortal.getRcServer().isConnected())) {
+
+                replyToRunControl(RCConstants.getSessionResponse,
+                                  null, session,
+                                  cmd.getMessage());
+            }
+            return;
+        }
+
+        // Send back our run number
+        else if (codaCommand == GET_RUN_NUMBER) {
+            if ( (cmsgPortal != null) &&
+                 (cmsgPortal.getRcServer() != null) &&
+                 (cmsgPortal.getRcServer().isConnected())) {
+
+                replyToRunControl(RCConstants.getRunNumberResponse,
+                                  RCConstants.runNumberPayload, (long)runNumber,
+                                  cmd.getMessage());
+            }
+            return;
+        }
+
+        // Send back our run type
+        else if (codaCommand == GET_RUN_TYPE) {
+            if ( (cmsgPortal != null) &&
+                 (cmsgPortal.getRcServer() != null) &&
+                 (cmsgPortal.getRcServer().isConnected())) {
+
+                replyToRunControl(RCConstants.getRunTypeResponse,
+                                  null, runType,
+                                  cmd.getMessage());
+            }
+            return;
+        }
+
+        // Send back our config id
+        else if (codaCommand == GET_CONFIG_ID) {
+            if ( (cmsgPortal != null) &&
+                 (cmsgPortal.getRcServer() != null) &&
+                 (cmsgPortal.getRcServer().isConnected())) {
+
+                replyToRunControl(RCConstants.getConfigIdResponse,
+                                  null, codaid,
+                                  cmd.getMessage());
+            }
+            return;
+        }
+
+        // Send back our roc buffer level
+        else if (codaCommand == GET_BUF_LEVEL) {
+            if ( (cmsgPortal != null) &&
+                 (cmsgPortal.getRcServer() != null) &&
+                 (cmsgPortal.getRcServer().isConnected())) {
+
+                replyToRunControl(RCConstants.getRocBufferLevelResponse,
+                                  null, bufferLevel,
+                                  cmd.getMessage());
+            }
+            return;
+        }
+
+        // If given the "exit" command, do that after the modules have exited
+        if (codaCommand == EXIT) {
+            quit();
+            return;
+        }
+
+        // Save the current state if attempting a transition
+        if (codaCommand.isTransition()) {
+            previousState = state;
+        }
+
+        //--------------------------
+        // CONFIGURE
+        //--------------------------
         // When we are told to CONFIGURE, the EMU handles this even though
-        // this command is still passed on down to the modules. Read (if any)
-        // the config file and update debug GUI.
+        // this command is still passed on down to the modules.
         if (codaCommand == CONFIGURE) {
             configure(cmd);
         }
 
-        //---------------------------------------
+        //--------------------------
         // DOWNLOAD
-        //---------------------------------------
+        //--------------------------
         else if (codaCommand == DOWNLOAD) {
             download(cmd);
         }
@@ -1234,80 +1481,18 @@ System.out.println("Emu SET_BUF_LEVEL: set to " + bufferLevel);
         // GO
         //--------------------------
         else if (codaCommand == GO) {
-            go(cmd);
+            go();
         }
 
         //--------------------------
         // END
         //--------------------------
         else if (codaCommand == END) {
-            end(cmd);
+            end();
         }
 
-        //--------------------------
-        // PAUSE
-        //--------------------------
-        else if (codaCommand == PAUSE) {
-            pause(cmd);
-        }
-
-
-        if (cmd.success() != null && state != ERROR) {
-            setState(cmd.success());
-logger.info("Emu: transition success, setting state to " + state);
-        }
-        else {
-logger.info("Emu: transition NOT successful, state = " + state);
-        }
-
-        // If given the "exit" command, do that after the modules have exited
-        if (codaCommand == EXIT) {
-            quit();
-        }
-    }
-
-
-
-    /**
-     * Implement pause command.
-     * @param cmd
-     */
-    private void pause(Command cmd) {
-        try {
-            // (1) PAUSE to transport objects
-            for (DataTransport transport : transports) {
-logger.debug("Emu pause: PAUSE cmd to transport " + transport.name());
-                transport.pause();
-            }
-
-            // (2) PAUSE to input channels
-            if (inChannels.size() > 0) {
-                for (DataChannel chan : inChannels) {
-logger.info("Emu pause: PAUSE cmd to in chan " + chan.name());
-                    chan.pause();
-                }
-            }
-
-            // (3) PAUSE to all modules in normal order (starting with first)
-            LinkedList<EmuModule> mods = dataPath.getEmuModules();
-            for (int i=0; i < mods.size(); i++) {
-logger.info("Emu pause: PAUSE cmd to module " + mods.get(i).name());
-                mods.get(i).pause();
-            }
-
-            // (4) PAUSE to output channels
-            if (outChannels.size() > 0) {
-                for (DataChannel chan : outChannels) {
-logger.info("Emu pause: PAUSE cmd to out chan " + chan.name());
-                    chan.end();
-                }
-            }
-        }
-        catch (CmdExecException e) {
-logger.error("Emu pause: threw " + e.getMessage());
-            errorMsg.compareAndSet(null, e.getMessage());
-            setState(ERROR);
-            return;
+        if (state == ERROR) {
+logger.info("Emu: transition NOT successful, state = ERROR");
         }
     }
 
@@ -1315,9 +1500,11 @@ logger.error("Emu pause: threw " + e.getMessage());
 
     /**
      * Implement end command.
-     * @param cmd
      */
-    private void end(Command cmd) {
+    private void end() {
+logger.info("Emu end: change state to ENDING");
+        setState(ENDING);
+
         try {
             LinkedList<EmuModule> mods = dataPath.getEmuModules();
 
@@ -1336,14 +1523,13 @@ logger.error("Emu end: no modules in data path");
             // generated at all.
             //--------------------------------------------------------
 
-            // Look for the RocSimulation module. If it exists, send the END cmd.
-            // Only use this code if there's 1 ROC and the run ends when hitting
-            // run control's END button.
-            for (int i=0; i < mods.size(); i++) {
-                EmuModule mod = mods.get(i);
+            // Look for the RocSimulation module. If this emu is it, send the END cmd
+            for (EmuModule mod : mods) {
                 Class c = mod.getClass();
                 if (c.getName().equals("org.jlab.coda.emu.modules.RocSimulation")) {
+logger.info("Emu end: call end() in fake ROC " + mod.name());
                     mod.end();
+logger.info("Emu end: end() done in fake ROC " + mod.name());
                     break;
                 }
             }
@@ -1356,13 +1542,10 @@ logger.error("Emu end: no modules in data path");
                     try {
                         gotEndEvent = chan.getEndCallback().waitForEvent();
                         if (!gotEndEvent) {
-logger.info("Emu end: timeout (2 sec) waiting for END event in input chan " + chan.name());
+logger.info("Emu end: timeout (30 sec) waiting for END event in input chan " + chan.name());
                             errorMsg.compareAndSet(null, "timeout waiting for END event in input chan " + chan.name());
                             setState(ERROR);
                             sendStatusMessage();
-                        }
-                        else {
-logger.info("Emu end: input chan " + chan.name() + " already got END event");
                         }
                         gotAllEnds = gotAllEnds && gotEndEvent;
                     }
@@ -1376,13 +1559,10 @@ logger.info("Emu end: input chan " + chan.name() + " already got END event");
 logger.info("Emu end: wait for END event in module " + mods.getLast().name());
                     gotEndEvent = mods.getLast().getEndCallback().waitForEvent();
                     if (!gotEndEvent) {
-logger.info("Emu end: timeout (2 sec) waiting for END event in module " + mods.getLast().name());
+logger.info("Emu end: timeout (30 sec) waiting for END event in module " + mods.getLast().name());
                         errorMsg.compareAndSet(null, "timeout waiting for END event in module " + mods.getLast().name());
                         setState(ERROR);
                         sendStatusMessage();
-                    }
-                    else {
-logger.info("Emu end: module " + mods.getLast().name() + " already got END event");
                     }
                     gotAllEnds = gotAllEnds && gotEndEvent;
                 }
@@ -1396,13 +1576,10 @@ logger.info("Emu end: module " + mods.getLast().name() + " already got END event
 logger.info("Emu end: output chan " + chan.name() + " call waitForEvent()");
                         gotEndEvent = chan.getEndCallback().waitForEvent();
                         if (!gotEndEvent) {
-logger.info("Emu end: timeout waiting for END event in output chan " + chan.name());
+logger.info("Emu end: timeout (30 sec) waiting for END event in output chan " + chan.name());
                             errorMsg.compareAndSet(null, "timeout waiting for END event in output chan " + chan.name());
                             setState(ERROR);
                             sendStatusMessage();
-                        }
-                        else {
-logger.info("Emu end: output chan " + chan.name() + " already got END event");
                         }
                         gotAllEnds = gotAllEnds && gotEndEvent;
                     }
@@ -1411,15 +1588,10 @@ logger.info("Emu end: output chan " + chan.name() + " already got END event");
             }
 
             if (!gotAllEnds) {
-                logger.info("Emu end: END event did NOT make it thru EMU");
-            }
-            else {
-                logger.info("Emu end: END successfully thru EMU");
+                logger.info("Emu end: END event did NOT make it through EMU");
             }
 
-            logger.info("Emu end: now execute END command in EMU");
-
-            // (2) END to input channels (of FIRST module)
+            // (2) END command to input channels (of FIRST module)
             if (inChannels.size() > 0) {
                 for (DataChannel chan : inChannels) {
 logger.info("Emu end: END cmd to in chan " + chan.name());
@@ -1427,20 +1599,20 @@ logger.info("Emu end: END cmd to in chan " + chan.name());
                 }
             }
 
-            // (3) END to all modules in normal order (starting with first)
-            for (int i=0; i < mods.size(); i++) {
+            // (3) END command to all modules in normal order (starting with first)
+            for (EmuModule mod : mods) {
                 // Only use this code if there's 1 ROC and the run ends when hitting
                 // run control's END button.
                 // We already sent the END event to the RocSimulation module
-                if (mods.get(i).getClass().getName().equals("org.jlab.coda.emu.modules.RocSimulation")) {
+                if (mod.getClass().getName().equals("org.jlab.coda.emu.modules.RocSimulation")) {
                     continue;
                 }
 
-logger.info("Emu end: END cmd to module " + mods.get(i).name());
-                mods.get(i).end();
+                logger.info("Emu end: END cmd to module " + mod.name());
+                mod.end();
             }
 
-            // (4) GO to output channels (of LAST module)
+            // (4) END command to output channels (of LAST module)
             if (outChannels.size() > 0) {
                 for (DataChannel chan : outChannels) {
 logger.info("Emu end: END cmd to out chan " + chan.name());
@@ -1448,7 +1620,7 @@ logger.info("Emu end: END cmd to out chan " + chan.name());
                 }
             }
 
-            // (5) END to transport objects
+            // (5) END command to transport objects
             for (DataTransport transport : transports) {
 logger.debug("Emu end: END cmd to transport " + transport.name());
                 transport.end();
@@ -1462,15 +1634,24 @@ logger.error("Emu end: threw " + e.getMessage());
             setState(ERROR);
             return;
         }
+
+        if (state == ERROR) {
+            return;
+        }
+
+logger.info("Emu end: change state to DOWNLOADED");
+        setState(DOWNLOADED);
     }
 
 
 
     /**
      * Implement go command.
-     * @param cmd
      */
-    private void go(Command cmd) {
+    private void go() {
+logger.info("Emu go: change state to GOING");
+        setState(GOING);
+
         try {
             LinkedList<EmuModule> mods = dataPath.getEmuModules();
 
@@ -1513,6 +1694,9 @@ logger.error("Emu go: threw " + e.getMessage());
             setState(ERROR);
             return;
         }
+
+logger.info("Emu go: change state to ACTIVE");
+        setState(ACTIVE);
     }
 
 
@@ -1522,7 +1706,8 @@ logger.error("Emu go: threw " + e.getMessage());
      * @param cmd
      */
     private void prestart(Command cmd) {
-        logger.debug("Emu prestart: Very beginning ...");
+logger.info("Emu prestart: change state to PRESTARTING");
+        setState(PRESTARTING);
 
         // Run Control tells us our run number & runType.
         // Get and store them.
@@ -1532,7 +1717,7 @@ logger.error("Emu go: threw " + e.getMessage());
         if (msg != null) {
             try {
                 // Should have run number
-                pItem = cmd.getArg(RCConstants.prestartPayloadRunNumber);
+                pItem = cmd.getArg(RCConstants.runNumberPayload);
                 if (pItem != null) {
                     setRunNumber(pItem.getInt());
                 }
@@ -1541,7 +1726,6 @@ logger.error("Emu go: threw " + e.getMessage());
         }
 
         try {
-
             //------------------------------------------------
             // PRESTART to transport objects first
             //------------------------------------------------
@@ -1714,6 +1898,9 @@ logger.error("Emu go: threw " + e.getMessage());
             setState(ERROR);
             return;
         }
+
+logger.info("Emu prestart: change state to PAUSED");
+        setState(PAUSED);
     }
 
 
@@ -1723,6 +1910,8 @@ logger.error("Emu go: threw " + e.getMessage());
      * @param cmd
      */
     private void download(Command cmd) {
+logger.info("Emu download: change state to DOWNLOADING");
+        setState(DOWNLOADING);
 
         try {
             // Get the config info again since it may have changed
@@ -1803,7 +1992,6 @@ logger.info("Emu download: creating " + transportName);
                         // Fifos are created internally, not by an Emu
                         if (transportClass.equals("Fifo")) {
 //logger.warn("Emu download: no need to specify FIFOs in transport section of config");
-                            setState(cmd.success());
                             continue;
                         }
 
@@ -1921,17 +2109,16 @@ logger.info("Emu download: create module " + module.name());
 logger.info("Emu download: pass download to module " + module.name());
                 module.download();
             }
-
-            setState(cmd.success());
-logger.info("Emu download: final state = " + state);
-
         // This includes ClassNotFoundException
         } catch (Exception e) {
+            logger.error("Emu download: failed", e.getMessage());
             errorMsg.compareAndSet(null, e.getMessage());
             setState(ERROR);
             return;
         }
-logger.info("Emu download: DONE");
+
+logger.info("Emu download: change state to DOWNLOADED");
+        setState(DOWNLOADED);
     }
 
 
@@ -1941,509 +2128,506 @@ logger.info("Emu download: DONE");
      * @param cmd
      */
     private void configure(Command cmd) {
-             // save a reference to any previously used config
-            Document oldConfig = loadedConfig;
-            boolean newConfigLoaded = false;
+logger.info("Emu config: change state to CONFIGURING");
+        setState(CONFIGURING);
 
-            // Clear out old data
-            setOutputDestination(null);
+        // save a reference to any previously used config
+        Document oldConfig = loadedConfig;
+        boolean newConfigLoaded = false;
 
+        // Clear out old data
+        setOutputDestination(null);
+
+        try {
+            // A msg from RC or a press of a debug GUI button can
+            // both create a CONFIGURE command. In one case we have a
+            // cMsg message from the callback, in the other we don't.
+            cMsgMessage msg = cmd.getMessage();
+            cMsgPayloadItem pItem;
+            String rcConfigString = null, rcConfigFile = null;
+            boolean isNewConfig = false;
+
+            // Should have run type
             try {
-                // A msg from RC or a press of a debug GUI button can
-                // both create a CONFIGURE command. In one case we have a
-                // cMsg message from the callback, in the other we don't.
-                cMsgMessage msg = cmd.getMessage();
-                cMsgPayloadItem pItem;
-                String rcConfigString = null, rcConfigFile = null;
-                boolean isNewConfig = false;
-
-                // Should have run type
-                try {
-                    pItem = cmd.getArg(RCConstants.prestartPayloadRunType);
-                    if (pItem != null) {
-                        setRunTypeId(pItem.getInt());
-                    }
+                pItem = cmd.getArg(RCConstants.prestartPayloadRunType);
+                if (pItem != null) {
+                    setRunTypeId(pItem.getInt());
                 }
-                catch (cMsgException e) { }
+            }
+            catch (cMsgException e) { }
 
-                if (msg != null) {
-                    try {
-                        // If this is a RocSimulation emu, this is how we
-                        // get the xml configuration string.
-                        pItem = cmd.getArg(RCConstants.configPayloadFileContentRoc);
+            if (msg != null) {
+                try {
+                    // If this is a RocSimulation emu, this is how we
+                    // get the xml configuration string.
+                    pItem = cmd.getArg(RCConstants.configPayloadFileContentRoc);
+                    if (pItem != null) {
+                        rcConfigString = pItem.getString();
+                        isNewConfig = true;
+                    }
+                    // May have an xml configuration string for other emus
+                    else {
+                        pItem = cmd.getArg(RCConstants.configPayloadFileContent);
                         if (pItem != null) {
                             rcConfigString = pItem.getString();
-                            isNewConfig = true;
-                        }
-                        // May have an xml configuration string for other emus
-                        else {
-                            pItem = cmd.getArg(RCConstants.configPayloadFileContent);
+                            // Only get this if we have file content.
+                            // This tells us if it changed since last configure.
+                            pItem = cmd.getArg(RCConstants.configPayloadFileChanged);
                             if (pItem != null) {
-                                rcConfigString = pItem.getString();
-                                // Only get this if we have file content.
-                                // This tells us if it changed since last configure.
-                                pItem = cmd.getArg(RCConstants.configPayloadFileChanged);
-                                if (pItem != null) {
-                                    isNewConfig = pItem.getInt() == 1;
-                                }
+                                isNewConfig = pItem.getInt() == 1;
                             }
                         }
-
-                        // May have configuration file name.
-                        pItem = cmd.getArg(RCConstants.configPayloadFileName);
-                        if (pItem != null) {
-                            rcConfigFile = pItem.getString();
-                        }
-
-                        // May have all if platform's IP addresses, dot-decimal format
-                        // along with platform's cMsg domain server's TCP port
-                        pItem = cmd.getArg(RCConstants.configPayloadPlatformHosts);
-                        if (pItem != null) {
-                            platformIpAddresses = pItem.getStringArray();
-                            pItem = cmd.getArg(RCConstants.configPayloadPlatformPort);
-                            if (pItem != null) {
-                                platformTcpPort = pItem.getInt();
-                            }
-                            // Use the platform's host & port to connect to
-                            // platform's cMsg domain server.
-                            cmsgPortal.cMsgServerConnect();
-                        }
                     }
-                    catch (cMsgException e) {/* never happen */}
-                    catch (EmuException e) {
-logger.error("Emu config: failed", e.getMessage());
-                        errorMsg.compareAndSet(null, e.getMessage());
-                        setState(ERROR);
-                        return;
+
+                    // May have configuration file name.
+                    pItem = cmd.getArg(RCConstants.configPayloadFileName);
+                    if (pItem != null) {
+                        rcConfigFile = pItem.getString();
+                    }
+
+                    // May have all if platform's IP addresses, dot-decimal format
+                    // along with platform's cMsg domain server's TCP port
+                    pItem = cmd.getArg(RCConstants.configPayloadPlatformHosts);
+                    if (pItem != null) {
+                        platformIpAddresses = pItem.getStringArray();
+                        pItem = cmd.getArg(RCConstants.configPayloadPlatformPort);
+                        if (pItem != null) {
+                            platformTcpPort = pItem.getInt();
+                        }
+                        // Use the platform's host & port to connect to
+                        // platform's cMsg domain server.
+                        cmsgPortal.cMsgServerConnect();
                     }
                 }
-
-                // If this config is sent as a string from Run Control...
-                if (rcConfigString != null) {
-                    // If it was NOT loaded before, load it now.
-                    // If we have a debug GUI and it was used to last load
-                    // the configuration, or if rc sent a filename which this
-                    // emu read and loaded, then reconfigure.
-                    if (configSource != Emu.ConfigSource.RC_STRING || isNewConfig) {
-System.out.println("Emu config: loading new string config = \n" + rcConfigString);
-                        Configurer.setLogger(logger);
-                        // Parse XML config string into Document object.
-                        loadedConfig = Configurer.parseString(rcConfigString);
-                        Configurer.removeEmptyTextNodes(loadedConfig.getDocumentElement());
-                        newConfigLoaded = true;
-                    }
-                    else {
-System.out.println("Emu config: no change to string config");
-                    }
-                    configSource = Emu.ConfigSource.RC_STRING;
+                catch (cMsgException e) {/* never happen */}
+                catch (EmuException e) {
+                    logger.error("Emu config: failed", e.getMessage());
+                    errorMsg.compareAndSet(null, e.getMessage());
+                    setState(ERROR);
+                    return;
                 }
-                // If config file name is sent (either from Run Control or debug gui) ...
-                else if (rcConfigFile != null) {
-                    File file = new File(rcConfigFile);
-                    if (!file.exists() || !file.isFile()) {
-                        throw new DataNotFoundException("File " + rcConfigFile + " cannot be found");
-                    }
+            }
 
-                    boolean loadFile = true;
-                    long modTime = file.lastModified();
+            // If this config is sent as a string from Run Control...
+            if (rcConfigString != null) {
+                // If it was NOT loaded before, load it now.
+                // If we have a debug GUI and it was used to last load
+                // the configuration, or if rc sent a filename which this
+                // emu read and loaded, then reconfigure.
+                if (configSource != Emu.ConfigSource.RC_STRING || isNewConfig) {
+                    System.out.println("Emu config: loading new string config = \n" + rcConfigString);
+                    Configurer.setLogger(logger);
+                    // Parse XML config string into Document object.
+                    loadedConfig = Configurer.parseString(rcConfigString);
+                    Configurer.removeEmptyTextNodes(loadedConfig.getDocumentElement());
+                    newConfigLoaded = true;
+                }
+                else {
+                    System.out.println("Emu config: no change to string config");
+                }
+                configSource = Emu.ConfigSource.RC_STRING;
+            }
+            // If config file name is sent (either from Run Control or debug gui) ...
+            else if (rcConfigFile != null) {
+                File file = new File(rcConfigFile);
+                if (!file.exists() || !file.isFile()) {
+                    throw new DataNotFoundException("File " + rcConfigFile + " cannot be found");
+                }
 
-                    // If we configured by file name sent in msg last time, and
-                    // source is same (rc or debug gui), might not have to reload.
-                    if ((configSource == Emu.ConfigSource.RC_FILE  && !cmd.isFromDebugGui()) ||
+                boolean loadFile = true;
+                long modTime = file.lastModified();
+
+                // If we configured by file name sent in msg last time, and
+                // source is same (rc or debug gui), might not have to reload.
+                if ((configSource == Emu.ConfigSource.RC_FILE  && !cmd.isFromDebugGui()) ||
                         (configSource == Emu.ConfigSource.GUI_FILE &&  cmd.isFromDebugGui()) ) {
-                        if (rcConfigFile.equals(msgConfigFile) &&
+                    if (rcConfigFile.equals(msgConfigFile) &&
                             (modTime == configFileModifiedTime)) {
-                            loadFile = false;
-                        }
+                        loadFile = false;
                     }
+                }
 
-                    // reload
-                    if (loadFile) {
-System.out.println("Emu config: loading file " + rcConfigFile);
-                        Configurer.setLogger(logger);
-                        // Parse XML config file into Document object.
-                        loadedConfig = Configurer.parseFile(rcConfigFile);
-                        Configurer.removeEmptyTextNodes(loadedConfig.getDocumentElement());
-                        // store name of file loaded & its mod time
-                        msgConfigFile = rcConfigFile;
-                        configFileModifiedTime = modTime;
-                        newConfigLoaded = true;
-                    }
+                // reload
+                if (loadFile) {
+                    System.out.println("Emu config: loading file " + rcConfigFile);
+                    Configurer.setLogger(logger);
+                    // Parse XML config file into Document object.
+                    loadedConfig = Configurer.parseFile(rcConfigFile);
+                    Configurer.removeEmptyTextNodes(loadedConfig.getDocumentElement());
+                    // store name of file loaded & its mod time
+                    msgConfigFile = rcConfigFile;
+                    configFileModifiedTime = modTime;
+                    newConfigLoaded = true;
+                }
 //                    else {
 //System.out.println("Emu configure: already loaded " + rcConfigFile);
 //                    }
 
-                    if (cmd.isFromDebugGui()) {
-                        configSource = Emu.ConfigSource.GUI_FILE;
-                    }
-                    else {
-                        configSource = Emu.ConfigSource.RC_FILE;
-                    }
-
+                if (cmd.isFromDebugGui()) {
+                    configSource = Emu.ConfigSource.GUI_FILE;
                 }
                 else {
-                    // We were told to configure, but no config file or string provided.
-                    throw new DataNotFoundException("Emu config: No config file provided from RC or emu cmd line");
+                    configSource = Emu.ConfigSource.RC_FILE;
                 }
+
             }
-            // parsing XML error
-            catch (DataNotFoundException e) {
-logger.error("Emu config: failed", e.getMessage());
-                errorMsg.compareAndSet(null, e.getMessage());
-                setState(ERROR);
-                return;
+            else {
+                // We were told to configure, but no config file or string provided.
+                throw new DataNotFoundException("Emu config: No config file provided from RC or emu cmd line");
             }
-            finally {
-                Configurer.setLogger(null);
-            }
+        }
+        // parsing XML error
+        catch (DataNotFoundException e) {
+            logger.error("Emu config: failed", e.getMessage());
+            errorMsg.compareAndSet(null, e.getMessage());
+            setState(ERROR);
+            return;
+        }
+        finally {
+            Configurer.setLogger(null);
+        }
 
-            // If an error resulted from the last time a configure was done,
-            // then the config needs to be reloaded even if the file or
-            // string from RC has not changed.
-            if (lastConfigHadError) newConfigLoaded = true;
+        // If an error resulted from the last time a configure was done,
+        // then the config needs to be reloaded even if the file or
+        // string from RC has not changed.
+        if (lastConfigHadError) newConfigLoaded = true;
 
-            // update (or add to) GUI, window with non-local config info (static info)
-            if (debugGUI != null) {
-                if (oldConfig != null) debugGUI.removeDocument(oldConfig);
-                debugGUI.addDocument(loadedConfig);
-            }
+        // update (or add to) GUI, window with non-local config info (static info)
+        if (debugGUI != null) {
+            if (oldConfig != null) debugGUI.removeDocument(oldConfig);
+            debugGUI.addDocument(loadedConfig);
+        }
 
-            // WE NEED TO LOOK CAREFULLY AT THE NEWLY LOADED CONFIGURATION.
-            // Each EMU may contain only ONE (1) data path. A data path may start
-            // with a set of transport input channels (or none at all). The data
-            // go through the channels to a single module which uses those channels.
-            // From there the data may be passed through a fifo to another module,
-            // so on and so forth, until it finally gets passed to a set of transport
-            // output channels. In order to keep the data flow from getting
-            // ridiculously complex, if a module has a fifo as its output channel,
-            // then it may only have ONE output channel. Likewise, if a module has a
-            // fifo as its input channel, then it may only have ONE input channel.
-            //
-            // The reason only one data path is allowed is simply because it prevents
-            // complications that arise when the output channels of one path are the
-            // input channels of another path. In such a situation, for example, an
-            // END event may not reach the second path since both sets of input channels
-            // are shutdown simultaneously.
-            //
-            // The reason all this is important is that RC instructions which end
-            // data flow (END or PAUSE) must be sent first to the input  channel,
-            // then to each succeeding module in the data flow until it
-            // finally gets sent to the output channel. In this way, for example,
-            // an END event may be watched for, beginning with the input channel and
-            // allowed to pass through the entire data path, enabling the EMU to be
-            // shut down in the proper sequence. For RC instructions that start a data
-            // flow (RESUME, GO), they must be sent first to the output channel,
-            // through the modules in the opposite direction of the data flow,
-            // and finally to the input channel.
-            //
-            // The following code is for analyzing the configuration to find the details
-            // of the data path so this EMU can distribute RC's commands in the proper
-            // sequence to its components.
-            if (newConfigLoaded) {
-System.out.println("Emu config: LOAD NEW config, type = " + codaClass);
-                try {
-                    // Before we look at data flow through the module,
-                    // it's possible the emu's type has not been defined yet.
-                    // Look through the new config to find the type and set it.
+        // WE NEED TO LOOK CAREFULLY AT THE NEWLY LOADED CONFIGURATION.
+        // Each EMU may contain only ONE (1) data path. A data path may start
+        // with a set of transport input channels (or none at all). The data
+        // go through the channels to a single module which uses those channels.
+        // From there the data may be passed through a fifo to another module,
+        // so on and so forth, until it finally gets passed to a set of transport
+        // output channels. In order to keep the data flow from getting
+        // ridiculously complex, if a module has a fifo as its output channel,
+        // then it may only have ONE output channel. Likewise, if a module has a
+        // fifo as its input channel, then it may only have ONE input channel.
+        //
+        // The reason only one data path is allowed is simply because it prevents
+        // complications that arise when the output channels of one path are the
+        // input channels of another path. In such a situation, for example, an
+        // END event may not reach the second path since both sets of input channels
+        // are shutdown simultaneously.
+        //
+        // The reason all this is important is that RC instructions which end
+        // data flow (END or PAUSE) must be sent first to the input  channel,
+        // then to each succeeding module in the data flow until it
+        // finally gets sent to the output channel. In this way, for example,
+        // an END event may be watched for, beginning with the input channel and
+        // allowed to pass through the entire data path, enabling the EMU to be
+        // shut down in the proper sequence. For RC instructions that start a data
+        // flow (RESUME, GO), they must be sent first to the output channel,
+        // through the modules in the opposite direction of the data flow,
+        // and finally to the input channel.
+        //
+        // The following code is for analyzing the configuration to find the details
+        // of the data path so this EMU can distribute RC's commands in the proper
+        // sequence to its components.
+        if (newConfigLoaded) {
+            System.out.println("Emu config: LOAD NEW config, type = " + codaClass);
+            try {
+                // Before we look at data flow through the module,
+                // it's possible the emu's type has not been defined yet.
+                // Look through the new config to find the type and set it.
 
-                    // get the config info
-                    Node componentConfig = Configurer.getNode(loadedConfig, "component");
+                // get the config info
+                Node componentConfig = Configurer.getNode(loadedConfig, "component");
 
-                    // get attributes of the top ("component") node
-                    NamedNodeMap nm = componentConfig.getAttributes();
+                // get attributes of the top ("component") node
+                NamedNodeMap nm = componentConfig.getAttributes();
 
-                    // get type of component from node
-                    Node attr = nm.getNamedItem("type");
-                    if (attr != null) {
-                        CODAClass myClass = CODAClass.get(attr.getNodeValue());
-System.out.println("Emu config: Got config type = " + myClass + ", I was " + codaClass);
-                        if (myClass != null) {
-                            // See if it conflicts with what this EMU thinks it is.
-                            // (Type EMU can be anything).
-                            if (codaClass != null &&
+                // get type of component from node
+                Node attr = nm.getNamedItem("type");
+                if (attr != null) {
+                    CODAClass myClass = CODAClass.get(attr.getNodeValue());
+                    System.out.println("Emu config: Got config type = " + myClass + ", I was " + codaClass);
+                    if (myClass != null) {
+                        // See if it conflicts with what this EMU thinks it is.
+                        // (Type EMU can be anything).
+                        if (codaClass != null &&
                                 codaClass != CODAClass.EMU &&
                                 codaClass != myClass) {
 
-                                errorMsg.compareAndSet(null, "Conflicting CODA types: rc says " +
-                                                       myClass + ", emu cmd line has " + codaClass);
-                                setState(ERROR);
-                                lastConfigHadError = true;
-                                return;
+                            errorMsg.compareAndSet(null, "Conflicting CODA types: rc says " +
+                                    myClass + ", emu cmd line has " + codaClass);
+                            setState(ERROR);
+                            lastConfigHadError = true;
+                            return;
+                        }
+                        codaClass = myClass;
+                    }
+                }
+
+                // Now, on to the modules.
+                // We find the data paths by finding the modules
+                // which have at least one non-fifo input channel.
+                dataPath = null;
+                int moduleCount = 0, usedModules = 0;
+                int inputFifoCount = 0,  inputChannelCount = 0,
+                        outputFifoCount = 0, outputChannelCount = 0;
+
+                // Look in module section of config file ...
+                Node modulesConfig = Configurer.getNode(loadedConfig, "component/modules");
+
+                // Need at least 1 module in config file
+                if (!modulesConfig.hasChildNodes()) {
+                    throw new DataNotFoundException("Emu config: modules section present in config, but no modules");
+                }
+
+                int dataPathCount = 0;
+
+                // List of modules
+                NodeList childList = modulesConfig.getChildNodes();
+
+                // Look through all modules ...
+                for (int j=0; j < childList.getLength(); j++) {
+                    Node moduleNode = childList.item(j);
+                    if (moduleNode.getNodeType() != Node.ELEMENT_NODE) continue;
+
+                    moduleCount++;
+
+                    // Name of module is its node name
+                    String moduleName = moduleNode.getNodeName();
+
+                    // Get attributes of module & look for codaID
+                    int codaID = -1;
+                    NamedNodeMap map = moduleNode.getAttributes();
+                    if (map != null) {
+                        // Get "id" attribute node from map
+                        Node modIdNode = map.getNamedItem("id");
+                        // If it exists, get its value
+                        if (modIdNode != null) {
+                            try {
+                                codaID = Integer.parseInt(modIdNode.getNodeValue());
+                                if (codaID < 0) codaID = -1;
                             }
-                            codaClass = myClass;
+                            catch (NumberFormatException e) { /* default to -`1 */ }
                         }
                     }
 
-                    // Now, on to the modules.
-                    // We find the data paths by finding the modules
-                    // which have at least one non-fifo input channel.
-                    dataPath = null;
-                    int moduleCount = 0, usedModules = 0;
-                    int inputFifoCount = 0,  inputChannelCount = 0,
-                        outputFifoCount = 0, outputChannelCount = 0;
+                    // List of channels in (children of) the module ...
+                    NodeList childChannelList = moduleNode.getChildNodes();
 
-                    // Look in module section of config file ...
-                    Node modulesConfig = Configurer.getNode(loadedConfig, "component/modules");
+                    inputFifoCount  =  inputChannelCount = 0;
+                    outputFifoCount = outputChannelCount = 0;
+                    String channelTransName = null, channelName = null,
+                            inputFifoName = null, outputFifoName = null;
 
-                    // Need at least 1 module in config file
-                    if (!modulesConfig.hasChildNodes()) {
-                        throw new DataNotFoundException("Emu config: modules section present in config, but no modules");
+                    // First count channels & look for fifos
+                    for (int i = 0; i < childChannelList.getLength(); i++) {
+                        Node channelNode = childChannelList.item(i);
+                        if (channelNode.getNodeType() != Node.ELEMENT_NODE) continue;
+
+                        // Get attributes of channel node
+                        NamedNodeMap nnm = channelNode.getAttributes();
+                        if (nnm == null) continue;
+
+                        // Get "name" attribute node from map
+                        Node channelNameNode = nnm.getNamedItem("name");
+                        // If none (junk in config file) go to next channel
+                        if (channelNameNode == null) continue;
+
+                        // Get name of this channel
+                        channelName = channelNameNode.getNodeValue();
+
+                        // Get "transp" attribute node from map
+                        Node channelTranspNode = nnm.getNamedItem("transp");
+                        if (channelTranspNode == null) continue;
+
+                        // Get name of transport
+                        channelTransName = channelTranspNode.getNodeValue();
+
+                        // If it's an input channel ...
+                        if (channelNode.getNodeName().equalsIgnoreCase("inchannel")) {
+                            // Count input channels
+                            inputChannelCount++;
+
+                            // Count Fifo type input channels
+                            if (channelTransName.equals("Fifo")) {
+                                inputFifoCount++;
+                                inputFifoName = channelName;
+                            }
+                        }
+                        else if (channelNode.getNodeName().equalsIgnoreCase("outchannel")) {
+                            outputChannelCount++;
+
+                            if (channelTransName.equals("Fifo")) {
+                                outputFifoCount++;
+                                outputFifoName = channelName;
+                            }
+
+                            // Get attributes of channel & look for id which must match codaID
+                            int chanID = -1;
+                            // Get "id" attribute node from map
+                            Node channelIdNode = nnm.getNamedItem("id");
+                            if (channelIdNode != null) {
+                                // If it exists, get its value
+                                try {
+                                    chanID = Integer.parseInt(channelIdNode.getNodeValue());
+                                    if (chanID < 0) chanID = -1;
+                                }
+                                catch (NumberFormatException e) { /* default to -`1 */ }
+                            }
+
+                            // Make sure id's match
+                            if (codaID > -1 && chanID > -1 && codaID != chanID) {
+                                throw new DataNotFoundException("Emu config: CODA id (" + codaID +
+                                                                        ") does not match config file output chan id (" +
+                                                                        chanID + ")");
+                            }
+                        }
                     }
 
-                    int dataPathCount = 0;
+                    // Illegal configurations, look for:
+                    // 1) more than 1 fifo in/out channel, and
+                    // 2) 1 fifo together with a non-fifo channel - either in or out
+                    if ( inputFifoCount > 1 || ( inputFifoCount == 1 &&  inputChannelCount > 1) ||
+                            outputFifoCount > 1 || (outputFifoCount == 1 && outputChannelCount > 1))   {
+                        throw new DataNotFoundException("Emu config: only 1 input/output channel allowed with fifo in/out");
+                    }
+                    // 3) input and output fifos must be different
+                    else if ((inputFifoCount == 1 && outputFifoCount == 1) &&
+                            inputFifoName.equals(outputFifoName)) {
+                        throw new DataNotFoundException("Emu config: input & output fifos for " +
+                                                                moduleName + " must be different");
+                    }
 
-                    // List of modules
-                    NodeList childList = modulesConfig.getChildNodes();
+                    // Find modules with non-fifo (or no) input channels which
+                    // will be the beginning point of a data path.
+                    if (inputFifoCount < 1) {
+                        // Found the starting point of a data path
+                        dataPathCount++;
+                        // (module with non-fifo input channel)
+                        dataPath = new EmuDataPath(moduleName, null, outputFifoName);
+                        usedModules++;
+                    }
 
-                    // Look through all modules ...
+                    // If there is more than one data path, reject the configuration.
+                    if (dataPathCount > 1) {
+                        throw new DataNotFoundException("Emu config: only 1 data path allowed");
+                    }
+                }
+
+                // A fifo may not start a data path
+                if (dataPathCount < 1 && inputFifoCount > 0) {
+                    throw new DataNotFoundException("Emu config: fifo not allowed to start data path");
+                }
+
+                // No data path (should not happen)
+                if (dataPath == null) {
+                    throw new DataNotFoundException("Emu config: no data path found");
+                }
+
+                // Now that we have the starting point of the data path
+                // (list of connected modules and transports), we can
+                // construct the whole path. This will allow us to
+                // properly distribute RC commands to all EMU modules
+                // & the data transports.
+
+                // Look through all modules trying to add them to path
+                again:
+                while (true) {
+
+                    // Iterate through all modules
                     for (int j=0; j < childList.getLength(); j++) {
                         Node moduleNode = childList.item(j);
                         if (moduleNode.getNodeType() != Node.ELEMENT_NODE) continue;
 
-                        moduleCount++;
-
-                        // Name of module is its node name
                         String moduleName = moduleNode.getNodeName();
 
-                        // Get attributes of module & look for codaID
-                        int codaID = -1;
-                        NamedNodeMap map = moduleNode.getAttributes();
-                        if (map != null) {
-                            // Get "id" attribute node from map
-                            Node modIdNode = map.getNamedItem("id");
-                            // If it exists, get its value
-                            if (modIdNode != null) {
-                                try {
-                                    codaID = Integer.parseInt(modIdNode.getNodeValue());
-                                    if (codaID < 0) codaID = -1;
-                                }
-                                catch (NumberFormatException e) { /* default to -`1 */ }
-                            }
+                        if (dataPath.containsModuleName(moduleName)) {
+                            // This module is already in data
+                            // path so go to the next one.
+                            continue;
                         }
 
-                        // List of channels in (children of) the module ...
-                        NodeList childChannelList = moduleNode.getChildNodes();
+                        //if (!moduleNode.hasChildNodes()) continue;
 
-                        inputFifoCount  =  inputChannelCount = 0;
-                        outputFifoCount = outputChannelCount = 0;
                         String channelTransName = null, channelName = null,
                                 inputFifoName = null, outputFifoName = null;
 
-                        // First count channels & look for fifos
-                        for (int i = 0; i < childChannelList.getLength(); i++) {
+                        // List of channels in this module
+                        NodeList childChannelList = moduleNode.getChildNodes();
+
+                        // Go through list of channels to pick out fifos
+                        for (int i=0; i < childChannelList.getLength(); i++) {
+
                             Node channelNode = childChannelList.item(i);
                             if (channelNode.getNodeType() != Node.ELEMENT_NODE) continue;
 
-                            // Get attributes of channel node
                             NamedNodeMap nnm = channelNode.getAttributes();
                             if (nnm == null) continue;
 
-                            // Get "name" attribute node from map
                             Node channelNameNode = nnm.getNamedItem("name");
-                            // If none (junk in config file) go to next channel
                             if (channelNameNode == null) continue;
 
-                            // Get name of this channel
                             channelName = channelNameNode.getNodeValue();
 
-                            // Get "transp" attribute node from map
                             Node channelTranspNode = nnm.getNamedItem("transp");
                             if (channelTranspNode == null) continue;
 
-                            // Get name of transport
                             channelTransName = channelTranspNode.getNodeValue();
 
                             // If it's an input channel ...
                             if (channelNode.getNodeName().equalsIgnoreCase("inchannel")) {
-                                // Count input channels
-                                inputChannelCount++;
-
-                                // Count Fifo type input channels
+                                // Remember Fifo type input channels
                                 if (channelTransName.equals("Fifo")) {
-                                    inputFifoCount++;
                                     inputFifoName = channelName;
                                 }
                             }
                             else if (channelNode.getNodeName().equalsIgnoreCase("outchannel")) {
-                                outputChannelCount++;
-
                                 if (channelTransName.equals("Fifo")) {
-                                    outputFifoCount++;
                                     outputFifoName = channelName;
                                 }
-
-                                // Get attributes of channel & look for id which must match codaID
-                                int chanID = -1;
-                                // Get "id" attribute node from map
-                                Node channelIdNode = nnm.getNamedItem("id");
-                                if (channelIdNode != null) {
-                                    // If it exists, get its value
-                                    try {
-                                        chanID = Integer.parseInt(channelIdNode.getNodeValue());
-                                        if (chanID < 0) chanID = -1;
-                                    }
-                                    catch (NumberFormatException e) { /* default to -`1 */ }
-                                }
-
-                                // Make sure id's match
-                                if (codaID > -1 && chanID > -1 && codaID != chanID) {
-                                    throw new DataNotFoundException("Emu config: CODA id (" + codaID +
-                                                                     ") does not match config file output chan id (" +
-                                                                     chanID + ")");
-                                }
                             }
                         }
 
-                        // Illegal configurations, look for:
-                        // 1) more than 1 fifo in/out channel, and
-                        // 2) 1 fifo together with a non-fifo channel - either in or out
-                        if ( inputFifoCount > 1 || ( inputFifoCount == 1 &&  inputChannelCount > 1) ||
-                            outputFifoCount > 1 || (outputFifoCount == 1 && outputChannelCount > 1))   {
-                            throw new DataNotFoundException("Emu config: only 1 input/output channel allowed with fifo in/out");
-                        }
-                        // 3) input and output fifos must be different
-                        else if ((inputFifoCount == 1 && outputFifoCount == 1) &&
-                                  inputFifoName.equals(outputFifoName)) {
-                            throw new DataNotFoundException("Emu config: input & output fifos for " +
-                                                                   moduleName + " must be different");
-                        }
-
-                        // Find modules with non-fifo (or no) input channels which
-                        // will be the beginning point of a data path.
-                        if (inputFifoCount < 1) {
-                            // Found the starting point of a data path
-                            dataPathCount++;
-                            // (module with non-fifo input channel)
-                            dataPath = new EmuDataPath(moduleName, null, outputFifoName);
+                        // If successfully added, go through list of modules again
+                        // and try to add another.
+                        if (dataPath.addModuleName(moduleName, inputFifoName, outputFifoName)) {
                             usedModules++;
-                        }
-
-                        // If there is more than one data path, reject the configuration.
-                        if (dataPathCount > 1) {
-                            throw new DataNotFoundException("Emu config: only 1 data path allowed");
+                            continue again;
                         }
                     }
 
-                    // A fifo may not start a data path
-                    if (dataPathCount < 1 && inputFifoCount > 0) {
-                        throw new DataNotFoundException("Emu config: fifo not allowed to start data path");
-                    }
+                    break;
+                }
 
-                    // No data path (should not happen)
-                    if (dataPath == null) {
-                        throw new DataNotFoundException("Emu config: no data path found");
-                    }
+                // Check for any unused/stranded modules (have fifo input)
+                if (moduleCount != usedModules) {
+                    throw new DataNotFoundException("Emu config: not all modules in data path");
+                }
 
-                    // Now that we have the starting point of the data path
-                    // (list of connected modules and transports), we can
-                    // construct the whole path. This will allow us to
-                    // properly distribute RC commands to all EMU modules
-                    // & the data transports.
+                // Check to see is last module's output is to a fifo (bad)
+                if (dataPath.getModules().getLast().hasOutputFifo) {
+                    throw new DataNotFoundException("Emu config: last module cannot have output fifo");
+                }
 
-                    // Look through all modules trying to add them to path
-                    again:
-                    while (true) {
-
-                        // Iterate through all modules
-                        for (int j=0; j < childList.getLength(); j++) {
-                            Node moduleNode = childList.item(j);
-                            if (moduleNode.getNodeType() != Node.ELEMENT_NODE) continue;
-
-                            String moduleName = moduleNode.getNodeName();
-
-                            if (dataPath.containsModuleName(moduleName)) {
-                                // This module is already in data
-                                // path so go to the next one.
-                                continue;
-                            }
-
-                            //if (!moduleNode.hasChildNodes()) continue;
-
-                            String channelTransName = null, channelName = null,
-                                    inputFifoName = null, outputFifoName = null;
-
-                            // List of channels in this module
-                            NodeList childChannelList = moduleNode.getChildNodes();
-
-                            // Go through list of channels to pick out fifos
-                            for (int i=0; i < childChannelList.getLength(); i++) {
-
-                                Node channelNode = childChannelList.item(i);
-                                if (channelNode.getNodeType() != Node.ELEMENT_NODE) continue;
-
-                                NamedNodeMap nnm = channelNode.getAttributes();
-                                if (nnm == null) continue;
-
-                                Node channelNameNode = nnm.getNamedItem("name");
-                                if (channelNameNode == null) continue;
-
-                                channelName = channelNameNode.getNodeValue();
-
-                                Node channelTranspNode = nnm.getNamedItem("transp");
-                                if (channelTranspNode == null) continue;
-
-                                channelTransName = channelTranspNode.getNodeValue();
-
-                                // If it's an input channel ...
-                                if (channelNode.getNodeName().equalsIgnoreCase("inchannel")) {
-                                    // Remember Fifo type input channels
-                                    if (channelTransName.equals("Fifo")) {
-                                        inputFifoName = channelName;
-                                    }
-                                }
-                                else if (channelNode.getNodeName().equalsIgnoreCase("outchannel")) {
-                                    if (channelTransName.equals("Fifo")) {
-                                        outputFifoName = channelName;
-                                    }
-                                }
-                            }
-
-                            // If successfully added, go through list of modules again
-                            // and try to add another.
-                            if (dataPath.addModuleName(moduleName, inputFifoName, outputFifoName)) {
-                                usedModules++;
-                                continue again;
-                            }
-                        }
-
-                        break;
-                    }
-
-                    // Check for any unused/stranded modules (have fifo input)
-                    if (moduleCount != usedModules) {
-                        throw new DataNotFoundException("Emu config: not all modules in data path");
-                    }
-
-                    // Check to see is last module's output is to a fifo (bad)
-                    if (dataPath.getModules().getLast().hasOutputFifo) {
-                        throw new DataNotFoundException("Emu config: last module cannot have output fifo");
-                    }
-
-                    setDataPath(dataPath);
+                setDataPath(dataPath);
 
 //System.out.println("DataPath -> " + dataPath);
 
-                }
-                catch (DataNotFoundException e) {
-                    logger.error("Emu config: failed", e.getMessage());
-                    errorMsg.compareAndSet(null, e.getMessage());
-                    setState(ERROR);
-                    lastConfigHadError = true;
-                    return;
-                }
+            }
+            catch (DataNotFoundException e) {
+                logger.error("Emu config: failed", e.getMessage());
+                errorMsg.compareAndSet(null, e.getMessage());
+                setState(ERROR);
+                lastConfigHadError = true;
+                return;
+            }
 
-                // Successfully loaded new configuration
-                lastConfigHadError = false;
-            }
-            if (state != ERROR) {
-System.out.println("Emu config: CHANGE STATE TO CONFIGURED");
-                setState(CONFIGURED);
-            }
-            else {
-System.out.println("Emu config: ERROR");
-            }
-            return;
+            // Successfully loaded new configuration
+            lastConfigHadError = false;
+        }
 
+logger.info("Emu config: change state to CONFIGURED");
+        setState(CONFIGURED);
     }
 
 
