@@ -26,12 +26,12 @@ public class RCConstants {
     private static final String runCommand        = "run/control/";
     /** String used as type in session commands. */
     private static final String sessionCommand    = "session/control/";
-    /** String used as type in set option commands. */
-    private static final String setOption         = "session/setoption/";
-    /** String used as type in info commands. */
-    private static final String infoCommand       = "coda/info/";
-    /** String used as type responding to info commands. */
+    /** String used as type responding to get info commands. */
     private static final String rcResponseCommand = "rc/response/";
+    /** String used as type responding to info commands. */
+    private static final String rcReportCommand   = "rc/report/";
+    /** String used as type responding to coda info commands. */
+    private static final String codaInfoCommand   = "coda/info/";
 
     // Subscriptions
 
@@ -41,53 +41,57 @@ public class RCConstants {
     public static final String runCommandType        = runCommand + "*";
     /** String used as type in subscription that receives session commands. */
     public static final String sessionCommandType    = sessionCommand + "*";
-    /** String used as type in subscription that receives session, set option commands. */
-    public static final String setOptionType         = setOption + "*";
-    /** String used as type in subscription that receives info commands. */
-    public static final String infoCommandType       = infoCommand + "*";
+    /** String used as type in subscription that receives rc response commands. */
+    public static final String rcResponseCommandType = rcResponseCommand + "*";
+    /** String used as type in subscription that receives coda info commands. */
+    public static final String codaInfoCommandType = codaInfoCommand + "*";
 
-    // Types in messages sent
+    // Types in messages sent to run control
 
     /** String used as type of status message periodically sent to rcServer. */
-    public static final String reportStatus = "rc/report/status";
+    public static final String reportStatus = rcReportCommand + "status";
     /** String used as type of dalog message periodically sent to rcServer. */
-    public static final String dalogMsg = "rc/report/dalog";
+    public static final String dalogMsg = rcReportCommand + "dalog";
 
     // Types in messages received in session/control/* callback
 
-    /** String used as type in message for the set-state command. */
-    public static final String setState         = sessionCommand + "setState";
     /** String used as type in message for the set-session command. */
-    public static final String setSession       = sessionCommand + "setSession";
+    public static final String setSession     = sessionCommand + "setSession";
     /** String used as type in message for the get-session command. */
-    public static final String getSession       = sessionCommand + "getSession";
-    /** String used as type in message for the release-session command. */
-    public static final String releaseSession   = sessionCommand + "releaseSession";
+    public static final String getSession     = sessionCommand + "getSession";
+
     /** String used as type in message for the start-reporting command. */
-    public static final String startReporting   = sessionCommand + "startReporting";
+    public static final String startReporting = sessionCommand + "startReporting";
     /** String used as type in message for the stop-reporting command. */
-    public static final String stopReporting    = sessionCommand + "stopReporting";
+    public static final String stopReporting  = sessionCommand + "stopReporting";
+
     /** String used as type in message for the set-interval command. */
-    public static final String setInterval      = sessionCommand + "setInterval";
-    /** String used as type in message for the start command. */
-    public static final String start            = sessionCommand + "start";
-    /** String used as type in message for the stop command. */
-    public static final String stop             = sessionCommand + "stop";
+    public static final String setInterval    = sessionCommand + "setInterval";
     /** String used as type in message for the exit command. */
-    public static final String exit             = sessionCommand + "exit";
-    /** String used as payload name for item holding session name. */
-    public static final String sessionPayload   = "session";
+    public static final String exit           = sessionCommand + "exit";
+    /** String used as type in message for the get-config-id command. */
+    public static final String getConfigId    = sessionCommand + "configId";
+
+    /** String used as type in message for the set-run-type command. */
+    public static final String setRunType     = sessionCommand + "setRunType";
+    /** String used as type in message for the get-run-type command. */
+    public static final String getRunType     = sessionCommand + "getRunType";
+
+    /** String used as type in message for the set-run-number command. */
+    public static final String setRunNumber   = sessionCommand + "setRunNumber";
+    /** String used as type in message for the get-run-number command. */
+    public static final String getRunNumber   = sessionCommand + "getRunNumber";
 
     // Types in messages received in run/transition/* callback.
 
     /** String used as type in message for the configure command. */
     public static final String configure = transitionCommand + "configure";
     /** String used as type in message for the get-run-number command. */
-    public static final String download = transitionCommand + "download";
+    public static final String download  = transitionCommand + "download";
     /** String used as type in message for the set-run-number command. */
-    public static final String prestart = transitionCommand + "prestart";
+    public static final String prestart  = transitionCommand + "prestart";
     /** String used as type in message for the get-run-type command. */
-    public static final String go       = transitionCommand + "go";
+    public static final String go        = transitionCommand + "go";
     /** String used as type in message for the set-run-type command. */
     public static final String end       = transitionCommand + "end";
     /** String used as type in message for the set-run-type command. */
@@ -96,6 +100,52 @@ public class RCConstants {
     public static final String resume    = transitionCommand + "resume";
     /** String used as type in message for the reset command. */
     public static final String reset     = transitionCommand + "reset";
+
+    // Types in messages received in run/control/* callback
+
+    /** String used as type in message for the set-buffer-level command. */
+    public static final String setBufferLevel = runCommand + "setRocBufferLevel";
+    /** String used as type in message for the get-buffer-level command. */
+    public static final String getBufferLevel = runCommand + "getRocBufferLevel";
+    /** String used as type in message for the enable-output-channels command. */
+    public static final String enableOutput   = runCommand + "enableOutput";
+    /** String used as type in message for the disable-output-channels command. */
+    public static final String disableOutput  = runCommand + "disableOutput";
+
+    // Types in messages received in coda/info/* callback
+
+    /** String used as type in message for get-state command. */
+    public static final String getState      = codaInfoCommand + "getState";
+    /** String used as type in message for get-status command. */
+    public static final String getStatus     = codaInfoCommand + "getStatus";
+    /** String used as type in message for get-object-type command. */
+    public static final String getObjectType = codaInfoCommand + "getObjectType";
+    /** String used as type in message for get-coda-class command. */
+    public static final String getCodaClass  = codaInfoCommand + "getCodaClass";
+
+
+    // Types in messages published in response to session/control & coda/info commands
+
+    /** String used as type in message for response to get-state command. */
+    public static final String getStateResponse          = rcResponseCommand + "getState";
+    /** String used as type in message for response to get-status command. */
+    public static final String getStatusResponse         = rcResponseCommand + "getStatus";
+    /** String used as type in message for response to get-object-type command. */
+    public static final String getObjectTypeResponse     = rcResponseCommand + "getObjectType";
+    /** String used as type in message for response to get-coda-class command. */
+    public static final String getCodaClassResponse      = rcResponseCommand + "getCodaClass";
+    /** String used as type in message for response to get-session command. */
+    public static final String getSessionResponse        = rcResponseCommand + "getSession";
+    /** String used as type in message for response to get-run-number command. */
+    public static final String getRunNumberResponse      = rcResponseCommand + "getRunNumber";
+    /** String used as type in message for response to get-run-type command. */
+    public static final String getRunTypeResponse        = rcResponseCommand + "getRunType";
+    /** String used as type in message for response to get-config-id command. */
+    public static final String getConfigIdResponse       = rcResponseCommand + "getConfigId";
+    /** String used as type in message for response to get-roc-buffer-level command. */
+    public static final String getRocBufferLevelResponse = rcResponseCommand + "getRocBufferLevel";
+
+    // cMsg message payload item names
 
     /** String used as payload name for item holding config file name. */
     public static final String configPayloadFileName = "fileName";
@@ -112,56 +162,16 @@ public class RCConstants {
 
     /** String used as payload name for item holding run type int. */
     public static final String prestartPayloadRunType = "configId";
+
     /** String used as payload name for item holding run number. */
-    public static final String prestartPayloadRunNumber = "runNumber";
+    public static final String runNumberPayload = "runNumber";
+    /** String used as payload name for item holding session name. */
+    public static final String sessionPayload   = "session";
+    /** String used as payload name for item holding run type name. */
+    public static final String runTypePayload   = "config";
 
 
-    // Types in messages received in run/control/* callback
-
-    /** String used as type in message for the get-run-number command. */
-    public static final String getRunNumber     = runCommand + "getRunNumber";
-    /** String used as type in message for the set-run-number command. */
-    public static final String setRunNumber     = runCommand + "setRunNumber";
-    /** String used as type in message for the get-run-type command. */
-    public static final String getRunType       = runCommand + "getRunType";
-    /** String used as type in message for the set-run-type command. */
-    public static final String setRunType       = runCommand + "setRunType";
-    /** String used as type in message for the set-buffer-level command. */
-    public static final String setBufferLevel   = runCommand + "setRocBufferLevel";
-
-    // Types in messages received in coda/info/* callback
-
-    /** String used as type in message for the get-state command. */
-    public static final String getState      = infoCommand + "getState";
-    /** String used as type in message for the get-status command. */
-    public static final String getStatus     = infoCommand + "getStatus";
-    /** String used as type in message for the get-object-type command. */
-    public static final String getObjectType = infoCommand + "getObjectType";
-    /** String used as type in message for the get-coda-class command. */
-    public static final String getCodaClass  = infoCommand + "getCodaClass";
-
-    // Types in messages received in session/setOption/* callback
-
-    /** String used as type in message for the set-file-path command. */
-    public static final String setFilePath   = setOption + "filePath";
-    /** String used as type in message for the set-file-prefix command. */
-    public static final String setFilePrefix = setOption + "filePrefix";
-    /** String used as type in message for the set-config-file command. */
-    public static final String setConfigFile    = setOption + "configFile";
-
-    // response strings for coda/info/* commands
-
-    /** String used as type in response message for the get-state info command. */
-    public static final String rcGetStateResponse       = rcResponseCommand + "getState";
-    /** String used as type in response message for the get-status info command. */
-    public static final String rcGetStatusResponse      = rcResponseCommand + "getStatus";
-    /** String used as type in response message for the get-object-type info command. */
-    public static final String rcGetObjectTypeResponse  = rcResponseCommand + "getObjectType";
-    /** String used as type in response message for the get-coda-class info command. */
-    public static final String rcGetCodaClassResponse   = rcResponseCommand + "getCodaClass";
-
-
-    // Payload names in reportStatus (above) message
+    // cMsg message payload item names in report-status message
 
     public static final String    name                 = "codaName";
     public static final String    codaClass            = "codaClass";
