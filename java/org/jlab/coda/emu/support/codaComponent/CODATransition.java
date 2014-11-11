@@ -42,17 +42,17 @@ package org.jlab.coda.emu.support.codaComponent;
  *     prestart    |                | end       | end       | reset
  *                 |                |           |           |
  *                 '-> PAUSED -----> -----------|---------->|
- *                  <-            <-            |           ^
- *                 |                ^           |           |
- *        go       |                | pause     |           |
- *                 |                |           |           |
- *                 '->  ACTIVE  --->'---------->'---------->'
+ *                  <-                          |           ^
+ *                 |                            |           |
+ *        go       |                            |           |
+ *                 |                            |           |
+ *                 '->  ACTIVE  --------------->'---------->'
  *
  * __________________________________________________________________
  *
  *  NOTE: DOWNLOADED can always do a download,
  *        CONFIGURED can always do a configure, &
- *        RESET goes from any state to CONFIGURED or BOOTED if in ERROR state
+ *        RESET goes from any state to CONFIGURED (to BOOTED if in ERROR or BOOTED state)
  *
  * </pre></code>
  * @author heyes
