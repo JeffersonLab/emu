@@ -901,7 +901,7 @@ System.out.println("  EB mod: create Build Thread with index " + btIndex + ", co
                             if (availableSequences[i] < nextSequences[i]) {
 // TODO: Can BLOCK here waiting for item if none available, but can be interrupted
                                 // Available sequence may be larger than what we desired.
-//System.out.println("  EB mod: bt" + btIndex + " ch" + i + "", wait for event (seq [" + i + "] = " +
+//System.out.println("  EB mod: bt" + btIndex + " ch" + i + ", wait for event (seq [" + i + "] = " +
 //                           nextSequences[i] + ")");
                                 availableSequences[i] = buildBarrierIn[i].waitFor(nextSequences[i]);
 //System.out.println("  EB mod: bt" + btIndex + " ch" + i + ", available seq[" + i + "]  = " + availableSequences[i]);
@@ -1135,6 +1135,10 @@ System.out.println("  EB mod: send END event to output channel " + j + ", ring "
                             // from which to read & process the END event.
                             processEndInOutput(endEventIndex, endEventRingIndex);
                         }
+
+                        // Update stats
+                        eventCountTotal++;
+                        wordCountTotal += 5;
 
                         // If this is a sync event, keep track of the next event # to be sent
                         if (Evio.isSyncEvent(buildingBanks[0].getNode())) {
