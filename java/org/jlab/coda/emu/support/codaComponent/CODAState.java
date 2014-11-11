@@ -18,46 +18,46 @@ import java.util.HashMap;
 /**
  * This class is an enum which lists all the possible CODA Emu
  * state-machine states. Each of these states has a corresponding set
- * of transitions that are allowed.
+ * of transitions that are allowed {@link CODATransition}.
  * This is the only class that implements the {@link State} interface.
  * 
  * <code><pre>
  *                 *****************
  *                 * State Machine *
  *                 *****************
- * _________________________________________________________________
- *                 |                 |
- *    transition   |      STATE      |  transition
- * ________________|_________________|______________________________
+ * ____________________________________________________
+ *   INTERMEDIATE  |                 |   INTERMEDIATE
+ *      STATE      |      STATE      |      STATE
+ * ________________|_________________|_________________
  *
  *                               (if reset from ERROR or BOOTED)
  *                  <- BOOTED <-----------------------------,
  *                 |                                        |
- *     configure   |                                        |
+ *   CONFIGURING   |                                        |
  *                 |               <------------------------|
  *                 '-> CONFIGURED ->----------------------->|
  *                  <-                                      ^
  *                 |                                        |
- *     download    |                                        |
+ *   DOWNLOADING   |                                        |
  *                 |                                        |
  *                 '-> DOWNLOADED ->----------------------->|
  *                  <-            <-,<----------,           ^
  *                 |                ^           ^           |
  *                 |                |           |           |
- *     prestart    |                | end       | end       | reset
+ *   PRESTARTING   |                | ENDING    | ENDING    | reset
  *                 |                |           |           |
  *                 '-> PAUSED -----> -----------|---------->|
- *                  <-            <-            |           ^
- *                 |                ^           |           |
- *        go       |                | pause     |           |
- *                 |                |           |           |
- *                 '->  ACTIVE  --->'---------->'---------->'
+ *                  <-                          |           ^
+ *                 |                            |           |
+ *      GOING      |                            |           |
+ *                 |                            |           |
+ *                 '->  ACTIVE  --------------->'---------->'
  *
  * __________________________________________________________________
  *
  *  NOTE: DOWNLOADED can always do a download,
  *        CONFIGURED can always do a configure, &
- *        RESET goes from any state to CONFIGURED or BOOTED if in ERROR state
+ *        RESET goes from any state to CONFIGURED (to BOOTED if in ERROR or BOOTED state)
  *
  * </pre></code>
  *
@@ -67,26 +67,43 @@ import java.util.HashMap;
 public enum CODAState implements State {
 
     /** BOOTED state. */
-    BOOTED("codaComponent is not configured", EnumSet.of(CONFIGURE)),
+    BOOTED("coda component not configured", EnumSet.of(CONFIGURE)),
     
     /** CONFIGURED state. */
-    CONFIGURED("configuration is loaded", EnumSet.of(CONFIGURE, DOWNLOAD, RESET)),
+    CONFIGURED("configuration loaded", EnumSet.of(CONFIGURE, DOWNLOAD, RESET)),
 
     /** DOWNLOADED state (same as ENDED). */
-    DOWNLOADED("external modules loaded", EnumSet.of(DOWNLOAD, PRESTART, RESET)),
+    DOWNLOADED("modules loaded", EnumSet.of(DOWNLOAD, PRESTART, RESET)),
 
-    /** PAUSED state (same as PAUSED). */
-    PAUSED("modules initialized and ready to go", EnumSet.of(GO, END, RESET)),
+    /** PAUSED state (same as PRESTARTED). */
+    PAUSED("modules initialized, channels created, ready to go", EnumSet.of(GO, END, RESET)),
 
     /** ACTIVE state. */
     ACTIVE("taking data", EnumSet.of(PAUSE, END, RESET)),
 
-    /** Ending state - got END command but no END event. */
-    ENDING("ending run", EnumSet.of(END, RESET)),
+    // INTERMEDIATE STATES (not used in state machine)
+
+    /** Configuring state - in the process of configuring. */
+    CONFIGURING("between booted and configured", EnumSet.noneOf(CODATransition.class)),
+
+    /** Downloading state - in the process of downloading. */
+    DOWNLOADING("between configured and downloaded", EnumSet.noneOf(CODATransition.class)),
+
+    /** Prestarting state - in the process of prestarting. */
+    PRESTARTING("between downloaded and paused", EnumSet.noneOf(CODATransition.class)),
+
+    /** Going state - in the process of becoming active. */
+    GOING("between paused and active", EnumSet.noneOf(CODATransition.class)),
+
+    /** Ending state - got END command but no END event yet. */
+    ENDING("ending run", EnumSet.noneOf(CODATransition.class)),
+
+    // ERROR
 
     /** ERROR state. */
     ERROR("an error has occurred", EnumSet.noneOf(CODATransition.class));
 
+   //------------------------------------
 
     /** Description of this state. */
     private final String description;
@@ -94,9 +111,9 @@ public enum CODAState implements State {
     /** Set of all transitions allowed out of this state. */
     private final EnumSet<CODATransition> allowed;
 
-
     /** Map of CODAState name to an enum. */
     private final static HashMap<String, CODAState> commandTypeToEnumMap = new HashMap<String, CODAState>();
+
 
     // Fill static hashmap after all enum objects created.
     static {
