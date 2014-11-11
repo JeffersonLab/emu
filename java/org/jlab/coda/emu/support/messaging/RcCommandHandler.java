@@ -58,6 +58,7 @@ class RcCommandHandler extends GenericCallback implements cMsgCallbackInterface 
             CODACommand codaCmd;
             try {
                 codaCmd = CODACommand.get(type);
+//System.out.println("callback: codaCmd = " + codaCmd + ", isTransition = " + codaCmd.isTransition());
             } catch (IllegalArgumentException e) {
 //System.out.println("callback: 1 received an invalid command of type " + type);
                 return;
@@ -72,6 +73,7 @@ class RcCommandHandler extends GenericCallback implements cMsgCallbackInterface 
             // the highest priority. We don't want them stuck in a Q
             // somewhere so treat them separately.
             if (codaCmd == CODACommand.RESET) {
+//System.out.println("callback: call emu's reset()");
                 cmsgPortal.emu.reset();
                 return;
             }
@@ -87,15 +89,31 @@ class RcCommandHandler extends GenericCallback implements cMsgCallbackInterface 
             // if response to sendAndGet is necessary.
             cmd.setMessage(msg);
 
-            // set the args for this command
+            // Set the args for this command
             Set<String> names = msg.getPayloadNames();
             for (String name : names) {
                 cmd.setArg(name, msg.getPayloadItem(name));
             }
 
+            // If this is NOT a transition, it can be completed quickly,
+            // so don't bother putting it on the Q, just it execute now.
+            //
+            // This is particularly important for the "GET_STATE" cmd.
+            // If a transition gets hung up, we need to be able to hit reset and
+            // have it execute immediately. A GET_STATE cmd always precedes a
+            // reset so we cannot place the GET_STATE on the Q which would be blocked
+            // by the hung transition.
+            if (!codaCmd.isTransition()) {
+//System.out.println("callback: START executing " + codaCmd);
+                cmsgPortal.emu.execute(cmd);
+//System.out.println("callback: DONE executing " + codaCmd);
+                return;
+            }
+
             // Get the Emu object and have it post this new command
             // by putting it in a Q that is periodically checked by
             // the Emu's "run" (main thread) method.
+//System.out.println("callback: post cmd " + codaCmd);
             cmsgPortal.emu.postCommand(cmd);
 
         } catch (InterruptedException e) {
