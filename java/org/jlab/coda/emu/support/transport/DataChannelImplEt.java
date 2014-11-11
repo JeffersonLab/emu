@@ -1583,7 +1583,7 @@ System.out.println("      DataChannel Et out: wake up attachment #" + attachment
                      previousType = null;
                      havePrestartOrGo = false;
                      // Set time of entering do-loop
-                     startTime = System.currentTimeMillis();
+                     startTime = emu.getTime();
 
                      // Grab a bank to put into an ET event buffer,
                      // checking occasionally to see if we got an
@@ -1753,7 +1753,11 @@ System.out.println("      DataChannel Et out " + outputIndex + ": have GO, ringI
                          // ring buffer before writing some (& freeing them up).
                          // Also write what we have if time (2 sec) has expired.
                          if ((eventCount >= outputRingItemCount*3/4) ||
-                             (System.currentTimeMillis() - startTime > timeout)) {
+                                 (emu.getTime() - startTime > timeout)) {
+
+                             if (emu.getTime() - startTime > timeout)
+                                 System.out.println("TIME FLUSH ******************");
+
 //logger.warn("      DataChannel Et out : " + name + " break since eventCount(" + eventCount +
 //        ") > outputRingItemCount*3/4(" + ( outputRingItemCount*3/4) +")");
                              break;

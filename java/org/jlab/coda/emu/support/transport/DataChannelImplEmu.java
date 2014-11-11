@@ -1302,13 +1302,13 @@ System.out.println("      DataChannel Emu out: " + name + " I got END event, qui
 //System.out.println("      DataChannel Emu out: flushEvents, nothing to write out");
                 return;
             }
-//System.out.println("      DataChannel Emu out: flushEvents, write event out");
+System.out.println("      DataChannel Emu out: flushEvents, write event out");
             // If we have no more room in buffer, send what we have so far
             outGoingMsg.setUserInt(cMsgConstants.emuEvioFileFormat);
             outGoingMsg.setByteArrayNoCopy(writer.getByteBuffer().array(), 0,
                                            (int) writer.getBytesWrittenToBuffer());
             emuDomain.send(outGoingMsg);
-            lastSendTime = System.currentTimeMillis();
+            lastSendTime = emu.getTime();
         }
 
 
@@ -1488,15 +1488,14 @@ System.out.println("      DataChannel Emu out " + outputIndex + ": try again, re
                     // All prestart, go, & users go to the first ring. Just keep reading
                     // until we get to a built event. Then start keeping count so
                     // we know when to switch to the next ring.
-                    if (outputRingCount > 1 && pBankControlType == null &&
-                            !pBankType.isUser()) {
+                    if (outputRingCount > 1 && pBankControlType == null && !pBankType.isUser()) {
                         setNextEventAndRing();
 //System.out.println("      DataChannel Emu out, " + name + ": for next ev " + nextEvent + " SWITCH TO ring = " + ringIndex);
                     }
 
                     if (pBankControlType == ControlType.END) {
                         flushEvents();
-System.out.println("      DataChannel Emu out: " + name + " I got END event, quitting");
+System.out.println("      DataChannel Emu out: " + name + " got END event, quitting");
                         // run callback saying we got end event
                         if (endCallback != null) endCallback.endWait();
                         threadState = ThreadState.DONE;
@@ -1505,13 +1504,15 @@ System.out.println("      DataChannel Emu out: " + name + " I got END event, qui
 
                     // If I've been told to RESET ...
                     if (gotResetCmd) {
-System.out.println("      DataChannel Emu out: " + name + " got RESET/END cmd, quitting 1");
+System.out.println("      DataChannel Emu out: " + name + " got RESET cmd, quitting");
                         threadState = ThreadState.DONE;
                         return;
                     }
 
-                    // Time expired so send out events we have
-                    if (System.currentTimeMillis() - lastSendTime > timeout) {
+                    // Time expired so send out events we have\
+                    System.out.println("time = " + emu.getTime() + ", lastSendTime = " + lastSendTime);
+                    if (emu.getTime() - lastSendTime > timeout) {
+                        System.out.println("TIME FLUSH ******************");
                         flushEvents();
                     }
                 }

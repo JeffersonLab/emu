@@ -84,7 +84,7 @@ public class DataChannelImplCmsg extends DataChannelAdapter {
     private int outputSizeLimit = 256000;
 
     /** Fill up a message with at most this number of banks before another is used. */
-    private int outputCountLimit = 10000;
+    private int outputCountLimit = 1000;
 
     /** Use the evio block header's block number as a record id. */
     private int recordId;
@@ -1282,7 +1282,9 @@ System.out.println("      DataChannel cmsg out " + outputIndex + ": have GO, rin
                         // ring buffer before writing some (& freeing them up).
                         // Also write what we have if time (2 sec) has expired.
                         if ((eventCount >= outputRingItemCount*3/4) ||
-                            (System.currentTimeMillis() - startTime > timeout)) {
+                            (emu.getTime() - startTime > timeout)) {
+                            if (emu.getTime() - startTime > timeout)
+                                System.out.println("TIME FLUSH ******************");
                             break;
                         }
 
