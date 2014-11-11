@@ -37,8 +37,6 @@ public enum CODACommand {
     GO("Start taking data", go, true, 0, null, null),
     /** End transition. */
     END("End taking data", end, true, 0, null, null),
-    /** Pause transition. */
-    PAUSE("Pause taking data", pause, true, 0, null, null),
     /** Reset transition. */
     RESET("Return to configured state", reset, true, 0, null, null),
 
@@ -55,23 +53,14 @@ public enum CODACommand {
 
     // run/control/
 
-    /** Command to get run number .*/
-    GET_RUN_NUMBER("Get run number", getRunNumber, false, -1, null, null),
-    /** Command to set run type. */
-    SET_RUN_TYPE("Set run type", setRunType, false, -1, null, null),
-    /** Command to get run type. */
-    GET_RUN_TYPE("Get run type", getRunType, false, -1, null, null),
     /** Command to set buffer level - smallest evio-event/et-buffer for ROCs. */
     SET_BUF_LEVEL("Set buffer level", setBufferLevel, false, -1, null, null),
-
-    // session/setOption/    none implemented
-
-    /** Command to set run number. */
-    SET_FILE_PATH("Set config file path", setFilePath, false, -1, null, null),
-    /** Command to get run number .*/
-    SET_FILE_PREFIX("Get config file prefix", setFilePrefix, false, -1, null, null),
-    /** Command to set run type. */
-    SET_CONFIG_FILE("Set xml config file contents", setConfigFile, false, -1, null, null),
+    /** Command to get buffer level - smallest evio-event/et-buffer for ROCs. */
+    GET_BUF_LEVEL("Get buffer level", getBufferLevel, false, -1, null, null),
+    /** Command to enable output channels. */
+    ENABLE_OUTPUT("Enable output channels", enableOutput, false, -1, null, null),
+    /** Command to disable output channels. */
+    DISABLE_OUTPUT("Disable output channels", disableOutput, false, -1, null, null),
 
     // session/control/
 
@@ -83,18 +72,20 @@ public enum CODACommand {
     STOP_REPORTING("Stop reporting", stopReporting, false, 1, null, null),
     /** Command to exit. */
     EXIT("Shutdown coda component", exit, false, 1, null, null),
-    /** Command to set state. */
-    SET_STATE("Set state", setState, false, -1, null, null),
     /** Command to set session. */
     SET_SESSION("Set session", setSession, false, -1, null, null),
     /** Command to get session. */
     GET_SESSION("Get session", getSession, false, -1, null, null),
-    /** Command to release session. */
-    RELEASE_SESSION("Release session", releaseSession, false, -1, null, null),
-    /** Command to start. */
-    START("Start", start, false, -1, null, null),
-    /** Command to stop. */
-    STOP("Stop", stop, false, -1, null, null),
+    /** Command to set run number .*/
+    SET_RUN_NUMBER("Set run number", setRunNumber, false, -1, null, null),
+    /** Command to get run number .*/
+    GET_RUN_NUMBER("Get run number", getRunNumber, false, -1, null, null),
+    /** Command to set run type. */
+    SET_RUN_TYPE("Set run type", setRunType, false, -1, null, null),
+    /** Command to get run type. */
+    GET_RUN_TYPE("Get run type", getRunType, false, -1, null, null),
+    /** Command to get config id. */
+    GET_CONFIG_ID("Get config id", getConfigId, false, -1, null, null),
     ;
 
 
