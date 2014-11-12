@@ -557,8 +557,9 @@ System.out.println("      DataChannel Et: # of buffers in input supply -> " + nu
                 // Station may not exist, may still have attachments, or
                 // cannot communicate with ET
             }
+            etSysLocal = null;
         }
-        else {
+        else if (etSystem != null) {
             try {
 //System.out.println("      DataChannel Et: detach from station " + attachment.getStation().getName());
                 etSystem.detach(attachment);
@@ -580,6 +581,7 @@ System.out.println("      DataChannel Et: # of buffers in input supply -> " + nu
 
 System.out.println("      DataChannel Et: closeEtSystem(), closed ET connection");
             etSystem.close();
+            etSystem = null;
         }
     }
 
