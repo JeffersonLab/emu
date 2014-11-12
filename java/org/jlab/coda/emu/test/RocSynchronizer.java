@@ -180,19 +180,20 @@ public class RocSynchronizer {
             // If we got the expected number of responses, see if
             // we got them from the expected ROCs.
             if (respondingRocs.size() == expectedRocs.size()) {
-                for (String roc : respondingRocs) {
-                    if (!expectedRocs.contains(roc)) {
-                        System.out.println("Not expecting ROC named " + roc);
-                        System.exit(-1);
-                    }
-                }
+//                for (String roc : respondingRocs) {
+//                    if (!expectedRocs.contains(roc)) {
+//                        System.out.println("Not expecting ROC named " + roc);
+//                        System.exit(-1);
+//                    }
+//                }
 
+//System.out.println("All ROCs reporting");
                 // If we're here we got the proper responses
 
                 // If all ROCs have received the END command,
                 // state = "gotEnd", then tell ROCs to finish up.
                 if (!respondingStates.contains(0)) {
-//System.out.println("All ROCs got end cmd");
+System.out.println("All ROCs got end cmd");
                     // Tell ROCs to stop sending events
                     message.setUserInt(1);
                 }
