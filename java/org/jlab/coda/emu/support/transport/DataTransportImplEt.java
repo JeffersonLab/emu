@@ -232,7 +232,7 @@ public class DataTransportImplEt extends DataTransportAdapter {
                     isJavaSystem = true;
                 }
             }
-if (isJavaSystem) System.out.println("    DataTransport Et: create Java ET system within this JVM");
+if (isJavaSystem) System.out.println("    DataTransport Et: create Java ET in this JVM, but not yet");
 
             // number of events
             int eventNum = 0;
@@ -536,38 +536,45 @@ if (isJavaSystem) System.out.println("    DataTransport Et: create Java ET syste
      */
     private boolean killEtSystem() {
 
-        logger.debug("    DataTransport Et: tell the ET system to die - " + openConfig.getEtName());
-
-        if (etSystem != null) {
-            try {
-                // Tell ET to die directly and remove file, if we're still attached.
-                etSystem.kill();
-                logger.debug("    DataTransport Et: ET is dead");
-                return true;
-            }
-            catch (IOException e) {
-            }
-            catch (EtClosedException e) {
-            }
-        }
+logger.debug("    DataTransport Et: tell ET to die - " + openConfig.getEtName());
 
         boolean killedIt = false;
 
-        // If we couldn't command ET to die, try jvm method to kill ET process
-        if (processET != null) {
-            processET.destroy();
-
-            try {
-                processET.waitFor();
-                logger.debug("    DataTransport Et: ET is dead");
-                killedIt = true;
-            }
-            catch (InterruptedException e) {}
-        }
-
-        // Kill any locally started system
+        // Stop ET system running in this JVM
         if (etSysLocal != null) {
+logger.debug("    DataTransport Et: shutdown local ET system");
             etSysLocal.shutdown();
+//            etSysLocal = null;
+        }
+        // Stop ET system running in a separate process
+        else {
+logger.debug("    DataTransport Et: try killing non-JVM ET system");
+            if (etSystem != null) {
+                try {
+                    // Tell ET to die directly and remove file, if we're still attached.
+                    etSystem.kill();
+//                    etSystem = null;
+logger.debug("    DataTransport Et: ET is dead");
+                    return true;
+                }
+                catch (IOException e) {
+                }
+                catch (EtClosedException e) {
+                }
+            }
+
+            // If we couldn't command ET to die, try jvm method to kill ET process
+            if (processET != null) {
+                processET.destroy();
+
+                try {
+                    processET.waitFor();
+//                    etSystem = null;
+logger.debug("    DataTransport Et: ET is dead");
+                    killedIt = true;
+                }
+                catch (InterruptedException e) {}
+            }
         }
 
         // Remove the ET system file
