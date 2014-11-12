@@ -1513,7 +1513,7 @@ System.out.println("\n  EB mod: calling processEnd() for chan " + i + "\n");
             }
 
             if (!haveEndEvent) {
-                if (debug) System.out.println("  EB mod: endBuildThreads: will end building/filling threads but no END event or rings not empty !!!");
+if (debug) System.out.println("  EB mod: endBuildThreads: will end building/filling threads but no END event or rings not empty !!!");
                 state = CODAState.ERROR;
             }
         }
@@ -1565,8 +1565,6 @@ System.out.println("\n  EB mod: calling processEnd() for chan " + i + "\n");
             }
         }
         preProcessors =null;
-
-        System.out.println("  EB mod: endThreads() done");
     }
 
 
@@ -1652,9 +1650,7 @@ System.out.println("\n  EB mod: calling processEnd() for chan " + i + "\n");
 
     /** {@inheritDoc} */
     public void end() {
-
         state = CODAState.DOWNLOADED;
-System.out.println("  EB mod: in end()");
 
         // Print out time-to-build-event histogram
         if (timeStatsOn) {
