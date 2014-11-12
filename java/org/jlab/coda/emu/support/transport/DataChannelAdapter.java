@@ -339,26 +339,6 @@ System.out.println("      DataChannel Adapter: prestart, nextEv (" + nextEvent +
     }
 
 
-//    /**
-//     * Set the index of the next event to get from the module
-//     * and the ring it will appear on.
-//     */
-//    protected void setNextEventAndRing() {
-//        if (chunkingForSebs && (--sebChunkCounter > 0)) {
-//            nextEvent++;
-//            ringIndex = (int) (nextEvent % outputRingCount);
-////System.out.println("      DataChannel Adapter: set next ev (" + nextEvent + "), ring (" + ringIndex +
-////                           "), sebChunkCounter = " + sebChunkCounter);
-//            return;
-//        }
-//
-//        sebChunkCounter = sebChunk;
-//        nextEvent += sebChunk*(outputChannelCount - 1) + 1;
-//        ringIndex = (int) (nextEvent % outputRingCount);
-////System.out.println("      DataChannel Adapter: set next ev (" + nextEvent + "), ring (" + ringIndex + ")");
-//    }
-//
-
     /**
      * Set the index of the next buildable event to get from the module
      * and the ring it will appear on.<p>
