@@ -35,7 +35,7 @@ import java.util.concurrent.Phaser;
 /**
  * This class simulates a Roc. It is a module which uses a single thread
  * to create events and send them to a single output channel.<p>
- * TODO: ET buffers have the number of events in them which varies from ROC to ROC.
+ * Multiple Rocs can be synchronized by running test.RocSynchronizer.
  * @author timmer
  * (2011)
  */
@@ -61,14 +61,6 @@ public class RocSimulation extends ModuleAdapter {
 
     /** Size of a single generated Roc raw event in 32-bit words (including header). */
     private int eventWordSize;
-
-    //----------------------------------------------------
-    // Members for keeping statistics
-    //----------------------------------------------------
-    private volatile boolean killThreads;
-
-    /** Used in debugging output to track each time an array of evio events is generated. */
-    static int jobNumber;
 
     //----------------------------------------------------
     // Members used to synchronize all fake Rocs to each other which allows run to
@@ -98,16 +90,20 @@ public class RocSimulation extends ModuleAdapter {
     /** Flag saying we got the END command. */
     private volatile boolean gotEndCommand;
 
+    /** Flag saying we got the END command. */
+    private volatile boolean gotResetCommand;
+
 
     /** Callback to be run when a message from synchronizer
-     *  arrives, allowing all ROCs to sync up. */
+     *  arrives, allowing all ROCs to sync up. We subscribe
+     *  once to subject = "sync" and type = "ROC". */
     private class SyncCallback extends cMsgCallbackAdapter {
         public void callback(cMsgMessage msg, Object userObject) {
             int endIt = msg.getUserInt();
             if (endIt > 0) {
                 // Signal to finish end() method and it will
                 // also quit event-producing thread.
-//System.out.println("ARRIVE -> END IT");
+//System.out.println("callback: ARRIVE -> END IT");
                 timeToEnd = true;
                 endPhaser.arriveAndDeregister();
             }
@@ -239,7 +235,10 @@ public class RocSimulation extends ModuleAdapter {
         System.out.println("Start killThreads()");
         // The order in which these threads are shutdown does(should) not matter.
         // Transport objects should already have been shutdown followed by this module.
-        if (RateCalculator != null) RateCalculator.interrupt();
+        if (RateCalculator != null) {
+            System.out.println("  interrupt rate calc thread");
+            RateCalculator.interrupt();
+        }
         RateCalculator = null;
 
         for (EventGeneratingThread thd : eventGeneratingThreads) {
@@ -248,9 +247,11 @@ public class RocSimulation extends ModuleAdapter {
                 // block on the uninterruptible rb.next() method call and RESET never
                 // completes. First give it a chance to end gracefully.
                 thd.interrupt();
+                System.out.println("  interrupt event generating thread");
                 try {
                     thd.join(250);
                     if (thd.isAlive()) {
+                        System.out.println("  stop event generating thread");
                         thd.stop();
                     }
                 }
@@ -406,8 +407,6 @@ public class RocSimulation extends ModuleAdapter {
         return buf;
     }
 
-    // TODO: Do we make byte buffers DIRECT????????????????????????????????????????????????????????
-
 
     private void writeEventBuffer(ByteBuffer buf, ByteBuffer templateBuf,
                                    long eventNumber, long timestamp, boolean copy) {
@@ -516,8 +515,8 @@ System.out.println("  Roc mod: start With (id=" + myId + "):\n    record id = " 
 
             int  userEventLoopMax=100000;
             int  skip=3,  userEventLoop = userEventLoopMax;
-            long oldVal=0L, totalT=0L, totalCount=0l, bufCounter=0L;
-            long now, deltaT, start_time = System.currentTimeMillis();
+            long oldVal=0L, totalT=0L, totalCount=0L, bufCounter=0L;
+            long t1, deltaT, t2, start_time;
             ByteBuffer buf = null;
             ByteBufferItem bufItem = null;
             boolean copyWholeBuf = true;
@@ -533,10 +532,16 @@ System.out.println("  Roc mod: start With (id=" + myId + "):\n    record id = " 
             bbSupply = new ByteBufferSupply(bufSupplySize, 4*eventWordSize, ByteOrder.BIG_ENDIAN, true);
 
             try {
+                t1 = start_time = System.currentTimeMillis();
+
                 // Use dummy arg that's overwritten later
                 boolean noBuildableEvents = false;
 
                 while (state == CODAState.ACTIVE || paused) {
+
+                    if (gotResetCommand) {
+                        return;
+                    }
 
                     if (noBuildableEvents) {
                         Thread.sleep(250);
@@ -570,6 +575,8 @@ System.out.println("  Roc mod: start With (id=" + myId + "):\n    record id = " 
                         // Put generated events into output channel
                         eventToOutputRing(myId, buf, bufItem, bbSupply);
 
+//                        Thread.sleep(1000);
+
                         eventCountTotal += eventBlockSize;
                         wordCountTotal  += eventWordSize;
 
@@ -587,7 +594,7 @@ System.out.println("  Roc mod: start With (id=" + myId + "):\n    record id = " 
 //                        }
 
                         // Do the requisite number of iterations before syncing up
-                        if (synced && userEventLoop-- < 1) {
+                        if (synced && --userEventLoop < 1) {
                             // Did we receive the END command yet? ("state" is volatile)
                             if (state == CODAState.DOWNLOADED) {
                                 // END command has arrived
@@ -596,20 +603,21 @@ System.out.println("  Roc mod: start With (id=" + myId + "):\n    record id = " 
                             }
 
                             // Send message to synchronizer that we're waiting
-                            // and whether or not we got the END command. Only
+                            // whether or not we got the END command. Only
                             // want 1 msg sent, so have the first thread do it.
                             if (myId == 0) {
                                 sendMsgToSynchronizer(gotEndCommand);
                             }
 
                             // Wait for synchronizer's response before continuing
-//System.out.println("  Roc mod: phaser await advance");
+//System.out.println("  Roc mod: phaser await advance, ev count = " + eventCountTotal);
                             phaser.arriveAndAwaitAdvance();
+//System.out.println("  Roc mod: phaser PAST advance, ev count = " + eventCountTotal);
 
                             // Every ROC has received the END command and completed the
                             // same number of iterations, therefore it's time to quit.
                             if (timeToEnd) {
-//System.out.println("  Roc mod: SYNC told me to quit");
+//System.out.println("  Roc mod: arrive, SYNC told me to quit");
                                 endPhaser.arriveAndDeregister();
                                 return;
                             }
@@ -618,8 +626,8 @@ System.out.println("  Roc mod: start With (id=" + myId + "):\n    record id = " 
                         }
                     }
 
-                    now = System.currentTimeMillis();
-                    deltaT = now - start_time;
+                    t2 = emu.getTime();
+                    deltaT = t2 - t1;
 
                     if (myId == 0 && deltaT > 2000) {
                         if (skip-- < 1) {
@@ -631,7 +639,7 @@ System.out.println("  Roc mod: start With (id=" + myId + "):\n    record id = " 
                         else {
                             System.out.println("  Roc mod: event rate = " + String.format("%.3g", ((myEventNumber-oldVal)*1000./deltaT) ) + " Hz");
                         }
-                        start_time = now;
+                        t1 = t2;
                         oldVal = myEventNumber;
                     }
 
@@ -659,6 +667,8 @@ System.out.println("  Roc mod: start With (id=" + myId + "):\n    record id = " 
 
     /** {@inheritDoc} */
     public void reset() {
+        gotResetCommand = true;
+        System.out.println("  Roc mod: reset() in");
         Date theDate = new Date();
         State previousState = state;
         state = CODAState.CONFIGURED;
@@ -666,8 +676,8 @@ System.out.println("  Roc mod: start With (id=" + myId + "):\n    record id = " 
         eventRate = wordRate = 0F;
         eventCountTotal = wordCountTotal = 0L;
 
-        // rb.next() can block in endThreads() when doin a RESET.
-        // So just kill threads by force instead of bein nice about it.
+        // rb.next() can block in endThreads() when doing a RESET.
+        // So just kill threads by force instead of being nice about it.
         killThreads();
 
         paused = false;
@@ -691,10 +701,17 @@ System.out.println("  Roc mod: start With (id=" + myId + "):\n    record id = " 
         endCallback.endWait();
 
         if (synced) {
-            // Wait until loop is done writing events
-//System.out.println("  Roc mod: end(), endPhaser block here");
-            endPhaser.arriveAndAwaitAdvance();
-//System.out.println("  Roc mod: end(), past endPhaser");
+            // Wait until all threads are done writing events
+System.out.println("  Roc mod: end(), endPhaser block here");
+            //endPhaser.arriveAndAwaitAdvance();
+            try {
+                endPhaser.awaitAdvanceInterruptibly(endPhaser.arrive());
+            }
+            catch (InterruptedException e) {
+System.out.println("  Roc mod: end(), endPhaser interrupted");
+                return;
+            }
+System.out.println("  Roc mod: end(), past endPhaser");
         }
 
         // Put this line down here so we don't pop out of event-generating
@@ -735,13 +752,14 @@ System.out.println("  Roc mod: start With (id=" + myId + "):\n    record id = " 
         state = CODAState.PAUSED;
 
         // Reset some variables
+        gotEndCommand = gotResetCommand = false;
         eventRate = wordRate = 0F;
         eventCountTotal = wordCountTotal = 0L;
         rocRecordId = 0;
 
         if (synced) {
-            phaser = new Phaser(eventProducingThreads + 1);
-            endPhaser = new Phaser(2);
+            phaser    = new Phaser(eventProducingThreads + 1);
+            endPhaser = new Phaser(eventProducingThreads + 2);
             timeToEnd = false;
             gotEndCommand = false;
         }
