@@ -299,8 +299,6 @@ public class DataChannelImplCmsg extends DataChannelAdapter {
 
         /** Callback method definition. */
         public void callback(cMsgMessage msg, Object userObject) {
-
-//logger.info("      DataChannel cmsg in: " + name + ": got message in callback");
             try {
                 if (ringItemType == ModuleIoType.PayloadBank) {
                     messageToBank(msg);
@@ -322,7 +320,6 @@ public class DataChannelImplCmsg extends DataChannelAdapter {
         }
 
         public int getMaximumQueueSize() { return 100000; }
-
     }
 
 
