@@ -129,6 +129,8 @@ public class Emu implements CODAComponent {
     /** Path that the data takes through the parts of the emu. */
     private EmuDataPath dataPath;
 
+    private final boolean debug = false;
+
     //------------------------------------------------
     // State / error
     //------------------------------------------------
@@ -981,12 +983,12 @@ System.out.println("Emu " + name + " sending special RC display error Msg:\n ***
      * RESET must always have top priority and is executed in the cMsg callback.
      */
     synchronized public void reset() {
+logger.info("Emu reset: in");
         // Clear error until next one occurs
         errorSent = false;
         errorMsg.set(null);
 
         // Stop any more run control commands from being executed
-logger.info("Emu reset: set flag to STOP execution of rc commands");
         stopExecutingCmds = true;
 
         // Clear out any existing, un-executed commands
@@ -1014,7 +1016,7 @@ logger.info("Emu reset: reset to in chan " + chan.name());
         for (EmuModule module : modules) {
 logger.debug("Emu reset: try to reset module " + module.name());
             module.reset();
-logger.debug("Emu reset: done resetting module " + module.name());
+//logger.debug("Emu reset: done resetting module " + module.name());
         }
 
         if (outChannels.size() > 0) {
@@ -1043,7 +1045,6 @@ logger.debug("Emu reset: reset transport " + t.name());
 logger.info("Emu reset: done, setting state to " + state);
 
         // Allow run control commands to be executed once again
-logger.info("Emu reset: set flag to ALLOW execution of rc commands");
         stopExecutingCmds = false;
     }
 
@@ -1259,10 +1260,10 @@ logger.info("Emu reset: set flag to ALLOW execution of rc commands");
      * @param cmd of type Command
      */
     public void execute(Command cmd) {
-System.out.println("Emu: start executing cmd = " + cmd.name());
+logger.info("Emu: start executing cmd = " + cmd.name());
 
         if (stopExecutingCmds) {
-System.out.println("Emu: do not execute cmd = " + cmd.name() + ", resetting");
+logger.warn("Emu: do not execute cmd = " + cmd.name() + ", resetting");
             return;
         }
 
@@ -1288,14 +1289,14 @@ System.out.println("Emu: do not execute cmd = " + cmd.name() + ", resetting");
             if (pItem != null) {
                 try {
                     session = pItem.getString();
-System.out.println("Emu SET_SESSION: set to " + session);
+if (debug) logger.info("Emu SET_SESSION: set to " + session);
                 }
                 catch (cMsgException e) {
-System.out.println("Got SET_SESSION command but no session specified 1");
+logger.error("Got SET_SESSION command but no session specified 1");
                 }
             }
             else {
-System.out.println("Got SET_SESSION command but no session specified 2");
+logger.error("Got SET_SESSION command but no session specified 2");
             }
             return;
         }
@@ -1308,14 +1309,14 @@ System.out.println("Got SET_SESSION command but no session specified 2");
                 try {
                     String txt = pItem.getString();
                     setRunType(txt);
-System.out.println("Emu SET_RUN_TYPE: set to " + txt);
+if (debug) logger.info("Emu SET_RUN_TYPE: set to " + txt);
                 }
                 catch (cMsgException e) {
-System.out.println("Got SET_RUN_TYPE command but no run type specified 1");
+logger.error("Got SET_RUN_TYPE command but no run type specified 1");
                 }
             }
             else {
-System.out.println("Got SET_RUN_TYPE command but no run type specified 2");
+logger.error("Got SET_RUN_TYPE command but no run type specified 2");
             }
             return;
         }
@@ -1325,11 +1326,11 @@ System.out.println("Got SET_RUN_TYPE command but no run type specified 2");
             // Get the new run type and store it
             int bufferLevel = cmd.getMessage().getUserInt();
             if (bufferLevel > 0) {
-System.out.println("Emu SET_BUF_LEVEL: set to " + bufferLevel);
+logger.info("Emu SET_BUF_LEVEL: set to " + bufferLevel);
                 setBufferLevel(bufferLevel);
             }
             else {
-System.out.println("Got SET_BUF_LEVEL command but bad value (" + bufferLevel + ")");
+logger.error("Got SET_BUF_LEVEL command but bad value (" + bufferLevel + ")");
             }
             return;
         }
@@ -1502,7 +1503,7 @@ logger.info("Emu: transition NOT successful, state = ERROR");
      * Implement end command.
      */
     private void end() {
-logger.info("Emu end: change state to ENDING");
+if (debug) logger.info("Emu end: change state to ENDING");
         setState(ENDING);
 
         try {
@@ -1527,9 +1528,9 @@ logger.error("Emu end: no modules in data path");
             for (EmuModule mod : mods) {
                 Class c = mod.getClass();
                 if (c.getName().equals("org.jlab.coda.emu.modules.RocSimulation")) {
-logger.info("Emu end: call end() in fake ROC " + mod.name());
+if (debug) logger.info("Emu end: call end() in fake ROC " + mod.name());
                     mod.end();
-logger.info("Emu end: end() done in fake ROC " + mod.name());
+if (debug) logger.info("Emu end: end() done in fake ROC " + mod.name());
                     break;
                 }
             }
@@ -1542,7 +1543,7 @@ logger.info("Emu end: end() done in fake ROC " + mod.name());
                     try {
                         gotEndEvent = chan.getEndCallback().waitForEvent();
                         if (!gotEndEvent) {
-logger.info("Emu end: timeout (30 sec) waiting for END event in input chan " + chan.name());
+if (debug) logger.info("Emu end: timeout (30 sec) waiting for END event in input chan " + chan.name());
                             errorMsg.compareAndSet(null, "timeout waiting for END event in input chan " + chan.name());
                             setState(ERROR);
                             sendStatusMessage();
@@ -1556,10 +1557,10 @@ logger.info("Emu end: timeout (30 sec) waiting for END event in input chan " + c
             // Look at the last module next if END made it thru all input channels
             if (gotAllEnds && mods.size() > 0) {
                 try {
-logger.info("Emu end: wait for END event in module " + mods.getLast().name());
+if (debug) logger.info("Emu end: wait for END event in module " + mods.getLast().name());
                     gotEndEvent = mods.getLast().getEndCallback().waitForEvent();
                     if (!gotEndEvent) {
-logger.info("Emu end: timeout (30 sec) waiting for END event in module " + mods.getLast().name());
+if (debug) logger.info("Emu end: timeout (30 sec) waiting for END event in module " + mods.getLast().name());
                         errorMsg.compareAndSet(null, "timeout waiting for END event in module " + mods.getLast().name());
                         setState(ERROR);
                         sendStatusMessage();
@@ -1573,10 +1574,10 @@ logger.info("Emu end: timeout (30 sec) waiting for END event in module " + mods.
             if (gotAllEnds && outChannels.size() > 0) {
                 for (DataChannel chan : outChannels) {
                     try {
-logger.info("Emu end: output chan " + chan.name() + " call waitForEvent()");
+if (debug) logger.info("Emu end: output chan " + chan.name() + " call waitForEvent()");
                         gotEndEvent = chan.getEndCallback().waitForEvent();
                         if (!gotEndEvent) {
-logger.info("Emu end: timeout (30 sec) waiting for END event in output chan " + chan.name());
+if (debug) logger.info("Emu end: timeout (30 sec) waiting for END event in output chan " + chan.name());
                             errorMsg.compareAndSet(null, "timeout waiting for END event in output chan " + chan.name());
                             setState(ERROR);
                             sendStatusMessage();
@@ -1594,7 +1595,7 @@ logger.info("Emu end: timeout (30 sec) waiting for END event in output chan " + 
             // (2) END command to input channels (of FIRST module)
             if (inChannels.size() > 0) {
                 for (DataChannel chan : inChannels) {
-logger.info("Emu end: END cmd to in chan " + chan.name());
+if (debug) logger.info("Emu end: END cmd to in chan " + chan.name());
                     chan.end();
                 }
             }
@@ -1608,21 +1609,21 @@ logger.info("Emu end: END cmd to in chan " + chan.name());
                     continue;
                 }
 
-                logger.info("Emu end: END cmd to module " + mod.name());
+if (debug) logger.info("Emu end: END cmd to module " + mod.name());
                 mod.end();
             }
 
             // (4) END command to output channels (of LAST module)
             if (outChannels.size() > 0) {
                 for (DataChannel chan : outChannels) {
-logger.info("Emu end: END cmd to out chan " + chan.name());
+if (debug) logger.info("Emu end: END cmd to out chan " + chan.name());
                     chan.end();
                 }
             }
 
             // (5) END command to transport objects
             for (DataTransport transport : transports) {
-logger.debug("Emu end: END cmd to transport " + transport.name());
+if (debug) logger.debug("Emu end: END cmd to transport " + transport.name());
                 transport.end();
             }
             fifoTransport.end();
@@ -1639,7 +1640,6 @@ logger.error("Emu end: threw " + e.getMessage());
             return;
         }
 
-logger.info("Emu end: change state to DOWNLOADED");
         setState(DOWNLOADED);
     }
 
@@ -1649,7 +1649,7 @@ logger.info("Emu end: change state to DOWNLOADED");
      * Implement go command.
      */
     private void go() {
-logger.info("Emu go: change state to GOING");
+if (debug) logger.info("Emu go: change state to GOING");
         setState(GOING);
 
         try {
@@ -1662,28 +1662,28 @@ logger.error("Emu go: no modules in data path");
 
             // (1) GO to transport objects
             for (DataTransport transport : transports) {
-logger.debug("Emu go: GO cmd to transport " + transport.name());
+if (debug) logger.debug("Emu go: GO cmd to transport " + transport.name());
                 transport.go();
             }
 
             // (2) GO to output channels (of LAST module)
             if (outChannels.size() > 0) {
                 for (DataChannel chan : outChannels) {
-logger.info("Emu go: GO cmd to out chan " + chan.name());
+if (debug) logger.info("Emu go: GO cmd to out chan " + chan.name());
                     chan.go();
                 }
             }
 
             // (3) GO to all modules in reverse order (starting with last)
             for (int i=mods.size()-1; i >= 0; i--) {
-logger.info("Emu go: GO cmd to module " + mods.get(i).name());
+if (debug) logger.info("Emu go: GO cmd to module " + mods.get(i).name());
                 mods.get(i).go();
             }
 
             // (4) GO to input channels (of FIRST module)
             if (inChannels.size() > 0) {
                 for (DataChannel chan : inChannels) {
-logger.info("Emu go: GO cmd to in chan " + chan.name());
+if (debug) logger.info("Emu go: GO cmd to in chan " + chan.name());
                     chan.go();
                 }
             }
@@ -1695,7 +1695,6 @@ logger.error("Emu go: threw " + e.getMessage());
             return;
         }
 
-logger.info("Emu go: change state to ACTIVE");
         setState(ACTIVE);
     }
 
@@ -1706,7 +1705,7 @@ logger.info("Emu go: change state to ACTIVE");
      * @param cmd
      */
     private void prestart(Command cmd) {
-logger.info("Emu prestart: change state to PRESTARTING");
+if (debug) logger.info("Emu prestart: change state to PRESTARTING");
         setState(PRESTARTING);
 
         // Run Control tells us our run number & runType.
@@ -1730,7 +1729,7 @@ logger.info("Emu prestart: change state to PRESTARTING");
             // PRESTART to transport objects first
             //------------------------------------------------
             for (DataTransport transport : transports) {
-                logger.debug("Emu prestart: PRESTART cmd to " + transport.name());
+if (debug) logger.debug("Emu prestart: PRESTART cmd to " + transport.name());
                 transport.prestart();
             }
 
@@ -1871,7 +1870,7 @@ logger.info("Emu prestart: change state to PRESTARTING");
 
             // Output channels
             for (DataChannel chan : outChannels) {
-                logger.debug("Emu prestart: PRESTART cmd to OUT chan " + chan.name());
+if (debug) logger.debug("Emu prestart: PRESTART cmd to OUT chan " + chan.name());
                 chan.prestart();
             }
 
@@ -1881,13 +1880,13 @@ logger.info("Emu prestart: change state to PRESTARTING");
                 // if previous transition was "END"
                 module.getEndCallback().reset();
 
-                logger.debug("Emu prestart: PRESTART cmd to module " + module.name());
+if (debug) logger.debug("Emu prestart: PRESTART cmd to module " + module.name());
                 module.prestart();
             }
 
             // Input channels
             for (DataChannel chan : inChannels) {
-                logger.debug("Emu prestart: PRESTART cmd to IN chan " + chan.name());
+if (debug) logger.debug("Emu prestart: PRESTART cmd to IN chan " + chan.name());
                 chan.prestart();
             }
 
@@ -1899,7 +1898,6 @@ logger.info("Emu prestart: change state to PRESTARTING");
             return;
         }
 
-logger.info("Emu prestart: change state to PAUSED");
         setState(PAUSED);
     }
 
@@ -1910,7 +1908,7 @@ logger.info("Emu prestart: change state to PAUSED");
      * @param cmd
      */
     private void download(Command cmd) {
-logger.info("Emu download: change state to DOWNLOADING");
+if (debug) logger.info("Emu download: change state to DOWNLOADING");
         setState(DOWNLOADING);
 
         try {
@@ -1937,7 +1935,7 @@ logger.info("Emu download: change state to DOWNLOADING");
                 // close the existing transport objects first
                 // (this step is normally done from RESET).
                 for (DataTransport t : transports) {
-                    logger.debug("Emu download: " + t.name() + " close");
+if (debug) logger.debug("Emu download: transport " + t.name() + " reset");
                     t.reset();
                 }
 
@@ -2075,7 +2073,7 @@ logger.debug("Emu download: pass download down to " + transport.name());
                     else {
                         moduleClassName = "org.jlab.coda.emu.modules." + moduleClassName;
 
-logger.info("Emu download: load module class " + moduleClassName +
+if (debug) logger.info("Emu download: load module class " + moduleClassName +
         " to create a module of name " + n.getNodeName() +
         "\n  in classpath = " + System.getProperty("java.class.path"));
 
@@ -2092,7 +2090,7 @@ logger.info("Emu download: load module class " + moduleClassName +
 //logger.info("Emu download: load module " + moduleClassName);
                     }
 
-logger.info("Emu download: create module " + module.name());
+if (debug) logger.info("Emu download: create module " + module.name());
 
                     // Give it object to notify Emu when END event comes through
                     module.registerEndCallback(new EmuEventNotify());
@@ -2106,7 +2104,7 @@ logger.info("Emu download: create module " + module.name());
             // Pass DOWNLOAD to all the modules. "modules" is only
             // changed in this method so no synchronization is necessary.
             for (EmuModule module : modules) {
-logger.info("Emu download: pass download to module " + module.name());
+if (debug) logger.info("Emu download: pass download to module " + module.name());
                 module.download();
             }
         // This includes ClassNotFoundException
@@ -2117,7 +2115,6 @@ logger.info("Emu download: pass download to module " + module.name());
             return;
         }
 
-logger.info("Emu download: change state to DOWNLOADED");
         setState(DOWNLOADED);
     }
 
@@ -2128,7 +2125,7 @@ logger.info("Emu download: change state to DOWNLOADED");
      * @param cmd
      */
     private void configure(Command cmd) {
-logger.info("Emu config: change state to CONFIGURING");
+if (debug) logger.info("Emu config: change state to CONFIGURING");
         setState(CONFIGURING);
 
         // save a reference to any previously used config
@@ -2215,7 +2212,7 @@ logger.info("Emu config: change state to CONFIGURING");
                 // the configuration, or if rc sent a filename which this
                 // emu read and loaded, then reconfigure.
                 if (configSource != Emu.ConfigSource.RC_STRING || isNewConfig) {
-                    System.out.println("Emu config: loading new string config = \n" + rcConfigString);
+if (debug) System.out.println("Emu config: loading new string config = \n" + rcConfigString);
                     Configurer.setLogger(logger);
                     // Parse XML config string into Document object.
                     loadedConfig = Configurer.parseString(rcConfigString);
@@ -2223,7 +2220,7 @@ logger.info("Emu config: change state to CONFIGURING");
                     newConfigLoaded = true;
                 }
                 else {
-                    System.out.println("Emu config: no change to string config");
+if (debug) System.out.println("Emu config: no change to string config");
                 }
                 configSource = Emu.ConfigSource.RC_STRING;
             }
@@ -2330,7 +2327,7 @@ logger.info("Emu config: change state to CONFIGURING");
         // of the data path so this EMU can distribute RC's commands in the proper
         // sequence to its components.
         if (newConfigLoaded) {
-            System.out.println("Emu config: LOAD NEW config, type = " + codaClass);
+if (debug) System.out.println("Emu config: LOAD NEW config, type = " + codaClass);
             try {
                 // Before we look at data flow through the module,
                 // it's possible the emu's type has not been defined yet.
@@ -2346,7 +2343,7 @@ logger.info("Emu config: change state to CONFIGURING");
                 Node attr = nm.getNamedItem("type");
                 if (attr != null) {
                     CODAClass myClass = CODAClass.get(attr.getNodeValue());
-                    System.out.println("Emu config: Got config type = " + myClass + ", I was " + codaClass);
+if (debug) System.out.println("Emu config: Got config type = " + myClass + ", I was " + codaClass);
                     if (myClass != null) {
                         // See if it conflicts with what this EMU thinks it is.
                         // (Type EMU can be anything).
@@ -2626,7 +2623,6 @@ logger.info("Emu config: change state to CONFIGURING");
             lastConfigHadError = false;
         }
 
-logger.info("Emu config: change state to CONFIGURED");
         setState(CONFIGURED);
     }
 
