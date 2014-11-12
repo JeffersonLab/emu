@@ -15,6 +15,7 @@ import com.lmax.disruptor.RingBuffer;
 import org.jlab.coda.emu.Emu;
 import org.jlab.coda.emu.EmuEventNotify;
 import org.jlab.coda.emu.EmuModule;
+import org.jlab.coda.emu.support.codaComponent.CODAClass;
 import org.jlab.coda.emu.support.codaComponent.CODAState;
 import org.jlab.coda.emu.support.codaComponent.State;
 import org.jlab.coda.emu.support.configurer.DataNotFoundException;
@@ -406,14 +407,13 @@ logger.info("  Module Adapter: SEB chunk = " + sebChunk);
             // Since this is the case, we need to write a fixed, contiguous
             // # of events to a single SEB before moving on to the next and
             // writing the same amount of events there.
-// TODO: set this back !!!!   if (emu.getCodaClass() == CODAClass.DC) {
-                if (emu.getCodaClass().isEventBuilder()) {
-System.out.println("Set chunking FOR SEB (remember to remove this), chunk = " + sebChunk);
+//if (emu.getCodaClass().isEventBuilder()) {
+            if (emu.getCodaClass() == CODAClass.DC) {
+System.out.println("Set chunking FOR SEB, chunk = " + sebChunk);
                 chunkingForSebs = true;
             }
         }
         System.out.println("So far, chunkingForSebs = " + chunkingForSebs);
-
     }
 
     /** {@inheritDoc} */
