@@ -188,5 +188,6 @@ public class RCConstants {
     public static final String    maxEventSize         = "maxEventSize";
     public static final String    minEventSize         = "minEventSize";
     public static final String    avgEventSize         = "avgEventSize";
+    public static final String    chunk_X_EtBuf        = "chunk_X_EtBuf";
     public static final String    timeToBuild          = "timeToBuild";
   }
