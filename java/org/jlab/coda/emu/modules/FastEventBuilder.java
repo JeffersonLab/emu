@@ -224,6 +224,8 @@ public class FastEventBuilder extends ModuleAdapter {
     /** Number of events built by build-thread 0 (not all bts). */
     private long builtEventCount;
 
+    /** Number of slots in each output channel ring buffer. */
+    private int outputRingSize;
 
 
     /**
@@ -318,6 +320,7 @@ System.out.println("  EB mod: " + buildingThreadCount +
         if (bufSize < minEventSize) minEventSize = bufSize;
 
         avgEventSize = (int) ((avgEventSize*builtEventCount + bufSize) / (builtEventCount+1L));
+        goodChunk_X_EtBufSize = avgEventSize * outputRingSize * 3 / 4;
 
         // If value rolls over, start over with avg
         if (++builtEventCount * avgEventSize < 0) {
@@ -734,9 +737,8 @@ System.out.println("  EB mod: create Build Thread with index " + btIndex + ", co
             //--------------------------------------------
             // Direct buffers give better performance
             //--------------------------------------------
-            // Number of slots in each output channel ring buffer
-            int outputRingSize = 0;
             if (outputChannelCount > 0) {
+                // Find the number of slots in each output channel ring buffer
                 outputRingSize = outputChannels.get(0).getRingBuffersOut()[0].getBufferSize();
             }
             // Must have at least outputRingSize # of buffers here
@@ -1182,7 +1184,6 @@ if (debug && nonFatalError) System.out.println("\n  EB mod: non-fatal ERROR 1\n"
                     bufItem.ensureCapacity(memSize);
 //System.out.println("  EB mod: ensure buf has size " + memSize + "\n");
                     ByteBuffer evBuf = bufItem.getBuffer();
-                    //evBuf.clear();
                     builder.setBuffer(evBuf);
 
                     // Create a (top-level) physics event from payload banks
@@ -1233,6 +1234,7 @@ if (debug && nonFatalError) System.out.println("\n  EB mod: non-fatal ERROR 1\n"
                     // Start top level
                     builder.openBank(tag, totalNumberEvents, DataType.BANK);
 
+//Utilities.printBuffer(builder.getBuffer(), 0, 20, "TOP LEVEL OPEN event");
 
                     // If building with Physics events ...
                     if (havePhysicsEvents) {
@@ -1301,7 +1303,7 @@ if (debug && nonFatalError) System.out.println("\n  EB mod: non-fatal ERROR 3\n"
                     // have to worry about multithreading issues.
                     if (timeStatsOn && btIndex == 0) {
                         // Total time in nanoseconds spent building this event.
-                        // NOTE: nanoTime() is very expensive (~100 cycles) and will slow EB.
+                        // NOTE: nanoTime() is very expensive and will slow EB (by 50%)
                         // Work on creating a time histogram
                         statistics.addValue((int) (System.nanoTime() - startTime));
                     }
