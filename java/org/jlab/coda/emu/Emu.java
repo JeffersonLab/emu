@@ -840,7 +840,7 @@ System.out.println("Emu " + name + " sending special RC display error Msg:\n ***
                 }
 
                 try {
-                    Thread.sleep(1000);
+                    Thread.sleep(250);
                     time = System.currentTimeMillis();
                 }
                 catch (InterruptedException e) {
@@ -870,7 +870,7 @@ System.out.println("Emu " + name + " sending special RC display error Msg:\n ***
                     // clear stats
                     long  eventCount=0L, wordCount=0L;
                     float eventRate=0.F, dataRate=0.F;
-                    int   maxEvSize=0, minEvSize=0, avgEvSize=0;
+                    int   maxEvSize=0, minEvSize=0, avgEvSize=0, chunk_X_EtBuf=0;
                     int[] timeToBuild = null;
 
                     // get new statistics from a single representative module
@@ -878,15 +878,16 @@ System.out.println("Emu " + name + " sending special RC display error Msg:\n ***
                     if (statsModule != null) {
                         Object[] stats = statsModule.getStatistics();
                         if (stats != null) {
-                            eventCount  = (Long)   stats[0];
-                            wordCount   = (Long)   stats[1];
-                            eventRate   = (Float)  stats[2];
-                            dataRate    = (Float)  stats[3];
+                            eventCount    = (Long)   stats[0];
+                            wordCount     = (Long)   stats[1];
+                            eventRate     = (Float)  stats[2];
+                            dataRate      = (Float)  stats[3];
 
-                            maxEvSize   = (Integer)stats[4];
-                            minEvSize   = (Integer)stats[5];
-                            avgEvSize   = (Integer)stats[6];
-                            timeToBuild = (int[])  stats[7];
+                            maxEvSize     = (Integer)stats[4];
+                            minEvSize     = (Integer)stats[5];
+                            avgEvSize     = (Integer)stats[6];
+                            chunk_X_EtBuf = (Integer)stats[7];
+                            timeToBuild   = (int[])  stats[8];
                         }
                     }
 
@@ -906,6 +907,7 @@ System.out.println("Emu " + name + " sending special RC display error Msg:\n ***
                         reportMsg.addPayloadItem(new cMsgPayloadItem(RCConstants.maxEventSize, maxEvSize));
                         reportMsg.addPayloadItem(new cMsgPayloadItem(RCConstants.minEventSize, minEvSize));
                         reportMsg.addPayloadItem(new cMsgPayloadItem(RCConstants.avgEventSize, avgEvSize));
+                        reportMsg.addPayloadItem(new cMsgPayloadItem(RCConstants.chunk_X_EtBuf, chunk_X_EtBuf));
                         // histogram in nanoseconds
                         if (timeToBuild != null && timeToBuild.length > 0) {
                             reportMsg.addPayloadItem(new cMsgPayloadItem(RCConstants.timeToBuild, timeToBuild));
@@ -2212,7 +2214,7 @@ if (debug) logger.info("Emu config: change state to CONFIGURING");
                 // the configuration, or if rc sent a filename which this
                 // emu read and loaded, then reconfigure.
                 if (configSource != Emu.ConfigSource.RC_STRING || isNewConfig) {
-if (debug) System.out.println("Emu config: loading new string config = \n" + rcConfigString);
+System.out.println("Emu config: loading new string config = \n" + rcConfigString);
                     Configurer.setLogger(logger);
                     // Parse XML config string into Document object.
                     loadedConfig = Configurer.parseString(rcConfigString);
