@@ -273,7 +273,7 @@ logger.info("      DataChannel Et: creating output channel " + name);
 //logger.info("      DataChannel Et: write threads = " + writeThreadCount);
 
         // How may buffers do we grab at a time?
-        chunk = 10;
+        chunk = 5;
         attribString = attributeMap.get("chunk");
         if (attribString != null) {
             try {
@@ -849,7 +849,7 @@ logger.debug("      DataChannel Et " + outputIndex + ": processEnd(), interrupt 
                 long t1, t2;
                 boolean delay = false;
 
-                t1 = t2 = System.currentTimeMillis();
+                t1 = System.currentTimeMillis();
 
                 while ( etSystem.alive() ) {
 
@@ -950,7 +950,7 @@ System.out.println("      DataChannel Et in: " + name + " got RESET cmd, quit");
 
                         // Send the # of (buildable) evio events / ET event for ROC feedback,
                         // but only if this is the DC or PEB.
-                        t2 = System.currentTimeMillis();
+                        t2 = emu.getTime();
                         if (isFirstEB && eventType.isBuildable() && (t2-t1 > timeBetweenMupdates)) {
                             emu.getCmsgPortal().sendMHandlerMessage(evCount, "M");
                             t1 = t2;
@@ -1123,7 +1123,7 @@ logger.warn("      DataChannel Et in: " + name + " exit thd: " + e.getMessage())
                     etAlive = etSystem.alive();
                 }
 
-                t1 = t2 = System.currentTimeMillis();
+                t1 = System.currentTimeMillis();
 
                 while ( etAlive ) {
 
@@ -1264,7 +1264,7 @@ Utilities.printBuffer(buf, 0, 20, "BAD EVENT ");
 
                         // Send the # of (buildable) evio events / ET event for ROC feedback,
                         // but only if this is the DC or PEB.
-                        t2 = System.currentTimeMillis();
+                        t2 = emu.getTime();
                         if (isFirstEB && eventType.isBuildable() && (t2-t1 > timeBetweenMupdates)) {
                             emu.getCmsgPortal().sendMHandlerMessage(eventCount, "M");
                             t1 = t2;
