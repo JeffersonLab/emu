@@ -141,6 +141,10 @@ public class ModuleAdapter implements EmuModule {
     /** Average-sized built event in bytes. */
     protected int avgEventSize;
 
+    /** For ET output channels, a suggested value of chunk * ET-buffer-size (bytes)
+     *  which would be a good match for the current size events being built. */
+    protected int goodChunk_X_EtBufSize;
+
     /** Histogram of time to build 1 event in nanoseconds
      * (metadata in first 5 elements). */
     protected int[] timeToBuild;
@@ -355,7 +359,7 @@ logger.info("  Module Adapter: SEB chunk = " + sebChunk);
     /** {@inheritDoc} */
     synchronized public Object[] getStatistics() {
 
-        Object[] stats = new Object[8];
+        Object[] stats = new Object[9];
 
         // If we're not active, keep the accumulated
         // totals and sizes, but the rates are zero.
@@ -368,7 +372,8 @@ logger.info("  Module Adapter: SEB chunk = " + sebChunk);
             stats[4] = maxEventSize;
             stats[5] = minEventSize;
             stats[6] = avgEventSize;
-            stats[7] = timeToBuild;
+            stats[7] = goodChunk_X_EtBufSize;
+            stats[8] = timeToBuild;
         }
         else {
             if (timeStatsOn && statistics != null) {
@@ -383,7 +388,8 @@ logger.info("  Module Adapter: SEB chunk = " + sebChunk);
             stats[4] = maxEventSize;
             stats[5] = minEventSize;
             stats[6] = avgEventSize;
-            stats[7] = timeToBuild;
+            stats[7] = goodChunk_X_EtBufSize;
+            stats[8] = timeToBuild;
         }
 
         return stats;
