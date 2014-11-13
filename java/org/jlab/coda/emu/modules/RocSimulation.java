@@ -516,7 +516,7 @@ System.out.println("  Roc mod: start With (id=" + myId + "):\n    record id = " 
             int  userEventLoopMax=100000;
             int  skip=3,  userEventLoop = userEventLoopMax;
             long oldVal=0L, totalT=0L, totalCount=0L, bufCounter=0L;
-            long t1, deltaT, t2, start_time;
+            long t1, deltaT, t2;
             ByteBuffer buf = null;
             ByteBufferItem bufItem = null;
             boolean copyWholeBuf = true;
@@ -532,7 +532,7 @@ System.out.println("  Roc mod: start With (id=" + myId + "):\n    record id = " 
             bbSupply = new ByteBufferSupply(bufSupplySize, 4*eventWordSize, ByteOrder.BIG_ENDIAN, true);
 
             try {
-                t1 = start_time = System.currentTimeMillis();
+                t1 = System.currentTimeMillis();
 
                 // Use dummy arg that's overwritten later
                 boolean noBuildableEvents = false;
