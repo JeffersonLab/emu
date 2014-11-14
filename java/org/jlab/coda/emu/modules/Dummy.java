@@ -288,6 +288,10 @@ public class Dummy extends ModuleAdapter {
                     // Tell input ring buffer we're done with this event
                     buildSequences[inputChan].set(nextSequences[inputChan]++);
                 }
+                catch (InterruptedException e) {
+                    System.out.println("  Dummy: interrupted, end build thread");
+                    return;
+                }
                 catch (Exception e) {
                     e.printStackTrace();
                     return;
