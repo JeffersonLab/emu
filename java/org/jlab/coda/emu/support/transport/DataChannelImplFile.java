@@ -247,8 +247,8 @@ logger.info("      DataChannel File: try opening input file of " + fileName);
                 evioFileWriter = new EventWriter(fileName, directory, runType,
                                                  runNumber, split, byteOrder,
                                                  dictionaryXML, overWriteOK);
-logger.info("      DataChannel File: create EventWriter of order = " + byteOrder);
-logger.info("      DataChannel File: try writing to file " + evioFileWriter.getCurrentFilePath());
+//logger.info("      DataChannel File: create EventWriter of order = " + byteOrder);
+logger.info("      DataChannel File: file = " + evioFileWriter.getCurrentFilePath());
 
                 // Tell emu what that output name is for stat reporting.
                 // Get the name from the file writer object so that the
