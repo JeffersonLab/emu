@@ -779,7 +779,6 @@ System.out.println("  EB mod: create Build Thread with index " + btIndex + ", co
             int     endEventCount, totalNumberEvents=1;
             long    firstEventNumber=1, startTime=0L;
             boolean haveEnd;
-            boolean firstToFindEnd;
             boolean nonFatalError;
             boolean havePhysicsEvents;
             boolean gotFirstBuildEvent;
@@ -883,7 +882,6 @@ System.out.println("  EB mod: create Build Thread with index " + btIndex + ", co
 
                     // Set variables/flags
                     haveEnd = false;
-                    firstToFindEnd = false;
                     firstToGetEnd.set(false);
                     gotFirstBuildEvent = false;
                     endEventCount = 0;
@@ -980,15 +978,6 @@ System.out.println("  EB mod: create Build Thread with index " + btIndex + ", co
                             }
 
                             // At this point all controls are END events
-
-                            // Is this build thread the first to get the END event?
-                            // Can only set this once even though we look on each
-                            // channel for an END event.
-                            if (!firstToFindEnd) {
-                                firstToFindEnd = firstToGetEnd.compareAndSet(false, true);
-System.out.println("  EB mod: " + btIndex + ", firstToFindEnd = " + firstToFindEnd);
-                            }
-
                             haveEnd = true;
                             endEventCount++;
 
@@ -1003,6 +992,16 @@ System.out.println("  EB mod: " + btIndex + ", firstToFindEnd = " + firstToFindE
                             break;
                         }
                     }
+
+                    //--------------------------------------------------------
+                    // At this point we have one event from each input channel
+                    //--------------------------------------------------------
+
+                    // In general, at this point there will only be 1 build thread
+                    // that makes it this far and has at least one END event from
+                    // an input channel. The others will be stuck trying to get
+                    // an END event from that channel from a slot past where it is
+                    // in the ring buffer.
 
                     // Do END event stuff here
                     if (haveEnd && endEventCount != inputChannelCount) {
@@ -1084,13 +1083,6 @@ System.out.println("  EB mod: have all ENDs, but differing # of physics events i
 
                     // If we have all END events ...
                     if (haveEnd) {
-                        // Only the first build thread to find all
-                        // ENDs will place END on output channels.
-                        if (!firstToFindEnd) {
-System.out.println("  EB mod: found END event, but not first so exit Bt#" + btIndex);
-                            return;
-                        }
-
                         haveEndEvent = true;
 System.out.println("  EB mod: Bt#" + btIndex + " found END events on all input channels");
 
