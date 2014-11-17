@@ -30,38 +30,9 @@ public class EmuEventNotify {
     /** Object to sync with. */
     private CountDownLatch latch = new CountDownLatch(1);
 
-    /** How long do we wait for the event (in milliseconds)?
-     *  Defaults to 30 seconds. */
-    private long timeout = 30000;
-
-    /** Unit of time for waiting is milliseconds. */
-    private TimeUnit timeUnits = TimeUnit.MILLISECONDS;
-
-
 
     /** Constructor with default wait time of 1 seconds. */
     public EmuEventNotify() {}
-
-    /**
-     * Constructor will settable wait time.
-     * @param timeout max time in milliseconds to wait in waitForEvent()
-     *                before returning
-     */
-    public EmuEventNotify(long timeout) {
-        setWaitTime(timeout);
-    }
-
-
-    /**
-     * This method sets the maximum time for the waitForEvent()
-     * method to wait before returning.
-     * @param timeout max time in milliseconds to wait in waitForEvent()
-     *                before returning
-     */
-    public void setWaitTime(long timeout) {
-        if (timeout < 0) return;
-        this.timeout = timeout;
-    }
 
     /** This method enables reuse of this object. Call this before endWait and waitForEvent. */
     public void reset() {
@@ -74,13 +45,25 @@ public class EmuEventNotify {
     }
 
     /**
+     * This method waits indefinitely for the endWait() method to be called before it returns.
+     * @throws InterruptedException if interrupted during wait
+     */
+    public void waitForEvent() throws InterruptedException {
+        latch.await();
+    }
+
+    /**
      * This method waits for the endWait() method to be called
      * or for the timeout to expire before it returns.
+     *
+     * @param timeout the maximum time to wait
+     * @param unit the time unit of the {@code timeout} argument
      * @throws InterruptedException if interrupted during wait
      * @return {@code true} if endWait() called and {@code false}
      *         if the waiting time elapsed before endWait() called
      */
-    public boolean waitForEvent() throws InterruptedException {
-        return latch.await(timeout, timeUnits);
+    public boolean waitForEvent(long timeout, TimeUnit unit) throws InterruptedException {
+        return latch.await(timeout, unit);
     }
+
 }
