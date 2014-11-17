@@ -1508,6 +1508,12 @@ logger.info("Emu: transition NOT successful, state = ERROR");
 if (debug) logger.info("Emu end: change state to ENDING");
         setState(ENDING);
 
+        // How long do we wait for the END event (in milliseconds)?
+        long timeout = 30000;
+
+        // Unit of time for waiting is milliseconds.
+        TimeUnit timeUnits = TimeUnit.MILLISECONDS;
+
         try {
             LinkedList<EmuModule> mods = dataPath.getEmuModules();
 
@@ -1539,28 +1545,22 @@ if (debug) logger.info("Emu end: end() done in fake ROC " + mod.name());
 
             boolean gotEndEvent, gotAllEnds = true;
 
-            // Look at the input channels for END first
+            // Look at the input channels for END first - NO TIMEOUT
             if (inChannels.size() > 0) {
                 for (DataChannel chan : inChannels) {
                     try {
-                        gotEndEvent = chan.getEndCallback().waitForEvent();
-                        if (!gotEndEvent) {
-if (debug) logger.info("Emu end: timeout (30 sec) waiting for END event in input chan " + chan.name());
-                            errorMsg.compareAndSet(null, "timeout waiting for END event in input chan " + chan.name());
-                            setState(ERROR);
-                            sendStatusMessage();
-                        }
-                        gotAllEnds = gotAllEnds && gotEndEvent;
+                        chan.getEndCallback().waitForEvent();
+                        gotAllEnds = true;
                     }
                     catch (InterruptedException e) {}
                 }
             }
 
-            // Look at the last module next if END made it thru all input channels
-            if (gotAllEnds && mods.size() > 0) {
+            // Look at the last module (30 sec timeout)
+            if (mods.size() > 0) {
                 try {
 if (debug) logger.info("Emu end: wait for END event in module " + mods.getLast().name());
-                    gotEndEvent = mods.getLast().getEndCallback().waitForEvent();
+                    gotEndEvent = mods.getLast().getEndCallback().waitForEvent(timeout, timeUnits);
                     if (!gotEndEvent) {
 if (debug) logger.info("Emu end: timeout (30 sec) waiting for END event in module " + mods.getLast().name());
                         errorMsg.compareAndSet(null, "timeout waiting for END event in module " + mods.getLast().name());
@@ -1572,12 +1572,12 @@ if (debug) logger.info("Emu end: timeout (30 sec) waiting for END event in modul
                 catch (InterruptedException e) {}
             }
 
-            // Look at the output channels next if END made it thru all modules
+            // Look at the output channels (30 sec timeout for each chan)
             if (gotAllEnds && outChannels.size() > 0) {
                 for (DataChannel chan : outChannels) {
                     try {
 if (debug) logger.info("Emu end: output chan " + chan.name() + " call waitForEvent()");
-                        gotEndEvent = chan.getEndCallback().waitForEvent();
+                        gotEndEvent = chan.getEndCallback().waitForEvent(timeout, timeUnits);
                         if (!gotEndEvent) {
 if (debug) logger.info("Emu end: timeout (30 sec) waiting for END event in output chan " + chan.name());
                             errorMsg.compareAndSet(null, "timeout waiting for END event in output chan " + chan.name());
