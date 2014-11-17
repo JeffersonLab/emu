@@ -1567,7 +1567,7 @@ if (debug) logger.info("Emu end: timeout (30 sec) waiting for END event in modul
                         setState(ERROR);
                         sendStatusMessage();
                     }
-                    gotAllEnds = gotAllEnds && gotEndEvent;
+                    gotAllEnds = gotEndEvent;
                 }
                 catch (InterruptedException e) {}
             }
