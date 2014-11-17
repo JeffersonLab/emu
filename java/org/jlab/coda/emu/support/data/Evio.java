@@ -828,14 +828,15 @@ System.out.println("checkPayloadBuffer: bank source id = " + pBank.getSourceId()
 
 
     /**
-     * Check the given payload buffer (physics, ROC raw, control, or user format evio banks)
-     * for correct format and place onto the specified queue.
+     * Check the given payload buffer for correct format
+     * (physics, ROC raw, control, or user).
      * <b>All other buffers are ignored.</b><p>
      *
-     * No checks done on arguments. However, format of payload buffers is checked here for
-     * the first time.<p>
+     * No checks done on arguments. However, format of payload buffers
+     * is checked here for the first time.<p>
      *
      * @param pBuf payload buffer to be examined
+     * @param channel input channel
      * @throws EmuException if physics or roc raw bank has improper format
      */
     public static void checkPayload(PayloadBuffer pBuf, DataChannel channel)
