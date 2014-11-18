@@ -721,7 +721,7 @@ System.out.println("  Roc mod: end(), past endPhaser");
         // Put in END event
         PayloadBuffer pBuf = Evio.createControlBuffer(ControlType.END, 0, 0,
                                                       (int)eventCountTotal, 0,
-                                                      outputOrder);
+                                                      outputOrder, false);
         // Send to first ring
         eventToOutputChannel(pBuf, 0, 0);
 
@@ -775,7 +775,7 @@ System.out.println("  Roc mod: end(), past endPhaser");
         // Put in PRESTART event
         PayloadBuffer pBuf = Evio.createControlBuffer(ControlType.PRESTART, emu.getRunNumber(),
                                                       emu.getRunTypeId(), 0, 0,
-                                                      outputOrder);
+                                                      outputOrder, false);
         // Send to first ring
         eventToOutputChannel(pBuf, 0, 0);
 System.out.println("  Roc mod: insert PRESTART event");
@@ -807,7 +807,7 @@ System.out.println("  Roc mod: insert PRESTART event");
         // Put in GO event
         PayloadBuffer pBuf = Evio.createControlBuffer(ControlType.GO, 0, 0,
                                                       (int) eventCountTotal, 0,
-                                                      outputOrder);
+                                                      outputOrder, false);
         eventToOutputChannel(pBuf, 0, 0);
 System.out.println("  Roc mod: insert GO event");
 
