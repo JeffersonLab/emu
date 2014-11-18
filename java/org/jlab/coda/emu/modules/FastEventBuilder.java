@@ -1133,11 +1133,6 @@ System.out.println("  EB mod: send END event to output channel " + j + ", ring "
                         eventCountTotal++;
                         wordCountTotal += 5;
 
-                        // If this is a sync event, keep track of the next event # to be sent
-                        if (Evio.isSyncEvent(buildingBanks[0].getNode())) {
-                            eventNumberAtLastSync = firstEventNumber + totalNumberEvents;
-                        }
-
                         if (endCallback != null) endCallback.endWait();
                         return;
                     }
