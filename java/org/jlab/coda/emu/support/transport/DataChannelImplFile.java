@@ -319,7 +319,24 @@ logger.debug("      DataChannel File: reset() " + name + " channel");
         } catch (Exception e) {}
 
         try {
-            if (evioFileWriter != null) evioFileWriter.close();
+            if (evioFileWriter != null) {
+                // Insert an END event "by hand" if actively taking data when RESET hit
+                if (state == CODAState.PAUSED || state == CODAState.ACTIVE) {
+                    Object[] stats = module.getStatistics();
+                    long eventsWritten = 0;
+                    if (stats != null) {
+                        eventsWritten = (Long) stats[0];
+                    }
+                    // This END, has error condition set in 2nd data word
+                    PayloadBuffer endBuf = Evio.createControlBuffer(ControlType.END, emu.getRunNumber(),
+                                                                    emu.getRunTypeId(), (int) eventsWritten,
+                                                                    0, byteOrder, true);
+                    evioFileWriter.writeEvent(endBuf.getBuffer());
+                }
+
+                // Then close to save everything to disk.
+                evioFileWriter.close();
+            }
         } catch (Exception e) {}
 
         errorMsg.set(null);
