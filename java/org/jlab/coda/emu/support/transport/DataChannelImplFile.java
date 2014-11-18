@@ -489,7 +489,7 @@ logger.debug("      DataChannel File out " + outputIndex + ": processEnd(), inte
                 nextRingItem = ringBufferIn.next();
                 ringItem = ringBufferIn.get(nextRingItem);
 
-                ringItem.setEvent(Evio.createControlEvent(ControlType.END, 0, 0, counter, 0));
+                ringItem.setEvent(Evio.createControlEvent(ControlType.END, 0, 0, counter, 0, false));
                 ringItem.setEventType(EventType.CONTROL);
                 ringItem.setControlType(ControlType.END);
                 ringItem.setSourceName(name);
@@ -579,7 +579,7 @@ logger.debug("      DataChannel File out " + outputIndex + ": processEnd(), inte
                 nextRingItem = ringBufferIn.next();
                 ringItem = ringBufferIn.get(nextRingItem);
 
-                ringItem.setEvent(Evio.createControlEvent(ControlType.END, 0, 0, counter, 0));
+                ringItem.setEvent(Evio.createControlEvent(ControlType.END, 0, 0, counter, 0, false));
                 ringItem.setEventType(EventType.CONTROL);
                 ringItem.setControlType(ControlType.END);
                 ringItem.setSourceName(name);

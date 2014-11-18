@@ -1150,9 +1150,6 @@ System.out.println("  EB mod: send END event to output channel " + j + ", ring "
                     // and the same # of events in each bank
                     nonFatalError |= Evio.checkConsistency(buildingBanks, firstEventNumber);
 
-                    // Are events in single event mode?
-                    boolean eventsInSEM = buildingBanks[0].isSingleEventMode();
-
 if (debug && nonFatalError) System.out.println("\n  EB mod: non-fatal ERROR 1\n");
 
                     //--------------------------------------------------------------------
@@ -1180,29 +1177,19 @@ if (debug && nonFatalError) System.out.println("\n  EB mod: non-fatal ERROR 1\n"
                     // Create a (top-level) physics event from payload banks
                     // and the combined trigger bank. First create the tag:
                     //   -if I'm a data concentrator or DC, the tag has 4 status bits and the ebId
-                    //   -if I'm a primary event builder or PEB, the tag is 0xFF50 (or 0xFF51 if SEM)
-                    //   -if I'm a secondary event builder or SEB, the tag is 0xFF70 (or 0xFF71 if SEM)
+                    //   -if I'm a primary event builder or PEB, the tag is 0xFF50
+                    //   -if I'm a secondary event builder or SEB, the tag is 0xFF70
                     int tag;
                     CODAClass myClass = emu.getCodaClass();
                     switch (myClass) {
                         case SEB:
-                            if (eventsInSEM) {
-                                tag = CODATag.BUILT_BY_SEB_IN_SEM.getValue();
-                            }
-                            else {
-                                tag = CODATag.BUILT_BY_SEB.getValue();
-                            }
+                            tag = CODATag.BUILT_BY_SEB.getValue();
                             // output event type
                             eventType = EventType.PHYSICS;
                             break;
 
                         case PEB:
-                            if (eventsInSEM) {
-                                tag = CODATag.BUILT_BY_PEB_IN_SEM.getValue();
-                            }
-                            else {
-                                tag = CODATag.BUILT_BY_PEB.getValue();
-                            }
+                            tag = CODATag.BUILT_BY_PEB.getValue();
                             eventType = EventType.PHYSICS;
                             break;
 
@@ -1235,33 +1222,19 @@ if (debug && nonFatalError) System.out.println("\n  EB mod: non-fatal ERROR 1\n"
                         // Combine the trigger banks of input events into one (same if single event mode)
 //if (debug) System.out.println("  EB mod: create trig bank from built banks, sparsify = " + sparsify);
                         nonFatalError |= Evio.makeTriggerBankFromPhysics(buildingBanks, builder, id,
-                                                                    runNumber, runTypeId, includeRunData,
-                                                                    eventsInSEM, sparsify,
-                                                                    checkTimestamps, timestampSlop);
+                                                           runNumber, runTypeId, includeRunData,
+                                                           sparsify, checkTimestamps, timestampSlop);
                     }
                     // else if building with ROC raw records ...
                     else {
-                        // If in single event mode, build trigger bank differently
-                        if (eventsInSEM) {
-                            // Create a trigger bank from data in Data Block banks
-//if (debug) System.out.println("  EB mod: create trigger bank in SEM");
-                            nonFatalError |= Evio.makeTriggerBankFromSemRocRaw(buildingBanks, builder,
-                                                                               id, firstEventNumber,
-                                                                               runNumber, runTypeId,
-                                                                               includeRunData,
-                                                                               checkTimestamps,
-                                                                               timestampSlop);
-                        }
-                        else {
-                            // Combine the trigger banks of input events into one
+                        // Combine the trigger banks of input events into one
 //if (debug) System.out.println("  EB mod: create trigger bank from Rocs, sparsify = " + sparsify);
-                            nonFatalError |= Evio.makeTriggerBankFromRocRaw(buildingBanks, builder,
-                                                                            id, firstEventNumber,
-                                                                            runNumber, runTypeId,
-                                                                            includeRunData, sparsify,
-                                                                            checkTimestamps,
-                                                                            timestampSlop, btIndex);
-                        }
+                        nonFatalError |= Evio.makeTriggerBankFromRocRaw(buildingBanks, builder,
+                                                                        id, firstEventNumber,
+                                                                        runNumber, runTypeId,
+                                                                        includeRunData, sparsify,
+                                                                        checkTimestamps,
+                                                                        timestampSlop, btIndex);
                     }
 
 if (debug && nonFatalError) System.out.println("\n  EB mod: non-fatal ERROR 2\n");
@@ -1279,8 +1252,7 @@ if (debug && nonFatalError) System.out.println("\n  EB mod: non-fatal ERROR 3\n"
                     }
                     else {
 //if (debug) System.out.println("  EB mod: build physics event with ROC raw banks");
-                        Evio.buildPhysicsEventWithRocRaw(buildingBanks,
-                                                         builder, eventsInSEM);
+                        Evio.buildPhysicsEventWithRocRaw(buildingBanks, builder);
                     }
 
                     // Done creating event
