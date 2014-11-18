@@ -1191,7 +1191,8 @@ System.out.println("Timestamp data is missing!");
                 }
                 if (timestampsMax[j] - timestampsMin[j] > timestampSlop)  {
                     nonFatalError = true;
-System.out.println("Timestamps are NOT consistent !!!");
+System.out.println("Timestamp NOT consistent: ev #" + (firstEventNumber + j) + ", diff = " +
+                  (timestampsMax[j] - timestampsMin[j]) + ", allowed = " + timestampSlop );
                 }
             }
         }
