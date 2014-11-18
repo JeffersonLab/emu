@@ -1676,12 +1676,14 @@ if (debug) System.out.println("gotValidControlEvents: found control event of typ
      * @param eventsInRun     number of events so far in run for all except prestart event
      * @param eventsSinceSync number of events since last sync for sync event
      * @param order           byte order in which to write event into buffer
+     * @param error           END control event sent due to error condition
      *
      * @return created PayloadBuffer object containing Control event in byte buffer
      */
     public static PayloadBuffer createControlBuffer(ControlType type, int runNumber,
                                                     int runType, int eventsInRun,
-                                                    int eventsSinceSync, ByteOrder order) {
+                                                    int eventsSinceSync, ByteOrder order,
+                                                    boolean error) {
 
         try {
             int[] data;
@@ -1702,7 +1704,12 @@ if (debug) System.out.println("gotValidControlEvents: found control event of typ
                 case PAUSE:
                 case END:
                 default:
-                    data = new int[] {time, 0, eventsInRun};
+                    if (error) {
+                        data = new int[]{time, 0xffffffff, eventsInRun};
+                    }
+                    else {
+                        data = new int[]{time, 0, eventsInRun};
+                    }
             }
 
             builder.openBank(type.getValue(), 0, DataType.UINT32);
