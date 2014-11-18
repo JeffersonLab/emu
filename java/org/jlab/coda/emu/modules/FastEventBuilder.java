@@ -606,7 +606,7 @@ System.out.println("  EB mod: have consistent GO event(s)");
         // Create a new control event with updated control data in it
         PayloadBuffer pBuf = Evio.createControlBuffer(controlType,
                                                    runNumber, runTypeId,
-                                                   (int)eventCountTotal, 0, outputOrder);
+                                                   (int)eventCountTotal, 0, outputOrder, false);
 
         // Place event on first output channel, ring 0
         eventToOutputChannel(pBuf, 0, 0);
@@ -1096,9 +1096,8 @@ System.out.println("  EB mod: have consistent END event(s)");
                             // Take one of the control events and update
                             // it with the latest event builder data.
                             PayloadBuffer endBuf = Evio.createControlBuffer(ControlType.END,
-                                  runNumber, runTypeId, (int)eventCountTotal,
-                                  (int)(firstEventNumber + totalNumberEvents - eventNumberAtLastSync),
-                                  outputOrder);
+                                  runNumber, runTypeId, (int)eventCountTotal, 0,
+                                  outputOrder, false);
 
                             // END event is the Nth "built" event through this EB (after go)
                             endEventIndex = evIndex;
