@@ -309,7 +309,6 @@ System.out.println("  EB mod: " + buildingThreadCount +
     /** {@inheritDoc} */
     public ModuleIoType getOutputRingItemType() {return ModuleIoType.PayloadBuffer;}
 
-
     /**
      * Method to keep statistics on the size of events built by this event builder.
      * @param bufSize size in bytes of event built by this EB
@@ -321,7 +320,8 @@ System.out.println("  EB mod: " + buildingThreadCount +
 
         avgEventSize = (int) ((avgEventSize*builtEventCount + bufSize) / (builtEventCount+1L));
         goodChunk_X_EtBufSize = avgEventSize * outputRingSize * 3 / 4;
-
+//        System.out.println("avg = "+ avgEventSize + ", ev count = " + (builtEventCount+1L) +
+//                           ", current buf size = " + bufSize);
         // If value rolls over, start over with avg
         if (++builtEventCount * avgEventSize < 0) {
             builtEventCount = avgEventSize = 0;
@@ -1259,14 +1259,16 @@ if (debug && nonFatalError) System.out.println("\n  EB mod: non-fatal ERROR 3\n"
 
                     // Only have the first build thread keep stats so we don't
                     // have to worry about multithreading issues.
-                    if (timeStatsOn && btIndex == 0) {
+                    if (btIndex == 0) {
                         // Total time in nanoseconds spent building this event.
                         // NOTE: nanoTime() is very expensive and will slow EB (by 50%)
                         // Work on creating a time histogram
-                        statistics.addValue((int) (System.nanoTime() - startTime));
+                        if (timeStatsOn) {
+                            statistics.addValue((int) (System.nanoTime() - startTime));
+                        }
+                        keepStats(builder.getTotalBytes());
                     }
 
-                    keepStats(builder.getTotalBytes());
 
                     // TODO: protect since in multithreaded environs ?
                     // TODO: perhaps keep a local running total to keep from getting off track
