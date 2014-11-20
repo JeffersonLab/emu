@@ -1257,23 +1257,14 @@ if (debug && nonFatalError) System.out.println("\n  EB mod: non-fatal ERROR 3\n"
                     // Stats
                     //-------------------------
 
-                    // Only have the first build thread keep stats so we don't
-                    // have to worry about multithreading issues.
-                    if (btIndex == 0) {
+                    // Only have the first build thread keep time-to-build stats
+                    // so we don't have to worry about multithreading issues.
+                    if (timeStatsOn && btIndex == 0) {
                         // Total time in nanoseconds spent building this event.
                         // NOTE: nanoTime() is very expensive and will slow EB (by 50%)
-                        // Work on creating a time histogram
-                        if (timeStatsOn) {
-                            statistics.addValue((int) (System.nanoTime() - startTime));
-                        }
-                        keepStats(builder.getTotalBytes());
+                        // Work on creating a time histogram.
+                        statistics.addValue((int) (System.nanoTime() - startTime));
                     }
-
-
-                    // TODO: protect since in multithreaded environs ?
-                    // TODO: perhaps keep a local running total to keep from getting off track
-                    eventCountTotal += totalNumberEvents;
-                    wordCountTotal  += builder.getTotalBytes()/4 + 1;
 
                     //-------------------------
 
@@ -1349,6 +1340,11 @@ System.out.println("  EB mod: Bt#" + btIndex + ", END found so return");
                         // Wait until it's my turn again
                         nextReleaseIndex += btCount;
 
+                        // Stats (need to be thread-safe)
+                        eventCountTotal += totalNumberEvents;
+                        wordCountTotal  += builder.getTotalBytes() / 4 + 1;
+                        keepStats(builder.getTotalBytes());
+
                         // Tell next build thread it's his turn to release ring buffer slot
                         releaseIndex.incrementAndGet();
 
@@ -1367,6 +1363,11 @@ System.out.println("  EB mod: Bt#" + btIndex + ", END found so return");
 //System.out.println("  EB mod: " + btIndex + ", chan " + outputChannelIndex + ", seq " + nextSequences[i]);
                             buildSequences[i].set(nextSequences[i]++);
                         }
+
+                        // Stats (need to be thread-safe)
+                        eventCountTotal += totalNumberEvents;
+                        wordCountTotal  += builder.getTotalBytes() / 4 + 1;
+                        keepStats(builder.getTotalBytes());
                     }
                 }
                 catch (InterruptedException e) {
