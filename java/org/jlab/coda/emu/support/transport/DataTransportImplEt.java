@@ -693,7 +693,12 @@ logger.debug("    DataTransport Et: ET is dead");
                     etCmd += " -nd";
                 }
 
-                logger.debug("    DataTransport Et: create ET system, " + etOpenConfig.getEtName() + " with cmd \n" + etCmd);
+                // Pipe output to log file
+//                etCmd += " > " + (etOpenConfig.getEtName() + ".log");
+
+//                String[] cmd = new String[] {"/bin/sh", "-c", etCmd};
+logger.debug("    DataTransport Et: create ET system, " + etOpenConfig.getEtName() + " with cmd:\n" + etCmd);
+//                processET = Runtime.getRuntime().exec(cmd);
                 processET = Runtime.getRuntime().exec(etCmd);
 
                 // Allow process a chance to run before testing if its terminated.
