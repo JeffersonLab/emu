@@ -859,7 +859,7 @@ System.out.println("Emu " + name + " sending special RC display error Msg:\n ***
             // to the emu object. This can lead to a mutex deadlock with the thread of
             // this object which enters this synchronized code and the state()
             // method's synchronized code in reverse order (to execute()).
-            String state = state().name().toLowerCase();
+            String state = state().name().toUpperCase();
 
             synchronized (this) {
 
