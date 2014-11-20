@@ -838,6 +838,10 @@ System.out.println("  EB mod: create Build Thread with index " + btIndex + ", co
             }
             catch (InterruptedException e) {}
 
+            // Update stats
+            eventCountTotal++;
+            wordCountTotal += 5;
+
             // Second thing we do is look for the go event and pass it on
             try {
                 // Get go from each input channel
@@ -862,6 +866,10 @@ System.out.println("  EB mod: create Build Thread with index " + btIndex + ", co
                 waitForGo.await();
             }
             catch (InterruptedException e) {}
+
+            // Update stats
+            eventCountTotal++;
+            wordCountTotal += 5;
 
             // Now do the event building
             while (state == CODAState.ACTIVE || paused) {
