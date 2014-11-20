@@ -2073,7 +2073,6 @@ logger.debug("Emu download: pass download down to " + transport.name());
                             module = new RocSimulation(n.getNodeName(), attributeMap, this);
                     }
                     else {
-                        moduleClassName = "org.jlab.coda.emu.modules." + moduleClassName;
 
 if (debug) logger.info("Emu download: load module class " + moduleClassName +
         " to create a module of name " + n.getNodeName() +
