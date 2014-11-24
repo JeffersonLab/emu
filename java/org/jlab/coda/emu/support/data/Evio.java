@@ -945,7 +945,7 @@ if (debug) System.out.println("gotValidControlEvents: found control event of typ
         EvioNode[] triggerBanks = new EvioNode[numInputBanks];
         CODATag[] tags = new CODATag[numInputBanks];
         boolean nonFatalError = false;
-        boolean haveRunData = true;
+        boolean allHaveRunData = true;
         boolean haveTimestamps=true, isTimstamped;
         boolean haveTrigWithNoRocSpecificData=false, hasRocSpecificData;
 
@@ -981,7 +981,7 @@ if (debug) System.out.println("gotValidControlEvents: found control event of typ
             //--------------------------------
 
             // Do all trigger banks have run number & type data?
-            haveRunData = haveRunData && tags[i].hasRunData();
+            allHaveRunData = allHaveRunData && tags[i].hasRunData();
 
             // Does this trigger have timestamps?
             isTimstamped = tags[i].hasTimestamp();
@@ -1024,14 +1024,6 @@ if (debug) System.out.println("gotValidControlEvents: found control event of typ
                                                    triggerBanks[i].getChildCount());
                 }
             }
-        }
-
-
-        // Can only include run data if you got it
-        if (includeRunData && !haveRunData) {
-            nonFatalError   = true;
-            includeRunData = false;
-//System.out.println("Roc(s) missing run # and run type info!");
         }
 
         // Can only check timestamps if you got 'em
@@ -1141,7 +1133,7 @@ if (debug) System.out.println("gotValidControlEvents: found control event of typ
                 }
 
                 // check run number & type if all such data is present
-                if (haveRunData) {
+                if (allHaveRunData) {
                     if (longCommonData.length == 2+numEvents &&
                             commonLong.length == 2+numEvents)  {
                         // if run # and/or type are different ...
