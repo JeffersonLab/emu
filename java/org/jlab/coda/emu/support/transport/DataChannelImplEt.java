@@ -259,7 +259,7 @@ logger.info("      DataChannel Et: creating output channel " + name);
             throw new DataTransportException("", e);
         }
 
-        // How may Et buffer filling threads for each data output thread?
+        // How may Et buffer filling threads in thread pool for the data output thread?
         writeThreadCount = 2;
         attribString = attributeMap.get("wthreads");
         if (attribString != null) {
