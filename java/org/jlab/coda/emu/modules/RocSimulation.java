@@ -50,9 +50,6 @@ public class RocSimulation extends ModuleAdapter {
     /** Type of trigger sent from trigger supervisor. */
     private int triggerType;
 
-    /** Is this ROC in single event mode? */
-    private boolean isSingleEventMode;
-
     /** Number of events in each ROC raw record. */
     private int eventBlockSize;
 
@@ -169,20 +166,6 @@ public class RocSimulation extends ModuleAdapter {
                 s.equalsIgnoreCase("yes"))   {
                 synced = true;
             }
-        }
-
-        // Is this ROC in single-event-mode?
-        s = attributeMap.get("SEMode");
-        if (s != null) {
-            if (s.equalsIgnoreCase("true") ||
-                s.equalsIgnoreCase("on")   ||
-                s.equalsIgnoreCase("yes"))   {
-                isSingleEventMode = true;
-            }
-        }
-
-        if (isSingleEventMode) {
-            eventBlockSize = 1;
         }
 
         // the module sets the type of CODA class it is.
@@ -313,10 +296,6 @@ public class RocSimulation extends ModuleAdapter {
 
         int dataWordLength = 1 + generatedDataWords;
 
-        if (isSingleEventMode) {
-            dataWordLength += 2;
-        }
-
         // bank header + bank header +  eventBlockSize segments + data,
         // seg  = (1 seg header + 3 data)
         // data = bank header + int data
@@ -332,13 +311,7 @@ public class RocSimulation extends ModuleAdapter {
                                               long timestamp ) {
         int status = 0, writeIndex=0;
 
-        int[] data;
-        if (isSingleEventMode) {
-            data = new int[3 + generatedDataWords];
-        }
-        else {
-            data = new int[1 + generatedDataWords];
-        }
+        int[] data = new int[1 + generatedDataWords];
 
         ByteBuffer buf = ByteBuffer.allocate(4*eventWordSize);
         buf.order(outputOrder);
@@ -385,12 +358,6 @@ public class RocSimulation extends ModuleAdapter {
 
         // First put in starting event # (32 bits)
         data[index++] = (int)eventNumber;
-
-        // if single event mode, put in timestamp
-        if (isSingleEventMode) {
-            data[index++] = (int)  timestamp; // low 32 bits
-            data[index]   = (int) (timestamp >>> 32 & 0xFFFF); // high 16 of 48 bits
-        }
 
         int dataTag = Evio.createCodaTag(false, false, true, false, detectorId);
         secondWord = dataTag << 16 |
@@ -449,10 +416,6 @@ public class RocSimulation extends ModuleAdapter {
 
         // Write event number and timestamp into data bank
         buf.putInt(writeIndex, (int) eventNumber); writeIndex += 4;
-        if (isSingleEventMode) {
-            buf.putInt(writeIndex, (int)  timestamp); writeIndex += 4;
-            buf.putInt(writeIndex, (int) (timestamp >>> 32 & 0xFFFF));
-        }
     }
 
 
@@ -548,29 +511,24 @@ System.out.println("  Roc mod: start With (id=" + myId + "):\n    record id = " 
                     }
                     else {
                         // Add ROC Raw Records as PayloadBuffer objects
-                        if (isSingleEventMode) {
-                            // nothing right now
-                        }
-                        else {
-                            // Get buffer from recirculating supply
-                            bufItem = bbSupply.get();
-                            buf = bufItem.getBuffer();
+                        // Get buffer from recirculating supply
+                        bufItem = bbSupply.get();
+                        buf = bufItem.getBuffer();
 
-                            // Some logic to allow us to copy everything into buffer
-                            // only once. After that, just update it.
-                            if (copyWholeBuf) {
-                                // Only need to do this once too
-                                buf.order(outputOrder);
+                        // Some logic to allow us to copy everything into buffer
+                        // only once. After that, just update it.
+                        if (copyWholeBuf) {
+                            // Only need to do this once too
+                            buf.order(outputOrder);
 
-                                if (++bufCounter > bufSupplySize) {
-                                    copyWholeBuf = false;
-                                }
+                            if (++bufCounter > bufSupplySize) {
+                                copyWholeBuf = false;
                             }
-
-                            writeEventBuffer(buf, templateBuffer, myEventNumber,
-                                             timestamp, copyWholeBuf);
-
                         }
+
+                        writeEventBuffer(buf, templateBuffer, myEventNumber,
+                                         timestamp, copyWholeBuf);
+
 
                         // Put generated events into output channel
                         eventToOutputRing(myId, buf, bufItem, bbSupply);
