@@ -75,12 +75,6 @@ public interface CODAComponent extends Runnable, CommandAcceptor {
     public String getHostName();
 
     /**
-     * Get the user name of this CODA component.
-     * @return the user name of this CODA component
-     */
-    public String getUserName();
-
-    /**
      * Get the class of this CODA component (e.g. "EMU", "ROC", "ER").
      * @return the class of this CODA component (e.g. "EMU", "ROC", "ER")
      */
