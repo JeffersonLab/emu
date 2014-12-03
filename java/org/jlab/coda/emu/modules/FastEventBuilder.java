@@ -161,12 +161,6 @@ public class FastEventBuilder extends ModuleAdapter {
      */
     private int timestampSlop;
 
-    /**
-     * If true, swap data if necessary when building events.
-     * Assume data is all 32 bit integers.
-     */
-    private boolean swapData;
-
     /** If true, include run number & type in built trigger bank. */
     private boolean includeRunData;
 
@@ -248,20 +242,8 @@ System.out.println("  EB mod: " + buildingThreadCount +
             buildingThreadCount = eventProducingThreads = 4;
         }
 
-        // default is to swap data if necessary -
-        // assume 32 bit ints
-        swapData = true;
-        String str = attributeMap.get("swap");
-        if (str != null) {
-            if (str.equalsIgnoreCase("false") ||
-                str.equalsIgnoreCase("off")   ||
-                str.equalsIgnoreCase("no"))   {
-                swapData = false;
-            }
-        }
-
         // default is NOT to include run number & type in built trigger bank
-        str = attributeMap.get("runData");
+        String str = attributeMap.get("runData");
         if (str != null) {
             if (str.equalsIgnoreCase("true") ||
                 str.equalsIgnoreCase("in")   ||
@@ -271,7 +253,7 @@ System.out.println("  EB mod: " + buildingThreadCount +
             }
         }
 
-        // default is NOT to sparsify roc-specific segments in trigger bank
+        // default is NOT to sparsify (not include) roc-specific segments in trigger bank
         sparsify = false;
         str = attributeMap.get("sparsify");
         if (str != null) {
@@ -297,6 +279,7 @@ System.out.println("  EB mod: " + buildingThreadCount +
         timestampSlop = 2;
         try {
             timestampSlop = Integer.parseInt(attributeMap.get("tsSlop"));
+            if (timestampSlop < 1) timestampSlop = 2;
         }
         catch (NumberFormatException e) {}
     }
