@@ -16,6 +16,7 @@ import org.jlab.coda.cMsg.cMsgPayloadItem;
 import org.jlab.coda.cMsg.cMsgMessage;
 
 import org.jlab.coda.emu.modules.EventRecording;
+import org.jlab.coda.emu.modules.FarmController;
 import org.jlab.coda.emu.modules.FastEventBuilder;
 import org.jlab.coda.emu.modules.RocSimulation;
 
@@ -70,9 +71,6 @@ public class Emu implements CODAComponent {
 
     /** The name of the host this Emu is running on. */
     private String hostName;
-
-    /** The name of the user account the Emu is running under. */
-    private String userName;
 
     /** A unique numeric identifier for this Emu. */
     private int codaid;
@@ -347,10 +345,6 @@ public class Emu implements CODAComponent {
         tmp = System.getProperty("session");
         if (tmp != null) session = tmp;
 
-        // Get the user name which is added to the payload of logging messages
-        tmp = System.getProperty("user.name");
-        if (tmp != null) userName = tmp;
-
         // Create object for communication w/ run control through cMsg server
         cmsgPortal = new CMSGPortal(this);
 
@@ -460,9 +454,6 @@ public class Emu implements CODAComponent {
 
     /** {@inheritDoc} */
     public String getHostName() {return hostName;}
-
-    /** {@inheritDoc} */
-    public String getUserName() {return userName;}
 
     /** {@inheritDoc} */
     public CODAClass getCodaClass() {return codaClass;}
@@ -2071,6 +2062,9 @@ logger.debug("Emu download: pass download down to " + transport.name());
                     }
                     else if (moduleClassName.equals("RocSimulation")) {
                             module = new RocSimulation(n.getNodeName(), attributeMap, this);
+                    }
+                    else if (moduleClassName.equals("FarmController")) {
+                            module = new FarmController(n.getNodeName(), attributeMap, this);
                     }
                     else {
 
