@@ -33,6 +33,8 @@ public class FarmController extends ModuleAdapter {
     private EventMovingThread eventMovingThread;
 
     private boolean debug = false;
+    private int runNumber;
+    private int runTypeId;
 
     //-------------------------------------------
     // Disruptor (RingBuffer)  stuff
@@ -61,13 +63,14 @@ public class FarmController extends ModuleAdapter {
     }
 
 
-
     /** {@inheritDoc} */
     public void reset() {
         if (debug) System.out.println("FarmController: reset");
         state = CODAState.CONFIGURED;
         paused = false;
+        endThread();
     }
+
 
     /** {@inheritDoc} */
     public void end() throws CmdExecException {
@@ -76,6 +79,7 @@ public class FarmController extends ModuleAdapter {
         paused = false;
         endThread();
     }
+
 
     /** {@inheritDoc} */
     public void prestart() throws CmdExecException {
@@ -97,11 +101,16 @@ public class FarmController extends ModuleAdapter {
         barrierIn = ringBufferIn.newBarrier();
         //--------------------------------------------------
 
+        // Reset some variables
+        eventRate = wordRate = 0F;
+        eventCountTotal = wordCountTotal = 0L;
+
         state = CODAState.PAUSED;
         eventMovingThread = new EventMovingThread();
         eventMovingThread.start();
         paused = true;
     }
+
 
     /** {@inheritDoc} */
     public void pause() {
@@ -109,14 +118,15 @@ public class FarmController extends ModuleAdapter {
         if (debug) System.out.println("FarmController: pause");
     }
 
+
     /** {@inheritDoc} */
     public void go() throws CmdExecException {
 
         // Run #, type, id, session
-        int runNumber  = emu.getRunNumber();
-        int runTypeId  = emu.getRunTypeId();
-        String runType = emu.getRunType();
-        String session = emu.getSession();
+        runNumber  = emu.getRunNumber();
+        runTypeId  = emu.getRunTypeId();
+        //String runType = emu.getRunType();
+        //String session = emu.getSession();
 
         if (debug) System.out.println("FarmController: go");
         state = CODAState.ACTIVE;
@@ -127,10 +137,18 @@ public class FarmController extends ModuleAdapter {
     /**
       * End all record threads because an END cmd or event came through.
       * The record thread calling this method is not interrupted.
-      */
-     private void endThread() {
-         // Interrupt the event moving thread
-         eventMovingThread.interrupt();
+     */
+    private void endThread() {
+        // Interrupt the event moving thread
+        eventMovingThread.interrupt();
+        try {
+            eventMovingThread.join(250);
+            // Kill it if it hasn't stopped in 1/4 sec
+            if (eventMovingThread.isAlive()) {
+                eventMovingThread.stop();
+            }
+        }
+        catch (InterruptedException e) {}
      }
 
 
@@ -163,10 +181,8 @@ public class FarmController extends ModuleAdapter {
         public void run() {
 
             boolean debug = false;
-            int totalNumberEvents, wordCount;
             RingItem ringItem;
             ControlType controlType;
-            PayloadBuffer recordingBuf;
             outputChannelCount = outputChannels.size();
 
             // Ring Buffer stuff
@@ -186,24 +202,28 @@ public class FarmController extends ModuleAdapter {
 
                     ringItem = ringBufferIn.get(nextSequence);
                     controlType = ringItem.getControlType();
-                    totalNumberEvents = ringItem.getEventCount();
 
-                    recordingBuf = (PayloadBuffer)ringItem;
-                    wordCount = recordingBuf.getNode().getLength() + 1;
+                    eventCountTotal += ringItem.getEventCount();
+                    wordCountTotal  += ringItem.getNode().getLength() + 1;
 
                     if (outputChannelCount > 0) {
-                        // Place event on only the first output channel
-                        eventToOutputChannel(ringItem, 0, 0);
+                        if (controlType == null) {
+                            // Place non-control event (shouldn't be any) on first output chan
+                            eventToOutputChannel(ringItem, 0, 0);
+                        }
+                        else {
+                            // Place control event on all output channels
+                            for (int i = 0; i < outputChannelCount; i++) {
+                                // Create a new control event with updated control data in it
+                                PayloadBuffer pBuf = Evio.createControlBuffer(controlType,
+                                                                              runNumber, runTypeId,
+                                                                              (int)eventCountTotal, 0,
+                                                                              outputOrder, false);
+                                // Goes to ring 0 since there is only 1 event-moving thread
+                                eventToOutputChannel(pBuf, i, 0);
+                            }
+                        }
                     }
-
-                    // If END event, end this thread
-                    if (controlType == ControlType.END) {
-                        if (endCallback != null) endCallback.endWait();
-                        return;
-                    }
-
-                    eventCountTotal += totalNumberEvents;
-                    wordCountTotal  += wordCount;
 
                     // Release the reusable ByteBuffers back to their supply
                     ringItem.releaseByteBuffer();
@@ -211,6 +231,11 @@ public class FarmController extends ModuleAdapter {
                     // Release the events back to the ring buffer for re-use
                     sequenceIn.set(nextSequence++);
 
+                    // If END event, end this thread
+                    if (controlType == ControlType.END) {
+                        if (endCallback != null) endCallback.endWait();
+                        return;
+                    }
                 }
                 catch (InterruptedException e) {
                     if (debug) System.out.println("INTERRUPTED thread " + Thread.currentThread().getName());
