@@ -364,11 +364,15 @@ logger.info("      DataChannel Et: chunk = " + chunk);
                     stationName = "station"+id;
                 }
 
+                // Connect to ET system
+                openEtSystem();
 
                 // RingBuffer supply of buffers to hold all ET event bytes
                 if (ringItemType == ModuleIoType.PayloadBuffer) {
                     // ET system parameters
-                    int etEventSize = transport.getSystemConfig().getEventSize();
+                    int etEventSize = (int) getEtEventSize();
+System.out.println("      DataChannel Et: eventSize = " + etEventSize);
+
 // TODO: increase this to 80MB so we get 32 instead of 16 buffers
                     // Create reusable supply of ByteBuffer objects.
                     // Put a limit on the amount of memory (40MB). That may be
@@ -436,16 +440,29 @@ System.out.println("      DataChannel Et: # of buffers in input supply -> " + nu
                 isFinalEB = (emuClass == CODAClass.PEB || emuClass == CODAClass.SEB);
                 // The value of control[0] will be set in the DataOutputHelper
             }
+
+            // Connect to ET system
+            openEtSystem();
         }
 
-        // Connect to ET system
-        openEtSystem();
         // Start up threads to help with I/O
         startHelper();
 
         // State after prestart transition -
         // during which this constructor is called
         state = CODAState.PAUSED;
+    }
+
+
+    /**
+     * Get the size of the ET system's events in bytes.
+     * @return size of the ET system's events in bytes.
+     */
+    private long getEtEventSize() {
+        if (etSysLocal != null) {
+            return etSysLocal.getConfig().getEventSize();
+        }
+        return etSystem.getEventSize();
     }
 
 
