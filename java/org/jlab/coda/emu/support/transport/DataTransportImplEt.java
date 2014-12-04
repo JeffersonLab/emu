@@ -733,7 +733,7 @@ logger.debug("    DataTransport Et: create ET system, " + etOpenConfig.getEtName
 
                 // There is no feedback mechanism to tell if
                 // this ET system actually started.
-                // So try for to connect to it.
+                // So try to connect to it.
                 // If we can't, then there must have been an error trying
                 // to start it up (like another ET system using the same ports).
                 try {
