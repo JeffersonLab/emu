@@ -348,10 +348,10 @@ logger.info("  Module Adapter: SEB chunk = " + sebChunk);
     public String name() {return name;}
 
     /** {@inheritDoc} */
-    public ModuleIoType getInputRingItemType() {return ModuleIoType.PayloadBank;}
+    public ModuleIoType getInputRingItemType() {return ModuleIoType.PayloadBuffer;}
 
     /** {@inheritDoc} */
-    public ModuleIoType getOutputRingItemType() {return ModuleIoType.PayloadBank;}
+    public ModuleIoType getOutputRingItemType() {return ModuleIoType.PayloadBuffer;}
 
     /** {@inheritDoc} */
     public boolean representsEmuStatistics() {return representStatistics;}
