@@ -728,8 +728,9 @@ System.out.println("  EB mod: create Build Thread with index " + btIndex + ", co
             // or we could get a deadlock with out channel waiting to read
             // more events than this thread can produce with the already-read
             // events still not written out.
-            int supplySize = (outputRingSize > 4096) ? outputRingSize : 4096;
-            ByteBufferSupply bbSupply = new ByteBufferSupply(supplySize, 2000, outputOrder, true);
+            int supplySize = (outputRingSize < 16) ? 16 : outputRingSize;
+            ByteBufferSupply bbSupply = new ByteBufferSupply(supplySize, 2000, outputOrder, false);
+System.out.println("  EB mod: bbSupply -> " + outputRingSize + " # of bufs of size = " + supplySize + " bytes, is direct = " + false);
 
             // Object for building physics events in a ByteBuffer
             CompactEventBuilder builder = null;
