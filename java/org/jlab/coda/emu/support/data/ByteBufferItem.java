@@ -172,20 +172,6 @@ public class ByteBufferItem {
 
 
     /**
-     * Set the contained ByteBuffer.
-     * Generally called when existing buffer is too small
-     * and size must be increased. Allows for dynamic adjustment
-     * to need for bigger buffers.
-     *
-     * @param buffer the ByteBuffer to be contained.
-     */
-    public void setBuffer(ByteBuffer buffer) {
-        this.buffer = buffer;
-        bufferSize = buffer.capacity();
-    }
-
-
-    /**
      * Set the number of users of this buffer.
      * If multiple users of the buffer exist,
      * keep track of all until last one is finished.
