@@ -164,7 +164,7 @@ public class DataChannelAdapter extends CODAStateMachineAdapter implements DataC
     protected RingBuffer<RingItem> ringBufferIn;
 
     /** Number of items in input ring buffer. */
-    protected int inputRingItemCount  = 1024;
+    protected int inputRingItemCount  = 512;
 
     // Output
     /** Array holding all ring buffers for output. */
