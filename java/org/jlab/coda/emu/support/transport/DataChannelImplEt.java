@@ -1324,7 +1324,7 @@ Utilities.printBuffer(buf, 0, 20, "BAD EVENT ");
 //System.out.println("      DataChannel Et in: Got sequence " + nextRingItem);
                             ri = ringBufferIn.get(nextRingItem);
                             // TODO: this does NOT have to be a buffer with only structure right???
-                            ri.setBuffer(node.getStructureBuffer(false));
+//                            ri.setBuffer(node.getStructureBuffer(false));
                             ri.setEventType(bankType);
                             ri.setControlType(controlType);
                             ri.setRecordId(recordId);
