@@ -1771,14 +1771,14 @@ System.out.println("      DataChannel Et out " + outputIndex + ": have GO, ringI
                          // Be careful not to use up all the events in the output
                          // ring buffer before writing some (& freeing them up).
                          // Also write what we have if time (2 sec) has expired.
-                         if ((eventCount >= outputRingItemCount*3/4) ||
+                         if ((eventCount >= outputRingItemCount/2) ||
                                  (emu.getTime() - startTime > timeout)) {
 
                              if (emu.getTime() - startTime > timeout)
                                  System.out.println("TIME FLUSH ******************");
 
 //logger.warn("      DataChannel Et out : " + name + " break since eventCount(" + eventCount +
-//        ") > outputRingItemCount*3/4(" + ( outputRingItemCount*3/4) +")");
+//        ") > outputRingItemCount/2(" + ( outputRingItemCount/2) +")");
                              break;
                          }
 //logger.warn("      DataChannel Et out : " + name + " end while, eventCount(" + eventCount + "), thisEventIndex(" + thisListIndex +
