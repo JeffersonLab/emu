@@ -164,14 +164,14 @@ public class DataChannelAdapter extends CODAStateMachineAdapter implements DataC
     protected RingBuffer<RingItem> ringBufferIn;
 
     /** Number of items in input ring buffer. */
-    protected int inputRingItemCount  = 512;
+    protected int inputRingItemCount;
 
     // Output
     /** Array holding all ring buffers for output. */
     protected RingBuffer<RingItem>[] ringBuffersOut;
 
     /** Number of items in output ring buffers. */
-    protected int outputRingItemCount = 512;
+    protected int outputRingItemCount;
 
     /** One barrier for each output ring. */
     protected SequenceBarrier[] sequenceBarriers;
@@ -233,7 +233,35 @@ public class DataChannelAdapter extends CODAStateMachineAdapter implements DataC
             catch (NumberFormatException e) {}
         }
 
-        if (!input) {
+        // Set the number of items for the input & output ring buffers
+        int ringSize = 32;
+        attribString = attributeMap.get("ringSize");
+        if (attribString != null) {
+            try {
+                ringSize = Integer.parseInt(attribString);
+                if (ringSize <= 8) {
+                    ringSize = 9;
+                }
+                // Make sure it's a power of 2
+                else if (Integer.bitCount(ringSize) != 1) {
+                    int newVal = ringSize / 2;
+                    ringSize = 1;
+                    while (newVal > 0) {
+                        ringSize *= 2;
+                        newVal /= 2;
+                    }
+                }
+            }
+            catch (NumberFormatException e) {}
+        }
+logger.info("      DataChannel Adapter: ring buf size -> " + ringSize);
+        inputRingItemCount = outputRingItemCount = ringSize;
+
+        if (input) {
+            // Create RingBuffers
+            setupInputRingBuffers();
+        }
+        else {
             // Do we send out single events or do we
             // marshall them into one output buffer?
             singleEventOut = false;
@@ -257,10 +285,6 @@ logger.info("      DataChannel Adapter: # of ring buffers = " + outputRingCount)
             // Create RingBuffers
             ringBuffersOut = new RingBuffer[outputRingCount];
             setupOutputRingBuffers();
-        }
-        else {
-           // Create RingBuffers
-            setupInputRingBuffers();
         }
      }
 
