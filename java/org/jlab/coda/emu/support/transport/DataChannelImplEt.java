@@ -1446,9 +1446,6 @@ logger.warn("      DataChannel Et in: " + name + " exit thd: " + e.getMessage())
         /** Let a single waiter know that the main thread has been started. */
         private final CountDownLatch startLatch = new CountDownLatch(1);
 
-        /** Did we just get a prestart or go event? */
-        private boolean havePrestartOrGo;
-
         /** What state is this thread in? */
         private volatile ThreadState threadState;
 
@@ -1600,7 +1597,6 @@ System.out.println("      DataChannel Et out: wake up attachment #" + attachment
                      listTotalSizeMax = 32;
                      // EventType of events contained in the previous list
                      previousType = null;
-                     havePrestartOrGo = false;
                      // Set time of entering do-loop
                      startTime = emu.getTime();
 
