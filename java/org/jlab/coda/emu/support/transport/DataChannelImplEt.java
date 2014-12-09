@@ -1245,7 +1245,7 @@ System.out.println("      DataChannel Et in: " + name + " got RESET cmd, quittin
                                 compactReader = new EvioCompactReader(buf);
                             }
                             else {
-                                compactReader.setBuffer(buf, true);
+                                compactReader.setBuffer(buf);
                             }
                         }
                         catch (EvioException e) {
