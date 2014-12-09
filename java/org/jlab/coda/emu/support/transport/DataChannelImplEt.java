@@ -378,8 +378,8 @@ System.out.println("      DataChannel Et: eventSize = " + etEventSize);
                     // Put a limit on the amount of memory (40MB). That may be
                     // the easiest way to figure out how many buffers to use.
                     // Number of bufs must be a power of 2.
-                    int numEtBufs = 40000000 / etEventSize;
-                    numEtBufs = numEtBufs < 8 ? 8 : numEtBufs;
+                    int numEtBufs = 80000000 / etEventSize;
+                    numEtBufs = numEtBufs < 4 ? 4 : numEtBufs;
                     // Make power of 2
                     if (Integer.bitCount(numEtBufs) != 1) {
                         int newVal = numEtBufs/2;
@@ -1245,7 +1245,7 @@ System.out.println("      DataChannel Et in: " + name + " got RESET cmd, quittin
                                 compactReader = new EvioCompactReader(buf);
                             }
                             else {
-                                compactReader.setBuffer(buf);
+                                compactReader.setBuffer(buf, true);
                             }
                         }
                         catch (EvioException e) {
