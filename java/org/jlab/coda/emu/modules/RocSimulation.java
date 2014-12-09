@@ -62,6 +62,9 @@ public class RocSimulation extends ModuleAdapter {
     /** Size of a single generated event in bytes (including header). */
     private int eventSize;
 
+    /** Number of Roc raw events to produce before syncing with other Rocs. */
+    private int syncCount;
+
     //----------------------------------------------------
     // Members used to synchronize all fake Rocs to each other which allows run to
     // end properly. I.e., they all produce the same number of buildable events.
@@ -162,6 +165,12 @@ public class RocSimulation extends ModuleAdapter {
         try { eventSize = Integer.parseInt(attributeMap.get("eventSize")); }
         catch (NumberFormatException e) { /* defaults to 40 */ }
         if (eventSize < 1) eventSize = 1;
+
+        // How many bytes in a single event?
+        syncCount = 100000;
+        try { syncCount = Integer.parseInt(attributeMap.get("syncCount")); }
+        catch (NumberFormatException e) { /* defaults to 100k */ }
+        if (syncCount < 10) syncCount = 10;
 
         // Event generating threads
         eventGeneratingThreads = new EventGeneratingThread[eventProducingThreads];
@@ -485,8 +494,7 @@ System.out.println("  Roc mod: start With (id=" + myId + "):\n    record id = " 
 
         public void run() {
 
-            int  userEventLoopMax=100000;
-            int  skip=3,  userEventLoop = userEventLoopMax;
+            int  skip=3,  userEventLoop = syncCount;
             long oldVal=0L, totalT=0L, totalCount=0L, bufCounter=0L;
             long t1, deltaT, t2;
             ByteBuffer buf = null;
@@ -589,7 +597,7 @@ System.out.println("  Roc mod: start With (id=" + myId + "):\n    record id = " 
                                 return;
                             }
 
-                            userEventLoop = userEventLoopMax;
+                            userEventLoop = syncCount;
                         }
                     }
 
