@@ -59,6 +59,9 @@ public class RocSimulation extends ModuleAdapter {
     /** Size of a single generated Roc raw event in 32-bit words (including header). */
     private int eventWordSize;
 
+    /** Size of a single generated event in bytes (including header). */
+    private int eventSize;
+
     //----------------------------------------------------
     // Members used to synchronize all fake Rocs to each other which allows run to
     // end properly. I.e., they all produce the same number of buildable events.
@@ -153,6 +156,12 @@ public class RocSimulation extends ModuleAdapter {
         catch (NumberFormatException e) { /* defaults to 1 */ }
         if (eventBlockSize <   1) eventBlockSize = 1;
         else if (eventBlockSize > 255) eventBlockSize = 255;
+
+        // How many bytes in a single event?
+        eventSize = 40;
+        try { eventSize = Integer.parseInt(attributeMap.get("eventSize")); }
+        catch (NumberFormatException e) { /* defaults to 40 */ }
+        if (eventSize < 1) eventSize = 1;
 
         // Event generating threads
         eventGeneratingThreads = new EventGeneratingThread[eventProducingThreads];
@@ -454,7 +463,7 @@ public class RocSimulation extends ModuleAdapter {
             timestamp = myId*4*eventBlockSize;
 
             // Need to coordinate amount of data words
-            generatedDataWords = eventBlockSize * 40;
+            generatedDataWords = eventBlockSize * eventSize;
 System.out.println("  Roc mod: generatedDataWords = " + generatedDataWords);
 
 
