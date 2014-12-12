@@ -101,6 +101,9 @@ public class DataChannelImplEmu extends DataChannelAdapter {
     /** Use the evio block header's block number as a record id. */
     private int recordId;
 
+    /** Use direct ByteBuffer? */
+    private boolean direct;
+
     //-------------------------------------------
     // Disruptor (RingBuffer)  Stuff
     //-------------------------------------------
@@ -144,11 +147,22 @@ logger.info("      DataChannel Emu: creating input channel " + name);
 logger.info("      DataChannel Emu: creating output channel " + name);
         }
 
+        // use direct ByteBuffers or not
+        direct = false;
+        String attribString = attributeMap.get("direct");
+        if (attribString != null) {
+            if (attribString.equalsIgnoreCase("true") ||
+                    attribString.equalsIgnoreCase("on")   ||
+                    attribString.equalsIgnoreCase("yes"))   {
+                direct = true;
+            }
+        }
+
         // if INPUT channel
         if (input) {
             // size of TCP receive buffer (0 means use operating system default)
             tcpRecvBuf = 0;
-            String attribString = attributeMap.get("recvBuf");
+            attribString = attributeMap.get("recvBuf");
             if (attribString != null) {
                 try {
                     tcpRecvBuf = Integer.parseInt(attribString);
@@ -164,7 +178,7 @@ logger.info("      DataChannel Emu: creating output channel " + name);
         else {
             // set TCP_NODELAY option on
             noDelay = false;
-            String attribString = attributeMap.get("noDelay");
+            attribString = attributeMap.get("noDelay");
             if (attribString != null) {
                 if (attribString.equalsIgnoreCase("true") ||
                         attribString.equalsIgnoreCase("on")   ||
@@ -249,23 +263,20 @@ System.out.println("      DataChannel Emu: sending on port " + sendPort);
         // Set socket options
         Socket socket = channel.socket();
 
-        // TODO: why noDelay on input channel?
-        // Set TCP no-delay so no packets are delayed
-        //socket.setTcpNoDelay(noDelay);
-
         // Set TCP receive buffer size
         if (tcpRecvBuf > 0) {
             socket.setReceiveBufferSize(tcpRecvBuf);
         }
 
         // Use buffered streams for efficiency
+// TODO: change 256K number?
         in = new DataInputStream(new BufferedInputStream(socket.getInputStream(), 256000));
 
         // Create a ring buffer full of empty ByteBuffer objects
         // in which to copy incoming data from client.
         // NOTE: Using direct buffers works but performance is poor and fluctuates
         // quite a bit in speed.
-        bbSupply = new ByteBufferSupply(128, maxBufferSize, ByteOrder.BIG_ENDIAN, false);
+        bbSupply = new ByteBufferSupply(16, maxBufferSize, ByteOrder.BIG_ENDIAN, direct);
 
         // Start thread to handle all socket input
         startInputThread();
@@ -858,7 +869,7 @@ System.out.println("      DataChannel Emu in helper: " + name + " RETURN");
                 nextRingItem = ringBufferIn.next();
 
                 payloadBuffer = (PayloadBuffer) ringBufferIn.get(nextRingItem);
-                payloadBuffer.setBuffer(node.getStructureBuffer(false));
+                //payloadBuffer.setBuffer(node.getStructureBuffer(false));
                 payloadBuffer.setEventType(bankType);
                 payloadBuffer.setControlType(controlType);
                 payloadBuffer.setRecordId(recordId);
@@ -1261,7 +1272,12 @@ System.out.println("      DataChannel Emu out: " + name + " I got END event, qui
          /** Constructor. */
         DataOutputHelper() {
             super(emu.getThreadGroup(), name() + "_data_out");
-            byteBuffer = ByteBuffer.allocate(maxBufferSize);
+            if (direct) {
+                byteBuffer = ByteBuffer.allocateDirect(maxBufferSize);
+            }
+            else {
+                byteBuffer = ByteBuffer.allocate(maxBufferSize);
+            }
             byteBuffer.order(byteOrder);
 
             // Speed things up with local variable
@@ -1389,7 +1405,12 @@ System.out.println("      DataChannel Emu out: flushEvents, write event out");
                     // If we're here, we're writing the first event into the buffer.
                     // Make sure there's enough room for at least that one event.
                     if (rItem.getTotalBytes() > byteBuffer.capacity()) {
-                        byteBuffer = ByteBuffer.allocate(rItem.getTotalBytes() + 1024);
+                        if (direct) {
+                            byteBuffer = ByteBuffer.allocateDirect(rItem.getTotalBytes() + 1024);
+                        }
+                        else {
+                            byteBuffer = ByteBuffer.allocate(rItem.getTotalBytes() + 1024);
+                        }
                     }
 
                     // Init writer
