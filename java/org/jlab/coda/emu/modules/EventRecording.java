@@ -404,19 +404,38 @@ System.out.println("  ER mod: found END event");
 
                 }
                 catch (InterruptedException e) {
-                    if (debug) System.out.println("  ER mod: INTERRUPTED thread " + Thread.currentThread().getName());
+if (debug) System.out.println("  ER mod: INTERRUPTED thread " + Thread.currentThread().getName());
                     return;
                 }
                 catch (AlertException e) {
-                    if (debug) System.out.println("  ER mod: ring buf alert, " + Thread.currentThread().getName());
+if (debug) System.out.println("  ER mod: ring buf alert, " + Thread.currentThread().getName());
+                    // If we haven't yet set the cause of error, do so now & inform run control
+                    errorMsg.compareAndSet(null, e.getMessage());
+
+                    // set state
+                    state = CODAState.ERROR;
+                    emu.sendStatusMessage();
+
+                    e.printStackTrace();
                     return;
                 }
                 catch (TimeoutException e) {
-                    if (debug) System.out.println("  ER mod: ring buf timeout, " + Thread.currentThread().getName());
+if (debug) System.out.println("  ER mod: ring buf timeout, " + Thread.currentThread().getName());
+                    errorMsg.compareAndSet(null, e.getMessage());
+                    state = CODAState.ERROR;
+                    emu.sendStatusMessage();
+                    e.printStackTrace();
+                    return;
+                }
+                catch (Exception e) {
+if (debug) System.out.println("  EB mod: MAJOR ERROR building events");
+                    errorMsg.compareAndSet(null, e.getMessage());
+                    state = CODAState.ERROR;
+                    emu.sendStatusMessage();
+                    e.printStackTrace();
                     return;
                 }
             }
-
 System.out.println("  ER mod: recording thread ending");
         }
 
