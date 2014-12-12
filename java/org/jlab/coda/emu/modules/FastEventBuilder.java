@@ -1382,38 +1382,17 @@ if (debug) System.out.println("  EB mod: timeout in ring buffer");
                 catch (final AlertException e) {
                     e.printStackTrace();
 if (debug) System.out.println("  EB mod: alert in ring buffer");
-                    // If we haven't yet set the cause of error, do so now & inform run control
                     errorMsg.compareAndSet(null, e.getMessage());
-
-                    // set state
                     state = CODAState.ERROR;
                     emu.sendStatusMessage();
-
                     e.printStackTrace();
                     return;
                 }
-
-                catch (EmuException e) {
+                catch (Exception e) {
 if (debug) System.out.println("  EB mod: MAJOR ERROR building events");
-                    // If we haven't yet set the cause of error, do so now & inform run control
                     errorMsg.compareAndSet(null, e.getMessage());
-
-                    // set state
                     state = CODAState.ERROR;
                     emu.sendStatusMessage();
-
-                    e.printStackTrace();
-                    return;
-                }
-                catch (EvioException e) {
-if (debug) System.out.println("  EB mod: MAJOR ERROR building events");
-                    // If we haven't yet set the cause of error, do so now & inform run control
-                    errorMsg.compareAndSet(null, e.getMessage());
-
-                    // set state
-                    state = CODAState.ERROR;
-                    emu.sendStatusMessage();
-
                     e.printStackTrace();
                     return;
                 }
