@@ -850,7 +850,7 @@ System.out.println("Emu " + name + " sending special RC display error Msg:\n ***
             // to the emu object. This can lead to a mutex deadlock with the thread of
             // this object which enters this synchronized code and the state()
             // method's synchronized code in reverse order (to execute()).
-            String state = state().name().toUpperCase();
+            String state = state().name().toLowerCase();
 
             synchronized (this) {
 
@@ -1319,8 +1319,8 @@ logger.error("Got SET_RUN_TYPE command but no run type specified 2");
             // Get the new run type and store it
             int bufferLevel = cmd.getMessage().getUserInt();
             if (bufferLevel > 0) {
-logger.info("Emu SET_BUF_LEVEL: set to " + bufferLevel);
-                setBufferLevel(bufferLevel);
+//logger.info("Emu SET_BUF_LEVEL: set to " + bufferLevel);
+//                setBufferLevel(bufferLevel);
             }
             else {
 logger.error("Got SET_BUF_LEVEL command but bad value (" + bufferLevel + ")");
