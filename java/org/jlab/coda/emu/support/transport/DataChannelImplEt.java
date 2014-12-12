@@ -273,7 +273,7 @@ logger.info("      DataChannel Et: creating output channel " + name);
 //logger.info("      DataChannel Et: write threads = " + writeThreadCount);
 
         // How may buffers do we grab at a time?
-        chunk = 5;
+        chunk = 4;
         attribString = attributeMap.get("chunk");
         if (attribString != null) {
             try {
@@ -373,13 +373,13 @@ logger.info("      DataChannel Et: chunk = " + chunk);
                     int etEventSize = (int) getEtEventSize();
 System.out.println("      DataChannel Et: eventSize = " + etEventSize);
 
-// TODO: increase this to 80MB so we get 32 instead of 16 buffers
                     // Create reusable supply of ByteBuffer objects.
-                    // Put a limit on the amount of memory (40MB). That may be
+                    // Put a limit on the amount of memory (140MB). That may be
                     // the easiest way to figure out how many buffers to use.
                     // Number of bufs must be a power of 2.
-                    int numEtBufs = 80000000 / etEventSize;
-                    numEtBufs = numEtBufs < 4 ? 4 : numEtBufs;
+                    // This will give 64, 2.1MB buffers.
+                    int numEtBufs = 140000000 / etEventSize;
+                    numEtBufs = numEtBufs < 8 ? 8 : numEtBufs;
                     // Make power of 2
                     if (Integer.bitCount(numEtBufs) != 1) {
                         int newVal = numEtBufs/2;
