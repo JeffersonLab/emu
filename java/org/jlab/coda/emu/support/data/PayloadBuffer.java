@@ -92,27 +92,28 @@ public class PayloadBuffer extends RingItemAdapter {
      * @return the length of this structure in bytes, including the header.
      */
     public int getTotalBytes() {
-        return buffer.limit();
+        if (buffer != null) {
+            return buffer.limit();
+        }
+        else if (node != null) {
+            return node.getBufferNode().getBuffer().limit();
+        }
+        return 0;
     }
 
     /**
      * What is the byte order of this data?
-     * @return {@link java.nio.ByteOrder#BIG_ENDIAN} or {@link java.nio.ByteOrder#LITTLE_ENDIAN}
+     * @return {@link java.nio.ByteOrder#BIG_ENDIAN}, {@link java.nio.ByteOrder#LITTLE_ENDIAN}, or null
      */
     public ByteOrder getByteOrder() {
-        return buffer.order();
+        if (buffer != null) {
+            return buffer.order();
+        }
+        else if (node != null) {
+            return node.getBufferNode().getBuffer().order();
+        }
+        return null;
     }
-
-
- // TODO: Deal with this!
-    /**
-     * Get the length of the evio bank's header in words.
-     * @return length of the evio bank's header in words.
-     */
-    public int getHeaderLength() {
-        return 123;
-    }
-
 
     public ModuleIoType getQueueItemType() {return ModuleIoType.PayloadBuffer;}
 
@@ -123,19 +124,24 @@ public class PayloadBuffer extends RingItemAdapter {
         PayloadBuffer item = (PayloadBuffer) super.clone();
         item.attachment = null;
 
-        // Allocate memory
-        item.buffer = ByteBuffer.allocate(buffer.capacity());
+        if (buffer != null) {
+            // Allocate memory
+            item.buffer = ByteBuffer.allocate(buffer.capacity());
 
-        // Store our current position and limit
-        int pos = buffer.position();
-        int lim = buffer.limit();
+            // Store our current position and limit
+            int pos = buffer.position();
+            int lim = buffer.limit();
 
-        // Copy all data
-        buffer.limit(buffer.capacity()).position(0);
-        item.buffer.put(buffer);
+            // Copy all data
+            buffer.limit(buffer.capacity()).position(0);
+            item.buffer.put(buffer);
 
-        // restore original values
-        buffer.limit(lim).position(pos);
+            // restore original values
+            buffer.limit(lim).position(pos);
+        }
+        else {
+            item.buffer = null;
+        }
 
         return item;
     }
