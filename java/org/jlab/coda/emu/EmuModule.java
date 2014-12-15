@@ -81,6 +81,12 @@ public interface EmuModule extends StatedObject, CODAStateMachine {
     public ModuleIoType getOutputRingItemType();
 
     /**
+     * Get the number of items this EmuModule object has in its internal rings.
+     * @return number of items this EmuModule object has in its internal rings.
+     */
+    public int getInternalRingCount();
+
+    /**
      * Remove all channels from this EmuModule object.
      */
     public void clearChannels();
