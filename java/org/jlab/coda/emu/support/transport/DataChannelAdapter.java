@@ -233,35 +233,49 @@ public class DataChannelAdapter extends CODAStateMachineAdapter implements DataC
             catch (NumberFormatException e) {}
         }
 
-        // Set the number of items for the input & output ring buffers
-        int ringSize = 32;
-        attribString = attributeMap.get("ringSize");
-        if (attribString != null) {
-            try {
-                ringSize = Integer.parseInt(attribString);
-                if (ringSize <= 8) {
-                    ringSize = 9;
-                }
-                // Make sure it's a power of 2
-                else if (Integer.bitCount(ringSize) != 1) {
-                    int newVal = ringSize / 2;
-                    ringSize = 1;
-                    while (newVal > 0) {
-                        ringSize *= 2;
-                        newVal /= 2;
-                    }
-                }
-            }
-            catch (NumberFormatException e) {}
-        }
-logger.info("      DataChannel Adapter: ring buf size -> " + ringSize);
-        inputRingItemCount = outputRingItemCount = ringSize;
 
         if (input) {
+            // Set the number of items for the input ring buffers.
+            // These contain evio events parsed from ET, cMsg,
+            // or Emu domain buffers. They should not take up much mem.
+            inputRingItemCount = 4096;
+
+            attribString = attributeMap.get("ringSize");
+            if (attribString != null) {
+                try {
+                    int ringSize = Integer.parseInt(attribString);
+                    if (ringSize < 128) {
+                        ringSize = 128;
+                    }
+                    // Make sure it's a power of 2
+                    else if (Integer.bitCount(ringSize) != 1) {
+                        int newVal = ringSize / 2;
+                        ringSize = 1;
+                        while (newVal > 0) {
+                            ringSize *= 2;
+                            newVal /= 2;
+                        }
+                    }
+                    inputRingItemCount = ringSize;
+                }
+                catch (NumberFormatException e) {}
+            }
+logger.info("      DataChannel Adapter: ring item count -> " + inputRingItemCount);
+
             // Create RingBuffers
             setupInputRingBuffers();
         }
         else {
+            // Set the number of items for the output chan ring buffers.
+            // These cannot be more than any internal module.
+            outputRingItemCount = module.getInternalRingCount();
+            // If the module is not setting this, then it has no internal
+            // ring of buffers, so set this to some reasonable value.
+            if (outputRingItemCount < 1) {
+                outputRingItemCount = 128;
+            }
+logger.info("      DataChannel Adapter: ring item count -> " + outputRingItemCount);
+
             // Do we send out single events or do we
             // marshall them into one output buffer?
             singleEventOut = false;
