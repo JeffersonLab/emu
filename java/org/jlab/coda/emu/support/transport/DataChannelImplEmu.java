@@ -1318,7 +1318,7 @@ System.out.println("      DataChannel Emu out: " + name + " I got END event, qui
 //System.out.println("      DataChannel Emu out: flushEvents, nothing to write out");
                 return;
             }
-System.out.println("      DataChannel Emu out: flushEvents, write event out");
+//System.out.println("      DataChannel Emu out: flushEvents, write event out");
             // If we have no more room in buffer, send what we have so far
             outGoingMsg.setUserInt(cMsgConstants.emuEvioFileFormat);
             outGoingMsg.setByteArrayNoCopy(writer.getByteBuffer().array(), 0,
