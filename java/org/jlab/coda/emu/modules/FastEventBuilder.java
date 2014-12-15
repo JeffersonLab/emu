@@ -196,6 +196,9 @@ public class FastEventBuilder extends ModuleAdapter {
     // Disruptor (RingBuffer)
     //-------------------------------------------
 
+    /** Number of items in build thread ring buffers. */
+    protected int ringItemCount;
+
     /** One RingBuffer per input channel (references to channels' rings). */
     private RingBuffer<RingItem>[] ringBuffersIn;
 
@@ -234,13 +237,13 @@ public class FastEventBuilder extends ModuleAdapter {
 
         // Set number of building threads
         buildingThreadCount = eventProducingThreads;
-System.out.println("  EB mod: " + buildingThreadCount +
-                           " number of event building threads");
+
         // If # build threads not explicitly set in config, make it 4
         // which seems to perform the best.
         if (!epThreadsSetInConfig) {
             buildingThreadCount = eventProducingThreads = 4;
         }
+logger.info("  EB mod: " + buildingThreadCount + " number of event building threads");
 
         // default is NOT to include run number & type in built trigger bank
         String str = attributeMap.get("runData");
@@ -282,6 +285,28 @@ System.out.println("  EB mod: " + buildingThreadCount +
             if (timestampSlop < 1) timestampSlop = 2;
         }
         catch (NumberFormatException e) {}
+
+        // Number of items in each build thread ring. We need to limit this
+        // since it costs real memory. For big events, 32 x 20MB events = 640MB
+        // of mem used. Multiply that times the number of build threads.
+        int ringCount = 32;
+        str = attributeMap.get("ringCount");
+        if (str != null) {
+            try {
+                ringCount = Integer.parseInt(str);
+                if (ringCount < 32) {
+                    ringCount = 32;
+                }
+           }
+            catch (NumberFormatException e) {}
+        }
+
+        // If there are multiple build threads, reduce the # of items per thread.
+        ringCount /= buildingThreadCount;
+
+        // Make sure it's a power of 2, round up
+        ringItemCount = emu.closestPowerOfTwo(ringCount, true);
+logger.info("  EB mod: internal ring buf count -> " + ringItemCount);
     }
 
 
@@ -291,6 +316,9 @@ System.out.println("  EB mod: " + buildingThreadCount +
 
     /** {@inheritDoc} */
     public ModuleIoType getOutputRingItemType() {return ModuleIoType.PayloadBuffer;}
+
+    /** {@inheritDoc} */
+    public int getInternalRingCount() {return ringItemCount;};
 
     /**
      * Method to keep statistics on the size of events built by this event builder.
@@ -712,25 +740,20 @@ System.out.println("  EB mod: create Build Thread with index " + btIndex + ", co
 
         public void run() {
 
-//            boolean firstTimeToEnd = true;
-//            long timeToEnd = 0L;
-
             // Create a reusable supply of ByteBuffer objects
             // for writing built physics events into.
             //--------------------------------------------
             // Direct buffers give better performance
             //--------------------------------------------
-            if (outputChannelCount > 0) {
-                // Find the number of slots in each output channel ring buffer
-                outputRingSize = outputChannels.get(0).getRingBuffersOut()[0].getBufferSize();
-            }
-            // Must have at least outputRingSize # of buffers here
-            // or we could get a deadlock with out channel waiting to read
+
+            // Any existing output channel should not have more than
+            // "ringItemCount" items in each ring buffer. Currently this
+            // is guaranteed in channel constructors.
+            // If so we could get a deadlock with out channel waiting to read
             // more events than this thread can produce with the already-read
             // events still not written out.
-            int supplySize = (outputRingSize < 16) ? 16 : outputRingSize;
-            ByteBufferSupply bbSupply = new ByteBufferSupply(supplySize, 2000, outputOrder, false);
-System.out.println("  EB mod: bbSupply -> " + outputRingSize + " # of bufs of size = " + supplySize + " bytes, is direct = " + false);
+            ByteBufferSupply bbSupply = new ByteBufferSupply(ringItemCount, 2000, outputOrder, false);
+System.out.println("  EB mod: bbSupply -> " + ringItemCount + " # of bufs, direct = " + false);
 
             // Object for building physics events in a ByteBuffer
             CompactEventBuilder builder = null;
