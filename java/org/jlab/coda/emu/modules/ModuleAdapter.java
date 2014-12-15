@@ -354,6 +354,9 @@ logger.info("  Module Adapter: SEB chunk = " + sebChunk);
     public ModuleIoType getOutputRingItemType() {return ModuleIoType.PayloadBuffer;}
 
     /** {@inheritDoc} */
+    public int getInternalRingCount() {return 0;}
+
+    /** {@inheritDoc} */
     public boolean representsEmuStatistics() {return representStatistics;}
 
     /** {@inheritDoc} */
