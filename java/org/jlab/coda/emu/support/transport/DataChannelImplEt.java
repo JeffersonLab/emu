@@ -371,7 +371,7 @@ logger.info("      DataChannel Et: chunk = " + chunk);
                 if (ringItemType == ModuleIoType.PayloadBuffer) {
                     // ET system parameters
                     int etEventSize = (int) getEtEventSize();
-System.out.println("      DataChannel Et: eventSize = " + etEventSize);
+logger.info("      DataChannel Et: eventSize = " + etEventSize);
 
                     // Create reusable supply of ByteBuffer objects.
                     // Put a limit on the amount of memory (140MB). That may be
@@ -388,7 +388,7 @@ System.out.println("      DataChannel Et: eventSize = " + etEventSize);
                             numEtBufs *= 2;
                             newVal /= 2;
                         }
-System.out.println("      DataChannel Et: # of buffers in input supply -> " + numEtBufs);
+logger.info("      DataChannel Et: # copy-ET-buffers in input supply -> " + numEtBufs);
                     }
 
                     bbSupply = new ByteBufferSupply(numEtBufs, etEventSize, module.getOutputOrder(), false);
