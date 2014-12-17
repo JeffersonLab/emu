@@ -147,10 +147,17 @@ public class DataChannelImplFifo extends DataChannelAdapter {
                  releaseCurrentAndGoToNextOutputRingItem(0);
  logger.debug("      DataChannel Fifo helper: sent prestart");
 
-                 // First event will be "go", by convention in ring 0
+                 // First event will be "go" or "end", by convention in ring 0
                  ringItem = getNextOutputRingItem(0);
+                 ControlType pBankControlType = ringItem.getControlType();
                  writeEvioData(ringItem);
                  releaseCurrentAndGoToNextOutputRingItem(0);
+
+                if (pBankControlType == ControlType.END) {
+System.out.println("      DataChannel Fifo helper: " + name + " I sent end, quitting");
+                    return;
+                }
+
  logger.debug("      DataChannel Fifo out helper: sent go");
 
                  while ( state == CODAState.PAUSED || state == CODAState.ACTIVE ) {
@@ -165,7 +172,7 @@ public class DataChannelImplFifo extends DataChannelAdapter {
 
 //logger.debug("      DataChannel Fifo helper: get next buffer from ring " + rbIndex);
                      ringItem = getNextOutputRingItem(rbIndex);
-                     ControlType pBankControlType = ringItem.getControlType();
+                     pBankControlType = ringItem.getControlType();
                      writeEvioData(ringItem);
 
 //logger.debug("      DataChannel Fifo helper: sent event");
