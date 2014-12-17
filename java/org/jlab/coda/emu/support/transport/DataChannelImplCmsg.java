@@ -264,7 +264,7 @@ public class DataChannelImplCmsg extends DataChannelAdapter {
 
                 ringItem.setNode(node);
 //                ringItem.setBuffer(node.getStructureBuffer(false));
-                ringItem.setBuffer(buf);
+//                ringItem.setBuffer(buf);
                 ringItem.setEventType(bankType);
                 ringItem.setControlType(controlType);
                 ringItem.setRecordId(recordId);
