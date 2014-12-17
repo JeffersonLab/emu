@@ -1325,7 +1325,7 @@ System.out.println("Timestamp NOT consistent: ev #" + (firstEventNumber + j) + "
 
         boolean turnOffChecks = false;
 
-        int firstTrigTag=0;
+        int tag, firstTrigTag=0;
         int numROCs = inputPayloadBanks.length;
         int numEvents = inputPayloadBanks[0].getNode().getNum();
 
@@ -1353,7 +1353,8 @@ System.out.println("Timestamp NOT consistent: ev #" + (firstEventNumber + j) + "
 
             // Get the first trigger bank's tag
             if (i == 0) {
-                firstTrigTag = triggerBanks[i].getTag();
+                // For hardware bug work-around mask off last 4 bits of tag
+                firstTrigTag = triggerBanks[i].getTag() & 0xfff0;
             }
 
             inputPayloadBanks[i].setEventCount(numEvents);
@@ -1379,15 +1380,21 @@ System.out.println("Timestamp NOT consistent: ev #" + (firstEventNumber + j) + "
                     throw new EmuException("Trigger bank does not have correct number of segments");
                 }
 
+                // Check to see if all trigger bank tags are 0xff1x
+                tag = triggerBanks[i].getTag() & 0xfff0;
+                if (tag != 0xff10) {
+                    throw new EmuException("Trigger bank has bad tag, " +  triggerBanks[i].getTag());
+                }
+
                 // Check to see if all trigger bank tags are the same
-                if (triggerBanks[i].getTag() != firstTrigTag) {
+                if (tag != firstTrigTag) {
                     throw new EmuException("Trigger banks have different tags");
                 }
             }
         }
 
         // We check timestamps if told to in configuration AND if timestamps are present
-        haveTimestamps = CODATag.hasTimestamp(firstTrigTag);
+        haveTimestamps = CODATag.hasTimestamp(triggerBanks[0].getTag());
         if (checkTimestamps && !haveTimestamps) {
             nonFatalError   = true;
             checkTimestamps = false;
