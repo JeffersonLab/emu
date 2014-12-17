@@ -1461,8 +1461,19 @@ logger.debug("      DataChannel Emu out: sent prestart");
 
                 // First event will be "go", by convention in ring 0
                 ringItem = getNextOutputRingItem(0);
+                pBankControlType = ringItem.getControlType();
                 writeEvioData(ringItem, ringItem.getEventType());
                 releaseCurrentAndGoToNextOutputRingItem(0);
+
+                if (pBankControlType == ControlType.END) {
+                    flushEvents();
+System.out.println("      DataChannel Emu out: " + name + " I got END event, quitting");
+                    // run callback saying we got end event
+                    if (endCallback != null) endCallback.endWait();
+                    threadState = ThreadState.DONE;
+                    return;
+                }
+
 logger.debug("      DataChannel Emu out: sent go");
 
                 while ( true ) {
