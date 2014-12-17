@@ -680,13 +680,31 @@ logger.debug("      DataChannel File out " + outputIndex + ": processEnd(), inte
 logger.debug("      DataChannel File out  " + outputIndex + ": wrote prestart");
                 releaseCurrentAndGoToNextOutputRingItem(0);
 
-                // Second event will be "go", by convention in ring 0
+                // Second event will be "go" or "end", by convention in ring 0
                 ringItem = getNextOutputRingItem(0);
+                pBankControlType = ringItem.getControlType();
                 // Do not force "go" event to hard disk as data will
                 // soon follow and things will be written out shortly.
                 writeEvioData(ringItem, false);
-logger.debug("      DataChannel File out " + outputIndex + ": wrote go");
                 releaseCurrentAndGoToNextOutputRingItem(0);
+
+                // END may come just after PRESTART
+                if (pBankControlType == ControlType.END) {
+System.out.println("      DataChannel File out, " + outputIndex + ": wrote end");
+                    try {
+                        evioFileWriter.close();
+                    }
+                    catch (Exception e) {
+                        errorMsg.compareAndSet(null, "Cannot write to file");
+                        throw e;
+                    }
+                    // run callback saying we got end event
+                    if (endCallback != null) endCallback.endWait();
+                    threadState = ThreadState.DONE;
+                    return;
+                }
+
+logger.debug("      DataChannel File out " + outputIndex + ": wrote go");
 
                 while ( true ) {
 
