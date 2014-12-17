@@ -515,7 +515,7 @@ if (debug) System.out.println("  EB mod: Roc raw or physics event in wrong forma
 
 
     /**
-     * This method looks for either a prestart or go event in all the
+     * This method looks for either a prestart, go, or end event in all the
      * input channels' ring buffers.
      *
      * @param sequences     one sequence per ring buffer per build thread
@@ -523,39 +523,43 @@ if (debug) System.out.println("  EB mod: Roc raw or physics event in wrong forma
      * @param nextSequences one "index" per ring buffer per build thread to
      *                      keep track of which event each thread is at
      *                      in each ring buffer
-     *
+     * @return type of control events found
      * @throws EmuException if got non-control or non-prestart/go event
      * @throws InterruptedException if taking of event off of Q is interrupted
      */
-    private void getAllControlEvents(Sequence[] sequences,
+    private ControlType getAllControlEvents(Sequence[] sequences,
                                      SequenceBarrier barriers[],
                                      long nextSequences[])
             throws EmuException, InterruptedException {
 
-        // If we're here, inputChannelCount > 0 
-        boolean isPrestart = true;
+        // If we're here, inputChannelCount > 0
         PayloadBuffer[] buildingBanks = new PayloadBuffer[inputChannelCount];
+        ControlType controlType = null;
 
-        // First thing we do is look for the go/prestart event and pass it on
+        // First thing we do is look for the go/prestart/end event and pass it on
         // Grab one control event from each ring buffer.
         for (int i=0; i < inputChannelCount; i++) {
             try  {
                 barriers[i].waitFor(nextSequences[i]);
                 buildingBanks[i] = (PayloadBuffer) ringBuffersIn[i].get(nextSequences[i]);
 
-//                Utilities.printBuffer(buildingBanks[i].getBuffer(), 0, 5, "CONTROL EV" + i);
                 ControlType cType = buildingBanks[i].getControlType();
-//System.out.println("  EB mod: gotAllControlEvents: Seq[" + i + "] = " + nextSequences[i] + " has control type " + cType);
                 if (cType == null) {
                     throw new EmuException("Expecting control event, got something else");
                 }
 
-                if (cType.isGo()) {
-                    isPrestart = false;
+                // Look for what the first channel sent, on the other channels
+                if (controlType == null) {
+                    controlType = cType;
                 }
-                else if (!cType.isPrestart()) {
-                    Utilities.printBuffer(buildingBanks[i].getBuffer(), 0, 10, "Bad go/prestart");
-                    throw new EmuException("Expecting go or prestart, got " + cType);
+                else if (cType != controlType) {
+                    throw new EmuException("Control event differs across inputs, expect " +
+                                                   controlType + ", got " + cType);
+                }
+
+                if (!cType.isEnd() && !cType.isGo() && !cType.isPrestart()) {
+                    Utilities.printBuffer(buildingBanks[i].getBuffer(), 0, 5, "Bad control event");
+                    throw new EmuException("Expecting prestart, go or end, got " + cType);
                 }
             }
             catch (final TimeoutException e) {
@@ -589,12 +593,7 @@ if (debug) System.out.println("  EB mod: Roc raw or physics event in wrong forma
 //System.out.println("  EB mod: gotAllControlEvents: next Seq[" + i + "] = " + nextSequences[i]);
         }
 
-        if (isPrestart) {
-System.out.println("  EB mod: have consistent PRESTART event(s)");
-        }
-        else {
-System.out.println("  EB mod: have consistent GO event(s)");
-        }
+        return controlType;
     }
 
 
@@ -711,6 +710,50 @@ System.out.println("  EB mod: create Build Thread with index " + btIndex + ", co
         }
 
 
+        private void handleEndEvent() {
+
+            // Put 1 END event on each output channel
+            if (outputChannelCount > 0) {
+                // Take one of the control events and update
+                // it with the latest event builder data.
+                PayloadBuffer endBuf = Evio.createControlBuffer(ControlType.END,
+                                                                runNumber, runTypeId, (int)eventCountTotal, 0,
+                                                                outputOrder, false);
+
+                // END event is the Nth "built" event through this EB (after go)
+                endEventIndex = evIndex;
+
+                // END event will be found on this ring in all output channels
+                endEventRingIndex = btIndex;
+
+                // Send END event to first output channel
+System.out.println("  EB mod: send END event to output channel 0, ring " + endEventRingIndex +
+                   ", ev# = " + evIndex);
+                // Write, but first wait until other build threads are done
+                writeEndEvent(endBuf, 0, endEventRingIndex);
+
+                // Send END event to other output channels
+                for (int j=1; j < outputChannelCount; j++) {
+                    // Copy END event
+                    PayloadBuffer pb = new PayloadBuffer(endBuf);
+System.out.println("  EB mod: send END event to output channel " + j + ", ring " + endEventRingIndex +
+                   ", ev# = " + evIndex);
+
+                    // Already waited for other build threads to finish before
+                    // writing END to first channel above, so now we can go ahead
+                    // and write END to other channels without waiting.
+                    eventToOutputChannel(pb, j, endEventRingIndex);
+                }
+
+                // Direct all output channels to the correct ring
+                // from which to read & process the END event.
+                processEndInOutput(endEventIndex, endEventRingIndex);
+            }
+
+            if (endCallback != null) endCallback.endWait();
+        }
+
+
         /**
          * Write the given END event to the given channel and ring after first waiting
          * for all other build threads to finish what they're building.
@@ -816,7 +859,10 @@ System.out.println("  EB mod: bbSupply -> " + ringItemCount + " # of bufs, direc
             // First thing we do is look for the prestart event(s) and pass it on
             try {
                 // Get prestart from each input channel
-                getAllControlEvents(buildSequences, buildBarrierIn, nextSequences);
+                ControlType cType = getAllControlEvents(buildSequences, buildBarrierIn, nextSequences);
+                if (!cType.isPrestart()) {
+                    throw new EmuException("Expecting prestart event, got " + cType);
+                }
 
                 // If this is the first build thread to reach this point, then
                 // write prestart event on all output channels, ring 0. Other build
@@ -845,14 +891,28 @@ System.out.println("  EB mod: bbSupply -> " + ringItemCount + " # of bufs, direc
             }
             catch (InterruptedException e) {}
 
+System.out.println("  EB mod: got all PRESTART events");
+
             // Update stats
             eventCountTotal++;
             wordCountTotal += 5;
 
             // Second thing we do is look for the go event and pass it on
             try {
-                // Get go from each input channel
-                getAllControlEvents(buildSequences, buildBarrierIn, nextSequences);
+                 // Get go/end from each input channel
+                ControlType cType = getAllControlEvents(buildSequences, buildBarrierIn, nextSequences);
+                if (!cType.isGo()) {
+                    if (cType.isEnd()) {
+                        haveEndEvent = true;
+                        handleEndEvent();
+System.out.println("  EB mod: got all END events");
+                        return;
+                    }
+                    else {
+                        throw new EmuException("Expecting go ro end event, got " + cType);
+                    }
+                }
+
                 if (firstToGetGo.compareAndSet(false, true)) {
                     controlToOutputAsync(false);
                 }
@@ -873,6 +933,8 @@ System.out.println("  EB mod: bbSupply -> " + ringItemCount + " # of bufs, direc
                 waitForGo.await();
             }
             catch (InterruptedException e) {}
+
+System.out.println("  EB mod: got all GO events");
 
             // Update stats
             eventCountTotal++;
@@ -1098,57 +1160,12 @@ System.out.println("  EB mod: have all ENDs, but differing # of physics events i
 
                     // If we have all END events ...
                     if (haveEnd) {
-                        haveEndEvent = true;
 System.out.println("  EB mod: Bt#" + btIndex + " found END events on all input channels");
-
-                        // Throw exception if inconsistent
-                        Evio.gotConsistentControlEvents(buildingBanks, runNumber, runTypeId);
-
-System.out.println("  EB mod: have consistent END event(s)");
-
-                        // Put 1 END event on each output channel
-                        if (outputChannelCount > 0) {
-                            // Take one of the control events and update
-                            // it with the latest event builder data.
-                            PayloadBuffer endBuf = Evio.createControlBuffer(ControlType.END,
-                                  runNumber, runTypeId, (int)eventCountTotal, 0,
-                                  outputOrder, false);
-
-                            // END event is the Nth "built" event through this EB (after go)
-                            endEventIndex = evIndex;
-
-                            // END event will be found on this ring in all output channels
-                            endEventRingIndex = btIndex;
-
-                            // Send END event to first output channel
-System.out.println("  EB mod: send END event to output channel 0, ring " + endEventRingIndex +
-                   ", ev# = " + evIndex);
-                            // Write, but first wait until other build threads are done
-                            writeEndEvent(endBuf, 0, endEventRingIndex);
-
-                            // Send END event to other output channels
-                            for (int j=1; j < outputChannelCount; j++) {
-                                // Copy END event
-                                PayloadBuffer pb = new PayloadBuffer(endBuf);
-System.out.println("  EB mod: send END event to output channel " + j + ", ring " + endEventRingIndex +
-                   ", ev# = " + evIndex);
-
-                                // Already waited for other build threads to finish before
-                                // writing END to first channel above, so now we can go ahead
-                                // and write END to other channels without waiting.
-                                eventToOutputChannel(pb, j, endEventRingIndex);
-                            }
-
-                            // Direct all output channels to the correct ring
-                            // from which to read & process the END event.
-                            processEndInOutput(endEventIndex, endEventRingIndex);
-                        }
-
+                        haveEndEvent = true;
+                        handleEndEvent();
                         // Update stats
                         eventCountTotal++;
                         wordCountTotal += 5;
-
-                        if (endCallback != null) endCallback.endWait();
                         return;
                     }
 
