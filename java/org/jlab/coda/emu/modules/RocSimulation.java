@@ -96,6 +96,9 @@ public class RocSimulation extends ModuleAdapter {
     /** Flag saying we got the END command. */
     private volatile boolean gotResetCommand;
 
+    /** Flag saying we got the GO command. */
+    private volatile boolean gotGoCommand;
+
 
     /** Callback to be run when a message from synchronizer
      *  arrives, allowing all ROCs to sync up. We subscribe
@@ -675,7 +678,8 @@ System.out.println("  Roc mod: start With (id=" + myId + "):\n    record id = " 
         // We're the only module, and the END event has made it through
         endCallback.endWait();
 
-        if (synced) {
+        // Skip over this if not synced or go never received
+        if (gotGoCommand && synced) {
             // Wait until all threads are done writing events
 System.out.println("  Roc mod: end(), endPhaser block here");
             //endPhaser.arriveAndAwaitAdvance();
@@ -727,7 +731,7 @@ System.out.println("  Roc mod: end(), past endPhaser");
         state = CODAState.PAUSED;
 
         // Reset some variables
-        gotEndCommand = gotResetCommand = false;
+        gotGoCommand = gotEndCommand = gotResetCommand = false;
         eventRate = wordRate = 0F;
         eventCountTotal = wordCountTotal = 0L;
         rocRecordId = 0;
@@ -775,6 +779,8 @@ System.out.println("  Roc mod: insert PRESTART event");
 
     /** {@inheritDoc} */
     public void go() {
+        gotGoCommand = true;
+
         if (state == CODAState.ACTIVE) {
 //System.out.println("  Roc mod: we must have hit go after PAUSE");
         }
