@@ -1780,7 +1780,7 @@ System.out.println("      DataChannel Et out " + outputIndex + ": have GO, ringI
 //logger.warn("      DataChannel Et out : " + name + " end while, eventCount(" + eventCount + "), thisEventIndex(" + thisListIndex +
 //            "), nextEventIndex(" + nextListIndex + ") <? eventArrayLen(" + eventArrayLen + ")");
 
-                     } while (!gotResetCmd && (nextListIndex < eventArrayLen));
+                     } while (!gotResetCmd && (nextListIndex <= eventArrayLen));
 
                      // If I've been told to RESET ...
                      if (gotResetCmd) {
