@@ -32,7 +32,7 @@
     
     <!-- Help -->
     <target name="help">
-        <echo message="Usage: ant [ant options] &lt;target1&gt; [target2 | target3 | ...]" />
+        <echo message="Usage: ant [-Dprefix=dir] &lt;target1&gt; [target2 | target3 | ...]" />
         <echo message="" />
         <echo message="       targets:" />
         <echo message="       help       - print out usage" />
