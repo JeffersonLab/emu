@@ -1,0 +1,18 @@
+#!/bin/csh -f
+
+# Script to start up a CODA EMU Event Recorder
+# First argument is the name of the component
+
+if ($#argv < 1) then
+  echo "Usage: coda_emu_er <emu_name>"
+  exit
+endif
+
+setenv PATH $CODA/$MACHINE/bin
+setenv LD_LIBRARY_PATH $CODA/$MACHINE/lib
+
+$JAVA_HOME/bin/java -cp $CODA/common/jar/\* \
+    -Djava.library.path=$CODA/$MACHINE/lib \
+    -DcmsgUDL="rc://multicast/"$EXPID \
+    -Dname=$1 \
+    -Dtype=ER org.jlab.coda.emu.EmuFactory

@@ -1,0 +1,19 @@
+#!/bin/csh -f
+
+# Script to start up a CODA EMU Data Concentrator
+# First argument is the name of the component
+
+if ($#argv < 2) then
+  echo "Usage: coda_emu <emu_name> <emu_type>"
+  echo "(Note valid emu types: DC, PEB, SEB, ER, FCS)"
+  exit
+endif
+
+setenv PATH $CODA/$MACHINE/bin
+setenv LD_LIBRARY_PATH $CODA/$MACHINE/lib
+
+$JAVA_HOME/bin/java -cp $CODA/common/jar/\* \
+    -Djava.library.path=$CODA/$MACHINE/lib \
+    -DcmsgUDL="rc://multicast/"$EXPID"?connectTO=20" \
+    -Dname=$1 \
+    -Dtype=$2 org.jlab.coda.emu.EmuFactory
