@@ -18,6 +18,7 @@
     <property name="build.classes" value="${build.dir}/classes" />
     <property name="build.lib"     value="${build.dir}/lib" />
     <property name="doc.dir"       value="doc/javadoc" />
+    <property name="scripts.dir"   value="scripts" />
 
     <property name="jarName"       value="emu-${emu.version}.jar" />
     <property name="allJarNames"   value="emu-*.jar" />
@@ -42,7 +43,8 @@
         <echo message="       jar        - compile and create jar file" />
         <echo message="       install    - create jar file and install into 'prefix'" />
         <echo message="                    if given on command line by -Dprefix=dir'," />
-        <echo message="                    else install into CODA if defined" />
+        <echo message="                    else install into CODA if defined." />
+        <echo message="                    Also install scripts into the bin directory" />
         <echo message="       uninstall  - remove jar file previously installed into 'prefix'" />
         <echo message="                    if given on command line by -Dprefix=dir'," />
         <echo message="                    else installed into CODA if defined" />
@@ -136,10 +138,14 @@
 
     <target name="preparePrefixDir" if="prefixDefined">
         <mkdir dir="${prefix}/jar" />
+        <mkdir dir="${prefix}/bin" />
     </target>
 
     <target name="prepareCodaDir" if="codaDefined">
         <mkdir dir="${env.CODA}/common/jar" />
+        <mkdir dir="${env.CODA}/common/bin" />
+        <mkdir dir="${env.CODA}/Linux-i686/bin" />
+        <mkdir dir="${env.CODA}/Linux-x86_64/bin" />
     </target>
 
 
@@ -230,15 +236,47 @@
 
     <!-- Install Jar file -->
     <target name="install" depends="jar,installCheck" description="Installs jar file.">
-        <antcall target="error"/>
+        <antcall target="error"/> 
         <antcall target="installInPrefix"/>
         <antcall target="installInCODA"/>
+        <antcall target="installScriptsInPrefix"/>
+        <antcall target="installScriptsInCODA"/>
+    </target>
+
+    <!-- Install in scripts in prefix -->
+    <target name="installScriptsInPrefix" if="prefixDefined">
+        <echo>Install scripts into ${prefix}/bin</echo>
+        <copy todir="${prefix}/bin" >
+            <fileset dir="${scripts.dir}"  >
+                <include name="coda_emu*"/>
+            </fileset>
+        </copy>
+    </target>
+
+    <!-- Install in scripts in $CODA -->
+    <target name="installScriptsInCODA" unless="prefixDefined" if="codaDefined">
+        <echo>Install scripts into ${env.CODA}/common/bin, ${env.CODA}/Linux-i686/bin, and ${env.CODA}/Linux-x86_64/bin</echo>
+        <copy todir="${env.CODA}/common/bin" >
+            <fileset dir="${scripts.dir}"  >
+                <include name="coda_emu*"/>
+            </fileset>
+        </copy>
+        <copy todir="${env.CODA}/Linux-i686/bin" >
+            <fileset dir="${scripts.dir}"  >
+                <include name="coda_emu*"/>
+            </fileset>
+        </copy>
+        <copy todir="${env.CODA}/Linux-x86_64/bin" >
+            <fileset dir="${scripts.dir}"  >
+                <include name="coda_emu*"/>
+            </fileset>
+        </copy>
     </target>
 
     <!-- Install in prefix -->
     <target name="installInPrefix" if="prefixDefined">
-        <echo>Install ${jarName} into ${prefix}</echo>
-        <echo>Install ${disJarName} into ${prefix}</echo>
+        <echo>Install ${jarName} into ${prefix}/jar </echo>
+        <echo>Install ${disJarName} into ${prefix}/jar </echo>
         <delete>
             <fileset dir="${prefix}/jar" includes="${allJarNames}" />
         </delete>
