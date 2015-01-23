@@ -893,10 +893,6 @@ System.out.println("  EB mod: bbSupply -> " + ringItemCount + " # of bufs, direc
 
 System.out.println("  EB mod: got all PRESTART events");
 
-            // Update stats
-            eventCountTotal++;
-            wordCountTotal += 5;
-
             // Second thing we do is look for the go event and pass it on
             try {
                  // Get go/end from each input channel
@@ -935,10 +931,6 @@ System.out.println("  EB mod: got all END events");
             catch (InterruptedException e) {}
 
 System.out.println("  EB mod: got all GO events");
-
-            // Update stats
-            eventCountTotal++;
-            wordCountTotal += 5;
 
             // Now do the event building
             while (state == CODAState.ACTIVE || paused) {
@@ -1163,9 +1155,6 @@ System.out.println("  EB mod: have all ENDs, but differing # of physics events i
 System.out.println("  EB mod: Bt#" + btIndex + " found END events on all input channels");
                         haveEndEvent = true;
                         handleEndEvent();
-                        // Update stats
-                        eventCountTotal++;
-                        wordCountTotal += 5;
                         return;
                     }
 
