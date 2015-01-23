@@ -1,0 +1,3 @@
+#!/bin/csh -f
+
+$JAVA_HOME/bin/java -cp $CODA/common/jar/\* org.jlab.coda.eventViewer.EventTreeFrame
