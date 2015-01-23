@@ -248,7 +248,7 @@
         <echo>Install scripts into ${prefix}/bin</echo>
         <copy todir="${prefix}/bin" >
             <fileset dir="${scripts.dir}"  >
-                <include name="coda_emu*"/>
+                <include name="*"/>
             </fileset>
         </copy>
     </target>
@@ -258,17 +258,17 @@
         <echo>Install scripts into ${env.CODA}/common/bin, ${env.CODA}/Linux-i686/bin, and ${env.CODA}/Linux-x86_64/bin</echo>
         <copy todir="${env.CODA}/common/bin" >
             <fileset dir="${scripts.dir}"  >
-                <include name="coda_emu*"/>
+                <include name="*"/>
             </fileset>
         </copy>
         <copy todir="${env.CODA}/Linux-i686/bin" >
             <fileset dir="${scripts.dir}"  >
-                <include name="coda_emu*"/>
+                <include name="*"/>
             </fileset>
         </copy>
         <copy todir="${env.CODA}/Linux-x86_64/bin" >
             <fileset dir="${scripts.dir}"  >
-                <include name="coda_emu*"/>
+                <include name="*"/>
             </fileset>
         </copy>
     </target>
