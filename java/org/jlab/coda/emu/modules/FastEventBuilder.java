@@ -714,8 +714,7 @@ System.out.println("  EB mod: create Build Thread with index " + btIndex + ", co
 
             // Put 1 END event on each output channel
             if (outputChannelCount > 0) {
-                // Take one of the control events and update
-                // it with the latest event builder data.
+                // Create control event
                 PayloadBuffer endBuf = Evio.createControlBuffer(ControlType.END,
                                                                 runNumber, runTypeId, (int)eventCountTotal, 0,
                                                                 outputOrder, false);
@@ -1140,13 +1139,20 @@ System.out.println("  EB mod: got END from " + buildingBanks[i].getSourceName() 
 
                         // If we still can't find all ENDs, throw exception - major error
                         if (finalEndEventCount!= inputChannelCount) {
-                            throw new EmuException("only " + finalEndEventCount + " ENDs for " +
-                                                           inputChannelCount + " channels");
+                            emu.sendRcErrorMessage("Missing " +
+                                                   (inputChannelCount - finalEndEventCount) +
+                                                   " END events, ending anyway");
+                            //throw new EmuException("only " + finalEndEventCount + " ENDs for " +
+                            //                               inputChannelCount + " channels");
+System.out.println("  EB mod: missing " + (inputChannelCount - finalEndEventCount) + " END events!");
+                        }
+                        else {
+                            emu.sendRcErrorMessage("All END events found, but out of order");
+System.out.println("  EB mod: have all ENDs, but differing # of physics events in channels");
                         }
 
                         // If we're here, we've found all ENDs, continue on with warning ...
                         nonFatalError = true;
-System.out.println("  EB mod: have all ENDs, but differing # of physics events in channels");
                     }
 
 
