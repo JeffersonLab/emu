@@ -652,8 +652,15 @@ logger.debug("      DataChannel File out " + outputIndex + ": processEnd(), inte
                 evioFileWriter.writeEvent(ri.getEvent());
             }
             else if  (ringItemType == ModuleIoType.PayloadBuffer) {
+                if (ri.getBuffer() != null) {
 //logger.info("      DataChannel File out: write buffer with order = " + ri.getBuffer().order());
-                evioFileWriter.writeEvent(ri.getBuffer(), forceToDisk);
+                    evioFileWriter.writeEvent(ri.getBuffer(), forceToDisk);
+                }
+                else {
+//logger.info("      DataChannel File out: write buffer with order = " + ri.getNode().getBufferNode().getBuffer().order());
+                    evioFileWriter.writeEvent(ri.getNode(), forceToDisk);
+                }
+
                 ri.releaseByteBuffer();
             }
         }
@@ -742,6 +749,7 @@ logger.debug("      DataChannel File out " + outputIndex + ": got  ev " + nextEv
                     }
 
                     try {
+//logger.debug("      DataChannel File out " + outputIndex + ": write!");
                         writeEvioData(ringItem, false);
                     }
                     catch (Exception e) {
