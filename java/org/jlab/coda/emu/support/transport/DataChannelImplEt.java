@@ -1771,7 +1771,7 @@ System.out.println("      DataChannel Et out " + outputIndex + ": have GO, ringI
                                  (emu.getTime() - startTime > timeout)) {
 
                              if (emu.getTime() - startTime > timeout)
-                                 System.out.println("TIME FLUSH ******************");
+//                                 System.out.println("TIME FLUSH ******************");
 
 //logger.warn("      DataChannel Et out : " + name + " break since eventCount(" + eventCount +
 //        ") > outputRingItemCount/2(" + ( outputRingItemCount/2) +")");

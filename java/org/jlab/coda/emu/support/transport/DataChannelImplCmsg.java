@@ -1284,7 +1284,7 @@ System.out.println("      DataChannel cmsg out " + outputIndex + ": have GO, rin
                         if ((eventCount >= outputRingItemCount*3/4) ||
                             (emu.getTime() - startTime > timeout)) {
                             if (emu.getTime() - startTime > timeout)
-                                System.out.println("TIME FLUSH ******************");
+//                                System.out.println("TIME FLUSH ******************");
                             break;
                         }
 
