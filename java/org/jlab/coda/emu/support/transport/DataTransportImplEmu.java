@@ -87,7 +87,7 @@ System.out.println("Port should be specified in config file, using default " + p
             }
 
             // Start up Emu domain server (receiver of data)
-System.out.println("STARTING UP EMU SERVER in " + name + " with port " + port + " &&&&&&&&&&&&&&&&&&&&&&&&&&&&");
+System.out.println("STARTING UP EMU SERVER in " + name + " with port " + port);
             emuServer = new EmuDomainServer(port, emu.getExpid(), name, this);
             emuServer.start();
         }
