@@ -1039,6 +1039,13 @@ System.out.println("      DataChannel Et in: " + name + " got RESET cmd, quit");
                                 payloadBank.setSourceName(name);
                                 payloadBank.setEventCount(1);
                                 payloadBank.matchesId(sourceId == id);
+                                // Set the event count properly for blocked events
+                                if (bankType.isBuildable()) {
+                                    payloadBank.setEventCount(event.getHeader().getNumber());
+                                }
+                                else {
+                                    payloadBank.setEventCount(1);
+                                }
 
                                 ringBufferIn.publish(nextRingItem);
 //System.out.println("      DataChannel Et in: published sequence " + nextRingItem);
@@ -1330,10 +1337,16 @@ Utilities.printBuffer(buf, 0, 20, "BAD EVENT ");
                             ri.setRecordId(recordId);
                             ri.setSourceId(sourceId);
                             ri.setSourceName(name);
-                            ri.setEventCount(1);
                             ri.setNode(node);
                             ri.setReusableByteBuffer(bbSupply, bbItem);
                             ri.matchesId(sourceId == id);
+                            // Set the event count properly for blocked events
+                            if (bankType.isBuildable()) {
+                                ri.setEventCount(node.getNum());
+                            }
+                            else {
+                                ri.setEventCount(1);
+                            }
 
                             ringBufferIn.publish(nextRingItem);
 //System.out.println("      DataChannel Et in: published sequence " + nextRingItem);

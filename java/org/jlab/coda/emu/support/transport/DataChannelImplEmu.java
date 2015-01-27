@@ -653,9 +653,9 @@ System.out.println("      DataChannel Emu in helper: " + name + " RETURN");
 
         private final void handleEvioFileToBank(int evioBytes) throws IOException, EvioException {
 
+            RingItem ri;
             EvioEvent event;
             EventType bankType;
-            PayloadBank payloadBank;
             ControlType controlType = null;
 
             // Get a reusable ByteBuffer
@@ -749,16 +749,22 @@ System.out.println("      DataChannel Emu in helper: " + name + " RETURN");
                 }
 
                 nextRingItem = ringBufferIn.next();
-                payloadBank = (PayloadBank) ringBufferIn.get(nextRingItem);
+                ri = ringBufferIn.get(nextRingItem);
 
-                payloadBank.setEvent(event);
-                payloadBank.setEventType(bankType);
-                payloadBank.setControlType(controlType);
-                payloadBank.setRecordId(recordId);
-                payloadBank.setSourceId(sourceId);
-                payloadBank.setSourceName(name);
-                payloadBank.setEventCount(1);
-                payloadBank.matchesId(sourceId == id);
+                ri.setEvent(event);
+                ri.setEventType(bankType);
+                ri.setControlType(controlType);
+                ri.setRecordId(recordId);
+                ri.setSourceId(sourceId);
+                ri.setSourceName(name);
+                ri.matchesId(sourceId == id);
+                // Set the event count properly for blocked events
+                if (bankType.isBuildable()) {
+                    ri.setEventCount(event.getHeader().getNumber());
+                }
+                else {
+                    ri.setEventCount(1);
+                }
 
                 ringBufferIn.publish(nextRingItem);
 
@@ -782,9 +788,9 @@ System.out.println("      DataChannel Emu in helper: " + name + " RETURN");
 
         private final void handleEvioFileToBuf(int evioBytes) throws IOException, EvioException {
 
+            RingItem ri;
             EvioNode node;
             EventType bankType;
-            PayloadBuffer payloadBuffer;
             ControlType controlType = null;
 
             // Get a reusable ByteBuffer
@@ -867,18 +873,24 @@ System.out.println("      DataChannel Emu in helper: " + name + " RETURN");
                 }
 
                 nextRingItem = ringBufferIn.next();
+                ri = ringBufferIn.get(nextRingItem);
 
-                payloadBuffer = (PayloadBuffer) ringBufferIn.get(nextRingItem);
-                //payloadBuffer.setBuffer(node.getStructureBuffer(false));
-                payloadBuffer.setEventType(bankType);
-                payloadBuffer.setControlType(controlType);
-                payloadBuffer.setRecordId(recordId);
-                payloadBuffer.setSourceId(sourceId);
-                payloadBuffer.setSourceName(name);
-                payloadBuffer.setNode(node);
-                payloadBuffer.setEventCount(1);
-                payloadBuffer.setReusableByteBuffer(bbSupply, bbItem);
-                payloadBuffer.matchesId(sourceId == id);
+                //ri.setBuffer(node.getStructureBuffer(false));
+                ri.setEventType(bankType);
+                ri.setControlType(controlType);
+                ri.setRecordId(recordId);
+                ri.setSourceId(sourceId);
+                ri.setSourceName(name);
+                ri.setNode(node);
+                ri.setReusableByteBuffer(bbSupply, bbItem);
+                ri.matchesId(sourceId == id);
+                // Set the event count properly for blocked events
+                if (bankType.isBuildable()) {
+                    ri.setEventCount(node.getNum());
+                }
+                else {
+                    ri.setEventCount(1);
+                }
 
                 ringBufferIn.publish(nextRingItem);
 

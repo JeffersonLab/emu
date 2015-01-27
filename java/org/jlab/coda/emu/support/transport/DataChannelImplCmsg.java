@@ -181,8 +181,14 @@ public class DataChannelImplCmsg extends DataChannelAdapter {
                 ringItem.setRecordId(recordId);
                 ringItem.setSourceId(sourceId);
                 ringItem.setSourceName(name);
-                ringItem.setEventCount(1);
                 ringItem.matchesId(sourceId == id);
+                // Set the event count properly for blocked events
+                if (bankType.isBuildable()) {
+                    ringItem.setEventCount(event.getHeader().getNumber());
+                }
+                else {
+                    ringItem.setEventCount(1);
+                }
 
                 ringBufferIn.publish(nextRingItem);
 
@@ -264,7 +270,6 @@ public class DataChannelImplCmsg extends DataChannelAdapter {
 
                 ringItem.setNode(node);
 //                ringItem.setBuffer(node.getStructureBuffer(false));
-//                ringItem.setBuffer(buf);
                 ringItem.setEventType(bankType);
                 ringItem.setControlType(controlType);
                 ringItem.setRecordId(recordId);
@@ -272,6 +277,13 @@ public class DataChannelImplCmsg extends DataChannelAdapter {
                 ringItem.setSourceName(name);
                 ringItem.setEventCount(1);
                 ringItem.matchesId(sourceId == id);
+                // Set the event count properly for blocked events
+                if (bankType.isBuildable()) {
+                    ringItem.setEventCount(node.getNum());
+                }
+                else {
+                    ringItem.setEventCount(1);
+                }
 
                 ringBufferIn.publish(nextRingItem);
 
