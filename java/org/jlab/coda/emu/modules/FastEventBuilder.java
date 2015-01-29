@@ -448,7 +448,7 @@ if (debug) System.out.println("  EB mod: Roc raw or physics event in wrong forma
         // Have output channels?
         if (outputChannelCount < 1) {
             for (RingItem bank : banksOut) {
-                bank.getByteBufferSupply().release(bank.getByteBufferItem());
+                bank.releaseByteBuffer();
             }
             return;
         }
