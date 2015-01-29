@@ -340,11 +340,9 @@ if (debug) System.out.println("  ER mod: will end threads but no END event or ri
 
                     while (nextSequence <= availableSequence) {
                         ringItem = ringBufferIn.get(nextSequence);
+                        wordCount = ringItem.getNode().getLength() + 1;
                         controlType = ringItem.getControlType();
                         totalNumberEvents = ringItem.getEventCount();
-
-                        recordingBuf = (PayloadBuffer)ringItem;
-                        wordCount = recordingBuf.getNode().getLength() + 1;
 
                         // Skip over events being recorded by other recording threads
                         if (skipCounter - 1 > 0)  {
@@ -373,13 +371,20 @@ System.out.println("  ER mod: " + order + ", got control event, " + ringItem.get
 //                    }
 
                     if (outputChannelCount > 0) {
+                        // If multiple output channels, we must copy the ringItem.
+                        // Make sure the buffer being used is not prematurely released
+                        // for reuse. Do this by increasing the # of buffer users.
+                        if (outputChannelCount > 1) {
+                            ringItem.getByteBufferItem().addUsers(outputChannelCount - 1);
+                        }
+
                         // Place event on first output channel
 //System.out.println("  ER mod: " + order + ", call eventToOutputChannel()");
-                        eventToOutputChannel(recordingBuf, 0, order);
+                        eventToOutputChannel(ringItem, 0, order);
 
                         // Copy event and place one on each additional output channel
                         for (int j=1; j < outputChannelCount; j++) {
-                            PayloadBuffer bb = new PayloadBuffer(recordingBuf);
+                            PayloadBuffer bb = new PayloadBuffer((PayloadBuffer)ringItem);
                             eventToOutputChannel(bb, j, order);
                         }
                     }
@@ -396,8 +401,11 @@ System.out.println("  ER mod: found END event");
                     eventCountTotal += totalNumberEvents;
                     wordCountTotal  += wordCount;
 
-                    // Release the reusable ByteBuffers back to their supply
-                    ringItem.releaseByteBuffer();
+                    // Do NOT release the reusable ByteBuffer back to its supply.
+                    // It was passed on to the input ring buffer of the output channel.
+                    // It's that channel that will release the buffer when it's done
+                    // writing it to file or wherever.
+                    //ringItem.releaseByteBuffer();
 
                     // Release the events back to the ring buffer for re-use
                     sequence.set(nextSequence++);
