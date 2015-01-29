@@ -275,10 +275,7 @@ logger.info("  Module Adapter: SEB chunk = " + sebChunk);
 
         // Have any output channels?
         if (outputChannelCount < 1) {
-            ByteBufferSupply supply = itemOut.getByteBufferSupply();
-            if (supply != null) {
-                supply.release(itemOut.getByteBufferItem());
-            }
+            itemOut.releaseByteBuffer();
             return;
         }
 
