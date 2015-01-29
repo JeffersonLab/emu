@@ -192,11 +192,37 @@ public class ByteBufferItem {
      * @return {@code true} if no one using buffer now, else {@code false}.
      */
     public boolean decrementCounter() {
-        // Only use atomic object if "users" initially > 1
-        if (users > 1) {
+        // Only use atomic object if "users" > 1
+        if (atomicCounter != null) {
             return atomicCounter.decrementAndGet() < 1;
         }
         return true;
+    }
+
+    /**
+     * If a reference to this ByteBufferItem is copied, then it is necessary to increase
+     * the number of users. Although this method is not safe to call in general,
+     * it is safe, for example, if a RingItem is copied in the ER <b>BEFORE</b>
+     * it is copied again onto multiple output channels' rings and then released.
+     * Currently this is only used in just such a situation - in the ER when a ring
+     * item must be copied and placed on all extra output channels. In this case,
+     * there is always at least one existing user.
+     *
+     * @param additionalUsers number of users to add
+     */
+    public void addUsers(int additionalUsers) {
+        if (additionalUsers < 1) return;
+
+        // If there was only 1 original user of the ByteBuffer ...
+        if (atomicCounter == null) {
+            // The original user's BB is now in the process of being copied
+            // so it still exists (decrementCounter not called yet).
+            // Total users now = 1 + additionalUsers.
+            atomicCounter = new AtomicInteger(additionalUsers + 1);
+        }
+        else {
+            atomicCounter.addAndGet(additionalUsers);
+        }
     }
 
 }
