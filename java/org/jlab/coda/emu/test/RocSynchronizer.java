@@ -41,7 +41,7 @@ public class RocSynchronizer {
     private String description = "synchronize fake ROCs";
 
     // Members for statistics
-    private int     count = 5000;
+    private int     count;
     private boolean debug;
 
     // List of expected fake ROCs we need to communicate with
