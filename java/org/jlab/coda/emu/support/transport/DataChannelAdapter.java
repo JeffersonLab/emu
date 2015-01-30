@@ -260,7 +260,7 @@ public class DataChannelAdapter extends CODAStateMachineAdapter implements DataC
                 }
                 catch (NumberFormatException e) {}
             }
-logger.info("      DataChannel Adapter: ring item count -> " + inputRingItemCount);
+logger.info("      DataChannel Adapter: input ring item count -> " + inputRingItemCount);
 
             // Create RingBuffers
             setupInputRingBuffers();
@@ -274,7 +274,7 @@ logger.info("      DataChannel Adapter: ring item count -> " + inputRingItemCoun
             if (outputRingItemCount < 1) {
                 outputRingItemCount = 128;
             }
-logger.info("      DataChannel Adapter: ring item count -> " + outputRingItemCount);
+logger.info("      DataChannel Adapter: output ring item count -> " + outputRingItemCount);
 
             // Do we send out single events or do we
             // marshall them into one output buffer?
