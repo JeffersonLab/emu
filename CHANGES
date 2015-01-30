@@ -1,0 +1,12 @@
+Changes from the previous version:
+
+Version 2.3
+    - fix major bug in ER in which use of ByteBuffer backing events is released for
+      reuse BEFORE all events written to file, resulting in corrupted data.
+
+    - make EB multithreaded
+
+    - add ability to flush events through emu every 2 seconds if data rate is low
+
+    - add fake Trigger Supervisor to handle fake ROCs
+
