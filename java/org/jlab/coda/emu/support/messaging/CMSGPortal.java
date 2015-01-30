@@ -183,7 +183,7 @@ logger.warn("Emu: exit due to rc/cMsg connect error: " + e.getMessage());
                 }
             }
         }
-        else if (emu.getCodaClass() == CODAClass.ROC) {
+        else if (emu.getCodaClass() == CODAClass.ROC || emu.getCodaClass() == CODAClass.TS) {
 
             boolean foundServer = false;
 
