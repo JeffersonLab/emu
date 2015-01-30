@@ -65,6 +65,9 @@ public class RocSimulation extends ModuleAdapter {
     /** Number of Roc raw events to produce before syncing with other Rocs. */
     private int syncCount;
 
+    /** Number of ByteBuffers in each EventGeneratingThread. */
+    private int bufSupplySize = 4096;
+
     //----------------------------------------------------
     // Members used to synchronize all fake Rocs to each other which allows run to
     // end properly. I.e., they all produce the same number of buildable events.
@@ -105,6 +108,7 @@ public class RocSimulation extends ModuleAdapter {
      *  once to subject = "sync" and type = "ROC". */
     private class SyncCallback extends cMsgCallbackAdapter {
         public void callback(cMsgMessage msg, Object userObject) {
+//System.out.println("callback: got msg from synchronizer");
             int endIt = msg.getUserInt();
             if (endIt > 0) {
                 // Signal to finish end() method and it will
@@ -179,13 +183,13 @@ public class RocSimulation extends ModuleAdapter {
         eventGeneratingThreads = new EventGeneratingThread[eventProducingThreads];
 
         // Is this ROC to be synced with others?
-        synced = false;
+        synced = true;
         s = attributeMap.get("sync");
         if (s != null) {
-            if (s.equalsIgnoreCase("true") ||
-                s.equalsIgnoreCase("on")   ||
-                s.equalsIgnoreCase("yes"))   {
-                synced = true;
+            if (s.equalsIgnoreCase("false") ||
+                s.equalsIgnoreCase("off")   ||
+                s.equalsIgnoreCase("no"))   {
+                synced = false;
             }
         }
 
@@ -205,6 +209,9 @@ public class RocSimulation extends ModuleAdapter {
 
     /** {@inheritDoc} */
     public ModuleIoType getOutputRingItemType() {return ModuleIoType.PayloadBuffer;}
+
+    /** {@inheritDoc} */
+    public int getInternalRingCount() {return bufSupplySize;}
 
     //---------------------------------------
     // Threads
@@ -295,7 +302,7 @@ public class RocSimulation extends ModuleAdapter {
         ri.setSourceName(null);
         ri.setReusableByteBuffer(bbSupply, item);
 
-//System.out.println("  Roc mod: published record id " + rrId + " to ring " + ringNum);
+//System.out.println("  Roc mod: published ring item #" + nextRingItem + " to ring " + ringNum);
         rb.publish(nextRingItem);
     }
 
@@ -458,7 +465,6 @@ public class RocSimulation extends ModuleAdapter {
         private CompactEventBuilder builder;
         /** Ring buffer containing ByteBuffers - used to hold events for writing. */
         private ByteBufferSupply bbSupply;
-        private int bufSupplySize = 4096;
         // Number of data words in each event
         private int generatedDataWords;
         private ByteBuffer templateBuffer;
@@ -545,9 +551,10 @@ System.out.println("  Roc mod: start With (id=" + myId + "):\n    record id = " 
                                 copyWholeBuf = false;
                             }
                         }
+//System.out.println("  Roc mod: write event");
 
-                        writeEventBuffer(buf, templateBuffer, myEventNumber,
-                                         timestamp, copyWholeBuf);
+                           writeEventBuffer(buf, templateBuffer, myEventNumber,
+                                            timestamp, copyWholeBuf);
 
 
                         // Put generated events into output channel
@@ -561,7 +568,7 @@ System.out.println("  Roc mod: start With (id=" + myId + "):\n    record id = " 
                         myEventNumber += eventProducingThreads*eventBlockSize;
                         timestamp     += 4*eventProducingThreads*eventBlockSize;
                         myRocRecordId += eventProducingThreads;
-//System.out.println("  Roc mod: next (id=" + myId + "):\n    record id = " + myRocRecordId +
+//System.out.println("  Roc mod: next (id=" + myId + "):\n           record id = " + myRocRecordId +
 //                           ", ev # = " +myEventNumber + ", ts = " + timestamp);
 
 //                        Thread.sleep(1);
@@ -646,7 +653,7 @@ System.out.println("  Roc mod: start With (id=" + myId + "):\n    record id = " 
     /** {@inheritDoc} */
     public void reset() {
         gotResetCommand = true;
-        System.out.println("  Roc mod: reset() in");
+System.out.println("  Roc mod: reset()");
         Date theDate = new Date();
         State previousState = state;
         state = CODAState.CONFIGURED;
@@ -681,16 +688,16 @@ System.out.println("  Roc mod: start With (id=" + myId + "):\n    record id = " 
         // Skip over this if not synced or go never received
         if (gotGoCommand && synced) {
             // Wait until all threads are done writing events
-System.out.println("  Roc mod: end(), endPhaser block here");
+//System.out.println("  Roc mod: end(), endPhaser block here");
             //endPhaser.arriveAndAwaitAdvance();
             try {
                 endPhaser.awaitAdvanceInterruptibly(endPhaser.arrive());
             }
             catch (InterruptedException e) {
-System.out.println("  Roc mod: end(), endPhaser interrupted");
+//System.out.println("  Roc mod: end(), endPhaser interrupted");
                 return;
             }
-System.out.println("  Roc mod: end(), past endPhaser");
+//System.out.println("  Roc mod: end(), past endPhaser");
         }
 
         // Put this line down here so we don't pop out of event-generating
@@ -769,7 +776,7 @@ System.out.println("  Roc mod: insert PRESTART event");
         if (synced) {
             cMsgServer = emu.getCmsgPortal().getCmsgServer();
             try {
-                System.out.println("  Roc mod: subscribe()" );
+System.out.println("  Roc mod: subscribe()" );
                 cmsgSubHandle = cMsgServer.subscribe("sync", "ROC", callback, null);
             }
             catch (cMsgException e) {/* never happen */}
@@ -815,7 +822,7 @@ System.out.println("  Roc mod: insert GO event");
             }
 
 //System.out.println("  Roc mod: event generating thread " + eventGeneratingThreads[i].getName() + " isAlive = " +
-//                    eventGeneratingThread.isAlive());
+//                           eventGeneratingThreads[i].isAlive());
             if (eventGeneratingThreads[i].getState() == Thread.State.NEW) {
 //System.out.println("  Roc mod: starting event generating thread");
                 eventGeneratingThreads[i].start();
