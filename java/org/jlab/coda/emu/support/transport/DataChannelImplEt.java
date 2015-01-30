@@ -1576,7 +1576,7 @@ System.out.println("      DataChannel Et out: wake up attachment #" + attachment
                          // If I've been told to RESET ...
                          if (gotResetCmd) {
                              shutdown();
- System.out.println("      DataChannel Et out: " + name + " got RESET cmd, quitting 1");
+System.out.println("      DataChannel Et out: " + name + " got RESET cmd, quitting 1");
                              return;
                          }
                          continue;
@@ -1783,15 +1783,16 @@ System.out.println("      DataChannel Et out " + outputIndex + ": have GO, ringI
                          if ((eventCount >= outputRingItemCount/2) ||
                                  (emu.getTime() - startTime > timeout)) {
 
-                             if (emu.getTime() - startTime > timeout)
+//                             if (emu.getTime() - startTime > timeout) {
 //                                 System.out.println("TIME FLUSH ******************");
+//                             }
 
 //logger.warn("      DataChannel Et out : " + name + " break since eventCount(" + eventCount +
 //        ") > outputRingItemCount/2(" + ( outputRingItemCount/2) +")");
                              break;
                          }
-//logger.warn("      DataChannel Et out : " + name + " end while, eventCount(" + eventCount + "), thisEventIndex(" + thisListIndex +
-//            "), nextEventIndex(" + nextListIndex + ") <? eventArrayLen(" + eventArrayLen + ")");
+//logger.warn("      DataChannel Et out : " + name + " end while, eventCount(" + eventCount + "), thisListIndex(" + thisListIndex +
+//            "), nextListIndex(" + nextListIndex + ") <=? eventArrayLen(" + eventArrayLen + ")");
 
                      } while (!gotResetCmd && (nextListIndex <= eventArrayLen));
 
@@ -1802,12 +1803,12 @@ System.out.println("      DataChannel Et out: " + name + " got RESET cmd, quitti
                          return;
                      }
 
- //logger.info("      DataChannel Et out : nextEvIndx = " + nextEventIndex +
- //                    ", evArrayLen = " + eventArrayLen);
+//logger.info("      DataChannel Et out : nextEvIndx = " + nextListIndex +
+//                    ", evArrayLen = " + eventArrayLen);
 
 //                     latch = new CountDownLatch(nextEventIndex);
                      phaser.bulkRegister(nextListIndex);
-//logger.warn("      DataChannel Et out : " + name + " bulkRegister(" + nextEventIndex + ")");
+//logger.info("      DataChannel Et out : " + name + " bulkRegister(" + nextListIndex + ")");
 
                      // For each ET event that can be filled with something ...
                      for (int i=0; i < nextListIndex; i++) {
@@ -2081,9 +2082,11 @@ System.out.println("      DataChannel Et out: " + name + " some thd got END even
                              node = ri.getNode();
 //System.out.println("      DataChannel Et out: write buffer of order " + ri.getByteOrder());
                              if (buf != null) {
+//System.out.println("      DataChannel Et out: write buffer of order " + ri.getByteOrder());
                                  evWriter.writeEvent(buf);
                              }
                              else if (node != null) {
+//System.out.println("      DataChannel Et out: write node of order " + ri.getByteOrder());
                                  evWriter.writeEvent(ri.getNode().getStructureBuffer(false));
                              }
 //System.out.println("      DataChannel Et out: release ring item");
