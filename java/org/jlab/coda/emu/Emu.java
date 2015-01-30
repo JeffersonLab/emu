@@ -15,10 +15,7 @@ import org.jlab.coda.cMsg.cMsgException;
 import org.jlab.coda.cMsg.cMsgPayloadItem;
 import org.jlab.coda.cMsg.cMsgMessage;
 
-import org.jlab.coda.emu.modules.EventRecording;
-import org.jlab.coda.emu.modules.FarmController;
-import org.jlab.coda.emu.modules.FastEventBuilder;
-import org.jlab.coda.emu.modules.RocSimulation;
+import org.jlab.coda.emu.modules.*;
 
 import org.jlab.coda.emu.support.codaComponent.*;
 import org.jlab.coda.emu.support.configurer.Configurer;
@@ -1534,6 +1531,14 @@ if (debug) logger.info("Emu " + name + " end: change state to ENDING");
         TimeUnit timeUnits = TimeUnit.MILLISECONDS;
 
         try {
+            // Fake TS does not have any I/O so handle it here
+            if (codaClass == CODAClass.TS) {
+                modules.get(0).end();
+if (debug) logger.info("Emu " + name + " end: END cmd to module " + modules.get(0).name());
+                setState(DOWNLOADED);
+                return;
+            }
+
             LinkedList<EmuModule> mods = dataPath.getEmuModules();
 
             if (mods.size() < 1) {
@@ -1674,6 +1679,14 @@ if (debug) logger.info("Emu " + name + " go: change state to GOING");
         setState(GOING);
 
         try {
+            // Fake TS does not have any I/O so handle it here
+            if (codaClass == CODAClass.TS) {
+                modules.get(0).go();
+if (debug) logger.info("Emu " + name + " go: GO cmd to module " + modules.get(0).name());
+                setState(ACTIVE);
+                return;
+            }
+
             LinkedList<EmuModule> mods = dataPath.getEmuModules();
 
             if (mods.size() < 1) {
@@ -1745,7 +1758,16 @@ if (debug) logger.info("Emu " + name + " prestart: change state to PRESTARTING")
             catch (cMsgException e) {/* never happen */}
         }
 
+
         try {
+            // Fake TS does not have transport channels so handle it here
+            if (codaClass == CODAClass.TS) {
+                modules.get(0).prestart();
+if (debug) logger.debug("Emu " + name + " prestart: PRESTART cmd to module " + modules.get(0).name());
+                setState(PAUSED);
+                return;
+            }
+
             //------------------------------------------------
             // PRESTART to transport objects first
             //------------------------------------------------
@@ -1933,6 +1955,21 @@ if (debug) logger.info("Emu " + name + " download: change state to DOWNLOADING")
         setState(DOWNLOADING);
 
         try {
+            // Fake TS does not have config file to parse so handle it here
+            if (codaClass == CODAClass.TS) {
+                // Remove all existing modules from collection
+                modules.clear();
+
+if (debug) logger.info("Emu " + name + " download: create TS module");
+                // Create fake TS module
+                EmuModule module = new TsSimulation(name, this);
+                modules.add(module);
+                module.download();
+
+                setState(DOWNLOADED);
+                return;
+            }
+
             // Get the config info again since it may have changed
             Node modulesConfig = Configurer.getNode(configuration(), "component/modules");
 
@@ -2216,8 +2253,19 @@ if (debug) logger.info("Emu " + name + " config: change state to CONFIGURING");
                         }
                         // Use the platform's host & port to connect to
                         // platform's cMsg domain server.
+System.out.println("Emu " + name + " config: connect to cMsg server");
                         cmsgPortal.cMsgServerConnect();
                     }
+
+
+                    // Fake TS does not need to be configured
+                    if (codaClass == CODAClass.TS) {
+if (debug) logger.info("Emu " + name + " config: change state to CONFIGURED");
+                        setState(CONFIGURED);
+                        return;
+                    }
+
+
                 }
                 catch (cMsgException e) {/* never happen */}
                 catch (EmuException e) {
