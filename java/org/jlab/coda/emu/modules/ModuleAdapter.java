@@ -167,6 +167,16 @@ public class ModuleAdapter implements EmuModule {
     // ---------------------------------------------------
 
 
+    /** Default constructor for fake TS. */
+    public ModuleAdapter(String name, Emu emu) {
+        this.emu = emu;
+        this.name = name;
+
+        logger = null;
+        attributeMap = null;
+    }
+
+
     /**
      * Constructor creates a new EventRecording instance.
      *
@@ -297,17 +307,17 @@ logger.info("  Module Adapter: SEB chunk = " + sebChunk);
     //-----------------------------------------------------------
 
     /** {@inheritDoc} */
-    public void go()       throws CmdExecException {}
+    public void go()       throws CmdExecException {state = CODAState.ACTIVE;}
     /** {@inheritDoc} */
-    public void end()      throws CmdExecException {}
+    public void end()      throws CmdExecException {state = CODAState.DOWNLOADED;}
     /** {@inheritDoc} */
     public void pause()    {paused = true;}
     /** {@inheritDoc} */
-    public void prestart() throws CmdExecException {}
+    public void prestart() throws CmdExecException {state = CODAState.PAUSED;}
     /** {@inheritDoc} */
-    public void download() throws CmdExecException {}
+    public void download() throws CmdExecException {state = CODAState.DOWNLOADED;}
     /** {@inheritDoc} */
-    public void reset() {}
+    public void reset() {state = CODAState.CONFIGURED;}
 
 
     /** {@inheritDoc} */
