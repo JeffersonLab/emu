@@ -333,12 +333,9 @@ if (debug) System.out.println("  ER mod: will end threads but no END event or ri
                     // Only wait or read-volatile-memory if necessary ...
                     if (availableSequence < nextSequence) {
                         // Available sequence may be larger than what we desired
-System.out.println("  ER mod: " + order + ", wait for seq " + nextSequence);
-                        if (ringBufferIn.remainingCapacity() < 1) {
-                            System.out.println("ring capacity = 0");
-                        }
+//System.out.println("  ER mod: " + order + ", wait for seq " + nextSequence);
                         availableSequence = barrierIn.waitFor(nextSequence);
-System.out.println("  ER mod: " + order + ", got seq " + availableSequence);
+//System.out.println("  ER mod: " + order + ", got seq " + availableSequence);
                     }
 
                     while (nextSequence <= availableSequence) {
@@ -349,13 +346,13 @@ System.out.println("  ER mod: " + order + ", got seq " + availableSequence);
 
                         // Skip over events being recorded by other recording threads
                         if (skipCounter - 1 > 0)  {
-System.out.println("  ER mod: " + order + ", skip " + nextSequence);
+//System.out.println("  ER mod: " + order + ", skip " + nextSequence);
                             nextSequence++;
                             skipCounter--;
                         }
                         // Found a bank, so do something with it (skipCounter[i] - 1 == 0)
                         else {
-System.out.println("  ER mod: " + order + ", accept item " + nextSequence + ", type " + ringItem.getEventType());
+//System.out.println("  ER mod: " + order + ", accept item " + nextSequence + ", type " + ringItem.getEventType());
                             if (ringItem.getEventType() == EventType.CONTROL) {
 System.out.println("  ER mod: " + order + ", got control event, " + ringItem.getControlType());
                             }
@@ -366,12 +363,12 @@ System.out.println("  ER mod: " + order + ", got control event, " + ringItem.get
                     }
 
                     if (!gotBank) {
-System.out.println("  ER mod: " + order + ", don't have bank, continue");
+//System.out.println("  ER mod: " + order + ", don't have bank, continue");
                         continue;
                     }
-                    else {
-System.out.println("  ER mod: " + order + ", GOT bank, out chan count = " + outputChannelCount);
-                    }
+//                    else {
+//System.out.println("  ER mod: " + order + ", GOT bank, out chan count = " + outputChannelCount);
+//                    }
 
                     if (outputChannelCount > 0) {
                         // If multiple output channels, we must copy the ringItem.
@@ -382,7 +379,7 @@ System.out.println("  ER mod: " + order + ", GOT bank, out chan count = " + outp
                         }
 
                         // Place event on first output channel
-System.out.println("  ER mod: " + order + ", call eventToOutputChannel()");
+//System.out.println("  ER mod: " + order + ", call eventToOutputChannel()");
                         eventToOutputChannel(ringItem, 0, order);
 
                         // Copy event and place one on each additional output channel
@@ -408,7 +405,10 @@ System.out.println("  ER mod: found END event");
                     // It was passed on to the input ring buffer of the output channel.
                     // It's that channel that will release the buffer when it's done
                     // writing it to file or wherever.
-                    //ringItem.releaseByteBuffer();
+                    // But if NO output, it needs to be freed.
+                    if (outputChannelCount < 1) {
+                        ringItem.releaseByteBuffer();
+                    }
 
                     // Release the events back to the ring buffer for re-use
                     sequence.set(nextSequence++);
