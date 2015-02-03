@@ -1787,8 +1787,8 @@ System.out.println("      DataChannel Et out " + outputIndex + ": have GO, ringI
 //                                 System.out.println("TIME FLUSH ******************");
 //                             }
 
-logger.warn("      DataChannel Et out : " + name + " break since eventCount(" + eventCount +
-        ") > outputRingItemCount/2(" + ( outputRingItemCount/2) +") or time expired");
+logger.warn("      DataChannel Et out : " + name + " break since nextListIndex(" + nextListIndex +
+        ") >= outputRingItemCount/2(" + ( outputRingItemCount/2) +") or time expired");
                              break;
                          }
 //logger.warn("      DataChannel Et out : " + name + " end while, eventCount(" + eventCount + "), thisListIndex(" + thisListIndex +
