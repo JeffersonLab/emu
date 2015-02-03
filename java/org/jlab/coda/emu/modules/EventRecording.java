@@ -334,6 +334,9 @@ if (debug) System.out.println("  ER mod: will end threads but no END event or ri
                     if (availableSequence < nextSequence) {
                         // Available sequence may be larger than what we desired
 //System.out.println("  ER mod: " + order + ", wait for seq " + nextSequence);
+                        if (ringBufferIn.remainingCapacity() < 1) {
+                            System.out.println("ring capacity = 0");
+                        }
                         availableSequence = barrierIn.waitFor(nextSequence);
 //System.out.println("  ER mod: " + order + ", got seq " + availableSequence);
                     }
