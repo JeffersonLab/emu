@@ -285,9 +285,6 @@ logger.info("  Module Adapter: SEB chunk = " + sebChunk);
 
         // Have any output channels?
         if (outputChannelCount < 1) {
-            if (emu.getCodaClass() == CODAClass.ER) {
-                System.out.println("Release event");
-            }
             itemOut.releaseByteBuffer();
             return;
         }
