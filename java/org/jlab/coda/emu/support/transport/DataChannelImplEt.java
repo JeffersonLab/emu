@@ -259,19 +259,6 @@ logger.info("      DataChannel Et: creating output channel " + name);
             throw new DataTransportException("", e);
         }
 
-        // How may Et buffer filling threads in thread pool for the data output thread?
-        writeThreadCount = 2;
-        attribString = attributeMap.get("wthreads");
-        if (attribString != null) {
-            try {
-                writeThreadCount = Integer.parseInt(attribString);
-                if (writeThreadCount <  1) writeThreadCount = 1;
-                if (writeThreadCount > 10) writeThreadCount = 10;
-            }
-            catch (NumberFormatException e) {}
-        }
-//logger.info("      DataChannel Et: write threads = " + writeThreadCount);
-
         // How may buffers do we grab at a time?
         chunk = 4;
         attribString = attributeMap.get("chunk");
@@ -283,6 +270,19 @@ logger.info("      DataChannel Et: creating output channel " + name);
             catch (NumberFormatException e) {}
         }
 logger.info("      DataChannel Et: chunk = " + chunk);
+
+        // How may Et buffer filling threads in thread pool for the data output thread?
+        writeThreadCount = 2;
+        attribString = attributeMap.get("wthreads");
+        if (attribString != null) {
+            try {
+                writeThreadCount = Integer.parseInt(attribString);
+                if (writeThreadCount < 1) writeThreadCount = 1;
+                if (writeThreadCount > chunk) writeThreadCount = chunk;
+            }
+            catch (NumberFormatException e) {}
+        }
+//logger.info("      DataChannel Et: write threads = " + writeThreadCount);
 
         // From which group do we grab new events? (default = 1)
         group = 1;
@@ -1780,15 +1780,15 @@ System.out.println("      DataChannel Et out " + outputIndex + ": have GO, ringI
                          // Be careful not to use up all the events in the output
                          // ring buffer before writing some (& freeing them up).
                          // Also write what we have if time (2 sec) has expired.
-                         if ((nextListIndex >= outputRingItemCount/2) ||
+                         if ((eventCount >= outputRingItemCount/2) ||
                                  (emu.getTime() - startTime > timeout)) {
 
 //                             if (emu.getTime() - startTime > timeout) {
 //                                 System.out.println("TIME FLUSH ******************");
 //                             }
 
-logger.warn("      DataChannel Et out : " + name + " break since nextListIndex(" + nextListIndex +
-        ") >= outputRingItemCount/2(" + ( outputRingItemCount/2) +") or time expired");
+//logger.warn("      DataChannel Et out : " + name + " break since eventCount(" + eventCount +
+//        ") >= outputRingItemCount/2(" + ( outputRingItemCount/2) +") or time expired");
                              break;
                          }
 //logger.warn("      DataChannel Et out : " + name + " end while, eventCount(" + eventCount + "), thisListIndex(" + thisListIndex +
@@ -1803,8 +1803,8 @@ System.out.println("      DataChannel Et out: " + name + " got RESET cmd, quitti
                          return;
                      }
 
-logger.info("      DataChannel Et out : eventCount = " + eventCount + ", nextListIndex = " + nextListIndex +
-                    ", evArrayLen = " + eventArrayLen);
+logger.info("      DataChannel Et out : # evio events = " + eventCount + ", lists = " + nextListIndex +
+                    ", ET events = " + eventArrayLen);
 
 //                     latch = new CountDownLatch(nextEventIndex);
                      phaser.bulkRegister(nextListIndex);
