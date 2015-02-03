@@ -1787,8 +1787,8 @@ System.out.println("      DataChannel Et out " + outputIndex + ": have GO, ringI
 //                                 System.out.println("TIME FLUSH ******************");
 //                             }
 
-//logger.warn("      DataChannel Et out : " + name + " break since eventCount(" + eventCount +
-//        ") > outputRingItemCount/2(" + ( outputRingItemCount/2) +")");
+logger.warn("      DataChannel Et out : " + name + " break since eventCount(" + eventCount +
+        ") > outputRingItemCount/2(" + ( outputRingItemCount/2) +") or time expired");
                              break;
                          }
 //logger.warn("      DataChannel Et out : " + name + " end while, eventCount(" + eventCount + "), thisListIndex(" + thisListIndex +
@@ -1803,8 +1803,8 @@ System.out.println("      DataChannel Et out: " + name + " got RESET cmd, quitti
                          return;
                      }
 
-//logger.info("      DataChannel Et out : nextEvIndx = " + nextListIndex +
-//                    ", evArrayLen = " + eventArrayLen);
+logger.info("      DataChannel Et out : eventCount = " + eventCount + ", nextListIndex = " + nextListIndex +
+                    ", evArrayLen = " + eventArrayLen);
 
 //                     latch = new CountDownLatch(nextEventIndex);
                      phaser.bulkRegister(nextListIndex);
