@@ -318,7 +318,7 @@ logger.info("  EB mod: internal ring buf count -> " + ringItemCount);
     public ModuleIoType getOutputRingItemType() {return ModuleIoType.PayloadBuffer;}
 
     /** {@inheritDoc} */
-    public int getInternalRingCount() {return ringItemCount;};
+    public int getInternalRingCount() {return buildingThreadCount*ringItemCount;};
 
     /**
      * Method to keep statistics on the size of events built by this event builder.
@@ -789,7 +789,7 @@ System.out.println("  EB mod: send END event to output channel " + j + ", ring "
             //--------------------------------------------
 
             // Any existing output channel should not have more than
-            // "ringItemCount" items in each ring buffer. Currently this
+            // "ringItemCount * btCount" items in each ring buffer. Currently this
             // is guaranteed in channel constructors.
             // If so we could get a deadlock with out channel waiting to read
             // more events than this thread can produce with the already-read
