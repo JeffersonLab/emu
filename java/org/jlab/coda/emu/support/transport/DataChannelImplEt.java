@@ -1780,7 +1780,7 @@ System.out.println("      DataChannel Et out " + outputIndex + ": have GO, ringI
                          // Be careful not to use up all the events in the output
                          // ring buffer before writing some (& freeing them up).
                          // Also write what we have if time (2 sec) has expired.
-                         if ((eventCount >= outputRingItemCount/2) ||
+                         if ((nextListIndex >= outputRingItemCount/2) ||
                                  (emu.getTime() - startTime > timeout)) {
 
 //                             if (emu.getTime() - startTime > timeout) {
