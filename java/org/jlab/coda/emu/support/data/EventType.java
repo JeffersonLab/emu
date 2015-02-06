@@ -89,6 +89,14 @@ public enum EventType {
     }
 
     /**
+     * Is this a usr or control event type?
+     * @return <code>true</code> if user or control event type, else <code>false</code>
+     */
+    public boolean isUserOrControl() {
+        return (this == USER || this == CONTROL);
+    }
+
+    /**
      * Is this a data event type?
      * @return <code>true</code> if data event type, else <code>false</code>
      */
