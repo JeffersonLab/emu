@@ -25,7 +25,7 @@
     <property name="jarPath"       value="${build.lib}/${jarName}" />
     <property name="local.jars"    value="${src.dir}/jars" />
 
-    <property name="disJarName"    value="disruptor-3.2.1.jar" />
+    <property name="disJarName"    value="disruptor-3.3.jar" />
     <property name="disJarPath"    value="${local.jars}/${disJarName}" />
 
     <!-- Targets -->
