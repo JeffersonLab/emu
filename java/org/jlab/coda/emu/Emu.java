@@ -949,8 +949,11 @@ System.out.println("Emu " + name + " sending special RC display error Msg:\n ***
      * @return closest power of two
      */
     public int closestPowerOfTwo(int value, boolean roundUp) {
+        if (value < 2) return 1;
+
         // If "value" is not a power of 2 ...
         if (Integer.bitCount(value) != 1) {
+            int origValue = value;
             int newVal = value / 2;
             value = 1;
             while (newVal > 0) {
@@ -958,7 +961,7 @@ System.out.println("Emu " + name + " sending special RC display error Msg:\n ***
                 newVal /= 2;
             }
 
-            if (roundUp) {
+            if (roundUp && (value < origValue)) {
                 value *= 2;
             }
         }
@@ -1602,6 +1605,7 @@ if (debug) logger.info("Emu " + name + " end: timeout (30 sec) waiting for END e
                     try {
 if (debug) logger.info("Emu " + name + " end: output chan " + chan.name() + " call waitForEvent()");
                         gotEndEvent = chan.getEndCallback().waitForEvent(timeout, timeUnits);
+if (debug) logger.info("Emu " + name + " end: output chan " + chan.name() + " gotEndEvent = " + gotEndEvent);
                         if (!gotEndEvent) {
 if (debug) logger.info("Emu " + name + " end: timeout (30 sec) waiting for END event in output chan " + chan.name());
                             errorMsg.compareAndSet(null, "timeout waiting for END event in output chan " + chan.name());
