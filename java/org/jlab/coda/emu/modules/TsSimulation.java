@@ -80,7 +80,7 @@ public class TsSimulation extends ModuleAdapter {
             respondingRocs.add(msg.getType());
             // Int = 1 (got End cmd) or 0 (no End received)
             respondingStates.add(msg.getUserInt());
-System.out.println("  TS mod: got type = " + msg.getType() + " & user int = " + msg.getUserInt());
+//System.out.println("  TS mod: got type = " + msg.getType() + " & user int = " + msg.getUserInt());
 
             // If we got the expected number of responses, see if
             // we got them from the expected ROCs.
@@ -167,12 +167,21 @@ System.out.println("  TS mod: adding roc " + rocName);
 
         // Get platform's cMsg server
         coda = emu.getCmsgPortal().getCmsgServer();
+
         try {
-System.out.println("  TS mod: subscribe to sub = " + subjectIn + ", typ = *");
+            // Unsubscribe from any previous subscription
+            if (sub != null) coda.unsubscribe(sub);
+        }
+        catch (cMsgException e) {/* ignore any error */}
+
+        try {
+//System.out.println("  TS mod: subscribe to sub = " + subjectIn + ", typ = *");
             // Subscribe to get ROCs' sync-related messages
             sub = coda.subscribe(subjectIn, "*", callback, null);
         }
-        catch (cMsgException e) {}
+        catch (Exception e) {
+            e.printStackTrace();
+        }
 
         state = CODAState.PAUSED;
         paused = false;
@@ -184,11 +193,11 @@ System.out.println("  TS mod: subscribe to sub = " + subjectIn + ", typ = *");
         if (debug) System.out.println("  TS mod: reset()");
 
         // Unsubscribe
-        try { coda.unsubscribe(sub); }
+        try { if (coda != null && sub != null) coda.unsubscribe(sub); }
         catch (cMsgException e) {}
 
         // Stop thread
-        thread.stop();
+        if (thread != null) thread.stop();
 
         state = CODAState.CONFIGURED;
         paused = false;
@@ -199,12 +208,8 @@ System.out.println("  TS mod: subscribe to sub = " + subjectIn + ", typ = *");
     public void end() throws CmdExecException {
         if (debug) System.out.println("  TS mod: end()");
 
-        // Unsubscribe
-        try { coda.unsubscribe(sub); }
-        catch (cMsgException e) {}
-
         // Stop thread
-        thread.stop();
+        if (thread != null) thread.stop();
 
         state = CODAState.DOWNLOADED;
         paused = false;
