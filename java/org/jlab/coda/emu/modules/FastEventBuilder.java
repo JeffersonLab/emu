@@ -238,10 +238,10 @@ public class FastEventBuilder extends ModuleAdapter {
         // Set number of building threads
         buildingThreadCount = eventProducingThreads;
 
-        // If # build threads not explicitly set in config, make it 4
-        // which seems to perform the best.
+        // If # build threads not explicitly set in config, make it 1
+        // which seems to perform the best with high rates and small events.
         if (!epThreadsSetInConfig) {
-            buildingThreadCount = eventProducingThreads = 4;
+            buildingThreadCount = eventProducingThreads = 1;
         }
 logger.info("  EB mod: " + buildingThreadCount + " number of event building threads");
 
