@@ -776,7 +776,7 @@ System.out.println("  Roc mod: insert PRESTART event");
         if (synced) {
             cMsgServer = emu.getCmsgPortal().getCmsgServer();
             try {
-System.out.println("  Roc mod: subscribe()" );
+System.out.println("  Roc mod: subscribe() to sub = sync, type = ROC");
                 cmsgSubHandle = cMsgServer.subscribe("sync", "ROC", callback, null);
             }
             catch (cMsgException e) {/* never happen */}
