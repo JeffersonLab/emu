@@ -1332,8 +1332,8 @@ Utilities.printBuffer(buf, 0, 20, "BAD EVENT ");
                                 // It may NOT be enough just to check the tag
                                 controlType = ControlType.getControlType(node.getTag());
                                 if (controlType == null) {
-                                    errorMsg.compareAndSet(null, "Found unidentified control event");
-                                    throw new EvioException("Found unidentified control event");
+                                    errorMsg.compareAndSet(null, "Found unidentified control event, tag = 0x" + Integer.toHexString(node.getTag()));
+                                    throw new EvioException("Found unidentified control event, tag = 0x" + Integer.toHexString(node.getTag()));
                                 }
                             }
 
@@ -2222,7 +2222,7 @@ System.out.println("      DataChannel Et out: " + name + " some thd got END even
      * data into them. Finally, the putter thread takes the ET events which are
      * filled with data and put them back into the ET system.
      */
-    private class DataOutputHelper extends Thread {
+    private class DataOutputHelperNew extends Thread {
 
         /** Help in pausing DAQ. */
         private int pauseCounter;
@@ -2268,7 +2268,7 @@ System.out.println("      DataChannel Et out: " + name + " some thd got END even
 
 
         /** Constructor. */
-        DataOutputHelper(ThreadGroup group, String name) {
+        DataOutputHelperNew(ThreadGroup group, String name) {
             super(group, name);
 
             // Closest power of 2 to chunk, rounded up
@@ -2279,25 +2279,26 @@ System.out.println("      DataChannel Et out: " + name + " some thd got END even
             //   1 to get evio events and organize them for write threads (1st consumer of ring items)
             //   2 to fill events with evio data (2nd - Nth consumers of ring items)
             //   1 to put events back into ET system (Nth + 1 consumer of ring items)
-            rb = createSingleProducer(new EtEventFactory(), ringSize,
+            rb = createSingleProducer(new ContainerFactory(), ringSize,
                                       new YieldingWaitStrategy());
 
-            // 1st consumer barrier of ring buffer
+            // 1st consumer barrier of ring buffer, which organizes evio
+            // data for writers, depends on producer.
             etFillBarrier = rb.newBarrier();
-
             // 1st consumer sequence of ring buffer
-            // which depends on (comes after) producer.
             etFillSequence = new Sequence(Sequencer.INITIAL_CURSOR_VALUE);
 
-            // 2nd consumer - organizer of evio data to writers -
-            // which depends on 1st consumer.
+            // 2nd to Nth consumers, writers of evio data into ET buffers,
+            // depend on 1st consumer.
             SequenceBarrier etWriteBarrier = rb.newBarrier(etFillSequence);
+            // Corresponding sequence
             etWriteSequence = new Sequence(Sequencer.INITIAL_CURSOR_VALUE);
 
-            // 3rd to Nth consumers - writers into ET buffers -
-            // which all depend on 2nd consumer.
+            // Nth + 1 consumer to take filled ET buffers and put back into ET system,
+            // depends on writing consumers.
             SequenceBarrier etPutBarrier = rb.newBarrier(etWriteSequence);
             Sequence etPutSequence = new Sequence(Sequencer.INITIAL_CURSOR_VALUE);
+            // Last sequence before producer can grab ring item
             rb.addGatingSequences(etPutSequence);
 
             // Start consumer threads to write data into ET events
@@ -2421,7 +2422,7 @@ System.out.println("      DataChannel Et out: " + name + " some thd got END even
          * Class used by the this output channel's internal RingBuffer
          * to populate itself with containers of ET buffers.
          */
-        final private class EtEventFactory implements EventFactory<EtContainer> {
+        final private class ContainerFactory implements EventFactory<EtContainer> {
             final public EtContainer newInstance() {
                 // This object holds an EtEvent
                 return new EtContainer();
@@ -2570,7 +2571,7 @@ System.out.println("      DataChannel Et out: " + name + " some thd got END even
                                 }
                                 else if (node != null) {
 //System.out.println("      DataChannel Et out " + outputIndex + ": write node");
-                                    writer.writeEvent(container.items[i].getNode(), false);
+                                    writer.writeEvent(node, false);
                                 }
                             }
 
@@ -2598,8 +2599,8 @@ System.out.println("      DataChannel Et out: " + name + " some thd got END even
                         // Release ET event for putting thread to put back into ET system
                         //-----------------------------------------------------------------
                         if (container.isEnd) {
-//System.out.println("      DataChannel Et out " + outputIndex + ": END seq = " +  (nextSequence) +
-//                   ", free up seq = " + rb.getCursor() + ", block # = " + writer.getBlockNumber());
+System.out.println("      DataChannel Et out " + outputIndex + ": END seq = " +  (nextSequence) +
+                   ", free up seq = " + rb.getCursor() + ", block # = " + writer.getBlockNumber());
                             // Pass END and all unused new events after it to Putter thread.
                             // Cursor is the highest published sequence in the ring.
                             sequence.set(rb.getCursor());
@@ -2672,7 +2673,7 @@ System.out.println("      DataChannel Et out: " + name + " some thd got END even
                 // Always start out reading prestart & go events from ring 0
                 int outputRingIndex = 0;
 
-                int bytesToEtBuf, ringItemSize=0, banksInEtEvent, myRecordId;
+                int bytesToEtBuf, ringItemSize=0, banksInEtBuf, myRecordId;
                 int etSize = (int) etSystem.getEventSize();
                 boolean etEventInitialized, isUserOrControl=false;
                 BitSet bitInfo = new BitSet(24);
@@ -2693,7 +2694,7 @@ System.out.println("      DataChannel Et out: " + name + " some thd got END even
                     // Init variables
                     myRecordId = 1;
                     bytesToEtBuf = 0;
-                    banksInEtEvent = 0;
+                    banksInEtBuf = 0;
                     etEventInitialized = false;
 
                     // Set time we started dealing with this ET event
@@ -2769,7 +2770,7 @@ System.out.println("\n      DataChannel Et out " + outputIndex + ": try again, r
                         // If this ring item will not fit into current ET buffer ...
                         if (bytesToEtBuf + ringItemSize > etSize) {
                             // If nothing written into ET buf yet ...
-                            if (banksInEtEvent < 1) {
+                            if (banksInEtBuf < 1) {
                                 // Get rid of this ET buf which is too small
                                 etSystem.dumpEvents(attachment, new EtEvent[]{event});
 
@@ -2800,7 +2801,7 @@ System.out.println("\n      DataChannel Et out " + outputIndex + ": try again, r
                         // If this event is a user or control event ...
                         else if (isUserOrControl) {
                             // If data was previously written into this ET buf ...
-                            if (banksInEtEvent > 0) {
+                            if (banksInEtBuf > 0) {
                                 // We want to put all user & control events into their
                                 // very own ET events. This makes things much easier to
                                 // handle downstream.
@@ -2888,7 +2889,7 @@ System.out.println("\n      DataChannel Et out " + outputIndex + ": try again, r
                         }
 
                         // Added evio event/buf to this ET event
-                        banksInEtEvent++;
+                        banksInEtBuf++;
                         bytesToEtBuf += ringItemSize;
 
                         // Next time we get an item off the input rings, use the correct ring.
@@ -2915,7 +2916,7 @@ System.out.println("\n      DataChannel Et out " + outputIndex + ": try again, r
                         //  items in module's buffer supply or internal count.)
                         // Also implement a timeout for low rates.
                         // Also switch to new ET event for user & control banks
-                        if ((banksInEtEvent >= outputRingItemCount/2) ||
+                        if ((banksInEtBuf >= outputRingItemCount/2) ||
                             (emu.getTime() - startTime > TIMEOUT) || isUserOrControl) {
 //                                if (emu.getTime() - startTime > timeout) {
 //                                    System.out.println("TIME FLUSH ******************");
@@ -3218,7 +3219,7 @@ logger.warn("      DataChannel Et out : exit thd: " + e.getMessage());
          * data into them. Finally, the putter thread takes the ET events which are
          * filled with data and put them back into the ET system.
          */
-        private class DataOutputHelperRingOld extends Thread {
+        private class DataOutputHelper extends Thread {
 
             /** Help in pausing DAQ. */
             private int pauseCounter;
@@ -3252,7 +3253,7 @@ logger.warn("      DataChannel Et out : exit thd: " + e.getMessage());
 
 
             /** Constructor. */
-            DataOutputHelperRingOld(ThreadGroup group, String name) {
+            DataOutputHelper(ThreadGroup group, String name) {
                 super(group, name);
 
                 // Closest power of 2 to chunk, rounded up
