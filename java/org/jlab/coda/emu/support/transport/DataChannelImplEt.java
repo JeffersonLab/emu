@@ -2222,7 +2222,7 @@ System.out.println("      DataChannel Et out: " + name + " some thd got END even
      * data into them. Finally, the putter thread takes the ET events which are
      * filled with data and put them back into the ET system.
      */
-    private class DataOutputHelperNew extends Thread {
+    private class DataOutputHelperNewRing extends Thread {
 
         /** Help in pausing DAQ. */
         private int pauseCounter;
@@ -2268,7 +2268,7 @@ System.out.println("      DataChannel Et out: " + name + " some thd got END even
 
 
         /** Constructor. */
-        DataOutputHelperNew(ThreadGroup group, String name) {
+        DataOutputHelperNewRing(ThreadGroup group, String name) {
             super(group, name);
 
             // Closest power of 2 to chunk, rounded up
@@ -2303,7 +2303,7 @@ System.out.println("      DataChannel Et out: " + name + " some thd got END even
 
             // Start consumer threads to write data into ET events
             for (int i=0; i < writerThreadCount; i++) {
-                writers[i] = new DataWriter(rb, etWriteSequence, etWriteBarrier, i);
+                writers[i] = new DataWriter(etWriteBarrier, i);
                 writers[i].start();
             }
 
@@ -2443,10 +2443,10 @@ System.out.println("      DataChannel Et out: " + name + " some thd got END even
          * lastSequenceReleased which have called release(), but not been released yet. */
         private int between;
 
-
         /**
          * Writer releases claim on the given ring item so it becomes available for reuse.
          * This method <b>ensures</b> that sequences are released in order and is thread-safe.
+         * Only works if each ring item is released individually.
          * @param seq sequence to release.
          */
         synchronized public void writerRelease(long seq) {
@@ -2474,6 +2474,7 @@ System.out.println("      DataChannel Et out: " + name + " some thd got END even
                 between = 0;
             }
         }
+        //------------------------------------------
 
 
         /** Class used to write evio data into ET events. */
@@ -2483,22 +2484,15 @@ System.out.println("      DataChannel Et out: " + name + " some thd got END even
             private int place;
 
             // Ring Buffer stuff
-            private Sequence sequence;
             private SequenceBarrier barrier;
-            private RingBuffer<EtContainer> rb;
 
             /**
              * Constructor.
-             * @param rb        ring buffer
-             * @param sequence  ring buffer sequence to use
-             * @param barrier   ring buffer barrier to use
+             * @param barrier ring buffer barrier to use
              */
-            DataWriter(RingBuffer<EtContainer>rb, Sequence sequence,
-                       SequenceBarrier barrier, int place) {
-                this.rb = rb;
+            DataWriter(SequenceBarrier barrier, int place) {
                 this.place = place;
                 this.barrier = barrier;
-                this.sequence = sequence;
             }
 
 
@@ -2511,6 +2505,7 @@ System.out.println("      DataChannel Et out: " + name + " some thd got END even
                 try {
                     EtEvent event;
                     EtContainer container;
+                    RingItem ringItem;
 
                     // Create writer with some args that get overwritten later.
                     // Make the block size bigger than the Roc's 2MB ET buffer
@@ -2523,7 +2518,7 @@ System.out.println("      DataChannel Et out: " + name + " some thd got END even
                     writer.close();
 
                     // Variables for consuming ring buffer items
-                    long nextSequence = sequence.get() + 1L + place;
+                    long nextSequence = etWriteSequence.get() + 1L + place;
                     long availableSequence = -1L;
 
                     while (true) {
@@ -2531,7 +2526,7 @@ System.out.println("      DataChannel Et out: " + name + " some thd got END even
                             return;
                         }
 
-//System.out.println("      DataChannel Et out: " + name + ":" + place + ", try getting next seq (" + nextSequence + ") for ET");
+//System.out.println("      DataChannel Et out: " + place + ", try getting seq " + nextSequence);
                         // Do we wait for next ring slot or do we already have something from last time?
                         if (availableSequence < nextSequence) {
                             // Wait for next available ring slot
@@ -2558,13 +2553,14 @@ System.out.println("      DataChannel Et out: " + name + " some thd got END even
 
                         // For each evio bank ...
                         for (int i=0; i < container.itemCount; i++) {
+                            ringItem = container.items[i];
                             // Take ET event and write ringItem's data into it
                             if (ringItemType == ModuleIoType.PayloadBank) {
-                                writer.writeEvent(container.items[i].getEvent());
+                                writer.writeEvent(ringItem.getEvent());
                             }
                             else {
-                                EvioNode node  = container.items[i].getNode();
-                                ByteBuffer buf = container.items[i].getBuffer();
+                                EvioNode node  = ringItem.getNode();
+                                ByteBuffer buf = ringItem.getBuffer();
                                 if (buf != null) {
 //System.out.println("      DataChannel Et out " + outputIndex + ": write buffer");
                                     writer.writeEvent(buf);
@@ -2578,7 +2574,7 @@ System.out.println("      DataChannel Et out: " + name + " some thd got END even
                             // If this ring item's data is in a buffer which is part of a
                             // ByteBufferSupply object, release it back to the supply now.
                             // Otherwise call does nothing.
-                            container.items[i].releaseByteBuffer();
+                            ringItem.releaseByteBuffer();
                         }
 
                         // Finish up the writing
@@ -2586,7 +2582,7 @@ System.out.println("      DataChannel Et out: " + name + " some thd got END even
 
                         // Be sure to set length of ET event to bytes of data actually written
                         event.setLength((int)writer.getBytesWrittenToBuffer());
-
+                   //TODO: PROBLEM!!! Releasing stuff other thread has just read!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
                         // FREE UP this channel's input rings' slots/items for reuse.
                         // If we did NOT read from a particular ring, there is still no
                         // problem since its sequence was never increased and we only
@@ -2600,10 +2596,11 @@ System.out.println("      DataChannel Et out: " + name + " some thd got END even
                         //-----------------------------------------------------------------
                         if (container.isEnd) {
 System.out.println("      DataChannel Et out " + outputIndex + ": END seq = " +  (nextSequence) +
-                   ", free up seq = " + rb.getCursor() + ", block # = " + writer.getBlockNumber());
+                   ", do NOT free up seq = " + rb.getCursor() + ", block # = " + writer.getBlockNumber());
                             // Pass END and all unused new events after it to Putter thread.
                             // Cursor is the highest published sequence in the ring.
-                            sequence.set(rb.getCursor());
+                            //etWriteSequence.set(rb.getCursor());
+                            writerRelease(nextSequence);
                             return;
                         }
 
@@ -2871,7 +2868,9 @@ System.out.println("\n      DataChannel Et out " + outputIndex + ": try again, r
 //                   ", free up seq = " + rb.getCursor() + ", block # = " + writer.getBlockNumber());
                                 // Pass END and all unused new events after it to Putter thread.
                                 // Cursor is the highest published sequence in the ring.
-                                etFillSequence.set(rb.getCursor());
+
+                                //etFillSequence.set(rb.getCursor());
+                                etFillSequence.set(nextFillSequence);
 
                                 // Do not call shutdown() here since putter
                                 // thread must still do a putEvents().
@@ -3027,11 +3026,11 @@ logger.warn("      DataChannel Et out : exit thd: " + e.getMessage());
                             // Empty the ring of additional unused events
                             // and dump them back into ET sys.
                             int index=0;
-                            for (long l = nextSequence; l < rb.getCursor(); l++) {
+                            for (long l = nextSequence; l <= rb.getCursor(); l++) {
                                 events[index++] = rb.get(l).event;
                             }
                             if (index > 0) {
-//System.out.println("      DataChannel Et out: PUTTER dumping " + index + " ET events");
+System.out.println("      DataChannel Et out: PUTTER dumping " + index + " ET events");
                                 etSystem.dumpEvents(attachment, events, 0, index);
                             }
 
@@ -3649,9 +3648,9 @@ logger.warn("      DataChannel Et out : exit thd: " + e.getMessage());
                             // If we did NOT read from a particular ring, there is still no
                             // problem since its sequence was never increased and we only
                             // end up "releasing" something already released.
-                            for (int i = 0; i < outputRingCount; i++) {
-                                releaseOutputRingItem(i);
-                            }
+                            //for (int i = 0; i < outputRingCount; i++) {
+                            //    releaseOutputRingItem(i);
+                            //}
 
                             // Handle END & GO events
                             if (pBankControlType != null) {
@@ -3697,9 +3696,21 @@ logger.warn("      DataChannel Et out : exit thd: " + e.getMessage());
                             // This is only an issue when module has multiple event-processing threads.
                             // It becomes even more complicated if module is a DC with output channels
                             // to multiple SEBs.
-                            gotoNextRingItem(outputRingIndex);
+                            //gotoNextRingItem(outputRingIndex);
     //System.out.println("      DataChannel Et out " + outputIndex + ": go to item " + nextSequences[outputRingIndex] +
     //" on ring " + outputRingIndex);
+
+                            // Next time we get an item off the input rings, use the correct ring.
+                            // This is only an issue when module has multiple event-processing threads.
+                            // It becomes even more complicated if module is a DC with output channels
+                            // to multiple SEBs.
+                            // Also, free up this channel's input rings' slots/items for reuse.
+                            // If we did NOT read from a particular ring, there is still no
+                            // problem since its sequence was never increased and we only
+                            // end up "releasing" something already released.
+                            for (int i = 0; i < outputRingCount; i++) {
+                                releaseCurrentAndGoToNextOutputRingItem(i);
+                            }
 
                             // Do not go to the next ring if we got a control or user event.
                             // All prestart, go, & users go to the first ring. Just keep reading
