@@ -1959,20 +1959,6 @@ if (debug) logger.info("Emu " + name + " download: change state to DOWNLOADING")
         setState(DOWNLOADING);
 
         try {
-            // Fake TS does not have config file to parse so handle it here
-            if (codaClass == CODAClass.TS) {
-                // Remove all existing modules from collection
-                modules.clear();
-
-if (debug) logger.info("Emu " + name + " download: create TS module");
-                // Create fake TS module
-                EmuModule module = new TsSimulation(name, this);
-                modules.add(module);
-                module.download();
-
-                setState(DOWNLOADED);
-                return;
-            }
 
             // Get the config info again since it may have changed
             Node modulesConfig = Configurer.getNode(configuration(), "component/modules");
@@ -1992,106 +1978,109 @@ if (debug) logger.info("Emu " + name + " download: create TS module");
             // Create transport objects
             //--------------------------
 
-            try {
-                // If doing a download from the downloaded state,
-                // close the existing transport objects first
-                // (this step is normally done from RESET).
-                for (DataTransport t : transports) {
-if (debug) logger.debug("Emu " + name + " download: transport " + t.name() + " reset");
-                    t.reset();
-                }
+            // Fake TS has no transports
+            if (codaClass != CODAClass.TS) {
+                try {
+                    // If doing a download from the downloaded state,
+                    // close the existing transport objects first
+                    // (this step is normally done from RESET).
+                    for (DataTransport t : transports) {
+                        if (debug) logger.debug("Emu " + name + " download: transport " + t.name() + " reset");
+                        t.reset();
+                    }
 
-                // Remove all current data transport objects
-                transports.clear();
+                    // Remove all current data transport objects
+                    transports.clear();
 
-                Node m = Configurer.getNode(configuration(), "component/transports");
-                if (!m.hasChildNodes()) {
-logger.warn("Emu " + name + " download: transport section present in config but no transports");
-                    return;
-                }
+                    Node m = Configurer.getNode(configuration(), "component/transports");
+                    if (!m.hasChildNodes()) {
+                        logger.warn("Emu " + name + " download: transport section present in config but no transports");
+                        return;
+                    }
 
-                NodeList l = m.getChildNodes();
+                    NodeList l = m.getChildNodes();
 
-                //****************************************************
-                // TODO: only create transports if used by a channel!!
-                //****************************************************
+                    //****************************************************
+                    // TODO: only create transports if used by a channel!!
+                    //****************************************************
 
-                // for each child node (under component/transports) ...
-                for (int ix = 0; ix < l.getLength(); ix++) {
-                    Node n = l.item(ix);
+                    // for each child node (under component/transports) ...
+                    for (int ix = 0; ix < l.getLength(); ix++) {
+                        Node n = l.item(ix);
 
-                    if (n.getNodeType() == Node.ELEMENT_NODE) {
-                        // type is "server" (send data to) or "client" (get data from)
-                        String transportType = n.getNodeName();
+                        if (n.getNodeType() == Node.ELEMENT_NODE) {
+                            // type is "server" (send data to) or "client" (get data from)
+                            String transportType = n.getNodeName();
 
-                        // store all attributes in a hashmap
-                        Map<String, String> attrib = new HashMap<String, String>();
-                        if (n.hasAttributes()) {
-                            NamedNodeMap attr = n.getAttributes();
+                            // store all attributes in a hashmap
+                            Map<String, String> attrib = new HashMap<String, String>();
+                            if (n.hasAttributes()) {
+                                NamedNodeMap attr = n.getAttributes();
 
-                            for (int jx = 0; jx < attr.getLength(); jx++) {
-                                Node a = attr.item(jx);
-                                attrib.put(a.getNodeName(), a.getNodeValue());
+                                for (int jx = 0; jx < attr.getLength(); jx++) {
+                                    Node a = attr.item(jx);
+                                    attrib.put(a.getNodeName(), a.getNodeValue());
+                                }
                             }
-                        }
 
-                        if (transportType.equalsIgnoreCase("server")) attrib.put("server", "true");
-                        else attrib.put("server", "false");
+                            if (transportType.equalsIgnoreCase("server")) attrib.put("server", "true");
+                            else attrib.put("server", "false");
 
-                        // get the name used to access transport
-                        String transportName = attrib.get("name");
-                        if (transportName == null) throw new DataNotFoundException("transport name attribute missing in config");
-logger.info("Emu " + name + " download: creating " + transportName);
+                            // get the name used to access transport
+                            String transportName = attrib.get("name");
+                            if (transportName == null) throw new DataNotFoundException("transport name attribute missing in config");
+                            logger.info("Emu " + name + " download: creating " + transportName);
 
-                        // Generate a name for the implementation of this transport
-                        // from the name passed from the configuration.
-                        String transportClass = attrib.get("class");
-                        if (transportClass == null) throw new DataNotFoundException("transport class attribute missing in config");
-                        String implName = "org.jlab.coda.emu.support.transport.DataTransportImpl" + transportClass;
+                            // Generate a name for the implementation of this transport
+                            // from the name passed from the configuration.
+                            String transportClass = attrib.get("class");
+                            if (transportClass == null) throw new DataNotFoundException("transport class attribute missing in config");
+                            String implName = "org.jlab.coda.emu.support.transport.DataTransportImpl" + transportClass;
 
-                        // Fifos are created internally, not by an Emu
-                        if (transportClass.equals("Fifo")) {
-//logger.warn("Emu " + name + " download: no need to specify FIFOs in transport section of config");
-                            continue;
-                        }
+                            // Fifos are created internally, not by an Emu
+                            if (transportClass.equals("Fifo")) {
+                                //logger.warn("Emu " + name + " download: no need to specify FIFOs in transport section of config");
+                                continue;
+                            }
 
-                        Class c;
-                        try {
-                            c = Emu.class.getClassLoader().loadClass(implName);
-//logger.info("Emu " + name + " download: loaded class = " + c);
-                        }
-                        catch (Exception e) {
-                            e.printStackTrace();
-                            throw new CmdExecException("cannot load transport class", e);
-                        }
+                            Class c;
+                            try {
+                                c = Emu.class.getClassLoader().loadClass(implName);
+                                //logger.info("Emu " + name + " download: loaded class = " + c);
+                            }
+                            catch (Exception e) {
+                                e.printStackTrace();
+                                throw new CmdExecException("cannot load transport class", e);
+                            }
 
-                        try {
-                            // 2 constructor args
-                            Class[] parameterTypes = {String.class, Map.class, Emu.class};
-                            Constructor co = c.getConstructor(parameterTypes);
+                            try {
+                                // 2 constructor args
+                                Class[] parameterTypes = {String.class, Map.class, Emu.class};
+                                Constructor co = c.getConstructor(parameterTypes);
 
-                            // create an instance & store reference
-                            Object[] args = {transportName, attrib, this};
-                            transports.add((DataTransport) co.newInstance(args));
-//logger.info("Emu " + name + " download: created " + transportName + " of protocol " + transportClass);
-                        }
-                        catch (Exception e) {
-                            e.printStackTrace();
-                            throw new CmdExecException("cannot create transport object", e);
-                        }
-                    } // if node is element
-                } // for each child node
-            }
-            catch (DataNotFoundException e) {
-                // If we're here, the transport section is missing from the config file.
-                // This is permissible if and only if Fifo is the only transport used.
-logger.warn("Emu " + name + " download: transport section missing/incomplete from config");
-            }
+                                // create an instance & store reference
+                                Object[] args = {transportName, attrib, this};
+                                transports.add((DataTransport) co.newInstance(args));
+                                //logger.info("Emu " + name + " download: created " + transportName + " of protocol " + transportClass);
+                            }
+                            catch (Exception e) {
+                                e.printStackTrace();
+                                throw new CmdExecException("cannot create transport object", e);
+                            }
+                        } // if node is element
+                    } // for each child node
+                }
+                catch (DataNotFoundException e) {
+                    // If we're here, the transport section is missing from the config file.
+                    // This is permissible if and only if Fifo is the only transport used.
+                    logger.warn("Emu " + name + " download: transport section missing/incomplete from config");
+                }
 
-            // Pass command down to all transport objects
-            for (DataTransport transport : transports) {
-logger.debug("Emu " + name + " download: pass download down to " + transport.name());
-                transport.download();
+                // Pass command down to all transport objects
+                for (DataTransport transport : transports) {
+                    logger.debug("Emu " + name + " download: pass download down to " + transport.name());
+                    transport.download();
+                }
             }
 
             //--------------------------
@@ -2133,13 +2122,16 @@ logger.debug("Emu " + name + " download: pass download down to " + transport.nam
                             module = new RocSimulation(n.getNodeName(), attributeMap, this);
                     }
                     else if (moduleClassName.equals("FarmController")) {
-                            module = new FarmController(n.getNodeName(), attributeMap, this);
+                        module = new FarmController(n.getNodeName(), attributeMap, this);
+                    }
+                    else if (moduleClassName.equals("TsSimulation")) {
+                        module = new TsSimulation(n.getNodeName(), attributeMap, this);
                     }
                     else {
 
 if (debug) logger.info("Emu " + name + " download: load module class " + moduleClassName +
-        " to create a module of name " + n.getNodeName() +
-        "\n  in classpath = " + System.getProperty("java.class.path"));
+                       " to create a module of name " + n.getNodeName() +
+                       "\n  in classpath = " + System.getProperty("java.class.path"));
 
                         // Load the class using the JVM's standard class loader
                         Class c = Class.forName(moduleClassName);
@@ -2219,7 +2211,7 @@ if (debug) logger.info("Emu " + name + " config: change state to CONFIGURING");
 
             if (msg != null) {
                 try {
-                    // If this is a RocSimulation emu, this is how we
+                    // If this is a Ts/RocSimulation emu, this is how we
                     // get the xml configuration string.
                     pItem = cmd.getArg(RCConstants.configPayloadFileContentRoc);
                     if (pItem != null) {
@@ -2260,16 +2252,6 @@ if (debug) logger.info("Emu " + name + " config: change state to CONFIGURING");
 System.out.println("Emu " + name + " config: connect to cMsg server");
                         cmsgPortal.cMsgServerConnect();
                     }
-
-
-                    // Fake TS does not need to be configured
-                    if (codaClass == CODAClass.TS) {
-if (debug) logger.info("Emu " + name + " config: change state to CONFIGURED");
-                        setState(CONFIGURED);
-                        return;
-                    }
-
-
                 }
                 catch (cMsgException e) {/* never happen */}
                 catch (EmuException e) {
