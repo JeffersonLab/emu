@@ -63,9 +63,6 @@ public class TsSimulation extends ModuleAdapter {
     /** Instantiate a callback to use in subscription. */
     private myCallback callback = new myCallback();
 
-    /** Callback to use in subscription. */
-    private PrintRateThread thread;
-
 
     /**
      * This class defines the callback to be run when a message matching our subscription arrives.
@@ -127,18 +124,18 @@ System.out.println("  TS mod: all ROCs got end cmd");
 
 
     /** Constructor. */
-    public TsSimulation(String name, Emu emu) {
-        super(name, emu);
+    public TsSimulation(String name, Map<String, String> attributeMap, Emu emu) {
+        super(name, attributeMap, emu);
 
-        // Find out which Rocs need syncs from command line args
-        // (-Dr1=Roc1 -Dr2=Roc2, etc).
-        int rocId = 1;
-        String rocName;
-        String emuArg = "r" + rocId++;
-        while ((rocName = System.getProperty(emuArg)) != null) {
-System.out.println("  TS mod: adding roc " + rocName);
+        // Find out which Rocs need syncs
+        int rocCount = 2;
+        String rocName = "r1";
+        while (true) {
+            String roc = attributeMap.get(rocName);
+            if (roc == null) break;
+            System.out.println("  TS mod: adding roc " + rocName);
             expectedRocs.add(rocName);
-            emuArg = "r" + rocId++;
+            rocName = "r" + rocCount++;
         }
 
         // Prepare sync message to send to all fake ROCs
@@ -154,10 +151,6 @@ System.out.println("  TS mod: adding roc " + rocName);
     public void go() {
         state = CODAState.ACTIVE;
         paused = false;
-
-        // Start thread to print out msg rate info
-        thread = new PrintRateThread();
-        thread.start();
     }
 
 
@@ -196,9 +189,6 @@ System.out.println("  TS mod: adding roc " + rocName);
         try { if (coda != null && sub != null) coda.unsubscribe(sub); }
         catch (cMsgException e) {}
 
-        // Stop thread
-        if (thread != null) thread.stop();
-
         state = CODAState.CONFIGURED;
         paused = false;
     }
@@ -208,86 +198,8 @@ System.out.println("  TS mod: adding roc " + rocName);
     public void end() throws CmdExecException {
         if (debug) System.out.println("  TS mod: end()");
 
-        // Stop thread
-        if (thread != null) thread.stop();
-
         state = CODAState.DOWNLOADED;
         paused = false;
     }
-
-
-    /**
-     * Method to convert a double to a string with a specified number of decimal places.
-     *
-     * @param d double to convert to a string
-     * @param places number of decimal places
-     * @return string representation of the double
-     */
-    private static String doubleToString(double d, int places) {
-        if (places < 0) places = 0;
-
-        double factor = Math.pow(10,places);
-        String s = "" + (double) (Math.round(d * factor)) / factor;
-
-        if (places == 0) {
-            return s.substring(0, s.length()-2);
-        }
-
-        while (s.length() - s.indexOf(".") < places+1) {
-            s += "0";
-        }
-
-        return s;
-    }
-
-    /**
-     * This thread prints out rate of msgs from ROCs.
-     */
-    private class PrintRateThread extends Thread {
-
-        /** This method is executed as a thread. */
-        @Override
-        public void run() {
-            if (debug) System.out.println("  TS mod: start statistics thread");
-
-            // variables to track incoming message rate
-            double freq, freqAvg;
-            long t1, t2, deltaT, totalT = 0, totalC = 0, period = 3000; // millisec
-
-            while (state == CODAState.ACTIVE || paused) {
-                count = 0;
-
-                t1 = System.currentTimeMillis();
-
-                // wait
-                try {
-                    Thread.sleep(period);
-                }
-                catch (InterruptedException e) {
-                }
-
-                t2 = System.currentTimeMillis();
-
-                deltaT = t2 - t1; // millisec
-                freq = (double) count / deltaT * 1000;
-                totalT += deltaT;
-                totalC += count;
-                freqAvg = (double) totalC / totalT * 1000;
-
-                if (debug) {
-                    System.out.println("\nTS: count = " + count + ", total = " + totalC);
-                    System.out.println("TS: freq  = " + doubleToString(freq, 1) + " Hz, Avg = " +
-                                               doubleToString(freqAvg, 1) + " Hz");
-                }
-
-                if (!coda.isConnected()) {
-                    // if still not connected, quit
-                    System.exit(-1);
-                }
-            }
-        }
-
-    }
-
 
 }
