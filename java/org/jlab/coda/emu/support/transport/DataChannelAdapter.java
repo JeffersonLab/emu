@@ -186,6 +186,19 @@ public class DataChannelAdapter extends CODAStateMachineAdapter implements DataC
     protected long[] availableSequences;
 
 
+    /** When releasing in sequence, the last sequence to have been released. */
+    private long[] lastSequencesReleased;
+
+    /** When releasing in sequence, the highest sequence to have asked for release. */
+    private long[] maxSequences;
+
+    /** When releasing in sequence, the number of sequences between maxSequence &
+     * lastSequenceReleased which have called release(), but not been released yet. */
+    private int[] betweens;
+
+
+
+
 
     /**
      * Constructor to create a new DataChannel instance.
@@ -299,6 +312,14 @@ logger.info("      DataChannel Adapter: # of ring buffers = " + outputRingCount)
             // Create RingBuffers
             ringBuffersOut = new RingBuffer[outputRingCount];
             setupOutputRingBuffers();
+
+            // Init arrays
+            lastSequencesReleased = new long[outputRingCount];
+            maxSequences = new long[outputRingCount];
+            betweens = new int[outputRingCount];
+            Arrays.fill(lastSequencesReleased, -1L);
+            Arrays.fill(maxSequences, -1L);
+            Arrays.fill(betweens, 0);
         }
      }
 
@@ -467,6 +488,11 @@ System.out.println("      DataChannel Adapter: prestart, nextEv (" + nextEvent +
         ringIndexEnd  = ringIndex;
     }
 
+    public long getNextSequence(int ringIndex) {
+        if (ringIndex < 0) return -1L;
+        return nextSequences[ringIndex];
+    }
+
     /**
      * Gets the next ring buffer item placed there by the last module.
      * Only call from one thread. MUST be followed by call to
@@ -552,5 +578,55 @@ System.out.println("      DataChannel Adapter: prestart, nextEv (" + nextEvent +
 //System.out.println("gotoNextRingItem: got seq = " + (nextSequences[ringIndex]+1));
         nextSequences[ringIndex]++;
     }
+
+
+    /**
+     * Releases the items obtained by calling {@link #getNextOutputRingItem(int)},
+     * so that it may be reused for writing into by the last module.
+     * Must NOT be used in conjunction with {@link #releaseCurrentAndGoToNextOutputRingItem(int)}
+     * or {@link #releaseOutputRingItem(int)}
+     * and must be called after {@link #gotoNextRingItem(int)}.<p>
+     *
+     * This method <b>ensures</b> that sequences are released in order and is thread-safe.
+     * Only works if each ring item is released individually.
+     *
+     * @param ringIndexes array of ring buffers to release item to
+     * @param seqs array of sequences to release.
+     * @param len number of array items to release
+     */
+    synchronized protected void sequentialReleaseOutputRingItem(byte[] ringIndexes, long[] seqs, int len) {
+        long seq;
+        int ringIndex;
+
+        for (int i=0; i < len; i++) {
+            seq = seqs[i];
+            ringIndex = ringIndexes[i];
+
+            // If we got a new max ...
+            if (seq > maxSequences[ringIndex]) {
+                // If the old max was > the last released ...
+                if (maxSequences[ringIndex] > lastSequencesReleased[ringIndex]) {
+                    // we now have a sequence between last released & new max
+                    betweens[ringIndex]++;
+                }
+
+                // Set the new max
+                maxSequences[ringIndex] = seq;
+            }
+            // If we're < max and > last, then we're in between
+            else if (seq > lastSequencesReleased[ringIndex]) {
+                betweens[ringIndex]++;
+            }
+
+            // If we now have everything between last & max, release it all.
+            // This way higher sequences are never released before lower.
+            if ( (maxSequences[ringIndex] - lastSequencesReleased[ringIndex] - 1L) == betweens[ringIndex]) {
+                sequences[ringIndex].set(maxSequences[ringIndex]);
+                lastSequencesReleased[ringIndex] = maxSequences[ringIndex];
+                betweens[ringIndex] = 0;
+            }
+        }
+    }
+
 
 }
