@@ -147,6 +147,9 @@ public class FastEventBuilder extends ModuleAdapter {
     /** If <code>true</code>, produce debug print out. */
     private boolean debug = true;
 
+    /** If <code>true</code>, we received a reset command. */
+    private volatile boolean gotResetCommand;
+
     // ---------------------------------------------------
     // Configuration parameters
     // ---------------------------------------------------
@@ -877,9 +880,10 @@ System.out.println("  EB mod: bbSupply -> " + ringItemCount + " # of bufs, direc
                 if (debug) System.out.println("  EB mod: interrupted while waiting for prestart event");
                 // If we haven't yet set the cause of error, do so now & inform run control
                 errorMsg.compareAndSet(null,"Interrupted waiting for prestart event");
-
-                // set state
-                state = CODAState.ERROR;
+                // Set state to error, but not if resetting
+                if (!gotResetCommand) {
+                    state = CODAState.ERROR;
+                }
                 emu.sendStatusMessage();
                 return;
             }
@@ -918,7 +922,10 @@ System.out.println("  EB mod: got all END events");
                 e.printStackTrace();
                 if (debug) System.out.println("  EB mod: interrupted while waiting for go event");
                 errorMsg.compareAndSet(null,"Interrupted waiting for go event");
-                state = CODAState.ERROR;
+                // Set state to error, but not if resetting
+                if (!gotResetCommand) {
+                    state = CODAState.ERROR;
+                }
                 emu.sendStatusMessage();
                 return;
             }
@@ -1592,9 +1599,11 @@ if (debug) System.out.println("  EB mod: endBuildThreads: will end building/fill
 
     /** {@inheritDoc} */
     public void reset() {
+        gotResetCommand = true;
+        state = CODAState.CONFIGURED;
+
         Date theDate = new Date();
         State previousState = state;
-        state = CODAState.CONFIGURED;
 
         if (RateCalculator != null) RateCalculator.interrupt();
 
