@@ -1258,7 +1258,7 @@ System.out.println("      DataChannel Et in: " + name + " got RESET cmd, quittin
                         bbItem.ensureCapacity(ev.getLength());
 
                         buf = bbItem.getBuffer();
-//System.out.println("      DataChannel Et in: get empty buf, order = " + buf.order());
+System.out.println("      DataChannel Et in: copy ET data into buf, len(bytes) = " + ev.getLength());
                         copyBuffer(ev.getDataBuffer(), buf, ev.getLength());
 
                         try {
@@ -2613,6 +2613,7 @@ System.out.println("      DataChannel Et out: " + name + " some thd got END even
 
                         // Be sure to set length of ET event to bytes of data actually written
                         event.setLength((int)writer.getBytesWrittenToBuffer());
+System.out.println("      DataChannel Et out : write into ET buf, data of len = " + event.getLength());
 
                         //-----------------------------------------------------------------
                         // Release ET event for putting thread to put back into ET system
