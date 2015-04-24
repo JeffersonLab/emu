@@ -40,7 +40,7 @@ import java.util.concurrent.atomic.AtomicReference;
 public class ModuleAdapter implements EmuModule {
 
 
-    /** ID number of this event recorder obtained from config file. */
+    /** ID number of this module obtained from config file. */
     protected int id;
 
     /** Number of event producing threads in operation. Each
@@ -70,7 +70,7 @@ public class ModuleAdapter implements EmuModule {
      */
     protected boolean chunkingForSebs;
 
-    /** Name of this event recorder. */
+    /** Name of this module. */
     protected final String name;
 
     /**
