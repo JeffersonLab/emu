@@ -499,6 +499,35 @@ System.out.println("  Roc mod: start With (id=" + myId + "):\n    record id = " 
         }
 
 
+        /**
+         * Create a User event with a ByteBuffer which is ready to read.
+         *
+         * @param order byte order in which to write event into buffer
+         * @return created PayloadBuffer object containing User event in byte buffer
+         */
+        private PayloadBuffer createUserBuffer(ByteOrder order) {
+
+            try {
+                int[] data;
+                CompactEventBuilder builder = new CompactEventBuilder(28, order);
+
+                // Create a single array of integers which is the bank data
+                data = new int[]{1,2,3};
+                // The user event looks like a Roc Raw event but with num = 0.
+                // tag=rocID, num=0 (indicates user event), type=bank
+                builder.openBank(1, 0, DataType.BANK);
+                builder.openBank(2, 0, DataType.INT32);
+                builder.addIntData(data);
+                builder.closeAll();
+                PayloadBuffer pBuf = new PayloadBuffer(builder.getBuffer());  // Ready to read buffer
+                pBuf.setEventType(EventType.ROC_RAW);
+
+                return pBuf;
+            }
+            catch (Exception e) {/* never happen */}
+
+            return null;
+        }
 
 
         public void run() {
@@ -508,7 +537,7 @@ System.out.println("  Roc mod: start With (id=" + myId + "):\n    record id = " 
             long t1, deltaT, t2;
             ByteBuffer buf = null;
             ByteBufferItem bufItem = null;
-            boolean copyWholeBuf = true;
+            boolean copyWholeBuf = true, sendUser = true;
 
             // We need for the # of buffers in our bbSupply object to be >=
             // the # of ring buffer slots in the output channel or we can get
@@ -525,6 +554,19 @@ System.out.println("  Roc mod: start With (id=" + myId + "):\n    record id = " 
 
                 // Use dummy arg that's overwritten later
                 boolean noBuildableEvents = false;
+
+                // Send user event right after prestart and go events
+                if (sendUser && emu.name().equals("Roc1")) {
+System.out.println("  Roc mod: write USER event for Roc1");
+
+                    // Put in User event
+                    PayloadBuffer pBuf = createUserBuffer(outputOrder);
+                    eventToOutputChannel(pBuf, 0, 0);
+
+                    eventCountTotal ++;
+                    wordCountTotal  += 7;
+                    myRocRecordId ++;
+                }
 
                 while (state == CODAState.ACTIVE || paused) {
 
@@ -553,8 +595,8 @@ System.out.println("  Roc mod: start With (id=" + myId + "):\n    record id = " 
                         }
 //System.out.println("  Roc mod: write event");
 
-                           writeEventBuffer(buf, templateBuffer, myEventNumber,
-                                            timestamp, copyWholeBuf);
+                        writeEventBuffer(buf, templateBuffer, myEventNumber,
+                                         timestamp, copyWholeBuf);
 
 
                         // Put generated events into output channel
@@ -751,11 +793,11 @@ System.out.println("  Roc mod: reset()");
         }
 
         // create threads objects (but don't start them yet)
-        RateCalculator = new Thread(emu.getThreadGroup(), new RateCalculatorThread(), name+":watcher");
+        RateCalculator = new Thread(emu.getThreadGroup(), new RateCalculatorThread(), emu.name()+":watcher");
 
         for (int i=0; i < eventProducingThreads; i++) {
             eventGeneratingThreads[i] = new EventGeneratingThread(i, emu.getThreadGroup(),
-                                                                  name+":generator");
+                                                                  emu.name()+":generator");
         }
 
         // Put in PRESTART event
@@ -808,7 +850,7 @@ System.out.println("  Roc mod: insert GO event");
 
         // start up all threads
         if (RateCalculator == null) {
-            RateCalculator = new Thread(emu.getThreadGroup(), new RateCalculatorThread(), name+":watcher");
+            RateCalculator = new Thread(emu.getThreadGroup(), new RateCalculatorThread(), emu.name()+":watcher");
         }
 
         if (RateCalculator.getState() == Thread.State.NEW) {
@@ -818,7 +860,7 @@ System.out.println("  Roc mod: insert GO event");
         for (int i=0; i < eventProducingThreads; i++) {
             if (eventGeneratingThreads[i] == null) {
                 eventGeneratingThreads[i] = new EventGeneratingThread(i, emu.getThreadGroup(),
-                                                                      name+":generator");
+                                                                      emu.name()+":generator");
             }
 
 //System.out.println("  Roc mod: event generating thread " + eventGeneratingThreads[i].getName() + " isAlive = " +
