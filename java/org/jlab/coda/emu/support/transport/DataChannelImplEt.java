@@ -1258,7 +1258,7 @@ System.out.println("      DataChannel Et in: " + name + " got RESET cmd, quittin
                         bbItem.ensureCapacity(ev.getLength());
 
                         buf = bbItem.getBuffer();
-System.out.println("      DataChannel Et in: copy ET data into buf, len(bytes) = " + ev.getLength());
+//System.out.println("      DataChannel Et in: copy ET data into buf, len(bytes) = " + ev.getLength());
                         copyBuffer(ev.getDataBuffer(), buf, ev.getLength());
 
                         try {
@@ -1323,10 +1323,12 @@ Utilities.printBuffer(buf, 0, 20, "BAD EVENT ");
                             bankType = eventType;
                             if (eventType == EventType.ROC_RAW) {
                                 if (Evio.isUserEvent(node)) {
+logger.info("      DataChannel Et in: " + name + " got USER event from ROC");
                                     bankType = EventType.USER;
                                 }
                             }
                             else if (eventType == EventType.CONTROL) {
+System.out.println("      DataChannel Et in: " + name + " got CONTROL event");
                                 // Find out exactly what type of control event it is
                                 // (May be null if there is an error).
                                 // It may NOT be enough just to check the tag
@@ -1335,6 +1337,9 @@ Utilities.printBuffer(buf, 0, 20, "BAD EVENT ");
                                     errorMsg.compareAndSet(null, "Found unidentified control event, tag = 0x" + Integer.toHexString(node.getTag()));
                                     throw new EvioException("Found unidentified control event, tag = 0x" + Integer.toHexString(node.getTag()));
                                 }
+                            }
+                            else if (eventType == EventType.USER) {
+logger.info("      DataChannel Et in: " + name + " got USER event");
                             }
 
                             // Don't need to set controlType = null for each loop since each
@@ -2459,53 +2464,6 @@ System.out.println("      DataChannel Et out: " + name + " some thd got END even
             // Ring Buffer stuff
             private SequenceBarrier barrier;
 
-//            //------------------------------------------
-//            // For thread safety
-//            //------------------------------------------
-//            /** When releasing in sequence, the last sequence to have been released. */
-//            private long lastSequenceReleased = -1L;
-//
-//            /** When releasing in sequence, the highest sequence to have asked for release. */
-//            private long maxSequence = -1L;
-//
-//            /** When releasing in sequence, the number of sequences between maxSequence &
-//             * lastSequenceReleased which have called release(), but not been released yet. */
-//            private int between;
-//
-//
-//            /**
-//             * Writer releases claim on the given ring item so it becomes available for reuse.
-//             * This method <b>ensures</b> that sequences are released in order and is thread-safe.
-//             * Only works if each ring item is released individually.
-//             * @param seq sequence to release.
-//             */
-//            synchronized public void writerRelease(long seq, int place) {
-//                // If we got a new max ...
-//                if (seq > maxSequence) {
-//                    // If the old max was > the last released ...
-//                    if (maxSequence > lastSequenceReleased) {
-//                        // we now have a sequence between last released & new max
-//                        between++;
-//                    }
-//
-//                    // Set the new max
-//                    maxSequence = seq;
-//                }
-//                // If we're < max and > last, then we're in between
-//                else if (seq > lastSequenceReleased) {
-//                    between++;
-//                }
-//
-//                // If we now have everything between last & max, release it all.
-//                // This way higher sequences are never released before lower.
-//                if ( (maxSequence - lastSequenceReleased - 1L) == between) {
-//                    etWriteSequences[place].set(maxSequence);
-//                    lastSequenceReleased = maxSequence;
-//                    between = 0;
-//                }
-//            }
-//            //------------------------------------------
-
 
             /**
              * Constructor.
@@ -2542,6 +2500,13 @@ System.out.println("      DataChannel Et out: " + name + " some thd got END even
                     // Variables for consuming ring buffer items
                     long nextSequence = etWriteSequences[place].get() + 1L + place;
                     long availableSequence = -1L;
+
+                    // At this point make sure the prestart event is passed through.
+                    // Since putter thread depends on ALL write threads, each
+                    // write thread must pass ring item 0 on to next barrier.
+                    if (place > 0L) {
+                        etWriteSequences[place].set(0);
+                    }
 
                     while (true) {
                         if (gotResetCmd) {
@@ -2584,7 +2549,7 @@ System.out.println("      DataChannel Et out: " + name + " some thd got END even
                                 EvioNode node  = ringItem.getNode();
                                 ByteBuffer buf = ringItem.getBuffer();
                                 if (buf != null) {
-//System.out.println("      DataChannel Et out " + outputIndex + ": write buffer");
+//System.out.println("      DataChannel Et out " + outputIndex + ": write buf");
                                     writer.writeEvent(buf);
                                 }
                                 else if (node != null) {
@@ -2613,21 +2578,22 @@ System.out.println("      DataChannel Et out: " + name + " some thd got END even
 
                         // Be sure to set length of ET event to bytes of data actually written
                         event.setLength((int)writer.getBytesWrittenToBuffer());
-System.out.println("      DataChannel Et out : write into ET buf, data of len = " + event.getLength());
+//System.out.println("      DataChannel Et out " + place + ": write into ET buf, data of len = " + event.getLength());
 
                         //-----------------------------------------------------------------
                         // Release ET event for putting thread to put back into ET system
                         //-----------------------------------------------------------------
                         if (container.isEnd) {
-System.out.println("      DataChannel Et out " + place + ": wrote END seq = " +  (nextSequence + unusedNext) +
-                   ", cursor seq = " + rb.getCursor() + ", block # = " + writer.getBlockNumber());
+//System.out.println("      DataChannel Et out " + place + ": wrote END seq = " +  (nextSequence + unusedNext) +
+//                   ", cursor seq = " + rb.getCursor() + ", block # = " + writer.getBlockNumber());
                             // Pass END and all unused new events after it to Putter thread.
                             //writerRelease(nextSequence, place);
                             etWriteSequences[place].set(nextSequence + unusedNext);
                             return;
                         }
 
-//System.out.println("      DataChannel Et out " + place + ": release seq " + (nextSequence + unusedNext));
+//System.out.println("      DataChannel Et out " + place + ": release seq " + (nextSequence + unusedNext) +
+//", next seq = " + nextSequence + ", unusedNext = " + unusedNext);
                         etWriteSequences[place].set(nextSequence + unusedNext);
                         nextSequence += writerThreadCount;
                     }
@@ -2944,6 +2910,9 @@ System.out.println("\n      DataChannel Et out " + outputIndex + ": try again, r
                         // Also switch to new ET event for user & control banks
                         if ((banksInEtBuf >= outputRingItemCount/2) ||
                             (emu.getTime() - startTime > TIMEOUT) || isUserOrControl) {
+//                            if (isUserOrControl) {
+//System.out.println("\n\n      DataChannel Et out, " + name + ": control ev = " + pBankControlType);
+//                            }
 //                                if (emu.getTime() - startTime > timeout) {
 //                                    System.out.println("TIME FLUSH ******************");
 //                                }
