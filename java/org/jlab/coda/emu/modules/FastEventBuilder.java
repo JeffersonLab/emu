@@ -396,8 +396,18 @@ System.out.println("  EB mod: got user event in pre-processing");
                                 if (outputOrder != pBuf.getByteOrder()) {
                                     try {
 System.out.println("  EB mod: swap user event headers");
-                                        ByteDataTransformer.swapEvent(pBuf.getBuffer(), pBuf.getBuffer(),
-                                                                      0, 0, false, null);
+                                        ByteBuffer buffy = pBuf.getBuffer();
+                                        EvioNode nody = pBuf.getNode();
+                                        if (buffy != null) {
+                                            ByteDataTransformer.swapEvent(buffy, buffy, 0, 0, false, null);
+                                        }
+                                        else if (nody != null) {
+                                            buffy = nody.getStructureBuffer(false);
+                                            ByteDataTransformer.swapEvent(buffy, null, 0, 0, false, null);
+                                            // Byte order was changed in buffy which is a slice of a duplicate.
+                                            // The node's buffer's order is unchanged. Do that next.
+                                            nody.getBufferNode().getBuffer().order(buffy.order());
+                                        }
                                     }
                                     catch (EvioException e) {/* should never happen */ }
                                 }
@@ -407,6 +417,7 @@ System.out.println("  EB mod: swap user event headers");
                                 // since this event builder does nothing with them.
                                 // User events go into the first ring of the first channel.
                                 eventToOutputChannel(pBuf, 0, 0);
+System.out.println("  EB mod: sent user event to output channel");
                             }
 
                             nextSequence++;
