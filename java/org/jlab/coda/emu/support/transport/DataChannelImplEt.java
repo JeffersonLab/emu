@@ -1256,9 +1256,7 @@ System.out.println("      DataChannel Et in: " + name + " got RESET cmd, quittin
                         // contain more data than the space available in buf. So we must
                         // first ensure there's enough memory to do the copy.
                         bbItem.ensureCapacity(ev.getLength());
-
                         buf = bbItem.getBuffer();
-//System.out.println("      DataChannel Et in: copy ET data into buf, len(bytes) = " + ev.getLength());
                         copyBuffer(ev.getDataBuffer(), buf, ev.getLength());
 
                         try {
@@ -1270,7 +1268,7 @@ System.out.println("      DataChannel Et in: " + name + " got RESET cmd, quittin
                             }
                         }
                         catch (EvioException e) {
-Utilities.printBuffer(buf, 0, 20, "BAD EVENT ");
+Utilities.printBuffer(buf, 0, 21, "BAD EVENT ");
                             e.printStackTrace();
                             errorMsg.compareAndSet(null, "ET data is NOT evio v4 format");
                             throw e;
