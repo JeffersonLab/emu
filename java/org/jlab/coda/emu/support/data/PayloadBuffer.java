@@ -96,7 +96,7 @@ public class PayloadBuffer extends RingItemAdapter {
             return buffer.limit();
         }
         else if (node != null) {
-            return node.getBufferNode().getBuffer().limit();
+            return node.getTotalBytes();
         }
         return 0;
     }
