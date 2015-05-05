@@ -3035,6 +3035,15 @@ logger.warn("      DataChannel Et out : exit thd: " + e.getMessage());
                             // Run callback saying we got & have processed END event
                             if (endCallback != null) endCallback.endWait();
 
+                            // The write threads that did not get the END event are still running,
+                            // so end them here.
+                            for (int i=0; i < writerThreadCount; i++) {
+                                if (writers[i].isAlive()) {
+//System.out.println("\n      DataChannel Et out: " + name + " stop writer thd " + i);
+                                    writers[i].stop();
+                                }
+                            }
+
 //System.out.println("      DataChannel Et out: " + name + " got END event, quitting PUTTER thread, ET len = " + endEvent.getLength());
                             return;
                         }
