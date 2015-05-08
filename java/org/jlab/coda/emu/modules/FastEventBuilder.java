@@ -1190,7 +1190,7 @@ System.out.println("  EB mod: Bt#" + btIndex + " found END events on all input c
                     // and the same # of events in each bank
                     nonFatalError |= Evio.checkConsistency(buildingBanks, firstEventNumber);
 
-if (debug && nonFatalError) System.out.println("\n  EB mod: non-fatal ERROR 1\n");
+if (debug && nonFatalError) System.out.println("  EB mod: non-fatal ERROR @ pos 1\n");
 
                     //--------------------------------------------------------------------
                     // Build trigger bank, number of ROCs given by number of buildingBanks
@@ -1277,14 +1277,14 @@ if (debug && nonFatalError) System.out.println("\n  EB mod: non-fatal ERROR 1\n"
                                                                         timestampSlop, btIndex);
                     }
 
-if (debug && nonFatalError) System.out.println("\n  EB mod: non-fatal ERROR 2\n");
+if (debug && nonFatalError) System.out.println("  EB mod: non-fatal ERROR @ pos 2\n");
 
                     // Check input banks for non-fatal errors
                     for (PayloadBuffer pBank : buildingBanks)  {
                         nonFatalError |= pBank.hasNonFatalBuildingError();
                     }
 
-if (debug && nonFatalError) System.out.println("\n  EB mod: non-fatal ERROR 3\n");
+if (debug && nonFatalError) System.out.println("  EB mod: non-fatal ERROR @ pos 3\n");
 
                     if (havePhysicsEvents) {
 //if (debug) System.out.println("  EB mod: build physics event with physics banks");
