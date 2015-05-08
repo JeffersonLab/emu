@@ -1350,7 +1350,10 @@ System.out.println("Timestamp NOT consistent: ev #" + (firstEventNumber + j) + "
             rocNode = inputPayloadBanks[i].getNode();
             triggerBanks[i] = rocNode.getChildAt(0);
             if (!Evio.isRawTriggerBank(triggerBanks[i])) {
-                throw new EmuException("No trigger bank in ROC raw record");
+                throw new EmuException("No trigger bank in ROC raw record in roc " +
+                       inputPayloadBanks[i].getSourceName() + ", tag = 0x" +
+                       Integer.toHexString(triggerBanks[i].getTag()) +
+                       ", first event # " + firstEventNumber);
             }
 
             // Get the first trigger bank's tag
@@ -1369,28 +1372,38 @@ System.out.println("Timestamp NOT consistent: ev #" + (firstEventNumber + j) + "
             if (!turnOffChecks) {
                 //  Check to see if all TRIGGER banks think they have the same # of events
                 if (numEvents != triggerBanks[i].getNum()) {
-                    throw new EmuException("Data blocks contain different numbers of events");
+                    throw new EmuException("Data blocks contain different numbers of events, " +
+                        numEvents + " != " + triggerBanks[i].getNum() + " from roc " +
+                        inputPayloadBanks[i].getSourceName());
                 }
 
                 // Check to see if all PAYLOAD banks think they have same # of events
                 if (numEvents != rocNode.getNum()) {
-                    throw new EmuException("Data blocks contain different numbers of events");
+                    throw new EmuException("Data blocks contain different numbers of events, " +
+                    numEvents + " != " + rocNode.getNum() + " from roc " +
+                    inputPayloadBanks[i].getSourceName());
                 }
 
                 // Check that number of trigger bank children = # events
                 if (triggerBanks[i].getChildCount() != numEvents) {
-                    throw new EmuException("Trigger bank does not have correct number of segments");
+                    throw new EmuException("Trigger bank does not have correct number of segments, " +
+                        numEvents + " != " + triggerBanks[i].getChildCount() + " from roc " +
+                        inputPayloadBanks[i].getSourceName());
                 }
 
                 // Check to see if all trigger bank tags are 0xff1x
                 tag = triggerBanks[i].getTag() & 0xfff0;
                 if (tag != 0xff10) {
-                    throw new EmuException("Trigger bank has bad tag, " +  triggerBanks[i].getTag());
+                    throw new EmuException("Trigger bank has bad tag 0x" +
+                        Integer.toHexString(triggerBanks[i].getTag()) +
+                        " from roc " + inputPayloadBanks[i].getSourceName());
                 }
 
                 // Check to see if all trigger bank tags are the same
                 if (tag != firstTrigTag) {
-                    throw new EmuException("Trigger banks have different tags");
+                    throw new EmuException("Trigger banks have different tags, " +
+                    Integer.toHexString(firstTrigTag) + " != " + Integer.toHexString(tag) +
+                    " from roc " + inputPayloadBanks[i].getSourceName());
                 }
             }
         }
@@ -1507,16 +1520,21 @@ System.out.println("makeTriggerBankFromRocRaw: event # differs (in Bt# " + build
         // Now that we have all timestamp info, check them against each other.
         // Allow a slop of timestampSlop from the max to min.
         if (checkTimestamps) {
-            for (int i=0; i < numEvents; i++) {
-//                if (timestampsMax[i] - timestampsMin[i] > 0)  {
+            //                if (timestampsMax[i] - timestampsMin[i] > 0)  {
 //System.out.println("Timestamps differing by " + (timestampsMax[i] - timestampsMin[i]));
 //                }
-                if (timestampsMax[i] - timestampsMin[i] > timestampSlop)  {
+            for (int i=0; i < numEvents; i++)
+                if (timestampsMax[i] - timestampsMin[i] > timestampSlop) {
                     nonFatalError = true;
-System.out.println("Timestamp NOT consistent: ev #" + (firstEvNum + i) + ", diff = " +
-                           (timestampsMax[i] - timestampsMin[i]) + ", allowed = " + timestampSlop );
+                    System.out.println("Timestamp NOT consistent: ev #" + (firstEvNum + i) + ", diff = " +
+                                               (timestampsMax[i] - timestampsMin[i]) + ", allowed = " + timestampSlop);
+
+                    // Print out beginning of all rocs' buffers
+                    for (PayloadBuffer inputPayloadBank : inputPayloadBanks) {
+                        Utilities.printBuffer(inputPayloadBank.getBuffer(), 0, 10,
+                                              "Data from roc " + inputPayloadBanks[i].getSourceName());
+                    }
                 }
-            }
         }
 
         //----------------------------
