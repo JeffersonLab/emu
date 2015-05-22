@@ -390,7 +390,12 @@ if (isJavaSystem) System.out.println("    DataTransport Et: create Java ET in th
                                                 EtConstants.multicastTTL,
                                                 EtConstants.policyError);
             if (preferredSubnet != null) {
-                openConfig.setNetworkInterface(preferredSubnet);
+                try {
+                    openConfig.setNetworkInterface(preferredSubnet);
+                }
+                catch (EtException e) {
+                    /* not in dot-decimal format or unknown host so ignore */
+                }
             }
             openConfig.setWaitTime(wait);
         }
