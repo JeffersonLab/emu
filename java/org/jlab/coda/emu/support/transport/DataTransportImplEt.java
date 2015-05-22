@@ -392,6 +392,7 @@ if (isJavaSystem) System.out.println("    DataTransport Et: create Java ET in th
             if (preferredSubnet != null) {
                 try {
                     openConfig.setNetworkInterface(preferredSubnet);
+System.out.println("    DataTransport Et: preferred subnet set to " + preferredSubnet);
                 }
                 catch (EtException e) {
                     /* not in dot-decimal format or unknown host so ignore */
