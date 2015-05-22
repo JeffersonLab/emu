@@ -395,6 +395,7 @@ if (isJavaSystem) System.out.println("    DataTransport Et: create Java ET in th
                 }
                 catch (EtException e) {
                     /* not in dot-decimal format or unknown host so ignore */
+System.out.println("    DataTransport Et: ignoring preferred subnet of " + preferredSubnet);
                 }
             }
             openConfig.setWaitTime(wait);
