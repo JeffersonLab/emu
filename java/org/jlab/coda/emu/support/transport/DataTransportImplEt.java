@@ -202,6 +202,8 @@ public class DataTransportImplEt extends DataTransportAdapter {
             }
         }
 
+        String preferredSubnet = null;
+
         // How do we contact the ET system?
         int method = EtConstants.direct;
 
@@ -367,6 +369,9 @@ if (isJavaSystem) System.out.println("    DataTransport Et: create Java ET in th
                 host = EtConstants.hostRemote;
             }
 
+            // Use a preferred subnet for all communication?
+            preferredSubnet = attrib.get("subnet");
+
             // broadcast address to use to connect to ET
             baddr = attrib.get("bAddr");
             if (baddr != null) {
@@ -384,6 +389,9 @@ if (isJavaSystem) System.out.println("    DataTransport Et: create Java ET in th
                                                 false, method, port, uport, uport,
                                                 EtConstants.multicastTTL,
                                                 EtConstants.policyError);
+            if (preferredSubnet != null) {
+                openConfig.setNetworkInterface(preferredSubnet);
+            }
             openConfig.setWaitTime(wait);
         }
         catch (EtException e) {
@@ -748,6 +756,7 @@ logger.debug("    DataTransport Et: create ET system, " + etOpenConfig.getEtName
                     errorMsg.compareAndSet(null, "created ET system but cannot connect");
                     state = CODAState.ERROR;
                     emu.sendStatusMessage();
+                    e.printStackTrace();
                     throw new CmdExecException("created ET, " + etOpenConfig.getEtName() + ", but cannot connect");
                 }
 
