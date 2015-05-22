@@ -10,3 +10,8 @@ Version 2.3
 
     - add fake Trigger Supervisor to handle fake ROCs
 
+    - add flag to scripts forcing use of IPv4
+
+    - add emu config option to set preferred ET communication subnet
+
+    - make ET event handling more efficient
