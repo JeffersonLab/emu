@@ -70,6 +70,9 @@ public class DataChannelImplEmu extends DataChannelAdapter {
     /** Time in seconds to wait for connection to emu server. */
     private int connectTimeout;
 
+    /** Subnet client uses to connect to server if possible. */
+    private String preferredSubnet;
+
     /** Coda id of the data source. */
     private int sourceId;
 
@@ -240,6 +243,13 @@ System.out.println("      DataChannel Emu: sending on port " + sendPort);
                 }
                 catch (NumberFormatException e) {}
             }
+
+            // Emu domain preferred subnet in dot-decimal format
+            preferredSubnet = null;
+            attribString = attributeMap.get("subnet");
+            if (attribString != null && cMsgUtilities.isDottedDecimal(attribString) == null) {
+                preferredSubnet = null;
+            }
         }
 
         // State after prestart transition -
@@ -304,6 +314,10 @@ System.out.println("      DataChannel Emu: sending on port " + sendPort);
 
         if (tcpSendBuf > 0) {
             udl += "&tcpSend=" + tcpSendBuf;
+        }
+
+        if (preferredSubnet != null) {
+            udl += "&subnet=" + preferredSubnet;
         }
 
         if (noDelay) {

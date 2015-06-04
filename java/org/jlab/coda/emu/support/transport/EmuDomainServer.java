@@ -96,8 +96,7 @@ public class EmuDomainServer extends Thread {
             out.writeInt(cMsgNetworkConstants.magicNumbers[1]);
             out.writeInt(cMsgNetworkConstants.magicNumbers[2]);
             out.writeInt(cMsgNetworkConstants.emuDomainMulticastServer);
-            // Port is irrelevant in this case
-            out.writeInt(0);
+            out.writeInt(cMsgConstants.version);
             out.writeInt(name.length());
             out.writeInt(expid.length());
             try {
@@ -150,7 +149,7 @@ System.out.println("I/O Error: " + e);
 
         try {
             // Start TCP server thread
-            tcpServer = new EmuDomainTcpServer(this, serverPort, expid);
+            tcpServer = new EmuDomainTcpServer(this, serverPort);
             tcpServer.start();
 
             // Wait for indication thread is running before continuing on

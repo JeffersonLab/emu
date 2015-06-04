@@ -58,7 +58,7 @@ public class EmuDomainTcpServer extends Thread {
      * @param server emu server that created this object
      * @param serverPort TCP port on which to receive transmissions from emu clients
      */
-    public EmuDomainTcpServer(EmuDomainServer server, int serverPort, String expid) throws cMsgException {
+    public EmuDomainTcpServer(EmuDomainServer server, int serverPort) throws cMsgException {
         this.server = server;
         this.serverPort = serverPort;
     }

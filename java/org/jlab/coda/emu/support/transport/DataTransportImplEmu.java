@@ -13,8 +13,10 @@ package org.jlab.coda.emu.support.transport;
 
 import org.jlab.coda.cMsg.cMsgException;
 import org.jlab.coda.cMsg.cMsgNetworkConstants;
+import org.jlab.coda.cMsg.cMsgUtilities;
 import org.jlab.coda.emu.Emu;
 import org.jlab.coda.emu.EmuModule;
+import org.jlab.coda.emu.EmuUtilities;
 import org.jlab.coda.emu.support.configurer.DataNotFoundException;
 import org.jlab.coda.emu.support.logger.Logger;
 
@@ -37,6 +39,9 @@ public class DataTransportImplEmu extends DataTransportAdapter {
 
     private EmuDomainServer emuServer;
 
+//    /** Subnet client uses to connect to server if possible. */
+//    String preferredSubnet;
+//
     final HashMap<Integer, DataChannelImplEmu> inputChannelTable =
             new HashMap<Integer, DataChannelImplEmu>(16);
 
@@ -58,8 +63,16 @@ public class DataTransportImplEmu extends DataTransportAdapter {
         // pname is the "name" entry in the attrib map
         super(pname, attrib, emu);
         this.logger = emu.getLogger();
+//
+//        // Emu domain preferred subnet in dot-decimal format
+//        preferredSubnet = null;
+//        String str = attrib.get("subnet");
+//        if (str != null && cMsgUtilities.isDottedDecimal(str) == null) {
+//            preferredSubnet = null;
+//        }
 
         // Is this transport a server (sends data to) or client (gets data from)?
+        // Yeah, it's seems backwards ...
         if (!isServer) {
             // This emu domain transport gets data from some source.
             // I know this seems backwards, but if the config says we're a client
