@@ -389,6 +389,9 @@ System.out.println("  ER mod: " + order + ", got control event, " + ringItem.get
                         }
                     }
 
+                    eventCountTotal += totalNumberEvents;
+                    wordCountTotal  += wordCount;
+
                     // If END event, interrupt other record threads then quit this one.
                     if (controlType == ControlType.END) {
 System.out.println("  ER mod: found END event");
@@ -397,9 +400,6 @@ System.out.println("  ER mod: found END event");
                         if (endCallback != null) endCallback.endWait();
                         return;
                     }
-
-                    eventCountTotal += totalNumberEvents;
-                    wordCountTotal  += wordCount;
 
                     // Do NOT release the reusable ByteBuffer back to its supply.
                     // It was passed on to the input ring buffer of the output channel.
