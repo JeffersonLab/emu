@@ -55,7 +55,12 @@ public class CMSGPortal implements LoggerAppender {
     /** TCP port of platform's cMsg domain server. */
     private int platformPort;
 
+    /** Object used to log events either at dalogmsgs and as print out. */
     private Logger logger;
+
+    /** For efficiency, use a single msg with most fields already filled
+     * in to be used with the logger. */
+    private cMsgMessage errorMessage;
 
 
 
@@ -82,6 +87,39 @@ public class CMSGPortal implements LoggerAppender {
 System.out.println("Emu: CMSGPortal using rc UDL = " + rcUDL);
         logger = emu.getLogger();
         logger.addAppender(this);
+
+        // Fill in the fields that won't change for logger messages
+        errorMessage = new cMsgMessage();
+        try {
+            // Don't bother keeping a history of this message's sender host/name/time
+            errorMessage.setHistoryLengthMax(0);
+
+            errorMessage.setSubject(emu.name());
+            errorMessage.setType(RCConstants.dalogMsg);
+
+            cMsgPayloadItem item = new cMsgPayloadItem("EXPID", emu.getExpid());
+            errorMessage.addPayloadItem(item);
+
+            item = new cMsgPayloadItem("codaid", emu.getCodaid());
+            errorMessage.addPayloadItem(item);
+
+            item = new cMsgPayloadItem("hostName", emu.getHostName());
+            errorMessage.addPayloadItem(item);
+
+            String userName = System.getProperty("user.name");
+            if (userName != null) {
+                item = new cMsgPayloadItem("userName", userName);
+                errorMessage.addPayloadItem(item);
+            }
+
+            item = new cMsgPayloadItem("session", emu.getSession());
+            errorMessage.addPayloadItem(item);
+
+            item = new cMsgPayloadItem("codaClass", emu.getCodaClass().toString());
+            errorMessage.addPayloadItem(item);
+        }
+        catch (cMsgException e) {/* never happen*/}
+
 
         try {
             //--------------------------------------------
@@ -359,71 +397,101 @@ logger.warn("Emu: exit due to rc/cMsg connect error: " + e.getMessage());
 
 
     /**
+     * Update the cMsg message used to send dalogmsg's.
+     * @param errorMsg    error message to send
+     * @param errorLevel  error severity
+     */
+    private void updateAndSendLoggingMessage(String errorMsg, String errorLevel) {
+
+        if (errorMsg == null || errorLevel == null) {
+            return;
+        }
+
+        if (rcServer == null || !rcServer.isConnected()) {
+            return;
+        }
+
+        try {
+            cMsgPayloadItem item = new cMsgPayloadItem("runNumber", emu.getRunNumber());
+            errorMessage.addPayloadItem(item);
+
+            String runType = emu.getRunType();
+            if (runType != null) {
+                item = new cMsgPayloadItem("config", runType);
+                errorMessage.addPayloadItem(item);
+
+                item = new cMsgPayloadItem("runType", emu.getRunTypeId());
+                errorMessage.addPayloadItem(item);
+            }
+
+            errorMessage.setText(errorMsg);
+
+            // Severity ID #:
+            // 0     = reserved
+            // 1-4   = info
+            // 5-8   = warning
+            // 9-12  = error
+            // 13-14 = severe
+            // 15    = reserved
+            //
+            // < 9 is ignored by rc gui
+
+            // Default to info message
+            if (errorLevel.equalsIgnoreCase("WARN")) {
+                errorMessage.setUserInt(5);
+                item = new cMsgPayloadItem("severity", "WARN");
+            }
+            else if (errorLevel.equalsIgnoreCase("ERROR")) {
+                errorMessage.setUserInt(9);
+                item = new cMsgPayloadItem("severity", "ERROR");
+            }
+            else if (errorLevel.equalsIgnoreCase("BUG")) {
+                errorMessage.setUserInt(13);
+                item = new cMsgPayloadItem("severity","SEVERE");
+            }
+            else {
+                errorMessage.setUserInt(1);
+                item = new cMsgPayloadItem("severity", "INFO");
+            }
+            errorMessage.addPayloadItem(item);
+        }
+        catch (cMsgException e) {/* never happen */}
+
+
+        // Send message to rc server
+        try {
+            rcServer.send(errorMessage);
+        }
+        catch (cMsgException e) {
+            try {
+                if (rcServer.isConnected()) rcServer.disconnect();
+            }
+            catch (cMsgException e1) {}
+            rcServer = null;
+        }
+    }
+
+
+    /**
+     * Send a dalogmsg message using the cMsg system.
+     * @param event event to be logged
+     */
+    synchronized public void append(LoggingEvent event) {
+        if (event == null) {
+            return;
+        }
+        updateAndSendLoggingMessage(event.getMessage(), event.getFormatedLevel());
+    }
+
+
+    /**
      * Send an error message that ends up on the run control gui.
      * @param text text of message
      */
     synchronized public void rcGuiErrorMessage(String text) {
-
-        if ((rcServer != null) && rcServer.isConnected()) {
-
-            try {
-                cMsgMessage msg = new cMsgMessage();
-                msg.setSubject(emu.name());
-                msg.setType(RCConstants.dalogMsg);
-                msg.setText(text);
-                // 0-3=info, 4-7=warning, 8-11=error, 12-15=severe; < 9 is ignored by rc gui
-                msg.setUserInt(9);
-                if (rcServer != null) {
-                    rcServer.send(msg);
-                }
-
-            } catch (cMsgException e) {
-                try {
-                    if (rcServer.isConnected()) rcServer.disconnect();
-                } catch (cMsgException e1) {}
-                rcServer = null;
-            }
-        }
+        updateAndSendLoggingMessage(text, "ERROR");
     }
 
-    /**
-     * Send a dalog message using the cMsg system.
-     * @param event event to be logged
-     */
-    synchronized public void append(LoggingEvent event) {
 
-        if ((rcServer != null) && rcServer.isConnected() && event != null) {
-            try {
-                cMsgMessage msg = new cMsgMessage();
-                msg.setSubject(emu.name());
-                msg.setType(RCConstants.dalogMsg);
-                msg.setText(event.getMessage());
-                // 0-3=info, 4-7=warning, 8-11=error, 12-15=severe;  < 9 is ignored by rc gui
-                // Default to info message
-                msg.setUserInt(0);
-
-                if (event.hasData()) {
-                    String errorLevel = event.getFormatedLevel();
-                    if (errorLevel.equalsIgnoreCase("WARN")) {
-                        msg.setUserInt(5);
-                    }
-                    else if (errorLevel.equalsIgnoreCase("ERROR")) {
-                        msg.setUserInt(9);
-                    }
-                    else if (errorLevel.equalsIgnoreCase("BUG")) {
-                        msg.setUserInt(13);
-                    }
-                }
-
-                rcServer.send(msg);
-
-            } catch (cMsgException e) {
-                try {
-                    if (rcServer.isConnected()) rcServer.disconnect();
-                } catch (cMsgException e1) {}
-                rcServer = null;
-            }
-        }
-    }
 }
 

@@ -334,26 +334,36 @@ public class Emu implements CODAComponent {
         // Need the following info for this object's getter methods
         // and possibly for connecting to platform.
         String tmp = System.getProperty("expid");
-        if (tmp != null) expid = tmp;
-        if (expid == null) {
+        if (tmp != null) {
+            expid = tmp;
+        }
+        else {
             expid = System.getenv("EXPID");
         }
 
+        if (expid == null) {
+            expid = "unknown";
+        }
+
         tmp = System.getProperty("session");
-        if (tmp != null) session = tmp;
+        if (tmp != null) {
+            session = tmp;
+        }
+        else {
+            session = "unknown";
+        }
+
+        // Get the local hostname which is added to the payload of logging messages
+        try {
+            hostName = InetAddress.getLocalHost().getHostName();
+        } catch (java.net.UnknownHostException e) {
+            hostName = "unknown";
+        }
 
         // Create object for communication w/ run control through cMsg server
         cmsgPortal = new CMSGPortal(this);
 
         Configurer.setLogger(null);
-
-        // Get the local hostname which is added to the payload of logging messages
-        try {
-            InetAddress localMachine = java.net.InetAddress.getLocalHost();
-            hostName = localMachine.getHostName();
-        } catch (java.net.UnknownHostException uhe) {
-            // Ignore this.
-        }
     }
 
 
