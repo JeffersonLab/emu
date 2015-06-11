@@ -647,9 +647,16 @@ public class Emu implements CODAComponent {
     synchronized public void setState(State state) {this.state = state;}
 
     /**
+     * This method gets the state of this Emu which was determined the last
+     * time {@link #state()} was called. This method does NOT actually find
+     * the current state.
+     */
+    synchronized public State getState() {return state;}
+
+    /**
      * {@inheritDoc}<p>
      *
-     * This method returns the state of the Emu, but first checks
+     * This method finds and returns the state of the Emu by first checking
      * for an ERROR state in all channels, transports, and modules.<p>
      *
      * This method is synchronized to ensure that a single error in

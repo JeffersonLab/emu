@@ -415,6 +415,9 @@ logger.warn("Emu: exit due to rc/cMsg connect error: " + e.getMessage());
             cMsgPayloadItem item = new cMsgPayloadItem("runNumber", emu.getRunNumber());
             errorMessage.addPayloadItem(item);
 
+            item = new cMsgPayloadItem("state", emu.getState().name());
+            errorMessage.addPayloadItem(item);
+
             String runType = emu.getRunType();
             if (runType != null) {
                 item = new cMsgPayloadItem("config", runType);
