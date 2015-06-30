@@ -529,7 +529,7 @@ if (debug) System.out.println("  EB mod: Roc raw or physics event in wrong forma
 
 
     /**
-     * This method looks for either a prestart, go, or end event in all the
+     * This method looks for either a prestart or go event in all the
      * input channels' ring buffers.
      *
      * @param sequences     one sequence per ring buffer per build thread
@@ -550,7 +550,7 @@ if (debug) System.out.println("  EB mod: Roc raw or physics event in wrong forma
         PayloadBuffer[] buildingBanks = new PayloadBuffer[inputChannelCount];
         ControlType controlType = null;
 
-        // First thing we do is look for the go/prestart/end event and pass it on
+        // First thing we do is look for the go or prestart event and pass it on
         // Grab one control event from each ring buffer.
         for (int i=0; i < inputChannelCount; i++) {
             try  {
@@ -903,7 +903,16 @@ System.out.println("  EB mod: bbSupply -> " + ringItemCount + " # of bufs, direc
             try {
                 waitForPrestart.await();
             }
-            catch (InterruptedException e) {}
+            catch (InterruptedException e) {
+                // If interrupted, then we must quit
+                if (debug) System.out.println("  EB mod: interrupted while waiting for all prestart events");
+                errorMsg.compareAndSet(null,"Interrupted waiting for all prestart events");
+                if (!gotResetCommand) {
+                    state = CODAState.ERROR;
+                }
+                emu.sendStatusMessage();
+                return;
+            }
 
 System.out.println("  EB mod: got all PRESTART events");
 
@@ -945,7 +954,16 @@ System.out.println("  EB mod: got all END events");
             try {
                 waitForGo.await();
             }
-            catch (InterruptedException e) {}
+            catch (InterruptedException e) {
+                // If interrupted, then we must quit
+                if (debug) System.out.println("  EB mod: interrupted while waiting for all go events");
+                errorMsg.compareAndSet(null,"Interrupted waiting for all go events");
+                if (!gotResetCommand) {
+                    state = CODAState.ERROR;
+                }
+                emu.sendStatusMessage();
+                return;
+            }
 
 System.out.println("  EB mod: got all GO events");
 
@@ -1524,7 +1542,9 @@ if (debug) System.out.println("  EB mod: endBuildThreads: will end building/fill
         // all build threads will be interrupted in the following code.
 
         // Interrupt all Building threads except the one calling this method
+        // (is only ever called by cmsg callback in emu, never by build thread)
         for (Thread thd : buildingThreadList) {
+            // Will never happen
             if (thd == thisThread) continue;
             // Try to end thread nicely but it could hang on rb.next(), if so, kill it
             thd.interrupt();
