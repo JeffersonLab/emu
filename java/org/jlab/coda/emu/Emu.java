@@ -1045,7 +1045,7 @@ logger.info("Emu " + name + " reset: in");
         // Reset channels first
         if (inChannels.size() > 0) {
             for (DataChannel chan : inChannels) {
-logger.info("Emu " + name + " reset: reset to in chan " + chan.name());
+logger.info("Emu " + name + " reset: reset in chan " + chan.name());
                 chan.reset();
             }
         }
@@ -1059,7 +1059,7 @@ logger.debug("Emu " + name + " reset: try to reset module " + module.name());
 
         if (outChannels.size() > 0) {
             for (DataChannel chan : outChannels) {
-logger.info("Emu " + name + ": reset to out chan " + chan.name());
+logger.info("Emu " + name + ": reset out chan " + chan.name());
                 chan.reset();
             }
         }
