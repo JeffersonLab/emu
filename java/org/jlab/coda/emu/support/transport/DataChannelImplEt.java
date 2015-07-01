@@ -734,7 +734,7 @@ logger.debug("      DataChannel Et: reset done w/ input thread");
                 dataOutputThread.killFromOutside();
             }
         }
-logger.debug("      DataChannel Et: reset done w/ output thread");
+logger.debug("      DataChannel Et: reset done w/ output threads");
 
         // At this point all threads should be done
         try {
@@ -746,7 +746,7 @@ logger.debug("      DataChannel Et: reset done w/ output thread");
 
         errorMsg.set(null);
         state = CODAState.CONFIGURED;
-logger.debug("      DataChannel Et: reset " + name + " - done");
+logger.debug("      DataChannel Et: reset " + name + " - all done");
     }
 
 
