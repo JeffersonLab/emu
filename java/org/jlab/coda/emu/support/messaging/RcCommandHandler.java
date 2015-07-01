@@ -75,7 +75,6 @@ class RcCommandHandler extends GenericCallback implements cMsgCallbackInterface 
             if (codaCmd == CODACommand.RESET) {
 //System.out.println("callback: call emu's reset()");
                 cmsgPortal.emu.reset();
-System.out.println("callback: return from emu's reset()");
                 return;
             }
 
