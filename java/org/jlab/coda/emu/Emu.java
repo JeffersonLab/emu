@@ -382,7 +382,7 @@ public class Emu implements CODAComponent {
                     // While resetting, stop executing rc commands.
                     // Wait for a bit then check flag again.
                     if (stopExecutingCmds) {
-logger.info("Emu " + name + ": stop executing commands");
+//logger.info("Emu " + name + ": stop executing commands");
                         Thread.sleep(500);
                         continue;
                     }
