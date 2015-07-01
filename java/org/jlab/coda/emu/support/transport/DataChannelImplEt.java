@@ -725,6 +725,7 @@ logger.debug("      DataChannel Et: reset " + name + " channel");
             }
             catch (InterruptedException e) {}
         }
+logger.debug("      DataChannel Et: reset done w/ input thread");
 
         if (dataOutputThread != null) {
             dataOutputThread.shutdown();
@@ -733,6 +734,7 @@ logger.debug("      DataChannel Et: reset " + name + " channel");
                 dataOutputThread.killFromOutside();
             }
         }
+logger.debug("      DataChannel Et: reset done w/ output thread");
 
         // At this point all threads should be done
         try {
