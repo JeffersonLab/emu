@@ -375,54 +375,60 @@ public class Emu implements CODAComponent {
 
         State oldState = null;
 
-        while(true) {
+        try {
+            while(true) {
 
-            try {
-                // While resetting, stop executing rc commands.
-                // Wait for a bit then check flag again.
-                if (stopExecutingCmds) {
-                    Thread.sleep(200);
-                    continue;
-                }
-
-                // Do NOT block forever here
-                final Command cmd = mailbox.poll(1, TimeUnit.SECONDS);
-
-                if (cmd != null) {
-                    try {
-                        this.execute(cmd);
-
-                    } catch (IllegalArgumentException e) {
-                        e.printStackTrace();
-                        // This just means that the command was not supported
-                        logger.info("command " + cmd + " not supported by " + this.name());
+                try {
+                    // While resetting, stop executing rc commands.
+                    // Wait for a bit then check flag again.
+                    if (stopExecutingCmds) {
+logger.info("Emu " + name + ": stop executing commands");
+                        Thread.sleep(500);
                         continue;
                     }
-                }
 
-                // If modules are not loaded then our state is either
-                // booted, configured, or error.
+                    // Do NOT block forever here
+                    final Command cmd = mailbox.poll(1, TimeUnit.SECONDS);
 
-                if ((state != null) && (state != oldState)) {
-                    if (debugGUI != null) {
-                        // Enable/disable transition GUI buttons depending on
-                        // which transitions are allowed out of our current state.
-                        debugGUI.getToolBar().updateButtons(state);
+                    if (cmd != null) {
+                        try {
+                            this.execute(cmd);
+
+                        } catch (IllegalArgumentException e) {
+                            e.printStackTrace();
+                            // This just means that the command was not supported
+                            logger.info("Emu " + name + ": command, " + cmd + ", not supported ");
+                            continue;
+                        }
                     }
 
-                    try {
-                        Configurer.setValue(localConfig, "status/state", state.toString());
-                    } catch (DataNotFoundException e) {
-                        // This is almost impossible but catch anyway
-                        logger.error("CODAComponent thread failed to set state");
+                    // If modules are not loaded then our state is either
+                    // booted, configured, or error.
+
+                    if ((state != null) && (state != oldState)) {
+                        if (debugGUI != null) {
+                            // Enable/disable transition GUI buttons depending on
+                            // which transitions are allowed out of our current state.
+                            debugGUI.getToolBar().updateButtons(state);
+                        }
+
+                        try {
+                            Configurer.setValue(localConfig, "status/state", state.toString());
+                        } catch (DataNotFoundException e) {
+                            // This is almost impossible but catch anyway
+                            logger.info("Emu " + name + ": failed to set state in local config");
+                        }
+
+                        oldState = state;
                     }
 
-                    oldState = state;
+                } catch (InterruptedException e) {
+                    Thread.interrupted(); // clear interrupt flag
                 }
-
-            } catch (InterruptedException e) {
-                Thread.interrupted(); // clear interrupt flag
             }
+        }
+        finally {
+            logger.info("Emu " + name + ": exit main thread!!!");
         }
     }
 
@@ -643,7 +649,7 @@ System.out.println("Emu " + name + ": state set to " + state.name() + "\n\n");
      * time {@link #state()} was called. This method does NOT actually find
      * the current state.
      */
-    synchronized public State getState() {return state;}
+    public State getState() {return state;}
 
     /**
      * {@inheritDoc}<p>
@@ -682,7 +688,7 @@ System.out.println("Emu " + name + ": state set to " + state.name() + "\n\n");
                 if (transport.state() == ERROR) {
                     if (debug) System.out.println("Emu " + name + " state(): transport in error state, " +
                                                           transport.name());
-                    setState(ERROR);
+                    state = ERROR;
                     if (!errorSent) {
                         errorMsg.compareAndSet(null, transport.getError());
                         sendRcErrorMessage(errorMsg.get());
@@ -700,7 +706,7 @@ System.out.println("Emu " + name + ": state set to " + state.name() + "\n\n");
                 if (channel.state() == ERROR) {
                     if (debug) System.out.println("Emu " + name + " state(): input channel in error state, " +
                                                           channel.name());
-                    setState(ERROR);
+                    state = ERROR;
                     if (!errorSent) {
                         errorMsg.compareAndSet(null, channel.getError());
                         sendRcErrorMessage(errorMsg.get());
@@ -718,7 +724,7 @@ System.out.println("Emu " + name + ": state set to " + state.name() + "\n\n");
                 if (module.state() == ERROR) {
                     if (debug) System.out.println("Emu " + name + " state(): module in error state, " +
                                                           module.name());
-                    setState(ERROR);
+                    state = ERROR;
                     if (!errorSent) {
                         errorMsg.compareAndSet(null, module.getError());
                         sendRcErrorMessage(errorMsg.get());
@@ -736,7 +742,7 @@ System.out.println("Emu " + name + ": state set to " + state.name() + "\n\n");
                 if (channel.state() == ERROR) {
                     if (debug) System.out.println("Emu " + name + " state(): output channel in error state, " +
                                                           channel.name());
-                    setState(ERROR);
+                    state = ERROR;
                     if (!errorSent) {
                         errorMsg.compareAndSet(null, channel.getError());
                         sendRcErrorMessage(errorMsg.get());
@@ -862,6 +868,7 @@ System.out.println("Emu " + name + " sending special RC display error Msg:\n ***
             state = state();
             String stateName = state.name().toLowerCase();
 
+            // synchronized on StatusReportingThread object
             synchronized (this) {
 
                 if (statusReportingOn &&
@@ -991,6 +998,7 @@ System.out.println("Emu " + name + " sending special RC display error Msg:\n ***
 
     /** Exit this Emu (there still may be other threads running in the JVM). */
     void quit() {
+logger.info("Emu " + name + " quit: in");
         // Shutdown all channel, module, & transport threads
         reset();
 
@@ -1015,6 +1023,7 @@ System.out.println("Emu " + name + " sending special RC display error Msg:\n ***
      * This method executes a RESET command.
      * We don't queued it up and possibly have it wait like a transition command.
      * RESET must always have top priority and is executed in the cMsg callback.
+     * Synchronized on emu.
      */
     synchronized public void reset() {
 logger.info("Emu " + name + " reset: in");
@@ -1810,117 +1819,115 @@ if (debug) logger.debug("Emu " + name + " prestart: PRESTART cmd to " + transpor
                     EmuModule module = findModule(moduleNode.getNodeName());
                     if (module == null) {
                         throw new DataNotFoundException("Emu prestart: module corresponding to " +
-                                                                moduleNode.getNodeName() + " not found");
+                                                         moduleNode.getNodeName() + " not found");
                     }
 
                     // Clear out all channels created in previous PRESTART
                     module.clearChannels();
 
-                    if (module != null) {
-                        ArrayList<DataChannel> in      = new ArrayList<DataChannel>();
-                        ArrayList<DataChannel> out     = new ArrayList<DataChannel>();
-                        ArrayList<DataChannel> inFifo  = new ArrayList<DataChannel>();
-                        ArrayList<DataChannel> outFifo = new ArrayList<DataChannel>();
+                    ArrayList<DataChannel> in      = new ArrayList<DataChannel>();
+                    ArrayList<DataChannel> out     = new ArrayList<DataChannel>();
+                    ArrayList<DataChannel> inFifo  = new ArrayList<DataChannel>();
+                    ArrayList<DataChannel> outFifo = new ArrayList<DataChannel>();
 
-                        int outputChannelCount=0;
+                    int outputChannelCount=0;
 
-                        // For each channel in (children of) the module ...
-                        NodeList childList = moduleNode.getChildNodes();
-                        for (int i=0; i < childList.getLength(); i++) {
-                            Node channelNode = childList.item(i);
-                            if (channelNode.getNodeType() != Node.ELEMENT_NODE) continue;
+                    // For each channel in (children of) the module ...
+                    NodeList childList = moduleNode.getChildNodes();
+                    for (int i=0; i < childList.getLength(); i++) {
+                        Node channelNode = childList.item(i);
+                        if (channelNode.getNodeType() != Node.ELEMENT_NODE) continue;
 
 //System.out.println("Emu " + name + " prestart: looking at channel node = " + channelNode.getNodeName());
-                            // Get attributes of channel node
-                            NamedNodeMap nnm = channelNode.getAttributes();
-                            if (nnm == null) {
+                        // Get attributes of channel node
+                        NamedNodeMap nnm = channelNode.getAttributes();
+                        if (nnm == null) {
 //System.out.println("Emu " + name + " prestart: junk in config file (no attributes), skip " + channelNode.getNodeName());
-                                continue;
-                            }
-
-                            // Get "name" attribute node from map
-                            Node channelNameNode = nnm.getNamedItem("name");
-
-                            // If none (junk in config file) go to next channel
-                            if (channelNameNode == null) {
-//System.out.println("Emu " + name + " prestart: junk in config file (no name attr), skip " + channelNode.getNodeName());
-                                continue;
-                            }
-//System.out.println("Emu " + name + " prestart: channel node of attribute \"name\" = " + channelNameNode.getNodeName());
-                            // Get name of this channel
-                            String channelName = channelNameNode.getNodeValue();
-//System.out.println("Emu " + name + " prestart: found channel of name " + channelName);
-                            // Get "transp" attribute node from map
-                            Node channelTranspNode = nnm.getNamedItem("transp");
-                            if (channelTranspNode == null) {
-//System.out.println("Emu " + name + " prestart: junk in config file (no transp attr), skip " + channelNode.getNodeName());
-                                continue;
-                            }
-                            // Get name of transport
-                            String channelTransName = channelTranspNode.getNodeValue();
-//System.out.println("Emu " + name + " prestart: module = " + module.name() + ", channel = " + channelName + ", transp = " + channelTransName);
-                            // Look up transport object from name
-                            DataTransport trans = findTransport(channelTransName);
-
-                            // Store all attributes in a hashmap to pass to channel
-                            Map<String, String> attributeMap = new HashMap<String, String>();
-                            for (int j=0; j < nnm.getLength(); j++) {
-                                Node a = nnm.item(j);
-//System.out.println("Emu " + name + " prestart: Put (" + a.getNodeName() + "," + a.getNodeValue() + ") into attribute map for channel " + channelName);
-                                attributeMap.put(a.getNodeName(), a.getNodeValue());
-                            }
-
-                            // If it's an input channel ...
-                            if (channelNode.getNodeName().equalsIgnoreCase("inchannel")) {
-                                // Create channel
-                                DataChannel channel = trans.createChannel(channelName, attributeMap,
-                                                                          true, this, module, 0);
-                                // Add to list while keeping fifos separate
-                                if (channelTransName.equals("Fifo")) {
-                                    // Fifo does NOT notify Emu when END event comes through
-                                    channel.registerEndCallback(null);
-                                    inFifo.add(channel);
-                                }
-                                else {
-                                    if (channel != null) {
-                                        // Give it object to notify Emu when END event comes through
-                                        channel.registerEndCallback(new EmuEventNotify());
-                                        in.add(channel);
-                                    }
-                                }
-                            }
-                            // If it's an output channel ...
-                            else if (channelNode.getNodeName().equalsIgnoreCase("outchannel")) {
-                                DataChannel channel = trans.createChannel(channelName, attributeMap,
-                                                                          false, this, module,
-                                                                          outputChannelCount++);
-                                if (channelTransName.equals("Fifo")) {
-                                    channel.registerEndCallback(null);
-                                    outFifo.add(channel);
-                                }
-                                else {
-                                    if (channel != null) {
-                                        channel.registerEndCallback(new EmuEventNotify());
-                                        out.add(channel);
-                                    }
-                                }
-                            }
-                            else {
-//System.out.println("Emu " + name + "u prestart: channel type \"" + channelNode.getNodeName() + "\" is unknown");
-                            }
+                            continue;
                         }
 
-                        // Set input and output channels of each module
-                        module.addInputChannels(in);
-                        module.addInputChannels(inFifo);
+                        // Get "name" attribute node from map
+                        Node channelNameNode = nnm.getNamedItem("name");
 
-                        module.addOutputChannels(out);
-                        module.addOutputChannels(outFifo);
+                        // If none (junk in config file) go to next channel
+                        if (channelNameNode == null) {
+//System.out.println("Emu " + name + " prestart: junk in config file (no name attr), skip " + channelNode.getNodeName());
+                            continue;
+                        }
+//System.out.println("Emu " + name + " prestart: channel node of attribute \"name\" = " + channelNameNode.getNodeName());
+                        // Get name of this channel
+                        String channelName = channelNameNode.getNodeValue();
+//System.out.println("Emu " + name + " prestart: found channel of name " + channelName);
+                        // Get "transp" attribute node from map
+                        Node channelTranspNode = nnm.getNamedItem("transp");
+                        if (channelTranspNode == null) {
+//System.out.println("Emu " + name + " prestart: junk in config file (no transp attr), skip " + channelNode.getNodeName());
+                            continue;
+                        }
+                        // Get name of transport
+                        String channelTransName = channelTranspNode.getNodeValue();
+//System.out.println("Emu " + name + " prestart: module = " + module.name() + ", channel = " + channelName + ", transp = " + channelTransName);
+                        // Look up transport object from name
+                        DataTransport trans = findTransport(channelTransName);
 
-                        // Keep local track of all channels created
-                        inChannels.addAll(in);
-                        outChannels.addAll(out);
+                        // Store all attributes in a hashmap to pass to channel
+                        Map<String, String> attributeMap = new HashMap<String, String>();
+                        for (int j=0; j < nnm.getLength(); j++) {
+                            Node a = nnm.item(j);
+//System.out.println("Emu " + name + " prestart: Put (" + a.getNodeName() + "," + a.getNodeValue() + ") into attribute map for channel " + channelName);
+                            attributeMap.put(a.getNodeName(), a.getNodeValue());
+                        }
+
+                        // If it's an input channel ...
+                        if (channelNode.getNodeName().equalsIgnoreCase("inchannel")) {
+                            // Create channel
+                            DataChannel channel = trans.createChannel(channelName, attributeMap,
+                                                                      true, this, module, 0);
+                            // Add to list while keeping fifos separate
+                            if (channelTransName.equals("Fifo")) {
+                                // Fifo does NOT notify Emu when END event comes through
+                                channel.registerEndCallback(null);
+                                inFifo.add(channel);
+                            }
+                            else {
+                                if (channel != null) {
+                                    // Give it object to notify Emu when END event comes through
+                                    channel.registerEndCallback(new EmuEventNotify());
+                                    in.add(channel);
+                                }
+                            }
+                        }
+                        // If it's an output channel ...
+                        else if (channelNode.getNodeName().equalsIgnoreCase("outchannel")) {
+                            DataChannel channel = trans.createChannel(channelName, attributeMap,
+                                                                      false, this, module,
+                                                                      outputChannelCount++);
+                            if (channelTransName.equals("Fifo")) {
+                                channel.registerEndCallback(null);
+                                outFifo.add(channel);
+                            }
+                            else {
+                                if (channel != null) {
+                                    channel.registerEndCallback(new EmuEventNotify());
+                                    out.add(channel);
+                                }
+                            }
+                        }
+                        else {
+//System.out.println("Emu " + name + "u prestart: channel type \"" + channelNode.getNodeName() + "\" is unknown");
+                        }
                     }
+
+                    // Set input and output channels of each module
+                    module.addInputChannels(in);
+                    module.addInputChannels(inFifo);
+
+                    module.addOutputChannels(out);
+                    module.addOutputChannels(outFifo);
+
+                    // Keep local track of all channels created
+                    inChannels.addAll(in);
+                    outChannels.addAll(out);
                 }
             } while ((moduleNode = moduleNode.getNextSibling()) != null);  // while another module exists ...
 
