@@ -796,181 +796,159 @@ System.out.println("  EB mod: send END event to output channel " + j + ", ring "
 
         public void run() {
 
-            // Create a reusable supply of ByteBuffer objects
-            // for writing built physics events into.
-            //--------------------------------------------
-            // Direct buffers give better performance
-            //--------------------------------------------
-
-            // Any existing output channel should not have more than
-            // "ringItemCount * btCount" items in each ring buffer. Currently this
-            // is guaranteed in channel constructors.
-            // If so we could get a deadlock with out channel waiting to read
-            // more events than this thread can produce with the already-read
-            // events still not written out.
-            ByteBufferSupply bbSupply = new ByteBufferSupply(ringItemCount, 2000, outputOrder, false);
-System.out.println("  EB mod: bbSupply -> " + ringItemCount + " # of bufs, direct = " + false);
-
-            // Object for building physics events in a ByteBuffer
-            CompactEventBuilder builder = null;
             try {
-                // Internal buffer of 8 bytes will be overwritten later
-                builder = new CompactEventBuilder(8, outputOrder, true);
-            }
-            catch (EvioException e) {/*never happen */}
+                // Create a reusable supply of ByteBuffer objects
+                // for writing built physics events into.
+                //--------------------------------------------
+                // Direct buffers give better performance
+                //--------------------------------------------
 
+                // Any existing output channel should not have more than
+                // "ringItemCount * btCount" items in each ring buffer. Currently this
+                // is guaranteed in channel constructors.
+                // If so we could get a deadlock with out channel waiting to read
+                // more events than this thread can produce with the already-read
+                // events still not written out.
+                ByteBufferSupply bbSupply = new ByteBufferSupply(ringItemCount, 2000, outputOrder, false);
+                System.out.println("  EB mod: bbSupply -> " + ringItemCount + " # of bufs, direct = " + false);
 
-            // Skipping events is necessary if there are multiple build threads.
-            // This is the way of dividing up events among build threads without
-            // contention and mutex locking.
-            //
-            // For example, with 3 build threads:
-            // the 1st build thread gets item #1, the 2nd item #2, and the 3rd item #3.
-            // In the next round,
-            // the 1st thread gets item #4, the 2nd item #5, and the 3rd, item #6, etc.
-            //
-            // Remember that in the rings, each consumer (sequence) sees all items and must
-            // therefore skip over those that the other build threads are working on.
-            // One complication is the presence of user events. These must be skipped over
-            // and completely ignored by all build threads.
-            //
-            // Easiest to implement this with one counter per input channel.
-            int[] skipCounter = new int[inputChannelCount];
-            Arrays.fill(skipCounter, btIndex + 1);
-
-             // Initialize
-            int     endEventCount, totalNumberEvents=1;
-            long    firstEventNumber=1, startTime=0L;
-            boolean haveEnd;
-            boolean nonFatalError;
-            boolean havePhysicsEvents;
-            boolean gotFirstBuildEvent;
-            boolean gotBank;
-            boolean isEventNumberInitiallySet = false;
-            EventType eventType = null;
-
-            if (outputChannelCount > 1) outputChannelIndex = -1;
-
-            PayloadBuffer[] buildingBanks = new PayloadBuffer[inputChannelCount];
-
-            minEventSize = Integer.MAX_VALUE;
-
-            if (timeStatsOn) {
-                statistics = new Statistics(1000000, 30);
-            }
-
-            // Ring Buffer stuff - define array for convenience
-            nextSequences = new long[inputChannelCount];
-            availableSequences = new long[inputChannelCount];
-            Arrays.fill(availableSequences, -2L);
-            buildSequences = new Sequence[inputChannelCount];
-            for (int i=0; i < inputChannelCount; i++) {
-                buildSequences[i] = buildSequenceIn[btIndex][i];
-                nextSequences[i]  = buildSequences[i].get() + 1L;
-            }
-
-            // First thing we do is look for the prestart event(s) and pass it on
-            try {
-                // Get prestart from each input channel
-                ControlType cType = getAllControlEvents(buildSequences, buildBarrierIn, nextSequences);
-                if (!cType.isPrestart()) {
-                    throw new EmuException("Expecting prestart event, got " + cType);
-                }
-
-                // If this is the first build thread to reach this point, then
-                // write prestart event on all output channels, ring 0. Other build
-                // threads ignore this.
-                if (firstToGetPrestart.compareAndSet(false, true)) {
-                    controlToOutputAsync(true);
-                }
-                // This thread is ready to look for "go"
-                waitForPrestart.countDown();
-            }
-            catch (Exception e) {
-                e.printStackTrace();
-                if (debug) System.out.println("  EB mod: interrupted while waiting for prestart event");
-                // If we haven't yet set the cause of error, do so now & inform run control
-                errorMsg.compareAndSet(null,"Interrupted waiting for prestart event");
-                // Set state to error, but not if resetting
-                if (!gotResetCommand) {
-                    state = CODAState.ERROR;
-                }
-                emu.sendStatusMessage();
-                return;
-            }
-
-            // Wait for ALL Prestart events to arrive at build threads before looking for Go
-            try {
-                waitForPrestart.await();
-            }
-            catch (InterruptedException e) {
-                // If interrupted, then we must quit
-                if (debug) System.out.println("  EB mod: interrupted while waiting for all prestart events");
-                errorMsg.compareAndSet(null,"Interrupted waiting for all prestart events");
-                if (!gotResetCommand) {
-                    state = CODAState.ERROR;
-                }
-                emu.sendStatusMessage();
-                return;
-            }
-
-System.out.println("  EB mod: got all PRESTART events");
-
-            // Second thing we do is look for the go event and pass it on
-            try {
-                 // Get go/end from each input channel
-                ControlType cType = getAllControlEvents(buildSequences, buildBarrierIn, nextSequences);
-                if (!cType.isGo()) {
-                    if (cType.isEnd()) {
-                        haveEndEvent = true;
-                        handleEndEvent();
-System.out.println("  EB mod: got all END events");
-                        return;
-                    }
-                    else {
-                        throw new EmuException("Expecting go ro end event, got " + cType);
-                    }
-                }
-
-                if (firstToGetGo.compareAndSet(false, true)) {
-                    controlToOutputAsync(false);
-                }
-                // This thread is ready to build
-                waitForGo.countDown();
-            }
-            catch (Exception e) {
-                e.printStackTrace();
-                if (debug) System.out.println("  EB mod: interrupted while waiting for go event");
-                errorMsg.compareAndSet(null,"Interrupted waiting for go event");
-                // Set state to error, but not if resetting
-                if (!gotResetCommand) {
-                    state = CODAState.ERROR;
-                }
-                emu.sendStatusMessage();
-                return;
-            }
-
-            // Wait for ALL Go events to arrive at build threads before building
-            try {
-                waitForGo.await();
-            }
-            catch (InterruptedException e) {
-                // If interrupted, then we must quit
-                if (debug) System.out.println("  EB mod: interrupted while waiting for all go events");
-                errorMsg.compareAndSet(null,"Interrupted waiting for all go events");
-                if (!gotResetCommand) {
-                    state = CODAState.ERROR;
-                }
-                emu.sendStatusMessage();
-                return;
-            }
-
-System.out.println("  EB mod: got all GO events");
-
-            // Now do the event building
-            while (state == CODAState.ACTIVE || paused) {
-
+                // Object for building physics events in a ByteBuffer
+                CompactEventBuilder builder = null;
                 try {
+                    // Internal buffer of 8 bytes will be overwritten later
+                    builder = new CompactEventBuilder(8, outputOrder, true);
+                }
+                catch (EvioException e) {/*never happen */}
+
+
+                // Skipping events is necessary if there are multiple build threads.
+                // This is the way of dividing up events among build threads without
+                // contention and mutex locking.
+                //
+                // For example, with 3 build threads:
+                // the 1st build thread gets item #1, the 2nd item #2, and the 3rd item #3.
+                // In the next round,
+                // the 1st thread gets item #4, the 2nd item #5, and the 3rd, item #6, etc.
+                //
+                // Remember that in the rings, each consumer (sequence) sees all items and must
+                // therefore skip over those that the other build threads are working on.
+                // One complication is the presence of user events. These must be skipped over
+                // and completely ignored by all build threads.
+                //
+                // Easiest to implement this with one counter per input channel.
+                int[] skipCounter = new int[inputChannelCount];
+                Arrays.fill(skipCounter, btIndex + 1);
+
+                // Initialize
+                int     endEventCount, totalNumberEvents=1;
+                long    firstEventNumber=1, startTime=0L;
+                boolean haveEnd;
+                boolean nonFatalError;
+                boolean havePhysicsEvents;
+                boolean gotFirstBuildEvent;
+                boolean gotBank;
+                boolean isEventNumberInitiallySet = false;
+                EventType eventType = null;
+
+                if (outputChannelCount > 1) outputChannelIndex = -1;
+
+                PayloadBuffer[] buildingBanks = new PayloadBuffer[inputChannelCount];
+
+                minEventSize = Integer.MAX_VALUE;
+
+                if (timeStatsOn) {
+                    statistics = new Statistics(1000000, 30);
+                }
+
+                // Ring Buffer stuff - define array for convenience
+                nextSequences = new long[inputChannelCount];
+                availableSequences = new long[inputChannelCount];
+                Arrays.fill(availableSequences, -2L);
+                buildSequences = new Sequence[inputChannelCount];
+                for (int i=0; i < inputChannelCount; i++) {
+                    buildSequences[i] = buildSequenceIn[btIndex][i];
+                    nextSequences[i]  = buildSequences[i].get() + 1L;
+                }
+
+                // First thing we do is look for the prestart event(s) and pass it on
+                try {
+                    // Get prestart from each input channel
+                    ControlType cType = getAllControlEvents(buildSequences, buildBarrierIn, nextSequences);
+                    if (!cType.isPrestart()) {
+                        throw new EmuException("Expecting prestart event, got " + cType);
+                    }
+
+                    // If this is the first build thread to reach this point, then
+                    // write prestart event on all output channels, ring 0. Other build
+                    // threads ignore this.
+                    if (firstToGetPrestart.compareAndSet(false, true)) {
+                        controlToOutputAsync(true);
+                    }
+
+                    // This thread is ready to look for "go"
+                    waitForPrestart.countDown();
+
+                    // Wait for Prestart events to arrive at ALL build threads before looking for Go
+                    waitForPrestart.await();
+                }
+                catch (Exception e) {
+                    // If interrupted we must quit
+                    if (debug) System.out.println("  EB mod: interrupted while waiting for prestart event");
+                    // If we haven't yet set the cause of error, do so now & inform run control
+                    errorMsg.compareAndSet(null,"Interrupted waiting for prestart event");
+                    // Set state to error, but not if resetting
+                    if (!gotResetCommand) {
+                        state = CODAState.ERROR;
+                    }
+                    emu.sendStatusMessage();
+                    return;
+                }
+
+                System.out.println("  EB mod: got all PRESTART events");
+
+                // Second thing we do is look for the go event and pass it on
+                try {
+                    // Get go/end from each input channel
+                    ControlType cType = getAllControlEvents(buildSequences, buildBarrierIn, nextSequences);
+                    if (!cType.isGo()) {
+                        if (cType.isEnd()) {
+                            haveEndEvent = true;
+                            handleEndEvent();
+                            System.out.println("  EB mod: got all END events");
+                            return;
+                        }
+                        else {
+                            throw new EmuException("Expecting go ro end event, got " + cType);
+                        }
+                    }
+
+                    if (firstToGetGo.compareAndSet(false, true)) {
+                        controlToOutputAsync(false);
+                    }
+
+                    // This thread is ready to build
+                    waitForGo.countDown();
+
+                    // Wait for Go events to arrive at ALL build threads before building
+                    waitForGo.await();
+                }
+                catch (InterruptedException e) {
+                    // If interrupted, then we must quit
+                    if (debug) System.out.println("  EB mod: interrupted while waiting for go event");
+                    errorMsg.compareAndSet(null,"Interrupted waiting for go event");
+                    // Set state to error, but not if resetting
+                    if (!gotResetCommand) {
+                        state = CODAState.ERROR;
+                    }
+                    emu.sendStatusMessage();
+                    return;
+                }
+
+                System.out.println("  EB mod: got all GO events");
+
+                // Now do the event building
+                while (state == CODAState.ACTIVE || paused) {
+
                     nonFatalError = false;
 
                     // The input channels' rings (1 per channel)
@@ -1433,44 +1411,43 @@ System.out.println("  EB mod: Bt#" + btIndex + ", END found so return");
                         keepStats(builder.getTotalBytes());
                     }
                 }
-                catch (InterruptedException e) {
-if (debug) System.out.println("  EB mod: INTERRUPTED thread " + Thread.currentThread().getName());
-                    return;
-                }
-                catch (final TimeoutException e) {
-                    e.printStackTrace();
-if (debug) System.out.println("  EB mod: timeout in ring buffer");
-                    // If we haven't yet set the cause of error, do so now & inform run control
-                    errorMsg.compareAndSet(null, e.getMessage());
-
-                    // set state
-                    state = CODAState.ERROR;
-                    emu.sendStatusMessage();
-
-                    e.printStackTrace();
-                    return;
-                }
-                catch (final AlertException e) {
-                    e.printStackTrace();
-if (debug) System.out.println("  EB mod: alert in ring buffer");
-                    errorMsg.compareAndSet(null, e.getMessage());
-                    state = CODAState.ERROR;
-                    emu.sendStatusMessage();
-                    e.printStackTrace();
-                    return;
-                }
-                catch (Exception e) {
-if (debug) System.out.println("  EB mod: MAJOR ERROR building events");
-                    errorMsg.compareAndSet(null, e.getMessage());
-                    state = CODAState.ERROR;
-                    emu.sendStatusMessage();
-                    e.printStackTrace();
-                    return;
-                }
             }
-if (debug) System.out.println("  EB mod: Building thread is ending");
-        }
+            catch (InterruptedException e) {
+                if (debug) System.out.println("  EB mod: INTERRUPTED thread " + Thread.currentThread().getName());
+                return;
+            }
+            catch (final TimeoutException e) {
+                e.printStackTrace();
+                if (debug) System.out.println("  EB mod: timeout in ring buffer");
+                // If we haven't yet set the cause of error, do so now & inform run control
+                errorMsg.compareAndSet(null, e.getMessage());
 
+                // set state
+                state = CODAState.ERROR;
+                emu.sendStatusMessage();
+
+                e.printStackTrace();
+                return;
+            }
+            catch (final AlertException e) {
+                e.printStackTrace();
+                if (debug) System.out.println("  EB mod: alert in ring buffer");
+                errorMsg.compareAndSet(null, e.getMessage());
+                state = CODAState.ERROR;
+                emu.sendStatusMessage();
+                e.printStackTrace();
+                return;
+            }
+            catch (Exception e) {
+                if (debug) System.out.println("  EB mod: MAJOR ERROR building events");
+                errorMsg.compareAndSet(null, e.getMessage());
+                state = CODAState.ERROR;
+                emu.sendStatusMessage();
+                e.printStackTrace();
+                return;
+            }
+            if (debug) System.out.println("  EB mod: Building thread is ending");
+        }
 
     }
 
