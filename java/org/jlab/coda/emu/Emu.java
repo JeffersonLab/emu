@@ -374,9 +374,8 @@ public class Emu implements CODAComponent {
     public void run() {
 
         State oldState = null;
-        State state;
 
-        do {
+        while(true) {
 
             try {
                 // While resetting, stop executing rc commands.
@@ -389,52 +388,42 @@ public class Emu implements CODAComponent {
                 // Do NOT block forever here
                 final Command cmd = mailbox.poll(1, TimeUnit.SECONDS);
 
-                if (!Thread.interrupted()) {
-                    if (cmd != null) {
-                        try {
-                            this.execute(cmd);
+                if (cmd != null) {
+                    try {
+                        this.execute(cmd);
 
-                        } catch (IllegalArgumentException e) {
-                            e.printStackTrace();
-                            // This just means that the command was not supported
-                            logger.info("command " + cmd + " not supported by " + this.name());
-                            continue;
-                        }
-                    }
-                    // If modules are not loaded then our state is either
-                    // booted, configured, or error.
-
-                    state = state();
-
-                    if ((state != null) && (state != oldState)) {
-                        System.out.println("Emu " + name + ": state changed to " + state.name() + "\n\n");
-                        if (debugGUI != null) {
-                            // Enable/disable transition GUI buttons depending on
-                            // which transitions are allowed out of our current state.
-                            debugGUI.getToolBar().updateButtons(state);
-                        }
-
-                        try {
-                            Configurer.setValue(localConfig, "status/state", state.toString());
-                        } catch (DataNotFoundException e) {
-                            // This is almost impossible but catch anyway
-                            logger.error("CODAComponent thread failed to set state");
-                        }
-
-                        oldState = state;
+                    } catch (IllegalArgumentException e) {
+                        e.printStackTrace();
+                        // This just means that the command was not supported
+                        logger.info("command " + cmd + " not supported by " + this.name());
+                        continue;
                     }
                 }
 
+                // If modules are not loaded then our state is either
+                // booted, configured, or error.
+
+                if ((state != null) && (state != oldState)) {
+                    if (debugGUI != null) {
+                        // Enable/disable transition GUI buttons depending on
+                        // which transitions are allowed out of our current state.
+                        debugGUI.getToolBar().updateButtons(state);
+                    }
+
+                    try {
+                        Configurer.setValue(localConfig, "status/state", state.toString());
+                    } catch (DataNotFoundException e) {
+                        // This is almost impossible but catch anyway
+                        logger.error("CODAComponent thread failed to set state");
+                    }
+
+                    oldState = state;
+                }
+
             } catch (InterruptedException e) {
-                statusMonitor.isInterrupted(); // clear interrupt flag
+                Thread.interrupted(); // clear interrupt flag
             }
-
-        } while (!Thread.interrupted());
-
-        // if this thread is ending, stop reporting status thread too
-        statusReportingThread.interrupt();
-
-        logger.info("Status monitor thread exit now");
+        }
     }
 
     //------------------------------------------------
@@ -644,7 +633,10 @@ public class Emu implements CODAComponent {
      * that the state does not change while it's being read.
      * @param state state of this Emu.
      */
-    synchronized public void setState(State state) {this.state = state;}
+    synchronized public void setState(State state) {
+System.out.println("Emu " + name + ": state set to " + state.name() + "\n\n");
+        this.state = state;
+    }
 
     /**
      * This method gets the state of this Emu which was determined the last
@@ -690,7 +682,7 @@ public class Emu implements CODAComponent {
                 if (transport.state() == ERROR) {
                     if (debug) System.out.println("Emu " + name + " state(): transport in error state, " +
                                                           transport.name());
-                    state = ERROR;
+                    setState(ERROR);
                     if (!errorSent) {
                         errorMsg.compareAndSet(null, transport.getError());
                         sendRcErrorMessage(errorMsg.get());
@@ -708,7 +700,7 @@ public class Emu implements CODAComponent {
                 if (channel.state() == ERROR) {
                     if (debug) System.out.println("Emu " + name + " state(): input channel in error state, " +
                                                           channel.name());
-                    state = ERROR;
+                    setState(ERROR);
                     if (!errorSent) {
                         errorMsg.compareAndSet(null, channel.getError());
                         sendRcErrorMessage(errorMsg.get());
@@ -726,7 +718,7 @@ public class Emu implements CODAComponent {
                 if (module.state() == ERROR) {
                     if (debug) System.out.println("Emu " + name + " state(): module in error state, " +
                                                           module.name());
-                    state = ERROR;
+                    setState(ERROR);
                     if (!errorSent) {
                         errorMsg.compareAndSet(null, module.getError());
                         sendRcErrorMessage(errorMsg.get());
@@ -744,7 +736,7 @@ public class Emu implements CODAComponent {
                 if (channel.state() == ERROR) {
                     if (debug) System.out.println("Emu " + name + " state(): output channel in error state, " +
                                                           channel.name());
-                    state = ERROR;
+                    setState(ERROR);
                     if (!errorSent) {
                         errorMsg.compareAndSet(null, channel.getError());
                         sendRcErrorMessage(errorMsg.get());
@@ -864,7 +856,11 @@ System.out.println("Emu " + name + " sending special RC display error Msg:\n ***
             // to the emu object. This can lead to a mutex deadlock with the thread of
             // this object which enters this synchronized code and the state()
             // method's synchronized code in reverse order (to execute()).
-            String state = state().name().toLowerCase();
+            //
+            // This method and therefore the emu state is found every statusReportingPeriod
+            // milliseconds.
+            state = state();
+            String stateName = state.name().toLowerCase();
 
             synchronized (this) {
 
@@ -898,7 +894,7 @@ System.out.println("Emu " + name + " sending special RC display error Msg:\n ***
 
                     try {
                         // Over write any previously defined payload items
-                        reportMsg.addPayloadItem(new cMsgPayloadItem(RCConstants.state, state));
+                        reportMsg.addPayloadItem(new cMsgPayloadItem(RCConstants.state, stateName));
                         reportMsg.addPayloadItem(new cMsgPayloadItem(RCConstants.codaClass, codaClass.name()));
                         reportMsg.addPayloadItem(new cMsgPayloadItem(RCConstants.objectType, "coda3"));
 
@@ -929,7 +925,7 @@ System.out.println("Emu " + name + " sending special RC display error Msg:\n ***
                         }
 
 //                        System.out.println("Emu " + name + ": try sending STATUS REPORTING Msg:");
-//                        System.out.println("   " + RCConstants.state + " = " + state);
+//                        System.out.println("   " + RCConstants.state + " = " + stateName);
 //                        System.out.println("   " + RCConstants.codaClass + " = " + codaClass.name());
 //                        System.out.println("   " + RCConstants.eventCount + " = " + (int)eventCount);
 //                        System.out.println("   " + RCConstants.eventRate + " = " + eventRate);
