@@ -66,7 +66,7 @@ public class FarmController extends ModuleAdapter {
     /** {@inheritDoc} */
     public void reset() {
         if (debug) System.out.println("FarmController: reset");
-        state = CODAState.CONFIGURED;
+        moduleState = CODAState.CONFIGURED;
         paused = false;
         endThread();
     }
@@ -75,7 +75,7 @@ public class FarmController extends ModuleAdapter {
     /** {@inheritDoc} */
     public void end() throws CmdExecException {
         if (debug) System.out.println("FarmController: end");
-        state = CODAState.DOWNLOADED;
+        moduleState = CODAState.DOWNLOADED;
         paused = false;
         endThread();
     }
@@ -105,7 +105,7 @@ public class FarmController extends ModuleAdapter {
         eventRate = wordRate = 0F;
         eventCountTotal = wordCountTotal = 0L;
 
-        state = CODAState.PAUSED;
+        moduleState = CODAState.PAUSED;
         eventMovingThread = new EventMovingThread();
         eventMovingThread.start();
         paused = true;
@@ -129,7 +129,7 @@ public class FarmController extends ModuleAdapter {
         //String session = emu.getSession();
 
         if (debug) System.out.println("FarmController: go");
-        state = CODAState.ACTIVE;
+        moduleState = CODAState.ACTIVE;
         paused = false;
     }
 
@@ -190,7 +190,7 @@ public class FarmController extends ModuleAdapter {
             nextSequence = sequenceIn.get() + 1L;
 
 
-            while (state == CODAState.ACTIVE || paused) {
+            while (moduleState == CODAState.ACTIVE || paused) {
 
                 try {
                     // Only wait or read-volatile-memory if necessary ...

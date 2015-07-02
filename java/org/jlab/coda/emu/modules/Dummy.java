@@ -98,7 +98,7 @@ public class Dummy extends ModuleAdapter {
     /** {@inheritDoc} */
     public void reset() {
         if (debug) System.out.println("  Dummy: reset");
-        state = CODAState.CONFIGURED;
+        moduleState = CODAState.CONFIGURED;
         paused = false;
         endThreads();
     }
@@ -106,7 +106,7 @@ public class Dummy extends ModuleAdapter {
     /** {@inheritDoc} */
     public void end() throws CmdExecException {
         if (debug) System.out.println("  Dummy: end");
-        state = CODAState.DOWNLOADED;
+        moduleState = CODAState.DOWNLOADED;
         paused = false;
         endThreads();
     }
@@ -115,7 +115,7 @@ public class Dummy extends ModuleAdapter {
     public void prestart() throws CmdExecException {
         if (debug) System.out.println("  Dummy: prestart");
 
-        state = CODAState.PAUSED;
+        moduleState = CODAState.PAUSED;
 
         //------------------------------------------------
         // Disruptor (RingBuffer) stuff for input channels
@@ -175,7 +175,7 @@ public class Dummy extends ModuleAdapter {
     /** {@inheritDoc} */
     public void go() throws CmdExecException {
         if (debug) System.out.println("Dummy: go");
-        state = CODAState.ACTIVE;
+        moduleState = CODAState.ACTIVE;
         paused = false;
     }
 
@@ -244,7 +244,7 @@ public class Dummy extends ModuleAdapter {
                 nextSequences[i]  = buildSequences[i].get() + 1L;
             }
 
-            while (state == CODAState.ACTIVE || paused) {
+            while (moduleState == CODAState.ACTIVE || paused) {
 
                 try {
                     // Take turns reading from different input channels

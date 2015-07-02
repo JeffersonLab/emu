@@ -376,10 +376,10 @@ logger.info("  EB mod: internal ring buf count -> " + ringItemCount);
         public void run() {
             RingItem pBuf;
 
-            while (state == CODAState.ACTIVE || paused) {
+            while (moduleState == CODAState.ACTIVE || paused) {
                 try {
 
-                    while (state == CODAState.ACTIVE || paused) {
+                    while (moduleState == CODAState.ACTIVE || paused) {
 //System.out.println("  EB mod: wait for Seq = " + nextSequence + " in pre-processing");
                         final long availableSequence = barrier.waitFor(nextSequence);
 
@@ -438,7 +438,7 @@ System.out.println("  EB mod: sent user event to output channel");
                     // Roc raw or physics banks are in the wrong format
 if (debug) System.out.println("  EB mod: Roc raw or physics event in wrong format");
                     errorMsg.compareAndSet(null, "Roc raw or physics banks are in the wrong format");
-                    state = CODAState.ERROR;
+                    moduleState = CODAState.ERROR;
                     emu.sendStatusMessage();
                     return;
                 } catch (InterruptedException e) {
@@ -898,7 +898,7 @@ System.out.println("  EB mod: send END event to output channel " + j + ", ring "
                     errorMsg.compareAndSet(null,"Interrupted waiting for prestart event");
                     // Set state to error, but not if resetting
                     if (!gotResetCommand) {
-                        state = CODAState.ERROR;
+                        moduleState = CODAState.ERROR;
                     }
                     emu.sendStatusMessage();
                     return;
@@ -938,7 +938,8 @@ System.out.println("  EB mod: send END event to output channel " + j + ", ring "
                     errorMsg.compareAndSet(null,"Interrupted waiting for go event");
                     // Set state to error, but not if resetting
                     if (!gotResetCommand) {
-                        state = CODAState.ERROR;
+                        moduleState = CODAState.ERROR;
+                        emu.setErrorState("EB module interrupted while waiting for go event");
                     }
                     emu.sendStatusMessage();
                     return;
@@ -947,7 +948,7 @@ System.out.println("  EB mod: send END event to output channel " + j + ", ring "
                 System.out.println("  EB mod: got all GO events");
 
                 // Now do the event building
-                while (state == CODAState.ACTIVE || paused) {
+                while (moduleState == CODAState.ACTIVE || paused) {
 
                     nonFatalError = false;
 
@@ -1423,7 +1424,7 @@ System.out.println("  EB mod: Bt#" + btIndex + ", END found so return");
                 errorMsg.compareAndSet(null, e.getMessage());
 
                 // set state
-                state = CODAState.ERROR;
+                moduleState = CODAState.ERROR;
                 emu.sendStatusMessage();
 
                 e.printStackTrace();
@@ -1433,7 +1434,7 @@ System.out.println("  EB mod: Bt#" + btIndex + ", END found so return");
                 e.printStackTrace();
                 if (debug) System.out.println("  EB mod: alert in ring buffer");
                 errorMsg.compareAndSet(null, e.getMessage());
-                state = CODAState.ERROR;
+                moduleState = CODAState.ERROR;
                 emu.sendStatusMessage();
                 e.printStackTrace();
                 return;
@@ -1441,7 +1442,7 @@ System.out.println("  EB mod: Bt#" + btIndex + ", END found so return");
             catch (Exception e) {
                 if (debug) System.out.println("  EB mod: MAJOR ERROR building events");
                 errorMsg.compareAndSet(null, e.getMessage());
-                state = CODAState.ERROR;
+                moduleState = CODAState.ERROR;
                 emu.sendStatusMessage();
                 e.printStackTrace();
                 return;
@@ -1496,7 +1497,7 @@ System.out.println("\n  EB mod: calling processEnd() for chan " + i + "\n");
 
             if (!haveEndEvent) {
 if (debug) System.out.println("  EB mod: endBuildThreads: will end building/filling threads but no END event or rings not empty !!!");
-                state = CODAState.ERROR;
+                moduleState = CODAState.ERROR;
             }
         }
         else {
@@ -1608,10 +1609,10 @@ if (debug) System.out.println("  EB mod: endBuildThreads: will end building/fill
     /** {@inheritDoc} */
     public void reset() {
         gotResetCommand = true;
-        state = CODAState.CONFIGURED;
+        moduleState = CODAState.CONFIGURED;
 
         Date theDate = new Date();
-        State previousState = state;
+        State previousState = moduleState;
 
         if (RateCalculator != null) RateCalculator.interrupt();
 
@@ -1636,7 +1637,7 @@ if (debug) System.out.println("  EB mod: endBuildThreads: will end building/fill
 
     /** {@inheritDoc} */
     public void end() {
-        state = CODAState.DOWNLOADED;
+        moduleState = CODAState.DOWNLOADED;
 
         // Print out time-to-build-event histogram
         if (timeStatsOn) {
@@ -1671,7 +1672,7 @@ if (debug) System.out.println("  EB mod: endBuildThreads: will end building/fill
         // Event builder needs inputs
         if (inputChannelCount < 1) {
             errorMsg.compareAndSet(null, "no input channels to EB");
-            state = CODAState.ERROR;
+            moduleState = CODAState.ERROR;
             emu.sendStatusMessage();
             throw new CmdExecException("no input channels to EB");
         }
@@ -1681,14 +1682,14 @@ if (debug) System.out.println("  EB mod: endBuildThreads: will end building/fill
             for (int j=i+1; j < inputChannelCount; j++) {
                 if (inputChannels.get(i).getID() == inputChannels.get(j).getID()) {
                     errorMsg.compareAndSet(null, "input channels duplicate rocIDs");
-                    state = CODAState.ERROR;
+                    moduleState = CODAState.ERROR;
                     emu.sendStatusMessage();
                     throw new CmdExecException("input channels duplicate rocIDs");
                 }
             }
         }
 
-        state = CODAState.PAUSED;
+        moduleState = CODAState.PAUSED;
         paused = true;
 
         //------------------------------------------------
@@ -1775,7 +1776,7 @@ if (debug) System.out.println("  EB mod: endBuildThreads: will end building/fill
 
     /** {@inheritDoc} */
     public void go() {
-        state = CODAState.ACTIVE;
+        moduleState = CODAState.ACTIVE;
         paused = false;
 
         try {

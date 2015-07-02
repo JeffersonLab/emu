@@ -245,7 +245,7 @@ System.out.println("  ER mod: " + recordingThreadCount + " # recording threads")
             if (haveUnprocessedEvents || !haveEndEvent) {
 if (debug) System.out.println("  ER mod: will end threads but no END event or ring not empty!");
                 errorMsg.compareAndSet(null, "ending threads but no END event or ring not empty");
-                state = CODAState.ERROR;
+                moduleState = CODAState.ERROR;
                 emu.sendStatusMessage();
             }
         }
@@ -324,7 +324,7 @@ if (debug) System.out.println("  ER mod: will end threads but no END event or ri
             nextSequence  = sequence.get() + 1L;
 
 
-            while (state == CODAState.ACTIVE || paused) {
+            while (moduleState == CODAState.ACTIVE || paused) {
 
                 try {
                     gotBank = false;
@@ -424,7 +424,7 @@ if (debug) System.out.println("  ER mod: ring buf alert, " + Thread.currentThrea
                     errorMsg.compareAndSet(null, e.getMessage());
 
                     // set state
-                    state = CODAState.ERROR;
+                    moduleState = CODAState.ERROR;
                     emu.sendStatusMessage();
 
                     e.printStackTrace();
@@ -433,7 +433,7 @@ if (debug) System.out.println("  ER mod: ring buf alert, " + Thread.currentThrea
                 catch (TimeoutException e) {
 if (debug) System.out.println("  ER mod: ring buf timeout, " + Thread.currentThread().getName());
                     errorMsg.compareAndSet(null, e.getMessage());
-                    state = CODAState.ERROR;
+                    moduleState = CODAState.ERROR;
                     emu.sendStatusMessage();
                     e.printStackTrace();
                     return;
@@ -441,7 +441,7 @@ if (debug) System.out.println("  ER mod: ring buf timeout, " + Thread.currentThr
                 catch (Exception e) {
 if (debug) System.out.println("  EB mod: MAJOR ERROR building events");
                     errorMsg.compareAndSet(null, e.getMessage());
-                    state = CODAState.ERROR;
+                    moduleState = CODAState.ERROR;
                     emu.sendStatusMessage();
                     e.printStackTrace();
                     return;
@@ -461,8 +461,8 @@ System.out.println("  ER mod: recording thread ending");
     /** {@inheritDoc} */
     public void reset() {
         Date theDate = new Date();
-        org.jlab.coda.emu.support.codaComponent.State previousState = state;
-        state = CODAState.CONFIGURED;
+        org.jlab.coda.emu.support.codaComponent.State previousState = moduleState;
+        moduleState = CODAState.CONFIGURED;
 
         if (RateCalculator != null) RateCalculator.interrupt();
 
@@ -486,7 +486,7 @@ System.out.println("  ER mod: recording thread ending");
 
     /** {@inheritDoc} */
     public void go() {
-        state = CODAState.ACTIVE;
+        moduleState = CODAState.ACTIVE;
         paused = false;
 
         try {
@@ -499,7 +499,7 @@ System.out.println("  ER mod: recording thread ending");
 
     /** {@inheritDoc} */
     public void end() {
-        state = CODAState.DOWNLOADED;
+        moduleState = CODAState.DOWNLOADED;
 
         // The order in which these thread are shutdown does(should) not matter.
         // Rocs should already have been shutdown, followed by the input transports,
@@ -525,12 +525,12 @@ System.out.println("  ER mod: recording thread ending");
     /** {@inheritDoc} */
     public void prestart() throws CmdExecException {
 
-        state = CODAState.PAUSED;
+        moduleState = CODAState.PAUSED;
         paused = true;
 
         // Make sure we have only one input channel
         if (inputChannels.size() != 1) {
-            state = CODAState.ERROR;
+            moduleState = CODAState.ERROR;
             return;
         }
 

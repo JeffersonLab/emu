@@ -87,7 +87,7 @@ public class ModuleAdapter implements EmuModule {
     protected final Logger logger;
 
     /** State of this module. */
-    protected volatile State state = CODAState.BOOTED;
+    protected volatile State moduleState = CODAState.BOOTED;
 
     /** Map containing attributes of this module given in config file. */
     protected final Map<String,String> attributeMap;
@@ -307,17 +307,22 @@ logger.info("  Module Adapter: SEB chunk = " + sebChunk);
     //-----------------------------------------------------------
 
     /** {@inheritDoc} */
-    public void go()       throws CmdExecException {state = CODAState.ACTIVE;}
+    public void go()       throws CmdExecException {
+        moduleState = CODAState.ACTIVE;}
     /** {@inheritDoc} */
-    public void end()      throws CmdExecException {state = CODAState.DOWNLOADED;}
+    public void end()      throws CmdExecException {
+        moduleState = CODAState.DOWNLOADED;}
     /** {@inheritDoc} */
     public void pause()    {paused = true;}
     /** {@inheritDoc} */
-    public void prestart() throws CmdExecException {state = CODAState.PAUSED;}
+    public void prestart() throws CmdExecException {
+        moduleState = CODAState.PAUSED;}
     /** {@inheritDoc} */
-    public void download() throws CmdExecException {state = CODAState.DOWNLOADED;}
+    public void download() throws CmdExecException {
+        moduleState = CODAState.DOWNLOADED;}
     /** {@inheritDoc} */
-    public void reset() {state = CODAState.CONFIGURED;}
+    public void reset() {
+        moduleState = CODAState.CONFIGURED;}
 
 
     /** {@inheritDoc} */
@@ -331,7 +336,7 @@ logger.info("  Module Adapter: SEB chunk = " + sebChunk);
     //-----------------------------------------------------------
 
     /** {@inheritDoc} */
-    public State state() {return state;}
+    public State state() {return moduleState;}
     /** {@inheritDoc} */
     public String getError() {return errorMsg.get();}
 
@@ -373,7 +378,7 @@ logger.info("  Module Adapter: SEB chunk = " + sebChunk);
 
         // If we're not active, keep the accumulated
         // totals and sizes, but the rates are zero.
-        if (state != CODAState.ACTIVE) {
+        if (moduleState != CODAState.ACTIVE) {
             stats[0] = eventCountTotal;
             stats[1] = wordCountTotal;
             stats[2] = 0F;
@@ -511,14 +516,14 @@ System.out.println("Set chunking FOR SEB, chunk = " + sebChunk);
             // variables for instantaneous stats
             long deltaT, t1, t2, prevEventCount=0L, prevWordCount=0L;
 
-            while ((state == CODAState.ACTIVE) || paused) {
+            while ((moduleState == CODAState.ACTIVE) || paused) {
                 try {
                     // In the paused state only wake every two seconds.
                     sleep(2000);
 
                     t1 = System.currentTimeMillis();
 
-                    while (state == CODAState.ACTIVE) {
+                    while (moduleState == CODAState.ACTIVE) {
                         sleep(statGatheringPeriod);
 
                         t2 = System.currentTimeMillis();

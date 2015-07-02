@@ -149,7 +149,7 @@ System.out.println("  TS mod: all ROCs got end cmd");
 
     /** {@inheritDoc} */
     public void go() {
-        state = CODAState.ACTIVE;
+        moduleState = CODAState.ACTIVE;
         paused = false;
     }
 
@@ -176,7 +176,7 @@ System.out.println("  TS mod: all ROCs got end cmd");
             e.printStackTrace();
         }
 
-        state = CODAState.PAUSED;
+        moduleState = CODAState.PAUSED;
         paused = false;
     }
 
@@ -189,7 +189,7 @@ System.out.println("  TS mod: all ROCs got end cmd");
         try { if (coda != null && sub != null) coda.unsubscribe(sub); }
         catch (cMsgException e) {}
 
-        state = CODAState.CONFIGURED;
+        moduleState = CODAState.CONFIGURED;
         paused = false;
     }
 
@@ -198,7 +198,7 @@ System.out.println("  TS mod: all ROCs got end cmd");
     public void end() throws CmdExecException {
         if (debug) System.out.println("  TS mod: end()");
 
-        state = CODAState.DOWNLOADED;
+        moduleState = CODAState.DOWNLOADED;
         paused = false;
     }
 

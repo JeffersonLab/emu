@@ -568,7 +568,7 @@ System.out.println("  Roc mod: write USER event for Roc1");
                     myRocRecordId ++;
                 }
 
-                while (state == CODAState.ACTIVE || paused) {
+                while (moduleState == CODAState.ACTIVE || paused) {
 
                     if (gotResetCommand) {
                         return;
@@ -623,7 +623,7 @@ System.out.println("  Roc mod: write USER event for Roc1");
                         // Do the requisite number of iterations before syncing up
                         if (synced && --userEventLoop < 1) {
                             // Did we receive the END command yet? ("state" is volatile)
-                            if (state == CODAState.DOWNLOADED) {
+                            if (moduleState == CODAState.DOWNLOADED) {
                                 // END command has arrived
 //System.out.println("  Roc mod: end has arrived");
                                 gotEndCommand = true;
@@ -678,7 +678,7 @@ System.out.println("  Roc mod: write USER event for Roc1");
             catch (Exception e) {
                 // If we haven't yet set the cause of error, do so now & inform run control
                 errorMsg.compareAndSet(null, e.getMessage());
-                state = CODAState.ERROR;
+                moduleState = CODAState.ERROR;
                 emu.sendStatusMessage();
                 return;
             }
@@ -697,8 +697,8 @@ System.out.println("  Roc mod: write USER event for Roc1");
         gotResetCommand = true;
 System.out.println("  Roc mod: reset()");
         Date theDate = new Date();
-        State previousState = state;
-        state = CODAState.CONFIGURED;
+        State previousState = moduleState;
+        moduleState = CODAState.CONFIGURED;
 
         eventRate = wordRate = 0F;
         eventCountTotal = wordCountTotal = 0L;
@@ -744,7 +744,7 @@ System.out.println("  Roc mod: reset()");
 
         // Put this line down here so we don't pop out of event-generating
         // loop before END is properly dealt with.
-        state = CODAState.DOWNLOADED;
+        moduleState = CODAState.DOWNLOADED;
 
         // Put in END event
         PayloadBuffer pBuf = Evio.createControlBuffer(ControlType.END, 0, 0,
@@ -777,7 +777,7 @@ System.out.println("  Roc mod: reset()");
     /** {@inheritDoc} */
     public void prestart() {
 
-        state = CODAState.PAUSED;
+        moduleState = CODAState.PAUSED;
 
         // Reset some variables
         gotGoCommand = gotEndCommand = gotResetCommand = false;
@@ -830,7 +830,7 @@ System.out.println("  Roc mod: subscribe() to sub = sync, type = ROC");
     public void go() {
         gotGoCommand = true;
 
-        if (state == CODAState.ACTIVE) {
+        if (moduleState == CODAState.ACTIVE) {
 //System.out.println("  Roc mod: we must have hit go after PAUSE");
         }
 
@@ -846,7 +846,7 @@ System.out.println("  Roc mod: insert GO event");
 //        }
 //        catch (InterruptedException e) {}
 
-        state = CODAState.ACTIVE;
+        moduleState = CODAState.ACTIVE;
 
         // start up all threads
         if (RateCalculator == null) {
