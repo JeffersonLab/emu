@@ -279,13 +279,13 @@ logger.info("      DataChannel File: file = " + evioFileWriter.getCurrentFilePat
     /** {@inheritDoc} */
     public void go() {
         pause = false;
-        state = CODAState.ACTIVE;
+        channelState = CODAState.ACTIVE;
     }
 
     /** {@inheritDoc} */
     public void pause() {
         pause = true;
-        state = CODAState.PAUSED;
+        channelState = CODAState.PAUSED;
     }
 
     /** {@inheritDoc}. Formerly this code was the close() method. */
@@ -295,7 +295,7 @@ logger.info("      DataChannel File: file = " + evioFileWriter.getCurrentFilePat
         gotEndCmd = true;
         gotResetCmd = false;
 
-        state = CODAState.DOWNLOADED;
+        channelState = CODAState.DOWNLOADED;
     }
 
 
@@ -321,7 +321,7 @@ logger.debug("      DataChannel File: reset() " + name + " channel");
         try {
             if (evioFileWriter != null) {
                 // Insert an END event "by hand" if actively taking data when RESET hit
-                if (state == CODAState.PAUSED || state == CODAState.ACTIVE) {
+                if (channelState == CODAState.PAUSED || channelState == CODAState.ACTIVE) {
                     Object[] stats = module.getStatistics();
                     long eventsWritten = 0;
                     if (stats != null) {
@@ -340,7 +340,7 @@ logger.debug("      DataChannel File: reset() " + name + " channel");
         } catch (Exception e) {}
 
         errorMsg.set(null);
-        state = CODAState.CONFIGURED;
+        channelState = CODAState.CONFIGURED;
 logger.debug("      DataChannel File: reset() " + name + " - done");
     }
 
@@ -507,7 +507,7 @@ logger.debug("      DataChannel File out " + outputIndex + ": processEnd(), inte
                 errorMsg.compareAndSet(null, e.getMessage());
 
                 // set state
-                state = CODAState.ERROR;
+                channelState = CODAState.ERROR;
                 emu.sendStatusMessage();
             }
         }
@@ -597,7 +597,7 @@ logger.debug("      DataChannel File out " + outputIndex + ": processEnd(), inte
                 errorMsg.compareAndSet(null, e.getMessage());
 
                 // set state
-                state = CODAState.ERROR;
+                channelState = CODAState.ERROR;
                 emu.sendStatusMessage();
             }
         }
@@ -811,7 +811,7 @@ System.out.println("      DataChannel File out, " + outputIndex + ": got RESET/E
                 errorMsg.compareAndSet(null, e.getMessage());
 
                 // set state
-                state = CODAState.ERROR;
+                channelState = CODAState.ERROR;
                 emu.sendStatusMessage();
 
                 e.printStackTrace();

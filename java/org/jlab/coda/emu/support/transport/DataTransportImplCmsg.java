@@ -110,7 +110,7 @@ public class DataTransportImplCmsg extends DataTransportAdapter {
 
         } catch (cMsgException e) {
             errorMsg.compareAndSet(null, "cannot connect to cMsg server (bad UDL or network)");
-            state = CODAState.ERROR;
+            transportState = CODAState.ERROR;
             emu.sendStatusMessage();
             logger.debug("    DataTransportImplCmsg.prestart(): cannot connect to cMsg server (bad UDL or network) : " + name());
             throw new CmdExecException("cannot connect to cMsg server (bad UDL or network)", e);

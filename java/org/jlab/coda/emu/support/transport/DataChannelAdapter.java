@@ -63,7 +63,7 @@ public class DataChannelAdapter extends CODAStateMachineAdapter implements DataC
     protected boolean singleEventOut;
 
     /** Channel state. */
-    protected State state;
+    protected State channelState;
 
     /**
      * Channel error message. reset() sets it back to null.
@@ -452,7 +452,7 @@ System.out.println("      DataChannel Adapter: prestart, nextEv (" + nextEvent +
     public void setRecordId(int recordId) {this.recordId = recordId;}
 
     /** {@inheritDoc} */
-    public State state() {return state;}
+    public State state() {return channelState;}
 
     /** {@inheritDoc} */
     public String getError() {return errorMsg.get();}

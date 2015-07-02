@@ -61,7 +61,7 @@ public class DataChannelImplFifo extends DataChannelAdapter {
         // constructor of super class
         super(name, transport, attributeMap, input, emu, module, 0);
 
-        state = CODAState.PAUSED;
+        channelState = CODAState.PAUSED;
 
         DataMover mover = new DataMover();
         movingThread = new Thread(emu.getThreadGroup(), mover, name());
@@ -73,27 +73,27 @@ public class DataChannelImplFifo extends DataChannelAdapter {
     /** {@inheritDoc} */
     public void go() {
         pause = false;
-        state = CODAState.ACTIVE;
+        channelState = CODAState.ACTIVE;
     }
 
     /** {@inheritDoc} */
     public void pause() {
         pause = true;
-        state = CODAState.PAUSED;
+        channelState = CODAState.PAUSED;
     }
 
     /** {@inheritDoc} */
     public void end() {
         gotEndCmd = true;
         gotResetCmd = false;
-        state = CODAState.DOWNLOADED;
+        channelState = CODAState.DOWNLOADED;
     }
 
     /** {@inheritDoc} */
     public void reset() {
         gotEndCmd   = false;
         gotResetCmd = true;
-        state = CODAState.CONFIGURED;
+        channelState = CODAState.CONFIGURED;
         if (movingThread != null) {
             movingThread.stop();
         }
@@ -160,7 +160,7 @@ System.out.println("      DataChannel Fifo helper: " + name + " I sent end, quit
 
  logger.debug("      DataChannel Fifo out helper: sent go");
 
-                 while ( state == CODAState.PAUSED || state == CODAState.ACTIVE ) {
+                 while ( channelState == CODAState.PAUSED || channelState == CODAState.ACTIVE ) {
 
                      if (pause) {
                          if (pauseCounter++ % 400 == 0) {
@@ -202,7 +202,7 @@ System.out.println("      DataChannel Fifo helper: " + name + " I sent end, quit
                  errorMsg.compareAndSet(null, e.getMessage());
 
                  // set state
-                 state = CODAState.ERROR;
+                 channelState = CODAState.ERROR;
                  emu.sendStatusMessage();
              }
 

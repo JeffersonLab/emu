@@ -254,7 +254,7 @@ System.out.println("      DataChannel Emu: sending on port " + sendPort);
 
         // State after prestart transition -
         // during which this constructor is called
-        state = CODAState.PAUSED;
+        channelState = CODAState.PAUSED;
     }
 
 
@@ -350,19 +350,19 @@ System.out.println("      DataChannel Emu: UDL = " + udl);
             throw new CmdExecException(e);
         }
 
-        state = CODAState.PAUSED;
+        channelState = CODAState.PAUSED;
     }
 
     /** {@inheritDoc} */
     public void go() {
         pause = false;
-        state = CODAState.ACTIVE;
+        channelState = CODAState.ACTIVE;
     }
 
     /** {@inheritDoc} */
     public void pause() {
         pause = true;
-        state = CODAState.PAUSED;
+        channelState = CODAState.PAUSED;
     }
 
     /** {@inheritDoc}. Formerly this code was the close() method. */
@@ -416,7 +416,7 @@ System.out.println("      DataChannel Emu: UDL = " + udl);
             e.printStackTrace();
         }
 
-        state = CODAState.DOWNLOADED;
+        channelState = CODAState.DOWNLOADED;
 
         try {
             closeOutputChannel();
@@ -467,7 +467,7 @@ logger.debug("      DataChannel Emu: reset() " + name);
         }
 
         errorMsg.set(null);
-        state = CODAState.CONFIGURED;
+        channelState = CODAState.CONFIGURED;
 logger.debug("      DataChannel Emu: reset() " + name + " done");
     }
 
@@ -653,7 +653,7 @@ System.out.println("      DataChannel Emu in: get emuEnd cmd");
                 errorMsg.compareAndSet(null, e.getMessage());
 
                 // set state
-                state = CODAState.ERROR;
+                channelState = CODAState.ERROR;
                 emu.sendStatusMessage();
 
                 logger.warn("      DataChannel Emu in: " + name + " exit thd: " + e.getMessage());
@@ -1245,7 +1245,7 @@ System.out.println("      DataChannel Emu out: " + name + " I got END event, qui
                 errorMsg.compareAndSet(null, e.getMessage());
 
                 // set state
-                state = CODAState.ERROR;
+                channelState = CODAState.ERROR;
                 emu.sendStatusMessage();
 
                 e.printStackTrace();
@@ -1583,7 +1583,7 @@ System.out.println("      DataChannel Emu out: " + name + " got RESET cmd, quitt
                 errorMsg.compareAndSet(null, e.getMessage());
 
                 // set state
-                state = CODAState.ERROR;
+                channelState = CODAState.ERROR;
                 emu.sendStatusMessage();
 
                 //e.printStackTrace();

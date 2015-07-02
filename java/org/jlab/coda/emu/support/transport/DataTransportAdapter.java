@@ -37,7 +37,7 @@ public abstract class DataTransportAdapter extends CODAStateMachineAdapter imple
     protected String name;
 
     /** DataTransport object's state. */
-    protected State state;
+    protected State transportState;
 
     /**
      * Possible error message. reset() sets it back to null.
@@ -106,7 +106,7 @@ public abstract class DataTransportAdapter extends CODAStateMachineAdapter imple
     public String name() {return name;}
 
     /** {@inheritDoc} */
-    public State state() {return state;}
+    public State state() {return transportState;}
 
     /** {@inheritDoc} */
     public String getError() {return errorMsg.get();}

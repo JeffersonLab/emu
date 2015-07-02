@@ -453,7 +453,7 @@ logger.info("      DataChannel Et: # copy-ET-buffers in input supply -> " + numE
 
         // State after prestart transition -
         // during which this constructor is called
-        state = CODAState.PAUSED;
+        channelState = CODAState.PAUSED;
     }
 
 
@@ -609,13 +609,13 @@ System.out.println("      DataChannel Et: closeEtSystem(), closed ET connection"
     /** {@inheritDoc} */
     public void go() {
         pause = false;
-        state = CODAState.ACTIVE;
+        channelState = CODAState.ACTIVE;
     }
 
     /** {@inheritDoc} */
     public void pause() {
         pause = true;
-        state = CODAState.PAUSED;
+        channelState = CODAState.PAUSED;
     }
 
     /** {@inheritDoc}. Formerly this code was the close() method. */
@@ -699,7 +699,7 @@ System.out.println("      DataChannel Et: end(), kill all output threads");
             //e.printStackTrace();
         }
 
-        state = CODAState.DOWNLOADED;
+        channelState = CODAState.DOWNLOADED;
 System.out.println("      DataChannel Et: end() done");
     }
 
@@ -745,7 +745,7 @@ logger.debug("      DataChannel Et: reset done w/ output threads");
         }
 
         errorMsg.set(null);
-        state = CODAState.CONFIGURED;
+        channelState = CODAState.CONFIGURED;
 logger.debug("      DataChannel Et: reset " + name + " - all done");
     }
 
@@ -1132,7 +1132,7 @@ logger.warn("      DataChannel Et in: " + name + "  interrupted thd, exiting");
                 errorMsg.compareAndSet(null, e.getMessage());
 
                 // set state
-                state = CODAState.ERROR;
+                channelState = CODAState.ERROR;
                 emu.sendStatusMessage();
 
                 e.printStackTrace();
@@ -1431,7 +1431,7 @@ logger.warn("      DataChannel Et in: " + name + "  interrupted thd, exiting");
                 errorMsg.compareAndSet(null, e.getMessage());
 
                 // set state
-                state = CODAState.ERROR;
+                channelState = CODAState.ERROR;
                 emu.sendStatusMessage();
 
                 e.printStackTrace();
@@ -1977,7 +1977,7 @@ System.out.println("      DataChannel Et out: " + name + " some thd got END even
                  errorMsg.compareAndSet(null, e.getMessage());
 
                  // set state
-                 state = CODAState.ERROR;
+                 channelState = CODAState.ERROR;
                  emu.sendStatusMessage();
 
                  e.printStackTrace();
@@ -2208,7 +2208,7 @@ System.out.println("      DataChannel Et out: " + name + " some thd got END even
                  // ET system problem - run will come to an end
                  if (gotError) {
                      // set state
-                     state = CODAState.ERROR;
+                     channelState = CODAState.ERROR;
                      emu.sendStatusMessage();
                  }
              }
@@ -2627,7 +2627,7 @@ System.out.println("      DataChannel Et out: " + name + " some thd got END even
                 // ET system problem - run will come to an end
                 if (gotError) {
                     // set state            events
-                    state = CODAState.ERROR;
+                    channelState = CODAState.ERROR;
                     emu.sendStatusMessage();
                 }
 //System.out.println("      DataChannel Et out: Writer #" + place + " is Quitting");
@@ -2931,7 +2931,7 @@ logger.warn("      DataChannel Et out : exit thd: " + e.getMessage());
                 errorMsg.compareAndSet(null, e.getMessage());
 
                 // set state
-                state = CODAState.ERROR;
+                channelState = CODAState.ERROR;
                 emu.sendStatusMessage();
 
                 e.printStackTrace();
@@ -3092,7 +3092,7 @@ System.out.println("      DataChannel Et out: PUTTER is Quitting");
                 // ET system problem - run will come to an end
                 if (gotError) {
                     // set state            events
-                    state = CODAState.ERROR;
+                    channelState = CODAState.ERROR;
                     emu.sendStatusMessage();
                 }
             }
@@ -3194,7 +3194,7 @@ System.out.println("      DataChannel Et out: PUTTER is Quitting");
                 // ET system problem - run will come to an end
                 if (gotError) {
                     // set state
-                    state = CODAState.ERROR;
+                    channelState = CODAState.ERROR;
                     emu.sendStatusMessage();
                 }
 //System.out.println("      DataChannel Et out: GETTER is Quitting");
@@ -3748,7 +3748,7 @@ System.out.println("      DataChannel Et out: PUTTER is Quitting");
                     errorMsg.compareAndSet(null, e.getMessage());
 
                     // set state
-                    state = CODAState.ERROR;
+                    channelState = CODAState.ERROR;
                     emu.sendStatusMessage();
 
                     e.printStackTrace();
@@ -3896,7 +3896,7 @@ System.out.println("      DataChannel Et out: PUTTER is Quitting");
                     // ET system problem - run will come to an end
                     if (gotError) {
                         // set state            events
-                        state = CODAState.ERROR;
+                        channelState = CODAState.ERROR;
                         emu.sendStatusMessage();
                     }
     //System.out.println("      DataChannel Et out: PUTTER is Quitting");
@@ -4008,7 +4008,7 @@ System.out.println("      DataChannel Et out: PUTTER is Quitting");
                     // ET system problem - run will come to an end
                     if (gotError) {
                         // set state
-                        state = CODAState.ERROR;
+                        channelState = CODAState.ERROR;
                         emu.sendStatusMessage();
                     }
     //System.out.println("      DataChannel Et out: GETTER is Quitting");

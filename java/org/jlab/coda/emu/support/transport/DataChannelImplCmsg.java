@@ -210,7 +210,7 @@ public class DataChannelImplCmsg extends DataChannelAdapter {
             errorMsg.compareAndSet(null, "cMsg message data has invalid format");
 
             // set state
-            state = CODAState.ERROR;
+            channelState = CODAState.ERROR;
             emu.sendStatusMessage();
         }
     }
@@ -326,7 +326,7 @@ public class DataChannelImplCmsg extends DataChannelAdapter {
                 errorMsg.compareAndSet(null, "cMsg message data has invalid format");
 
                 // set state
-                state = CODAState.ERROR;
+                channelState = CODAState.ERROR;
                 emu.sendStatusMessage();
             }
         }
@@ -529,7 +529,7 @@ logger.info("      DataChannel cmsg: write threads = " + writeThreadCount);
         }
 
         errorMsg.set(null);
-        state = CODAState.CONFIGURED;
+        channelState = CODAState.CONFIGURED;
 logger.debug("      DataChannel cmsg: end() " + name + " done");
     }
 
@@ -564,7 +564,7 @@ logger.debug("      DataChannel cmsg: reset() " + name);
         }
 
         errorMsg.set(null);
-        state = CODAState.CONFIGURED;
+        channelState = CODAState.CONFIGURED;
 
 logger.debug("      DataChannel cmsg: reset() " + name + " done");
     }
@@ -952,7 +952,7 @@ logger.warn("      DataChannel cmsg out: " + name + "  interrupted thd, exiting"
                 errorMsg.compareAndSet(null, e.getMessage());
 
                 // set state
-                state = CODAState.ERROR;
+                channelState = CODAState.ERROR;
                 emu.sendStatusMessage();
 
                 e.printStackTrace();
@@ -1390,7 +1390,7 @@ logger.warn("      DataChannel cmsg out: " + name + "  interrupted thd, exiting"
                 errorMsg.compareAndSet(null, e.getMessage());
 
                 // set state
-                state = CODAState.ERROR;
+                channelState = CODAState.ERROR;
                 emu.sendStatusMessage();
 
                 e.printStackTrace();

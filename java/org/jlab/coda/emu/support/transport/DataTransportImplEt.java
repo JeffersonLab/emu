@@ -650,7 +650,7 @@ logger.debug("    DataTransport Et: ET is dead");
         }
         catch (EtException e) {
             errorMsg.compareAndSet(null, "self-contradictory ET system config");
-            state = CODAState.ERROR;
+            transportState = CODAState.ERROR;
             emu.sendStatusMessage();
             logger.debug("    DataTransport Et: self-contradictory ET system config : " + name());
             throw new CmdExecException("Self-contradictory ET system config", e);
@@ -741,7 +741,7 @@ logger.debug("    DataTransport Et: create ET system, " + etOpenConfig.getEtName
 
                     logger.debug(errorOut);
                     errorMsg.compareAndSet(null, errorOut);
-                    state = CODAState.ERROR;
+                    transportState = CODAState.ERROR;
                     emu.sendStatusMessage();
                     throw new CmdExecException(errorOut);
                 }
@@ -761,7 +761,7 @@ logger.debug("    DataTransport Et: create ET system, " + etOpenConfig.getEtName
                     etSystem = null;
                     logger.debug("    DataTransport Et: created system " + etOpenConfig.getEtName() + ", cannot connect");
                     errorMsg.compareAndSet(null, "created ET system but cannot connect");
-                    state = CODAState.ERROR;
+                    transportState = CODAState.ERROR;
                     emu.sendStatusMessage();
                     e.printStackTrace();
                     throw new CmdExecException("created ET, " + etOpenConfig.getEtName() + ", but cannot connect");
@@ -776,7 +776,7 @@ logger.debug("    DataTransport Et: create ET system, " + etOpenConfig.getEtName
             e.printStackTrace();
             etSystem = null;
             errorMsg.compareAndSet(null, "cannot run ET system");
-            state = CODAState.ERROR;
+            transportState = CODAState.ERROR;
             emu.sendStatusMessage();
             throw new CmdExecException("cannot run ET system", e);
         }
