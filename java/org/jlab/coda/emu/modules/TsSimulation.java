@@ -23,7 +23,7 @@ import java.util.Map;
  * This class is used when running simulated, emu-based ROCS.
  * This must be the master ROC in order for synchronization to work properly.
  * All simulated ROCs need to be the same priority level so that they all
- * received the RC commands - END in particular - at the same time.
+ * receive the RC commands - END in particular - at the same time.
  * This module takes no input and has no output. Instead it provides
  * synchronization through cMsg commands handled by the RC platform's
  * cMsg server.
