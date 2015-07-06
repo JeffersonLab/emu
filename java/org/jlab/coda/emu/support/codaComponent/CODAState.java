@@ -98,6 +98,9 @@ public enum CODAState implements State {
     /** Ending state - got END command but no END event yet. */
     ENDING("ending run", EnumSet.noneOf(CODATransition.class)),
 
+    /** Resetting emu - got RESET command. */
+    RESETTING("resetting", EnumSet.noneOf(CODATransition.class)),
+
     // ERROR
 
     /** ERROR state. */
