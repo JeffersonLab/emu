@@ -278,8 +278,8 @@ public class RocSimulation extends ModuleAdapter {
 
     /**
      * This method is called by a running EventGeneratingThread.
-     * It generates many ROC Raw events in it with simulated
-     * FADC250 data, and places them onto the ring buffer of an output channel.
+     * It generates many ROC Raw events in it with simulated data,
+     * and places them onto the ring buffer of an output channel.
      *
      * @param ringNum the id number of the output channel ring buffer
      * @param buf     the event to place on output channel ring buffer
@@ -329,15 +329,13 @@ public class RocSimulation extends ModuleAdapter {
         // data = bank header + int data
 
         //  totalEventWords = 2 + 2 + eventBlockSize*(1+3) + (2 + data.length);
-        int totalEventWords = 6 + 4*eventBlockSize + dataWordLength;
-
-        return totalEventWords;
+        return (6 + 4*eventBlockSize + dataWordLength);
     }
 
 
     private ByteBuffer createSingleEventBuffer(int generatedDataWords, long eventNumber,
                                               long timestamp ) {
-        int status = 0, writeIndex=0;
+        int writeIndex=0;
 
         int[] data = new int[1 + generatedDataWords];
 
@@ -443,7 +441,7 @@ public class RocSimulation extends ModuleAdapter {
         writeIndex += 8;
 
         // Write event number and timestamp into data bank
-        buf.putInt(writeIndex, (int) eventNumber); writeIndex += 4;
+        buf.putInt(writeIndex, (int) eventNumber);
     }
 
 
@@ -462,7 +460,6 @@ public class RocSimulation extends ModuleAdapter {
         private final int myId;
         private int  myRocRecordId;
         private long myEventNumber, timestamp;
-        private CompactEventBuilder builder;
         /** Ring buffer containing ByteBuffers - used to hold events for writing. */
         private ByteBufferSupply bbSupply;
         // Number of data words in each event
@@ -494,8 +491,6 @@ System.out.println("  Roc mod: eventWordSize = " + eventWordSize);
 System.out.println("  Roc mod: start With (id=" + myId + "):\n    record id = " + myRocRecordId +
                            ", ev # = " +myEventNumber + ", ts = " + timestamp +
                            ", blockSize = " + eventBlockSize);
-
-//            bbSupply = new ByteBufferSupply(bufSupplySize, 4*eventWordSize, ByteOrder.BIG_ENDIAN, true);
         }
 
 
@@ -543,10 +538,8 @@ System.out.println("  Roc mod: start With (id=" + myId + "):\n    record id = " 
             // the # of ring buffer slots in the output channel or we can get
             // a deadlock. Although we get the value from the first channel's
             // first ring, it's the same for all output channels.
-            int outputRingSize = outputChannels.get(0).getRingBuffersOut()[0].getBufferSize();
-
+            bufSupplySize = outputChannels.get(0).getRingBuffersOut()[0].getBufferSize();
             // Now create our own buffer supply to match
-            bufSupplySize = outputRingSize;
             bbSupply = new ByteBufferSupply(bufSupplySize, 4*eventWordSize, ByteOrder.BIG_ENDIAN, true);
 
             try {
@@ -622,7 +615,7 @@ System.out.println("  Roc mod: write USER event for Roc1");
 
                         // Do the requisite number of iterations before syncing up
                         if (synced && --userEventLoop < 1) {
-                            // Did we receive the END command yet? ("state" is volatile)
+                            // Did we receive the END command yet? ("moduleState" is volatile)
                             if (moduleState == CODAState.DOWNLOADED) {
                                 // END command has arrived
 //System.out.println("  Roc mod: end has arrived");
@@ -731,7 +724,6 @@ System.out.println("  Roc mod: reset()");
         if (gotGoCommand && synced) {
             // Wait until all threads are done writing events
 //System.out.println("  Roc mod: end(), endPhaser block here");
-            //endPhaser.arriveAndAwaitAdvance();
             try {
                 endPhaser.awaitAdvanceInterruptibly(endPhaser.arrive());
             }
