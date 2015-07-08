@@ -184,7 +184,7 @@ logger.warn("Emu: exit due to rc/cMsg connect error: " + e.getMessage());
             if (server == null) {
                 // To make a connection, try the IP addresses one-by-one
                 for (String ip : addrs) {
-                    UDL = "cMsg://" + ip + ":" + platformPort + "/cMsg/M";
+                    UDL = "cMsg://" + ip + ":" + platformPort + "/cMsg/M?cmsgpassword=" + emu.getExpid();
                     try {
                         server = new cMsg(UDL, emu.name()+"_emu", "EmuInternal");
                         server.connect();
@@ -209,7 +209,8 @@ logger.warn("Emu: exit due to rc/cMsg connect error: " + e.getMessage());
                     // cMsg subdomain with namespace = expid on platform of cMsg server at default port
                     // Use this connection to send messages to the connected ROCs (through platform/agent)
                     // That happens while data is flowing.
-                    rocUDL = "cMsg://" + platformHost + ":" + platformPort + "/cMsg/" + emu.getExpid();
+                    rocUDL = "cMsg://" + platformHost + ":" + platformPort + "/cMsg/" + emu.getExpid() +
+                             "?cmsgpassword=" + emu.getExpid();
                     rocServer = new cMsg(rocUDL, emu.name()+"_toRoc", "EmuToRoc");
                     rocServer.connect();
                 }
@@ -231,7 +232,8 @@ logger.warn("Emu: exit due to rc/cMsg connect error: " + e.getMessage());
             if (server == null) {
                 // To make a connection, try the IP addresses one-by-one
                 for (String ip : addrs) {
-                    UDL = "cMsg://" + ip + ":" + platformPort + "/cMsg/RocSync";
+                    UDL = "cMsg://" + ip + ":" + platformPort + "/cMsg/RocSync" +
+                          "?cmsgpassword=" + emu.getExpid();
                     try {
                         server = new cMsg(UDL, emu.name()+"_emu", "RocSync");
                         server.connect();
@@ -415,7 +417,7 @@ logger.warn("Emu: exit due to rc/cMsg connect error: " + e.getMessage());
             cMsgPayloadItem item = new cMsgPayloadItem("runNumber", emu.getRunNumber());
             errorMessage.addPayloadItem(item);
 
-            item = new cMsgPayloadItem("state", emu.getState().name());
+            item = new cMsgPayloadItem("state", emu.state().name());
             errorMessage.addPayloadItem(item);
 
             String runType = emu.getRunType();
