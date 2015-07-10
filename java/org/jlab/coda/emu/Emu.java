@@ -31,7 +31,6 @@ import org.jlab.coda.emu.support.ui.DebugFrame;
 
 import static org.jlab.coda.emu.support.codaComponent.CODACommand.*;
 import static org.jlab.coda.emu.support.codaComponent.CODAState.*;
-import static org.jlab.coda.emu.support.codaComponent.CODAState.get;
 
 import org.w3c.dom.Document;
 import org.w3c.dom.NamedNodeMap;
