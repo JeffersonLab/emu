@@ -147,9 +147,6 @@ public class FastEventBuilder extends ModuleAdapter {
     /** If <code>true</code>, produce debug print out. */
     private boolean debug = true;
 
-    /** If <code>true</code>, we received a reset command. */
-    private volatile boolean gotResetCommand;
-
     // ---------------------------------------------------
     // Configuration parameters
     // ---------------------------------------------------
@@ -225,7 +222,7 @@ public class FastEventBuilder extends ModuleAdapter {
     private long builtEventCount;
 
     /** Number of slots in each output channel ring buffer. */
-    private int outputRingSize;
+    private int outputRingSize;    // TODO: THIS IS NEVER SET!!!?
 
 
     /**
@@ -437,9 +434,8 @@ System.out.println("  EB mod: sent user event to output channel");
                     // EmuException from Evio.checkPayload() if
                     // Roc raw or physics banks are in the wrong format
 if (debug) System.out.println("  EB mod: Roc raw or physics event in wrong format");
-                    errorMsg.compareAndSet(null, "Roc raw or physics banks are in the wrong format");
+                    emu.setErrorState("EB: Roc raw or physics event in wrong format");
                     moduleState = CODAState.ERROR;
-                    emu.sendStatusMessage();
                     return;
                 } catch (InterruptedException e) {
                     return;
@@ -810,7 +806,7 @@ System.out.println("  EB mod: send END event to output channel " + j + ", ring "
                 // more events than this thread can produce with the already-read
                 // events still not written out.
                 ByteBufferSupply bbSupply = new ByteBufferSupply(ringItemCount, 2000, outputOrder, false);
-                System.out.println("  EB mod: bbSupply -> " + ringItemCount + " # of bufs, direct = " + false);
+System.out.println("  EB mod: bbSupply -> " + ringItemCount + " # of bufs, direct = " + false);
 
                 // Object for building physics events in a ByteBuffer
                 CompactEventBuilder builder = null;
@@ -893,18 +889,13 @@ System.out.println("  EB mod: send END event to output channel " + j + ", ring "
                 }
                 catch (Exception e) {
                     // If interrupted we must quit
-                    if (debug) System.out.println("  EB mod: interrupted while waiting for prestart event");
-                    // If we haven't yet set the cause of error, do so now & inform run control
-                    errorMsg.compareAndSet(null,"Interrupted waiting for prestart event");
-                    // Set state to error, but not if resetting
-                    if (!gotResetCommand) {
-                        moduleState = CODAState.ERROR;
-                    }
-                    emu.sendStatusMessage();
+if (debug) System.out.println("  EB mod: interrupted while waiting for prestart event");
+                    emu.setErrorState("EB interrupted waiting for prestart event");
+                    moduleState = CODAState.ERROR;
                     return;
                 }
 
-                System.out.println("  EB mod: got all PRESTART events");
+System.out.println("  EB mod: got all PRESTART events");
 
                 // Second thing we do is look for the go event and pass it on
                 try {
@@ -934,18 +925,13 @@ System.out.println("  EB mod: send END event to output channel " + j + ", ring "
                 }
                 catch (InterruptedException e) {
                     // If interrupted, then we must quit
-                    if (debug) System.out.println("  EB mod: interrupted while waiting for go event");
-                    errorMsg.compareAndSet(null,"Interrupted waiting for go event");
-                    // Set state to error, but not if resetting
-                    if (!gotResetCommand) {
-                        moduleState = CODAState.ERROR;
-                        emu.setErrorState("EB module interrupted while waiting for go event");
-                    }
-                    emu.sendStatusMessage();
+if (debug) System.out.println("  EB mod: interrupted while waiting for go event");
+                    emu.setErrorState("EB interrupted waiting for go event");
+                    moduleState = CODAState.ERROR;
                     return;
                 }
 
-                System.out.println("  EB mod: got all GO events");
+System.out.println("  EB mod: got all GO events");
 
                 // Now do the event building
                 while (moduleState == CODAState.ACTIVE || paused) {
@@ -1103,12 +1089,12 @@ System.out.println("  EB mod: send END event to output channel " + j + ", ring "
                             ControlType cType = buildingBanks[i].getControlType();
 
                             if (cType != null)  {
-                                System.out.println("  EB mod: END paired with " + cType + " event from " +
-                                                           buildingBanks[i].getSourceName());
+System.out.println("  EB mod: END paired with " + cType + " event from " +
+                   buildingBanks[i].getSourceName());
                             }
                             else {
-                                System.out.println("  EB mod: END paired with " + eType + " event from " +
-                                                           buildingBanks[i].getSourceName());
+System.out.println("  EB mod: END paired with " + eType + " event from " +
+                   buildingBanks[i].getSourceName());
                             }
 
                             // If this channel doesn't have an END, try finding it somewhere in ring
@@ -1414,40 +1400,28 @@ System.out.println("  EB mod: Bt#" + btIndex + ", END found so return");
                 }
             }
             catch (InterruptedException e) {
-                if (debug) System.out.println("  EB mod: INTERRUPTED thread " + Thread.currentThread().getName());
+if (debug) System.out.println("  EB mod: INTERRUPTED build thread " + Thread.currentThread().getName());
                 return;
             }
             catch (final TimeoutException e) {
-                e.printStackTrace();
-                if (debug) System.out.println("  EB mod: timeout in ring buffer");
-                // If we haven't yet set the cause of error, do so now & inform run control
-                errorMsg.compareAndSet(null, e.getMessage());
-
-                // set state
+if (debug) System.out.println("  EB mod: timeout in ring buffer");
+                emu.setErrorState("EB timeout in ring buffer");
                 moduleState = CODAState.ERROR;
-                emu.sendStatusMessage();
-
-                e.printStackTrace();
                 return;
             }
             catch (final AlertException e) {
-                e.printStackTrace();
-                if (debug) System.out.println("  EB mod: alert in ring buffer");
-                errorMsg.compareAndSet(null, e.getMessage());
+if (debug) System.out.println("  EB mod: alert in ring buffer");
+                emu.setErrorState("EB alert in ring buffer");
                 moduleState = CODAState.ERROR;
-                emu.sendStatusMessage();
-                e.printStackTrace();
                 return;
             }
             catch (Exception e) {
-                if (debug) System.out.println("  EB mod: MAJOR ERROR building events");
-                errorMsg.compareAndSet(null, e.getMessage());
+if (debug) System.out.println("  EB mod: MAJOR ERROR building event: " + e.getMessage());
+                emu.setErrorState("EB MAJOR ERROR building event: " + e.getMessage());
                 moduleState = CODAState.ERROR;
-                emu.sendStatusMessage();
-                e.printStackTrace();
                 return;
             }
-            if (debug) System.out.println("  EB mod: Building thread is ending");
+if (debug) System.out.println("  EB mod: Building thread is ending");
         }
 
     }
@@ -1474,14 +1448,11 @@ System.out.println("\n  EB mod: calling processEnd() for chan " + i + "\n");
 
 
     /**
-     * End all build and pre-processing threads because an END cmd or event came through.
-     * The build thread calling this method is not interrupted.
+     * End all EB threads because an END cmd/event or RESET cmd came through.
      *
-     * @param thisThread the build thread calling this method; if null,
-     *                   all build & pre-processing threads are interrupted
      * @param end if <code>true</code> called from end(), else called from reset()
      */
-    private void endBuildAndPreProcessingThreads(BuildingThread thisThread, boolean end) {
+    private void endThreads(boolean end) {
         // Check if END event has arrived and if all the input ring buffers
         // are empty, if not, wait up to endingTimeLimit (30) seconds.
         if (end) {
@@ -1496,23 +1467,23 @@ System.out.println("\n  EB mod: calling processEnd() for chan " + i + "\n");
             }
 
             if (!haveEndEvent) {
-if (debug) System.out.println("  EB mod: endBuildThreads: will end building/filling threads but no END event or rings not empty !!!");
+if (debug) System.out.println("  EB mod: endBuildThreads: will end building/filling threads but no END event or rings not empty");
                 moduleState = CODAState.ERROR;
+                emu.setErrorState("EB will end building/filling threads but no END event or rings not empty");
             }
         }
-        else {
-            // If resetting, kill the rate calculating thread too
-            if (RateCalculator != null) {
-                RateCalculator.interrupt();
-                try {
-                    RateCalculator.join(250);
-                    if (RateCalculator.isAlive()) {
-                        RateCalculator.stop();
-                    }
+
+        // Kill the rate calculating thread
+        if (RateCalculator != null) {
+            RateCalculator.interrupt();
+            try {
+                RateCalculator.join(250);
+                if (RateCalculator.isAlive()) {
+                    RateCalculator.stop();
                 }
-                catch (InterruptedException e) {}
-                RateCalculator = null;
             }
+            catch (InterruptedException e) {}
+            RateCalculator = null;
         }
 
         // NOTE: EMU has a command executing thread which calls this EB module's execute
@@ -1522,8 +1493,6 @@ if (debug) System.out.println("  EB mod: endBuildThreads: will end building/fill
         // Interrupt all Building threads except the one calling this method
         // (is only ever called by cmsg callback in emu, never by build thread)
         for (Thread thd : buildingThreadList) {
-            // Will never happen
-            if (thd == thisThread) continue;
             // Try to end thread nicely but it could hang on rb.next(), if so, kill it
             thd.interrupt();
             try {
@@ -1549,7 +1518,7 @@ if (debug) System.out.println("  EB mod: endBuildThreads: will end building/fill
                 catch (InterruptedException e) {}
             }
         }
-        preProcessors =null;
+        preProcessors = null;
     }
 
 
@@ -1608,27 +1577,18 @@ if (debug) System.out.println("  EB mod: endBuildThreads: will end building/fill
 
     /** {@inheritDoc} */
     public void reset() {
-        gotResetCommand = true;
+        State previousState = moduleState;
         moduleState = CODAState.CONFIGURED;
 
-        Date theDate = new Date();
-        State previousState = moduleState;
-
-        if (RateCalculator != null) RateCalculator.interrupt();
-
-        // Build & pre-processing threads must be immediately ended
-        endBuildAndPreProcessingThreads(null, false);
-
-        RateCalculator = null;
-        preProcessors = null;
-        buildingThreadList.clear();
+        // EB threads must be immediately ended
+        endThreads(false);
 
         paused = false;
 
         if (previousState.equals(CODAState.ACTIVE)) {
             try {
                 // Set end-of-run time in local XML config / debug GUI
-                Configurer.setValue(emu.parameters(), "status/run_end_time", theDate.toString());
+                Configurer.setValue(emu.parameters(), "status/run_end_time", (new Date()).toString());
             }
             catch (DataNotFoundException e) {}
         }
@@ -1644,17 +1604,8 @@ if (debug) System.out.println("  EB mod: endBuildThreads: will end building/fill
             statistics.printBuildTimeHistogram("Time to build one event:", "nsec");
         }
 
-        // The order in which these threads are shutdown does(should) not matter.
-        // Rocs should already have been shutdown, followed by the input transports,
-        // followed by this module (followed by the output transports).
-        if (RateCalculator != null) RateCalculator.interrupt();
-
         // Build & pre-processing threads should already be ended by END event
-        endBuildAndPreProcessingThreads(null, true);
-
-        RateCalculator = null;
-        preProcessors = null;
-        buildingThreadList.clear();
+        endThreads(true);
 
         paused = false;
 
@@ -1669,11 +1620,10 @@ if (debug) System.out.println("  EB mod: endBuildThreads: will end building/fill
     /** {@inheritDoc} */
     public void prestart() throws CmdExecException {
 
-        // Event builder needs inputs
+        // Event builder needs input
         if (inputChannelCount < 1) {
-            errorMsg.compareAndSet(null, "no input channels to EB");
             moduleState = CODAState.ERROR;
-            emu.sendStatusMessage();
+            emu.setErrorState("no input channels to EB");
             throw new CmdExecException("no input channels to EB");
         }
 
@@ -1681,9 +1631,8 @@ if (debug) System.out.println("  EB mod: endBuildThreads: will end building/fill
         for (int i=0; i < inputChannelCount; i++) {
             for (int j=i+1; j < inputChannelCount; j++) {
                 if (inputChannels.get(i).getID() == inputChannels.get(j).getID()) {
-                    errorMsg.compareAndSet(null, "input channels duplicate rocIDs");
                     moduleState = CODAState.ERROR;
-                    emu.sendStatusMessage();
+                    emu.setErrorState("input channels duplicate rocIDs");
                     throw new CmdExecException("input channels duplicate rocIDs");
                 }
             }
@@ -1756,7 +1705,7 @@ if (debug) System.out.println("  EB mod: endBuildThreads: will end building/fill
 
         releaseIndex.set(0L);
 
-        // Create & start threads
+        // Print thread names
 //        int thdCount = Thread.activeCount();
 //        Thread[] thds = new Thread[thdCount];
 //        Thread.enumerate(thds);

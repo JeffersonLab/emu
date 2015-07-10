@@ -61,7 +61,11 @@ public class DataTransportImplCmsg extends DataTransportAdapter {
 
         // Which udl do we connect to?
         String udl = attrib.get("udl");
-        if (udl == null) throw new DataNotFoundException("Cannot find udl");
+        if (udl == null) {
+            transportState = CODAState.ERROR;
+            emu.setErrorState("Transport cmsg: cannot find udl");
+            throw new DataNotFoundException("Cannot find udl");
+        }
 
         // If using the platform's cMsg server, construct the proper udl
         // and put communication in the "CODA" namespace.
@@ -75,7 +79,9 @@ public class DataTransportImplCmsg extends DataTransportAdapter {
             cmsgConnection = new cMsg(udl, pname+"_"+emu.name() , "");
         }
         catch (cMsgException e) {
-            throw new DataNotFoundException("Cannot connect to cmsg server",e);
+            transportState = CODAState.ERROR;
+            emu.setErrorState("Transport cmsg: cannot connect to server, " + e.getMessage());
+            throw new DataNotFoundException("Cannot connect to cmsg server", e);
         }
     }
 
@@ -94,7 +100,7 @@ public class DataTransportImplCmsg extends DataTransportAdapter {
     /** {@inheritDoc}. Disconnect from cMsg server. */
     public void reset() {
         try {
-            logger.debug("    DataTransportImplCmsg.reset(): cmsg disconnect : " + name());
+            logger.debug("    Transport cmsg reset: disconnect : " + name());
             cmsgConnection.disconnect();
         } catch (Exception e) {}
     };
@@ -103,16 +109,15 @@ public class DataTransportImplCmsg extends DataTransportAdapter {
     /** {@inheritDoc}. Connect to cMsg server. */
     public void prestart() throws CmdExecException {
         try {
-            logger.debug("    DataTransportImplCmsg.prestart(): cmsg connect : " + name());
+            logger.debug("    Transport cMsg prestart: connect : " + name());
             cmsgConnection.connect();
-            logger.debug("    DataTransportImplCmsg.prestart(): cmsg start receiving : " + name());
+            logger.debug("    Transport cMsg prestart: start receiving : " + name());
             cmsgConnection.start();
 
         } catch (cMsgException e) {
-            errorMsg.compareAndSet(null, "cannot connect to cMsg server (bad UDL or network)");
             transportState = CODAState.ERROR;
-            emu.sendStatusMessage();
-            logger.debug("    DataTransportImplCmsg.prestart(): cannot connect to cMsg server (bad UDL or network) : " + name());
+            emu.setErrorState("Transport cmsg: cannot connect to server, " + e.getMessage());
+            logger.debug("    Transport cmsg prestart: cannot connect to server (bad UDL or network) : " + name());
             throw new CmdExecException("cannot connect to cMsg server (bad UDL or network)", e);
         }
 
@@ -122,7 +127,7 @@ public class DataTransportImplCmsg extends DataTransportAdapter {
 
     /** {@inheritDoc}. Stop sending messages to callbacks. */
     public void pause() {
-        logger.debug("    DataTransportImplCmsg.pause(): cmsg stop receiving : " + name());
+        logger.debug("    Transport cmsg pause: stop receiving : " + name());
         cmsgConnection.stop();
     }
 
@@ -130,7 +135,7 @@ public class DataTransportImplCmsg extends DataTransportAdapter {
     /** {@inheritDoc}. Disconnect from cMsg server. */
     public void end() {
         try {
-            logger.debug("    DataTransportImplCmsg.end(): cmsg disconnect : " + name());
+            logger.debug("    Transport cmsg end: disconnect : " + name());
             cmsgConnection.disconnect();
         } catch (Exception e) { }
     }

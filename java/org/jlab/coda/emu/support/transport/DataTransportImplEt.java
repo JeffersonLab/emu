@@ -326,6 +326,8 @@ if (isJavaSystem) System.out.println("    DataTransport Et: create Java ET in th
                 }
             }
             catch (EtException e) {
+                transportState = CODAState.ERROR;
+                emu.setErrorState("Transport et: incomplete specification of ET system, " + e.getMessage());
                 throw new DataNotFoundException("incomplete specification of ET system", e);
             }
 
@@ -402,7 +404,8 @@ System.out.println("    DataTransport Et: ignoring preferred subnet of " + prefe
             openConfig.setWaitTime(wait);
         }
         catch (EtException e) {
-            //e.printStackTrace();
+            transportState = CODAState.ERROR;
+            emu.setErrorState("Transport et: bad station parameters in config file, " + e.getMessage());
             throw new DataNotFoundException("Bad station parameters in config file", e);
         }
     }
@@ -530,17 +533,13 @@ System.out.println("    DataTransport Et: ignoring preferred subnet of " + prefe
             try {
                 killEtSystem();
             }
-            catch (Exception e) {
-                e.printStackTrace();
-            }
+            catch (Exception e) {}
 
             try {
                 // Remove any shutdown handler
                 Runtime.getRuntime().removeShutdownHook(shutdownThread);
             }
-            catch (Exception e) {
-                e.printStackTrace();
-            }
+            catch (Exception e) {}
         }
     }
 
@@ -649,9 +648,8 @@ logger.debug("    DataTransport Et: ET is dead");
             etSystem.setDebug(EtConstants.debugInfo);
         }
         catch (EtException e) {
-            errorMsg.compareAndSet(null, "self-contradictory ET system config");
             transportState = CODAState.ERROR;
-            emu.sendStatusMessage();
+            emu.setErrorState("Transport et: self-contradictory ET system config");
             logger.debug("    DataTransport Et: self-contradictory ET system config : " + name());
             throw new CmdExecException("Self-contradictory ET system config", e);
         }
@@ -739,10 +737,9 @@ logger.debug("    DataTransport Et: create ET system, " + etOpenConfig.getEtName
                         errorOut += "\n" + retStrings[0];
                     }
 
-                    logger.debug(errorOut);
-                    errorMsg.compareAndSet(null, errorOut);
                     transportState = CODAState.ERROR;
-                    emu.sendStatusMessage();
+                    emu.setErrorState("Transport et: " + errorOut);
+                    logger.debug(errorOut);
                     throw new CmdExecException(errorOut);
                 }
 
@@ -759,10 +756,9 @@ logger.debug("    DataTransport Et: create ET system, " + etOpenConfig.getEtName
                 }
                 catch (Exception e) {
                     etSystem = null;
-                    logger.debug("    DataTransport Et: created system " + etOpenConfig.getEtName() + ", cannot connect");
-                    errorMsg.compareAndSet(null, "created ET system but cannot connect");
                     transportState = CODAState.ERROR;
-                    emu.sendStatusMessage();
+                    emu.setErrorState("Transport et: created ET system " + etOpenConfig.getEtName() + ", but cannot connect");
+logger.debug("    DataTransport Et: created system " + etOpenConfig.getEtName() + ", cannot connect");
                     e.printStackTrace();
                     throw new CmdExecException("created ET, " + etOpenConfig.getEtName() + ", but cannot connect");
                 }
@@ -773,11 +769,9 @@ logger.debug("    DataTransport Et: create ET system, " + etOpenConfig.getEtName
 
         }
         catch (Exception e) {
-            e.printStackTrace();
             etSystem = null;
-            errorMsg.compareAndSet(null, "cannot run ET system");
             transportState = CODAState.ERROR;
-            emu.sendStatusMessage();
+            emu.setErrorState("Transport et: cannot run ET system, " + e.getMessage());
             throw new CmdExecException("cannot run ET system", e);
         }
 

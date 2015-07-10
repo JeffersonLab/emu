@@ -207,6 +207,10 @@ logger.info("      DataChannel File: try opening input file of " + fileName);
 
                     // Only deal with evio version 4 files for simplicity
                     if (evioFileReader.getEvioVersion() < 4) {
+                        channelState = CODAState.ERROR;
+                        emu.setErrorState("DataChannel File in: evio version " +
+                                           evioFileReader.getEvioVersion() + " files not supported");
+
                         throw new IOException("Evio version " +
                                 evioFileReader.getEvioVersion() + " files not supported");
                     }
@@ -265,10 +269,13 @@ logger.info("      DataChannel File: file = " + evioFileWriter.getCurrentFilePat
             }
         }
         catch (Exception e) {
+            channelState = CODAState.ERROR;
             if (input) {
+                emu.setErrorState("DataChannel File in: Cannot open file, " + e.getMessage());
                 throw new DataTransportException("      DataChannel File: Cannot open data file " + e.getMessage(), e);
             }
             else {
+                emu.setErrorState("DataChannel File out: Cannot create file, " + e.getMessage());
                 throw new DataTransportException("      DataChannel File: Cannot create data file " + e.getMessage(), e);
             }
         }
@@ -339,7 +346,6 @@ logger.debug("      DataChannel File: reset() " + name + " channel");
             }
         } catch (Exception e) {}
 
-        errorMsg.set(null);
         channelState = CODAState.CONFIGURED;
 logger.debug("      DataChannel File: reset() " + name + " - done");
     }
@@ -364,7 +370,7 @@ logger.debug("      DataChannel File: reset() " + name + " - done");
         ringIndexEnd  = ringIndex;
 
         if (input || !dataOutputThread.isAlive()) {
-logger.debug("      DataChannel File out " + outputIndex + ": processEnd(), thread already done");
+//logger.debug("      DataChannel File out " + outputIndex + ": processEnd(), thread already done");
             return;
         }
 
@@ -378,15 +384,15 @@ logger.debug("      DataChannel File out " + outputIndex + ": processEnd(), thre
         }
 
         if (dataOutputThread.threadState == ThreadState.DONE) {
-logger.debug("      DataChannel File out " + outputIndex + ": processEnd(), thread done after waiting");
+//logger.debug("      DataChannel File out " + outputIndex + ": processEnd(), thread done after waiting");
             return;
         }
 
         // Probably stuck trying to get item from ring buffer,
         // so interrupt it and get it to read the END event from
         // the correct ring.
-logger.debug("      DataChannel File out " + outputIndex + ": processEnd(), interrupt thread in state " +
-                     dataOutputThread.threadState);
+//logger.debug("      DataChannel File out " + outputIndex + ": processEnd(), interrupt thread in state " +
+//                     dataOutputThread.threadState);
         dataOutputThread.interrupt();
     }
 
@@ -440,8 +446,9 @@ logger.debug("      DataChannel File out " + outputIndex + ": processEnd(), inte
                         event = evioFileReader.parseNextEvent();
                     }
                     catch (Exception e) {
-                        errorMsg.compareAndSet(null, "File data is NOT evio v4 format");
-                        throw e;
+                        channelState = CODAState.ERROR;
+                        emu.setErrorState("DataChannel File in: data NOT evio v4 format");
+                        return;
                     }
 
                     if (event == null) {
@@ -463,8 +470,9 @@ logger.debug("      DataChannel File out " + outputIndex + ": processEnd(), inte
                         // (May be null if there is an error).
                         controlType = ControlType.getControlType(event.getHeader().getTag());
                         if (controlType == null) {
-                            errorMsg.compareAndSet(null, "Found unidentified control event");
-                            throw new EvioException("Found unidentified control event");
+                            channelState = CODAState.ERROR;
+                            emu.setErrorState("DataChannel File in: found unidentified control event");
+                            return;
                         }
                     }
 
@@ -503,12 +511,8 @@ logger.debug("      DataChannel File out " + outputIndex + ": processEnd(), inte
             catch (Exception e) {
 //logger.warn("      DataChannel File in: (" + name + ") close file");
 //logger.warn("      DataChannel File in: (" + name + ") exit " + e.getMessage());
-                // If we haven't yet set the cause of error, do so now & inform run control
-                errorMsg.compareAndSet(null, e.getMessage());
-
-                // set state
                 channelState = CODAState.ERROR;
-                emu.sendStatusMessage();
+                emu.setErrorState("DataChannel File in: " + e.getMessage());
             }
         }
 
@@ -547,8 +551,9 @@ logger.debug("      DataChannel File out " + outputIndex + ": processEnd(), inte
                         // (May be null if there is an error).
                         controlType = ControlType.getControlType(node.getTag());
                         if (controlType == null) {
-                            errorMsg.compareAndSet(null, "Found unidentified control event");
-                            throw new EvioException("Found unidentified control event");
+                            channelState = CODAState.ERROR;
+                            emu.setErrorState("DataChannel File in: found unidentified control event");
+                            return;
                         }
                     }
 
@@ -593,12 +598,8 @@ logger.debug("      DataChannel File out " + outputIndex + ": processEnd(), inte
             catch (Exception e) {
 //logger.warn("      DataChannel File in: (" + name + ") close file");
 //logger.warn("      DataChannel File in: (" + name + ") exit " + e.getMessage());
-                // If we haven't yet set the cause of error, do so now & inform run control
-                errorMsg.compareAndSet(null, e.getMessage());
-
-                // set state
                 channelState = CODAState.ERROR;
-                emu.sendStatusMessage();
+                emu.setErrorState("DataChannel File in: " + e.getMessage());
             }
         }
 
@@ -803,18 +804,11 @@ System.out.println("      DataChannel File out, " + outputIndex + ": got RESET/E
                 }
 
             } catch (InterruptedException e) {
-                logger.warn("      DataChannel File out, " + outputIndex + ": interrupted thd, exiting");
-                e.printStackTrace();
+logger.warn("      DataChannel File out, " + outputIndex + ": interrupted thd, exiting");
             } catch (Exception e) {
-                logger.warn("      DataChannel File out, " + outputIndex + " : exit thd: " + e.getMessage());
-                // If we haven't yet set the cause of error, do so now & inform run control
-                errorMsg.compareAndSet(null, e.getMessage());
-
-                // set state
                 channelState = CODAState.ERROR;
-                emu.sendStatusMessage();
-
-                e.printStackTrace();
+                emu.setErrorState("DataChannel File out: " + e.getMessage());
+logger.warn("      DataChannel File out, " + outputIndex + " : exit thd: " + e.getMessage());
             }
 
             threadState = ThreadState.DONE;

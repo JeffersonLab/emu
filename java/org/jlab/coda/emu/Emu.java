@@ -31,6 +31,7 @@ import org.jlab.coda.emu.support.ui.DebugFrame;
 
 import static org.jlab.coda.emu.support.codaComponent.CODACommand.*;
 import static org.jlab.coda.emu.support.codaComponent.CODAState.*;
+import static org.jlab.coda.emu.support.codaComponent.CODAState.get;
 
 import org.w3c.dom.Document;
 import org.w3c.dom.NamedNodeMap;
@@ -104,7 +105,7 @@ public class Emu implements CODAComponent {
     private long endingTimeLimit = 60000;
 
     /** If true, stop executing commands coming from run control. Used while resetting. */
-    private volatile boolean stopExecutingCmds;
+    private volatile boolean resetting;
 
     /**
      * Commands from cMsg are converted into objects of
@@ -381,7 +382,7 @@ public class Emu implements CODAComponent {
                 try {
                     // While resetting, stop executing rc commands.
                     // Wait for a bit then check flag again.
-                    if (stopExecutingCmds) {
+                    if (resetting) {
 //logger.info("Emu " + name + ": stop executing commands");
                         Thread.sleep(500);
                         continue;
@@ -634,129 +635,50 @@ public class Emu implements CODAComponent {
     public String getError() {return errorMsg.get();}
 
     /**
-     * This method sets the state of this Emu.
-     * This method is synchronized with the state() method to ensure
+     * This method sets the state of this Emu, but not if emu is currently
+     * resetting in which case it immediately returns.
+     * Setting the state is synchronized on the emu object to ensure
      * that the state does not change while it's being read.
-     * @param state state of this Emu.
+     * @param state desired state of this Emu.
      */
-    synchronized public void setState(State state) {
+    public void setState(State state) {
+        if (resetting) return;
+
+        synchronized (this) {
+            this.state = state;
+        }
 System.out.println("Emu " + name + ": state set to " + state.name() + "\n\n");
-        this.state = state;
     }
 
     /**
-     * This method gets the state of this Emu which was determined the last
-     * time {@link #state()} was called. This method does NOT actually find
-     * the current state.
+     * This method sets the state of this Emu to ERROR, but not if the
+     * emu is currently resetting in which case it immediately returns.
+     * It sends an error message to run control if not already done.
+     * Setting the state is synchronized on the emu object to ensure
+     * that the state does not change while it's being read.
+     * @param errorCause description of error's cause.
      */
-    public State getState() {return state;}
+    public void setErrorState(String errorCause) {
+        if (resetting) return;
 
-    /**
-     * {@inheritDoc}<p>
-     *
-     * This method finds and returns the state of the Emu by first checking
-     * for an ERROR state in all channels, transports, and modules.<p>
-     *
-     * This method is synchronized to ensure that a single error in
-     * this emu only sends one (1) error msg to run control.
-     * Multiple threads will most likely end
-     * in an error simultaneously and each will call this method.
-     *
-     * @return the state of the emu
-     * @see EmuModule#state()
-     */
-    synchronized public State state() {
-         boolean debug = false;
-
-        // In order of priority, set the error by local errors first,
-        // followed by transports, input channels, modules, and
-        // finally output channels.
-
-        if (state == ERROR) {
-            if (debug) System.out.println("Emu " + name + " state(): in error");
+        synchronized (this) {
+            this.state = ERROR;
+            // The error message can be set only once until reset is called.
+            // This prevents having to deal with a cascade of errors and
+            // should capture the first.
+            errorMsg.compareAndSet(null, errorCause);
             if (!errorSent) {
-                sendRcErrorMessage(errorMsg.get());
+                sendRcErrorMessage(errorCause);
+                sendStatusMessage();
+                // errorSent is reset to false in reset() method
                 errorSent = true;
             }
-            return state;
+System.out.println("Emu " + name + ": state set to ERROR\n\n");
         }
-
-        synchronized(transports) {
-            for (DataTransport transport : transports) {
-                if (debug) System.out.println("Emu " + name + " state(): transport " + transport.name() +
-                                                      " is in state " + transport.state());
-                if (transport.state() == ERROR) {
-                    if (debug) System.out.println("Emu " + name + " state(): transport in error state, " +
-                                                          transport.name());
-                    state = ERROR;
-                    if (!errorSent) {
-                        errorMsg.compareAndSet(null, transport.getError());
-                        sendRcErrorMessage(errorMsg.get());
-                        errorSent = true;
-                    }
-                    return state;
-                }
-            }
-        }
-
-        synchronized(inChannels) {
-            for (DataChannel channel : inChannels) {
-                if (debug) System.out.println("Emu " + name + " state(): input channel " + channel.name() +
-                                                      " is in state " + channel.state());
-                if (channel.state() == ERROR) {
-                    if (debug) System.out.println("Emu " + name + " state(): input channel in error state, " +
-                                                          channel.name());
-                    state = ERROR;
-                    if (!errorSent) {
-                        errorMsg.compareAndSet(null, channel.getError());
-                        sendRcErrorMessage(errorMsg.get());
-                        errorSent = true;
-                    }
-                    return state;
-                }
-            }
-        }
-
-        synchronized(modules) {
-            for (EmuModule module : modules) {
-                if (debug) System.out.println("Emu " + name + " state(): module " + module.name() +
-                                                      " is in state " + module.state());
-                if (module.state() == ERROR) {
-                    if (debug) System.out.println("Emu " + name + " state(): module in error state, " +
-                                                          module.name());
-                    state = ERROR;
-                    if (!errorSent) {
-                        errorMsg.compareAndSet(null, module.getError());
-                        sendRcErrorMessage(errorMsg.get());
-                        errorSent = true;
-                    }
-                    return state;
-                }
-            }
-        }
-
-        synchronized(outChannels) {
-            for (DataChannel channel : outChannels) {
-                if (debug) System.out.println("Emu " + name + " state(): output channel " + channel.name() +
-                                                      " is in state " + channel.state());
-                if (channel.state() == ERROR) {
-                    if (debug) System.out.println("Emu " + name + " state(): output channel in error state, " +
-                                                          channel.name());
-                    state = ERROR;
-                    if (!errorSent) {
-                        errorMsg.compareAndSet(null, channel.getError());
-                        sendRcErrorMessage(errorMsg.get());
-                        errorSent = true;
-                    }
-                    return state;
-                }
-            }
-        }
-
-        if (debug) System.out.println("Emu " + name + " state(): state = " + state);
-
-        return state;
     }
+
+    /** {@inheritDoc} */
+    public State state() {return state;}
 
     //-----------------------------------------------------
     // Time & Status reporting methods
@@ -767,7 +689,7 @@ System.out.println("Emu " + name + ": state set to " + state.name() + "\n\n");
      * @param error error message
      */
     public void sendRcErrorMessage(String error) {
-System.out.println("Emu " + name + " sending special RC display error Msg:\n *** " + error + " ***");
+//System.out.println("Emu " + name + " sending special RC display error Msg:\n *** " + error + " ***");
         getCmsgPortal().rcGuiErrorMessage(error);
     }
 
@@ -856,80 +778,67 @@ System.out.println("Emu " + name + " sending special RC display error Msg:\n ***
          * Send a cMsg message with the status of this EMU to run control's cMsg server.
          * cMsg messages are not thread-safe when it comes to adding payloads so synchronize
          * this method. */
-        void sendStatusMessage() {
-            // Do NOT place the following line in the synchronized block
-            // as this method is called by the execute() method which also is synchronized
-            // to the emu object. This can lead to a mutex deadlock with the thread of
-            // this object which enters this synchronized code and the state()
-            // method's synchronized code in reverse order (to execute()).
-            //
-            // This method and therefore the emu state is found every statusReportingPeriod
-            // milliseconds.
-            state = state();
-            String stateName = state.name().toLowerCase();
+        synchronized void sendStatusMessage() {
 
-            // synchronized on StatusReportingThread object
-            synchronized (this) {
+            if (statusReportingOn &&
+                    (cmsgPortal.getRcServer() != null) &&
+                    (cmsgPortal.getRcServer().isConnected())) {
 
-                if (statusReportingOn &&
-                   (cmsgPortal.getRcServer() != null) &&
-                   (cmsgPortal.getRcServer().isConnected())) {
+                // clear stats
+                long  eventCount=0L, wordCount=0L;
+                float eventRate=0.F, dataRate=0.F;
+                int   maxEvSize=0, minEvSize=0, avgEvSize=0, chunk_X_EtBuf=0;
+                int[] timeToBuild = null;
 
-                    // clear stats
-                    long  eventCount=0L, wordCount=0L;
-                    float eventRate=0.F, dataRate=0.F;
-                    int   maxEvSize=0, minEvSize=0, avgEvSize=0, chunk_X_EtBuf=0;
-                    int[] timeToBuild = null;
+                // get new statistics from a single representative module
+                EmuModule statsModule = getStatisticsModule();
+                if (statsModule != null) {
+                    Object[] stats = statsModule.getStatistics();
+                    if (stats != null) {
+                        eventCount    = (Long)   stats[0];
+                        wordCount     = (Long)   stats[1];
+                        eventRate     = (Float)  stats[2];
+                        dataRate      = (Float)  stats[3];
 
-                    // get new statistics from a single representative module
-                    EmuModule statsModule = getStatisticsModule();
-                    if (statsModule != null) {
-                        Object[] stats = statsModule.getStatistics();
-                        if (stats != null) {
-                            eventCount    = (Long)   stats[0];
-                            wordCount     = (Long)   stats[1];
-                            eventRate     = (Float)  stats[2];
-                            dataRate      = (Float)  stats[3];
+                        maxEvSize     = (Integer)stats[4];
+                        minEvSize     = (Integer)stats[5];
+                        avgEvSize     = (Integer)stats[6];
+                        chunk_X_EtBuf = (Integer)stats[7];
+                        timeToBuild   = (int[])  stats[8];
+                    }
+                }
 
-                            maxEvSize     = (Integer)stats[4];
-                            minEvSize     = (Integer)stats[5];
-                            avgEvSize     = (Integer)stats[6];
-                            chunk_X_EtBuf = (Integer)stats[7];
-                            timeToBuild   = (int[])  stats[8];
-                        }
+                try {
+                    // Over write any previously defined payload items
+                    reportMsg.addPayloadItem(new cMsgPayloadItem(RCConstants.state, state().name().toLowerCase()));
+                    reportMsg.addPayloadItem(new cMsgPayloadItem(RCConstants.codaClass, codaClass.name()));
+                    reportMsg.addPayloadItem(new cMsgPayloadItem(RCConstants.objectType, "coda3"));
+
+                    reportMsg.addPayloadItem(new cMsgPayloadItem(RCConstants.eventCount, (int)eventCount));
+                    reportMsg.addPayloadItem(new cMsgPayloadItem(RCConstants.numberOfLongs, wordCount));
+                    // in Hz
+                    reportMsg.addPayloadItem(new cMsgPayloadItem(RCConstants.eventRate, eventRate));
+                    // in kBytes/sec
+                    reportMsg.addPayloadItem(new cMsgPayloadItem(RCConstants.dataRate, (double)dataRate));
+                    // in bytes
+                    reportMsg.addPayloadItem(new cMsgPayloadItem(RCConstants.maxEventSize, maxEvSize));
+                    reportMsg.addPayloadItem(new cMsgPayloadItem(RCConstants.minEventSize, minEvSize));
+                    reportMsg.addPayloadItem(new cMsgPayloadItem(RCConstants.avgEventSize, avgEvSize));
+                    reportMsg.addPayloadItem(new cMsgPayloadItem(RCConstants.chunk_X_EtBuf, chunk_X_EtBuf));
+                    // histogram in nanoseconds
+                    if (timeToBuild != null && timeToBuild.length > 0) {
+                        reportMsg.addPayloadItem(new cMsgPayloadItem(RCConstants.timeToBuild, timeToBuild));
+                    }
+                    else {
+                        reportMsg.removePayloadItem(RCConstants.timeToBuild);
                     }
 
-                    try {
-                        // Over write any previously defined payload items
-                        reportMsg.addPayloadItem(new cMsgPayloadItem(RCConstants.state, stateName));
-                        reportMsg.addPayloadItem(new cMsgPayloadItem(RCConstants.codaClass, codaClass.name()));
-                        reportMsg.addPayloadItem(new cMsgPayloadItem(RCConstants.objectType, "coda3"));
-
-                        reportMsg.addPayloadItem(new cMsgPayloadItem(RCConstants.eventCount, (int)eventCount));
-                        reportMsg.addPayloadItem(new cMsgPayloadItem(RCConstants.numberOfLongs, wordCount));
-                        // in Hz
-                        reportMsg.addPayloadItem(new cMsgPayloadItem(RCConstants.eventRate, eventRate));
-                        // in kBytes/sec
-                        reportMsg.addPayloadItem(new cMsgPayloadItem(RCConstants.dataRate, (double)dataRate));
-                        // in bytes
-                        reportMsg.addPayloadItem(new cMsgPayloadItem(RCConstants.maxEventSize, maxEvSize));
-                        reportMsg.addPayloadItem(new cMsgPayloadItem(RCConstants.minEventSize, minEvSize));
-                        reportMsg.addPayloadItem(new cMsgPayloadItem(RCConstants.avgEventSize, avgEvSize));
-                        reportMsg.addPayloadItem(new cMsgPayloadItem(RCConstants.chunk_X_EtBuf, chunk_X_EtBuf));
-                        // histogram in nanoseconds
-                        if (timeToBuild != null && timeToBuild.length > 0) {
-                            reportMsg.addPayloadItem(new cMsgPayloadItem(RCConstants.timeToBuild, timeToBuild));
-                        }
-                        else {
-                            reportMsg.removePayloadItem(RCConstants.timeToBuild);
-                        }
-
-                        if (outputDestination != null) {
-                            reportMsg.addPayloadItem(new cMsgPayloadItem(RCConstants.filename, outputDestination));
-                        }
-                        else {
-                            reportMsg.removePayloadItem(RCConstants.filename);
-                        }
+                    if (outputDestination != null) {
+                        reportMsg.addPayloadItem(new cMsgPayloadItem(RCConstants.filename, outputDestination));
+                    }
+                    else {
+                        reportMsg.removePayloadItem(RCConstants.filename);
+                    }
 
 //                        System.out.println("Emu " + name + ": try sending STATUS REPORTING Msg:");
 //                        System.out.println("   " + RCConstants.state + " = " + stateName);
@@ -943,12 +852,11 @@ System.out.println("Emu " + name + " sending special RC display error Msg:\n ***
 //                        System.out.println("   " + RCConstants.minEventSize + " = " + minEvSize);
 //                        System.out.println("   " + RCConstants.avgEventSize + " = " + avgEvSize);
 
-                        // Send msg
-                        cmsgPortal.getRcServer().send(reportMsg);
-                    }
-                    catch (cMsgException e) {
-                        logger.warn(e.getMessage());
-                    }
+                    // Send msg
+                    cmsgPortal.getRcServer().send(reportMsg);
+                }
+                catch (cMsgException e) {
+                    logger.warn(e.getMessage());
                 }
             }
         }
@@ -1027,12 +935,14 @@ logger.info("Emu " + name + " quit: in");
      */
     synchronized public void reset() {
 logger.info("Emu " + name + " reset: in");
+        // Stop any more run control commands from being executed
+        resetting = true;
+
+        state = RESETTING;
+
         // Clear error until next one occurs
         errorSent = false;
         errorMsg.set(null);
-
-        // Stop any more run control commands from being executed
-        stopExecutingCmds = true;
 
         // Clear out any existing, un-executed commands
         mailbox.clear();
@@ -1080,15 +990,15 @@ logger.debug("Emu " + name + " reset: reset transport " + t.name());
 
         // Set state
         if (previousState == ERROR || previousState == BOOTED) {
-            setState(BOOTED);
+            state = BOOTED;
         }
         else {
-            setState(CONFIGURED);
+            state = CONFIGURED;
         }
 logger.info("Emu " + name + " reset: done, setting state to " + state);
 
         // Allow run control commands to be executed once again
-        stopExecutingCmds = false;
+        resetting = false;
     }
 
 
@@ -1305,7 +1215,7 @@ logger.info("Emu " + name + " reset: done, setting state to " + state);
     public void execute(Command cmd) {
 logger.info("Emu " + name + ": start executing cmd = " + cmd.name());
 
-        if (stopExecutingCmds) {
+        if (resetting) {
 logger.warn("Emu " + name + ": do not execute cmd = " + cmd.name() + ", resetting");
             return;
         }
@@ -1567,7 +1477,6 @@ if (debug) logger.info("Emu " + name + " end: END cmd to module " + modules.get(
             LinkedList<EmuModule> mods = dataPath.getEmuModules();
 
             if (mods.size() < 1) {
-logger.error("Emu " + name + " end: no modules in data path");
                 throw new CmdExecException("no modules in data path");
             }
 
@@ -1612,9 +1521,7 @@ if (debug) logger.info("Emu " + name + " end: wait for END event in module " + m
                     gotEndEvent = mods.getLast().getEndCallback().waitForEvent(timeout, timeUnits);
                     if (!gotEndEvent) {
 if (debug) logger.info("Emu " + name + " end: timeout (30 sec) waiting for END event in module " + mods.getLast().name());
-                        errorMsg.compareAndSet(null, "timeout waiting for END event in module " + mods.getLast().name());
-                        setState(ERROR);
-                        sendStatusMessage();
+                        setErrorState("Emu: timeout waiting for END event in module " + mods.getLast().name());
                     }
                     gotAllEnds = gotEndEvent;
                 }
@@ -1630,9 +1537,7 @@ if (debug) logger.info("Emu " + name + " end: output chan " + chan.name() + " ca
 if (debug) logger.info("Emu " + name + " end: output chan " + chan.name() + " gotEndEvent = " + gotEndEvent);
                         if (!gotEndEvent) {
 if (debug) logger.info("Emu " + name + " end: timeout (30 sec) waiting for END event in output chan " + chan.name());
-                            errorMsg.compareAndSet(null, "timeout waiting for END event in output chan " + chan.name());
-                            setState(ERROR);
-                            sendStatusMessage();
+                            setErrorState("Emu: timeout waiting for END event in output chan " + chan.name());
                         }
                         gotAllEnds = gotAllEnds && gotEndEvent;
                     }
@@ -1682,16 +1587,12 @@ if (debug) logger.debug("Emu " + name + " end: END cmd to transport " + transpor
 
         }
         catch (CmdExecException e) {
-logger.error("Emu " + name + " end: threw " + e.getMessage());
-            errorMsg.compareAndSet(null, e.getMessage());
-            setState(ERROR);
+logger.error("Emu " + name + " end: " + e.getMessage());
+            setErrorState("Emu " + name + " end:" + e.getMessage());
             return;
         }
 
-        if (state == ERROR) {
-            return;
-        }
-
+        if (state == ERROR) return;
         setState(DOWNLOADED);
     }
 
@@ -1716,7 +1617,6 @@ if (debug) logger.info("Emu " + name + " go: GO cmd to module " + modules.get(0)
             LinkedList<EmuModule> mods = dataPath.getEmuModules();
 
             if (mods.size() < 1) {
-logger.error("Emu " + name + " go: no modules in data path");
                 throw new CmdExecException("no modules in data path");
             }
 
@@ -1749,12 +1649,12 @@ if (debug) logger.info("Emu " + name + " go: GO cmd to in chan " + chan.name());
             }
         }
         catch (CmdExecException e) {
-logger.error("Emu " + name + " go: threw " + e.getMessage());
-            errorMsg.compareAndSet(null, e.getMessage());
-            setState(ERROR);
+logger.error("Emu " + name + " go: " + e.getMessage());
+            setErrorState("Emu " + name + " go: " + e.getMessage());
             return;
         }
 
+        if (state == ERROR) return;
         setState(ACTIVE);
     }
 
@@ -1818,7 +1718,7 @@ if (debug) logger.debug("Emu " + name + " prestart: PRESTART cmd to " + transpor
                     // Find module object associated with this config node
                     EmuModule module = findModule(moduleNode.getNodeName());
                     if (module == null) {
-                        throw new DataNotFoundException("Emu prestart: module corresponding to " +
+                        throw new DataNotFoundException("module corresponding to " +
                                                          moduleNode.getNodeName() + " not found");
                     }
 
@@ -1958,13 +1858,12 @@ if (debug) logger.debug("Emu " + name + " prestart: PRESTART cmd to IN chan " + 
             }
 
         } catch (Exception e) {
-            logger.error("Emu " + name + " prestart: threw " + e.getMessage());
-            e.printStackTrace();
-            errorMsg.compareAndSet(null, e.getMessage());
-            setState(ERROR);
+logger.error("Emu " + name + " prestart: " + e.getMessage());
+            setErrorState("Emu " + name + " prestart: " + e.getMessage());
             return;
         }
 
+        if (state == ERROR) return;
         setState(PAUSED);
     }
 
@@ -1991,7 +1890,7 @@ if (debug) logger.info("Emu " + name + " download: change state to DOWNLOADING")
 
             // Need modules to create an emu
             if (!modulesConfig.hasChildNodes()) {
-                throw new DataNotFoundException("Emu download: modules section present in config, but no modules");
+                throw new DataNotFoundException("modules section present in config, but no modules");
             }
 
             //--------------------------
@@ -2014,7 +1913,7 @@ if (debug) logger.info("Emu " + name + " download: change state to DOWNLOADING")
 
                     Node m = Configurer.getNode(configuration(), "component/transports");
                     if (!m.hasChildNodes()) {
-                        logger.warn("Emu " + name + " download: transport section present in config but no transports");
+logger.warn("Emu " + name + " download: transport section present in config but no transports");
                         return;
                     }
 
@@ -2048,13 +1947,17 @@ if (debug) logger.info("Emu " + name + " download: change state to DOWNLOADING")
 
                             // get the name used to access transport
                             String transportName = attrib.get("name");
-                            if (transportName == null) throw new DataNotFoundException("transport name attribute missing in config");
-                            logger.info("Emu " + name + " download: creating " + transportName);
+                            if (transportName == null) {
+                                throw new DataNotFoundException("transport name attribute missing in config");
+                            }
+if (debug) logger.info("Emu " + name + " download: creating " + transportName);
 
                             // Generate a name for the implementation of this transport
                             // from the name passed from the configuration.
                             String transportClass = attrib.get("class");
-                            if (transportClass == null) throw new DataNotFoundException("transport class attribute missing in config");
+                            if (transportClass == null) {
+                                throw new DataNotFoundException("transport class attribute missing in config");
+                            }
                             String implName = "org.jlab.coda.emu.support.transport.DataTransportImpl" + transportClass;
 
                             // Fifos are created internally, not by an Emu
@@ -2069,7 +1972,6 @@ if (debug) logger.info("Emu " + name + " download: change state to DOWNLOADING")
                                 //logger.info("Emu " + name + " download: loaded class = " + c);
                             }
                             catch (Exception e) {
-                                e.printStackTrace();
                                 throw new CmdExecException("cannot load transport class", e);
                             }
 
@@ -2081,10 +1983,8 @@ if (debug) logger.info("Emu " + name + " download: change state to DOWNLOADING")
                                 // create an instance & store reference
                                 Object[] args = {transportName, attrib, this};
                                 transports.add((DataTransport) co.newInstance(args));
-                                //logger.info("Emu " + name + " download: created " + transportName + " of protocol " + transportClass);
                             }
                             catch (Exception e) {
-                                e.printStackTrace();
                                 throw new CmdExecException("cannot create transport object", e);
                             }
                         } // if node is element
@@ -2093,12 +1993,12 @@ if (debug) logger.info("Emu " + name + " download: change state to DOWNLOADING")
                 catch (DataNotFoundException e) {
                     // If we're here, the transport section is missing from the config file.
                     // This is permissible if and only if Fifo is the only transport used.
-                    logger.warn("Emu " + name + " download: transport section missing/incomplete from config");
+logger.warn("Emu " + name + " download: transport section missing/incomplete from config");
                 }
 
                 // Pass command down to all transport objects
                 for (DataTransport transport : transports) {
-                    logger.debug("Emu " + name + " download: pass download down to " + transport.name());
+if (debug) logger.debug("Emu " + name + " download: pass download down to " + transport.name());
                     transport.download();
                 }
             }
@@ -2124,8 +2024,8 @@ if (debug) logger.info("Emu " + name + " download: change state to DOWNLOADING")
 
                     Node typeAttr = nm2.getNamedItem("class");
                     if (typeAttr == null) {
-                        throw new DataNotFoundException("Emu download: module " + n.getNodeName() +
-                                                                " has no class attribute");
+                        throw new DataNotFoundException("module " + n.getNodeName() +
+                                                        " has no class attribute");
                     }
                     String moduleClassName = typeAttr.getNodeValue();
 
@@ -2183,14 +2083,15 @@ if (debug) logger.info("Emu " + name + " download: create module " + module.name
 if (debug) logger.info("Emu " + name + " download: pass download to module " + module.name());
                 module.download();
             }
+        }
         // This includes ClassNotFoundException
-        } catch (Exception e) {
-            logger.error("Emu " + name + " download: failed", e.getMessage());
-            errorMsg.compareAndSet(null, e.getMessage());
-            setState(ERROR);
+        catch (Exception e) {
+logger.error("Emu " + name + " download: ", e.getMessage());
+            setErrorState("Emu " + name + " download: " + e.getMessage());
             return;
         }
 
+        if (state == ERROR) return;
         setState(DOWNLOADED);
     }
 
@@ -2275,9 +2176,8 @@ System.out.println("Emu " + name + " config: connect to cMsg server");
                 }
                 catch (cMsgException e) {/* never happen */}
                 catch (EmuException e) {
-                    logger.error("Emu " + name + " config: failed", e.getMessage());
-                    errorMsg.compareAndSet(null, e.getMessage());
-                    setState(ERROR);
+logger.error("Emu " + name + " config: ", e.getMessage());
+                    setErrorState("Emu " + name + " config: " + e.getMessage());
                     return;
                 }
             }
@@ -2352,9 +2252,8 @@ System.out.println("Emu " + name + " config: loading file " + rcConfigFile);
         }
         // parsing XML error
         catch (DataNotFoundException e) {
-            logger.error("Emu " + name + " config: failed", e.getMessage());
-            errorMsg.compareAndSet(null, e.getMessage());
-            setState(ERROR);
+logger.error("Emu " + name + " config: ", e.getMessage());
+            setErrorState("Emu " + name + " config: " + e.getMessage());
             return;
         }
         finally {
@@ -2428,9 +2327,8 @@ if (debug) System.out.println("Emu " + name + " config: Got config type = " + my
                                 codaClass != CODAClass.EMU &&
                                 codaClass != myClass) {
 
-                            errorMsg.compareAndSet(null, "Conflicting CODA types: rc says " +
-                                    myClass + ", emu cmd line has " + codaClass);
-                            setState(ERROR);
+                            setErrorState("Emu " + name + " config: conflicting CODA types: rc says " +
+                                                  myClass + ", emu cmd line has " + codaClass);
                             lastConfigHadError = true;
                             return;
                         }
@@ -2451,7 +2349,7 @@ if (debug) System.out.println("Emu " + name + " config: Got config type = " + my
 
                 // Need at least 1 module in config file
                 if (!modulesConfig.hasChildNodes()) {
-                    throw new DataNotFoundException("Emu config: modules section present in config, but no modules");
+                    throw new DataNotFoundException("modules section present in config, but no modules");
                 }
 
                 int dataPathCount = 0;
@@ -2551,9 +2449,9 @@ if (debug) System.out.println("Emu " + name + " config: Got config type = " + my
 
                             // Make sure id's match
                             if (codaID > -1 && chanID > -1 && codaID != chanID) {
-                                throw new DataNotFoundException("Emu config: CODA id (" + codaID +
-                                                                        ") does not match config file output chan id (" +
-                                                                        chanID + ")");
+                                throw new DataNotFoundException("CODA id (" + codaID +
+                                                                ") does not match config file output chan id (" +
+                                                                 chanID + ")");
                             }
                         }
                     }
@@ -2563,13 +2461,13 @@ if (debug) System.out.println("Emu " + name + " config: Got config type = " + my
                     // 2) 1 fifo together with a non-fifo channel - either in or out
                     if ( inputFifoCount > 1 || ( inputFifoCount == 1 &&  inputChannelCount > 1) ||
                             outputFifoCount > 1 || (outputFifoCount == 1 && outputChannelCount > 1))   {
-                        throw new DataNotFoundException("Emu config: only 1 input/output channel allowed with fifo in/out");
+                        throw new DataNotFoundException("only 1 input/output channel allowed with fifo in/out");
                     }
                     // 3) input and output fifos must be different
                     else if ((inputFifoCount == 1 && outputFifoCount == 1) &&
                             inputFifoName.equals(outputFifoName)) {
-                        throw new DataNotFoundException("Emu config: input & output fifos for " +
-                                                                moduleName + " must be different");
+                        throw new DataNotFoundException("input & output fifos for " +
+                                                        moduleName + " must be different");
                     }
 
                     // Find modules with non-fifo (or no) input channels which
@@ -2584,18 +2482,18 @@ if (debug) System.out.println("Emu " + name + " config: Got config type = " + my
 
                     // If there is more than one data path, reject the configuration.
                     if (dataPathCount > 1) {
-                        throw new DataNotFoundException("Emu config: only 1 data path allowed");
+                        throw new DataNotFoundException("only 1 data path allowed");
                     }
                 }
 
                 // A fifo may not start a data path
                 if (dataPathCount < 1 && inputFifoCount > 0) {
-                    throw new DataNotFoundException("Emu config: fifo not allowed to start data path");
+                    throw new DataNotFoundException("fifo not allowed to start data path");
                 }
 
                 // No data path (should not happen)
                 if (dataPath == null) {
-                    throw new DataNotFoundException("Emu config: no data path found");
+                    throw new DataNotFoundException("no data path found");
                 }
 
                 // Now that we have the starting point of the data path
@@ -2675,12 +2573,12 @@ if (debug) System.out.println("Emu " + name + " config: Got config type = " + my
 
                 // Check for any unused/stranded modules (have fifo input)
                 if (moduleCount != usedModules) {
-                    throw new DataNotFoundException("Emu config: not all modules in data path");
+                    throw new DataNotFoundException("not all modules in data path");
                 }
 
                 // Check to see is last module's output is to a fifo (bad)
                 if (dataPath.getModules().getLast().hasOutputFifo) {
-                    throw new DataNotFoundException("Emu config: last module cannot have output fifo");
+                    throw new DataNotFoundException("last module cannot have output fifo");
                 }
 
                 setDataPath(dataPath);
@@ -2689,9 +2587,8 @@ if (debug) System.out.println("Emu " + name + " config: Got config type = " + my
 
             }
             catch (DataNotFoundException e) {
-                logger.error("Emu " + name + " config: failed", e.getMessage());
-                errorMsg.compareAndSet(null, e.getMessage());
-                setState(ERROR);
+logger.error("Emu " + name + " config: ", e.getMessage());
+                setErrorState("Emu " + name + " config: " + e.getMessage());
                 lastConfigHadError = true;
                 return;
             }
@@ -2700,6 +2597,7 @@ if (debug) System.out.println("Emu " + name + " config: Got config type = " + my
             lastConfigHadError = false;
         }
 
+        if (state == ERROR) return;
         setState(CONFIGURED);
     }
 

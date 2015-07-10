@@ -238,15 +238,25 @@ public class FarmController extends ModuleAdapter {
                     }
                 }
                 catch (InterruptedException e) {
-                    if (debug) System.out.println("INTERRUPTED thread " + Thread.currentThread().getName());
+if (debug) System.out.println("  FCS mod: INTERRUPTED thread " + Thread.currentThread().getName());
                     return;
                 }
                 catch (AlertException e) {
-                    if (debug) System.out.println("Ring buf alert, " + Thread.currentThread().getName());
+if (debug) System.out.println("  FCS mod: Ring buf alert");
+                    emu.setErrorState("FCS Ring buf alert");
+                    moduleState = CODAState.ERROR;
                     return;
                 }
                 catch (TimeoutException e) {
-                    if (debug) System.out.println("Ring buf timeout, " + Thread.currentThread().getName());
+if (debug) System.out.println("  FCS mod: Ring buf timeout");
+                    emu.setErrorState("FCS Ring buf timeout");
+                    moduleState = CODAState.ERROR;
+                    return;
+                }
+                catch (Exception e) {
+if (debug) System.out.println("  FCS mod: MAJOR ERROR: " + e.getMessage());
+                    moduleState = CODAState.ERROR;
+                    emu.setErrorState("FCS MAJOR ERROR: " + e.getMessage());
                     return;
                 }
             }

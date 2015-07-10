@@ -90,21 +90,24 @@ public class DataChannelImplCmsg extends DataChannelAdapter {
     private int recordId;
 
 
-
-    private final void messageToBank(cMsgMessage msg) throws IOException, EvioException {
+    /**
+     * Convert incoming msg into EvioEvent objects.
+     * @param msg incoming msg
+     */
+    private final void messageToBank(cMsgMessage msg) {
 
 //logger.info("      DataChannel cmsg in: " + name + ": got BANK message in callback");
-
-        byte[] data = msg.getByteArray();
-        if (data == null) {
-            errorMsg.compareAndSet(null, "cMsg message data has no data");
-            throw new EvioException("cMsg message data has no data");
-        }
-
-        ByteBuffer buf = ByteBuffer.wrap(data);
-//        Utilities.printBuffer(buf, 0, data.length/4, "bank, control?");
-
         try {
+            byte[] data = msg.getByteArray();
+            if (data == null) {
+                channelState = CODAState.ERROR;
+                emu.setErrorState("DataChannel cmsg in: cMsg message has no data");
+                return;
+            }
+
+            ByteBuffer buf = ByteBuffer.wrap(data);
+    //        Utilities.printBuffer(buf, 0, data.length/4, "bank, control?");
+
             EvioReader eventReader = new EvioReader(buf, blockNumberChecking);
 
             // Speed things up since no EvioListeners are used - doesn't do much
@@ -114,8 +117,9 @@ public class DataChannelImplCmsg extends DataChannelAdapter {
             IBlockHeader blockHeader = eventReader.getFirstBlockHeader();
             int evioVersion = blockHeader.getVersion();
             if (evioVersion < 4) {
-                errorMsg.compareAndSet(null, "Evio data needs to be written in version 4+ format");
-                throw new EvioException("Evio data needs to be written in version 4+ format");
+                channelState = CODAState.ERROR;
+                emu.setErrorState("DataChannel cmsg in: data NOT evio v4 format");
+                return;
             }
             BlockHeaderV4 header4 = (BlockHeaderV4)blockHeader;
             // eventType may be null if no type info exists in block header.
@@ -167,8 +171,9 @@ public class DataChannelImplCmsg extends DataChannelAdapter {
                     // (May be null if there is an error).
                     controlType = ControlType.getControlType(event.getHeader().getTag());
                     if (controlType == null) {
-                        errorMsg.compareAndSet(null, "Found unidentified control event");
-                        throw new EvioException("Found unidentified control event");
+                        channelState = CODAState.ERROR;
+                        emu.setErrorState("DataChannel cmsg in: found unidentified control event");
+                        return;
                     }
                 }
 
@@ -197,7 +202,7 @@ public class DataChannelImplCmsg extends DataChannelAdapter {
                     // There should be no more events coming down the pike so
                     // go ahead write out existing events and then shut this
                     // thread down.
-                    logger.info("      DataChannel cmsg in: " + name + " found END event");
+logger.info("      DataChannel cmsg in: " + name + " found END event");
                     haveInputEndEvent = true;
                     // run callback saying we got end event
                     if (endCallback != null) endCallback.endWait();
@@ -206,34 +211,36 @@ public class DataChannelImplCmsg extends DataChannelAdapter {
             }
         }
         catch (Exception e) {
-            // If we haven't yet set the cause of error, do so now & inform run control
-            errorMsg.compareAndSet(null, "cMsg message data has invalid format");
-
-            // set state
             channelState = CODAState.ERROR;
-            emu.sendStatusMessage();
+            emu.setErrorState("DataChannel cmsg in: " + e.getMessage());
         }
     }
 
 
-    private final void messageToBuf(cMsgMessage msg) throws IOException, EvioException {
-
-        byte[] data = msg.getByteArray();
-        if (data == null) {
-            errorMsg.compareAndSet(null, "cMsg message data has no data");
-            throw new EvioException("cMsg message data has no data");
-        }
-
-        ByteBuffer buf = ByteBuffer.wrap(data);
-//        Utilities.printBuffer(buf, 0, data.length/4, "buf, control?");
+    /**
+     * Convert incoming msg into EvioNode objects.
+     * @param msg incoming msg
+     */
+    private final void messageToBuf(cMsgMessage msg) {
 
         try {
+            byte[] data = msg.getByteArray();
+            if (data == null) {
+                channelState = CODAState.ERROR;
+                emu.setErrorState("DataChannel cmsg in: cMsg message has no data");
+                return;
+            }
+
+            ByteBuffer buf = ByteBuffer.wrap(data);
+//        Utilities.printBuffer(buf, 0, data.length/4, "buf, control?");
+
             EvioCompactReader compactReader = new EvioCompactReader(buf);
 
             BlockHeaderV4 blockHeader = compactReader.getFirstBlockHeader();
             if (blockHeader.getVersion() < 4) {
-                errorMsg.compareAndSet(null, "Data is NOT evio v4 format");
-                throw new EvioException("Evio data needs to be written in version 4+ format");
+                channelState = CODAState.ERROR;
+                emu.setErrorState("DataChannel cmsg in: data NOT evio v4 format");
+                return;
             }
 
             EventType eventType = EventType.getEventType(blockHeader.getEventType());
@@ -260,8 +267,9 @@ public class DataChannelImplCmsg extends DataChannelAdapter {
                 else if (eventType == EventType.CONTROL) {
                     controlType = ControlType.getControlType(node.getTag());
                     if (controlType == null) {
-                        errorMsg.compareAndSet(null, "Found unidentified control event");
-                        throw new EvioException("Found unidentified control event");
+                        channelState = CODAState.ERROR;
+                        emu.setErrorState("DataChannel cmsg in: found unidentified control event");
+                        return;
                     }
                 }
 
@@ -295,12 +303,10 @@ public class DataChannelImplCmsg extends DataChannelAdapter {
                 }
             }
         }
-        catch (EvioException e) {
-            e.printStackTrace();
-            errorMsg.compareAndSet(null, "Data is NOT evio v4 format");
-            throw e;
+        catch (Exception e) {
+            channelState = CODAState.ERROR;
+            emu.setErrorState("DataChannel cmsg in: " + e.getMessage());
         }
-
     }
 
 
@@ -311,23 +317,11 @@ public class DataChannelImplCmsg extends DataChannelAdapter {
 
         /** Callback method definition. */
         public void callback(cMsgMessage msg, Object userObject) {
-            try {
-                if (ringItemType == ModuleIoType.PayloadBank) {
-                    messageToBank(msg);
-                }
-                else if (ringItemType == ModuleIoType.PayloadBuffer) {
-                    messageToBuf(msg);
-                }
+            if (ringItemType == ModuleIoType.PayloadBank) {
+                messageToBank(msg);
             }
-            catch (Exception e) {
-                e.printStackTrace();
-
-                // If we haven't yet set the cause of error, do so now & inform run control
-                errorMsg.compareAndSet(null, "cMsg message data has invalid format");
-
-                // set state
-                channelState = CODAState.ERROR;
-                emu.sendStatusMessage();
+            else if (ringItemType == ModuleIoType.PayloadBuffer) {
+                messageToBuf(msg);
             }
         }
 
@@ -354,7 +348,7 @@ public class DataChannelImplCmsg extends DataChannelAdapter {
         ringIndexEnd  = ringIndex;
 
         if (input || !dataOutputThread.isAlive()) {
-logger.debug("      DataChannel cmsg out " + outputIndex + ": processEnd(), thread already done");
+//logger.debug("      DataChannel cmsg out " + outputIndex + ": processEnd(), thread already done");
             return;
         }
 
@@ -368,15 +362,15 @@ logger.debug("      DataChannel cmsg out " + outputIndex + ": processEnd(), thre
         }
 
         if (dataOutputThread.threadState == ThreadState.DONE) {
-logger.debug("      DataChannel cmsg out " + outputIndex + ": processEnd(), thread done after waiting");
+//logger.debug("      DataChannel cmsg out " + outputIndex + ": processEnd(), thread done after waiting");
             return;
         }
 
         // Probably stuck trying to get item from ring buffer,
         // so interrupt it and get it to read the END event from
         // the correct ring.
-logger.debug("      DataChannel cmsg out " + outputIndex + ": processEnd(), interrupt thread in state " +
-                     dataOutputThread.threadState);
+//logger.debug("      DataChannel cmsg out " + outputIndex + ": processEnd(), interrupt thread in state " +
+//                     dataOutputThread.threadState);
         dataOutputThread.interrupt();
     }
 
@@ -488,8 +482,7 @@ logger.info("      DataChannel cmsg: write threads = " + writeThreadCount);
 
     /** {@inheritDoc} */
     public void end() {
-
-        logger.warn("      DataChannel cmsg: end() " + name);
+logger.warn("      DataChannel cmsg: end() " + name);
 
         gotEndCmd = true;
         gotResetCmd = false;
@@ -517,9 +510,7 @@ logger.info("      DataChannel cmsg: write threads = " + writeThreadCount);
             }
 //System.out.println("      DataChannel cmsg: all helper thds done");
         }
-        catch (InterruptedException e) {
-            e.printStackTrace();
-        }
+        catch (InterruptedException e) {}
 
         // At this point all threads should be done
         if (sub != null) {
@@ -971,12 +962,9 @@ logger.warn("      DataChannel cmsg out: " + name + " exit thd: " + e.getMessage
 
 
     /**
-     * Class used to take Evio banks from Q, write them into cMsg messages.
+     * Class used to take Evio banks from ring, write them into cMsg messages.
      */
     private class DataOutputHelper extends Thread {
-
-//        /** Used to sync things before putting new cMsg messages. */
-//        private CountDownLatch latch;
 
         /** Used to sync things before putting new ET events. */
         private Phaser phaser;
@@ -1034,9 +1022,7 @@ logger.warn("      DataChannel cmsg out: " + name + " exit thd: " + e.getMessage
 
 
         /**
-         * This method is used to send an array of cMsg messages to an cMsg server.
-         * It allows coordination between multiple DataOutputHelper threads so that
-         * event order is preserved.
+         * This method is used to send an array of cMsg messages to a cMsg server.
          *
          * @param msgs           the cMsg messages to send to cMsg server
          * @param messages2Write number of messages to write
@@ -1050,10 +1036,10 @@ logger.warn("      DataChannel cmsg out: " + name + " exit thd: " + e.getMessage
 
 //System.out.println("      DataChannel cmsg out: array len = " + msgs.length + ", send " + messages2Write +
 // " # of messages to cMsg server");
-                for (cMsgMessage msg : msgs) {
-                    dataTransportImplCmsg.getCmsgConnection().send(msg);
-                    if (--messages2Write < 1)  break;
-                }
+            for (cMsgMessage msg : msgs) {
+                dataTransportImplCmsg.getCmsgConnection().send(msg);
+                if (--messages2Write < 1)  break;
+            }
         }
 
 
@@ -1309,10 +1295,7 @@ System.out.println("      DataChannel cmsg out " + outputIndex + ": have GO, rin
                         return;
                     }
 
-//                    if (writeThreadCount > 1 && nextMsgListIndex > 1) {
-//                        latch = new CountDownLatch(nextMsgListIndex);
                     phaser.bulkRegister(nextMsgListIndex);
-//                    }
 
                     // For each cMsg message that can be filled with something ...
                     for (int i=0; i < nextMsgListIndex; i++) {
@@ -1350,10 +1333,7 @@ System.out.println("      DataChannel cmsg out " + outputIndex + ": have GO, rin
                     }
 
                     // Wait for all events to finish processing
-//                    if (writeThreadCount > 1 && nextMsgListIndex > 1) {
-//                        latch.await();
                     phaser.arriveAndAwaitAdvance();
-//                    }
 
                     try {
 //System.out.println("      DataChannel cmsg out: write " + messages2Write + " messages");
@@ -1380,20 +1360,13 @@ System.out.println("      DataChannel cmsg out: " + name + " some thd got END ev
                         return;
                     }
                 }
-
-            } catch (InterruptedException e) {
+            }
+            catch (InterruptedException e) {
 logger.warn("      DataChannel cmsg out: " + name + "  interrupted thd, exiting");
-
-            // only cMsgException thrown
-            } catch (Exception e) {
-                // If we haven't yet set the cause of error, do so now & inform run control
-                errorMsg.compareAndSet(null, e.getMessage());
-
-                // set state
+            }
+            catch (Exception e) {
                 channelState = CODAState.ERROR;
-                emu.sendStatusMessage();
-
-                e.printStackTrace();
+                emu.setErrorState("DataChannel cmsg out: " + e.getMessage());
 logger.warn("      DataChannel cmsg out: " + name + " exit thd: " + e.getMessage());
             }
 
@@ -1489,7 +1462,7 @@ logger.warn("      DataChannel cmsg out: " + name + " exit thd: " + e.getMessage
                         evWriter.setBuffer(buffer, bitInfo, myRecordId);
                     }
                 }
-                catch (EvioException e) {e.printStackTrace();/* never happen */}
+                catch (EvioException e) {/* never happen */}
             }
 
 
@@ -1534,18 +1507,12 @@ logger.warn("      DataChannel cmsg out: " + name + " exit thd: " + e.getMessage
                                                                                cMsgConstants.endianLittle);
 
                     // Tell the DataOutputHelper thread that we're done
-                    //if (writeThreadCount > 1)
-//                        latch.countDown();
                     phaser.arriveAndDeregister();
                 }
-                catch (EvioException e) {
+                catch (Exception e) {
                     e.printStackTrace();
-                }
-                catch (IOException e) {
-                    e.printStackTrace();
-                }
-                catch (cMsgException e) {
-                    e.printStackTrace();
+                    channelState = CODAState.ERROR;
+                    emu.setErrorState("DataChannel cmsg out: " + e.getMessage());
                 }
             }
         }

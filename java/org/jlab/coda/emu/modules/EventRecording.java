@@ -244,9 +244,8 @@ System.out.println("  ER mod: " + recordingThreadCount + " # recording threads")
 
             if (haveUnprocessedEvents || !haveEndEvent) {
 if (debug) System.out.println("  ER mod: will end threads but no END event or ring not empty!");
-                errorMsg.compareAndSet(null, "ending threads but no END event or ring not empty");
                 moduleState = CODAState.ERROR;
-                emu.sendStatusMessage();
+                emu.setErrorState("ER will end threads but no END event or ring not empty");
             }
         }
 
@@ -312,7 +311,6 @@ if (debug) System.out.println("  ER mod: will end threads but no END event or ri
 
             int totalNumberEvents=1, wordCount=0;
             RingItem      ringItem     = null;
-            PayloadBuffer recordingBuf = null;
             ControlType   controlType  = null;
 
             int skipCounter = order + 1;
@@ -415,35 +413,26 @@ System.out.println("  ER mod: found END event");
 
                 }
                 catch (InterruptedException e) {
-if (debug) System.out.println("  ER mod: INTERRUPTED thread " + Thread.currentThread().getName());
+if (debug) System.out.println("  ER mod: INTERRUPTED recording thread " + Thread.currentThread().getName());
                     return;
                 }
                 catch (AlertException e) {
-if (debug) System.out.println("  ER mod: ring buf alert, " + Thread.currentThread().getName());
+if (debug) System.out.println("  ER mod: ring buf alert");
                     // If we haven't yet set the cause of error, do so now & inform run control
-                    errorMsg.compareAndSet(null, e.getMessage());
-
-                    // set state
                     moduleState = CODAState.ERROR;
-                    emu.sendStatusMessage();
-
-                    e.printStackTrace();
+                    emu.setErrorState("ER ring buf alert");
                     return;
                 }
                 catch (TimeoutException e) {
-if (debug) System.out.println("  ER mod: ring buf timeout, " + Thread.currentThread().getName());
-                    errorMsg.compareAndSet(null, e.getMessage());
+if (debug) System.out.println("  ER mod: ring buf timeout");
                     moduleState = CODAState.ERROR;
-                    emu.sendStatusMessage();
-                    e.printStackTrace();
+                    emu.setErrorState("ER ring buf timeout");
                     return;
                 }
                 catch (Exception e) {
-if (debug) System.out.println("  EB mod: MAJOR ERROR building events");
-                    errorMsg.compareAndSet(null, e.getMessage());
+if (debug) System.out.println("  ER mod: MAJOR ERROR recording event: " + e.getMessage());
                     moduleState = CODAState.ERROR;
-                    emu.sendStatusMessage();
-                    e.printStackTrace();
+                    emu.setErrorState("ER MAJOR ERROR recording event: " + e.getMessage());
                     return;
                 }
             }
@@ -531,6 +520,7 @@ System.out.println("  ER mod: recording thread ending");
         // Make sure we have only one input channel
         if (inputChannels.size() != 1) {
             moduleState = CODAState.ERROR;
+            emu.setErrorState("ER does not have exactly 1 input channel");
             return;
         }
 

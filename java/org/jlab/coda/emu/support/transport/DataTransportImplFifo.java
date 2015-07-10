@@ -13,6 +13,7 @@ package org.jlab.coda.emu.support.transport;
 
 import org.jlab.coda.emu.Emu;
 import org.jlab.coda.emu.EmuModule;
+import org.jlab.coda.emu.support.codaComponent.CODAState;
 import org.jlab.coda.emu.support.configurer.DataNotFoundException;
 
 import java.util.HashMap;
@@ -91,12 +92,16 @@ else {
 
             if (isInput) {
                 if (module.getInputRingItemType() != firstModule.getOutputRingItemType()) {
-                    throw new DataTransportException("Modules require inconsistent in/output object types");
+                    transportState = CODAState.ERROR;
+                    emu.setErrorState("Transport fifo: modules have inconsistent in/output object types");
+                    throw new DataTransportException("Modules have inconsistent in/output object types");
                 }
             }
             else {
                 if (module.getOutputRingItemType() != firstModule.getInputRingItemType()) {
-                    throw new DataTransportException("Modules require inconsistent in/output object types");
+                    transportState = CODAState.ERROR;
+                    emu.setErrorState("Transport fifo: modules have inconsistent in/output object types");
+                    throw new DataTransportException("Modules have inconsistent in/output object types");
                 }
             }
 

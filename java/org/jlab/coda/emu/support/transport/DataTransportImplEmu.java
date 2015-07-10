@@ -17,6 +17,7 @@ import org.jlab.coda.cMsg.cMsgUtilities;
 import org.jlab.coda.emu.Emu;
 import org.jlab.coda.emu.EmuModule;
 import org.jlab.coda.emu.EmuUtilities;
+import org.jlab.coda.emu.support.codaComponent.CODAState;
 import org.jlab.coda.emu.support.configurer.DataNotFoundException;
 import org.jlab.coda.emu.support.logger.Logger;
 
@@ -39,9 +40,6 @@ public class DataTransportImplEmu extends DataTransportAdapter {
 
     private EmuDomainServer emuServer;
 
-//    /** Subnet client uses to connect to server if possible. */
-//    String preferredSubnet;
-//
     final HashMap<Integer, DataChannelImplEmu> inputChannelTable =
             new HashMap<Integer, DataChannelImplEmu>(16);
 
@@ -63,13 +61,6 @@ public class DataTransportImplEmu extends DataTransportAdapter {
         // pname is the "name" entry in the attrib map
         super(pname, attrib, emu);
         this.logger = emu.getLogger();
-//
-//        // Emu domain preferred subnet in dot-decimal format
-//        preferredSubnet = null;
-//        String str = attrib.get("subnet");
-//        if (str != null && cMsgUtilities.isDottedDecimal(str) == null) {
-//            preferredSubnet = null;
-//        }
 
         // Is this transport a server (sends data to) or client (gets data from)?
         // Yeah, it's seems backwards ...
@@ -86,17 +77,20 @@ public class DataTransportImplEmu extends DataTransportAdapter {
                 try {
                     port = Integer.parseInt(portStr);
                     if (port < 1024 || port > 65535) {
+                        transportState = CODAState.ERROR;
+                        emu.setErrorState("Transport Emu: bad port value (" + port + ")");
                         throw new DataNotFoundException("Bad port value (" + port + ")");
                     }
                 }
                 catch (NumberFormatException e) {
+                    transportState = CODAState.ERROR;
+                    emu.setErrorState("Transport Emu: bad port value (" + portStr + ")");
                     throw new DataNotFoundException("Bad port value (" + portStr + ")");
                 }
             }
             else {
                 port = cMsgNetworkConstants.emuTcpPort;
 System.out.println("Port should be specified in config file, using default " + port);
-               // throw new DataNotFoundException("Port MUST be specified in config file");
             }
 
             // Start up Emu domain server (receiver of data)
@@ -135,7 +129,7 @@ System.out.println("STARTING UP EMU SERVER in " + name + " with port " + port);
     /** {@inheritDoc}. Disconnect from cMsg server. */
     public void reset() {
         try {
-            logger.debug("    DataTransportImplEmu.reset(): cmsg disconnect : " + name());
+            logger.debug("    Transport Emu reset: stop emu server : " + name());
             emuServer.stopServer();
         } catch (Exception e) {}
     }

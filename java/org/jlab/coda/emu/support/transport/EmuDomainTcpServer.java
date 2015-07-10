@@ -14,6 +14,7 @@ package org.jlab.coda.emu.support.transport;
 import org.jlab.coda.cMsg.cMsgConstants;
 import org.jlab.coda.cMsg.cMsgException;
 import org.jlab.coda.cMsg.cMsgNetworkConstants;
+import org.jlab.coda.emu.support.codaComponent.CODAState;
 
 import java.io.*;
 import java.net.InetSocketAddress;
@@ -91,7 +92,7 @@ public class EmuDomainTcpServer extends Thread {
                 listeningSocket.bind(new InetSocketAddress(serverPort));
             }
             catch (IOException ex) {
-                System.out.println("Emu domain server: TCP port number " + serverPort + " in use.");
+                System.out.println("Emu domain server: TCP port number " + serverPort + " already in use.");
                 System.exit(-1);
             }
 
@@ -275,8 +276,11 @@ public class EmuDomainTcpServer extends Thread {
             }
         }
         catch (IOException ex) {
-            System.out.println("Emu domain server: main server IO error");
-            ex.printStackTrace();
+            server.transport.transportState = CODAState.ERROR;
+            server.transport.emu.setErrorState("Transport Emu: IO error in emu TCP server");
+            if (debug >= cMsgConstants.debugError) {
+                System.out.println("Emu domain TCP server: main server IO error");
+            }
         }
         finally {
             try {if (serverChannel != null) serverChannel.close();} catch (IOException e) {}
@@ -284,7 +288,7 @@ public class EmuDomainTcpServer extends Thread {
         }
 
         if (debug >= cMsgConstants.debugInfo) {
-            System.out.println("Emu domain server: quitting");
+            System.out.println("Emu domain TCP server: quitting");
         }
     }
 

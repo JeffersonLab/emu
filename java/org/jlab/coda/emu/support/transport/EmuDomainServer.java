@@ -12,6 +12,7 @@
 package org.jlab.coda.emu.support.transport;
 
 import org.jlab.coda.cMsg.*;
+import org.jlab.coda.emu.support.codaComponent.CODAState;
 
 import java.io.*;
 import java.net.*;
@@ -127,8 +128,10 @@ public class EmuDomainServer extends Thread {
             try {baos.close();} catch (IOException e1) {}
             if (multicastSocket != null) multicastSocket.close();
 
-System.out.println("I/O Error: " + e);
-            throw new cMsgException(e.getMessage());
+            transport.transportState = CODAState.ERROR;
+            transport.emu.setErrorState("Transport Emu: error creating emu server object: " + e.getMessage());
+            e.printStackTrace();
+            throw new cMsgException(e);
         }
     }
 
@@ -159,7 +162,9 @@ System.out.println("I/O Error: " + e);
                         tcpServer.wait();
                     }
                     catch (InterruptedException e) {
-                        e.printStackTrace();
+                        transport.transportState = CODAState.ERROR;
+                        transport.emu.setErrorState("Transport Emu: error starting emu TCP server");
+                        return;
                     }
                 }
             }
@@ -176,7 +181,9 @@ System.out.println("I/O Error: " + e);
                         listener.wait();
                     }
                     catch (InterruptedException e) {
-                        e.printStackTrace();
+                        transport.transportState = CODAState.ERROR;
+                        transport.emu.setErrorState("Transport Emu: error starting emu UDP server");
+                        return;
                     }
                 }
             }
@@ -198,7 +205,7 @@ System.out.println("I/O Error: " + e);
                     response = true;
                 }
             }
-            catch (InterruptedException e) { }
+            catch (InterruptedException e) {}
 
             sender.interrupt();
 
@@ -206,8 +213,11 @@ System.out.println("I/O Error: " + e);
                 // Stop all server threads
                 stopServer();
                 multicastSocket.close();
-                throw new cMsgException("Another Emu multicast server is running at port " + serverPort +
-                                                " host " + respondingHost + " with EXPID = " + expid);
+                transport.transportState = CODAState.ERROR;
+                transport.emu.setErrorState("Transport Emu: another Emu multicast server is running at port " +
+                                                    serverPort + " host " + respondingHost + " with EXPID = " +
+                                                    expid);
+                return;
             }
 //System.out.println("No other Emu mMulticast server is running, so start this one up!");
             acceptingClients = true;
@@ -218,7 +228,8 @@ System.out.println("I/O Error: " + e);
             multicastSocket.close();
         }
         catch (cMsgException e) {
-            e.printStackTrace();
+            transport.transportState = CODAState.ERROR;
+            transport.emu.setErrorState("Transport Emu: error starting emu domain server: " + e.getMessage());
         }
 
         return;

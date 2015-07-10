@@ -12,6 +12,7 @@
 package org.jlab.coda.emu.support.transport;
 
 import org.jlab.coda.cMsg.*;
+import org.jlab.coda.emu.support.codaComponent.CODAState;
 
 import java.io.ByteArrayOutputStream;
 import java.io.DataOutputStream;
@@ -86,7 +87,8 @@ public class EmuDomainUdpListener extends Thread {
             multicastSocket.setTimeToLive(32);
         }
         catch (IOException e) {
-            throw new cMsgException("Port " + multicastPort + " is taken", e);
+            System.out.println("Emu domain server: UDP port number " + multicastPort + " already in use.");
+            System.exit(-1);
         }
         this.server = server;
         // die if no more non-daemon threads running
@@ -158,8 +160,10 @@ public class EmuDomainUdpListener extends Thread {
             baos.close();
         }
         catch (IOException e) {
+            server.transport.transportState = CODAState.ERROR;
+            server.transport.emu.setErrorState("Transport Emu: IO error in emu UDP server");
             if (debug >= cMsgConstants.debugError) {
-                System.out.println("I/O Error: " + e);
+                System.out.println("Emu domain UDP server: main server IO error: " + e.getMessage());
             }
         }
 
@@ -332,17 +336,19 @@ System.out.println("Emu listen: still starting up but have been probed by starti
             }
         }
         catch (IOException e) {
+            server.transport.transportState = CODAState.ERROR;
+            server.transport.emu.setErrorState("Transport Emu: IO error in emu UDP server");
             if (debug >= cMsgConstants.debugError) {
-                System.out.println("Emu listen: I/O ERROR in emu multicast server");
-                System.out.println("Emu listen: close multicast socket, port = " +
-                                           multicastSocket.getLocalPort());
+                System.out.println("Emu domain UDP server: main server IO error: " + e.getMessage());
             }
         }
         finally {
             if (!multicastSocket.isClosed())  multicastSocket.close();
         }
 
-        return;
+        if (debug >= cMsgConstants.debugInfo) {
+            System.out.println("Emu domain UDP server: quitting");
+        }
     }
 
 

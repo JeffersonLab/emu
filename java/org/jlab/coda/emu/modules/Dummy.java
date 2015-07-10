@@ -294,6 +294,8 @@ public class Dummy extends ModuleAdapter {
                 }
                 catch (Exception e) {
                     e.printStackTrace();
+                    emu.setErrorState(e.getMessage());
+                    moduleState = CODAState.ERROR;
                     return;
                 }
             }

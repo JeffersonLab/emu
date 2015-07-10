@@ -17,6 +17,7 @@ import org.jlab.coda.emu.Emu;
 import org.jlab.coda.emu.EmuEventNotify;
 import org.jlab.coda.emu.EmuException;
 import org.jlab.coda.emu.EmuModule;
+import org.jlab.coda.emu.support.codaComponent.CODAState;
 import org.jlab.coda.emu.support.codaComponent.CODAStateMachineAdapter;
 import org.jlab.coda.emu.support.codaComponent.State;
 import org.jlab.coda.emu.support.control.CmdExecException;
@@ -525,11 +526,11 @@ System.out.println("      DataChannel Adapter: prestart, nextEv (" + nextEvent +
         }
         catch (final com.lmax.disruptor.TimeoutException ex) {
             // never happen since we don't use timeout wait strategy
-            ex.printStackTrace();
         }
         catch (final AlertException ex) {
-            ex.printStackTrace();
-            throw new EmuException("Ring buffer error",ex);
+            emu.setErrorState("Channel Adapter: ring buf alert");
+            channelState = CODAState.ERROR;
+            throw new EmuException("Channel Adapter: ring buf alert");
         }
 
         return item;

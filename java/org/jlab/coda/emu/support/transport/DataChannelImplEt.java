@@ -496,14 +496,16 @@ logger.info("      DataChannel Et: # copy-ET-buffers in input supply -> " + numE
                 attachmentLocal = etSysLocal.attach(stationLocal.getStationId());
             }
             catch (Exception e) {
-                e.printStackTrace();
+                emu.setErrorState("DataChannel Et: can't create/attach to station " +
+                                          stationName + "; " + e.getMessage());
+                channelState = CODAState.ERROR;
                 throw new DataTransportException("cannot create/attach to station " + stationName, e);
             }
         }
         // Otherwise open in usual manner, use sockets
         else {
             try {
-                System.out.println("      DataChannel Et: try opening " + dataTransportImplEt.getOpenConfig().getEtName() );
+System.out.println("      DataChannel Et: try opening " + dataTransportImplEt.getOpenConfig().getEtName() );
                 etSystem.open();
             }
             catch (Exception e) {
@@ -526,8 +528,9 @@ logger.info("      DataChannel Et: # copy-ET-buffers in input supply -> " + numE
                 else if (method == EtConstants.broadAndMulticast) {
                     errString += " multi/broadcasting to port " + config.getUdpPort();
                 }
-                emu.getCmsgPortal().rcGuiErrorMessage(errString);
 
+                emu.setErrorState("DataChannel Et: " + errString + "; " + e.getMessage());
+                channelState = CODAState.ERROR;
                 throw new DataTransportException(errString, e);
             }
 
@@ -550,7 +553,9 @@ logger.info("      DataChannel Et: # copy-ET-buffers in input supply -> " + numE
                 attachment = etSystem.attach(station);
             }
             catch (Exception e) {
-                e.printStackTrace();
+                emu.setErrorState("DataChannel Et: can't create/attach to station " +
+                                   stationName + "; " + e.getMessage());
+                channelState = CODAState.ERROR;
                 throw new DataTransportException("cannot create/attach to station " + stationName, e);
             }
         }
@@ -620,7 +625,7 @@ System.out.println("      DataChannel Et: closeEtSystem(), closed ET connection"
 
     /** {@inheritDoc}. Formerly this code was the close() method. */
     public void end() {
-        logger.warn("      DataChannel Et: " + name + " - end threads & close ET system");
+logger.warn("      DataChannel Et: " + name + " - end threads & close ET system");
 
         gotEndCmd = true;
         gotResetCmd = false;
@@ -688,7 +693,6 @@ System.out.println("      DataChannel Et: end(), kill all output threads");
 //System.out.println("      DataChannel Et: all helper thds done");
         }
         catch (InterruptedException e) {
-            e.printStackTrace();
         }
 
         // At this point all threads should be done
@@ -696,7 +700,6 @@ System.out.println("      DataChannel Et: end(), kill all output threads");
             closeEtSystem();
         }
         catch (DataTransportException e) {
-            //e.printStackTrace();
         }
 
         channelState = CODAState.DOWNLOADED;
@@ -725,7 +728,6 @@ logger.debug("      DataChannel Et: reset " + name + " channel");
             }
             catch (InterruptedException e) {}
         }
-logger.debug("      DataChannel Et: reset done w/ input thread");
 
         if (dataOutputThread != null) {
             dataOutputThread.shutdown();
@@ -734,19 +736,17 @@ logger.debug("      DataChannel Et: reset done w/ input thread");
                 dataOutputThread.killFromOutside();
             }
         }
-logger.debug("      DataChannel Et: reset done w/ output threads");
 
         // At this point all threads should be done
         try {
             closeEtSystem();
         }
         catch (DataTransportException e) {
-            e.printStackTrace();
         }
 
         errorMsg.set(null);
         channelState = CODAState.CONFIGURED;
-logger.debug("      DataChannel Et: reset " + name + " - all done");
+//logger.debug("      DataChannel Et: reset " + name + " - all done");
     }
 
 
@@ -767,7 +767,7 @@ logger.debug("      DataChannel Et: reset " + name + " - all done");
         ringIndexEnd  = ringIndex;
 
         if (input || !dataOutputThread.isAlive()) {
-logger.debug("      DataChannel Et " + outputIndex + ": processEnd(), thread already done");
+//logger.debug("      DataChannel Et " + outputIndex + ": processEnd(), thread already done");
             return;
         }
 
@@ -781,15 +781,15 @@ logger.debug("      DataChannel Et " + outputIndex + ": processEnd(), thread alr
         }
 
         if (dataOutputThread.threadState == ThreadState.DONE) {
-logger.debug("      DataChannel Et " + outputIndex + ": processEnd(), thread done after waiting");
+//logger.debug("      DataChannel Et " + outputIndex + ": processEnd(), thread done after waiting");
             return;
         }
 
         // Probably stuck trying to get item from ring buffer,
         // so interrupt it and get it to read the END event from
         // the correct ring.
-logger.debug("      DataChannel Et " + outputIndex + ": processEnd(), interrupt thread in state " +
-                     dataOutputThread.threadState);
+//logger.debug("      DataChannel Et " + outputIndex + ": processEnd(), interrupt thread in state " +
+//                     dataOutputThread.threadState);
         dataOutputThread.interrupt();
     }
 
@@ -871,6 +871,7 @@ logger.debug("      DataChannel Et " + outputIndex + ": processEnd(), interrupt 
 
             // Tell the world I've started
             latch.countDown();
+            String errorString = null;
 
             try {
                 int evioVersion, sourceId, recordId, evCount;
@@ -908,19 +909,19 @@ logger.warn("      DataChannel Et in: " + name + " - PAUSED");
                                                     Modify.NOTHING, etWaitTime, chunk);
                     }
                     catch (IOException e) {
-                        errorMsg.compareAndSet(null, "Network communication error with Et");
+                        errorString = "DataChannel Et in: network communication error with Et";
                         throw e;
                     }
                     catch (EtException e) {
-                        errorMsg.compareAndSet(null, "Internal error handling Et");
+                        errorString = "DataChannel Et in: internal error handling Et";
                         throw e;
                     }
                     catch (EtDeadException e) {
-                        errorMsg.compareAndSet(null, "Et system dead");
+                        errorString = "DataChannel Et in: Et system dead";
                         throw e;
                     }
                     catch (EtClosedException e) {
-                        errorMsg.compareAndSet(null, "Et connection closed");
+                        errorString = "DataChannel Et in: Et connection closed";
                         throw e;
                     }
                     catch (EtWakeUpException e) {
@@ -931,7 +932,6 @@ System.out.println("      DataChannel Et in: wake up " + name + ", other thd fou
                         else if (gotResetCmd) {
 System.out.println("      DataChannel Et in: " + name + " got RESET cmd, quit");
                         }
-//System.out.println("      DataChannel Et in: wake up exception");
                         return;
                     }
                     catch (EtTimeoutException e) {
@@ -943,7 +943,6 @@ System.out.println("      DataChannel Et in: timeout " + name + ", other thd fou
 System.out.println("      DataChannel Et in: " + name + " got RESET cmd, quit");
                             return;
                         }
-//System.out.println("      DataChannel Et in: timeout exception");
 
                         // Want to delay before calling getEvents again
                         // but don't do it here in a synchronized block.
@@ -962,7 +961,7 @@ System.out.println("      DataChannel Et in: " + name + " got RESET cmd, quit");
                             }
                         }
                         catch (IOException e) {
-                            errorMsg.compareAndSet(null, "ET data is NOT evio v4 format");
+                            errorString = "DataChannel Et in: ET data NOT evio v4 format";
                             throw e;
                         }
                         // Speed things up since no EvioListeners are used - doesn't do much
@@ -972,7 +971,7 @@ System.out.println("      DataChannel Et in: " + name + " got RESET cmd, quit");
                         BlockHeaderV4 blockHeader = (BlockHeaderV4)reader.getFirstBlockHeader();
                         evioVersion = blockHeader.getVersion();
                         if (evioVersion < 4) {
-                            errorMsg.compareAndSet(null, "ET data is NOT evio v4 format");
+                            errorString = "DataChannel Et in: ET data NOT evio v4 format";
                             throw new EvioException("Evio data needs to be written in version 4+ format");
                         }
                         header4     = blockHeader;
@@ -1039,7 +1038,7 @@ System.out.println("      DataChannel Et in: " + name + " got RESET cmd, quit");
                                     // It may NOT be enough just to check the tag
                                     controlType = ControlType.getControlType(event.getHeader().getTag());
                                     if (controlType == null) {
-                                        errorMsg.compareAndSet(null, "Found unidentified control event");
+                                        errorString = "DataChannel Et in: found unidentified control event";
                                         throw new EvioException("Found unidentified control event");
                                     }
                                 }
@@ -1082,7 +1081,7 @@ logger.info("      DataChannel Et in: " + name + " found END event");
                             }
                         }
                         catch (IOException e) {
-                            errorMsg.compareAndSet(null, "ET data is NOT evio v4 format");
+                            errorString = "DataChannel Et in: ET data NOT evio v4 format";
                             throw e;
                         }
 
@@ -1103,19 +1102,19 @@ logger.info("      DataChannel Et in: " + name + " found END event");
                         etSystem.putEvents(attachment, events);
                     }
                     catch (IOException e) {
-                        errorMsg.compareAndSet(null, "Network communication error with Et");
+                        errorString = "DataChannel Et in: network communication error with Et";
                         throw e;
                     }
                     catch (EtException e) {
-                        errorMsg.compareAndSet(null, "Internal error handling Et");
+                        errorString = "DataChannel Et in: internal error handling Et";
                         throw e;
                     }
                     catch (EtDeadException e) {
-                        errorMsg.compareAndSet(null, "Et system dead");
+                        errorString = "DataChannel Et in: Et system dead";
                         throw e;
                     }
                     catch (EtClosedException e) {
-                        errorMsg.compareAndSet(null, "Et connection closed");
+                        errorString = "DataChannel Et in: Et connection closed";
                         throw e;
                     }
 
@@ -1128,14 +1127,11 @@ logger.info("      DataChannel Et in: have END, " + name + " quit thd");
             } catch (InterruptedException e) {
 logger.warn("      DataChannel Et in: " + name + "  interrupted thd, exiting");
             } catch (Exception e) {
-                // If we haven't yet set the cause of error, do so now & inform run control
-                errorMsg.compareAndSet(null, e.getMessage());
-
-                // set state
                 channelState = CODAState.ERROR;
-                emu.sendStatusMessage();
+                // If we haven't yet set the cause of error, do so now & inform run control
+                if (errorString == null) errorString = e.getMessage();
+                emu.setErrorState(errorString);
 
-                e.printStackTrace();
 logger.warn("      DataChannel Et in: " + name + " exit thd: " + e.getMessage());
             }
         }
@@ -1146,6 +1142,7 @@ logger.warn("      DataChannel Et in: " + name + " exit thd: " + e.getMessage())
 
             // Tell the world I've started
             latch.countDown();
+            String errorString = null;
 
             try {
                 int sourceId, recordId;
@@ -1196,19 +1193,19 @@ logger.warn("      DataChannel Et in: " + name + " - PAUSED");
                         }
                     }
                     catch (IOException e) {
-                        errorMsg.compareAndSet(null, "Network communication error with Et");
+                        errorString = "DataChannel Et in: network communication error with Et";
                         throw e;
                     }
                     catch (EtException e) {
-                        errorMsg.compareAndSet(null, "Internal error handling Et");
+                        errorString = "DataChannel Et in: internal error handling Et";
                         throw e;
                     }
                     catch (EtDeadException e) {
-                        errorMsg.compareAndSet(null, "Et system dead");
+                        errorString = "DataChannel Et in:  Et system dead";
                         throw e;
                     }
                     catch (EtClosedException e) {
-                        errorMsg.compareAndSet(null, "Et connection closed");
+                        errorString = "DataChannel Et in:  Et connection closed";
                         throw e;
                     }
                     catch (EtWakeUpException e) {
@@ -1222,7 +1219,6 @@ System.out.println("      DataChannel Et in: " + name + " got RESET cmd, quittin
                         return;
                     }
                     catch (EtTimeoutException e) {
-//System.out.println("      DataChannel Et in: timeout in " + name);
                         if (haveInputEndEvent) {
 System.out.println("      DataChannel Et in: timeout " + name + ", other thd found END, quit");
                             return;
@@ -1272,7 +1268,7 @@ System.out.println("      DataChannel Et in: " + name + " got RESET cmd, quittin
                         catch (EvioException e) {
 Utilities.printBuffer(buf, 0, 21, "BAD EVENT ");
                             e.printStackTrace();
-                            errorMsg.compareAndSet(null, "ET data is NOT evio v4 format");
+                            errorString = "DataChannel Et in: ET data NOT evio v4 format";
                             throw e;
                         }
 
@@ -1280,7 +1276,7 @@ Utilities.printBuffer(buf, 0, 21, "BAD EVENT ");
                         header4 = compactReader.getFirstBlockHeader();
 //System.out.println("      DataChannel Et in: blk header, order = " + header4.getByteOrder());
                         if (header4.getVersion() < 4) {
-                            errorMsg.compareAndSet(null, "ET data is NOT evio v4 format");
+                            errorString = "DataChannel Et in: ET data NOT evio v4 format";
                             throw new EvioException("Evio data needs to be written in version 4+ format");
                         }
 
@@ -1334,7 +1330,7 @@ System.out.println("      DataChannel Et in: " + name + " got CONTROL event");
                                 // It may NOT be enough just to check the tag
                                 controlType = ControlType.getControlType(node.getTag());
                                 if (controlType == null) {
-                                    errorMsg.compareAndSet(null, "Found unidentified control event, tag = 0x" + Integer.toHexString(node.getTag()));
+                                    errorString = "DataChannel Et in:  found unidentified control event, tag = 0x" + Integer.toHexString(node.getTag());
                                     throw new EvioException("Found unidentified control event, tag = 0x" + Integer.toHexString(node.getTag()));
                                 }
                             }
@@ -1398,19 +1394,19 @@ logger.info("      DataChannel Et in: " + name + " found END event");
                         }
                     }
                     catch (IOException e) {
-                        errorMsg.compareAndSet(null, "Network communication error with Et");
+                        errorString = "DataChannel Et in: network communication error with Et";
                         throw e;
                     }
                     catch (EtException e) {
-                        errorMsg.compareAndSet(null, "Internal error handling Et");
+                        errorString = "DataChannel Et in: internal error handling Et";
                         throw e;
                     }
                     catch (EtDeadException e) {
-                        errorMsg.compareAndSet(null, "Et system dead");
+                        errorString = "DataChannel Et in: Et system dead";
                         throw e;
                     }
                     catch (EtClosedException e) {
-                        errorMsg.compareAndSet(null, "Et connection closed");
+                        errorString = "DataChannel Et in: Et connection closed";
                         throw e;
                     }
 
@@ -1427,14 +1423,11 @@ logger.info("      DataChannel Et in: have END, " + name + " quit thd");
             } catch (InterruptedException e) {
 logger.warn("      DataChannel Et in: " + name + "  interrupted thd, exiting");
             } catch (Exception e) {
-                // If we haven't yet set the cause of error, do so now & inform run control
-                errorMsg.compareAndSet(null, e.getMessage());
-
-                // set state
                 channelState = CODAState.ERROR;
-                emu.sendStatusMessage();
+                // If we haven't yet set the cause of error, do so now & inform run control
+                if (errorString == null) errorString = e.getMessage();
+                emu.setErrorState(errorString);
 
-                e.printStackTrace();
 logger.warn("      DataChannel Et in: " + name + " exit thd: " + e.getMessage());
             }
         }
@@ -2479,8 +2472,6 @@ System.out.println("      DataChannel Et out: " + name + " some thd got END even
             @Override
             public void run() {
 
-                boolean gotError = false;
-
                 try {
                     EtEvent event;
                     EtContainer container;
@@ -2599,12 +2590,12 @@ System.out.println("      DataChannel Et out: " + name + " some thd got END even
                     }
                 }
                 catch (EvioException e) {
-                    gotError = true;
-                    errorMsg.compareAndSet(null, "Writing data error");
+                    channelState = CODAState.ERROR;
+                    emu.setErrorState("DataChannel Et out: writing data error");
                 }
                 catch (AlertException e) {
-                    gotError = true;
-                    errorMsg.compareAndSet(null, "Ring buffer error");
+                    channelState = CODAState.ERROR;
+                    emu.setErrorState("DataChannel Et out: ring buffer error");
                 }
                 catch (InterruptedException e) {
                     // Quit thread
@@ -2612,24 +2603,18 @@ System.out.println("      DataChannel Et out: " + name + " some thd got END even
                 }
                 catch (TimeoutException e) {
                     // Never happen in our ring buffer
-                    gotError = true;
-                    errorMsg.compareAndSet(null, "Time out waiting in ring buffer");
+                    channelState = CODAState.ERROR;
+                    emu.setErrorState("DataChannel Et out: time out in ring buffer");
                 }
                 catch (IOException e) {
-                    gotError = true;
-                    errorMsg.compareAndSet(null, "Network communication error with Et");
+                    channelState = CODAState.ERROR;
+                    emu.setErrorState("DataChannel Et out: network communication error with Et");
                 }
                 catch (EtException e) {
-                    gotError = true;
-                    errorMsg.compareAndSet(null, "Internal error handling Et");
+                    channelState = CODAState.ERROR;
+                    emu.setErrorState("DataChannel Et out: internal error handling Et");
                 }
 
-                // ET system problem - run will come to an end
-                if (gotError) {
-                    // set state            events
-                    channelState = CODAState.ERROR;
-                    emu.sendStatusMessage();
-                }
 //System.out.println("      DataChannel Et out: Writer #" + place + " is Quitting");
             }
         }
@@ -2926,15 +2911,9 @@ System.out.println("\n      DataChannel Et out " + outputIndex + ": try again, r
 //logger.warn("      DataChannel Et out: " + name + "  interrupted thd, exiting");
             }
             catch (Exception e) {
-logger.warn("      DataChannel Et out : exit thd: " + e.getMessage());
-                // If we haven't yet set the cause of error, do so now & inform run control
-                errorMsg.compareAndSet(null, e.getMessage());
-
-                // set state
+logger.warn("      DataChannel Et out: exit thd w/ error = " + e.getMessage());
                 channelState = CODAState.ERROR;
-                emu.sendStatusMessage();
-
-                e.printStackTrace();
+                emu.setErrorState("DataChannel Et out: " + e.getMessage());
             }
 
             threadState = ThreadState.DONE;
@@ -2973,7 +2952,6 @@ logger.warn("      DataChannel Et out : exit thd: " + e.getMessage());
                 int  eventCount, eventsToPut;
                 long availableSequence = -1L;
                 long nextSequence = sequence.get() + 1L;
-                boolean gotError = false;
 
                 try {
 
@@ -3057,8 +3035,8 @@ logger.warn("      DataChannel Et out : exit thd: " + e.getMessage());
                     }
                 }
                 catch (AlertException e) {
-                    gotError = true;
-                    errorMsg.compareAndSet(null, "Ring buffer error");
+                    channelState = CODAState.ERROR;
+                    emu.setErrorState("DataChannel Et out: ring buffer error");
                 }
                 catch (InterruptedException e) {
                     // Quit thread
@@ -3066,34 +3044,27 @@ logger.warn("      DataChannel Et out : exit thd: " + e.getMessage());
                 }
                 catch (TimeoutException e) {
                     // Never happen in our ring buffer
-                    gotError = true;
-                    errorMsg.compareAndSet(null, "Time out waiting in ring buffer");
+                    channelState = CODAState.ERROR;
+                    emu.setErrorState("DataChannel Et out: time out in ring buffer");
                 }
                 catch (IOException e) {
-                    gotError = true;
-                    errorMsg.compareAndSet(null, "Network communication error with Et");
+                    channelState = CODAState.ERROR;
+                    emu.setErrorState("DataChannel Et out: network communication error with Et");
                 }
                 catch (EtException e) {
-                    gotError = true;
-                    errorMsg.compareAndSet(null, "Internal error handling Et");
+                    channelState = CODAState.ERROR;
+                    emu.setErrorState("DataChannel Et out: internal error handling Et");
                 }
                 catch (EtDeadException e) {
-                    gotError = true;
-                    errorMsg.compareAndSet(null, "Et system dead");
+                    channelState = CODAState.ERROR;
+                    emu.setErrorState("DataChannel Et out: Et system dead");
                 }
                 catch (EtClosedException e) {
-                    gotError = true;
-                    errorMsg.compareAndSet(null, "Et connection closed");
+                    channelState = CODAState.ERROR;
+                    emu.setErrorState("DataChannel Et out: Et connection closed");
                 }
                 finally {
 System.out.println("      DataChannel Et out: PUTTER is Quitting");
-                }
-
-                // ET system problem - run will come to an end
-                if (gotError) {
-                    // set state            events
-                    channelState = CODAState.ERROR;
-                    emu.sendStatusMessage();
                 }
             }
         }
@@ -3118,6 +3089,7 @@ System.out.println("      DataChannel Et out: PUTTER is Quitting");
                 EtEvent[] events=null;
                 EtContainer container;
                 boolean gotError = false;
+                String errorString = null;
 
                 try {
                     while (true) {
@@ -3157,23 +3129,23 @@ System.out.println("      DataChannel Et out: PUTTER is Quitting");
                 }
                 catch (IOException e) {
                     gotError = true;
-                    errorMsg.compareAndSet(null, "Network communication error with Et");
+                    errorString = "DataChannel Et out: network communication error with Et";
                 }
                 catch (EtException e) {
                     gotError = true;
-                    errorMsg.compareAndSet(null, "Internal error handling Et");
+                    errorString = "DataChannel Et out: internal error handling Et";
                 }
                 catch (EtDeadException e) {
                     gotError = true;
-                    errorMsg.compareAndSet(null, "Et system dead");
+                    errorString = "DataChannel Et out: Et system dead";
                 }
                 catch (EtClosedException e) {
                     gotError = true;
-                    errorMsg.compareAndSet(null, "Et connection closed");
+                    errorString = "DataChannel Et out: Et connection closed";
                 }
                 catch (Exception e) {
                     gotError = true;
-                    errorMsg.compareAndSet(null, e.getMessage());
+                    errorString = "DataChannel Et out: " + e.getMessage();
                 }
                 finally {
                     // Dump any left over events
@@ -3185,7 +3157,7 @@ System.out.println("      DataChannel Et out: PUTTER is Quitting");
                         catch (Exception e1) {
                             if (!gotError) {
                                 gotError = true;
-                                errorMsg.compareAndSet(null, e1.getMessage());
+                                errorString = "DataChannel Et out: " + e1.getMessage();
                             }
                         }
                     }
@@ -3193,9 +3165,8 @@ System.out.println("      DataChannel Et out: PUTTER is Quitting");
 
                 // ET system problem - run will come to an end
                 if (gotError) {
-                    // set state
                     channelState = CODAState.ERROR;
-                    emu.sendStatusMessage();
+                    emu.setErrorState(errorString);
                 }
 //System.out.println("      DataChannel Et out: GETTER is Quitting");
             }

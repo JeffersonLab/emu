@@ -194,19 +194,14 @@ System.out.println("      DataChannel Fifo helper: " + name + " I sent end, quit
                      }
                  }
 
-             } catch (InterruptedException e) {
-                 logger.warn("      DataChannel Fifo helper: " + name + "  interrupted thd, exiting");
-             } catch (Exception e) {
-                 logger.warn("      DataChannel Fifo helper : exit thd: " + e.getMessage());
-                 // If we haven't yet set the cause of error, do so now & inform run control
-                 errorMsg.compareAndSet(null, e.getMessage());
-
-                 // set state
-                 channelState = CODAState.ERROR;
-                 emu.sendStatusMessage();
-             }
-
-         }
+            } catch (InterruptedException e) {
+                logger.warn("      DataChannel Fifo helper: " + name + "  interrupted thd, exiting");
+            } catch (Exception e) {
+                channelState = CODAState.ERROR;
+                emu.setErrorState("DataChannel fifo in: " + e.getMessage());
+logger.warn("      DataChannel Fifo helper : exit thd: " + e.getMessage());
+            }
+        }
 
      }
 

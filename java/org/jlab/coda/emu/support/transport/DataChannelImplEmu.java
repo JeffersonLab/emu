@@ -90,8 +90,6 @@ public class DataChannelImplEmu extends DataChannelAdapter {
     /** Data input stream from TCP socket. */
     private DataInputStream in;
 
-//    private SocketChannel inChannel;
-
     /** TCP receive buffer size in bytes. */
     private int tcpRecvBuf;
 
@@ -266,7 +264,7 @@ System.out.println("      DataChannel Emu: sending on port " + sendPort);
      * @param channel
      */
     void attachToInput(SocketChannel channel, int sourceId, int maxBufferSize) throws IOException {
-//        this.inChannel = channel;
+
         this.sourceId = sourceId;
         this.maxBufferSize = maxBufferSize;
 
@@ -346,6 +344,8 @@ System.out.println("      DataChannel Emu: UDL = " + udl);
             openOutputChannel();
         }
         catch (cMsgException e) {
+            channelState = CODAState.ERROR;
+            emu.setErrorState("DataChannel emu out: " + e.getMessage());
             e.printStackTrace();
             throw new CmdExecException(e);
         }
@@ -412,9 +412,7 @@ System.out.println("      DataChannel Emu: UDL = " + udl);
             }
 //System.out.println("      DataChannel Emu: all helper thds done");
         }
-        catch (InterruptedException e) {
-            e.printStackTrace();
-        }
+        catch (InterruptedException e) {}
 
         channelState = CODAState.DOWNLOADED;
 
@@ -466,7 +464,6 @@ logger.debug("      DataChannel Emu: reset() " + name);
             catch (InterruptedException e) {}
         }
 
-        errorMsg.set(null);
         channelState = CODAState.CONFIGURED;
 logger.debug("      DataChannel Emu: reset() " + name + " done");
     }
@@ -510,7 +507,7 @@ logger.debug("      DataChannel Emu startOutputThread()");
         ringIndexEnd  = ringIndex;
 
         if (input || !dataOutputThread.isAlive()) {
-logger.debug("      DataChannel Emu out " + outputIndex + ": processEnd(), thread already done");
+//logger.debug("      DataChannel Emu out " + outputIndex + ": processEnd(), thread already done");
             return;
         }
 
@@ -524,15 +521,15 @@ logger.debug("      DataChannel Emu out " + outputIndex + ": processEnd(), threa
         }
 
         if (dataOutputThread.threadState == ThreadState.DONE) {
-logger.debug("      DataChannel Emu out " + outputIndex + ": processEnd(), thread done after waiting");
+//logger.debug("      DataChannel Emu out " + outputIndex + ": processEnd(), thread done after waiting");
             return;
         }
 
         // Probably stuck trying to get item from ring buffer,
         // so interrupt it and get it to read the END event from
         // the correct ring.
-logger.debug("      DataChannel Emu out " + outputIndex + ": processEnd(), interrupt thread in state " +
-                     dataOutputThread.threadState);
+//logger.debug("      DataChannel Emu out " + outputIndex + ": processEnd(), interrupt thread in state " +
+//                     dataOutputThread.threadState);
         dataOutputThread.interrupt();
     }
 
@@ -582,13 +579,11 @@ System.out.println("      DataChannel Emu in: start EMU input thread");
         @Override
         public void run() {
 
-//            ByteBuffer cmdAndSize = ByteBuffer.allocateDirect(8);
-
             // Tell the world I've started
             latch.countDown();
 
             try {
-                int command, size=0;
+                int command;
                 boolean delay = false;
 
                 while ( true ) {
@@ -596,8 +591,6 @@ System.out.println("      DataChannel Emu in: start EMU input thread");
                     if (gotResetCmd) {
                         return;
                     }
-
-//                    cmdAndSize.clear();
 
                     if (delay) {
                         Thread.sleep(5);
@@ -612,11 +605,6 @@ System.out.println("      DataChannel Emu in: start EMU input thread");
                     }
 
                     // Read the command first
-//                    inChannel.read(cmdAndSize);
-
-//                    command = cmdAndSize.getInt(0);
-//                    size = cmdAndSize.getInt(4);
-
                     command = in.readInt();
 //System.out.println("      DataChannel Emu in: cmd = 0x" + Integer.toHexString(command));
 
@@ -625,10 +613,10 @@ System.out.println("      DataChannel Emu in: start EMU input thread");
                         case cMsgConstants.emuEvioFileFormat:
                             if  (ringItemIsBuffer) {
 //System.out.println("      DataChannel Emu in: event to handleEvioFileToBuf(), name = " + name);
-                                handleEvioFileToBuf(size);
+                                handleEvioFileToBuf();
                             }
                             else {
-                                handleEvioFileToBank(size);
+                                handleEvioFileToBank();
                             }
 
                             break;
@@ -647,17 +635,13 @@ System.out.println("      DataChannel Emu in: get emuEnd cmd");
                 }
 
             } catch (InterruptedException e) {
-                logger.warn("      DataChannel Emu in: " + name + "  interrupted thd, exiting");
+logger.warn("      DataChannel Emu in: " + name + "  interrupted thd, exiting");
             } catch (Exception e) {
-                // If we haven't yet set the cause of error, do so now & inform run control
-                errorMsg.compareAndSet(null, e.getMessage());
-
-                // set state
                 channelState = CODAState.ERROR;
-                emu.sendStatusMessage();
-
-                logger.warn("      DataChannel Emu in: " + name + " exit thd: " + e.getMessage());
-                e.printStackTrace();
+                // If error msg already set, this will not
+                // set it again. It will send it to rc.
+                emu.setErrorState("DataChannel Emu in: " + e.getMessage());
+logger.warn("      DataChannel Emu in: " + name + " error: " + e.getMessage());
             }
 System.out.println("      DataChannel Emu in helper: " + name + " RETURN");
 
@@ -665,7 +649,7 @@ System.out.println("      DataChannel Emu in helper: " + name + " RETURN");
 
 
 
-        private final void handleEvioFileToBank(int evioBytes) throws IOException, EvioException {
+        private final void handleEvioFileToBank() throws IOException, EvioException {
 
             RingItem ri;
             EvioEvent event;
@@ -676,7 +660,7 @@ System.out.println("      DataChannel Emu in helper: " + name + " RETURN");
             ByteBufferItem bbItem = bbSupply.get();
 
             // Read the length of evio file-format data to come
-            evioBytes = in.readInt();
+            int evioBytes = in.readInt();
 
             // If buffer is too small, make a bigger one
             bbItem.ensureCapacity(evioBytes);
@@ -700,7 +684,7 @@ System.out.println("      DataChannel Emu in helper: " + name + " RETURN");
                 }
             }
             catch (IOException e) {
-                errorMsg.compareAndSet(null, "Data is NOT in evio v4 format");
+                errorMsg.compareAndSet(null, "DataChannel Emu in: data NOT evio v4 format");
                 throw e;
             }
             // Speed things up since no EvioListeners are used - doesn't do much
@@ -709,8 +693,8 @@ System.out.println("      DataChannel Emu in helper: " + name + " RETURN");
             // First block header in buffer
             BlockHeaderV4 blockHeader = (BlockHeaderV4)eventReader.getFirstBlockHeader();
             if (blockHeader.getVersion() < 4) {
-                errorMsg.compareAndSet(null, "Data is NOT in evio v4 format");
-                throw new EvioException("Evio data needs to be written in version 4+ format");
+                errorMsg.compareAndSet(null, "DataChannel Emu in: data NOT evio v4 format");
+                throw new EvioException("Data not in evio v4 format");
             }
 
             // eventType may be null if no type info exists in block header.
@@ -757,7 +741,7 @@ System.out.println("      DataChannel Emu in helper: " + name + " RETURN");
                     // TODO: It may NOT be enough just to check the tag
                     controlType = ControlType.getControlType(event.getHeader().getTag());
                     if (controlType == null) {
-                        errorMsg.compareAndSet(null, "Found unidentified control event");
+                        errorMsg.compareAndSet(null, "DataChannel Emu in: found unidentified control event");
                         throw new EvioException("Found unidentified control event");
                     }
                 }
@@ -787,7 +771,7 @@ System.out.println("      DataChannel Emu in helper: " + name + " RETURN");
                     // There should be no more events coming down the pike so
                     // go ahead write out existing events and then shut this
                     // thread down.
-                    logger.info("      DataChannel Emu in: " + name + " found END event");
+logger.info("      DataChannel Emu in: " + name + " found END event");
                     haveInputEndEvent = true;
                     // run callback saying we got end event
                     if (endCallback != null) endCallback.endWait();
@@ -800,7 +784,7 @@ System.out.println("      DataChannel Emu in helper: " + name + " RETURN");
         }
 
 
-        private final void handleEvioFileToBuf(int evioBytes) throws IOException, EvioException {
+        private final void handleEvioFileToBuf() throws IOException, EvioException {
 
             RingItem ri;
             EvioNode node;
@@ -811,7 +795,7 @@ System.out.println("      DataChannel Emu in helper: " + name + " RETURN");
             ByteBufferItem bbItem = bbSupply.get();
 
             // Read the length of evio file-format data to come
-            evioBytes = in.readInt();
+            int evioBytes = in.readInt();
 
             // If buffer is too small, make a bigger one
             bbItem.ensureCapacity(evioBytes);
@@ -838,15 +822,15 @@ System.out.println("      DataChannel Emu in helper: " + name + " RETURN");
             }
             catch (EvioException e) {
                 e.printStackTrace();
-                errorMsg.compareAndSet(null, "Data is NOT evio v4 format");
+                errorMsg.compareAndSet(null, "DataChannel Emu in: data NOT evio v4 format");
                 throw e;
             }
 
             // First block header in buffer
             BlockHeaderV4 blockHeader = compactReader.getFirstBlockHeader();
             if (blockHeader.getVersion() < 4) {
-                errorMsg.compareAndSet(null, "Data is NOT evio v4 format");
-                throw new EvioException("Evio data needs to be written in version 4+ format");
+                errorMsg.compareAndSet(null, "DataChannel Emu in: data NOT evio v4 format");
+                throw new EvioException("Data not in evio v4 format");
             }
 
             EventType eventType = EventType.getEventType(blockHeader.getEventType());
@@ -881,7 +865,7 @@ System.out.println("      DataChannel Emu in helper: " + name + " RETURN");
                     // TODO: It may NOT be enough just to check the tag
                     controlType = ControlType.getControlType(node.getTag());
                     if (controlType == null) {
-                        errorMsg.compareAndSet(null, "Found unidentified control event");
+                        errorMsg.compareAndSet(null, "DataChannel Emu in: found unidentified control event");
                         throw new EvioException("Found unidentified control event");
                     }
                 }
@@ -913,7 +897,7 @@ System.out.println("      DataChannel Emu in helper: " + name + " RETURN");
                     // There should be no more events coming down the pike so
                     // go ahead write out existing events and then shut this
                     // thread down.
-                    logger.info("      DataChannel Emu in: " + name + " found END event");
+logger.info("      DataChannel Emu in: " + name + " found END event");
                     haveInputEndEvent = true;
                     // run callback saying we got end event
                     if (endCallback != null) endCallback.endWait();
@@ -1578,15 +1562,9 @@ System.out.println("      DataChannel Emu out: " + name + " got RESET cmd, quitt
             } catch (InterruptedException e) {
                 logger.warn("      DataChannel Emu out: " + name + "  interrupted thd, exiting");
             } catch (Exception e) {
-                logger.warn("      DataChannel Emu out : exit thd: " + e.getMessage());
-                // If we haven't yet set the cause of error, do so now & inform run control
-                errorMsg.compareAndSet(null, e.getMessage());
-
-                // set state
                 channelState = CODAState.ERROR;
-                emu.sendStatusMessage();
-
-                //e.printStackTrace();
+                emu.setErrorState("DataChannel cmsg in: " + e.getMessage());
+logger.warn("      DataChannel Emu out : exit thd: " + e.getMessage());
             }
 
         }
