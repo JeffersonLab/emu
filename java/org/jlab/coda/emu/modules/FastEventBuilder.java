@@ -222,7 +222,7 @@ public class FastEventBuilder extends ModuleAdapter {
     private long builtEventCount;
 
     /** Number of slots in each output channel ring buffer. */
-    private int outputRingSize;    // TODO: THIS IS NEVER SET!!!?
+    private int outputRingSize;
 
 
     /**
@@ -306,6 +306,7 @@ logger.info("  EB mod: " + buildingThreadCount + " number of event building thre
 
         // Make sure it's a power of 2, round up
         ringItemCount = emu.closestPowerOfTwo(ringCount, true);
+        outputRingSize = getInternalRingCount();
 logger.info("  EB mod: internal ring buf count -> " + ringItemCount);
     }
 
