@@ -15,3 +15,14 @@ Version 2.3
     - add emu config option to set preferred ET communication subnet
 
     - make ET event handling more efficient
+
+Version 2.4
+    - simplify setting (error) state of emu, reduce internal locking, eliminate internal polling
+
+    - add RESETTING state
+
+    - add cmsgpassword to cMsg client UDLs in emu's communication with platform cMsg server
+
+    - fix bug in quitting EB's build threads
+
+    - get emu domain working with new protocol and preferred subnet
