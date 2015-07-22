@@ -184,8 +184,8 @@ logger.warn("Emu: exit due to rc/cMsg connect error: " + e.getMessage());
             if (server == null) {
                 // To make a connection, try the IP addresses one-by-one
                 for (String ip : addrs) {
-//                    UDL = "cMsg://" + ip + ":" + platformPort + "/cMsg/M?cmsgpassword=" + emu.getExpid();
-                    UDL = "cMsg://" + ip + ":" + platformPort + "/cMsg/"+ emu.getExpid()+"?cmsgpassword=" + emu.getExpid(); // vg 07.13
+                    UDL = "cMsg://" + ip + ":" + platformPort + "/cMsg/M?cmsgpassword=" + emu.getExpid();
+//                    UDL = "cMsg://" + ip + ":" + platformPort + "/cMsg/"+ emu.getExpid()+"?cmsgpassword=" + emu.getExpid(); // vg 07.13
                     try {
                         server = new cMsg(UDL, emu.name()+"_emu", "EmuInternal");
                         server.connect();
