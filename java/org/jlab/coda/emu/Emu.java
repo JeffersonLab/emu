@@ -1585,6 +1585,11 @@ if (debug) logger.debug("Emu " + name + " end: END cmd to transport " + transpor
             fifoTransport.end();
 
         }
+        catch (OutOfMemoryError e) {
+logger.error("Emu " + name + " end: jvm out of memory, exiting");
+            setErrorState("Emu " + name + " end: jvm out of memory, exiting");
+            System.exit(-1);
+        }
         catch (CmdExecException e) {
 logger.error("Emu " + name + " end: " + e.getMessage());
             setErrorState("Emu " + name + " end:" + e.getMessage());
@@ -1647,6 +1652,11 @@ if (debug) logger.info("Emu " + name + " go: GO cmd to in chan " + chan.name());
                 }
             }
         }
+        catch (OutOfMemoryError e) {
+logger.error("Emu " + name + " go: jvm out of memory, exiting");
+            setErrorState("Emu " + name + " go: jvm out of memory, exiting");
+            System.exit(-1);
+        }
         catch (CmdExecException e) {
 logger.error("Emu " + name + " go: " + e.getMessage());
             setErrorState("Emu " + name + " go: " + e.getMessage());
@@ -1688,7 +1698,7 @@ if (debug) logger.info("Emu " + name + " prestart: change state to PRESTARTING")
             // Fake TS does not have transport channels so handle it here
             if (codaClass == CODAClass.TS) {
                 modules.get(0).prestart();
-if (debug) logger.debug("Emu " + name + " prestart: PRESTART cmd to module " + modules.get(0).name());
+                if (debug) logger.debug("Emu " + name + " prestart: PRESTART cmd to module " + modules.get(0).name());
                 setState(PAUSED);
                 return;
             }
@@ -1697,7 +1707,7 @@ if (debug) logger.debug("Emu " + name + " prestart: PRESTART cmd to module " + m
             // PRESTART to transport objects first
             //------------------------------------------------
             for (DataTransport transport : transports) {
-if (debug) logger.debug("Emu " + name + " prestart: PRESTART cmd to " + transport.name());
+                if (debug) logger.debug("Emu " + name + " prestart: PRESTART cmd to " + transport.name());
                 transport.prestart();
             }
 
@@ -1718,22 +1728,22 @@ if (debug) logger.debug("Emu " + name + " prestart: PRESTART cmd to " + transpor
                     EmuModule module = findModule(moduleNode.getNodeName());
                     if (module == null) {
                         throw new DataNotFoundException("module corresponding to " +
-                                                         moduleNode.getNodeName() + " not found");
+                                                                moduleNode.getNodeName() + " not found");
                     }
 
                     // Clear out all channels created in previous PRESTART
                     module.clearChannels();
 
-                    ArrayList<DataChannel> in      = new ArrayList<DataChannel>();
-                    ArrayList<DataChannel> out     = new ArrayList<DataChannel>();
-                    ArrayList<DataChannel> inFifo  = new ArrayList<DataChannel>();
+                    ArrayList<DataChannel> in = new ArrayList<DataChannel>();
+                    ArrayList<DataChannel> out = new ArrayList<DataChannel>();
+                    ArrayList<DataChannel> inFifo = new ArrayList<DataChannel>();
                     ArrayList<DataChannel> outFifo = new ArrayList<DataChannel>();
 
-                    int outputChannelCount=0;
+                    int outputChannelCount = 0;
 
                     // For each channel in (children of) the module ...
                     NodeList childList = moduleNode.getChildNodes();
-                    for (int i=0; i < childList.getLength(); i++) {
+                    for (int i = 0; i < childList.getLength(); i++) {
                         Node channelNode = childList.item(i);
                         if (channelNode.getNodeType() != Node.ELEMENT_NODE) continue;
 
@@ -1771,7 +1781,7 @@ if (debug) logger.debug("Emu " + name + " prestart: PRESTART cmd to " + transpor
 
                         // Store all attributes in a hashmap to pass to channel
                         Map<String, String> attributeMap = new HashMap<String, String>();
-                        for (int j=0; j < nnm.getLength(); j++) {
+                        for (int j = 0; j < nnm.getLength(); j++) {
                             Node a = nnm.item(j);
 //System.out.println("Emu " + name + " prestart: Put (" + a.getNodeName() + "," + a.getNodeValue() + ") into attribute map for channel " + channelName);
                             attributeMap.put(a.getNodeName(), a.getNodeValue());
@@ -1836,7 +1846,7 @@ if (debug) logger.debug("Emu " + name + " prestart: PRESTART cmd to " + transpor
 
             // Output channels
             for (DataChannel chan : outChannels) {
-if (debug) logger.debug("Emu " + name + " prestart: PRESTART cmd to OUT chan " + chan.name());
+                if (debug) logger.debug("Emu " + name + " prestart: PRESTART cmd to OUT chan " + chan.name());
                 chan.prestart();
             }
 
@@ -1846,17 +1856,23 @@ if (debug) logger.debug("Emu " + name + " prestart: PRESTART cmd to OUT chan " +
                 // if previous transition was "END"
                 module.getEndCallback().reset();
 
-if (debug) logger.debug("Emu " + name + " prestart: PRESTART cmd to module " + module.name());
+                if (debug) logger.debug("Emu " + name + " prestart: PRESTART cmd to module " + module.name());
                 module.prestart();
             }
 
             // Input channels
             for (DataChannel chan : inChannels) {
-if (debug) logger.debug("Emu " + name + " prestart: PRESTART cmd to IN chan " + chan.name());
+                if (debug) logger.debug("Emu " + name + " prestart: PRESTART cmd to IN chan " + chan.name());
                 chan.prestart();
             }
 
-        } catch (Exception e) {
+        }
+        catch (OutOfMemoryError e) {
+logger.error("Emu " + name + " prestart: jvm out of memory, exiting");
+                setErrorState("Emu " + name + " prestart: jvm out of memory, exiting");
+                System.exit(-1);
+        }
+        catch (Exception e) {
 logger.error("Emu " + name + " prestart: " + e.getMessage());
             setErrorState("Emu " + name + " prestart: " + e.getMessage());
             return;
@@ -2082,6 +2098,11 @@ if (debug) logger.info("Emu " + name + " download: create module " + module.name
 if (debug) logger.info("Emu " + name + " download: pass download to module " + module.name());
                 module.download();
             }
+        }
+        catch (OutOfMemoryError e) {
+logger.error("Emu " + name + " download: jvm out of memory, exiting");
+            setErrorState("Emu " + name + " download: jvm out of memory, exiting");
+            System.exit(-1);
         }
         // This includes ClassNotFoundException
         catch (Exception e) {
@@ -2584,6 +2605,11 @@ if (debug) System.out.println("Emu " + name + " config: Got config type = " + my
 
 //System.out.println("DataPath -> " + dataPath);
 
+            }
+            catch (OutOfMemoryError e) {
+    logger.error("Emu " + name + " config: jvm out of memory, exiting");
+                setErrorState("Emu " + name + " config: jvm out of memory, exiting");
+                System.exit(-1);
             }
             catch (DataNotFoundException e) {
 logger.error("Emu " + name + " config: ", e.getMessage());
