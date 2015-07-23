@@ -722,19 +722,20 @@ logger.debug("      DataChannel Et: reset " + name + " channel");
             dataInputThread.interrupt();
             try {
                 dataInputThread.join(250);
-                if (dataInputThread.isAlive()) {
+//                if (dataInputThread.isAlive()) {
                     dataInputThread.stop();
-                }
+//                }
             }
             catch (InterruptedException e) {}
         }
 
         if (dataOutputThread != null) {
             dataOutputThread.shutdown();
-            if (!dataOutputThread.waitForThreadsToEnd(270)) {
+//            if (!dataOutputThread.waitForThreadsToEnd(250)) {
+                dataOutputThread.waitForThreadsToEnd(250);
                 // Kill everything since we waited as long as possible
                 dataOutputThread.killFromOutside();
-            }
+//            }
         }
 
         // At this point all threads should be done
