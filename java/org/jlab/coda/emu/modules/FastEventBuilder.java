@@ -551,12 +551,30 @@ if (debug) System.out.println("  EB mod: Roc raw or physics event in wrong forma
         // Grab one control event from each ring buffer.
         for (int i=0; i < inputChannelCount; i++) {
             try  {
-                barriers[i].waitFor(nextSequences[i]);
-                buildingBanks[i] = (PayloadBuffer) ringBuffersIn[i].get(nextSequences[i]);
 
-                ControlType cType = buildingBanks[i].getControlType();
-                if (cType == null) {
-                    throw new EmuException("Expecting control event, got something else");
+                ControlType cType = null;
+                while (true) {
+                    barriers[i].waitFor(nextSequences[i]);
+                    buildingBanks[i] = (PayloadBuffer) ringBuffersIn[i].get(nextSequences[i]);
+
+                    cType = buildingBanks[i].getControlType();
+                    if (cType == null) {
+                        // If it's not a control event, it may be a user event.
+                        // If so, skip over it and look at the next one.
+                        EventType eType = buildingBanks[i].getEventType();
+                        if (eType != null && eType == EventType.USER) {
+                            // Release any temp buffer
+                            buildingBanks[i].releaseByteBuffer();
+                            // Release ring slot
+                            sequences[i].set(nextSequences[i]);
+                            // Get ready to read item in next slot
+                            nextSequences[i]++;
+System.out.println("Expecting PRESTART/GO event, got USER, skip over it");
+                            continue;
+                        }
+                        throw new EmuException("Expecting control event, got something else");
+                    }
+                    break;
                 }
 
                 // Look for what the first channel sent, on the other channels
@@ -867,7 +885,7 @@ System.out.println("  EB mod: bbSupply -> " + ringItemCount + " # of bufs, direc
                     nextSequences[i]  = buildSequences[i].get() + 1L;
                 }
 
-                // First thing we do is look for the prestart event(s) and pass it on
+                // First thing we do is look for the PRESTART event(s) and pass it on
                 try {
                     // Get prestart from each input channel
                     ControlType cType = getAllControlEvents(buildSequences, buildBarrierIn, nextSequences);
@@ -898,7 +916,7 @@ if (debug) System.out.println("  EB mod: interrupted while waiting for prestart 
 
 System.out.println("  EB mod: got all PRESTART events");
 
-                // Second thing we do is look for the go event and pass it on
+                // Second thing we do is look for the GO or END event and pass it on
                 try {
                     // Get go/end from each input channel
                     ControlType cType = getAllControlEvents(buildSequences, buildBarrierIn, nextSequences);
@@ -910,7 +928,7 @@ System.out.println("  EB mod: got all PRESTART events");
                             return;
                         }
                         else {
-                            throw new EmuException("Expecting go ro end event, got " + cType);
+                            throw new EmuException("Expecting GO or END event, got " + cType);
                         }
                     }
 
