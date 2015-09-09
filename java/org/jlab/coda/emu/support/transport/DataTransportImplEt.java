@@ -302,7 +302,6 @@ if (isJavaSystem) System.out.println("    DataTransport Et: create Java ET in th
                 systemConfig.setEventSize(eventSize);
                 systemConfig.setServerPort(port);
                 systemConfig.setUdpPort(uport);
-                systemConfig.setMulticastPort(uport);
                 systemConfig.setTcpSendBufSize(tcpSendBuf);
                 systemConfig.setTcpRecvBufSize(tcpRecvBuf);
                 systemConfig.setNoDelay(noDelay);
@@ -388,7 +387,7 @@ if (isJavaSystem) System.out.println("    DataTransport Et: create Java ET in th
         //------------------------------------------------
         try {
             openConfig = new EtSystemOpenConfig(etName, host, bAddrList, mAddrList,
-                                                false, method, port, uport, uport,
+                                                false, method, port, uport,
                                                 EtConstants.multicastTTL,
                                                 EtConstants.policyError);
             if (preferredSubnet != null) {
