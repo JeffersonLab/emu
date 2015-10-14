@@ -47,10 +47,10 @@ public enum CODAClass {
     ER("event recorder", 400),
 
     /** Slow control component. */
-    SLC("event recorder", 200),
+    SLC("slow control component", 200),
 
     /** User component. */
-    USR("event recorder", 0),
+    USR("user component", 0),
 
     /** Event management unit. */
     EMU("event management unit", 0);
