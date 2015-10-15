@@ -14,7 +14,6 @@ package org.jlab.coda.emu;
 import org.jlab.coda.emu.support.codaComponent.CODAStateMachine;
 import org.jlab.coda.emu.support.codaComponent.StatedObject;
 import org.jlab.coda.emu.support.configurer.DataNotFoundException;
-import org.jlab.coda.emu.support.data.ModuleIoType;
 import org.jlab.coda.emu.support.transport.DataChannel;
 
 import java.nio.ByteOrder;
@@ -37,11 +36,9 @@ public interface EmuModule extends StatedObject, CODAStateMachine {
     public String name();
 
 
-
     public String getAttr(String name) throws DataNotFoundException;
 
     public int getIntAttr(String name) throws DataNotFoundException;
-
 
 
     /**
@@ -67,18 +64,6 @@ public interface EmuModule extends StatedObject, CODAStateMachine {
       * @return ArrayList containing the output channels of this EmuModule object
       */
      public ArrayList<DataChannel> getOutputChannels();
-
-    /**
-     * Get the type of items this EmuModule object expects in its input ring.
-     * @return type of items this EmuModule object expects in its input ring.
-     */
-    public ModuleIoType getInputRingItemType();
-
-    /**
-     * Get the type of items this EmuModule object expects in its output rings.
-     * @return type of items this EmuModule object expects in its output rings.
-     */
-    public ModuleIoType getOutputRingItemType();
 
     /**
      * Get the number of items this EmuModule object has in its internal rings.
