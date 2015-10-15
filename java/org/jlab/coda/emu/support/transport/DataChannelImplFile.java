@@ -13,6 +13,7 @@ package org.jlab.coda.emu.support.transport;
 
 import org.jlab.coda.emu.Emu;
 import org.jlab.coda.emu.EmuModule;
+import org.jlab.coda.emu.support.codaComponent.CODAClass;
 import org.jlab.coda.emu.support.codaComponent.CODAState;
 import org.jlab.coda.emu.support.data.*;
 import org.jlab.coda.jevio.*;
@@ -64,6 +65,10 @@ public class DataChannelImplFile extends DataChannelAdapter {
     //----------------------------------------
     // Input file parameters
     //----------------------------------------
+
+    /** Store locally whether this channel's module is an ER or not.
+      * If so, don't parse incoming data so deeply - only top bank header. */
+    private boolean isER;
 
     /** Evio file reader. */
     private EvioReader evioFileReader;
@@ -201,36 +206,16 @@ logger.info("      DataChannel File: dictionary file cannot be read");
         try {
             if (input) {
 logger.info("      DataChannel File: try opening input file of " + fileName);
+                isER = (emu.getCodaClass() == CODAClass.ER);
 
-                if (ringItemType == ModuleIoType.PayloadBank) {
-                    evioFileReader = new EvioReader(fileName, blockNumberChecking);
+                // This will throw an exception if evio version < 4
+                compactFileReader = new EvioCompactReader(fileName);
 
-                    // Only deal with evio version 4 files for simplicity
-                    if (evioFileReader.getEvioVersion() < 4) {
-                        channelState = CODAState.ERROR;
-                        emu.setErrorState("DataChannel File in: evio version " +
-                                           evioFileReader.getEvioVersion() + " files not supported");
+                // Get the first block header
+                firstBlockHeader = compactFileReader.getFirstBlockHeader();
 
-                        throw new IOException("Evio version " +
-                                evioFileReader.getEvioVersion() + " files not supported");
-                    }
-
-                    // Speed things up since no EvioListeners are used - doesn't do much
-                    evioFileReader.getParser().setNotificationActive(false);
-
-                    // Get the first block header
-                    firstBlockHeader = (BlockHeaderV4)evioFileReader.getFirstBlockHeader();
-                }
-                else if  (ringItemType == ModuleIoType.PayloadBuffer) {
-                    // This will throw an exception if evio version < 4
-                    compactFileReader = new EvioCompactReader(fileName);
-
-                    // Get the first block header
-                    firstBlockHeader = compactFileReader.getFirstBlockHeader();
-
-                    // Get the # of events in file
-                    eventCount = compactFileReader.getEventCount();
-                }
+                // Get the # of events in file
+                eventCount = compactFileReader.getEventCount();
 
                 eventType = EventType.getEventType(firstBlockHeader.getEventType());
                 sourceId  = firstBlockHeader.getReserved1();
@@ -419,106 +404,6 @@ logger.debug("      DataChannel File: reset() " + name + " - done");
 
         /** {@inheritDoc} */
         public void run() {
-            if (ringItemType == ModuleIoType.PayloadBank) {
-                runBanks();
-            }
-            else if  (ringItemType == ModuleIoType.PayloadBuffer) {
-                runBuffers();
-            }
-        }
-
-        /** {@inheritDoc} */
-        public void runBanks() {
-
-            int counter = 0;
-            long nextRingItem;
-            EventType bankType;
-            ControlType controlType;
-            RingItem ringItem;
-
-            // I've started
-            latch.countDown();
-
-            try {
-                while (!dataThread.isInterrupted()) {
-                    EvioEvent event;
-                    try {
-                        event = evioFileReader.parseNextEvent();
-                    }
-                    catch (Exception e) {
-                        channelState = CODAState.ERROR;
-                        emu.setErrorState("DataChannel File in: data NOT evio v4 format");
-                        return;
-                    }
-
-                    if (event == null) {
-                        break;
-                    }
-
-                    // From first block header in file
-                    controlType = null;
-                    bankType = eventType;
-
-                    // Unlikely that a file has roc raw data, but accommodate it anyway
-                    if (eventType == EventType.ROC_RAW) {
-                        if (Evio.isUserEvent(event)) {
-                            bankType = EventType.USER;
-                        }
-                    }
-                    else if (eventType == EventType.CONTROL) {
-                        // Find out exactly what type of control event it is
-                        // (May be null if there is an error).
-                        controlType = ControlType.getControlType(event.getHeader().getTag());
-                        if (controlType == null) {
-                            channelState = CODAState.ERROR;
-                            emu.setErrorState("DataChannel File in: found unidentified control event");
-                            return;
-                        }
-                    }
-
-                    nextRingItem = ringBufferIn.next();
-                    ringItem = ringBufferIn.get(nextRingItem);
-
-                    ringItem.setEvent(event);
-                    ringItem.setEventType(bankType);
-                    ringItem.setControlType(controlType);
-                    ringItem.setRecordId(recordId);
-                    ringItem.setSourceId(sourceId);
-                    ringItem.setSourceName(name);
-                    ringItem.setEventCount(1);
-                    ringItem.matchesId(sourceId == id);
-
-                    ringBufferIn.publish(nextRingItem);
-
-                    counter++;
-                }
-
-                // Put in END event
-                nextRingItem = ringBufferIn.next();
-                ringItem = ringBufferIn.get(nextRingItem);
-
-                ringItem.setEvent(Evio.createControlEvent(ControlType.END, 0, 0, counter, 0, false));
-                ringItem.setEventType(EventType.CONTROL);
-                ringItem.setControlType(ControlType.END);
-                ringItem.setSourceName(name);
-                ringItem.setEventCount(1);
-
-                ringBufferIn.publish(nextRingItem);
-
-                if (endCallback != null) endCallback.endWait();
-
-            }
-            catch (Exception e) {
-//logger.warn("      DataChannel File in: (" + name + ") close file");
-//logger.warn("      DataChannel File in: (" + name + ") exit " + e.getMessage());
-                channelState = CODAState.ERROR;
-                emu.setErrorState("DataChannel File in: " + e.getMessage());
-            }
-        }
-
-
-        /** {@inheritDoc} */
-        public void runBuffers() {
 
             int counter = 0;
             long nextRingItem;
@@ -537,7 +422,14 @@ logger.debug("      DataChannel File: reset() " + name + " - done");
                 for (int i=0; i < eventCount; i++) {
                     if (dataThread.isInterrupted()) break;
 
-                    node = compactFileReader.getEvent(i);
+                    if (isER) {
+                        // Don't need to parse all bank headers, just top level.
+                        node = compactFileReader.getEvent(i);
+                    }
+                    else {
+                        node = compactFileReader.getScannedEvent(i);
+                    }
+
                     bankType = eventType;
 
                     // Unlikely that a file has roc raw data, but accommodate it anyway
@@ -557,23 +449,24 @@ logger.debug("      DataChannel File: reset() " + name + " - done");
                         }
                     }
 
-                    // Not a real copy, just points to stuff in bank
-//                    payloadBuffer = new PayloadBuffer(compactFileReader.getEventBuffer(i),
-//                                                      bankType, controlType, recordId,
-//                                                      sourceId, name, node);
-
                     nextRingItem = ringBufferIn.next();
                     ringItem = ringBufferIn.get(nextRingItem);
 
                     ringItem.setNode(node);
-                    ringItem.setBuffer(node.getStructureBuffer(false));
+//                    ringItem.setBuffer(node.getStructureBuffer(false));
                     ringItem.setEventType(bankType);
                     ringItem.setControlType(controlType);
                     ringItem.setRecordId(recordId);
                     ringItem.setSourceId(sourceId);
                     ringItem.setSourceName(name);
-                    ringItem.setEventCount(1);
                     ringItem.matchesId(sourceId == id);
+                    // Set the event count properly for blocked events
+                    if (bankType.isBuildable()) {
+                        ringItem.setEventCount(node.getNum());
+                    }
+                    else {
+                        ringItem.setEventCount(1);
+                    }
 
                     ringBufferIn.publish(nextRingItem);
 
@@ -647,23 +540,23 @@ logger.debug("      DataChannel File: reset() " + name + " - done");
          * @throws IOException
          * @throws EvioException
          */
-        private final void writeEvioData(RingItem ri, boolean forceToDisk) throws IOException, EvioException {
+        private final void writeEvioData(RingItem ri, boolean forceToDisk)
+                throws IOException, EvioException {
 
-            if (ringItemType == ModuleIoType.PayloadBank) {
-                evioFileWriter.writeEvent(ri.getEvent());
-            }
-            else if  (ringItemType == ModuleIoType.PayloadBuffer) {
-                if (ri.getBuffer() != null) {
+            if (ri.getBuffer() != null) {
 //logger.info("      DataChannel File out: write buffer with order = " + ri.getBuffer().order());
-                    evioFileWriter.writeEvent(ri.getBuffer(), forceToDisk);
-                }
-                else {
-//logger.info("      DataChannel File out: write buffer with order = " + ri.getNode().getBufferNode().getBuffer().order());
-                    evioFileWriter.writeEvent(ri.getNode(), forceToDisk);
-                }
-
-                ri.releaseByteBuffer();
+                evioFileWriter.writeEvent(ri.getBuffer(), forceToDisk);
             }
+            else {
+//logger.info("      DataChannel File out: write buffer with order = " + ri.getNode().getBufferNode().getBuffer().order());
+                // Last false arg means do not duplicate node's buffer when writing.
+                // Even though multiple events may share a buffer, since only 1 thread
+                // is writing, that's OK. Don't have multiple threads trying to set the
+                // buffer's position & limit simultaneously.
+                evioFileWriter.writeEvent(ri.getNode(), forceToDisk, false);
+            }
+
+            ri.releaseByteBuffer();
         }
 
 
@@ -681,22 +574,37 @@ logger.debug("      DataChannel File: reset() " + name + " - done");
                 EventType pBankType;
                 ControlType pBankControlType;
 
-                // First event will be "prestart", by convention in ring 0
+                // The 1st event will be "prestart", by convention in ring 0
                 ringItem = getNextOutputRingItem(0);
                 // Force "prestart" event to hard disk
                 writeEvioData(ringItem, true);
-logger.debug("      DataChannel File out  " + outputIndex + ": wrote prestart");
                 releaseCurrentAndGoToNextOutputRingItem(0);
 
-                // Second event will be "go" or "end", by convention in ring 0
-                ringItem = getNextOutputRingItem(0);
-                pBankControlType = ringItem.getControlType();
-                // Do not force "go" event to hard disk as data will
-                // soon follow and things will be written out shortly.
-                writeEvioData(ringItem, false);
-                releaseCurrentAndGoToNextOutputRingItem(0);
+                // The 2nd event may be "go", "end", or a user event.
+                // The non-END control events are placed on ring 0 of all output channels.
+                // The END event is placed in the ring in which the next data event would
+                // have gone.
+                // The user events are placed on ring 0 of only the first output channel.
+                // Keep reading user events in ring 0 until a control (go/end) is read.
+                while (true) {
+                    // Read next event
+                    ringItem  = getNextOutputRingItem(0);
+                    pBankType = ringItem.getEventType();
+                    pBankControlType = ringItem.getControlType();
+                    // If user event, force to hard disk.
+                    if (pBankType == EventType.USER) {
+                        writeEvioData(ringItem, true);
+                    }
+                    // If possibly GO, do not force to hard disk as that slows things down.
+                    else {
+                        writeEvioData(ringItem, false);
+                    }
+                    releaseCurrentAndGoToNextOutputRingItem(0);
+                    // Keep reading user events
+                    if (pBankType != EventType.USER) break;
+                }
 
-                // END may come just after PRESTART
+                // END may come right after PRESTART
                 if (pBankControlType == ControlType.END) {
 System.out.println("      DataChannel File out, " + outputIndex + ": wrote end");
                     try {
@@ -732,10 +640,16 @@ logger.debug("      DataChannel File out " + outputIndex + ": wrote go");
                     }
                     catch (InterruptedException e) {
                         threadState = ThreadState.INTERRUPTED;
-                        // If we're here we were blocked trying to read the next
-                        // (END) event from the wrong ring. We've had 1/4 second
-                        // to read everything else so let's try reading END from
-                        // given ring.
+                        // If we're here we were blocked trying to read the next event.
+                        // If there are multiple event building threads in the module,
+                        // then the END event may show up in an unexpected ring.
+                        // The reason for this is that one thread writes to only one ring.
+                        // But since only 1 thread gets the END event, it must write it
+                        // into that ring in all output channels whether that ring was
+                        // the next place to put a data event or not. Thus it may end up
+                        // in a ring which was not the one to be read next.
+                        // We've had 1/4 second to read everything else so let's try
+                        // reading END from this now-known "unexpected" ring.
 System.out.println("      DataChannel File out " + outputIndex + ": try again, read END from ringIndex " + ringIndexEnd +
 " not " + ringIndex);
                         ringItem = getNextOutputRingItem(ringIndexEnd);
