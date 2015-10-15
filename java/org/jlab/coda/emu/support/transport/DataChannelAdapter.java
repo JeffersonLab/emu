@@ -21,7 +21,6 @@ import org.jlab.coda.emu.support.codaComponent.CODAState;
 import org.jlab.coda.emu.support.codaComponent.CODAStateMachineAdapter;
 import org.jlab.coda.emu.support.codaComponent.State;
 import org.jlab.coda.emu.support.control.CmdExecException;
-import org.jlab.coda.emu.support.data.ModuleIoType;
 import org.jlab.coda.emu.support.data.RingItem;
 import org.jlab.coda.emu.support.data.RingItemFactory;
 import org.jlab.coda.emu.support.logger.Logger;
@@ -96,9 +95,6 @@ public class DataChannelAdapter extends CODAStateMachineAdapter implements DataC
 
     /** Object used by Emu to create this channel. */
     protected final DataTransport dataTransport;
-
-    /** Type of object to expect in each ring item. */
-    protected ModuleIoType ringItemType;
 
     /** Do we pause the dataThread? */
     protected volatile boolean pause;
@@ -227,15 +223,6 @@ public class DataChannelAdapter extends CODAStateMachineAdapter implements DataC
         this.dataTransport = transport;
         logger = emu.getLogger();
 
-        if (input) {
-            ringItemType = module.getInputRingItemType();
-//logger.info("      DataChannel Adapter: input type = " + ringItemType);
-        }
-        else {
-            ringItemType = module.getOutputRingItemType();
-//logger.info("      DataChannel Adapter: output type = " + ringItemType);
-        }
-
 
         // Set id number. Use any defined in config file, else use default = 0
         id = 0;
@@ -335,16 +322,9 @@ logger.info("      DataChannel Adapter: # of ring buffers = " + outputRingCount)
         Arrays.fill(availableSequences, -1L);
 
         for (int i=0; i < outputRingCount; i++) {
-            if (ringItemType == ModuleIoType.PayloadBuffer) {
-                ringBuffersOut[i] =
-                        createSingleProducer(new RingItemFactory(ModuleIoType.PayloadBuffer),
-                                             outputRingItemCount, new YieldingWaitStrategy());
-            }
-            else {
-                ringBuffersOut[i] =
-                        createSingleProducer(new RingItemFactory(ModuleIoType.PayloadBank),
-                                             outputRingItemCount, new YieldingWaitStrategy());
-            }
+            ringBuffersOut[i] =
+                createSingleProducer(new RingItemFactory(),
+                                     outputRingItemCount, new YieldingWaitStrategy());
 
             // One barrier for each ring
             sequenceBarriers[i] = ringBuffersOut[i].newBarrier();
@@ -360,16 +340,8 @@ logger.info("      DataChannel Adapter: # of ring buffers = " + outputRingCount)
 
     /** Setup the input channel ring buffers. */
     void setupInputRingBuffers() {
-        if (ringItemType == ModuleIoType.PayloadBuffer) {
-            ringBufferIn =
-                    createSingleProducer(new RingItemFactory(ModuleIoType.PayloadBuffer),
-                                         inputRingItemCount, new YieldingWaitStrategy());
-        }
-        else {
-            ringBufferIn =
-                    createSingleProducer(new RingItemFactory(ModuleIoType.PayloadBank),
-                                         inputRingItemCount, new YieldingWaitStrategy());
-        }
+        ringBufferIn = createSingleProducer(new RingItemFactory(),
+                                            inputRingItemCount, new YieldingWaitStrategy());
     }
 
 
