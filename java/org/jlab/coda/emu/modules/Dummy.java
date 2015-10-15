@@ -35,8 +35,6 @@ public class Dummy extends ModuleAdapter {
     /** Container for threads used to move events. */
     private ArrayList<EventMovingThread> threadList = new ArrayList<EventMovingThread>();
 
-    private boolean isBufferIoType;
-
     //-------------------------------------------
     // Disruptor (RingBuffer)  stuff
     //-------------------------------------------
@@ -62,38 +60,7 @@ public class Dummy extends ModuleAdapter {
      */
     public Dummy(String name, Map<String, String> attributeMap, Emu emu) {
         super(name, attributeMap, emu);
-
-        // This module may be configured to input & output either
-        // EvioEvent objects or ByteBuffer objects.
-        isBufferIoType = true;
-        String attribString = attributeMap.get("buffer");
-        if (attribString != null) {
-            if (attribString.equalsIgnoreCase("false") ||
-                    attribString.equalsIgnoreCase("off")   ||
-                    attribString.equalsIgnoreCase("no"))   {
-                isBufferIoType = false;
-            }
-        }
     }
-
-
-    /** {@inheritDoc} */
-    public ModuleIoType getInputRingItemType() {
-        if (isBufferIoType) {
-            return ModuleIoType.PayloadBuffer;
-        }
-        return ModuleIoType.PayloadBank;
-    }
-
-
-    /** {@inheritDoc} */
-    public ModuleIoType getOutputRingItemType() {
-        if (isBufferIoType) {
-            return ModuleIoType.PayloadBuffer;
-        }
-        return ModuleIoType.PayloadBank;
-    }
-
 
     /** {@inheritDoc} */
     public void reset() {

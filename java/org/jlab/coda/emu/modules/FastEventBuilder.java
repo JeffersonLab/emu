@@ -311,13 +311,6 @@ logger.info("  EB mod: internal ring buf count -> " + ringItemCount);
     }
 
 
-
-    /** {@inheritDoc} */
-    public ModuleIoType getInputRingItemType() {return ModuleIoType.PayloadBuffer;}
-
-    /** {@inheritDoc} */
-    public ModuleIoType getOutputRingItemType() {return ModuleIoType.PayloadBuffer;}
-
     /** {@inheritDoc} */
     public int getInternalRingCount() {return buildingThreadCount*ringItemCount;};
 

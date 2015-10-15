@@ -39,7 +39,7 @@ import java.util.*;
  *                                 V
  *
  *
- * Actual input channel ring buffer has 2048 events (not 6).
+ * Actual input channel ring buffer has thousands of events (not 6).
  * The producer is a single input channel which reads incoming data,
  * parses it and places it into the ring buffer.
  *
@@ -88,12 +88,6 @@ public class EventRecording extends ModuleAdapter {
 
     /** There should only be one input DataChannel. */
     private DataChannel inputChannel;
-
-    /** Type of object to expect for input. */
-    private ModuleIoType inputType = ModuleIoType.PayloadBuffer;
-
-    /** Type of object to place on output channels. */
-    private ModuleIoType outputType = ModuleIoType.PayloadBuffer;
 
     /** The number of RecordThread objects. */
     private int recordingThreadCount;
@@ -178,12 +172,6 @@ System.out.println("  ER mod: " + recordingThreadCount + " # recording threads")
         inputChannel = null;
     }
 
-    /** {@inheritDoc} */
-    public ModuleIoType getInputRingItemType() {return inputType;}
-
-    /** {@inheritDoc} */
-    public ModuleIoType getOutputRingItemType() {return outputType;}
-
 
     //---------------------------------------
     // Start and end threads
@@ -220,7 +208,7 @@ System.out.println("  ER mod: " + recordingThreadCount + " # recording threads")
      * @param thisThread the record thread calling this method; if null,
      *                   all record threads are interrupted
      * @param wait if <code>true</code> check if END event has arrived and
-     *             if all the Qs are empty, if not, wait up to 1/2 second.
+     *             if all the Qs are empty, if not, wait up to 1/5 second.
      */
     private void endRecordThreads(RecordingThread thisThread, boolean wait) {
 
@@ -310,8 +298,8 @@ if (debug) System.out.println("  ER mod: will end threads but no END event or ri
         public void run() {
 
             int totalNumberEvents=1, wordCount=0;
-            RingItem      ringItem     = null;
-            ControlType   controlType  = null;
+            RingItem    ringItem    = null;
+            ControlType controlType = null;
 
             int skipCounter = order + 1;
             boolean gotBank;
@@ -319,7 +307,7 @@ if (debug) System.out.println("  ER mod: will end threads but no END event or ri
             // Ring Buffer stuff
             availableSequence = -2L;
             sequence = sequenceIn[order];
-            nextSequence  = sequence.get() + 1L;
+            nextSequence = sequence.get() + 1L;
 
 
             while (moduleState == CODAState.ACTIVE || paused) {

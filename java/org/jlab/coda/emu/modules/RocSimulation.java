@@ -208,9 +208,6 @@ public class RocSimulation extends ModuleAdapter {
     public void clearChannels() {outputChannels.clear();}
 
     /** {@inheritDoc} */
-    public ModuleIoType getOutputRingItemType() {return ModuleIoType.PayloadBuffer;}
-
-    /** {@inheritDoc} */
     public int getInternalRingCount() {return bufSupplySize;}
 
     //---------------------------------------

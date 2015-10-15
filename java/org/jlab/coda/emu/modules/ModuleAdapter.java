@@ -360,12 +360,6 @@ logger.info("  Module Adapter: SEB chunk = " + sebChunk);
     public String name() {return name;}
 
     /** {@inheritDoc} */
-    public ModuleIoType getInputRingItemType() {return ModuleIoType.PayloadBuffer;}
-
-    /** {@inheritDoc} */
-    public ModuleIoType getOutputRingItemType() {return ModuleIoType.PayloadBuffer;}
-
-    /** {@inheritDoc} */
     public int getInternalRingCount() {return 0;}
 
     /** {@inheritDoc} */
@@ -428,13 +422,12 @@ logger.info("  Module Adapter: SEB chunk = " + sebChunk);
             // Since this is the case, we need to write a fixed, contiguous
             // # of events to a single SEB before moving on to the next and
             // writing the same amount of events there.
-//if (emu.getCodaClass().isEventBuilder()) {
             if (emu.getCodaClass() == CODAClass.DC) {
-System.out.println("Set chunking FOR SEB, chunk = " + sebChunk);
+//System.out.println("Set chunking FOR SEB, chunk = " + sebChunk);
                 chunkingForSebs = true;
             }
         }
-        System.out.println("So far, chunkingForSebs = " + chunkingForSebs);
+//System.out.println("So far, chunkingForSebs = " + chunkingForSebs);
     }
 
     /** {@inheritDoc} */
@@ -481,7 +474,7 @@ System.out.println("Set chunking FOR SEB, chunk = " + sebChunk);
 
     /**
      * Class defining comparator which tells priority queue how to sort elements.
-     * @param <T> Must be PayloadBank or PayloadBuffer in this case
+     * @param <T> Must be PayloadBuffer in this case
      */
     final class AttachComparator<T> implements Comparator<T> {
         public int compare(T o1, T o2) throws ClassCastException {
