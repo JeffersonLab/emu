@@ -17,7 +17,11 @@ Version 2.3
     - make ET event handling more efficient
 
 Version 2.4
-    - simplify setting (error) state of emu, reduce internal locking, eliminate internal polling
+    - simplify setting (error) state of emu.
+      Eliminate internal polling of channels, transports, and modules for errors to determine
+      state. Have them report an error when it occurs. Eliminate unnecessary locks when
+      finding state and reporting errors/stats.
+      Have reset shut down ability for chan, trans, mods to change state.
 
     - add RESETTING state
 
@@ -26,3 +30,11 @@ Version 2.4
     - fix bug in quitting EB's build threads
 
     - get emu domain working with new protocol and preferred subnet
+
+Version 2.5
+    - Compatible with et-16.0
+    - ER input channels do not parse beyond first bank header
+    - Output channels write more efficiently - don't duplicate buffers if single threaded
+    - Channels handle user events coming right after prestart
+    - Remove code handling more than one type of ring item.
+      Use compact evio structures only instead of that and EvioEvent objects.
