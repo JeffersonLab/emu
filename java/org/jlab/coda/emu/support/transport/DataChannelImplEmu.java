@@ -16,6 +16,7 @@ import org.jlab.coda.cMsg.*;
 import org.jlab.coda.emu.Emu;
 import org.jlab.coda.emu.EmuModule;
 import org.jlab.coda.emu.EmuUtilities;
+import org.jlab.coda.emu.support.codaComponent.CODAClass;
 import org.jlab.coda.emu.support.codaComponent.CODAState;
 import org.jlab.coda.emu.support.control.CmdExecException;
 import org.jlab.coda.emu.support.data.*;
@@ -83,6 +84,10 @@ public class DataChannelImplEmu extends DataChannelAdapter {
     private cMsgMessage outGoingMsg = new cMsgMessage();
 
     // INPUT
+
+    /** Store locally whether this channel's module is an ER or not.
+      * If so, don't parse incoming data so deeply - only top bank header. */
+    private boolean isER;
 
     /** Thread used to input data. */
     private DataInputHelper dataInputThread;
@@ -161,6 +166,7 @@ logger.info("      DataChannel Emu: creating output channel " + name);
 
         // if INPUT channel
         if (input) {
+            isER = (emu.getCodaClass() == CODAClass.ER);
             // size of TCP receive buffer (0 means use operating system default)
             tcpRecvBuf = 0;
             attribString = attributeMap.get("recvBuf");
@@ -553,16 +559,11 @@ logger.debug("      DataChannel Emu startOutputThread()");
         /** Read into ByteBuffers. */
         private EvioCompactReader compactReader;
 
-        /** Is the type of data in ring PayloadBuffer or PayloadBank? */
-        private final boolean ringItemIsBuffer;
-
 
         /** Constructor. */
         DataInputHelper() {
             super(emu.getThreadGroup(), name() + "_data_in");
 System.out.println("      DataChannel Emu in: start EMU input thread");
-            // Speed things up with local variable
-            ringItemIsBuffer = (ringItemType == ModuleIoType.PayloadBuffer);
         }
 
 
@@ -611,13 +612,8 @@ System.out.println("      DataChannel Emu in: start EMU input thread");
                     // 1st byte has command
                     switch (command & 0xff) {
                         case cMsgConstants.emuEvioFileFormat:
-                            if  (ringItemIsBuffer) {
 //System.out.println("      DataChannel Emu in: event to handleEvioFileToBuf(), name = " + name);
-                                handleEvioFileToBuf();
-                            }
-                            else {
-                                handleEvioFileToBank();
-                            }
+                            handleEvioFileToBuf();
 
                             break;
 
@@ -645,142 +641,6 @@ logger.warn("      DataChannel Emu in: " + name + " error: " + e.getMessage());
             }
 System.out.println("      DataChannel Emu in helper: " + name + " RETURN");
 
-        }
-
-
-
-        private final void handleEvioFileToBank() throws IOException, EvioException {
-
-            RingItem ri;
-            EvioEvent event;
-            EventType bankType;
-            ControlType controlType = null;
-
-            // Get a reusable ByteBuffer
-            ByteBufferItem bbItem = bbSupply.get();
-
-            // Read the length of evio file-format data to come
-            int evioBytes = in.readInt();
-
-            // If buffer is too small, make a bigger one
-            bbItem.ensureCapacity(evioBytes);
-            ByteBuffer buf = bbItem.getBuffer();
-            buf.position(0).limit(evioBytes);
-
-//            // Read all evio file-format data
-//            while (buf.hasRemaining()) {
-//                inChannel.read(buf);
-//            }
-//            buf.flip();
-
-            in.readFully(buf.array(), 0, evioBytes);
-
-            try {
-                if (eventReader == null) {
-                    eventReader = new EvioReader(buf);
-                }
-                else {
-                    eventReader.setBuffer(buf);
-                }
-            }
-            catch (IOException e) {
-                errorMsg.compareAndSet(null, "DataChannel Emu in: data NOT evio v4 format");
-                throw e;
-            }
-            // Speed things up since no EvioListeners are used - doesn't do much
-            eventReader.getParser().setNotificationActive(false);
-
-            // First block header in buffer
-            BlockHeaderV4 blockHeader = (BlockHeaderV4)eventReader.getFirstBlockHeader();
-            if (blockHeader.getVersion() < 4) {
-                errorMsg.compareAndSet(null, "DataChannel Emu in: data NOT evio v4 format");
-                throw new EvioException("Data not in evio v4 format");
-            }
-
-            // eventType may be null if no type info exists in block header.
-            // But it should always be there if reading from ROC or DC.
-            EventType eventType = EventType.getEventType(blockHeader.getEventType());
-
-            // The recordId associated with each bank is taken from the first
-            // evio block header in a single ET data buffer. For a physics or
-            // ROC raw type, it should start at zero and increase by one in the
-            // first evio block header of the next ET data buffer.
-            // There may be multiple banks from the same ET buffer and
-            // they will all have the same recordId.
-            //
-            // Thus, only the first block header # is significant. It is set sequentially
-            // by the evWriter object & incremented once per ET event with physics
-            // or ROC data (set to -1 for other data types). Copy it into each bank.
-            // Even though many banks will have the same number, it should only
-            // increment by one. This should work just fine as all evio events in
-            // a single ET event should always be there (not possible to skip any)
-            // since it is transferred all together.
-            //
-            // When the QFiller thread of the event builder gets a physics or ROC
-            // evio event, it checks to make sure this number is in sequence and
-            // prints a warning if it isn't.
-            int recordId = blockHeader.getNumber();
-
-//logger.info("      DataChannel Emu in: " + name + " block header, event type " + eventType +
-//            ", src id = " + sourceId + ", recd id = " + recordId);
-
-//System.out.println("      DataChannel Emu in: parse next event");
-            while ((event = eventReader.parseNextEvent()) != null) {
-                // Complication: from the ROC, we'll be receiving USER events
-                // mixed in with and labeled as ROC Raw events. Check for that
-                // and fix it.
-                bankType = eventType;
-                if (eventType == EventType.ROC_RAW) {
-                    if (Evio.isUserEvent(event)) {
-                        bankType = EventType.USER;
-                    }
-                }
-                else if (eventType == EventType.CONTROL) {
-                    // Find out exactly what type of control event it is
-                    // (May be null if there is an error).
-                    // TODO: It may NOT be enough just to check the tag
-                    controlType = ControlType.getControlType(event.getHeader().getTag());
-                    if (controlType == null) {
-                        errorMsg.compareAndSet(null, "DataChannel Emu in: found unidentified control event");
-                        throw new EvioException("Found unidentified control event");
-                    }
-                }
-
-                nextRingItem = ringBufferIn.next();
-                ri = ringBufferIn.get(nextRingItem);
-
-                ri.setEvent(event);
-                ri.setEventType(bankType);
-                ri.setControlType(controlType);
-                ri.setRecordId(recordId);
-                ri.setSourceId(sourceId);
-                ri.setSourceName(name);
-                ri.matchesId(sourceId == id);
-                // Set the event count properly for blocked events
-                if (bankType.isBuildable()) {
-                    ri.setEventCount(event.getHeader().getNumber());
-                }
-                else {
-                    ri.setEventCount(1);
-                }
-
-                ringBufferIn.publish(nextRingItem);
-
-                // Handle end event ...
-                if (controlType == ControlType.END) {
-                    // There should be no more events coming down the pike so
-                    // go ahead write out existing events and then shut this
-                    // thread down.
-logger.info("      DataChannel Emu in: " + name + " found END event");
-                    haveInputEndEvent = true;
-                    // run callback saying we got end event
-                    if (endCallback != null) endCallback.endWait();
-                    break;
-                }
-            }
-
-            // Have no more need of buffer
-            bbSupply.release(bbItem);
         }
 
 
@@ -848,7 +708,13 @@ logger.info("      DataChannel Emu in: " + name + " found END event");
 
             for (int i=1; i < eventCount+1; i++) {
                 //System.out.println(name + "->" + i);
-                node = compactReader.getScannedEvent(i);
+                if (isER) {
+                    // Don't need to parse all bank headers, just top level.
+                    node = compactReader.getEvent(i);
+                }
+                else {
+                    node = compactReader.getScannedEvent(i);
+                }
 
                 // Complication: from the ROC, we'll be receiving USER events
                 // mixed in with and labeled as ROC Raw events. Check for that
@@ -937,8 +803,6 @@ logger.info("      DataChannel Emu in: " + name + " found END event");
 
         private EventType previousEventType;
 
-        private final boolean ringItemIsBuffer;
-
         // Create a ring buffer full of empty ByteBuffer objects
         // in which place outgoing evio file data.
         private final ByteBufferSupply outBufSupply = new ByteBufferSupply(32, maxBufferSize);
@@ -955,9 +819,6 @@ logger.info("      DataChannel Emu in: " + name + " found END event");
         DataOutputHelperNew() {
             super(emu.getThreadGroup(), name() + "_data_out");
             byteBuffer = ByteBuffer.allocate(maxBufferSize);
-
-            // Speed things up with local variable
-            ringItemIsBuffer = (ringItemType == ModuleIoType.PayloadBuffer);
 
             // Create writer to write events into file format
             if (!singleEventOut) {
@@ -1043,13 +904,13 @@ logger.info("      DataChannel Emu in: " + name + " found END event");
         }
 
 
-        private final void writeEvioData(RingItem rItem, EventType eType)
-                                                         throws cMsgException,
-                                                                IOException,
-                                                                EvioException {
-            int blockNum = 0;
+        private final void writeEvioData(RingItem rItem)
+                throws cMsgException, IOException, EvioException {
+
+            int blockNum;
+            EventType eType = rItem.getEventType();
             boolean isBuildable = eType.isBuildable();
-            int eventsWritten =  writer.getEventsWritten();
+            int eventsWritten = writer.getEventsWritten();
 
             // If we're sending out 1 event by itself ...
             if (singleEventOut || !isBuildable) {
@@ -1073,12 +934,7 @@ logger.info("      DataChannel Emu in: " + name + " found END event");
                 // Write the event ..
                 EmuUtilities.setEventType(bitInfo, eType);
                 writer.setBuffer(bufferItem.getBuffer(), bitInfo, blockNum);
-                if (ringItemIsBuffer) {
-                    writer.writeEvent(rItem.getBuffer());
-                }
-                else {
-                    writer.writeEvent(rItem.getEvent());
-                }
+                writer.writeEvent(rItem.getBuffer());
                 rItem.releaseByteBuffer();
 //System.out.println(""      DataChannel Emu out: flush2");
                 flushEvents();
@@ -1115,12 +971,7 @@ logger.info("      DataChannel Emu in: " + name + " found END event");
 
 //System.out.println(""      DataChannel Emu out: write ev into buf");
                 // Write the new event ..
-                if (ringItemIsBuffer) {
-                    writer.writeEvent(rItem.getBuffer());
-                }
-                else {
-                    writer.writeEvent(rItem.getEvent());
-                }
+                writer.writeEvent(rItem.getBuffer());
 
                 // Release buffer in channel input ring
                 rItem.releaseByteBuffer();
@@ -1145,15 +996,25 @@ logger.debug("      DataChannel Emu out: started");
 
                 // First event will be "prestart", by convention in ring 0
                 ringItem = getNextOutputRingItem(0);
-                writeEvioData(ringItem, ringItem.getEventType());
+                writeEvioData(ringItem);
                 releaseCurrentAndGoToNextOutputRingItem(0);
-logger.debug("      DataChannel Emu out: sent prestart");
 
-                // First event will be "go", by convention in ring 0
-                ringItem = getNextOutputRingItem(0);
-                writeEvioData(ringItem, ringItem.getEventType());
-                releaseCurrentAndGoToNextOutputRingItem(0);
-logger.debug("      DataChannel Emu out: sent go");
+                // The 2nd event may be "go", "end", or a user event.
+                // The non-END control events are placed on ring 0 of all output channels.
+                // The END event is placed in the ring in which the next data event would
+                // have gone.
+                // The user events are placed on ring 0 of only the first output channel.
+                // Keep reading user events in ring 0 until a control (go/end) is read.
+                while (true) {
+                    // Read next event
+                    ringItem  = getNextOutputRingItem(0);
+                    pBankType = ringItem.getEventType();
+                    pBankControlType = ringItem.getControlType();
+                    writeEvioData(ringItem);
+                    releaseCurrentAndGoToNextOutputRingItem(0);
+                    // Keep reading user events
+                    if (pBankType != EventType.USER) break;
+                }
 
                 while ( true ) {
 
@@ -1172,10 +1033,16 @@ logger.debug("      DataChannel Emu out: sent go");
                     }
                     catch (InterruptedException e) {
                         threadState = ThreadState.INTERRUPTED;
-                        // If we're here we were blocked trying to read the next
-                        // (END) event from the wrong ring. We've had 1/4 second
-                        // to read everything else so let's try reading END from
-                        // given ring.
+                        // If we're here we were blocked trying to read the next event.
+                        // If there are multiple event building threads in the module,
+                        // then the END event may show up in an unexpected ring.
+                        // The reason for this is that one thread writes to only one ring.
+                        // But since only 1 thread gets the END event, it must write it
+                        // into that ring in all output channels whether that ring was
+                        // the next place to put a data event or not. Thus it may end up
+                        // in a ring which was not the one to be read next.
+                        // We've had 1/4 second to read everything else so let's try
+                        // reading END from this now-known "unexpected" ring.
 System.out.println("      DataChannel Emu out " + outputIndex + ": try again, read END from ringIndex " + ringIndexEnd +
 " not " + ringIndex);
                         ringItem = getNextOutputRingItem(ringIndexEnd);
@@ -1185,7 +1052,7 @@ System.out.println("      DataChannel Emu out " + outputIndex + ": try again, re
                     pBankControlType = ringItem.getControlType();
 
                     try {
-                        writeEvioData(ringItem, ringItem.getEventType());
+                        writeEvioData(ringItem);
                     }
                     catch (Exception e) {
                         errorMsg.compareAndSet(null, "Cannot write to file");
@@ -1269,9 +1136,6 @@ System.out.println("      DataChannel Emu out: " + name + " I got END event, qui
         /** Type of last event written out. */
         private EventType previousEventType;
 
-        /** Is ring item a PayloadBuffer (true) or not? */
-        private final boolean ringItemIsBuffer;
-
         /** What state is this thread in? */
         private volatile ThreadState threadState;
 
@@ -1289,9 +1153,6 @@ System.out.println("      DataChannel Emu out: " + name + " I got END event, qui
                 byteBuffer = ByteBuffer.allocate(maxBufferSize);
             }
             byteBuffer.order(byteOrder);
-
-            // Speed things up with local variable
-            ringItemIsBuffer = (ringItemType == ModuleIoType.PayloadBuffer);
 
             // Create writer to write events into file format
             if (!singleEventOut) {
@@ -1343,16 +1204,15 @@ System.out.println("      DataChannel Emu out: " + name + " I got END event, qui
          * them over socket.
          *
          * @param rItem  event to write
-         * @param eType  type of event
          * @throws cMsgException
          * @throws IOException
          * @throws EvioException
          */
-        private final void writeEvioData(RingItem rItem, EventType eType)
-                                                         throws cMsgException,
-                                                                IOException,
-                                                                EvioException {
-            int blockNum = 0;
+        private final void writeEvioData(RingItem rItem)
+                throws cMsgException, IOException, EvioException {
+
+            int blockNum;
+            EventType eType = rItem.getEventType();
             boolean isBuildable = eType.isBuildable();
             int eventsWritten = writer.getEventsWritten();
 
@@ -1376,12 +1236,7 @@ System.out.println("      DataChannel Emu out: " + name + " I got END event, qui
                 // Write the event ..
                 EmuUtilities.setEventType(bitInfo, eType);
                 writer.setBuffer(byteBuffer, bitInfo, blockNum);
-                if (ringItemIsBuffer) {
-                    writer.writeEvent(rItem.getBuffer());
-                }
-                else {
-                    writer.writeEvent(rItem.getEvent());
-                }
+                writer.writeEvent(rItem.getBuffer());
                 rItem.releaseByteBuffer();
 //System.out.println("      DataChannel Emu out: flush2");
                 flushEvents();
@@ -1431,12 +1286,7 @@ System.out.println("      DataChannel Emu out: " + name + " I got END event, qui
 
 //System.out.println("      DataChannel Emu out: write ev into buf");
                 // Write the new event ..
-                if (ringItemIsBuffer) {
-                    writer.writeEvent(rItem.getBuffer());
-                }
-                else {
-                    writer.writeEvent(rItem.getEvent());
-                }
+                writer.writeEvent(rItem.getBuffer());
 //System.out.println("      DataChannel Emu out: writeEvioData(), release buf");
                 rItem.releaseByteBuffer();
             }
@@ -1465,15 +1315,26 @@ logger.debug("      DataChannel Emu out: started, w/ " + outputRingCount +  " ou
 
                 // First event will be "prestart", by convention in ring 0
                 ringItem = getNextOutputRingItem(0);
-                writeEvioData(ringItem, ringItem.getEventType());
+                writeEvioData(ringItem);
                 releaseCurrentAndGoToNextOutputRingItem(0);
 logger.debug("      DataChannel Emu out: sent prestart");
 
-                // First event will be "go", by convention in ring 0
-                ringItem = getNextOutputRingItem(0);
-                pBankControlType = ringItem.getControlType();
-                writeEvioData(ringItem, ringItem.getEventType());
-                releaseCurrentAndGoToNextOutputRingItem(0);
+                // The 2nd event may be "go", "end", or a user event.
+                // The non-END control events are placed on ring 0 of all output channels.
+                // The END event is placed in the ring in which the next data event would
+                // have gone.
+                // The user events are placed on ring 0 of only the first output channel.
+                // Keep reading user events in ring 0 until a control (go/end) is read.
+                while (true) {
+                    // Read next event
+                    ringItem  = getNextOutputRingItem(0);
+                    pBankType = ringItem.getEventType();
+                    pBankControlType = ringItem.getControlType();
+                    writeEvioData(ringItem);
+                    releaseCurrentAndGoToNextOutputRingItem(0);
+                    // Keep reading user events
+                    if (pBankType != EventType.USER) break;
+                }
 
                 if (pBankControlType == ControlType.END) {
                     flushEvents();
@@ -1503,10 +1364,16 @@ logger.debug("      DataChannel Emu out: sent go");
                     }
                     catch (InterruptedException e) {
                         threadState = ThreadState.INTERRUPTED;
-                        // If we're here we were blocked trying to read the next
-                        // (END) event from the wrong ring. We've had 1/4 second
-                        // to read everything else so let's try reading END from
-                        // given ring.
+                        // If we're here we were blocked trying to read the next event.
+                        // If there are multiple event building threads in the module,
+                        // then the END event may show up in an unexpected ring.
+                        // The reason for this is that one thread writes to only one ring.
+                        // But since only 1 thread gets the END event, it must write it
+                        // into that ring in all output channels whether that ring was
+                        // the next place to put a data event or not. Thus it may end up
+                        // in a ring which was not the one to be read next.
+                        // We've had 1/4 second to read everything else so let's try
+                        // reading END from this now-known "unexpected" ring.
 System.out.println("      DataChannel Emu out " + outputIndex + ": try again, read END from ringIndex " + ringIndexEnd +
 " not " + ringIndex);
                         ringItem = getNextOutputRingItem(ringIndexEnd);
@@ -1516,7 +1383,7 @@ System.out.println("      DataChannel Emu out " + outputIndex + ": try again, re
                     pBankControlType = ringItem.getControlType();
 
                     try {
-                        writeEvioData(ringItem, ringItem.getEventType());
+                        writeEvioData(ringItem);
                     }
                     catch (Exception e) {
                         errorMsg.compareAndSet(null, "Cannot write to file");
