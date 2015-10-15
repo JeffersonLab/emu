@@ -13,7 +13,6 @@ package org.jlab.coda.emu.support.transport;
 
 import org.jlab.coda.emu.Emu;
 import org.jlab.coda.emu.EmuModule;
-import org.jlab.coda.emu.support.codaComponent.CODAState;
 import org.jlab.coda.emu.support.configurer.DataNotFoundException;
 
 import java.util.HashMap;
@@ -88,23 +87,6 @@ else {
         }
         // If we're trying to "create" it again, make sure things are compatible.
         else {
-            EmuModule firstModule = c.getModule();
-
-            if (isInput) {
-                if (module.getInputRingItemType() != firstModule.getOutputRingItemType()) {
-                    transportState = CODAState.ERROR;
-                    emu.setErrorState("Transport fifo: modules have inconsistent in/output object types");
-                    throw new DataTransportException("Modules have inconsistent in/output object types");
-                }
-            }
-            else {
-                if (module.getOutputRingItemType() != firstModule.getInputRingItemType()) {
-                    transportState = CODAState.ERROR;
-                    emu.setErrorState("Transport fifo: modules have inconsistent in/output object types");
-                    throw new DataTransportException("Modules have inconsistent in/output object types");
-                }
-            }
-
             // Fifos must be created in 2 stages (this is the 2nd).
             // If it is first created as an input, then when the
             // Fifo is "created" here as an output channel, it must be properly
