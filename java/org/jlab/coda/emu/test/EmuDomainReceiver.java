@@ -1152,8 +1152,6 @@ System.out.println("      DataChannel Emu in: get emuEnd cmd");
         private final void handleEvioFileToBuf() throws IOException, EvioException {
 
             EvioNode node;
-            EventType bankType;
-            PayloadBuffer payloadBuffer;
             ControlType controlType = null;
 
             // Get a reusable ByteBuffer
@@ -1203,16 +1201,7 @@ System.out.println("      DataChannel Emu in: get emuEnd cmd");
             for (int i=1; i < eventCount+1; i++) {
                 node = compactReader.getScannedEvent(i);
 
-                // Complication: from the ROC, we'll be receiving USER events
-                // mixed in with and labeled as ROC Raw events. Check for that
-                // and fix it.
-                bankType = eventType;
-                if (eventType == EventType.ROC_RAW) {
-                    if (Evio.isUserEvent(node)) {
-                        bankType = EventType.USER;
-                    }
-                }
-                else if (eventType == EventType.CONTROL) {
+                if (eventType == EventType.CONTROL) {
                     // Find out exactly what type of control event it is
                     // (May be null if there is an error).
                     // TODO: It may NOT be enough just to check the tag
