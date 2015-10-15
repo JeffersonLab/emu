@@ -30,13 +30,6 @@ import java.nio.ByteOrder;
 public interface RingItem extends Cloneable, Attached {
 
     /**
-     * Get the type of object implementing this interface -
-     * either a PayloadBank, or PayloadBuffer.
-     * @return type of object implementing this interface.
-     */
-    public ModuleIoType getQueueItemType();
-
-    /**
      * Get the byte order of the data contained in this object.
      * @return byte order of the data contained in this object.
      */

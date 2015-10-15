@@ -18,8 +18,6 @@ import java.nio.ByteOrder;
 
 /**
  * Wrapper for a ByteBuffer object that has external, associated data.
- * This class plays the same role that PayloadBank plays
- * except it uses a ByteBuffer instead of an EvioBank object.
  *
  * @author timmer
  * (5/16/13)
@@ -115,7 +113,6 @@ public class PayloadBuffer extends RingItemAdapter {
         return null;
     }
 
-    public ModuleIoType getQueueItemType() {return ModuleIoType.PayloadBuffer;}
 
     /** Clones this object setting the attachment to null. */
     public Object clone() {

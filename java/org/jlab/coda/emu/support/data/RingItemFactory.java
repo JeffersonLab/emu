@@ -22,18 +22,9 @@ import org.jlab.coda.jevio.EvioEvent;
  */
 public class RingItemFactory implements EventFactory<RingItem> {
 
-    /** There are multiple classes that extend RingItem, which do we construct? */
-    ModuleIoType itemType;
-
-    public RingItemFactory(ModuleIoType itemType) {
-        this.itemType = itemType;
-    }
-
+    public RingItemFactory() {}
 
     public RingItem newInstance() {
-        if (itemType == ModuleIoType.PayloadBuffer) {
-            return new PayloadBuffer();
-        }
-        return new PayloadBank((EvioEvent)null);
+        return new PayloadBuffer();
     }
 }

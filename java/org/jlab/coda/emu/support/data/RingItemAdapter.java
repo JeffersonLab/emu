@@ -23,7 +23,7 @@ import java.nio.ByteOrder;
  * This class is meant to be extended to handle a specific type of data
  * object to be placed in ring buffers for consumption by emu
  * modules and transport channels.
- * {@see PayloadBank, PayloadBuffer}.
+ * {@see PayloadBuffer}.
  *
  * @author: timmer
  * Date: Feb 28, 2014
@@ -46,8 +46,8 @@ abstract class RingItemAdapter implements RingItem {
    //---------------------
 
     /** What type of CODA events are contained in this bank (RocRaw, Physics, Control, ...)?
-     *  Only one type is stored in one PayloadBank object.
-     *  Only one control event is stored in one PayloadBank object. */
+     *  Only one type is stored in one RingItem object.
+     *  Only one control event is stored in one RingItem object. */
     protected EventType eventType;
 
     /** If this is a control event, what type of control is it (SYNC, GO, END, ...)? */
@@ -140,9 +140,6 @@ abstract class RingItemAdapter implements RingItem {
         byteBufferSupply      = ringItem.getByteBufferSupply();
     }
 
-
-    /** {@inheritDoc} */
-    abstract public ModuleIoType getQueueItemType();
 
     /** {@inheritDoc} */
     abstract public ByteOrder getByteOrder();
