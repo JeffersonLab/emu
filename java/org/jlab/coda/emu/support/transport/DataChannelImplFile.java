@@ -70,14 +70,8 @@ public class DataChannelImplFile extends DataChannelAdapter {
       * If so, don't parse incoming data so deeply - only top bank header. */
     private boolean isER;
 
-    /** Evio file reader. */
-    private EvioReader evioFileReader;
-
     /** Evio file reader which does NOT deserialize into objects. */
     private EvioCompactReader compactFileReader;
-
-    /** First evio block header read from a version 4 file. */
-    private BlockHeaderV4 firstBlockHeader;
 
     /** EventType taken from first block header of file. */
     private EventType eventType;
@@ -113,18 +107,6 @@ public class DataChannelImplFile extends DataChannelAdapter {
 
         // constructor of super class
         super(name, transport, attributeMap, input, emu, module, outputIndex);
-
-        // Set option whether or not to enforce evio block header
-        // numbers to be sequential (throw an exception if not).
-        boolean blockNumberChecking = false;
-        String attribString = attributeMap.get("blockNumCheck");
-        if (attribString != null) {
-            if (attribString.equalsIgnoreCase("true") ||
-                attribString.equalsIgnoreCase("on")   ||
-                attribString.equalsIgnoreCase("yes"))   {
-                blockNumberChecking = true;
-            }
-        }
 
         int runNumber  = emu.getRunNumber();
         String runType = emu.getRunType();
@@ -205,14 +187,14 @@ logger.info("      DataChannel File: dictionary file cannot be read");
 
         try {
             if (input) {
-logger.info("      DataChannel File: try opening input file of " + fileName);
                 isER = (emu.getCodaClass() == CODAClass.ER);
 
                 // This will throw an exception if evio version < 4
                 compactFileReader = new EvioCompactReader(fileName);
 
                 // Get the first block header
-                firstBlockHeader = compactFileReader.getFirstBlockHeader();
+                /* First evio block header read from a version 4 file. */
+                BlockHeaderV4 firstBlockHeader = compactFileReader.getFirstBlockHeader();
 
                 // Get the # of events in file
                 eventCount = compactFileReader.getEventCount();
@@ -236,7 +218,6 @@ logger.info("      DataChannel File: try opening input file of " + fileName);
                 evioFileWriter = new EventWriter(fileName, directory, runType,
                                                  runNumber, split, byteOrder,
                                                  dictionaryXML, overWriteOK);
-//logger.info("      DataChannel File: create EventWriter of order = " + byteOrder);
 logger.info("      DataChannel File: file = " + evioFileWriter.getCurrentFilePath());
 
                 // Tell emu what that output name is for stat reporting.
@@ -301,10 +282,6 @@ logger.debug("      DataChannel File: reset() " + name + " channel");
         gotResetCmd = true;
 
         if (dataThread != null) dataThread.interrupt();
-
-        try {
-            if (evioFileReader != null) evioFileReader.close();
-        } catch (Exception e) {}
 
         try {
             if (compactFileReader != null) compactFileReader.close();
