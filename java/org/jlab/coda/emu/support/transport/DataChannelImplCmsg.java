@@ -49,12 +49,6 @@ public class DataChannelImplCmsg extends DataChannelAdapter {
     /** Do we pause the dataThread? */
     private boolean pause;
 
-    /** Enforce evio block header numbers to be sequential? */
-    private boolean blockNumberChecking;
-
-    /** Read END event from input ring. */
-    private volatile boolean haveInputEndEvent;
-
     /** Read END event from output ring. */
     private volatile boolean haveOutputEndEvent;
 
@@ -180,7 +174,6 @@ public class DataChannelImplCmsg extends DataChannelAdapter {
 
                 if (controlType == ControlType.END) {
                     logger.info("      DataChannel Emu in: " + name + " found END event");
-                    haveInputEndEvent = true;
                     if (endCallback != null) endCallback.endWait();
                     return;
                 }
@@ -280,18 +273,6 @@ public class DataChannelImplCmsg extends DataChannelAdapter {
 
         dataTransportImplCmsg = transport;
 
-
-        // Set option whether or not to enforce evio
-        // block header numbers to be sequential
-        String attribString = attributeMap.get("blockNumCheck");
-        if (attribString != null) {
-            if (attribString.equalsIgnoreCase("true") ||
-                attribString.equalsIgnoreCase("on")   ||
-                attribString.equalsIgnoreCase("yes"))   {
-                blockNumberChecking = true;
-            }
-        }
-
         // Set subject & type for either subscription (incoming msgs) or for outgoing msgs.
         // Use any defined in config file else use defaults.
         subject = attributeMap.get("subject");
@@ -317,9 +298,9 @@ logger.info("      DataChannel cmsg: " + e.getMessage());
             // Tell emu what that output name is for stat reporting
             emu.setOutputDestination("cMsg");
 
-            // How may cMsg message buffer filling threads for each data output thread?
+            // How may cMsg message buffer filling threads the data output thread?
             writeThreadCount = 1;
-            attribString = attributeMap.get("wthreads");
+            String attribString = attributeMap.get("wthreads");
             if (attribString != null) {
                 try {
                     writeThreadCount = Integer.parseInt(attribString);
