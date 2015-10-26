@@ -158,7 +158,7 @@ public class DataTransportImplEt extends DataTransportAdapter {
         }
 
         // broadcasting/multicasting (udp) port
-        int uport = EtConstants.broadcastPort;
+        int uport = EtConstants.udpPort;
         str = attrib.get("uPort");
         if (str != null) {
             try {
