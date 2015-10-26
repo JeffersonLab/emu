@@ -33,7 +33,7 @@ import java.util.Map;
 import java.util.concurrent.Phaser;
 
 /**
- * This class simulates a Roc. It is a module which uses a single thread
+ * This class simulates a Roc. It is a module which can use multiple threads
  * to create events and send them to a single output channel.<p>
  * Multiple Rocs can be synchronized by running test.RocSynchronizer.
  * @author timmer
@@ -173,7 +173,8 @@ public class RocSimulation extends ModuleAdapter {
         catch (NumberFormatException e) { /* defaults to 40 */ }
         if (eventSize < 1) eventSize = 1;
 
-        // How many bytes in a single event?
+        // How many iterations (writes of an entangled block of evio events)
+        // before syncing fake ROCs together?
         syncCount = 100000;
         try { syncCount = Integer.parseInt(attributeMap.get("syncCount")); }
         catch (NumberFormatException e) { /* defaults to 100k */ }
@@ -437,13 +438,14 @@ public class RocSimulation extends ModuleAdapter {
         // Move past data bank header
         writeIndex += 8;
 
-        // Write event number and timestamp into data bank
+        // Write event number into data bank
         buf.putInt(writeIndex, (int) eventNumber);
     }
 
 
     /**
-     * This thread generates events with simulated FADC250 data in it.
+     * This thread generates events with junk data in it (all zeros except first word which
+     * is the event number).
      * It is started by the GO transition and runs while the state of the module is ACTIVE.
      * <p/>
      * When the state is ACTIVE and the list of output DataChannels is not empty, this thread
@@ -512,6 +514,7 @@ System.out.println("  Roc mod: start With (id=" + myId + "):\n    record id = " 
                 builder.addIntData(data);
                 builder.closeAll();
                 PayloadBuffer pBuf = new PayloadBuffer(builder.getBuffer());  // Ready to read buffer
+                // User events from the ROC come as type ROC RAW but with num = 0
                 pBuf.setEventType(EventType.ROC_RAW);
 
                 return pBuf;
