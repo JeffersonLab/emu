@@ -56,7 +56,6 @@ public class EmuFactory {
                 "        [-help]              print this help\n" +
                 "        [-Dname=xxx]         set name of EMU\n"+
                 "        [-Dtype=xxx]         set CODA component type (eg. PEB, ER)\n"+
-                "        [-Dlconfig=xxx]      set local config file name for loading static info\n"+
                 "        [-Dexpid=xxx]        set experiment ID\n"+
                 "        [-Dsession=xxx]      set experimental session name\n"+
                 "        [-Duser.name=xxx]    set user's name (defaults to expid, then session)\n"+
@@ -182,10 +181,10 @@ System.out.println("Found types:");
         // Create EMU objects here. By this time we should have all the names.
         for (int i=0; i < names.size(); i++) {
             if (types.size() > 0) {
-                new Emu(names.get(i), types.get(i), null, debugUI);
+                new Emu(names.get(i), types.get(i), debugUI);
             }
             else {
-                new Emu(names.get(i), null, null, debugUI);
+                new Emu(names.get(i), null, debugUI);
             }
         }
     }
