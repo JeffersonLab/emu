@@ -77,10 +77,8 @@ public class CMSGPortal implements LoggerAppender {
 
         // Construct default UDL if necessary
         if (rcUDL == null) {
-            if (emu.getExpid() == null) {
-                throw new EmuException("EXPID not defined");
-            }
-
+            // Warning: expid is never null but may be "unknown"
+            // if not defined on cmd line or in env var.
             rcUDL = "cMsg:rc://multicast/" + emu.getExpid() + "?connectTO=30";
         }
 
