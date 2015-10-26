@@ -8,8 +8,8 @@ if ($#argv < 1) then
   exit
 endif
 
-setenv PATH $CODA/$MACHINE/bin
-setenv LD_LIBRARY_PATH $CODA/$MACHINE/lib
+#setenv PATH $CODA/$MACHINE/bin
+#setenv LD_LIBRARY_PATH $CODA/$MACHINE/lib
 
 $JAVA_HOME/bin/java -cp $CODA/common/jar/\* \
     -Djava.net.preferIPv4Stack=true \
