@@ -261,12 +261,10 @@ public class Emu implements CODAComponent {
      *
      * @param name            name of Emu
      * @param type            CODA component type of Emu
-     * @param loadedConfig    parsed XML document object of Emu configuration file
      * @param debugUI         start a debug GUI
      * @throws EmuException   if name is null, or cannot connect to rc server
      */
-    public Emu(String name, String type, Document loadedConfig,
-               boolean debugUI) throws EmuException {
+    public Emu(String name, String type, boolean debugUI) throws EmuException {
 
         if (name == null) {
             throw new EmuException("Emu name not defined");
@@ -281,7 +279,6 @@ public class Emu implements CODAComponent {
         System.out.println("Emu created, name = " + name + ", type = " + codaClass);
 
         this.name = name;
-        this.loadedConfig = loadedConfig;
 
         // Set the name of this EMU
         setName(name);
@@ -2267,7 +2264,7 @@ System.out.println("Emu " + name + " config: loading file " + rcConfigFile);
             }
             else {
                 // We were told to configure, but no config file or string provided.
-                throw new DataNotFoundException("Emu config: No config file provided from RC or emu cmd line");
+                throw new DataNotFoundException("Emu config: No config file provided from RC or debug emu");
             }
         }
         // parsing XML error
