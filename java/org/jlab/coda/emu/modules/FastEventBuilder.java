@@ -808,7 +808,7 @@ System.out.println("  EB mod: send END event to output channel " + j + ", ring "
                 // Create a reusable supply of ByteBuffer objects
                 // for writing built physics events into.
                 //--------------------------------------------
-                // Direct buffers give better performance
+                // Direct buffers give better performance ??
                 //--------------------------------------------
 
                 // Any existing output channel should not have more than
