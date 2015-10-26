@@ -137,16 +137,6 @@ public class EventRecording extends ModuleAdapter {
         // default to 1 event recording thread
         recordingThreadCount = eventProducingThreads;
 System.out.println("  ER mod: " + recordingThreadCount + " # recording threads");
-
-        // Does this module accurately represent the whole EMU's stats?
-        String str = attributeMap.get("statistics");
-        if (str != null) {
-            if (str.equalsIgnoreCase("true") ||
-                str.equalsIgnoreCase("on")   ||
-                str.equalsIgnoreCase("yes"))   {
-                representStatistics = true;
-            }
-        }
     }
 
 
