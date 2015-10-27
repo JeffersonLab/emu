@@ -644,7 +644,7 @@ logger.debug("    DataTransport Et: ET is dead");
             etOpenConfig.setWaitTime(1000);
             etOpenConfig.setConnectRemotely(true);
             etSystem = new EtSystem(etOpenConfig);
-            etSystem.setDebug(EtConstants.debugInfo);
+            //etSystem.setDebug(EtConstants.debugInfo);
         }
         catch (EtException e) {
             transportState = CODAState.ERROR;
