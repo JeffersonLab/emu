@@ -42,9 +42,6 @@ public class ByteBufferItem {
     /** Sequence in which this object was taken from ring for use by a consumer with consumerGet(). */
     private long ConsumerSequence;
 
-    /** How many users does this object have? */
-    private volatile int users;
-
     /** Track more than one user so this object can be released for reuse. */
     private AtomicInteger atomicCounter;
 
@@ -179,7 +176,6 @@ public class ByteBufferItem {
      * @param users number of buffer users
      */
     public void setUsers(int users) {
-        this.users = users;
         // Only need to use atomic counter if more than 1 user
         if (users > 1) {
             atomicCounter = new AtomicInteger(users);
@@ -188,15 +184,13 @@ public class ByteBufferItem {
 
 
     /**
-     * Called by buffer user if no longer using it so it may be reused later.
+     * Called by buffer user by way of {@link ByteBufferSupply#release(ByteBufferItem)}
+     * if no longer using it so it may be reused later.
      * @return {@code true} if no one using buffer now, else {@code false}.
      */
-    public boolean decrementCounter() {
+    boolean decrementCounter() {
         // Only use atomic object if "users" > 1
-        if (atomicCounter != null) {
-            return atomicCounter.decrementAndGet() < 1;
-        }
-        return true;
+        return atomicCounter == null || atomicCounter.decrementAndGet() < 1;
     }
 
     /**
