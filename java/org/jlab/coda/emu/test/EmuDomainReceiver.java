@@ -1129,6 +1129,7 @@ System.out.println("      DataChannel Emu in: start EMU input thread");
                             handleEvioFileToBuf();
                             break;
 
+// TODO: not used at present
                         case cMsgConstants.emuEnd:
 System.out.println("      DataChannel Emu in: get emuEnd cmd");
                             break;
