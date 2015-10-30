@@ -290,7 +290,7 @@ System.out.println("      DataChannel Emu: sending on port " + sendPort);
         // in which to copy incoming data from client.
         // NOTE: Using direct buffers works but performance is poor and fluctuates
         // quite a bit in speed.
-        bbSupply = new ByteBufferSupply(16, maxBufferSize, ByteOrder.BIG_ENDIAN, direct);
+        bbSupply = new ByteBufferSupply(16, maxBufferSize, ByteOrder.BIG_ENDIAN, direct, true);
 
         // Start thread to handle all socket input
         startInputThread();
@@ -616,7 +616,7 @@ System.out.println("      DataChannel Emu in: start EMU input thread");
                             handleEvioFileToBuf();
 
                             break;
-
+// TODO: not used at present
                         case cMsgConstants.emuEnd:
 System.out.println("      DataChannel Emu in: get emuEnd cmd");
                             break;
@@ -728,7 +728,6 @@ System.out.println("      DataChannel Emu in helper: " + name + " RETURN");
                 else if (eventType == EventType.CONTROL) {
                     // Find out exactly what type of control event it is
                     // (May be null if there is an error).
-                    // TODO: It may NOT be enough just to check the tag
                     controlType = ControlType.getControlType(node.getTag());
                     if (controlType == null) {
                         errorMsg.compareAndSet(null, "DataChannel Emu in: found unidentified control event");
@@ -775,7 +774,7 @@ logger.info("      DataChannel Emu in: " + name + " found END event");
     }
 
 
-    // TODO: most likely needs updating / NOT USED
+    // Most likely needs updating / NOT USED
     /**
      * Class used to take Evio banks from ring buffer (placed there by a module),
      * and write them over network to an Emu domain input channel using the Emu

@@ -31,10 +31,13 @@ public class ByteBufferItem {
     private ByteBuffer buffer;
 
     /** Byte order of buffer. */
-    private ByteOrder order;
+    private final ByteOrder order;
 
     /** Is this byte buffer direct? */
-    private boolean direct;
+    private final boolean direct;
+
+    /** True if user releases ByteBufferItems in same order as acquired. */
+    private final boolean orderedRelease;
 
     /** Sequence in which this object was taken from ring for use by a producer with get(). */
     private long producerSequence;
@@ -45,13 +48,19 @@ public class ByteBufferItem {
     /** Track more than one user so this object can be released for reuse. */
     private AtomicInteger atomicCounter;
 
+    /** Track more than one user so this object can be released for reuse. */
+    private volatile int volatileCounter;
+
+    /** If true, we're track more than one user. */
+    private boolean multipleUsers;
+
     // For testing purposes
 
     /** Counter for assigning unique id to each buffer item. */
     static int idCounter=0;
 
     /** Unique id for each object of this class. */
-    private int myId;
+    private final int myId;
 
     /**
      * Get the unique id of this object.
@@ -67,36 +76,18 @@ public class ByteBufferItem {
 
     //--------------------------------
 
-    /**
-     * Constructor.
-     * Buffer is big endian and is not direct.
-     * @param bufferSize size in bytes of ByteBuffer to construct.
-     */
-    public ByteBufferItem(int bufferSize) {
-        this(bufferSize, ByteOrder.BIG_ENDIAN, false);
-    }
-
-
-    /**
-     * Constructor.
-     * Buffer is not direct.
-     * @param bufferSize size in bytes of ByteBuffer to construct.
-     * @param order byte order of ByteBuffer to construct.
-     */
-    public ByteBufferItem(int bufferSize, ByteOrder order) {
-        this(bufferSize, order, false);
-    }
-
 
     /**
      * Constructor.
      * @param bufferSize size in bytes of ByteBuffer to construct.
      * @param order byte order of ByteBuffer to construct.
      */
-    public ByteBufferItem(int bufferSize, ByteOrder order, boolean direct) {
+    public ByteBufferItem(int bufferSize, ByteOrder order,
+                          boolean direct, boolean orderedRelease) {
         this.order = order;
         this.direct = direct;
         this.bufferSize = bufferSize;
+        this.orderedRelease = orderedRelease;
 
         if (direct) {
             buffer = ByteBuffer.allocateDirect(bufferSize).order(order);
@@ -176,9 +167,15 @@ public class ByteBufferItem {
      * @param users number of buffer users
      */
     public void setUsers(int users) {
-        // Only need to use atomic counter if more than 1 user
         if (users > 1) {
-            atomicCounter = new AtomicInteger(users);
+            multipleUsers = true;
+
+            if (orderedRelease) {
+                volatileCounter = users;
+            }
+            else {
+                atomicCounter = new AtomicInteger(users);
+            }
         }
     }
 
@@ -188,9 +185,48 @@ public class ByteBufferItem {
      * if no longer using it so it may be reused later.
      * @return {@code true} if no one using buffer now, else {@code false}.
      */
-    boolean decrementCounter() {
+    boolean decrementCounterOrig() {
         // Only use atomic object if "users" > 1
         return atomicCounter == null || atomicCounter.decrementAndGet() < 1;
+    }
+
+
+    /**
+     * Called by buffer user by way of {@link ByteBufferSupply#release(ByteBufferItem)}
+     * if no longer using it so it may be reused later.
+     * @return {@code true} if no one using buffer now, else {@code false}.
+     */
+    boolean decrementCounter() {
+        if (!multipleUsers) return true;
+        if (orderedRelease) return (--volatileCounter < 1);
+        return (atomicCounter.decrementAndGet() < 1);
+    }
+
+
+    /**
+     * If a reference to this ByteBufferItem is copied, then it is necessary to increase
+     * the number of users. Although this method is not safe to call in general,
+     * it is safe, for example, if a RingItem is copied in the ER <b>BEFORE</b>
+     * it is copied again onto multiple output channels' rings and then released.
+     * Currently this is only used in just such a situation - in the ER when a ring
+     * item must be copied and placed on all extra output channels. In this case,
+     * there is always at least one existing user.
+     *
+     * @param additionalUsers number of users to add
+     */
+    public void addUsersOrig(int additionalUsers) {
+        if (additionalUsers < 1) return;
+
+        // If there was only 1 original user of the ByteBuffer ...
+        if (atomicCounter == null) {
+            // The original user's BB is now in the process of being copied
+            // so it still exists (decrementCounter not called yet).
+            // Total users now = 1 + additionalUsers.
+            atomicCounter = new AtomicInteger(additionalUsers + 1);
+        }
+        else {
+            atomicCounter.addAndGet(additionalUsers);
+        }
     }
 
     /**
@@ -208,14 +244,25 @@ public class ByteBufferItem {
         if (additionalUsers < 1) return;
 
         // If there was only 1 original user of the ByteBuffer ...
-        if (atomicCounter == null) {
+        if (!multipleUsers) {
             // The original user's BB is now in the process of being copied
             // so it still exists (decrementCounter not called yet).
             // Total users now = 1 + additionalUsers.
-            atomicCounter = new AtomicInteger(additionalUsers + 1);
+            if (orderedRelease) {
+                volatileCounter = additionalUsers + 1;
+            }
+            else {
+                atomicCounter = new AtomicInteger(additionalUsers + 1);
+            }
         }
         else {
-            atomicCounter.addAndGet(additionalUsers);
+            if (orderedRelease) {
+                // Warning, this is not an atomic operation!
+                volatileCounter += additionalUsers;
+            }
+            else {
+                atomicCounter.addAndGet(additionalUsers);
+            }
         }
     }
 

@@ -117,8 +117,15 @@ import java.util.concurrent.atomic.AtomicLong;
  */
 public class FastEventBuilder extends ModuleAdapter {
 
+    // There are 3 types of variable that can be used to release ring buffer resources.
+    // After testing, there is a fair amount of fluctuation from run to test run, but
+    // overall the AtomicLong seems to perform somewhat better. This is surprising, since
+    // I expected the volatile long to do better due to lower overhead and no CAS.
+
     /** Number used to order the releasing of ring buffer resources of each build thread. */
     private AtomicLong releaseIndex = new AtomicLong(0L);
+    // private volatile long releaseIndexVol = 0L;
+    // private Sequence releaseIndexSeq = new Sequence(0L);
 
     /** The number of BuildingThread objects. */
     private int buildingThreadCount;
@@ -788,6 +795,8 @@ System.out.println("  EB mod: send END event to output channel " + j + ", ring "
             // Wait to send END event until all other build threads
             // have finished & sent what they're building ...
             if (btCount > 1) {
+                //while (nextReleaseIndex > releaseIndexSeq.get()) {
+                //while (nextReleaseIndex > releaseIndexVol) {
                 while (nextReleaseIndex > releaseIndex.get()) {
                     Thread.yield();
                 }
@@ -1335,13 +1344,13 @@ if (debug && nonFatalError) System.out.println("  EB mod: non-fatal ERROR @ pos 
                         eventNumberAtLastSync = firstEventNumber + totalNumberEvents;
                     }
 
-                    // Release the reusable ByteBuffers used by the input channel
-                    for (int i=0; i < inputChannelCount; i++) {
-                        // The releaseByteBuffer() method ensures that earlier
-                        // sequenced buffers are not released after the latter.
-                        // Takes care of issues when # evio-events/buffer < # build-threads.
-                        buildingBanks[i].releaseByteBuffer();
-                    }
+//                    // Release the reusable ByteBuffers used by the input channel
+//                    for (int i=0; i < inputChannelCount; i++) {
+//                        // The releaseByteBuffer() method ensures that earlier
+//                        // sequenced buffers are not released after the latter.
+//                        // Takes care of issues when # evio-events/buffer < # build-threads.
+//                        buildingBanks[i].releaseByteBuffer();
+//                    }
 
                     // Each build thread must release the "slots" in the input channel
                     // ring buffers of the components it uses to build the physics event.
@@ -1356,6 +1365,8 @@ if (debug && nonFatalError) System.out.println("  EB mod: non-fatal ERROR @ pos 
                     // (releaseIndex & nextReleaseIndex) rollover from Long.MAX_VALUE to
                     // Long.MIN_VALUE !
                     if (btCount > 1) {
+                        //while (nextReleaseIndex > releaseIndexSeq.get()) {
+                        //while (nextReleaseIndex > releaseIndexVol) {
                         while (nextReleaseIndex > releaseIndex.get()) {
                             // spin first?
                             Thread.yield();
@@ -1373,6 +1384,11 @@ System.out.println("  EB mod: Bt#" + btIndex + ", END found so return");
 
                         // Tell input ring buffers we're done with these events
                         for (int i=0; i < inputChannelCount; i++) {
+                            // Release the reusable ByteBuffers used by the input channel.
+                            // The fact that we're here means that these buffers are being
+                            // released sequentially and we need no locks.
+                            buildingBanks[i].releaseByteBuffer();
+
 //System.out.println("  EB mod: " + btIndex + ", chan " + outputChannelIndex + ", seq " + nextSequences[i]);
                             buildSequences[i].set(nextSequences[i]++);
                         }
@@ -1385,7 +1401,16 @@ System.out.println("  EB mod: Bt#" + btIndex + ", END found so return");
                         wordCountTotal  += builder.getTotalBytes() / 4 + 1;
                         keepStats(builder.getTotalBytes());
 
-                        // Tell next build thread it's his turn to release ring buffer slot
+                        // Tell next build thread it's his turn to release ring buffer slot.
+                        // volatile guarantees: 1) memory visibility, 2) atomic write for
+                        // doubles & longs, and 3) forbids instruction reordering.
+                        // The problem with increment is that it is not atomic. It reads the
+                        // value first, adds 1, then writes it. But, it should work for us
+                        // since only one guy gets into this loop at a time, at least until
+                        // just past the next statement.
+
+                        //releaseIndexSeq.setVolatile(releaseIndexSeq.get() + 1);
+                        //releaseIndexVol++;
                         releaseIndex.incrementAndGet();
 
 //                        long l = releaseIndex.get();
@@ -1399,7 +1424,20 @@ System.out.println("  EB mod: Bt#" + btIndex + ", END found so return");
 //                        if (!releaseIndex.compareAndSet(l, l+1L)) System.out.println("FAIL !!!");
                     }
                     else {
+                        // Release the reusable ByteBuffers used by the input channel
                         for (int i=0; i < inputChannelCount; i++) {
+                            // The releaseByteBuffer() method ensures that earlier
+                            // sequenced buffers are not released after the latter.
+                            // Takes care of issues when # evio-events/buffer < # build-threads.
+                            buildingBanks[i].releaseByteBuffer();
+                        }
+
+                        for (int i=0; i < inputChannelCount; i++) {
+                            // Release the reusable ByteBuffers used by the input channel.
+                            // The fact that we're here means that these buffers are being
+                            // released sequentially and we need no locks (only 1 build thd).
+                            buildingBanks[i].releaseByteBuffer();
+
 //System.out.println("  EB mod: " + btIndex + ", chan " + outputChannelIndex + ", seq " + nextSequences[i]);
                             buildSequences[i].set(nextSequences[i]++);
                         }

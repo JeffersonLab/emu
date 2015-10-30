@@ -49,10 +49,10 @@ public class ByteBufferSupply {
     private final int bufferSize;
 
     /** Byte order of ByteBuffer in each ByteBufferItem. */
-    private ByteOrder order;
+    private final ByteOrder order;
 
     /** Are the buffers created, direct? */
-    private boolean direct;
+    private final boolean direct;
 
     /** Ring buffer. */
     private final RingBuffer<ByteBufferItem> ringBuffer;
@@ -73,6 +73,9 @@ public class ByteBufferSupply {
     // For thread safety
     //------------------------------------------
 
+    /** True if user releases ByteBufferItems in same order as acquired. */
+    private final boolean orderedRelease;
+
     /** When releasing in sequence, the last sequence to have been released. */
     private long lastSequenceReleased = -1L;
 
@@ -88,7 +91,7 @@ public class ByteBufferSupply {
     /** Class used to initially create all items in ring buffer. */
     private final class ByteBufferFactory implements EventFactory<ByteBufferItem> {
         public ByteBufferItem newInstance() {
-            return new ByteBufferItem(bufferSize, order, direct);
+            return new ByteBufferItem(bufferSize, order, direct, orderedRelease);
         }
     }
 
@@ -106,7 +109,6 @@ public class ByteBufferSupply {
         this(ringSize, bufferSize, ByteOrder.BIG_ENDIAN, false);
     }
 
-
     /**
      * Constructor.
      *
@@ -116,6 +118,31 @@ public class ByteBufferSupply {
      * @throws IllegalArgumentException if args < 1 or ringSize not power of 2.
      */
     public ByteBufferSupply(int ringSize, int bufferSize, ByteOrder order, boolean direct)
+            throws IllegalArgumentException {
+        this(ringSize, bufferSize, order, direct, false);
+    }
+
+
+    /**
+     * Constructor. Used when wanting to avoid locks for speed purposes. Say a ByteBufferItem
+     * is used by several users. This is true in ET or emu input channels in which many evio
+     * events all contain a reference to the same buffer. If the user can guarantee that all
+     * the users of one buffer release it before any of the users of the next, then synchronization
+     * is not necessary. If that isn't the case, then locks take care of preventing a later
+     * acquired buffer from being released first and consequently everything that came before
+     * it in the ring.
+     *
+     * @param ringSize        number of ByteBufferItem objects in ring buffer.
+     * @param bufferSize      initial size (bytes) of ByteBuffer in each ByteBufferItem object.
+     * @param order           byte order of ByteBuffer in each ByteBufferItem object.
+     * @param direct          if true, make ByteBuffers direct.
+     * @param orderedRelease  if true, the user promises to release the ByteBufferItems
+     *                        in the same order as acquired. This avoids using
+     *                        synchronized code (no locks).
+     * @throws IllegalArgumentException if args < 1 or ringSize not power of 2.
+     */
+    public ByteBufferSupply(int ringSize, int bufferSize, ByteOrder order,
+                            boolean direct, boolean orderedRelease)
             throws IllegalArgumentException {
 
         if (ringSize < 1 || bufferSize < 1) {
@@ -129,6 +156,7 @@ public class ByteBufferSupply {
         this.order = order;
         this.direct = direct;
         this.bufferSize = bufferSize;
+        this.orderedRelease = orderedRelease;
 //        myId = id++;
 
         // Create ring buffer with "ringSize" # of elements,
@@ -210,6 +238,10 @@ public class ByteBufferSupply {
         // Each item may be used by several objects/threads. It will
         // only be released for reuse if everyone releases their claim.
         if (byteBufferItem.decrementCounter()) {
+            if (orderedRelease) {
+                sequence.set(byteBufferItem.getProducerSequence());
+                return;
+            }
 
             synchronized (this) {
                 // Sequence we want to release
