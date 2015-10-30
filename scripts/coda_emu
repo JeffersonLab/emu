@@ -15,6 +15,6 @@ endif
 $JAVA_HOME/bin/java -cp $CODA/common/jar/\* \
     -Djava.net.preferIPv4Stack=true \
     -Djava.library.path=$CODA/$MACHINE/lib \
-    -DcmsgUDL="rc://multicast/"$EXPID"?connectTO=20" \
+    -DcmsgUDL="rc://multicast/"$EXPID \
     -Dname=$1 \
     -Dtype=$2 org.jlab.coda.emu.EmuFactory
