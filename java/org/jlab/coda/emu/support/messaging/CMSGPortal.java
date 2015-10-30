@@ -79,7 +79,8 @@ public class CMSGPortal implements LoggerAppender {
         if (rcUDL == null) {
             // Warning: expid is never null but may be "unknown"
             // if not defined on cmd line or in env var.
-            rcUDL = "cMsg:rc://multicast/" + emu.getExpid() + "?connectTO=30";
+            // Connection timeout is 30 sec by default.
+            rcUDL = "cMsg:rc://multicast/" + emu.getExpid();
         }
 
 System.out.println("Emu: CMSGPortal using rc UDL = " + rcUDL);
