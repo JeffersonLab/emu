@@ -24,7 +24,7 @@ import org.jlab.coda.cMsg.cMsgMessage;
  * msg to ROCs is only sent if the highest safe value changes.
  * A reset can be received for low, high and safe high values (used at prestart).<p>
  *
- * Note that M values are reported at a max rate of 2 Hz.
+ * Note that M values are reported at a max rate of 1/2 Hz.
  * This callback is only active if this emu is a DC or PEB.
  *
  * @author timmer
@@ -52,7 +52,7 @@ class MvalReportingHandler extends GenericCallback implements cMsgCallbackInterf
 
     private final boolean debug = false;
 
-    private long timeAtLastUpdate, now;
+    private long timeAtLastUpdate;
 
 
     /**
@@ -95,7 +95,7 @@ if (debug) System.out.println("      MMMMMMMMMMMMMMM  emu set lowest m = " + val
 if (debug) System.out.println("      MMMMMMMMMMMMMMM  emu set highest m = " + val);
             }
 
-            now = System.currentTimeMillis();
+            long now = System.currentTimeMillis();
 
             // If it's been 2 seconds since our last feedback to the ROC,
             // send the latest values if highestSafeM has changed.
@@ -121,6 +121,7 @@ if (debug) System.out.println("      MMMMMMMMMMMMMMM  SEND roc low = " + lowestM
         }
 
         // This message comes at prestart: resetM & get ET system info
+        // TODO: This is never used??? If so, remove!
         else if (msg.getType().equalsIgnoreCase("eventsPerRoc")) {
 if (debug) System.out.println("      MMMMMMMMMMMMMMM  emu GOT eventsPerRoc, initializing M");
             totalEventsPerRoc = msg.getUserInt();
