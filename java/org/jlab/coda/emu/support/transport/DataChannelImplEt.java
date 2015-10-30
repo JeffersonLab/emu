@@ -818,7 +818,7 @@ logger.debug("      DataChannel Et: reset " + name + " channel");
         /** Let a single waiter know that the main thread has been started. */
         private final CountDownLatch latch = new CountDownLatch(1);
 
-        /** The minimum amount of milliseconds between updates to lastMvalue. */
+        /** The minimum amount of milliseconds between updates to the M value. */
         private long timeBetweenMupdates = 500;
 
 
@@ -1005,7 +1005,7 @@ Utilities.printBuffer(buf, 0, 21, "BAD EVENT ");
                             t1 = t2;
                         }
 //logger.info("      DataChannel Et in: isFirstEb = " + isFirstEB + ", eventCount = " + eventCount +
-//", last val = " + lastMvalue + ", isBuildable = " + eventType.isBuildable());
+//", isBuildable = " + eventType.isBuildable());
                         EvioNode node;
 
 //logger.info("      DataChannel Et in: " + name + " block header, event type " + eventType +
