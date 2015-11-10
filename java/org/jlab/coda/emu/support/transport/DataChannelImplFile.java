@@ -526,11 +526,10 @@ logger.debug("      DataChannel File: reset() " + name + " - done");
             }
             else {
 //logger.info("      DataChannel File out: write buffer with order = " + ri.getNode().getBufferNode().getBuffer().order());
-                // Last false arg means do not duplicate node's buffer when writing.
-                // Even though multiple events may share a buffer, since only 1 thread
-                // is writing, that's OK. Don't have multiple threads trying to set the
-                // buffer's position & limit simultaneously.
-                evioFileWriter.writeEvent(ri.getNode(), forceToDisk, false);
+                // Last boolean arg means do (not) duplicate node's buffer when writing.
+                // Setting this to false led to problems since the input channel is using
+                // the buffer at the same time.
+                evioFileWriter.writeEvent(ri.getNode(), forceToDisk, true);
             }
 
             ri.releaseByteBuffer();
