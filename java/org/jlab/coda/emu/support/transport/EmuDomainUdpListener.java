@@ -43,6 +43,7 @@ public class EmuDomainUdpListener extends Thread {
     private int debug = cMsgConstants.debugError;
 
     private String expid;
+    private String emuName;
 
     /** Setting this to true will kill all threads. */
     private volatile boolean killThreads;
@@ -61,9 +62,11 @@ public class EmuDomainUdpListener extends Thread {
      * @param server emu server that created this object
      * @param port udp port on which to receive transmissions from emu clients
      */
-    public EmuDomainUdpListener(EmuDomainServer server, int port, String expid) throws cMsgException {
+    public EmuDomainUdpListener(EmuDomainServer server, int port,
+                                String expid, String emuName) throws cMsgException {
 
         this.expid = expid;
+        this.emuName = emuName;
         multicastPort = tcpPort = port;
 
         try {
@@ -178,7 +181,7 @@ public class EmuDomainUdpListener extends Thread {
                 if (killThreads) { return; }
 
                 packet.setLength(2048);
-//System.out.println("Emu listen: WAITING TO RECEIVE PACKET");
+//System.out.println("Emu UDP listen: WAITING TO RECEIVE PACKET");
                 multicastSocket.receive(packet);   // blocks
 
                 if (killThreads) { return; }
@@ -190,7 +193,7 @@ public class EmuDomainUdpListener extends Thread {
 
                 if (packet.getLength() < 4*4) {
                     if (debug >= cMsgConstants.debugWarn) {
-                        System.out.println("Emu listen: got multicast packet that's too small");
+                        System.out.println("Emu UDP listen: got multicast packet that's too small");
                     }
                     continue;
                 }
@@ -202,7 +205,7 @@ public class EmuDomainUdpListener extends Thread {
                     magic2 != cMsgNetworkConstants.magicNumbers[1] ||
                     magic3 != cMsgNetworkConstants.magicNumbers[2])  {
                     if (debug >= cMsgConstants.debugWarn) {
-                        System.out.println("Emu listen: got multicast packet with bad magic #s");
+                        System.out.println("Emu UDP listen: got multicast packet with bad magic #s");
                     }
                     continue;
                 }
@@ -212,26 +215,26 @@ public class EmuDomainUdpListener extends Thread {
                 switch (msgType) {
                     // Multicasts from emu clients
                     case cMsgNetworkConstants.emuDomainMulticastClient:
-//System.out.println("Emu listen: client wants to connect");
+//System.out.println("Emu UDP listen: client wants to connect");
                         break;
                     // Multicasts from emu servers
                     case cMsgNetworkConstants.emuDomainMulticastServer:
-//System.out.println("Emu listen: server wants to connect");
+//System.out.println("Emu UDP listen: server wants to connect");
                         break;
                     // Kill this server since one already exists on this port/expid
                     case cMsgNetworkConstants.emuDomainMulticastKillSelf:
-System.out.println("Emu listen: Told to kill myself by another multicast server");
+System.out.println("Emu UDP listen: Told to kill myself by another multicast server");
                         server.respondingHost = multicasterHost;
                         server.multicastResponse.countDown();
                         return;
                     // Packet from client just trying to locate emu multicast servers.
                     // Send back a normal response but don't do anything else.
                     case cMsgNetworkConstants.emuDomainMulticastProbe:
-//System.out.println("Emu listen: I was probed");
+//System.out.println("Emu UDP listen: I was probed");
                         break;
                     // Ignore packets from unknown sources
                     default:
-//System.out.println("Emu listen: unknown command");
+//System.out.println("Emu UDP listen: unknown command");
                         continue;
                 }
 
@@ -240,11 +243,22 @@ System.out.println("Emu listen: Told to kill myself by another multicast server"
                 int expidLen    = cMsgUtilities.bytesToInt(buf, 24); // length of expid (# chars)
                 int pos = 28;
 
-                // sender's name
-                String multicasterName = null;
+                // Check for conflicting cMsg versions
+                if (cMsgVersion != cMsgConstants.version) {
+                    if (debug >= cMsgConstants.debugInfo) {
+                        System.out.println("Emu UDP listen: conflicting cMsg versions, got " +
+                                                   cMsgVersion + ", need " + cMsgConstants.version);
+                    }
+                    continue;
+                }
+
+                // destination/server CODA component name
+                // (this component's if client, probing server if server)
+                String componentName = null;
                 try {
-                    multicasterName = new String(buf, pos, nameLen, "US-ASCII");
+                    componentName = new String(buf, pos, nameLen, "US-ASCII");
                     pos += nameLen;
+
                 }
                 catch (UnsupportedEncodingException e) {}
 
@@ -256,24 +270,18 @@ System.out.println("Emu listen: Told to kill myself by another multicast server"
                 }
                 catch (UnsupportedEncodingException e) {}
 
-//                if (debug >= cMsgConstants.debugInfo) {
-//                    System.out.println("Emu listen: multicaster's host = " + multicasterHost + ", UDP port = " + multicasterUdpPort +
-//                        ", cMsg version = " + cMsgVersion + ", name = " + multicasterName +
-//                        ", expid = " + multicasterExpid);
-//                }
-
-                // Check for conflicting cMsg versions
-                if (cMsgVersion != cMsgConstants.version) {
-                    if (debug >= cMsgConstants.debugInfo) {
-                        System.out.println("Emu listen: conflicting cMsg versions, ignoring");
-                    }
-                    continue;
+                if (debug >= cMsgConstants.debugInfo) {
+                    System.out.println("Emu UDP listen: multicaster's host = " + multicasterHost +
+                                       ", UDP port = " + multicasterUdpPort +
+                                       ", cMsg version = " + cMsgVersion + ", name = " +
+                                       componentName + ", expid = " + multicasterExpid);
                 }
 
                 // Check for conflicting expids
                 if (!expid.equalsIgnoreCase(multicasterExpid)) {
                     if (debug >= cMsgConstants.debugInfo) {
-                        System.out.println("Emu listen: conflicting EXPIDs, ignoring");
+                        System.out.println("Emu listen: conflicting EXPIDs, got " + multicasterExpid +
+                                           ", need " + expid);
                     }
                     continue;
                 }
@@ -282,25 +290,35 @@ System.out.println("Emu listen: Told to kill myself by another multicast server"
                 // from our self when first connecting. Just ignore our own probing
                 // multicast.
 
-//                System.out.println("Emu listen: accepting Clients = " + server.acceptingClients);
+//                System.out.println("Emu UDP listen: accepting Clients = " + server.acceptingClients);
 //                System.out.println("          : local host = " + InetAddress.getLocalHost().getCanonicalHostName());
 //                System.out.println("          : multicaster's packet's host = " + multicasterHost);
 //                System.out.println("          : multicaster's packet's UDP port = " + multicasterUdpPort);
-//                System.out.println("          : multicaster's name = " + multicasterName);
 //                System.out.println("          : multicaster's expid = " + multicasterExpid);
+//                System.out.println("          : component's name = " + componentName);
 //                System.out.println("          : our port = " + server.localTempPort);
 
                 if (multicasterUdpPort == server.localTempPort) {
-//System.out.println("Emu listen: ignore my own udp messages");
+//System.out.println("Emu UDP listen: ignore my own udp messages");
                     continue;
                 }
 
                 // if multicast probe or connection request from client ...
                 if (msgType == cMsgNetworkConstants.emuDomainMulticastProbe  ||
                     msgType == cMsgNetworkConstants.emuDomainMulticastClient)  {
+
+                    // Only accept multicast clients attempting to connect this emu
+                    if (!componentName.equalsIgnoreCase(emuName)) {
+                        if (debug >= cMsgConstants.debugInfo) {
+                            System.out.println("Emu UDP listen: this emu wrong destination, I am " +
+                                                emuName + ", client looking for " + componentName);
+                        }
+                        continue;
+                    }
+
                     try {
                         sendPacket = new DatagramPacket(outBuf, outBuf.length, multicasterAddress, multicasterUdpPort);
-//System.out.println("Emu listen: send response-to-probe packet to client");
+//System.out.println("Emu UDP listen: send response-to-probe packet to client");
                         multicastSocket.send(sendPacket);
                     }
                     catch (IOException e) {
@@ -312,7 +330,7 @@ System.out.println("Emu listen: Told to kill myself by another multicast server"
                     // Other Emu multicast servers send "feelers" just trying see if another
                     // server is on the same port with the same EXPID.
                     if (debug >= cMsgConstants.debugInfo) {
-                        System.out.println("Emu listen: another Emu multicast server probing this one");
+                        System.out.println("Emu UDP listen: another Emu multicast server probing this one");
                     }
 
                     // If this server was properly started, tell the one probing us to kill itself
@@ -323,11 +341,11 @@ System.out.println("Emu listen: Told to kill myself by another multicast server"
                         cMsgUtilities.intToBytes(cMsgNetworkConstants.magicNumbers[2], buf, 8);
                         cMsgUtilities.intToBytes(cMsgNetworkConstants.emuDomainMulticastKillSelf, buf, 12);
                         DatagramPacket pkt = new DatagramPacket(buf, 16, multicasterAddress, multicastPort);
-System.out.println("Emu listen: send response packet (kill yourself) to server");
+System.out.println("Emu UDP listen: send response packet (kill yourself) to server");
                         multicastSocket.send(pkt);
                     }
                     else {
-System.out.println("Emu listen: still starting up but have been probed by starting server. So quit");
+System.out.println("Emu UDP listen: still starting up but have been probed by starting server. So quit");
                         server.respondingHost = multicasterHost;
                         server.multicastResponse.countDown();
                         return;
@@ -339,7 +357,7 @@ System.out.println("Emu listen: still starting up but have been probed by starti
             server.transport.transportState = CODAState.ERROR;
             server.transport.emu.setErrorState("Transport Emu: IO error in emu UDP server");
             if (debug >= cMsgConstants.debugError) {
-                System.out.println("Emu domain UDP server: main server IO error: " + e.getMessage());
+                System.out.println("Emu UDP server: IO error: " + e.getMessage());
             }
         }
         finally {
@@ -347,7 +365,7 @@ System.out.println("Emu listen: still starting up but have been probed by starti
         }
 
         if (debug >= cMsgConstants.debugInfo) {
-            System.out.println("Emu domain UDP server: quitting");
+            System.out.println("Emu UDP server: quitting");
         }
     }
 

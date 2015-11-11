@@ -60,6 +60,8 @@ public class EmuDomainServer extends Thread {
     private DatagramPacket udpPacket;
 
     private final String expid;
+
+    /** Containing emu's name. */
     private final String name;
 
     private int debug;
@@ -171,7 +173,7 @@ public class EmuDomainServer extends Thread {
 
 
             // Start listening for udp packets
-            listener = new EmuDomainUdpListener(this, serverPort, expid);
+            listener = new EmuDomainUdpListener(this, serverPort, expid, name);
             listener.start();
 
             // Wait for indication listener thread is running before continuing on

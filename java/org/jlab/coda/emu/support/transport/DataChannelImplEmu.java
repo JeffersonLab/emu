@@ -193,6 +193,7 @@ logger.info("      DataChannel Emu: creating output channel " + name);
                     noDelay = true;
                 }
             }
+
             // size of TCP send buffer (0 means use operating system default)
             tcpSendBuf = 0;
             attribString = attributeMap.get("sendBuf");
@@ -219,21 +220,22 @@ logger.info("      DataChannel Emu: creating output channel " + name);
                 }
                 catch (NumberFormatException e) {}
             }
-System.out.println("      DataChannel Emu: sending on port " + sendPort);
+            logger.info("      DataChannel Emu: sending on port " + sendPort);
 
 
             // Size of max buffer
-            maxBufferSize = 2100000;
+            maxBufferSize = 4010000;
             attribString = attributeMap.get("maxBuf");
             if (attribString != null) {
                 try {
                     maxBufferSize = Integer.parseInt(attribString);
                     if (maxBufferSize < 0) {
-                        maxBufferSize = 2100000;
+                        maxBufferSize = 4010000;
                     }
                 }
                 catch (NumberFormatException e) {}
             }
+            logger.info("      DataChannel Emu: max buf size = " + maxBufferSize);
 
             // Emu domain connection timeout in sec
             connectTimeout = -1;
@@ -247,6 +249,7 @@ System.out.println("      DataChannel Emu: sending on port " + sendPort);
                 }
                 catch (NumberFormatException e) {}
             }
+            logger.info("      DataChannel Emu: timeout = " + connectTimeout);
 
             // Emu domain preferred subnet in dot-decimal format
             preferredSubnet = null;
@@ -254,6 +257,7 @@ System.out.println("      DataChannel Emu: sending on port " + sendPort);
             if (attribString != null && cMsgUtilities.isDottedDecimal(attribString) == null) {
                 preferredSubnet = null;
             }
+            logger.info("      DataChannel Emu: over subnet " + preferredSubnet);
         }
 
         // State after prestart transition -
@@ -283,7 +287,6 @@ System.out.println("      DataChannel Emu: sending on port " + sendPort);
         }
 
         // Use buffered streams for efficiency
-// TODO: change 256K number?
         in = new DataInputStream(new BufferedInputStream(socket.getInputStream(), 256000));
 
         // Create a ring buffer full of empty ByteBuffer objects
@@ -300,16 +303,18 @@ System.out.println("      DataChannel Emu: sending on port " + sendPort);
 
     private void openOutputChannel() throws cMsgException {
 
-        // UDL ->  emu://port/expid?codaId=id&timeout=sec&bufSize=size&tcpSend=size&noDelay
+        // UDL ->  emu://port/expid/destCompName?codaId=id&timeout=sec&bufSize=size&tcpSend=size&noDelay
 
-        String udl = "emu://" + sendPort + "/" +
-                emu.getExpid() + "?codaId=" + getID();
+        // "name" is name of this channel which also happens to be the
+        // destination CODA component we want to connect to.
+        String udl = "emu://" + sendPort + "/" + emu.getExpid() +
+                     "/" + name + "?codaId=" + getID();
 
         if (maxBufferSize > 0) {
             udl += "&bufSize=" + maxBufferSize;
         }
         else {
-            udl += "&bufSize=2100000";
+            udl += "&bufSize=4010000";
         }
 
         if (connectTimeout > -1) {
@@ -351,7 +356,7 @@ System.out.println("      DataChannel Emu: UDL = " + udl);
         }
         catch (cMsgException e) {
             channelState = CODAState.ERROR;
-            emu.setErrorState("DataChannel emu out: " + e.getMessage());
+            emu.setErrorState("      DataChannel Emu out: " + e.getMessage());
             e.printStackTrace();
             throw new CmdExecException(e);
         }
@@ -373,7 +378,7 @@ System.out.println("      DataChannel Emu: UDL = " + udl);
 
     /** {@inheritDoc}. Formerly this code was the close() method. */
     public void end() {
-        logger.warn("      DataChannel Emu: end() " + name);
+//logger.warn("      DataChannel Emu: start end()");
 
         gotEndCmd = true;
         gotResetCmd = false;
@@ -429,7 +434,7 @@ System.out.println("      DataChannel Emu: UDL = " + udl);
             e.printStackTrace();
         }
 
-System.out.println("      DataChannel Emu: end() done");
+//System.out.println("      DataChannel Emu: end() done");
     }
 
 
@@ -438,7 +443,7 @@ System.out.println("      DataChannel Emu: end() done");
      * Reset this channel by interrupting the data sending threads and closing ET system.
      */
     public void reset() {
-logger.debug("      DataChannel Emu: reset() " + name);
+//logger.debug("      DataChannel Emu: reset() " + name);
 
         gotEndCmd   = false;
         gotResetCmd = true;
@@ -471,7 +476,7 @@ logger.debug("      DataChannel Emu: reset() " + name);
         }
 
         channelState = CODAState.CONFIGURED;
-logger.debug("      DataChannel Emu: reset() " + name + " done");
+//logger.debug("      DataChannel Emu: reset() " + name + " done");
     }
 
 
@@ -487,7 +492,7 @@ logger.debug("      DataChannel Emu: reset() " + name + " done");
 
 
     private final void startOutputThread() {
-logger.debug("      DataChannel Emu startOutputThread()");
+//logger.debug("      DataChannel Emu startOutputThread()");
         dataOutputThread = new DataOutputHelper();
         dataOutputThread.start();
         dataOutputThread.waitUntilStarted();
@@ -563,7 +568,7 @@ logger.debug("      DataChannel Emu startOutputThread()");
         /** Constructor. */
         DataInputHelper() {
             super(emu.getThreadGroup(), name() + "_data_in");
-System.out.println("      DataChannel Emu in: start EMU input thread");
+//System.out.println("      DataChannel Emu in: start EMU input thread");
         }
 
 
@@ -616,9 +621,9 @@ System.out.println("      DataChannel Emu in: start EMU input thread");
                             handleEvioFileToBuf();
 
                             break;
-// TODO: not used at present
+
                         case cMsgConstants.emuEnd:
-System.out.println("      DataChannel Emu in: get emuEnd cmd");
+//System.out.println("      DataChannel Emu in: get emuEnd cmd");
                             break;
 
                         default:
@@ -639,8 +644,7 @@ logger.warn("      DataChannel Emu in: " + name + "  interrupted thd, exiting");
                 emu.setErrorState("DataChannel Emu in: " + e.getMessage());
 logger.warn("      DataChannel Emu in: " + name + " error: " + e.getMessage());
             }
-System.out.println("      DataChannel Emu in helper: " + name + " RETURN");
-
+//System.out.println("      DataChannel Emu in: " + name + " end thread");
         }
 
 
@@ -774,7 +778,7 @@ logger.info("      DataChannel Emu in: " + name + " found END event");
     }
 
 
-    // Most likely needs updating / NOT USED
+    // TODO: most likely needs updating / NOT USED
     /**
      * Class used to take Evio banks from ring buffer (placed there by a module),
      * and write them over network to an Emu domain input channel using the Emu
@@ -1297,7 +1301,7 @@ System.out.println("      DataChannel Emu out: " + name + " I got END event, qui
         /** {@inheritDoc} */
         @Override
         public void run() {
-logger.debug("      DataChannel Emu out: started, w/ " + outputRingCount +  " output rings");
+//logger.debug("      DataChannel Emu out: started, w/ " + outputRingCount +  " output rings");
             threadState = ThreadState.RUNNING;
 
             // Tell the world I've started

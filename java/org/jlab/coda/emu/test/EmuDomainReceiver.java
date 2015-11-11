@@ -40,6 +40,7 @@ public class EmuDomainReceiver {
     private boolean debug;
     private int tcpPort;
     private String expid;
+    private String name = "Eb1";
 
     /** Constructor. */
     EmuDomainReceiver(String[] args) {
@@ -78,6 +79,10 @@ public class EmuDomainReceiver {
                 expid = args[i + 1];
                 i++;
             }
+            else if (args[i].equalsIgnoreCase("-n")) {
+                name = args[i + 1];
+                i++;
+            }
             else if (args[i].equalsIgnoreCase("-debug")) {
                 debug = true;
             }
@@ -106,6 +111,7 @@ public class EmuDomainReceiver {
             "   java EmuDomainReceiver\n" +
             "        [-p <port>]   TCP port to listen on for connections\n" +
             "        [-x <expid>]  EXPID of experiment\n" +
+            "        [-n <name>]   name of server's CODA component\n" +
             "        [-debug]      turn on printout\n" +
             "        [-h]          print this help\n");
     }
@@ -130,7 +136,7 @@ public class EmuDomainReceiver {
     public void run() {
 
         try {
-            LocalEmuDomainServer server = new LocalEmuDomainServer(tcpPort, expid, "emu server", null);
+            LocalEmuDomainServer server = new LocalEmuDomainServer(tcpPort, expid, name, null);
             server.start();
         }
         catch (cMsgException e) {
@@ -179,6 +185,7 @@ class LocalEmuDomainServer extends Thread {
     private DatagramPacket udpPacket;
 
     private final String expid;
+
     private final String name;
 
     private int debug;
@@ -286,7 +293,7 @@ System.out.println("I/O Error: " + e);
 
 
             // Start listening for udp packets
-            listener = new LocalEmuDomainUdpListener(this, serverPort, expid);
+            listener = new LocalEmuDomainUdpListener(this, serverPort, expid, name);
             listener.start();
 
             // Wait for indication listener thread is running before continuing on
@@ -432,6 +439,7 @@ class LocalEmuDomainUdpListener extends Thread {
     private int debug = cMsgConstants.debugError;
 
     private String expid;
+    private String emuName;
 
     /** Setting this to true will kill all threads. */
     private volatile boolean killThreads;
@@ -450,9 +458,11 @@ class LocalEmuDomainUdpListener extends Thread {
      * @param server emu server that created this object
      * @param port udp port on which to receive transmissions from emu clients
      */
-    public LocalEmuDomainUdpListener(LocalEmuDomainServer server, int port, String expid) throws cMsgException {
+    public LocalEmuDomainUdpListener(LocalEmuDomainServer server, int port,
+                                     String expid, String emuName) throws cMsgException {
 
         this.expid = expid;
+        this.emuName = emuName;
         multicastPort = tcpPort = port;
 
         try {
@@ -605,10 +615,18 @@ class LocalEmuDomainUdpListener extends Thread {
                 int expidLen    = cMsgUtilities.bytesToInt(buf, 24); // length of expid (# chars)
                 int pos = 28;
 
+                 // Check for conflicting cMsg versions
+                if (cMsgVersion != cMsgConstants.version) {
+                    if (debug >= cMsgConstants.debugInfo) {
+                        System.out.println("Emu listen: conflicting cMsg versions, ignoring");
+                    }
+                    continue;
+                }
+
                 // sender's name
-                String multicasterName = null;
+                String componentName = null;
                 try {
-                    multicasterName = new String(buf, pos, nameLen, "US-ASCII");
+                    componentName = new String(buf, pos, nameLen, "US-ASCII");
                     pos += nameLen;
                 }
                 catch (UnsupportedEncodingException e) {}
@@ -627,18 +645,12 @@ class LocalEmuDomainUdpListener extends Thread {
 //                        ", expid = " + multicasterExpid);
 //                }
 
-                // Check for conflicting cMsg versions
-                if (cMsgVersion != cMsgConstants.version) {
-                    if (debug >= cMsgConstants.debugInfo) {
-                        System.out.println("Emu listen: conflicting cMsg versions, ignoring");
-                    }
-                    continue;
-                }
 
                 // Check for conflicting expids
                 if (!expid.equalsIgnoreCase(multicasterExpid)) {
                     if (debug >= cMsgConstants.debugInfo) {
-                        System.out.println("Emu listen: conflicting EXPID's, ignoring");
+                        System.out.println("Emu listen: conflicting EXPIDs, got " + multicasterExpid +
+                                           ", need " + expid);
                     }
                     continue;
                 }
@@ -651,8 +663,8 @@ class LocalEmuDomainUdpListener extends Thread {
 //                System.out.println("          : local host = " + InetAddress.getLocalHost().getCanonicalHostName());
 //                System.out.println("          : multicaster's packet's host = " + multicasterHost);
 //                System.out.println("          : multicaster's packet's UDP port = " + multicasterUdpPort);
-//                System.out.println("          : multicaster's name = " + multicasterName);
 //                System.out.println("          : multicaster's expid = " + multicasterExpid);
+//                System.out.println("          : component's name = " + componentName);
 //                System.out.println("          : our port = " + server.localTempPort);
 
                 if (multicasterUdpPort == server.localTempPort) {
@@ -663,6 +675,16 @@ class LocalEmuDomainUdpListener extends Thread {
                 // if multicast probe or connection request from client ...
                 if (msgType == cMsgNetworkConstants.emuDomainMulticastProbe  ||
                     msgType == cMsgNetworkConstants.emuDomainMulticastClient)  {
+
+                    // Only accept multicast clients attempting to connect this emu
+                    if (!componentName.equalsIgnoreCase(emuName)) {
+                        if (debug >= cMsgConstants.debugInfo) {
+                            System.out.println("Emu UDP listen: this emu wrong destination, I am " +
+                                                emuName + ", client looking for " + componentName);
+                        }
+                        continue;
+                    }
+
                     try {
                         sendPacket = new DatagramPacket(outBuf, outBuf.length, multicasterAddress, multicasterUdpPort);
 //System.out.println("Emu listen: send response-to-probe packet to client");
@@ -1157,13 +1179,14 @@ System.out.println("      DataChannel Emu in: get emuEnd cmd");
 
             // Get a reusable ByteBuffer
             ByteBufferItem bbItem = bbSupply.get();
-            ByteBuffer buf = bbItem.getBuffer();
 
             // Read the length of evio file-format data to come
             int evioBytes = in.readInt();
-//System.out.println("      DataChannel Emu in: len = " + evioBytes);
+
             // If buffer is too small, make a bigger one
             bbItem.ensureCapacity(evioBytes);
+            ByteBuffer buf = bbItem.getBuffer();
+            buf.position(0).limit(evioBytes);
 
             // Read evio file-format data
             in.readFully(buf.array(), 0, evioBytes);
@@ -1196,8 +1219,8 @@ System.out.println("      DataChannel Emu in: get emuEnd cmd");
             int eventCount = compactReader.getEventCount();
             bbItem.setUsers(eventCount);
 
-//logger.info("      DataChannel Emu in: " + name + " block header, event type " + eventType +
-//            ", src id = " + sourceId + ", recd id = " + recordId + ", event cnt = " + eventCount);
+//System.out.println("      DataChannel Emu in:event type " + eventType +
+//                   ", src id = " + sourceId + ", event cnt = " + eventCount);
 
             for (int i=1; i < eventCount+1; i++) {
                 node = compactReader.getScannedEvent(i);

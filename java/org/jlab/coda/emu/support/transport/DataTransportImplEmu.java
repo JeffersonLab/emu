@@ -13,10 +13,8 @@ package org.jlab.coda.emu.support.transport;
 
 import org.jlab.coda.cMsg.cMsgException;
 import org.jlab.coda.cMsg.cMsgNetworkConstants;
-import org.jlab.coda.cMsg.cMsgUtilities;
 import org.jlab.coda.emu.Emu;
 import org.jlab.coda.emu.EmuModule;
-import org.jlab.coda.emu.EmuUtilities;
 import org.jlab.coda.emu.support.codaComponent.CODAState;
 import org.jlab.coda.emu.support.configurer.DataNotFoundException;
 import org.jlab.coda.emu.support.logger.Logger;
@@ -90,12 +88,12 @@ public class DataTransportImplEmu extends DataTransportAdapter {
             }
             else {
                 port = cMsgNetworkConstants.emuTcpPort;
-System.out.println("Port should be specified in config file, using default " + port);
+logger.debug("    Transport Emu: port should be specified in config file, using default " + port);
             }
 
             // Start up Emu domain server (receiver of data)
-System.out.println("STARTING UP EMU SERVER in " + name + " with port " + port);
-            emuServer = new EmuDomainServer(port, emu.getExpid(), name, this);
+logger.debug("    Transport Emu: start up emu server in " + emu.name() + " @ port " + port);
+            emuServer = new EmuDomainServer(port, emu.getExpid(), emu.name(), this);
             emuServer.start();
         }
         else {
