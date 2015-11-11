@@ -45,4 +45,36 @@ public class EmuUtilities {
     }
 
 
+    /**
+     * Return the power of 2 closest to the given argument.
+     *
+     * @param x value to get the power of 2 closest to.
+     * @param roundUp if true, round up, else down
+     * @return -1 if value is negative or the closest power of 2 to value
+     */
+    static public int powerOfTwo(int x, boolean roundUp) {
+        if (x < 0) return -1;
+
+        // The following algorithms are found in
+        // "Hacker's Delight" by Henry Warren Jr.
+
+        if (roundUp) {
+            x = x - 1;
+            x |= (x>>1);
+            x |= (x>>2);
+            x |= (x>>4);
+            x |= (x>>8);
+            x |= (x>>16);
+            return x + 1;
+        }
+
+        int y;
+        do {
+            y = x;
+            x &= (x - 1);
+        } while (x != 0);
+        return y;
+    }
+
+
 }
