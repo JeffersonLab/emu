@@ -13,10 +13,7 @@ package org.jlab.coda.emu.support.transport;
 
 
 import com.lmax.disruptor.*;
-import org.jlab.coda.emu.Emu;
-import org.jlab.coda.emu.EmuEventNotify;
-import org.jlab.coda.emu.EmuException;
-import org.jlab.coda.emu.EmuModule;
+import org.jlab.coda.emu.*;
 import org.jlab.coda.emu.support.codaComponent.CODAState;
 import org.jlab.coda.emu.support.codaComponent.CODAStateMachineAdapter;
 import org.jlab.coda.emu.support.codaComponent.State;
@@ -244,18 +241,10 @@ public class DataChannelAdapter extends CODAStateMachineAdapter implements DataC
             attribString = attributeMap.get("ringSize");
             if (attribString != null) {
                 try {
-                    int ringSize = Integer.parseInt(attribString);
+                    // Make sure it's a power of 2, rounded up
+                    int ringSize = EmuUtilities.powerOfTwo(Integer.parseInt(attribString), true);
                     if (ringSize < 128) {
                         ringSize = 128;
-                    }
-                    // Make sure it's a power of 2
-                    else if (Integer.bitCount(ringSize) != 1) {
-                        int newVal = ringSize / 2;
-                        ringSize = 1;
-                        while (newVal > 0) {
-                            ringSize *= 2;
-                            newVal /= 2;
-                        }
                     }
                     inputRingItemCount = ringSize;
                 }
