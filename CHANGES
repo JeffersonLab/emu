@@ -38,3 +38,9 @@ Version 2.5
     - Channels handle user events coming right after prestart
     - Remove code handling more than one type of ring item.
       Use compact evio structures only instead of that and EvioEvent objects.
+
+Version 2.6
+    - ByteBufferSupply class no longer requires use of synchronized code if
+      user specifies option to release ByteBufferItems in same order as acquired.
+    - Emu input channel now uses ByteBufferSupply without synchronization and
+      EB now ensures those buffers are released in order.
