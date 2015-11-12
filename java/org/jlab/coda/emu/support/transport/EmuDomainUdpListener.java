@@ -217,16 +217,6 @@ public class EmuDomainUdpListener extends Thread {
                     case cMsgNetworkConstants.emuDomainMulticastClient:
 //System.out.println("Emu UDP listen: client wants to connect");
                         break;
-                    // Multicasts from emu servers
-                    case cMsgNetworkConstants.emuDomainMulticastServer:
-//System.out.println("Emu UDP listen: server wants to connect");
-                        break;
-                    // Kill this server since one already exists on this port/expid
-                    case cMsgNetworkConstants.emuDomainMulticastKillSelf:
-System.out.println("Emu UDP listen: Told to kill myself by another multicast server");
-                        server.respondingHost = multicasterHost;
-                        server.multicastResponse.countDown();
-                        return;
                     // Packet from client just trying to locate emu multicast servers.
                     // Send back a normal response but don't do anything else.
                     case cMsgNetworkConstants.emuDomainMulticastProbe:
@@ -303,53 +293,25 @@ System.out.println("Emu UDP listen: Told to kill myself by another multicast ser
                     continue;
                 }
 
-                // if multicast probe or connection request from client ...
-                if (msgType == cMsgNetworkConstants.emuDomainMulticastProbe  ||
-                    msgType == cMsgNetworkConstants.emuDomainMulticastClient)  {
+                // If connection request from client, don't accept if they're
+                // looking to connect to a different emu name
+                if (msgType == cMsgNetworkConstants.emuDomainMulticastClient &&
+                    !componentName.equalsIgnoreCase(emuName)) {
 
-                    // Only accept multicast clients attempting to connect this emu
-                    if (!componentName.equalsIgnoreCase(emuName)) {
-                        if (debug >= cMsgConstants.debugInfo) {
-                            System.out.println("Emu UDP listen: this emu wrong destination, I am " +
-                                                emuName + ", client looking for " + componentName);
-                        }
-                        continue;
-                    }
-
-                    try {
-                        sendPacket = new DatagramPacket(outBuf, outBuf.length, multicasterAddress, multicasterUdpPort);
-//System.out.println("Emu UDP listen: send response-to-probe packet to client");
-                        multicastSocket.send(sendPacket);
-                    }
-                    catch (IOException e) {
-                        System.out.println("I/O Error: " + e);
-                    }
-                }
-                // else if multicast from server ...
-                else {
-                    // Other Emu multicast servers send "feelers" just trying see if another
-                    // server is on the same port with the same EXPID.
                     if (debug >= cMsgConstants.debugInfo) {
-                        System.out.println("Emu UDP listen: another Emu multicast server probing this one");
+                        System.out.println("Emu UDP listen: this emu wrong destination, I am " +
+                                                   emuName + ", client looking for " + componentName);
                     }
+                    continue;
+                }
 
-                    // If this server was properly started, tell the one probing us to kill itself
-                    if (server.acceptingClients) {
-                        // Create packet to respond to multicast
-                        cMsgUtilities.intToBytes(cMsgNetworkConstants.magicNumbers[0], buf, 0);
-                        cMsgUtilities.intToBytes(cMsgNetworkConstants.magicNumbers[1], buf, 4);
-                        cMsgUtilities.intToBytes(cMsgNetworkConstants.magicNumbers[2], buf, 8);
-                        cMsgUtilities.intToBytes(cMsgNetworkConstants.emuDomainMulticastKillSelf, buf, 12);
-                        DatagramPacket pkt = new DatagramPacket(buf, 16, multicasterAddress, multicastPort);
-System.out.println("Emu UDP listen: send response packet (kill yourself) to server");
-                        multicastSocket.send(pkt);
-                    }
-                    else {
-System.out.println("Emu UDP listen: still starting up but have been probed by starting server. So quit");
-                        server.respondingHost = multicasterHost;
-                        server.multicastResponse.countDown();
-                        return;
-                    }
+                try {
+                    sendPacket = new DatagramPacket(outBuf, outBuf.length, multicasterAddress, multicasterUdpPort);
+//System.out.println("Emu UDP listen: send response-to-probe packet to client");
+                    multicastSocket.send(sendPacket);
+                }
+                catch (IOException e) {
+                    System.out.println("I/O Error: " + e);
                 }
             }
         }
