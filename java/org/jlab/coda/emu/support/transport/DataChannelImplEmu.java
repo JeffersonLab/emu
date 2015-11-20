@@ -54,6 +54,12 @@ public class DataChannelImplEmu extends DataChannelAdapter {
     /** Got RESET command from Run Control. */
     private volatile boolean gotResetCmd;
 
+    /**
+     * If true, dump incoming data immediately so it does not get put on
+     * the ring but does get parsed. Use this for testing incoming data rate.
+     */
+    private boolean dumpData;
+
     // OUTPUT
 
     /** Thread used to output data. */
@@ -180,6 +186,17 @@ logger.info("      DataChannel Emu: creating output channel " + name);
                 }
                 catch (NumberFormatException e) {}
             }
+
+            // set "data dump" option on
+            attribString = attributeMap.get("dump");
+            if (attribString != null) {
+                if (attribString.equalsIgnoreCase("true") ||
+                    attribString.equalsIgnoreCase("on")   ||
+                    attribString.equalsIgnoreCase("yes"))   {
+                    dumpData = true;
+                }
+            }
+
         }
         // if OUTPUT channel
         else {
@@ -589,7 +606,8 @@ System.out.println("      DataChannel Emu: UDL = " + udl);
             latch.countDown();
 
             try {
-                int command;
+                long word;
+                int cmd, size;
                 boolean delay = false;
 
                 while ( true ) {
@@ -610,15 +628,20 @@ System.out.println("      DataChannel Emu: UDL = " + udl);
                         continue;
                     }
 
-                    // Read the command first
-                    command = in.readInt();
-//System.out.println("      DataChannel Emu in: cmd = 0x" + Integer.toHexString(command));
+                    // First read the command & size with one read, into a long.
+                    // These 2, 32-bit ints are sent in network byte order, cmd first.
+                    // Reading a long assumes big endian so cmd, which is sent
+                    // first, should appear in most significant bytes.
+                    word = in.readLong();
+                    cmd  = (int)((word >>> 32) & 0xffL);
+                    size = (int) word;   // just truncate for lowest 32 bytes
+//System.out.println("      DataChannel Emu in: cmd = " + cmd + ", size = " + size);
 
                     // 1st byte has command
-                    switch (command & 0xff) {
+                    switch (cmd) {
                         case cMsgConstants.emuEvioFileFormat:
 //System.out.println("      DataChannel Emu in: event to handleEvioFileToBuf(), name = " + name);
-                            handleEvioFileToBuf();
+                            handleEvioFileToBuf(size);
 
                             break;
 
@@ -648,18 +671,19 @@ logger.warn("      DataChannel Emu in: " + name + " error: " + e.getMessage());
         }
 
 
-        private final void handleEvioFileToBuf() throws IOException, EvioException {
+        private final void handleEvioFileToBuf(int evioBytes) throws IOException, EvioException {
 
             RingItem ri;
             EvioNode node;
             EventType bankType;
+            boolean hasFirstEvent;
             ControlType controlType = null;
 
             // Get a reusable ByteBuffer
             ByteBufferItem bbItem = bbSupply.get();
 
             // Read the length of evio file-format data to come
-            int evioBytes = in.readInt();
+            //int evioBytes = in.readInt();
 
             // If buffer is too small, make a bigger one
             bbItem.ensureCapacity(evioBytes);
@@ -697,6 +721,7 @@ logger.warn("      DataChannel Emu in: " + name + " error: " + e.getMessage());
                 throw new EvioException("Data not in evio v4 format");
             }
 
+            hasFirstEvent = blockHeader.hasFirstEvent();
             EventType eventType = EventType.getEventType(blockHeader.getEventType());
             int recordId = blockHeader.getNumber();
 
@@ -739,12 +764,31 @@ logger.warn("      DataChannel Emu in: " + name + " error: " + e.getMessage());
                     }
                 }
 
+                if (dumpData) {
+                    bbSupply.release(bbItem);
+
+                    // Handle end event ...
+                    if (controlType == ControlType.END) {
+                        // There should be no more events coming down the pike so
+                        // go ahead write out existing events and then shut this
+                        // thread down.
+                        logger.info("      DataChannel Emu in: " + name + " found END event");
+                        haveInputEndEvent = true;
+                        // run callback saying we got end event
+                        if (endCallback != null) endCallback.endWait();
+                        break;
+                    }
+
+                    continue;
+                }
+
                 nextRingItem = ringBufferIn.next();
                 ri = ringBufferIn.get(nextRingItem);
 
                 //ri.setBuffer(node.getStructureBuffer(false));
                 ri.setEventType(bankType);
                 ri.setControlType(controlType);
+                ri.isFirstEvent(hasFirstEvent);
                 ri.setRecordId(recordId);
                 ri.setSourceId(sourceId);
                 ri.setSourceName(name);
@@ -1238,6 +1282,9 @@ System.out.println("      DataChannel Emu out: " + name + " I got END event, qui
 //System.out.println("      DataChannel Emu out:: write ev into buf");
                 // Write the event ..
                 EmuUtilities.setEventType(bitInfo, eType);
+                if (rItem.isFirstEvent()) {
+                    EmuUtilities.setFirstEvent(bitInfo);
+                }
                 writer.setBuffer(byteBuffer, bitInfo, blockNum);
                 writer.writeEvent(rItem.getBuffer());
                 rItem.releaseByteBuffer();
