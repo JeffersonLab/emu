@@ -3,17 +3,11 @@ Changes from the previous version:
 Version 2.3
     - fix major bug in ER in which use of ByteBuffer backing events is released for
       reuse BEFORE all events written to file, resulting in corrupted data.
-
     - make EB multithreaded
-
     - add ability to flush events through emu every 2 seconds if data rate is low
-
     - add fake Trigger Supervisor to handle fake ROCs
-
     - add flag to scripts forcing use of IPv4
-
     - add emu config option to set preferred ET communication subnet
-
     - make ET event handling more efficient
 
 Version 2.4
@@ -22,25 +16,26 @@ Version 2.4
       state. Have them report an error when it occurs. Eliminate unnecessary locks when
       finding state and reporting errors/stats.
       Have reset shut down ability for chan, trans, mods to change state.
-
     - add RESETTING state
-
     - add cmsgpassword to cMsg client UDLs in emu's communication with platform cMsg server
-
     - fix bug in quitting EB's build threads
-
     - get emu domain working with new protocol and preferred subnet
 
 Version 2.5
     - Compatible with et-16.0
     - ER input channels do not parse beyond first bank header
-    - Output channels write more efficiently - don't duplicate buffers if single threaded
     - Channels handle user events coming right after prestart
     - Remove code handling more than one type of ring item.
       Use compact evio structures only instead of that and EvioEvent objects.
+    - correctly handle an event designated as the "first event" to be identified
+      by the output file channel and passed to the EventWriter so it can be
+      written as the first event in each file split.
 
 Version 2.6
     - ByteBufferSupply class no longer requires use of synchronized code if
       user specifies option to release ByteBufferItems in same order as acquired.
     - Emu input channel now uses ByteBufferSupply without synchronization and
       EB now ensures those buffers are released in order.
+    - fake ROC can operate without output channel
+    - EB now has a resource-freeing thread which cleans up after build threads.
+      Build thread optimized if only 1.
