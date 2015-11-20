@@ -65,6 +65,9 @@ public class RocSimulation extends ModuleAdapter {
     /** Number of Roc raw events to produce before syncing with other Rocs. */
     private int syncCount;
 
+    /** Number of computational loops to act as a delay. */
+    private int loops;
+
     /** Number of ByteBuffers in each EventGeneratingThread. */
     private int bufSupplySize = 4096;
 
@@ -172,6 +175,12 @@ public class RocSimulation extends ModuleAdapter {
         try { eventSize = Integer.parseInt(attributeMap.get("eventSize")); }
         catch (NumberFormatException e) { /* defaults to 40 */ }
         if (eventSize < 1) eventSize = 1;
+
+        // How many loops to constitute a delay?
+        loops = 0;
+        try { loops = Integer.parseInt(attributeMap.get("loops")); }
+        catch (NumberFormatException e) { /* defaults to 0 */ }
+        if (loops < 1) loops = 0;
 
         // How many iterations (writes of an entangled block of evio events)
         // before syncing fake ROCs together?
@@ -285,6 +294,11 @@ public class RocSimulation extends ModuleAdapter {
      */
     private void eventToOutputRing(int ringNum, ByteBuffer buf,
                                    ByteBufferItem item, ByteBufferSupply bbSupply) {
+
+        if (outputChannelCount < 1) {
+            bbSupply.release(item);
+            return;
+        }
 
         // TODO: assumes only one output channel ...
         RingBuffer rb = outputChannels.get(0).getRingBuffersOut()[ringNum];
@@ -527,6 +541,7 @@ System.out.println("  Roc mod: start With (id=" + myId + "):\n    record id = " 
 
         public void run() {
 
+            int  i,j,k=0;
             int  skip=3,  userEventLoop = syncCount;
             long oldVal=0L, totalT=0L, totalCount=0L, bufCounter=0L;
             long t1, deltaT, t2;
@@ -538,7 +553,12 @@ System.out.println("  Roc mod: start With (id=" + myId + "):\n    record id = " 
             // the # of ring buffer slots in the output channel or we can get
             // a deadlock. Although we get the value from the first channel's
             // first ring, it's the same for all output channels.
-            bufSupplySize = outputChannels.get(0).getRingBuffersOut()[0].getBufferSize();
+            if (outputChannelCount > 0) {
+                bufSupplySize = outputChannels.get(0).getRingBuffersOut()[0].getBufferSize();
+            }
+            else {
+                bufSupplySize = 4096;
+            }
             // Now create our own buffer supply to match
             bbSupply = new ByteBufferSupply(bufSupplySize, 4*eventWordSize, ByteOrder.BIG_ENDIAN, true);
 
@@ -560,6 +580,8 @@ System.out.println("  Roc mod: write USER event for Roc1");
                     wordCountTotal  += 7;
                     myRocRecordId ++;
                 }
+
+                System.out.println("SETTING loops to " + loops);
 
                 while (moduleState == CODAState.ACTIVE || paused) {
 
@@ -594,6 +616,13 @@ System.out.println("  Roc mod: write USER event for Roc1");
 
                         // Put generated events into output channel
                         eventToOutputRing(myId, buf, bufItem, bbSupply);
+
+                        // Delay things
+                        for (j=0; j < loops; j++) {
+                            for (i = 0; i < 15; i++) {
+                                k = k % 3;
+                            }
+                        }
 
 //                        Thread.sleep(1000);
 
