@@ -12,7 +12,6 @@
 package org.jlab.coda.emu.modules;
 
 import com.lmax.disruptor.*;
-import com.lmax.disruptor.TimeoutException;
 import org.jlab.coda.emu.Emu;
 import org.jlab.coda.emu.EmuException;
 import org.jlab.coda.emu.support.codaComponent.CODAClass;
@@ -28,7 +27,7 @@ import org.jlab.coda.jevio.*;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.*;
-import java.util.concurrent.*;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -124,8 +123,6 @@ public class FastEventBuilder extends ModuleAdapter {
 
     /** Number used to order the releasing of ring buffer resources of each build thread. */
     private AtomicLong releaseIndex = new AtomicLong(0L);
-    // private volatile long releaseIndexVol = 0L;
-    // private Sequence releaseIndexSeq = new Sequence(0L);
 
     /** The number of BuildingThread objects. */
     private int buildingThreadCount;
@@ -138,6 +135,9 @@ public class FastEventBuilder extends ModuleAdapter {
      * input channels and check them for proper format.
      */
     private Thread preProcessors[];
+
+    /** One thread for releasing resources used to build events. */
+    private ReleaseRingResourceThread releaseThread;
 
     /** Maximum time in milliseconds to wait when commanded to END but no END event received. */
     private long endingTimeLimit = 30000;
@@ -153,6 +153,12 @@ public class FastEventBuilder extends ModuleAdapter {
 
     /** If <code>true</code>, produce debug print out. */
     private boolean debug = true;
+
+    /**
+     * If true, dump incoming data immediately after reading off input rings.
+     * Use this for testing incoming data rate.
+     */
+    private boolean dumpData;
 
     // ---------------------------------------------------
     // Configuration parameters
@@ -209,17 +215,30 @@ public class FastEventBuilder extends ModuleAdapter {
     /** One RingBuffer per input channel (references to channels' rings). */
     private RingBuffer<RingItem>[] ringBuffersIn;
 
+
+
     /** One pre-processing sequence for each input channel. */
     private Sequence[] preBuildSequence;
 
     /** One pre-processing barrier for each input channel. */
     private SequenceBarrier[] preBuildBarrier;
 
+
+
     /** For each input channel, 1 sequence per build thread. */
     private Sequence[][] buildSequenceIn;
 
     /** For each input channel, all build threads share one barrier. */
     private SequenceBarrier[] buildBarrierIn;
+
+
+
+    /** One post-build sequence for each input channel. */
+    private Sequence[] postBuildSequence;
+
+    /** The post-build (garbage-releasing) thread has one barrier per input channel. */
+    private SequenceBarrier[] postBuildBarrier;
+
 
     //-------------------------------------------
     // Statistics
@@ -260,6 +279,17 @@ logger.info("  EB mod: " + buildingThreadCount + " number of event building thre
                 str.equalsIgnoreCase("on")   ||
                 str.equalsIgnoreCase("yes"))   {
                 includeRunData = true;
+            }
+        }
+
+
+        // set "data dump" option on
+        str = attributeMap.get("dump");
+        if (str != null) {
+            if (str.equalsIgnoreCase("true") ||
+                str.equalsIgnoreCase("on")   ||
+                str.equalsIgnoreCase("yes"))   {
+                dumpData = true;
             }
         }
 
@@ -380,6 +410,17 @@ logger.info("  EB mod: internal ring buf count -> " + ringItemCount);
                     while (moduleState == CODAState.ACTIVE || paused) {
 //System.out.println("  EB mod: wait for Seq = " + nextSequence + " in pre-processing");
                         final long availableSequence = barrier.waitFor(nextSequence);
+
+                        if (dumpData) {
+                            while (nextSequence <= availableSequence) {
+                                pBuf = ringBuffer.get(nextSequence);
+                                pBuf.releaseByteBuffer();
+                                nextSequence++;
+                            }
+                            sequence.set(availableSequence);
+                            continue;
+                        }
+
 
 //System.out.println("  EB mod: available Seq = " + availableSequence + " in pre-processing");
                         while (nextSequence <= availableSequence) {
@@ -535,7 +576,7 @@ if (debug) System.out.println("  EB mod: Roc raw or physics event in wrong forma
      *                      keep track of which event each thread is at
      *                      in each ring buffer
      * @return type of control events found
-     * @throws EmuException if got non-control or non-prestart/go event
+     * @throws org.jlab.coda.emu.EmuException if got non-control or non-prestart/go event
      * @throws InterruptedException if taking of event off of Q is interrupted
      */
     private ControlType getAllControlEvents(Sequence[] sequences,
@@ -645,7 +686,8 @@ System.out.println("Expecting PRESTART/GO event, got USER, skip over it");
         // Create a new control event with updated control data in it
         PayloadBuffer pBuf = Evio.createControlBuffer(controlType,
                                                    runNumber, runTypeId,
-                                                   (int)eventCountTotal, 0, outputOrder, false);
+                                                   (int)eventCountTotal,
+                                                   0, outputOrder, false);
 
         // Place event on first output channel, ring 0
         eventToOutputChannel(pBuf, 0, 0);
@@ -802,6 +844,7 @@ System.out.println("  EB mod: send END event to output channel " + j + ", ring "
                 }
             }
 
+            // TODO: this may not be necessary if ENDing since all build threads are ended anyway
             for (int i=0; i < inputChannelCount; i++) {
                 buildSequences[i].set(nextSequences[i]++);
             }
@@ -1344,109 +1387,21 @@ if (debug && nonFatalError) System.out.println("  EB mod: non-fatal ERROR @ pos 
                         eventNumberAtLastSync = firstEventNumber + totalNumberEvents;
                     }
 
-//                    // Release the reusable ByteBuffers used by the input channel
-//                    for (int i=0; i < inputChannelCount; i++) {
-//                        // The releaseByteBuffer() method ensures that earlier
-//                        // sequenced buffers are not released after the latter.
-//                        // Takes care of issues when # evio-events/buffer < # build-threads.
-//                        buildingBanks[i].releaseByteBuffer();
-//                    }
-
                     // Each build thread must release the "slots" in the input channel
                     // ring buffers of the components it uses to build the physics event.
-                    // It must be done in order, round-robin, with btIndex=0 going first.
-                    // This way, the components are not released before a build thread is
-                    // done with them. Only necessary for multiple build threads.
-                    // If this were to get out of order, a build thread's components may
-                    // be overwritten with incoming data.
-                    //
-                    // The beauty of this algorithm is its extreme simplicity, speed (due
-                    // to no synchronization), and it (should) work even when the longs
-                    // (releaseIndex & nextReleaseIndex) rollover from Long.MAX_VALUE to
-                    // Long.MIN_VALUE !
-                    if (btCount > 1) {
-                        //while (nextReleaseIndex > releaseIndexSeq.get()) {
-                        //while (nextReleaseIndex > releaseIndexVol) {
-                        while (nextReleaseIndex > releaseIndex.get()) {
-                            // spin first?
-                            Thread.yield();
-                            if (haveEndEvent) {
-System.out.println("  EB mod: Bt#" + btIndex + ", END found so return");
-                                return;
-                            }
-                        }
-
-//                        if (firstTimeToEnd) {
-//System.out.println("  EB mod: Bt#" + btIndex + ", PAST WAIT 1, next i -> " + (nextReleaseIndex+btCount) +
-//                       ", global -> " + (releaseIndex.get() + 1L));
-//                            firstTimeToEnd = false;
-//                        }
-
-                        // Tell input ring buffers we're done with these events
-                        for (int i=0; i < inputChannelCount; i++) {
-                            // Release the reusable ByteBuffers used by the input channel.
-                            // The fact that we're here means that these buffers are being
-                            // released sequentially and we need no locks.
+                    // This releases them up for the postBuild thread to free
+                    // up all the resources used in building.
+                    for (int i=0; i < inputChannelCount; i++) {
+                        if (btCount == 1) {
                             buildingBanks[i].releaseByteBuffer();
-
-//System.out.println("  EB mod: " + btIndex + ", chan " + outputChannelIndex + ", seq " + nextSequences[i]);
-                            buildSequences[i].set(nextSequences[i]++);
                         }
-
-                        // Wait until it's my turn again
-                        nextReleaseIndex += btCount;
-
-                        // Stats (need to be thread-safe)
-                        eventCountTotal += totalNumberEvents;
-                        wordCountTotal  += builder.getTotalBytes() / 4 + 1;
-                        keepStats(builder.getTotalBytes());
-
-                        // Tell next build thread it's his turn to release ring buffer slot.
-                        // volatile guarantees: 1) memory visibility, 2) atomic write for
-                        // doubles & longs, and 3) forbids instruction reordering.
-                        // The problem with increment is that it is not atomic. It reads the
-                        // value first, adds 1, then writes it. But, it should work for us
-                        // since only one guy gets into this loop at a time, at least until
-                        // just past the next statement.
-
-                        //releaseIndexSeq.setVolatile(releaseIndexSeq.get() + 1);
-                        //releaseIndexVol++;
-                        releaseIndex.incrementAndGet();
-
-//                        long l = releaseIndex.get();
-//
-//                        if (l != timeToEnd*btCount + btIndex) {
-//System.out.println("  EB mod: Bt#" + btIndex + ", PAST WAIT 1, next i -> " + nextReleaseIndex +
-//                       ", global = " + l + " -> " + (l+1));
-//                        }
-//                        timeToEnd++;
-//
-//                        if (!releaseIndex.compareAndSet(l, l+1L)) System.out.println("FAIL !!!");
+                        buildSequences[i].set(nextSequences[i]++);
                     }
-                    else {
-                        // Release the reusable ByteBuffers used by the input channel
-                        for (int i=0; i < inputChannelCount; i++) {
-                            // The releaseByteBuffer() method ensures that earlier
-                            // sequenced buffers are not released after the latter.
-                            // Takes care of issues when # evio-events/buffer < # build-threads.
-                            buildingBanks[i].releaseByteBuffer();
-                        }
 
-                        for (int i=0; i < inputChannelCount; i++) {
-                            // Release the reusable ByteBuffers used by the input channel.
-                            // The fact that we're here means that these buffers are being
-                            // released sequentially and we need no locks (only 1 build thd).
-                            buildingBanks[i].releaseByteBuffer();
-
-//System.out.println("  EB mod: " + btIndex + ", chan " + outputChannelIndex + ", seq " + nextSequences[i]);
-                            buildSequences[i].set(nextSequences[i]++);
-                        }
-
-                        // Stats (need to be thread-safe)
-                        eventCountTotal += totalNumberEvents;
-                        wordCountTotal  += builder.getTotalBytes() / 4 + 1;
-                        keepStats(builder.getTotalBytes());
-                    }
+                    // Stats (need to be thread-safe)
+                    eventCountTotal += totalNumberEvents;
+                    wordCountTotal  += builder.getTotalBytes() / 4 + 1;
+                    keepStats(builder.getTotalBytes());
                 }
             }
             catch (InterruptedException e) {
@@ -1474,6 +1429,95 @@ if (debug) System.out.println("  EB mod: MAJOR ERROR building event: " + e.getMe
 if (debug) System.out.println("  EB mod: Building thread is ending");
         }
 
+    }
+
+
+    /**
+     * This class is a garbage-freeing thread which takes the ByteBuffers and
+     * banks used to build an event and frees up their ring-based resources.
+     * It takes the burden of doing this off of the build threads and allows
+     * them to build without bothering to synchronize between themselves.
+     */
+    final class ReleaseRingResourceThread extends Thread {
+        /** The total number of build threads. */
+        private final int btCount = buildingThreadCount;
+
+        /** Time to quit thread. */
+        private volatile boolean quit;
+
+
+        /**
+         * Constructor.
+         *
+         * @param group   thread group.
+         * @param name    thread name.
+         */
+        ReleaseRingResourceThread(ThreadGroup group, String name) {
+            super(group, name);
+        }
+
+
+        /**
+         * Stop this freeing-resource thread.
+         * @param force if true, call Thread.stop().
+         */
+        void killThread(boolean force) {
+            quit = true;
+            if (force) {
+                this.stop();
+            }
+        }
+
+
+        public void run() {
+
+            // Ring Buffer stuff
+            long[] nextSequences = new long[inputChannelCount];
+            long[] availableSequences = new long[inputChannelCount];
+            Arrays.fill(availableSequences, -2L);
+            PayloadBuffer[] buildingBanks = new PayloadBuffer[inputChannelCount];
+
+            try {
+
+                while (true) {
+
+                    // Cycle through channels
+                    for (int i=0; i < inputChannelCount; i++) {
+
+                        // Available sequence may be larger than what we desired
+                        availableSequences[i] = postBuildBarrier[i].waitFor(nextSequences[i]);
+
+                        // While we have new data to work with ...
+                        while (nextSequences[i] <= availableSequences[i]) {
+                            buildingBanks[i] = (PayloadBuffer) ringBuffersIn[i].get(nextSequences[i]);
+
+                            // TODO: DO user & control events use fast byte buffers???
+
+                            // Skip over non-built events
+                            if (!buildingBanks[i].getEventType().isBuildable()) {
+                                nextSequences[i]++;
+                                continue;
+                            }
+
+                            // Free claim on ByteBuffer
+                            buildingBanks[i].releaseByteBuffer();
+                            nextSequences[i]++;
+                        }
+
+                        // Free RingItem(s) in input channel's ring for more input data
+                        postBuildSequence[i].set(availableSequences[i]);
+                    }
+
+                    if (quit) return;
+                }
+            }
+            catch (AlertException e)       { /* won't happen */ }
+            catch (InterruptedException e) { /* won't happen */ }
+            catch (TimeoutException e)     { /* won't happen */ }
+            catch (Exception e) {
+                e.printStackTrace();
+            }
+        }
     }
 
 
@@ -1555,7 +1599,7 @@ if (debug) System.out.println("  EB mod: endBuildThreads: will end building/fill
         }
         buildingThreadList.clear();
 
-        // Interrupt all PreProcessor threads too
+        // Interrupt all PreProcessor threads
         if (preProcessors != null) {
             for (Thread qf : preProcessors) {
                 qf.interrupt();
@@ -1569,6 +1613,20 @@ if (debug) System.out.println("  EB mod: endBuildThreads: will end building/fill
             }
         }
         preProcessors = null;
+
+        // Interrupt release thread too
+        if (buildingThreadCount > 1 && releaseThread != null) {
+            releaseThread.killThread(!end);
+            releaseThread.interrupt();
+            try {
+                releaseThread.join(250);
+                if (releaseThread.isAlive()) {
+                    releaseThread.stop();
+                }
+            }
+            catch (InterruptedException e) {
+            }
+        }
     }
 
 
@@ -1590,14 +1648,6 @@ if (debug) System.out.println("  EB mod: endBuildThreads: will end building/fill
 
         int inChanCount = inputChannels.size();
 
-        // Build threads
-        buildingThreadList.clear();
-        for (int i=0; i < buildingThreadCount; i++) {
-            BuildingThread thd1 = new BuildingThread(i, emu.getThreadGroup(), name+":builder"+i);
-            buildingThreadList.add(thd1);
-            thd1.start();
-        }
-
         // Create pre-processing threads - one for each input channel
         if (preProcessors == null) {
             preProcessors = new Thread[inChanCount];
@@ -1615,6 +1665,22 @@ if (debug) System.out.println("  EB mod: endBuildThreads: will end building/fill
         for (int i=0; i < inChanCount; i++) {
             if (preProcessors[i].getState() == Thread.State.NEW) {
                 preProcessors[i].start();
+            }
+        }
+
+        if (!dumpData) {
+            // Build threads
+            buildingThreadList.clear();
+            for (int i = 0; i < buildingThreadCount; i++) {
+                BuildingThread thd1 = new BuildingThread(i, emu.getThreadGroup(), name + ":builder" + i);
+                buildingThreadList.add(thd1);
+                thd1.start();
+            }
+
+            if (buildingThreadCount > 1) {
+                releaseThread = new ReleaseRingResourceThread(emu.getThreadGroup(),
+                                                              name + ":release");
+                releaseThread.start();
             }
         }
     }
@@ -1709,6 +1775,10 @@ if (debug) System.out.println("  EB mod: endBuildThreads: will end building/fill
         // For each input channel, all build threads share one barrier
         buildBarrierIn = new SequenceBarrier[inputChannelCount];
 
+        // One post-build sequence and barrier for each input channel
+        postBuildSequence = new Sequence[inputChannelCount];
+        postBuildBarrier  = new SequenceBarrier[inputChannelCount];
+
         // For each channel ...
         for (int i=0; i < inputChannelCount; i++) {
             // Get channel's ring buffer
@@ -1720,18 +1790,47 @@ if (debug) System.out.println("  EB mod: endBuildThreads: will end building/fill
             preBuildBarrier[i]  = rb.newBarrier();
             preBuildSequence[i] = new Sequence(Sequencer.INITIAL_CURSOR_VALUE);
 
-            // For each build thread ...
-            for (int j=0; j < buildingThreadCount; j++) {
-                // We have 1 sequence for each build thread & input channel combination
-                buildSequenceIn[j][i] = new Sequence(Sequencer.INITIAL_CURSOR_VALUE);
-
-                // This sequence may be the last consumer before producer comes along
-                rb.addGatingSequences(buildSequenceIn[j][i]);
+            if (dumpData) {
+                rb.addGatingSequences(preBuildSequence[i]);
             }
+            else {
+                // Repackage the build thread sequences to use as barrier for post build thread.
+                // Each input channel ring buffer needs the sequences from each build thread for
+                // that channel.
+                Sequence[] buildThdSequencesForChannel = new Sequence[buildingThreadCount];
 
-            // We have 1 barrier for each channel (shared by building threads)
-            // which depends on (comes after) the pre-processing sequence.
-            buildBarrierIn[i] = rb.newBarrier(preBuildSequence[i]);
+                // For each build thread ...
+                for (int j = 0; j < buildingThreadCount; j++) {
+                    // We have 1 sequence for each build thread & input channel combination
+                    buildSequenceIn[j][i] = new Sequence(Sequencer.INITIAL_CURSOR_VALUE);
+
+                    if (buildingThreadCount > 1) {
+                        // Store for later use in creating post-processing barrier
+                        buildThdSequencesForChannel[j] = buildSequenceIn[j][i];
+                    }
+                    else {
+                        // This sequence may be the last consumer before producer comes along
+                        rb.addGatingSequences(buildSequenceIn[j][i]);
+                    }
+                }
+
+                // We have 1 barrier for each channel (shared by building threads)
+                // which depends on (comes after) the pre-processing sequence.
+                buildBarrierIn[i] = rb.newBarrier(preBuildSequence[i]);
+
+                if (buildingThreadCount > 1) {
+                    // Last barrier is for releasing resources used in the building
+                    // and it depends on each build thread sequence associated with
+                    // a single channel.
+                    postBuildBarrier[i] = rb.newBarrier(buildThdSequencesForChannel);
+
+                    // Last sequence is for thread releasing resources used in the building
+                    postBuildSequence[i] = new Sequence(Sequencer.INITIAL_CURSOR_VALUE);
+
+                    // This post-processing sequence is the last consumer before producer comes along
+                    rb.addGatingSequences(postBuildSequence[i]);
+                }
+            }
         }
 
         //------------------------------------------------
