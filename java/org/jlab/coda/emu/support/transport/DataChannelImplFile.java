@@ -569,7 +569,15 @@ logger.debug("      DataChannel File: reset() " + name + " - done");
                     pBankControlType = ringItem.getControlType();
                     // If user event, force to hard disk.
                     if (pBankType == EventType.USER) {
-                        writeEvioData(ringItem, true);
+                        // If this user event is also a "first event", let the writer know
+                        if (ringItem.isFirstEvent()) {
+                            evioFileWriter.setFirstEvent(ringItem.getNode());
+                            // The writer will handle the first event from here,
+                            // go to the next event now.
+                        }
+                        else {
+                            writeEvioData(ringItem, true);
+                        }
                     }
                     // If possibly GO, do not force to hard disk as that slows things down.
                     else {
@@ -640,8 +648,16 @@ logger.debug("      DataChannel File out " + outputIndex + ": got  ev " + nextEv
                     }
 
                     try {
+                        // If this a user and "first event", let the writer know
+                        if (ringItem.isFirstEvent()) {
+                            evioFileWriter.setFirstEvent(ringItem.getNode());
+                            // The writer will handle the first event from here,
+                            // go to the next event now.
+                        }
+                        else {
 //logger.debug("      DataChannel File out " + outputIndex + ": write!");
-                        writeEvioData(ringItem, false);
+                            writeEvioData(ringItem, false);
+                        }
                     }
                     catch (Exception e) {
                         errorMsg.compareAndSet(null, "Cannot write to file");

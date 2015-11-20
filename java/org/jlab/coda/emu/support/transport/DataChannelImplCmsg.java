@@ -12,6 +12,7 @@
 package org.jlab.coda.emu.support.transport;
 
 import org.jlab.coda.emu.EmuModule;
+import org.jlab.coda.emu.EmuUtilities;
 import org.jlab.coda.emu.support.codaComponent.CODAClass;
 import org.jlab.coda.emu.support.codaComponent.CODAState;
 import org.jlab.coda.emu.support.data.*;
@@ -115,6 +116,7 @@ public class DataChannelImplCmsg extends DataChannelAdapter {
                 return;
             }
 
+            boolean hasFirstEvent = blockHeader.hasFirstEvent();
             EventType eventType = EventType.getEventType(blockHeader.getEventType());
             int recordId = blockHeader.getNumber();
             int sourceId = blockHeader.getReserved1();
@@ -158,6 +160,7 @@ public class DataChannelImplCmsg extends DataChannelAdapter {
 //                ringItem.setBuffer(node.getStructureBuffer(false));
                 ringItem.setEventType(bankType);
                 ringItem.setControlType(controlType);
+                ringItem.isFirstEvent(hasFirstEvent);
                 ringItem.setRecordId(recordId);
                 ringItem.setSourceId(sourceId);
                 ringItem.setSourceName(name);
@@ -856,28 +859,6 @@ logger.warn("      DataChannel cmsg out: " + name + " exit thd: " + e.getMessage
 
 
             /**
-             * Encode the event type into the bit info word
-             * which will be in each evio block header.
-             *
-             * @param bSet bit set which will become part of the bit info word
-             * @param type event type to be encoded
-             */
-            void setEventType(BitSet bSet, int type) {
-                // check args
-                if (type < 0) type = 0;
-                else if (type > 15) type = 15;
-
-                if (bSet == null || bSet.size() < 6) {
-                    return;
-                }
-                // do the encoding
-                for (int i=2; i < 6; i++) {
-                    bSet.set(i, ((type >>> i - 2) & 0x1) > 0);
-                }
-            }
-
-
-            /**
              * Constructor.
              * @param bankList list of banks to be written into a single cMsg message
              * @param msg cMsg message in which to write the list of banks
@@ -911,7 +892,10 @@ logger.warn("      DataChannel cmsg out: " + name + " exit thd: " + e.getMessage
 
                 // Encode the event type into bits
                 BitSet bitInfo = new BitSet(24);
-                setEventType(bitInfo, bankList.get(0).getEventType().getValue());
+                EmuUtilities.setEventType(bitInfo, bankList.get(0).getEventType());
+                if (bankList.get(0).isFirstEvent()) {
+                    EmuUtilities.setFirstEvent(bitInfo);
+                }
 
                 try {
                     // Create object to write evio banks into message buffer

@@ -16,6 +16,7 @@ import com.lmax.disruptor.*;
 import com.lmax.disruptor.TimeoutException;
 import org.jlab.coda.emu.Emu;
 import org.jlab.coda.emu.EmuModule;
+import org.jlab.coda.emu.EmuUtilities;
 import org.jlab.coda.emu.support.codaComponent.CODAClass;
 import org.jlab.coda.emu.support.codaComponent.CODAState;
 import org.jlab.coda.emu.support.data.*;
@@ -858,6 +859,7 @@ logger.debug("      DataChannel Et: reset " + name + " channel");
                 boolean delay = false;
                 boolean useDirectEt = (etSysLocal != null);
                 boolean etAlive = true;
+                boolean hasFirstEvent;
 
                 if (!useDirectEt) {
                     etAlive = etSystem.alive();
@@ -981,10 +983,11 @@ Utilities.printBuffer(buf, 0, 21, "BAD EVENT ");
                             throw new EvioException("Evio data needs to be written in version 4+ format");
                         }
 
-                        eventType   = EventType.getEventType(header4.getEventType());
-                        controlType = null;
+                        hasFirstEvent = header4.hasFirstEvent();
+                        eventType     = EventType.getEventType(header4.getEventType());
+                        controlType   = null;
                         // this only works from ROC !!!
-                        sourceId    = header4.getReserved1();
+                        sourceId      = header4.getReserved1();
                         if (eventType == EventType.PARTIAL_PHYSICS) {
                             sourceId = ev.getControl()[0];
                         }
@@ -1055,6 +1058,7 @@ logger.info("      DataChannel Et in: " + name + " got USER event");
 //                            ri.setBuffer(node.getStructureBuffer(false));
                             ri.setEventType(bankType);
                             ri.setControlType(controlType);
+                            ri.isFirstEvent(hasFirstEvent);
                             ri.setRecordId(recordId);
                             ri.setSourceId(sourceId);
                             ri.setSourceName(name);
@@ -2083,28 +2087,6 @@ logger.warn("      DataChannel Et in: " + name + " exit thd: " + e.getMessage())
         }
 
 
-        /**
-         * Encode the event type into the bit info word
-         * which will be in each evio block header.
-         *
-         * @param bSet bit set which will become part of the bit info word
-         * @param type event type to be encoded
-         */
-        private void setEventType(BitSet bSet, int type) {
-            // check args
-            if (type < 0) type = 0;
-            else if (type > 15) type = 15;
-
-            if (bSet == null || bSet.size() < 6) {
-                return;
-            }
-            // do the encoding
-            for (int i = 2; i < 6; i++) {
-                bSet.set(i, ((type >>> i - 2) & 0x1) > 0);
-            }
-        }
-
-
         /** Object that holds an EtEvent in internal ring buffer.
          *  It also holds all items to be written into that event. */
         final private class EtContainer {
@@ -2513,11 +2495,16 @@ System.out.println("\n      DataChannel Et out " + outputIndex + ": try again, r
 
                             // Encode event type into bits
                             container.bitInfo.clear();
-                            setEventType(container.bitInfo, pBankType.getValue());
+                            EmuUtilities.setEventType(container.bitInfo, pBankType);
 
                             // Set recordId depending on what type this bank is
                             if (!isUserOrControl) {
                                 myRecordId = recordId++;
+                            }
+                            // If user event which is to be the first event,
+                            // mark it in the block header's bit info word.
+                            else if (ringItem.isFirstEvent()) {
+                                EmuUtilities.setFirstEvent(container.bitInfo);
                             }
 
                             // Values needed to initialize object which writes into ET buffer

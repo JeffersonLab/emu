@@ -111,6 +111,18 @@ public interface RingItem extends Cloneable, Attached {
     public void setControlType(ControlType type);
 
     /**
+     * Is this object a first event?
+     * @return {@code true} if first event, else {@code false}.
+     */
+    public boolean isFirstEvent();
+
+    /**
+     * Set whether this object a first event.
+     * @param isFirst {@code true} if first event, else {@code false}.
+     */
+    public void isFirstEvent(boolean isFirst);
+
+    /**
      * Get the type of event (ROC raw, physics, user, control , etc) this is.
      * @return type of event this is.
      */

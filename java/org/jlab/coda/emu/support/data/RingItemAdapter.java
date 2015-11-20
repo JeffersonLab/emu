@@ -53,6 +53,9 @@ abstract class RingItemAdapter implements RingItem {
     /** If this is a control event, what type of control is it (SYNC, GO, END, ...)? */
     protected ControlType controlType;
 
+    /** Is this a "first event" to be written in each file split? */
+    protected boolean isFirst;
+
     /** If the event type is RocRaw, this is the CODA id of the source. */
     protected int sourceId;
 
@@ -125,6 +128,7 @@ abstract class RingItemAdapter implements RingItem {
         node                  = ringItem.getNode();
         eventType             = ringItem.getEventType();
         controlType           = ringItem.getControlType();
+        isFirst               = ringItem.isFirstEvent();
         sourceId              = ringItem.getSourceId();
         matchesId             = ringItem.matchesId();
         sourceName            = ringItem.getSourceName();
@@ -210,6 +214,11 @@ abstract class RingItemAdapter implements RingItem {
     public ControlType getControlType() {return controlType;}
     /** {@inheritDoc} */
     public void setControlType(ControlType type) {this.controlType = type;}
+
+    /** {@inheritDoc} */
+    public boolean isFirstEvent() {return isFirst;}
+    /** {@inheritDoc} */
+    public void isFirstEvent(boolean isFirst) {this.isFirst = isFirst;}
 
     /** {@inheritDoc} */
     public EventType getEventType() {return eventType;}
