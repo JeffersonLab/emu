@@ -429,23 +429,35 @@ logger.info("  EB mod: internal ring buf count -> " + ringItemCount);
 
                             // Take user event and place on output channel
                             if (pBuf.getEventType().isUser()) {
-System.out.println("  EB mod: got user event in pre-processing");
+//System.out.println("  EB mod: got user event in pre-processing order = " + pBuf.getByteOrder());
 
                                 // Swap headers, NOT DATA, if necessary
                                 if (outputOrder != pBuf.getByteOrder()) {
                                     try {
-System.out.println("  EB mod: swap user event headers");
+//System.out.println("  EB mod: swap user event (not data)");
                                         ByteBuffer buffy = pBuf.getBuffer();
                                         EvioNode nody = pBuf.getNode();
                                         if (buffy != null) {
+                                            // Takes care of swapping of event in its own separate buffer,
+                                            // headers not data
                                             ByteDataTransformer.swapEvent(buffy, buffy, 0, 0, false, null);
                                         }
                                         else if (nody != null) {
-                                            buffy = nody.getStructureBuffer(false);
+                                            // This node may share a backing buffer with other, ROC Raw, events.
+                                            // Thus we cannot change the order of the entire backing buffer.
+                                            // For simplicity, let's copy it and swap it in its very
+                                            // own buffer.
+
+                                            // Copy
+                                            buffy = nody.getStructureBuffer(true);
+                                            // Swap headers but not data
                                             ByteDataTransformer.swapEvent(buffy, null, 0, 0, false, null);
-                                            // Byte order was changed in buffy which is a slice of a duplicate.
-                                            // The node's buffer's order is unchanged. Do that next.
-                                            nody.getBufferNode().getBuffer().order(buffy.order());
+                                            // Store in ringItem
+                                            pBuf.setBuffer(buffy);
+                                            pBuf.setNode(null);
+                                            // Release claim on backing buffer since we are now
+                                            // using a different buffer.
+                                            pBuf.releaseByteBuffer();
                                         }
                                     }
                                     catch (EvioException e) {/* should never happen */ }
@@ -456,7 +468,7 @@ System.out.println("  EB mod: swap user event headers");
                                 // since this event builder does nothing with them.
                                 // User events go into the first ring of the first channel.
                                 eventToOutputChannel(pBuf, 0, 0);
-System.out.println("  EB mod: sent user event to output channel");
+//System.out.println("  EB mod: sent user event to output channel");
                             }
 
                             nextSequence++;
@@ -592,8 +604,7 @@ if (debug) System.out.println("  EB mod: Roc raw or physics event in wrong forma
         // Grab one control event from each ring buffer.
         for (int i=0; i < inputChannelCount; i++) {
             try  {
-
-                ControlType cType = null;
+                ControlType cType;
                 while (true) {
                     barriers[i].waitFor(nextSequences[i]);
                     buildingBanks[i] = (PayloadBuffer) ringBuffersIn[i].get(nextSequences[i]);
@@ -604,13 +615,10 @@ if (debug) System.out.println("  EB mod: Roc raw or physics event in wrong forma
                         // If so, skip over it and look at the next one.
                         EventType eType = buildingBanks[i].getEventType();
                         if (eType != null && eType == EventType.USER) {
-                            // Release any temp buffer
-                            buildingBanks[i].releaseByteBuffer();
                             // Release ring slot
                             sequences[i].set(nextSequences[i]);
                             // Get ready to read item in next slot
                             nextSequences[i]++;
-System.out.println("Expecting PRESTART/GO event, got USER, skip over it");
                             continue;
                         }
                         throw new EmuException("Expecting control event, got something else");
