@@ -1488,7 +1488,8 @@ System.out.println("makeTriggerBankFromRocRaw: event type differs across ROCs, f
                         nonFatalError = true;
                     }
 
-                    // Check event number consistency
+                    // Check event number consistency, but make sure we take
+                    // endianness into account when looking at the data.
                     trigIntArrays[j][i] = triggerData = ByteDataTransformer.toIntArray(triggerSegments[j][i].getByteData(false));
                     if (firstEvNum + i != triggerData[0]) {
 System.out.println("makeTriggerBankFromRocRaw: event # differs (in Bt# " + buildThreadOrder + ") for ROC id#" +
