@@ -355,8 +355,7 @@ public class RocSimulation extends ModuleAdapter {
         buf.order(outputOrder);
 
         // Event bank header
-        //int rocTag = Evio.createCodaTag(status, id);
-        // Data is big endian ...
+        // sync, error, isBigEndian, singleEventMode
         int rocTag = Evio.createCodaTag(false, false, true, false, id);
 
         // 2nd bank header word = tag << 16 | ((padding & 0x3) << 14) | ((type & 0x3f) << 8) | num
@@ -367,6 +366,17 @@ public class RocSimulation extends ModuleAdapter {
         buf.putInt(writeIndex, (eventWordSize - 1)); writeIndex += 4;
         buf.putInt(writeIndex, secondWord); writeIndex += 4;
 
+//        if (outputOrder == ByteOrder.BIG_ENDIAN) {
+//            buf.putShort(writeIndex, (short) rocTag); writeIndex += 2;
+//            buf.put(writeIndex, (byte) (DataType.BANK.getValue() & 0x3f)); writeIndex++;
+//            buf.put(writeIndex, (byte) (eventBlockSize & 0xff));  writeIndex++;
+//        }
+//        else {
+//            buf.put(writeIndex, (byte) (eventBlockSize & 0xff));  writeIndex++;
+//            buf.put(writeIndex, (byte) (DataType.BANK.getValue() & 0x3f)); writeIndex++;
+//            buf.putShort(writeIndex, (short) rocTag); writeIndex += 2;
+//        }
+
         // Trigger bank header
         secondWord = CODATag.RAW_TRIGGER_TS.getValue() << 16 |
                      (DataType.SEGMENT.getValue() << 8) |
@@ -375,6 +385,17 @@ public class RocSimulation extends ModuleAdapter {
         buf.putInt(writeIndex, (eventWordSize - 2 - data.length - 2 - 1)); writeIndex += 4;
         buf.putInt(writeIndex, secondWord); writeIndex += 4;
 
+//        if (outputOrder == ByteOrder.BIG_ENDIAN) {
+//            buf.putShort(writeIndex, (short) CODATag.RAW_TRIGGER_TS.getValue()); writeIndex += 2;
+//            buf.put(writeIndex, (byte) (DataType.SEGMENT.getValue() & 0x3f)); writeIndex++;
+//            buf.put(writeIndex, (byte) (eventBlockSize & 0xff));  writeIndex++;
+//        }
+//        else {
+//            buf.put(writeIndex, (byte) (eventBlockSize & 0xff));  writeIndex++;
+//            buf.put(writeIndex, (byte) (DataType.SEGMENT.getValue() & 0x3f)); writeIndex++;
+//            buf.putShort(writeIndex, (short) CODATag.RAW_TRIGGER_TS.getValue()); writeIndex += 2;
+//        }
+
         int segWord;
 
         // Add each segment
@@ -382,7 +403,19 @@ public class RocSimulation extends ModuleAdapter {
             // segment header word = tag << 24 | ((padding << 22) & 0x3) | ((type << 16) & 0x3f) | length
             segWord = triggerType << 24 |
                       (DataType.UINT32.getValue() << 16) | 3;
+
             buf.putInt(writeIndex, segWord); writeIndex += 4;
+
+//            if (outputOrder == ByteOrder.BIG_ENDIAN) {
+//                buf.put(writeIndex, (byte) (triggerType & 0xff)); writeIndex++;
+//                buf.put(writeIndex, (byte) (DataType.UINT32.getValue() & 0x3f)); writeIndex++;
+//                buf.putShort(writeIndex, (short) 3);  writeIndex += 2;
+//            }
+//            else {
+//                buf.putShort(writeIndex, (short) 3);  writeIndex += 2;
+//                buf.put(writeIndex, (byte) (DataType.UINT32.getValue() & 0x3f)); writeIndex++;
+//                buf.put(writeIndex, (byte) (triggerType & 0xff)); writeIndex++;
+//            }
 
             // Generate 3 integers per event (no miscellaneous data)
             buf.putInt(writeIndex, (int) (eventNumber + i)); writeIndex += 4;
@@ -404,6 +437,16 @@ public class RocSimulation extends ModuleAdapter {
 
         buf.putInt(writeIndex, data.length + 1); writeIndex += 4;
         buf.putInt(writeIndex, secondWord); writeIndex += 4;
+//        if (outputOrder == ByteOrder.BIG_ENDIAN) {
+//            buf.putShort(writeIndex, (short) dataTag); writeIndex += 2;
+//            buf.put(writeIndex, (byte) (DataType.UINT32.getValue() & 0x3f)); writeIndex++;
+//            buf.put(writeIndex, (byte) (eventBlockSize & 0xff));  writeIndex++;
+//        }
+//        else {
+//            buf.put(writeIndex, (byte) (eventBlockSize & 0xff));  writeIndex++;
+//            buf.put(writeIndex, (byte) (DataType.UINT32.getValue() & 0x3f)); writeIndex++;
+//            buf.putShort(writeIndex, (short) dataTag); writeIndex += 2;
+//        }
         for (int i : data) {
             buf.putInt(writeIndex, i); writeIndex += 4;
         }
