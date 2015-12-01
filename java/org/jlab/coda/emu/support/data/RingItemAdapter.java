@@ -183,12 +183,15 @@ abstract class RingItemAdapter implements RingItem {
     public void releaseByteBuffer() {
         if (byteBufferSupply == null) return;
         byteBufferSupply.release(byteBufferItem);
+        // Don't want to release it again
+        byteBufferSupply = null;
+        byteBufferItem   = null;
     }
 
     /** {@inheritDoc} */
     public void setReusableByteBuffer(ByteBufferSupply byteBufferSupply,
                                       ByteBufferItem byteBufferItem) {
-        this.byteBufferItem = byteBufferItem;
+        this.byteBufferItem   = byteBufferItem;
         this.byteBufferSupply = byteBufferSupply;
     }
 
