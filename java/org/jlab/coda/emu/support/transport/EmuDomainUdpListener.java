@@ -59,8 +59,10 @@ public class EmuDomainUdpListener extends Thread {
 
     /**
      * Constructor.
-     * @param server emu server that created this object
-     * @param port udp port on which to receive transmissions from emu clients
+     * @param server  emu server that created this object
+     * @param port    udp port on which to receive transmissions from clients
+     * @param expid   EXPID value to receive from clients
+     * @param emuName this emu's name to receive from clients
      */
     public EmuDomainUdpListener(EmuDomainServer server, int port,
                                 String expid, String emuName) throws cMsgException {
@@ -285,7 +287,7 @@ public class EmuDomainUdpListener extends Thread {
 //                System.out.println("          : multicaster's packet's host = " + multicasterHost);
 //                System.out.println("          : multicaster's packet's UDP port = " + multicasterUdpPort);
 //                System.out.println("          : multicaster's expid = " + multicasterExpid);
-//                System.out.println("          : component's name = " + componentName);
+//                System.out.println("          : component sending to name = " + componentName);
 //                System.out.println("          : our port = " + server.localTempPort);
 
                 if (multicasterUdpPort == server.localTempPort) {
