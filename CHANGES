@@ -39,3 +39,13 @@ Version 2.6
     - fake ROC can operate without output channel
     - EB now has a resource-freeing thread which cleans up after build threads.
       Build thread optimized if only 1.
+    - Emu domain server no longer kills off other domain servers at the same
+      EXPID and port. Each server can ignore multicasts from components of the
+      wrong name. Thus multiple sessions can coexist with domain servers of the
+      same port & EXPID if they serve different components.
+      This requires emu domain UDL to contain component name and there's a
+      communication protocol change - hence the new version number.
+    - fix bug in which user event processing can change the endian order of the
+      whole backing buffer (and therefore the events to be built). Happens when
+      input data in opposite endian as module output.
+    - fix bug in which EB releases user event buffer more than once.
