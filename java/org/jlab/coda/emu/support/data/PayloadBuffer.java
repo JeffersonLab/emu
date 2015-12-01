@@ -82,7 +82,7 @@ public class PayloadBuffer extends RingItemAdapter {
         // Share content but keep different limit, position, mark.
         // This will work if and only if the buffer is written to.
         buffer = buf.buffer.duplicate();
-        buffer.order(buf.getByteOrder());
+        buffer.order(buf.buffer.order());
     }
 
     /**
