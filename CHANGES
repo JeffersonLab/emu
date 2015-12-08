@@ -30,6 +30,8 @@ Version 2.5
     - correctly handle an event designated as the "first event" to be identified
       by the output file channel and passed to the EventWriter so it can be
       written as the first event in each file split.
+    - Now ET output channel sets its endian to same as module -
+      just like emu domain output channel.
 
 Version 2.6
     - ByteBufferSupply class no longer requires use of synchronized code if
