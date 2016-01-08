@@ -507,8 +507,39 @@ logger.info("      DataChannel Et: # copy-ET-buffers in input supply -> " + numE
         // Otherwise open in usual manner, use sockets
         else {
             try {
-System.out.println("      DataChannel Et: try opening " + dataTransportImplEt.getOpenConfig().getEtName() );
+                EtSystemOpenConfig config = etSystem.getConfig();
+System.out.print("      DataChannel Et: try opening " + config.getEtName());
+
+                int method = config.getNetworkContactMethod();
+                if (method == EtConstants.direct) {
+                    System.out.print(" directly on " + config.getHost() + ", port " + config.getTcpPort());
+                }
+                else if (method == EtConstants.multicast) {
+                    System.out.print(" by multicasting to port " + config.getUdpPort());
+                }
+                else if (method == EtConstants.broadcast) {
+                    System.out.print(" by broadcasting to port " + config.getUdpPort());
+                }
+                else if (method == EtConstants.broadAndMulticast) {
+                    System.out.print(" by multi & broadcasting to port " + config.getUdpPort());
+                }
+
+                if (config.isConnectRemotely()) {
+                    System.out.println(", using sockets only");
+                }
+                else {
+                    System.out.println();
+                }
+
                 etSystem.open();
+
+                System.out.print("      DataChannel Et: SUCCESS opening ET on host " + etSystem.getHost());
+                if (etSystem.getLanguage() == EtConstants.langJava) {
+                    System.out.println(", written in Java");
+                }
+                else {
+                    System.out.println();
+                }
             }
             catch (Exception e) {
                 e.printStackTrace();
