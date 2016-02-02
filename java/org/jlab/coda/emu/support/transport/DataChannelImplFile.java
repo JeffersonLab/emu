@@ -574,6 +574,7 @@ logger.debug("      DataChannel File: reset() " + name + " - done");
                             evioFileWriter.setFirstEvent(ringItem.getNode());
                             // The writer will handle the first event from here,
                             // go to the next event now.
+                            ringItem.releaseByteBuffer();
                         }
                         else {
                             writeEvioData(ringItem, true);
@@ -653,6 +654,7 @@ logger.debug("      DataChannel File out " + outputIndex + ": got  ev " + nextEv
                             evioFileWriter.setFirstEvent(ringItem.getNode());
                             // The writer will handle the first event from here,
                             // go to the next event now.
+                            ringItem.releaseByteBuffer();
                         }
                         else {
 //logger.debug("      DataChannel File out " + outputIndex + ": write!");
