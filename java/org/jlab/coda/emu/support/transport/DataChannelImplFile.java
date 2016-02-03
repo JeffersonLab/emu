@@ -579,7 +579,7 @@ logger.debug("      DataChannel File: reset() " + name + " - done");
                             if (gotPrestart) {
                                 throw new EmuException("got 2 prestart events");
                             }
-//System.out.println("      DataChannel File out " + outputIndex + ": found prestart event");
+//System.out.println("      DataChannel File out " + outputIndex + ": found & write prestart event");
                             gotPrestart = true;
                             // Force prestart to hard disk
                             writeEvioData(ringItem, true);
@@ -594,7 +594,6 @@ logger.debug("      DataChannel File: reset() " + name + " - done");
                                 pBankControlType != ControlType.END)  {
                                 throw new EmuException("second control event must be go or end");
                             }
-//System.out.println("      DataChannel File out " + outputIndex + ": found " + pBankControlType + " event");
 
                             // Prestart has been written, but not go/end,
                             // so write any stored user events now
@@ -602,7 +601,7 @@ logger.debug("      DataChannel File: reset() " + name + " - done");
                                 // If this user event is also a "first event", let the writer know
                                 if (ri.isFirstEvent()) {
 //System.out.println("      DataChannel File out " + outputIndex + ": writing stored first event");
-                                    evioFileWriter.setFirstEvent(ringItem.getNode());
+                                    evioFileWriter.setFirstEvent(ri.getNode());
                                     // The writer will handle the first event from here
                                     ri.releaseByteBuffer();
                                 }
@@ -615,7 +614,11 @@ logger.debug("      DataChannel File: reset() " + name + " - done");
                             userList.clear();
 
                             // Do NOT force to hard disk as it may be go and will slow things down
+//System.out.println("      DataChannel File out " + outputIndex + ": found & write " + pBankControlType + " event");
                             writeEvioData(ringItem, false);
+
+                            // Go to the next event
+                            gotoNextRingItem(0);
 
                             // Done looking for the 2 control events
                             break;
@@ -623,7 +626,7 @@ logger.debug("      DataChannel File: reset() " + name + " - done");
                     }
                     // If user event ...
                     else if (pBankType == EventType.USER) {
-//System.out.println("      DataChannel File out " + outputIndex + ": found & storing user event");
+//System.out.println("      DataChannel File out " + outputIndex + ": found & store user event");
                         userList.add(ringItem);
                     }
                     // Only user and control events should come first, so error
@@ -641,7 +644,7 @@ logger.debug("      DataChannel File: reset() " + name + " - done");
 
                 // END may come right after PRESTART
                 if (pBankControlType == ControlType.END) {
-System.out.println("      DataChannel File out " + outputIndex + ": wrote end");
+logger.debug("      DataChannel File out " + outputIndex + ": wrote end");
                     try {
                         evioFileWriter.close();
                     }
