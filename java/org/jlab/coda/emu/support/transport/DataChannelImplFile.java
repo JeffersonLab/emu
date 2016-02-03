@@ -12,6 +12,7 @@
 package org.jlab.coda.emu.support.transport;
 
 import org.jlab.coda.emu.Emu;
+import org.jlab.coda.emu.EmuException;
 import org.jlab.coda.emu.EmuModule;
 import org.jlab.coda.emu.support.codaComponent.CODAClass;
 import org.jlab.coda.emu.support.codaComponent.CODAState;
@@ -22,6 +23,7 @@ import java.io.DataInputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 
@@ -536,9 +538,243 @@ logger.debug("      DataChannel File: reset() " + name + " - done");
         }
 
 
-
         /** {@inheritDoc} */
         public void run() {
+
+            threadState = ThreadState.RUNNING;
+
+            // Tell the world I've started
+            latch.countDown();
+
+            try {
+                RingItem ringItem;
+                EventType pBankType;
+                ControlType pBankControlType;
+                ArrayList<RingItem> userList = new ArrayList<RingItem>(20);
+                boolean gotPrestart=false;
+
+                // The 1st event may be a user event or a prestart. If user events come
+                // before prestart, store them, wait for prestart, write prestart, then
+                // finally write the users. This ensures that the prestart event is always
+                // first in the file.
+
+                // After the prestart, the next event may be "go", "end", or a user event.
+                // The non-END control events are placed on ring 0 of all output channels.
+                // The END event is placed in the ring in which the next data event would
+                // have gone. The user events are placed on ring 0 of only the first output
+                // channel.
+
+                // Keep reading user & control events (all of which will appear in ring 0)
+                // until the 2nd control event (go or end) is read.
+                while (true) {
+                    // Read next event
+                    ringItem  = getNextOutputRingItem(0);
+                    pBankType = ringItem.getEventType();
+                    pBankControlType = ringItem.getControlType();
+
+                    // If control event ...
+                    if (pBankType == EventType.CONTROL) {
+                        // if prestart ..
+                        if (pBankControlType == ControlType.PRESTART) {
+                            if (gotPrestart) {
+                                throw new EmuException("got 2 prestart events");
+                            }
+//System.out.println("      DataChannel File out " + outputIndex + ": found prestart event");
+                            gotPrestart = true;
+                            // Force prestart to hard disk
+                            writeEvioData(ringItem, true);
+                        }
+                        else {
+                            if (!gotPrestart) {
+                                throw new EmuException("prestart, not " + pBankControlType +
+                                                       ", must be first control event");
+                            }
+
+                            if (pBankControlType != ControlType.GO &&
+                                pBankControlType != ControlType.END)  {
+                                throw new EmuException("second control event must be go or end");
+                            }
+//System.out.println("      DataChannel File out " + outputIndex + ": found " + pBankControlType + " event");
+
+                            // Prestart has been written, but not go/end,
+                            // so write any stored user events now
+                            for (RingItem ri : userList) {
+                                // If this user event is also a "first event", let the writer know
+                                if (ri.isFirstEvent()) {
+//System.out.println("      DataChannel File out " + outputIndex + ": writing stored first event");
+                                    evioFileWriter.setFirstEvent(ringItem.getNode());
+                                    // The writer will handle the first event from here
+                                    ri.releaseByteBuffer();
+                                }
+                                else {
+                                    // force to hard disk.
+//System.out.println("      DataChannel File out " + outputIndex + ": writing stored user event");
+                                    writeEvioData(ri, true);
+                                }
+                            }
+                            userList.clear();
+
+                            // Do NOT force to hard disk as it may be go and will slow things down
+                            writeEvioData(ringItem, false);
+
+                            // Done looking for the 2 control events
+                            break;
+                        }
+                    }
+                    // If user event ...
+                    else if (pBankType == EventType.USER) {
+//System.out.println("      DataChannel File out " + outputIndex + ": found & storing user event");
+                        userList.add(ringItem);
+                    }
+                    // Only user and control events should come first, so error
+                    else {
+                        throw new EmuException(pBankType + " type of events must come after go event");
+                    }
+
+                    // Keep reading events till we hit go/end
+                    gotoNextRingItem(0);
+                }
+
+                // Release ring items gotten so far
+                releaseOutputRingItem(0);
+//System.out.println("      DataChannel File out " + outputIndex + ": releasing initial control & user events");
+
+                // END may come right after PRESTART
+                if (pBankControlType == ControlType.END) {
+System.out.println("      DataChannel File out " + outputIndex + ": wrote end");
+                    try {
+                        evioFileWriter.close();
+                    }
+                    catch (Exception e) {
+                        errorMsg.compareAndSet(null, "Cannot write to file");
+                        throw e;
+                    }
+                    // run callback saying we got end event
+                    if (endCallback != null) endCallback.endWait();
+                    threadState = ThreadState.DONE;
+                    return;
+                }
+
+logger.debug("      DataChannel File out " + outputIndex + ": wrote go");
+
+                while ( true ) {
+
+                    if (pause) {
+                        if (pauseCounter++ % 400 == 0) {
+                            try {Thread.sleep(5);}
+                            catch (InterruptedException e1) {}
+                        }
+                        continue;
+                    }
+
+                    try {
+//logger.debug("      DataChannel File out " + outputIndex + ": try getting next buffer from ring");
+                        ringItem = getNextOutputRingItem(ringIndex);
+//logger.debug("      DataChannel File out " + outputIndex + ": got next buffer");
+//Utilities.printBuffer(ringItem.getBuffer(), 0, 6, name+": ev" + nextEvent + ", ring " + ringIndex);
+                    }
+                    catch (InterruptedException e) {
+                        threadState = ThreadState.INTERRUPTED;
+                        // If we're here we were blocked trying to read the next event.
+                        // If there are multiple event building threads in the module,
+                        // then the END event may show up in an unexpected ring.
+                        // The reason for this is that one thread writes to only one ring.
+                        // But since only 1 thread gets the END event, it must write it
+                        // into that ring in all output channels whether that ring was
+                        // the next place to put a data event or not. Thus it may end up
+                        // in a ring which was not the one to be read next.
+                        // We've had 1/4 second to read everything else so let's try
+                        // reading END from this now-known "unexpected" ring.
+System.out.println("      DataChannel File out " + outputIndex + ": try again, read END from ringIndex " + ringIndexEnd +
+" not " + ringIndex);
+                        ringItem = getNextOutputRingItem(ringIndexEnd);
+                    }
+
+                    pBankType = ringItem.getEventType();
+                    pBankControlType = ringItem.getControlType();
+
+                    if (pBankControlType == ControlType.END) {
+logger.debug("      DataChannel File out " + outputIndex + ": got  ev " + nextEvent +
+                     ", ring " + ringIndex + " (END!)");
+                    }
+
+                    try {
+                        // If this a user and "first event", let the writer know
+                        if (ringItem.isFirstEvent()) {
+                            evioFileWriter.setFirstEvent(ringItem.getNode());
+                            // The writer will handle the first event from here,
+                            // go to the next event now.
+                            ringItem.releaseByteBuffer();
+                        }
+                        else {
+//logger.debug("      DataChannel File out " + outputIndex + ": write!");
+                            writeEvioData(ringItem, false);
+                        }
+                    }
+                    catch (Exception e) {
+                        errorMsg.compareAndSet(null, "Cannot write to file");
+                        throw e;
+                    }
+
+//logger.debug("      DataChannel File out: release ring item");
+                    releaseCurrentAndGoToNextOutputRingItem(ringIndex);
+
+                    // Do not go to the next ring if we got a user event.
+                    // Just keep reading until we get to a built event.
+                    // Then start keeping count so we know when to switch to the next ring.
+                    //
+                    // Prestart & go went to the first ring and have already been
+                    // dealt with. End event will stop this thread so don't worry about
+                    // not switching rings.
+                    if (outputRingCount > 1 && !pBankType.isUser()) {
+                        setNextEventAndRing();
+//System.out.println("      DataChannel File out, " + name + ": for next ev " + nextEvent + " SWITCH TO ring = " + ringIndex);
+                    }
+
+                    // If splitting the output, the file name may change.
+                    // Inform the authorities about this.
+                    if (split > 0L && evioFileWriter.getSplitCount() > splitCount) {
+                        emu.setOutputDestination(evioFileWriter.getCurrentFilename());
+                        splitCount = evioFileWriter.getSplitCount();
+                    }
+
+                    if (pBankControlType == ControlType.END) {
+//System.out.println("      DataChannel File out, " + outputIndex + ": got END event");
+                        try {
+                            evioFileWriter.close();
+                        }
+                        catch (Exception e) {
+                            errorMsg.compareAndSet(null, "Cannot write to file");
+                            throw e;
+                        }
+                        // run callback saying we got end event
+                        if (endCallback != null) endCallback.endWait();
+                        threadState = ThreadState.DONE;
+                        return;
+                    }
+
+                    // If I've been told to RESET ...
+                    if (gotResetCmd) {
+System.out.println("      DataChannel File out, " + outputIndex + ": got RESET/END cmd, quitting 1");
+                        threadState = ThreadState.DONE;
+                        return;
+                    }
+                }
+
+            } catch (InterruptedException e) {
+logger.warn("      DataChannel File out, " + outputIndex + ": interrupted thd, exiting");
+            } catch (Exception e) {
+                channelState = CODAState.ERROR;
+                emu.setErrorState("DataChannel File out: " + e.getMessage());
+logger.warn("      DataChannel File out, " + outputIndex + " : exit thd: " + e.getMessage());
+            }
+
+            threadState = ThreadState.DONE;
+        }
+
+
+        /** {@inheritDoc} */
+        public void runOrig() {
 
             threadState = ThreadState.RUNNING;
 
