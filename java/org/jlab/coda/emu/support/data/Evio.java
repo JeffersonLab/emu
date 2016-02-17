@@ -516,9 +516,9 @@ System.out.println("checkPayload: unknown type, dump payload buffer");
         }
 //System.out.println("checkPayloadBuffer: got bank of type " + eventType);
 
-        // Only worry about record id if event to be built or is user
+        // Only worry about record id if event to be built.
         // Initial recordId stored is 0, ignore that.
-        if (eventType.isAnyPhysics() || eventType.isROCRaw() || eventType.isUser()) {
+        if (eventType.isAnyPhysics() || eventType.isROCRaw()) {
             // The recordId associated with each bank is taken from the first
             // evio block header in a single ET/cMsg-msg data buffer. For a physics or
             // ROC raw type, it should start at zero and increase by one in the
@@ -535,24 +535,22 @@ System.out.println("checkPayload: record ID out of sequence, got " + recordId +
             // Store the current value here as a convenience for the next comparison
             channel.setRecordId(recordId);
 
-            if (!eventType.isUser()) {
-                tag = node.getTag();
+            tag = node.getTag();
 
-                if (sourceId != getTagCodaId(tag)) {
-    System.out.println("checkPayload: buf source Id (" + sourceId + ") != buf's id from tag (" + getTagCodaId(tag) + ")");
-                    nonFatalError = true;
-                }
-
-                // pick this bank apart a little here
-                if (node.getDataTypeObj() != DataType.BANK &&
-                    node.getDataTypeObj() != DataType.ALSOBANK) {
-                    throw new EmuException("ROC raw / physics record not in proper format");
-                }
-
-                pBuf.setSync(Evio.isTagSyncEvent(tag));
-                pBuf.setError(Evio.tagHasError(tag));
-                pBuf.setSingleEventMode(Evio.isTagSingleEventMode(tag));
+            if (sourceId != getTagCodaId(tag)) {
+                System.out.println("checkPayload: buf source Id (" + sourceId + ") != buf's id from tag (" + getTagCodaId(tag) + ")");
+                nonFatalError = true;
             }
+
+            // pick this bank apart a little here
+            if (node.getDataTypeObj() != DataType.BANK &&
+                    node.getDataTypeObj() != DataType.ALSOBANK) {
+                throw new EmuException("ROC raw / physics record not in proper format");
+            }
+
+            pBuf.setSync(Evio.isTagSyncEvent(tag));
+            pBuf.setError(Evio.tagHasError(tag));
+            pBuf.setSingleEventMode(Evio.isTagSingleEventMode(tag));
         }
 
         // Check source ID of bank to see if it matches channel id
