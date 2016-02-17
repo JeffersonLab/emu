@@ -501,6 +501,46 @@ public class RocSimulation extends ModuleAdapter {
 
 
     /**
+     * Create a User event with a ByteBuffer which is ready to read.
+     *
+     * @param order byte order in which to write event into buffer
+     * @param isFirstEvent true if event is to be a "first event",
+     *                     that is, written as the first event in each file split
+     * @return created PayloadBuffer object containing User event in byte buffer
+     */
+    private PayloadBuffer createUserBuffer(ByteOrder order, boolean isFirstEvent, int val) {
+        try {
+            CompactEventBuilder builder = new CompactEventBuilder(28, order);
+
+            // Create a single array of integers which is the bank data
+            // The user event looks like a Roc Raw event but with num = 0.
+            // tag=rocID, num=0 (indicates user event), type=bank
+            builder.openBank(1, 0, DataType.BANK);
+            builder.openBank(2, 0, DataType.INT32);
+            builder.addIntData(new int[]{val, val, val});
+            builder.closeAll();
+
+            PayloadBuffer pBuf = new PayloadBuffer(builder.getBuffer());  // Ready to read buffer
+            // User events from the ROC come as type ROC RAW but with num = 0
+//            if (isFirstEvent) {
+                pBuf.setEventType(EventType.USER);
+//            }
+//            else {
+//                pBuf.setEventType(EventType.ROC_RAW);
+//            }
+            if (isFirstEvent) {
+                pBuf.isFirstEvent(isFirstEvent);
+            }
+
+            return pBuf;
+        }
+        catch (Exception e) {/* never happen */}
+
+        return null;
+    }
+
+
+    /**
      * This thread generates events with junk data in it (all zeros except first word which
      * is the event number).
      * It is started by the GO transition and runs while the state of the module is ACTIVE.
@@ -550,38 +590,6 @@ System.out.println("  Roc mod: start With (id=" + myId + "):\n    record id = " 
         }
 
 
-        /**
-         * Create a User event with a ByteBuffer which is ready to read.
-         *
-         * @param order byte order in which to write event into buffer
-         * @return created PayloadBuffer object containing User event in byte buffer
-         */
-        private PayloadBuffer createUserBuffer(ByteOrder order) {
-
-            try {
-                int[] data;
-                CompactEventBuilder builder = new CompactEventBuilder(28, order);
-
-                // Create a single array of integers which is the bank data
-                data = new int[]{1,2,3};
-                // The user event looks like a Roc Raw event but with num = 0.
-                // tag=rocID, num=0 (indicates user event), type=bank
-                builder.openBank(1, 0, DataType.BANK);
-                builder.openBank(2, 0, DataType.INT32);
-                builder.addIntData(data);
-                builder.closeAll();
-                PayloadBuffer pBuf = new PayloadBuffer(builder.getBuffer());  // Ready to read buffer
-                // User events from the ROC come as type ROC RAW but with num = 0
-                pBuf.setEventType(EventType.ROC_RAW);
-
-                return pBuf;
-            }
-            catch (Exception e) {/* never happen */}
-
-            return null;
-        }
-
-
         public void run() {
 
             int  i,j,k=0;
@@ -603,7 +611,8 @@ System.out.println("  Roc mod: start With (id=" + myId + "):\n    record id = " 
                 bufSupplySize = 4096;
             }
             // Now create our own buffer supply to match
-            bbSupply = new ByteBufferSupply(bufSupplySize, 4*eventWordSize, ByteOrder.BIG_ENDIAN, true);
+            // TODO: change back to true .... once testing is done.
+            bbSupply = new ByteBufferSupply(bufSupplySize, 4*eventWordSize, ByteOrder.BIG_ENDIAN, false);
 
             try {
                 t1 = System.currentTimeMillis();
@@ -616,12 +625,16 @@ System.out.println("  Roc mod: start With (id=" + myId + "):\n    record id = " 
 System.out.println("  Roc mod: write USER event for Roc1");
 
                     // Put in User event
-                    PayloadBuffer pBuf = createUserBuffer(outputOrder);
+                    PayloadBuffer pBuf = createUserBuffer(outputOrder, false, 6);
                     eventToOutputChannel(pBuf, 0, 0);
 
-                    eventCountTotal ++;
-                    wordCountTotal  += 7;
-                    myRocRecordId ++;
+System.out.println("  Roc mod: write USER event for Roc1");
+                    pBuf = createUserBuffer(outputOrder, false, 7);
+                    eventToOutputChannel(pBuf, 0, 0);
+
+                    eventCountTotal += 2;
+                    wordCountTotal  += 2*7;
+                    //myRocRecordId += 2;
                 }
 
                 System.out.println("SETTING loops to " + loops);
@@ -810,13 +823,6 @@ System.out.println("  Roc mod: reset()");
         // loop before END is properly dealt with.
         moduleState = CODAState.DOWNLOADED;
 
-        // Put in END event
-        PayloadBuffer pBuf = Evio.createControlBuffer(ControlType.END, 0, 0,
-                                                      (int)eventCountTotal, 0,
-                                                      outputOrder, false);
-        // Send to first ring
-        eventToOutputChannel(pBuf, 0, 0);
-
         if (synced) {
             // Unsubscribe
             try {
@@ -835,6 +841,20 @@ System.out.println("  Roc mod: reset()");
         catch (DataNotFoundException e) {}
 
         killThreads();
+
+        // Putting the following 2 calls right after setting moduleState
+        // results in the END event not making it through the output channel on occasion.
+        // This is probably because there is a race condition as the killThreads()
+        // may not have yet stopped the event producing threads from inserting events
+        // while the eventToOutputChannel call (see below) was doing the same thing
+        // simultaneously.
+
+        // Put in END event
+        PayloadBuffer pBuf = Evio.createControlBuffer(ControlType.END, 0, 0,
+                                                      (int)eventCountTotal, 0,
+                                                      outputOrder, false);
+        // Send to first ring
+        eventToOutputChannel(pBuf, 0, 0);
     }
 
 
@@ -864,13 +884,52 @@ System.out.println("  Roc mod: reset()");
                                                                   emu.name()+":generator");
         }
 
+        boolean sendUser = true;
+
+        // Send user events right before prestart
+        if (sendUser && emu.name().equals("Roc1")) {
+            System.out.println("  Roc mod: write FIRST event for Roc1");
+            PayloadBuffer pBuf = createUserBuffer(outputOrder, true, 1);
+            eventToOutputChannel(pBuf, 0, 0);
+
+            // Put in User events
+            System.out.println("  Roc mod: write USER event for Roc1");
+            pBuf = createUserBuffer(outputOrder, false, 2);
+            eventToOutputChannel(pBuf, 0, 0);
+
+            System.out.println("  Roc mod: write USER event for Roc1");
+            pBuf = createUserBuffer(outputOrder, false, 3);
+            eventToOutputChannel(pBuf, 0, 0);
+
+            eventCountTotal += 3;
+            wordCountTotal  += 21;
+        }
+
+
         // Put in PRESTART event
-        PayloadBuffer pBuf = Evio.createControlBuffer(ControlType.PRESTART, emu.getRunNumber(),
+        PayloadBuffer pBuf2 = Evio.createControlBuffer(ControlType.PRESTART, emu.getRunNumber(),
                                                       emu.getRunTypeId(), 0, 0,
                                                       outputOrder, false);
         // Send to first ring
-        eventToOutputChannel(pBuf, 0, 0);
-System.out.println("  Roc mod: insert PRESTART event");
+        eventToOutputChannel(pBuf2, 0, 0);
+System.out.println("  Roc mod: inserted PRESTART event");
+
+        // Send more user events right before prestart
+        if (sendUser && emu.name().equals("Roc1")) {
+            // Put in User events
+            System.out.println("  Roc mod: write USER event for Roc1");
+            PayloadBuffer pBuf = createUserBuffer(outputOrder, false, 4);
+            eventToOutputChannel(pBuf, 0, 0);
+
+            System.out.println("  Roc mod: write USER event for Roc1");
+            pBuf = createUserBuffer(outputOrder, false, 5);
+            eventToOutputChannel(pBuf, 0, 0);
+
+            eventCountTotal += 2;
+            wordCountTotal  += 14;
+        }
+
+
 
         try {
             // Set start-of-run time in local XML config / debug GUI
