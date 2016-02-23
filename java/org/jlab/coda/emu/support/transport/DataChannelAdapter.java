@@ -574,15 +574,18 @@ System.out.println("      DataChannel Adapter: prestart, nextEv (" + nextEvent +
 
                 // Set the new max
                 maxSequences[ringIndex] = seq;
+//System.out.println("    set max seq = " + seq + " for ring " + ringIndex);
             }
             // If we're < max and > last, then we're in between
             else if (seq > lastSequencesReleased[ringIndex]) {
                 betweens[ringIndex]++;
+//System.out.println("    add in between seq = " + seq + " for ring " + ringIndex);
             }
 
             // If we now have everything between last & max, release it all.
             // This way higher sequences are never released before lower.
             if ( (maxSequences[ringIndex] - lastSequencesReleased[ringIndex] - 1L) == betweens[ringIndex]) {
+//System.out.println("    release seq " + sequences[ringIndex] + " for ring " + ringIndex);
                 sequences[ringIndex].set(maxSequences[ringIndex]);
                 lastSequencesReleased[ringIndex] = maxSequences[ringIndex];
                 betweens[ringIndex] = 0;
