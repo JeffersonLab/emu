@@ -11,6 +11,7 @@
 
 package org.jlab.coda.emu.support.transport;
 
+import org.jlab.coda.emu.EmuException;
 import org.jlab.coda.emu.EmuModule;
 import org.jlab.coda.emu.EmuUtilities;
 import org.jlab.coda.emu.support.codaComponent.CODAClass;
@@ -95,7 +96,6 @@ public class DataChannelImplCmsg extends DataChannelAdapter {
      * @param msg incoming msg
      */
     private final void messageToBuf(cMsgMessage msg) {
-
         try {
             byte[] data = msg.getByteArray();
             if (data == null) {
@@ -289,7 +289,7 @@ public class DataChannelImplCmsg extends DataChannelAdapter {
             try {
                 // create subscription for receiving messages containing data
                 ReceiveMsgCallback cb = new ReceiveMsgCallback();
-System.out.println("      DataChannel cmsg: subscribe to subject = " + subject + ", type = " + type + "\n\n");
+//System.out.println("      DataChannel cmsg: subscribe to subject = " + subject + ", type = " + type + "\n\n");
                 sub = dataTransportImplCmsg.getCmsgConnection().subscribe(subject, type, cb, null);
             }
             catch (cMsgException e) {
@@ -302,7 +302,9 @@ logger.info("      DataChannel cmsg: " + e.getMessage());
             emu.setOutputDestination("cMsg");
 
             // How may cMsg message buffer filling threads the data output thread?
-            writeThreadCount = 1;
+            // Default to a value of 2. Two threads is 15x faster than 1 !?!
+            // Three threads doesn't add much beyond 2 threads.
+            writeThreadCount = 2;
             String attribString = attributeMap.get("wthreads");
             if (attribString != null) {
                 try {
@@ -495,14 +497,17 @@ logger.debug("      DataChannel cmsg: reset() " + name + " done");
          * @throws IOException cMsg communication error
          * @throws cMsgException problems sending message(s) to cMsg server
          */
-        private void writeMessages(cMsgMessage[] msgs, int messages2Write)
+        private void writeMessages(cMsgMessage[] msgs, int messages2Write, EvWriter[] writers)
                 throws InterruptedException, cMsgException {
 
 //System.out.println("      DataChannel cmsg out: array len = " + msgs.length + ", send " + messages2Write +
 // " # of messages to cMsg server");
-            for (cMsgMessage msg : msgs) {
-                dataTransportImplCmsg.getCmsgConnection().send(msg);
-                if (--messages2Write < 1)  break;
+
+            for (int i=0; i < messages2Write; i++) {
+                dataTransportImplCmsg.getCmsgConnection().send(msgs[i]);
+                // Release the buffer used in each message (each is part of a
+                // reusable supply).
+                writers[i].releaseBuffer();
             }
         }
 
@@ -517,7 +522,7 @@ logger.debug("      DataChannel cmsg: reset() " + name + " done");
             startLatch.countDown();
 
             try {
-                EventType previousType, pBanktype;
+                EventType previousType, pBankType;
                 ControlType pBankControlType;
                 ArrayList<RingItem> bankList;
                 RingItem ringItem;
@@ -525,6 +530,7 @@ logger.debug("      DataChannel cmsg: reset() " + name + " done");
                 EvWriter[] writers = new EvWriter[writeThreadCount];
                 // Place to store a bank off the ring for the next message out
                 RingItem firstBankFromRing = null;
+                ArrayList<RingItem> userList = new ArrayList<RingItem>(20);
 
                 // Time in milliseconds for writing if time expired
                 long startTime, timeout = 2000L;
@@ -547,6 +553,8 @@ logger.debug("      DataChannel cmsg: reset() " + name + " done");
 
                 // Always start out reading prestart & go events from ring 0
                 int outputRingIndex=0;
+                boolean fromList, gotPrestart = false;
+                boolean doneWithFirstUsersAndControls = false;
 
                 phaser = new Phaser(1);
 
@@ -578,180 +586,269 @@ logger.debug("      DataChannel cmsg: reset() " + name + " done");
                     // Index into bankListArray of current bankList
                     thisMsgListIndex = 0;
                     bankList = bankListArray[thisMsgListIndex];
+                    bankList.clear();
 
                     listTotalSizeMax = 32;
                     // EventType of events contained in the previous list
                     previousType = null;
 
-                    // Set time of entering do-loop
+                    // Set time of entering while-loop
                     startTime = System.currentTimeMillis();
 
                     // Grab a bank to put into a cMsg buffer,
                     // checking occasionally to see if we got an
                     // RESET command or someone found an END event.
-                    do {
-// System.out.println("      DataChannel cmsg out: try getting ring item");
-                        // Get bank off of Q, unless we already did so in a previous loop
-                        if (firstBankFromRing != null) {
-                            ringItem = firstBankFromRing;
-                            firstBankFromRing = null;
-                        }
-                        else {
-//System.out.print("      DataChannel cmsg out: get next buffer from ring ... ");
-                            try {
-                                ringItem = getNextOutputRingItem(outputRingIndex);
-                            }
-                            catch (InterruptedException e) {
-                                threadState = ThreadState.INTERRUPTED;
-                                // If we're here we were blocked trying to read the next
-                                // (END) event from the wrong ring. We've had 1/4 second
-                                // to read everything else so let's try reading END from
-                                // given ring.
-System.out.println("      DataChannel cmsg out: try again, read END from ringIndex " + ringIndexEnd +
-                   " not " + outputRingIndex);
-                                ringItem = getNextOutputRingItem(ringIndexEnd);
-                            }
-                        }
 
-//System.out.println("      DataChannel cmsg out: GOT ring item");
+                    while (true) {
 
-                        eventCount++;
+                        // First few times through this while loop, we get all of the initial
+                        // control and user events taken care of. After that go through the normal
+                        // do-loop following. Take care of any user events which may appear
+                        // before the prestart event and reorder them so they come after.
+                        if (!doneWithFirstUsersAndControls) {
+                            fromList = false;
 
-                        pBanktype = ringItem.getEventType();
-                        pBankSize = ringItem.getTotalBytes();
-                        pBankControlType = ringItem.getControlType();
-
-                        // Assume worst case of one block header/bank
-                        listTotalSizeMax += pBankSize + 32;
-
-                        // This the first time through the while loop
-                        if (previousType == null) {
-                            // Add bank to the list since there's always room for one
-                            bankList.add(ringItem);
-
-                            // First time through loop nextMessageIndex = thisMessageIndex,
-                            // at least until it gets incremented below.
-                            //
-                            // Set recordId depending on what type this bank is
-                            if (pBanktype.isAnyPhysics() || pBanktype.isROCRaw()) {
-                                recordIds[thisMsgListIndex] = recordId++;
+                            // After we have the prestart event, write the user
+                            // events that arrived before it, one-by-one. Writing
+                            // them one at a time, each in their own block, properly
+                            // assigns the first event status when the cMsg message
+                            // is parsed by the cMsg input channel (see above).
+                            if (gotPrestart && userList.size() > 0) {
+                                // Get stored user event which came before prestart
+                                ringItem = userList.remove(0);
+                                fromList = true;
                             }
                             else {
-                                recordIds[thisMsgListIndex] = -1;
+                                // Read next event
+                                ringItem = getNextOutputRingItem(0);
                             }
 
-                            // Keep track of list's maximum possible size
-                            bankListSize[thisMsgListIndex] = listTotalSizeMax;
+                            pBankType = ringItem.getEventType();
+                            pBankSize = ringItem.getTotalBytes();
+                            pBankControlType = ringItem.getControlType();
 
-                            // Index of next list
-                            nextMsgListIndex++;
+                            // If control event ...
+                            if (pBankType == EventType.CONTROL) {
+                                // if prestart ..
+                                if (pBankControlType == ControlType.PRESTART) {
+                                    if (gotPrestart) {
+                                        throw new EmuException("got 2 prestart events");
+                                    }
+logger.debug("      DataChannel cmsg out " + outputIndex + ": found prestart event");
+                                    gotPrestart = true;
+                                }
+                                else {
+                                    if (!gotPrestart) {
+                                        throw new EmuException("prestart, not " + pBankControlType +
+                                                                       ", must be first control event");
+                                    }
+
+                                    if (pBankControlType != ControlType.GO &&
+                                        pBankControlType != ControlType.END)  {
+                                        throw new EmuException("second control event must be go or end");
+                                    }
+
+logger.debug("      DataChannel cmsg out " + outputIndex + ": found " + pBankControlType + " event");
+                                    // Done with this while loop & looking for the first 2 control events
+                                    doneWithFirstUsersAndControls = true;
+
+                                    // If the module has multiple build threads, then it's possible
+                                    // that the first buildable event (next one in this case)
+                                    // will NOT come on ring 0. Make sure we're looking for it
+                                    // on the right ring. It was set to the correct value in
+                                    // DataChannelAdapter.prestart().
+                                    outputRingIndex = ringIndex;
+                                }
+                            }
+                            // If user event ...
+                            else if (pBankType == EventType.USER) {
+                                // If we don't have the prestart, store this user event
+                                if (!gotPrestart) {
+                                    userList.add(ringItem);
+                                    gotoNextRingItem(0);
+//logger.debug("      DataChannel cmsg out " + outputIndex + ": stored user event");
+                                    continue;
+                                }
+                                // If we've already got the prestart, process this user event
+//logger.debug("      DataChannel cmsg out " + outputIndex + ": found user event");
+                            }
+                            // Only user and control events should come first, so error
+                            else {
+                                throw new EmuException(pBankType + " type of events must come after go event");
+                            }
+
+                            // Get ready to write out user/control event
+                            bankList.add(ringItem);
+                            bankListSize[0] = pBankSize + 64;
+                            recordIds[0] = -1;
+                            nextMsgListIndex = 1;
+
+                            // Next event
+                            if (!fromList) {
+                                gotoNextRingItem(0);
+                            }
+                            break;
                         }
-                        // Is this bank a diff type as previous bank?
-                        // Will it not fit into the target size per message?
-                        // Will it be > the target number of banks per message?
-                        // In all these cases start using a new list.
-                        else if (singleEventOut ||
-                                 (previousType != pBanktype) ||
-                                 (listTotalSizeMax >= outputSizeLimit) ||
-                                 (bankList.size() + 1 > outputCountLimit)) {
 
-                            // Store final value of previous list's maximum possible size
-                            bankListSize[thisMsgListIndex] = listTotalSizeMax - pBankSize - 32;
 
-                            // If we've already used up the max number of messages,
-                            // write things out first. Be sure to store what we just
-                            // pulled off the Q to be the next bank!
-                            if (nextMsgListIndex >= writeThreadCount) {
+                        do {
+//System.out.println("      DataChannel cmsg out: try getting ring item in do-loop");
+                            // Get bank off of Q, unless we already did so in a previous loop
+                            if (firstBankFromRing != null) {
+                                ringItem = firstBankFromRing;
+                                firstBankFromRing = null;
+                            }
+                            else {
+//System.out.print("      DataChannel cmsg out: get next buffer from ring ... ");
+                                try {
+                                    ringItem = getNextOutputRingItem(outputRingIndex);
+                                }
+                                catch (InterruptedException e) {
+                                    threadState = ThreadState.INTERRUPTED;
+                                    // If we're here we were blocked trying to read the next
+                                    // (END) event from the wrong ring. We've had 1/4 second
+                                    // to read everything else so let's try reading END from
+                                    // given ring.
+System.out.println("      DataChannel cmsg out: try again, read END from ringIndex " + ringIndexEnd +
+                                                               " not " + outputRingIndex);
+                                    ringItem = getNextOutputRingItem(ringIndexEnd);
+                                }
+                            }
+
+                            eventCount++;
+
+                            pBankType = ringItem.getEventType();
+                            pBankSize = ringItem.getTotalBytes();
+                            pBankControlType = ringItem.getControlType();
+//System.out.println("      DataChannel cmsg out: GOT ring item of type " + pBankType + ", control " +
+//pBankControlType);
+
+                            // Assume worst case of one block header/bank
+                            listTotalSizeMax += pBankSize + 32;
+
+                            // This the first time through the do loop
+                            if (previousType == null) {
+                                // Add bank to the list since there's always room for one
+                                bankList.add(ringItem);
+
+                                // First time through loop nextMessageIndex = thisMessageIndex,
+                                // at least until it gets incremented below.
+                                //
+                                // Set recordId depending on what type this bank is
+                                if (pBankType.isAnyPhysics() || pBankType.isROCRaw()) {
+                                    recordIds[thisMsgListIndex] = recordId++;
+                                }
+                                else {
+                                    recordIds[thisMsgListIndex] = -1;
+                                }
+
+                                // Keep track of list's maximum possible size
+                                bankListSize[thisMsgListIndex] = listTotalSizeMax;
+
+                                // Index of next list
+                                nextMsgListIndex++;
+                            }
+                            // Is this bank a diff type as previous bank?
+                            // Will it not fit into the target size per message?
+                            // Will it be > the target number of banks per message?
+                            // In all these cases start using a new list.
+                            else if (singleEventOut ||
+                                    (previousType != pBankType) ||
+                                    (listTotalSizeMax >= outputSizeLimit) ||
+                                    (bankList.size() + 1 > outputCountLimit)) {
+
+                                // Store final value of previous list's maximum possible size
+                                bankListSize[thisMsgListIndex] = listTotalSizeMax - pBankSize - 32;
+
+                                // If we've already used up the max number of messages,
+                                // write things out first. Be sure to store what we just
+                                // pulled off the Q to be the next bank!
+                                if (nextMsgListIndex >= writeThreadCount) {
 //                                        System.out.println("Already used " +
 //                                                            nextMessageIndex + " messages for " + writeThreadCount +
 //                                                            " write threads, store bank for next round");
-                                firstBankFromRing = ringItem;
+                                    firstBankFromRing = ringItem;
+                                    break;
+                                }
+
+                                // Get new list
+                                bankList = bankListArray[nextMsgListIndex];
+                                bankList.clear();
+                                // Add bank to new list
+                                bankList.add(ringItem);
+                                // Size of new list (64 -> take ending header into account)
+                                bankListSize[nextMsgListIndex] = listTotalSizeMax = pBankSize + 64;
+
+                                // Set recordId depending on what type this bank is
+                                if (pBankType.isAnyPhysics() || pBankType.isROCRaw()) {
+                                    recordIds[nextMsgListIndex] = recordId++;
+                                }
+                                else {
+                                    recordIds[nextMsgListIndex] = -1;
+                                }
+
+                                // Index of this & next lists
+                                thisMsgListIndex++;
+                                nextMsgListIndex++;
+                            }
+                            // It's OK to add this bank to the existing list.
+                            else {
+                                // Add bank to list since there's room and it's the right type
+                                bankList.add(ringItem);
+                                // Keep track of list's maximum possible size
+                                bankListSize[thisMsgListIndex] = listTotalSizeMax;
+                            }
+
+                            // Set this for next round
+                            previousType = pBankType;
+                            ringItem.setAttachment(Boolean.FALSE);
+
+                            gotoNextRingItem(outputRingIndex);
+
+                            // If control event, quit loop and write what we have
+                            if (pBankControlType != null) {
+                                // Look for END event and mark it in attachment
+                                if (pBankControlType == ControlType.END) {
+                                    ringItem.setAttachment(Boolean.TRUE);
+                                    haveOutputEndEvent = true;
+System.out.println("      DataChannel cmsg out " + outputIndex + ": I got END event, quitting 2, byteOrder = " +
+                                                               ringItem.getByteOrder());
+                                    // run callback saying we got end event
+                                    if (endCallback != null) endCallback.endWait();
+                                }
+                                else {
+                                    throw new EmuException("only END control event allowed here");
+                                }
+
                                 break;
                             }
 
-                            // Get new list
-                            bankList = bankListArray[nextMsgListIndex];
-                            // Add bank to new list
-                            bankList.add(ringItem);
-                            // Size of new list (64 -> take ending header into account)
-                            bankListSize[nextMsgListIndex] = listTotalSizeMax = pBankSize + 64;
-
-                            // Set recordId depending on what type this bank is
-                            if (pBanktype.isAnyPhysics() || pBanktype.isROCRaw()) {
-                                recordIds[nextMsgListIndex] = recordId++;
-                            }
-                            else {
-                                recordIds[nextMsgListIndex] = -1;
-                            }
-
-                            // Index of this & next lists
-                            thisMsgListIndex++;
-                            nextMsgListIndex++;
-                        }
-                        // It's OK to add this bank to the existing list.
-                        else {
-                            // Add bank to list since there's room and it's the right type
-                            bankList.add(ringItem);
-                            // Keep track of list's maximum possible size
-                            bankListSize[thisMsgListIndex] = listTotalSizeMax;
-                        }
-
-                        // Set this for next round
-                        previousType = pBanktype;
-                        ringItem.setAttachment(Boolean.FALSE);
-
-                        gotoNextRingItem(outputRingIndex);
-
-                        // If control event, quit loop and write what we have
-                        if (pBankControlType != null) {
-                            // Look for END event and mark it in attachment
-                            if (pBankControlType == ControlType.END) {
-                                ringItem.setAttachment(Boolean.TRUE);
-                                haveOutputEndEvent = true;
-System.out.println("      DataChannel cmsg out " + outputIndex + ": I got END event, quitting 2, byteOrder = " +
-ringItem.getByteOrder());
-                                // run callback saying we got end event
-                                if (endCallback != null) endCallback.endWait();
-                            }
-                            else if (pBankControlType == ControlType.PRESTART) {
-System.out.println("      DataChannel cmsg out " + outputIndex + ": have PRESTART, ringIndex = " + outputRingIndex);
-                            }
-                            else if (pBankControlType == ControlType.GO) {
-System.out.println("      DataChannel cmsg out " + outputIndex + ": have GO, ringIndex = " + outputRingIndex);
-                                // If the module has multiple build threads, then it's possible
-                                // that the first buildable event (next one in this case)
-                                // will NOT come on ring 0. Make sure we're looking for it
-                                // on the right ring. It was set to the correct value in
-                                // DataChannelAdapter.prestart().
-                                outputRingIndex = ringIndex;
-                            }
-
-                            break;
-                        }
-
-                        // Do not go to the next ring if we got a control (previously taken
-                        // care of) or user event.
-                        // All prestart, go, & users go to the first ring. Just keep reading
-                        // until we get to a buildable event. Then start keeping count so
-                        // we know when to switch to the next ring.
-                        if (outputRingCount > 1 && !pBanktype.isUser()) {
-                            outputRingIndex = setNextEventAndRing();
+                            // Do not go to the next ring if we got a control (previously taken
+                            // care of) or user event.
+                            // All prestart, go, & users go to the first ring. Just keep reading
+                            // until we get to a buildable event. Then start keeping count so
+                            // we know when to switch to the next ring.
+                            if (outputRingCount > 1 && !pBankType.isUser()) {
+                                outputRingIndex = setNextEventAndRing();
 //System.out.println("      DataChannel cmsg out " + outputIndex + ": for next ev " + nextEvent +
 //                   " SWITCH TO ring = " + outputRingIndex);
-                        }
+                            }
 
-                        // Be careful not to use up all the events in the output
-                        // ring buffer before writing some (& freeing them up).
-                        // Also write what we have if time (2 sec) has expired.
-                        if ((eventCount >= outputRingItemCount*3/4) ||
-                            (emu.getTime() - startTime > timeout)) {
+                            // Be careful not to use up all the events in the output
+                            // ring buffer before writing some (& freeing them up).
+                            // Also write what we have if time (2 sec) has expired.
+                            if ((eventCount >= outputRingItemCount * 3 / 4) ||
+                                    (emu.getTime() - startTime > timeout)) {
 //                            if (emu.getTime() - startTime > timeout) {
 //                                System.out.println("TIME FLUSH ******************");
 //                            }
-                            break;
-                        }
+                                break;
+                            }
 
-                    } while (!gotResetCmd && (nextMsgListIndex < writeThreadCount));
+                        } while (!gotResetCmd && (nextMsgListIndex < writeThreadCount));
+
+                        break;
+                    }
 
                     // If I've been told to RESET ...
                     if (gotResetCmd) {
@@ -802,7 +899,7 @@ System.out.println("      DataChannel cmsg out " + outputIndex + ": have GO, rin
                     try {
 //System.out.println("      DataChannel cmsg out: write " + messages2Write + " messages");
                         // Write cMsg messages after gathering them all
-                        writeMessages(msgs, messages2Write);
+                        writeMessages(msgs, messages2Write, writers);
                     }
                     catch (cMsgException e) {
                         errorMsg.compareAndSet(null, "Cannot communicate with cMsg server");
@@ -857,6 +954,8 @@ logger.warn("      DataChannel cmsg out: " + name + " exit thd: " + e.getMessage
             /** Message to send with bank data inside. */
             private cMsgMessage msg;
 
+            private ByteBufferSupply bbSupply = new ByteBufferSupply(8, 2100000);
+            private ByteBufferItem bufItem;
 
             /**
              * Constructor.
@@ -886,9 +985,15 @@ logger.warn("      DataChannel cmsg out: " + name + " exit thd: " + e.getMessage
 
                 // Need to account for block headers + a little extra just in case
 
-// TODO: use bufferSupply here!
-                buffer = ByteBuffer.allocate(bankByteSize);
+//System.out.println("      DataChannel cmsg out: " + name + " create buf of size " + bankByteSize);
+                // Grab a stored ByteBuffer
+                bufItem = bbSupply.get();
+                bufItem.ensureCapacity(bankByteSize);
+                buffer = bufItem.getBuffer();
                 buffer.order(byteOrder);
+
+//                buffer = ByteBuffer.allocate(bankByteSize);
+//                buffer.order(byteOrder);
 
                 // Encode the event type into bits
                 BitSet bitInfo = new BitSet(24);
@@ -911,6 +1016,12 @@ logger.warn("      DataChannel cmsg out: " + name + " exit thd: " + e.getMessage
             }
 
 
+
+            void releaseBuffer() {
+                bbSupply.release(bufItem);
+            }
+
+
             /**
              * {@inheritDoc}<p>
              * Write bank into cMsg message buffer.
@@ -925,9 +1036,16 @@ logger.warn("      DataChannel cmsg out: " + name + " exit thd: " + e.getMessage
                         buf  = ri.getBuffer();
                         node = ri.getNode();
                         if (buf != null) {
+//System.out.println("      DataChannel cmsg out: " + name + " BUF cap = " + buf.capacity() +
+//                                                        ", lim = " + buf.limit() + ", pos = " + buf.position());
                             evWriter.writeEvent(buf);
                         }
                         else if (node != null) {
+                            buf = ri.getNode().getBufferNode().getBuffer();
+//System.out.println("      DataChannel cmsg out: " + name + " buf cap = " + buf.capacity() +
+//                            ", lim = " + buf.limit() + ", pos = " + buf.position());
+//System.out.println("      DataChannel cmsg out: " + name + " node.len = " + node.getTotalBytes() +
+//                            "(bytes), node.pos = " + node.getPosition());
                             evWriter.writeEvent(ri.getNode(), false);
                         }
                         ri.releaseByteBuffer();
@@ -942,7 +1060,6 @@ logger.warn("      DataChannel cmsg out: " + name + " exit thd: " + e.getMessage
                     msg.setByteArrayNoCopy(buffer.array(), 0, buffer.limit());
                     msg.setByteArrayEndian(byteOrder == ByteOrder.BIG_ENDIAN ? cMsgConstants.endianBig :
                                                                                cMsgConstants.endianLittle);
-
                     // Tell the DataOutputHelper thread that we're done
                     phaser.arriveAndDeregister();
                 }
