@@ -1515,6 +1515,7 @@ if (debug) logger.info("Emu " + name + " end: end() done in fake ROC " + mod.nam
                 try {
 if (debug) logger.info("Emu " + name + " end: wait for END event in module " + mods.getLast().name());
                     gotEndEvent = mods.getLast().getEndCallback().waitForEvent(timeout, timeUnits);
+if (debug) logger.info("Emu " + name + " end: got END event in module " + mods.getLast().name());
                     if (!gotEndEvent) {
 if (debug) logger.info("Emu " + name + " end: timeout (30 sec) waiting for END event in module " + mods.getLast().name());
                         setErrorState("Emu: timeout waiting for END event in module " + mods.getLast().name());
@@ -2103,7 +2104,7 @@ logger.error("Emu " + name + " download: jvm out of memory, exiting");
         }
         // This includes ClassNotFoundException
         catch (Exception e) {
-logger.error("Emu " + name + " download: ", e.getMessage());
+logger.error("Emu " + name + " download error: ", e.getMessage());
             setErrorState("Emu " + name + " download: " + e.getMessage());
             return;
         }
