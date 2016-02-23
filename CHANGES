@@ -51,3 +51,12 @@ Version 2.6
       whole backing buffer (and therefore the events to be built). Happens when
       input data in opposite endian as module output.
     - fix bug in which EB releases user event buffer more than once.
+
+    - emu domain sends prestart through emu with change in cMsg-5.0 2/23/16
+    - output channels for et, cmsg, emu, and file take user events arriving before
+      prestart event and place them after.
+    - in emu output channel, fix bug in which all events following a "first event"
+      are tagged as first events
+    - in cmsg output channel:
+            1) write thread count = 2 by default (15x better performance than 1)
+            2) use internal buffer supply for efficiency
