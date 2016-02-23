@@ -63,6 +63,23 @@ public class EmuUtilities {
 
 
     /**
+     * Encode the "is NOT first event" into the bit info word
+     * which will be in evio block header.
+     *
+     * @param bSet bit set which will become part of the bit info word
+     */
+    static public void unsetFirstEvent(BitSet bSet) {
+        // check arg
+        if (bSet == null || bSet.size() < 7) {
+            return;
+        }
+
+        // Encoding bit #15 (#6 since first is bit #9)
+        bSet.set(6, false);
+    }
+
+
+    /**
      * Return the power of 2 closest to the given argument.
      *
      * @param x value to get the power of 2 closest to.
