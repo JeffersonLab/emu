@@ -510,14 +510,14 @@ public class RocSimulation extends ModuleAdapter {
      */
     private PayloadBuffer createUserBuffer(ByteOrder order, boolean isFirstEvent, int val) {
         try {
-            CompactEventBuilder builder = new CompactEventBuilder(28, order);
+            CompactEventBuilder builder = new CompactEventBuilder(40, order);
 
             // Create a single array of integers which is the bank data
             // The user event looks like a Roc Raw event but with num = 0.
             // tag=rocID, num=0 (indicates user event), type=bank
             builder.openBank(1, 0, DataType.BANK);
             builder.openBank(2, 0, DataType.INT32);
-            builder.addIntData(new int[]{val, val, val});
+            builder.addIntData(new int[]{val, val, val, val, val, val});
             builder.closeAll();
 
             PayloadBuffer pBuf = new PayloadBuffer(builder.getBuffer());  // Ready to read buffer
