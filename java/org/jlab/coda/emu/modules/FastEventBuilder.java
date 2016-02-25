@@ -1215,9 +1215,8 @@ System.out.println("  EB mod: got END from " + buildingBanks[i].getSourceName() 
                             emu.sendRcErrorMessage("Missing " +
                                                    (inputChannelCount - finalEndEventCount) +
                                                    " END events, ending anyway");
-                            //throw new EmuException("only " + finalEndEventCount + " ENDs for " +
-                            //                               inputChannelCount + " channels");
-System.out.println("  EB mod: missing " + (inputChannelCount - finalEndEventCount) + " END events!");
+                            throw new EmuException("only " + finalEndEventCount + " ENDs for " +
+                                                           inputChannelCount + " channels");
                         }
                         else {
                             emu.sendRcErrorMessage("All END events found, but out of order");
