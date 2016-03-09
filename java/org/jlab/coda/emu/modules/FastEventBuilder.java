@@ -327,19 +327,24 @@ logger.info("  EB mod: " + buildingThreadCount + " number of event building thre
         // since it costs real memory. For big events, 128 x 20MB events = 2.56GB
         // of mem used. Multiply that times the number of build threads.
         int ringCount = 128;
+        // If there are multiple build threads, reduce the # of items per thread.
+        if (buildingThreadCount == 3) {
+            ringCount = 32;
+        }
+        else {
+            ringCount /= buildingThreadCount;
+        }
+
         str = attributeMap.get("ringCount");
         if (str != null) {
             try {
                 ringCount = Integer.parseInt(str);
-                if (ringCount < 32) {
-                    ringCount = 32;
+                if (ringCount < 16) {
+                    ringCount = 16;
                 }
            }
             catch (NumberFormatException e) {}
         }
-
-        // If there are multiple build threads, reduce the # of items per thread.
-        ringCount /= buildingThreadCount;
 
         // Make sure it's a power of 2, round up
         ringItemCount = emu.closestPowerOfTwo(ringCount, true);
