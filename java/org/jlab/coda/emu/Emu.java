@@ -784,7 +784,7 @@ System.out.println("Emu " + name + ": state set to ERROR\n\n");
                 long  eventCount=0L, wordCount=0L;
                 float eventRate=0.F, dataRate=0.F;
                 int   maxEvSize=0, minEvSize=0, avgEvSize=0, chunk_X_EtBuf=0;
-                int[] timeToBuild = null;
+                int[] timeToBuild=null, inputChanLevels=null, outputChanLevels=null;
 
                 // get new statistics from a single representative module
                 EmuModule statsModule = getStatisticsModule();
@@ -802,6 +802,9 @@ System.out.println("Emu " + name + ": state set to ERROR\n\n");
                         chunk_X_EtBuf = (Integer)stats[7];
                         timeToBuild   = (int[])  stats[8];
                     }
+
+                    inputChanLevels  = statsModule.getInputLevels();
+                    outputChanLevels = statsModule.getOutputLevels();
                 }
 
                 try {
@@ -821,6 +824,24 @@ System.out.println("Emu " + name + ": state set to ERROR\n\n");
                     reportMsg.addPayloadItem(new cMsgPayloadItem(RCConstants.minEventSize, minEvSize));
                     reportMsg.addPayloadItem(new cMsgPayloadItem(RCConstants.avgEventSize, avgEvSize));
                     reportMsg.addPayloadItem(new cMsgPayloadItem(RCConstants.chunk_X_EtBuf, chunk_X_EtBuf));
+
+                    // in/output channel ring levels (0-100)
+                    if (inputChanLevels != null) {
+                        reportMsg.addPayloadItem(new cMsgPayloadItem(RCConstants.inputChanLevels,
+                                                                     inputChanLevels));
+                    }
+                    else {
+                        reportMsg.removePayloadItem(RCConstants.inputChanLevels);
+                    }
+
+                    if (outputChanLevels != null) {
+                        reportMsg.addPayloadItem(new cMsgPayloadItem(RCConstants.outputChanLevels,
+                                                                     outputChanLevels));
+                    }
+                    else {
+                        reportMsg.removePayloadItem(RCConstants.outputChanLevels);
+                    }
+
                     // histogram in nanoseconds
                     if (timeToBuild != null && timeToBuild.length > 0) {
                         reportMsg.addPayloadItem(new cMsgPayloadItem(RCConstants.timeToBuild, timeToBuild));
