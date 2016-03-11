@@ -190,4 +190,7 @@ public class RCConstants {
     public static final String    avgEventSize         = "avgEventSize";
     public static final String    chunk_X_EtBuf        = "chunk_X_EtBuf";
     public static final String    timeToBuild          = "timeToBuild";
+
+    public static final String    inputChanLevels      = "inputChanLevels";
+    public static final String    outputChanLevels     = "outputChanLevels";
   }
