@@ -42,14 +42,6 @@ public interface DataChannel extends CODAStateMachine, StatedObject {
     public int getID();
 
     /**
-     * Set the CODA ID number of the CODA component connected to this
-     * data channel.
-     * @return the CODA ID number the CODA component connected to this
-     *         data channel.
-     */
-    public void setID(int id);
-
-    /**
      * Get the module which created this channel.
      * @return module which created this channel.
      */
@@ -106,6 +98,12 @@ public interface DataChannel extends CODAStateMachine, StatedObject {
      * @return array of output ring buffers.
      */
     public RingBuffer<RingItem>[] getRingBuffersOut();
+
+    /**
+     * Get the relative fill level (0-100) of all the rings of this output channel.
+     * @return relative fill level (0-100) of all the rings together
+     */
+    public int getOutputLevel();
 
     /**
      * If this is an output channel, it may be blocked on reading from a module
