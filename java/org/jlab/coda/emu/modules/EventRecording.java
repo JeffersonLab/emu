@@ -113,6 +113,9 @@ public class EventRecording extends ModuleAdapter {
     /** One RingBuffer. */
     private RingBuffer<RingItem> ringBufferIn;
 
+    /** Size of RingBuffer for input channel. */
+    private int ringBufferSize;
+
     /** One sequence per recording thread. */
     public Sequence[] sequenceIn;
 
@@ -294,6 +297,11 @@ if (debug) System.out.println("  ER mod: will end threads but no END event or ri
             int skipCounter = order + 1;
             boolean gotBank;
 
+            boolean takeRingStats = false;
+            if (order == 0) {
+                takeRingStats = true;
+            }
+
             // Ring Buffer stuff
             availableSequence = -2L;
             sequence = sequenceIn[order];
@@ -312,6 +320,13 @@ if (debug) System.out.println("  ER mod: will end threads but no END event or ri
 //System.out.println("  ER mod: " + order + ", wait for seq " + nextSequence);
                         availableSequence = barrierIn.waitFor(nextSequence);
 //System.out.println("  ER mod: " + order + ", got seq " + availableSequence);
+                        if (takeRingStats) {
+                            // scale from 0% to 100% of ring buffer size
+                            inputChanLevel[0] = ((int)(availableSequence - nextSequence) + 1)*100/ringBufferSize;
+//                            if (i==0 && printCounter++ % 10000000 == 0) {
+//                                System.out.print(inputChanLevel[0] + "\n");
+//                            }
+                        }
                     }
 
                     while (nextSequence <= availableSequence) {
@@ -509,8 +524,14 @@ System.out.println("  ER mod: recording thread ending");
         // 1 sequence per recording thread
         sequenceIn = new Sequence[recordingThreadCount];
 
+        // Place to put ring level stats
+        inputChanLevel  = new int[1];
+
         // Get input channel's ring buffer
         ringBufferIn = inputChannels.get(0).getRingBufferIn();
+
+        // Have ring sizes handy for calculations
+        ringBufferSize = ringBufferIn.getBufferSize();
 
         // For each recording thread ...
         for (int j=0; j < recordingThreadCount; j++) {
