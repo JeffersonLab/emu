@@ -72,6 +72,18 @@ public interface EmuModule extends StatedObject, CODAStateMachine {
     public int getInternalRingCount();
 
     /**
+     * Get the relative fill level (0-100) of each output channel's ring(s).
+     * @return
+     */
+    public int[] getOutputLevels();
+
+    /**
+     * Get the relative fill level (0-100) of each input channel's ring.
+     * @return
+     */
+    public int[] getInputLevels();
+
+    /**
      * Remove all channels from this EmuModule object.
      */
     public void clearChannels();
