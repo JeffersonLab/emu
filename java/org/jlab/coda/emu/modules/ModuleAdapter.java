@@ -120,6 +120,14 @@ public class ModuleAdapter implements EmuModule {
     // For generating statistics
     //---------------------------
 
+    /** Array containing, for each input channel, the percentage (0-100)
+     *  of filled ring space. */
+    protected int[] inputChanLevel;
+
+    /** Array containing, for each output channel, the percentage (0-100)
+     *  of filled ring space. */
+    protected int[] outputChanLevel;
+
     /** Total number of evio events written to the outputs. */
     protected long eventCountTotal;
 
@@ -297,6 +305,26 @@ logger.info("  Module Adapter: SEB chunk = " + sebChunk);
         rb.publish(nextRingItem);
     }
 
+
+    /** {@inheritDoc} */
+    public int[] getOutputLevels() {
+        // The values in this array need to be obtained from each output channel
+        if (outputChannels != null && outputChanLevel != null) {
+            int i=0;
+            for (DataChannel chan : outputChannels) {
+                outputChanLevel[i++] = chan.getOutputLevel();
+            }
+        }
+
+        return outputChanLevel;
+    }
+
+
+    /** {@inheritDoc} */
+    public int[] getInputLevels() {
+        // The values in this array are set in the EB & ER modules
+        return inputChanLevel;
+    }
 
 
     //-----------------------------------------------------------
