@@ -215,6 +215,9 @@ public class FastEventBuilder extends ModuleAdapter {
     /** One RingBuffer per input channel (references to channels' rings). */
     private RingBuffer<RingItem>[] ringBuffersIn;
 
+    /** Size of RingBuffer for each input channel. */
+    private int[] ringBufferSize;
+
 
 
     /** One pre-processing sequence for each input channel. */
@@ -323,7 +326,7 @@ logger.info("  EB mod: " + buildingThreadCount + " number of event building thre
         }
         catch (NumberFormatException e) {}
 
-        // Number of items in each build thread ring. We need to limit this
+       // Number of items in each build thread ring. We need to limit this
         // since it costs real memory. For big events, 128 x 20MB events = 2.56GB
         // of mem used. Multiply that times the number of build threads.
         int ringCount = 128;
@@ -923,6 +926,11 @@ System.out.println("  EB mod: bbSupply -> " + ringItemCount + " # of bufs, direc
                 boolean isEventNumberInitiallySet = false;
                 EventType eventType = null;
 
+                boolean takeRingStats = false;
+                if (btIndex == 0) {
+                    takeRingStats = true;
+                }
+
                 if (outputChannelCount > 1) outputChannelIndex = -1;
 
                 PayloadBuffer[] buildingBanks = new PayloadBuffer[inputChannelCount];
@@ -1031,6 +1039,7 @@ System.out.println("  EB mod: got all GO events");
                     firstToGetEnd.set(false);
                     gotFirstBuildEvent = false;
                     endEventCount = 0;
+                    int printCounter = 0;
 
                     // Start the clock on how long it takes to build the next event
                     if (timeStatsOn) startTime = System.nanoTime();
@@ -1046,10 +1055,17 @@ System.out.println("  EB mod: got all GO events");
                             // Only wait for a read of volatile memory if necessary ...
                             if (availableSequences[i] < nextSequences[i]) {
 // TODO: Can BLOCK here waiting for item if none available, but can be interrupted
-                                // Available sequence may be larger than what we desired.
+                                // Available sequence may be larger than what we asked for.
 //System.out.println("  EB mod: bt" + btIndex + " ch" + i + ", wait for event (seq [" + i + "] = " +
 //                           nextSequences[i] + ")");
                                 availableSequences[i] = buildBarrierIn[i].waitFor(nextSequences[i]);
+                                if (takeRingStats) {
+                                    // scale from 0% to 100% of ring buffer size
+                                    inputChanLevel[i] = ((int)(availableSequences[i] - nextSequences[i]) + 1)*100/ringBufferSize[i];
+//                                    if (i==0 && printCounter++ % 10000000 == 0) {
+//                                        System.out.print(inputChanLevel[0] + "\n");
+//                                    }
+                                }
 //System.out.println("  EB mod: bt" + btIndex + " ch" + i + ", available seq[" + i + "]  = " + availableSequences[i]);
                             }
 
@@ -1791,11 +1807,19 @@ if (debug) System.out.println("  EB mod: endBuildThreads: will end building/fill
         postBuildSequence = new Sequence[inputChannelCount];
         postBuildBarrier  = new SequenceBarrier[inputChannelCount];
 
+        // Place to put ring level stats
+        inputChanLevel  = new int[inputChannelCount];
+        outputChanLevel = new int[outputChannelCount];
+
+        // Have ring sizes handy for calculations
+        ringBufferSize = new int[inputChannelCount];
+
         // For each channel ...
         for (int i=0; i < inputChannelCount; i++) {
             // Get channel's ring buffer
             RingBuffer<RingItem> rb = inputChannels.get(i).getRingBufferIn();
-            ringBuffersIn[i] = rb;
+            ringBuffersIn[i]  = rb;
+            ringBufferSize[i] = rb.getBufferSize();
 
             // First sequence & barrier is for checking of PayloadBuffer/Bank
             // data before the actual building takes place.
