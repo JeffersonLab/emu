@@ -405,9 +405,6 @@ System.out.println("      DataChannel Adapter: prestart, nextEv (" + nextEvent +
     public int getID() {return id;}
 
     /** {@inheritDoc} */
-    public void setID(int id) {this.id = id;}
-
-    /** {@inheritDoc} */
     public int getRecordId() {return recordId;}
 
     /** {@inheritDoc} */
@@ -453,6 +450,16 @@ System.out.println("      DataChannel Adapter: prestart, nextEv (" + nextEvent +
     public long getNextSequence(int ringIndex) {
         if (ringIndex < 0) return -1L;
         return nextSequences[ringIndex];
+    }
+
+    /** {@inheritDoc} */
+    public int getOutputLevel() {
+        int count = 0;
+        for (int i=0; i < outputRingCount; i++) {
+            count += (int)(availableSequences[i] - nextSequences[i] + 1);
+        }
+        count *= 100/(outputRingCount * outputRingItemCount);
+        return count;
     }
 
     /**
