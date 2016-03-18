@@ -555,13 +555,13 @@ logger.debug("    DataTransport Et: tell ET to die - " + openConfig.getEtName())
 
         // Stop ET system running in this JVM
         if (etSysLocal != null) {
-logger.debug("    DataTransport Et: shutdown local ET system");
+logger.debug("    DataTransport Et: shutdown local Java ET system");
             etSysLocal.shutdown();
 //            etSysLocal = null;
         }
         // Stop ET system running in a separate process
         else {
-logger.debug("    DataTransport Et: try killing non-JVM ET system");
+logger.debug("    DataTransport Et: try killing local C ET system");
             if (etSystem != null) {
                 try {
                     // Tell ET to die directly and remove file, if we're still attached.
@@ -671,7 +671,7 @@ logger.debug("    DataTransport Et: ET is dead");
         try {
             if (isJavaSystem) {
                 // Create a Java ET system as threads in this JVM
-                logger.debug("    DataTransport Et: create ET system, " + etOpenConfig.getEtName());
+                logger.debug("    DataTransport Et: create local Java ET system, " + etOpenConfig.getEtName());
                 etSysLocal = new SystemCreate(openConfig.getEtName(), systemConfig);
             }
             else {
@@ -709,7 +709,7 @@ logger.debug("    DataTransport Et: ET is dead");
 //                etCmd += " > " + (etOpenConfig.getEtName() + ".log");
 
 //                String[] cmd = new String[] {"/bin/sh", "-c", etCmd};
-logger.debug("    DataTransport Et: create ET system, " + etOpenConfig.getEtName() + " with cmd:\n" + etCmd);
+logger.debug("    DataTransport Et: create local C ET system, " + etOpenConfig.getEtName() + " with cmd:\n" + etCmd);
 //                processET = Runtime.getRuntime().exec(cmd);
                 processET = Runtime.getRuntime().exec(etCmd);
 
