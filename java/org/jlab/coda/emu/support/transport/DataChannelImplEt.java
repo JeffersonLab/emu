@@ -258,7 +258,7 @@ logger.info("      DataChannel Et: creating output channel " + name);
             openConfig.setTcpRecvBufSize(tcpRecvBuf);
             openConfig.setTcpSendBufSize(tcpSendBuf);
             openConfig.setNoDelay(noDelay);
-
+            // debug is set to error in constructor
             etSystem = new EtSystem(openConfig);
         }
         catch (EtException e) {
