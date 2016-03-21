@@ -122,11 +122,17 @@ public class ModuleAdapter implements EmuModule {
 
     /** Array containing, for each input channel, the percentage (0-100)
      *  of filled ring space. */
-    protected int[] inputChanLevel;
+    protected int[] inputChanLevels;
 
     /** Array containing, for each output channel, the percentage (0-100)
      *  of filled ring space. */
-    protected int[] outputChanLevel;
+    protected int[] outputChanLevels;
+
+    /** Array containing names for each input channel. */
+    protected String[] inputChanNames;
+
+    /** Array containing names for each output channel. */
+    protected String[] outputChanNames;
 
     /** Total number of evio events written to the outputs. */
     protected long eventCountTotal;
@@ -307,23 +313,37 @@ logger.info("  Module Adapter: SEB chunk = " + sebChunk);
 
 
     /** {@inheritDoc} */
+    public String[] getInputNames() {
+        // The values in this array are set in the EB & ER modules
+        return inputChanNames;
+    }
+
+
+    /** {@inheritDoc} */
+    public String[] getOutputNames() {
+        // The values in this array are set in the EB & ER modules
+        return outputChanNames;
+    }
+
+
+    /** {@inheritDoc} */
     public int[] getOutputLevels() {
         // The values in this array need to be obtained from each output channel
-        if (outputChannels != null && outputChanLevel != null) {
+        if (outputChannels != null && outputChanLevels != null) {
             int i=0;
             for (DataChannel chan : outputChannels) {
-                outputChanLevel[i++] = chan.getOutputLevel();
+                outputChanLevels[i++] = chan.getOutputLevel();
             }
         }
 
-        return outputChanLevel;
+        return outputChanLevels;
     }
 
 
     /** {@inheritDoc} */
     public int[] getInputLevels() {
         // The values in this array are set in the EB & ER modules
-        return inputChanLevel;
+        return inputChanLevels;
     }
 
 
@@ -375,12 +395,14 @@ logger.info("  Module Adapter: SEB chunk = " + sebChunk);
     /** {@inheritDoc} */
     public String getAttr(String name) throws DataNotFoundException {
         String attribute = attributeMap.get(name);
-        if (attribute == null) throw new DataNotFoundException("attribute " + name + " not found in config for " + name());
+        if (attribute == null) throw new DataNotFoundException("attribute " +
+                                         name + " not found in config for " + name());
         return attribute;
     }
 
     /** {@inheritDoc} */
-    public int getIntAttr(String name) throws DataNotFoundException {
+    public int getIntAttr(String name) throws DataNotFoundException,
+                                              NumberFormatException {
         return Integer.valueOf(getAttr(name));
     }
 
