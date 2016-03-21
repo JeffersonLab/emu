@@ -60,3 +60,9 @@ Version 2.6
     - in cmsg output channel:
             1) write thread count = 2 by default (15x better performance than 1)
             2) use internal buffer supply for efficiency
+
+    - in statistics message there are four new payload items:
+            1) array of ints with input  channels' ring occupancy levels (0 - 100)
+            2) array of ints with output channels' ring occupancy levels (0 - 100)
+            3) array of Strings with input  channel names (corresponding to array #1)
+            4) array of Strings with output channel names (corresponding to array #2)
