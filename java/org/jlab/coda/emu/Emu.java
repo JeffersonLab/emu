@@ -784,7 +784,8 @@ System.out.println("Emu " + name + ": state set to ERROR\n\n");
                 long  eventCount=0L, wordCount=0L;
                 float eventRate=0.F, dataRate=0.F;
                 int   maxEvSize=0, minEvSize=0, avgEvSize=0, chunk_X_EtBuf=0;
-                int[] timeToBuild=null, inputChanLevels=null, outputChanLevels=null;
+                int[] timeToBuild=null, inChanLevels=null, outChanLevels=null;
+                String[] inChanNames=null, outChanNames=null;
 
                 // get new statistics from a single representative module
                 EmuModule statsModule = getStatisticsModule();
@@ -803,8 +804,10 @@ System.out.println("Emu " + name + ": state set to ERROR\n\n");
                         timeToBuild   = (int[])  stats[8];
                     }
 
-                    inputChanLevels  = statsModule.getInputLevels();
-                    outputChanLevels = statsModule.getOutputLevels();
+                    inChanLevels  = statsModule.getInputLevels();
+                    outChanLevels = statsModule.getOutputLevels();
+                    inChanNames   = statsModule.getInputNames();
+                    outChanNames  = statsModule.getOutputNames();
                 }
 
                 try {
@@ -826,20 +829,26 @@ System.out.println("Emu " + name + ": state set to ERROR\n\n");
                     reportMsg.addPayloadItem(new cMsgPayloadItem(RCConstants.chunk_X_EtBuf, chunk_X_EtBuf));
 
                     // in/output channel ring levels (0-100)
-                    if (inputChanLevels != null && inputChanLevels.length > 0) {
+                    if (inChanLevels != null && inChanLevels.length > 0) {
                         reportMsg.addPayloadItem(new cMsgPayloadItem(RCConstants.inputChanLevels,
-                                                                     inputChanLevels));
+                                                                     inChanLevels));
+                        reportMsg.addPayloadItem(new cMsgPayloadItem(RCConstants.inputChanNames,
+                                                                     inChanNames));
                     }
                     else {
                         reportMsg.removePayloadItem(RCConstants.inputChanLevels);
+                        reportMsg.removePayloadItem(RCConstants.inputChanNames);
                     }
 
-                    if (outputChanLevels != null && outputChanLevels.length > 0) {
+                    if (outChanLevels != null && outChanLevels.length > 0) {
                         reportMsg.addPayloadItem(new cMsgPayloadItem(RCConstants.outputChanLevels,
-                                                                     outputChanLevels));
+                                                                     outChanLevels));
+                        reportMsg.addPayloadItem(new cMsgPayloadItem(RCConstants.outputChanNames,
+                                                                     outChanNames));
                     }
                     else {
                         reportMsg.removePayloadItem(RCConstants.outputChanLevels);
+                        reportMsg.removePayloadItem(RCConstants.outputChanNames);
                     }
 
                     // histogram in nanoseconds
