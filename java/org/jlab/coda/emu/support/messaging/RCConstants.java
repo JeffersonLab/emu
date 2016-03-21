@@ -193,4 +193,6 @@ public class RCConstants {
 
     public static final String    inputChanLevels      = "inputChanLevels";
     public static final String    outputChanLevels     = "outputChanLevels";
+    public static final String    inputChanNames       = "inputChanNames";
+    public static final String    outputChanNames      = "outputChanNames";
   }
