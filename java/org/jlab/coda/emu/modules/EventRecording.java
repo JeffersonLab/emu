@@ -322,7 +322,7 @@ if (debug) System.out.println("  ER mod: will end threads but no END event or ri
 //System.out.println("  ER mod: " + order + ", got seq " + availableSequence);
                         if (takeRingStats) {
                             // scale from 0% to 100% of ring buffer size
-                            inputChanLevel[0] = ((int)(availableSequence - nextSequence) + 1)*100/ringBufferSize;
+                            inputChanLevels[0] = ((int)(availableSequence - nextSequence) + 1)*100/ringBufferSize;
 //                            if (i==0 && printCounter++ % 10000000 == 0) {
 //                                System.out.print(inputChanLevel[0] + "\n");
 //                            }
@@ -525,7 +525,17 @@ System.out.println("  ER mod: recording thread ending");
         sequenceIn = new Sequence[recordingThreadCount];
 
         // Place to put ring level stats
-        inputChanLevel  = new int[1];
+        inputChanLevels = new int[1];
+
+        // channel name for easy gathering of stats
+        inputChanNames = new String[1];
+        inputChanNames[0] = inputChannel.name();
+
+        int indx = 0;
+        outputChanNames = new String[outputChannelCount];
+        for (DataChannel ch : outputChannels) {
+            outputChanNames[indx++] = ch.name();
+        }
 
         // Get input channel's ring buffer
         ringBufferIn = inputChannels.get(0).getRingBufferIn();
