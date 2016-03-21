@@ -826,7 +826,7 @@ System.out.println("Emu " + name + ": state set to ERROR\n\n");
                     reportMsg.addPayloadItem(new cMsgPayloadItem(RCConstants.chunk_X_EtBuf, chunk_X_EtBuf));
 
                     // in/output channel ring levels (0-100)
-                    if (inputChanLevels != null) {
+                    if (inputChanLevels != null && inputChanLevels.length > 0) {
                         reportMsg.addPayloadItem(new cMsgPayloadItem(RCConstants.inputChanLevels,
                                                                      inputChanLevels));
                     }
@@ -834,7 +834,7 @@ System.out.println("Emu " + name + ": state set to ERROR\n\n");
                         reportMsg.removePayloadItem(RCConstants.inputChanLevels);
                     }
 
-                    if (outputChanLevels != null) {
+                    if (outputChanLevels != null && outputChanLevels.length > 0) {
                         reportMsg.addPayloadItem(new cMsgPayloadItem(RCConstants.outputChanLevels,
                                                                      outputChanLevels));
                     }
