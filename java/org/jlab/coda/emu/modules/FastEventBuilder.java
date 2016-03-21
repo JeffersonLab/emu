@@ -1061,7 +1061,7 @@ System.out.println("  EB mod: got all GO events");
                                 availableSequences[i] = buildBarrierIn[i].waitFor(nextSequences[i]);
                                 if (takeRingStats) {
                                     // scale from 0% to 100% of ring buffer size
-                                    inputChanLevel[i] = ((int)(availableSequences[i] - nextSequences[i]) + 1)*100/ringBufferSize[i];
+                                    inputChanLevels[i] = ((int)(availableSequences[i] - nextSequences[i]) + 1)*100/ringBufferSize[i];
 //                                    if (i==0 && printCounter++ % 10000000 == 0) {
 //                                        System.out.print(inputChanLevel[0] + "\n");
 //                                    }
@@ -1808,8 +1808,20 @@ if (debug) System.out.println("  EB mod: endBuildThreads: will end building/fill
         postBuildBarrier  = new SequenceBarrier[inputChannelCount];
 
         // Place to put ring level stats
-        inputChanLevel  = new int[inputChannelCount];
-        outputChanLevel = new int[outputChannelCount];
+        inputChanLevels  = new int[inputChannelCount];
+        outputChanLevels = new int[outputChannelCount];
+
+        // Collect channel names for easy gathering of stats
+        int indx=0;
+        inputChanNames = new String[inputChannelCount];
+        for (DataChannel ch : inputChannels) {
+            inputChanNames[indx++] = ch.name();
+        }
+        indx = 0;
+        outputChanNames  = new String[outputChannelCount];
+        for (DataChannel ch : outputChannels) {
+            outputChanNames[indx++] = ch.name();
+        }
 
         // Have ring sizes handy for calculations
         ringBufferSize = new int[inputChannelCount];
