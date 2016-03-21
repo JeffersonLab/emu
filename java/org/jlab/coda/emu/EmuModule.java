@@ -29,17 +29,27 @@ import java.util.ArrayList;
  */
 public interface EmuModule extends StatedObject, CODAStateMachine {
     /**
-     * The name of the module
-     *
-     * @return the name
+     * Get the name of the module
+     * @return module name
      */
     public String name();
 
-
+    /**
+     * Get the named attribute from the config file of this module.
+     * @param name name of the module's config file attribute.
+     * @return string value of the attribute
+     * @throws DataNotFoundException if attribute not found.
+     */
     public String getAttr(String name) throws DataNotFoundException;
 
-    public int getIntAttr(String name) throws DataNotFoundException;
-
+    /**
+     * Get the named attribute, as an integer, from the config file of this module.
+     * @param name name of the module's config file attribute.
+     * @return integer value of the attribute
+     * @throws DataNotFoundException if attribute not found.
+     * @throws NumberFormatException if attribute cannot be interpreted as an integer
+     */
+    public int getIntAttr(String name) throws DataNotFoundException, NumberFormatException;
 
     /**
      * Add the given input channels to this EmuModule object.
@@ -54,13 +64,13 @@ public interface EmuModule extends StatedObject, CODAStateMachine {
     public void addOutputChannels(ArrayList<DataChannel> output_channels);
 
     /**
-      * Set the input channels of this EmuModule object.
+      * Get the input channels of this EmuModule object.
       * @return ArrayList containing the input channels of this EmuModule object
       */
      public ArrayList<DataChannel> getInputChannels();
 
      /**
-      * Set the output channels of this EmuModule object.
+      * Get the output channels of this EmuModule object.
       * @return ArrayList containing the output channels of this EmuModule object
       */
      public ArrayList<DataChannel> getOutputChannels();
@@ -72,16 +82,32 @@ public interface EmuModule extends StatedObject, CODAStateMachine {
     public int getInternalRingCount();
 
     /**
-     * Get the relative fill level (0-100) of each output channel's ring(s).
-     * @return
+     * Get the names of the input channels of this EmuModule object.
+     * Used in gathering statistics.
+     * @return array containing names of input channels of this EmuModule object
      */
-    public int[] getOutputLevels();
+    public String[] getInputNames();
 
     /**
-     * Get the relative fill level (0-100) of each input channel's ring.
-     * @return
+     * Get the names of the output channels of this EmuModule object.
+     * Used in gathering statistics.
+     * @return array containing names of output channels of this EmuModule object
+     */
+    public String[] getOutputNames();
+
+    /**
+     * Get array containing the relative fill level (0-100) of each input channel's ring.
+     * Used in gathering statistics.
+     * @return array containing relative fill level (0-100) of input channels' ring(s).
      */
     public int[] getInputLevels();
+
+    /**
+     * Get array containing the relative fill level (0-100) of each output channel's ring(s).
+     * Used in gathering statistics.
+     * @return array containing relative fill level (0-100) of output channels' ring(s).
+     */
+    public int[] getOutputLevels();
 
     /**
      * Remove all channels from this EmuModule object.
