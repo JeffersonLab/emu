@@ -830,23 +830,27 @@ System.out.println("Emu " + name + ": state set to ERROR\n\n");
 
                     // in/output channel ring levels (0-100)
                     if (inChanLevels != null && inChanLevels.length > 0) {
+                        System.out.println("\nINCLUDE input channel levels in payload");
                         reportMsg.addPayloadItem(new cMsgPayloadItem(RCConstants.inputChanLevels,
                                                                      inChanLevels));
                         reportMsg.addPayloadItem(new cMsgPayloadItem(RCConstants.inputChanNames,
                                                                      inChanNames));
                     }
                     else {
+                        System.out.println("\nNOT Including input channel levels in payload");
                         reportMsg.removePayloadItem(RCConstants.inputChanLevels);
                         reportMsg.removePayloadItem(RCConstants.inputChanNames);
                     }
 
                     if (outChanLevels != null && outChanLevels.length > 0) {
+                        System.out.println("\nINCLUDE output channel levels in payload");
                         reportMsg.addPayloadItem(new cMsgPayloadItem(RCConstants.outputChanLevels,
                                                                      outChanLevels));
                         reportMsg.addPayloadItem(new cMsgPayloadItem(RCConstants.outputChanNames,
                                                                      outChanNames));
                     }
                     else {
+                        System.out.println("\nNOT Including output channel levels in payload");
                         reportMsg.removePayloadItem(RCConstants.outputChanLevels);
                         reportMsg.removePayloadItem(RCConstants.outputChanNames);
                     }
