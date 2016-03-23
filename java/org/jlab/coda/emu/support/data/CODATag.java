@@ -46,15 +46,14 @@ public enum CODATag {
     BUILT_TRIGGER_TS_RUN_NRSD    (0xFF27),
 
     // Physics event
-    DISENTANGLED_BANK           (0xFF30),
     /** Event built by primary event builder. */
     BUILT_BY_PEB                (0xFF50),
-    /** Event built by primary event builder in single event mode. */
-    BUILT_BY_PEB_IN_SEM         (0xFF51),
+    /** Event built by primary event builder with sync bit set. */
+    BUILT_BY_PEB_SYNC           (0xFF58),
     /** Event built by secondary event builder. */
     BUILT_BY_SEB                (0xFF70),
-    /** Event built by secondary event builder in single event mode. */
-    BUILT_BY_SEB_IN_SEM         (0xFF71),
+    /** Event built by secondary event builder with sync bit set. */
+    BUILT_BY_SEB_SYNC           (0xFF78),
     ;
 
     private int value;
@@ -262,31 +261,6 @@ public enum CODATag {
      }
 
 
-    /**
-     * Does this tag indicate the trigger bank was built from event in
-     * single event mode?
-     * @return <code>true</code> if this tag indicates trigger bank was
-     *         built from event in single event mode, else <code>false</code>
-     */
-     public boolean eventInSEM() {
-         return (this == BUILT_BY_PEB_IN_SEM || this == BUILT_BY_SEB_IN_SEM);
-     }
-
-    /**
-     * Does this tag indicate the trigger bank was built from event in
-     * single event mode?
-     * @param value the tag value to check
-     * @return <code>true</code> if this tag indicates trigger bank was
-     *         built from event in single event mode, else <code>false</code>
-     */
-     public static boolean eventInSEM(int value) {
-         CODATag cTag = getTagType(value);
-         if (cTag == null) return false;
-
-         return (cTag == BUILT_BY_PEB_IN_SEM || cTag == BUILT_BY_SEB_IN_SEM);
-     }
-
-
 
 //    /**
 //     * Does this tag indicate the trigger bank is sparsified
@@ -311,5 +285,24 @@ public enum CODATag {
 //
 //         return (cTag == BUILT_TRIGGER_SPARSIFY || cTag == BUILT_TRIGGER_RUN_SPARSIFY);
 //     }
+
+    /**
+     * Is this any kind of a sync event tag?
+     * @param value the tag value to check
+     * @return <code>true</code> if any kind of sync event tag, else <code>false</code>
+     */
+     public static boolean isSyncEVent(int value) {
+         CODATag cTag = getTagType(value);
+         return cTag != null && (cTag == BUILT_BY_PEB_SYNC || cTag == BUILT_BY_SEB_SYNC);
+     }
+
+    /**
+     * Is this any kind of a sync event tag?
+     * @return <code>true</code> if any kind of sync event tag, else <code>false</code>
+     */
+     public boolean isSyncEVent() {
+         return (this == BUILT_BY_PEB_SYNC || this == BUILT_BY_SEB_SYNC);
+     }
+
 
 }
