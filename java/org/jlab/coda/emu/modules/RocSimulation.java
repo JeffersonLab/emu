@@ -622,14 +622,14 @@ System.out.println("  Roc mod: start With (id=" + myId + "):\n    record id = " 
 
                 // Send user event right after prestart and go events
                 if (sendUser && emu.name().equals("Roc1")) {
-System.out.println("  Roc mod: write USER event for Roc1");
+System.out.println("  Roc mod: write FIRST event after go for Roc1");
 
                     // Put in User event
-                    PayloadBuffer pBuf = createUserBuffer(outputOrder, false, 6);
+                    PayloadBuffer pBuf = createUserBuffer(outputOrder, true, 8);
                     eventToOutputChannel(pBuf, 0, 0);
 
-System.out.println("  Roc mod: write USER event for Roc1");
-                    pBuf = createUserBuffer(outputOrder, false, 7);
+System.out.println("  Roc mod: write USER event after go for Roc1");
+                    pBuf = createUserBuffer(outputOrder, false, 9);
                     eventToOutputChannel(pBuf, 0, 0);
 
                     eventCountTotal += 2;
@@ -888,17 +888,21 @@ System.out.println("  Roc mod: reset()");
 
         // Send user events right before prestart
         if (sendUser && emu.name().equals("Roc1")) {
-            System.out.println("  Roc mod: write FIRST event for Roc1");
-            PayloadBuffer pBuf = createUserBuffer(outputOrder, true, 1);
-            eventToOutputChannel(pBuf, 0, 0);
-
             // Put in User events
             System.out.println("  Roc mod: write USER event for Roc1");
-            pBuf = createUserBuffer(outputOrder, false, 2);
+            PayloadBuffer pBuf = createUserBuffer(outputOrder, false, 1);
+            eventToOutputChannel(pBuf, 0, 0);
+
+            System.out.println("  Roc mod: write FIRST event for Roc1");
+            pBuf = createUserBuffer(outputOrder, true, 2);
             eventToOutputChannel(pBuf, 0, 0);
 
             System.out.println("  Roc mod: write USER event for Roc1");
             pBuf = createUserBuffer(outputOrder, false, 3);
+            eventToOutputChannel(pBuf, 0, 0);
+
+            System.out.println("  Roc mod: write FIRST event for Roc1");
+            pBuf = createUserBuffer(outputOrder, true, 4);
             eventToOutputChannel(pBuf, 0, 0);
 
             eventCountTotal += 3;
@@ -917,12 +921,16 @@ System.out.println("  Roc mod: inserted PRESTART event");
         // Send more user events right before prestart
         if (sendUser && emu.name().equals("Roc1")) {
             // Put in User events
-            System.out.println("  Roc mod: write USER event for Roc1");
-            PayloadBuffer pBuf = createUserBuffer(outputOrder, false, 4);
+            System.out.println("  Roc mod: write USER event after prestart for Roc1");
+            PayloadBuffer pBuf = createUserBuffer(outputOrder, false, 5);
             eventToOutputChannel(pBuf, 0, 0);
 
-            System.out.println("  Roc mod: write USER event for Roc1");
-            pBuf = createUserBuffer(outputOrder, false, 5);
+            System.out.println("  Roc mod: write FIRST event after prestart for Roc1");
+            pBuf = createUserBuffer(outputOrder, true, 6);
+            eventToOutputChannel(pBuf, 0, 0);
+
+            System.out.println("  Roc mod: write USER event after prestart for Roc1");
+            pBuf = createUserBuffer(outputOrder, false, 7);
             eventToOutputChannel(pBuf, 0, 0);
 
             eventCountTotal += 2;
