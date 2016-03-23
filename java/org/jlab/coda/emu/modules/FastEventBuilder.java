@@ -918,11 +918,9 @@ System.out.println("  EB mod: bbSupply -> " + ringItemCount + " # of bufs, direc
                 // Initialize
                 int     endEventCount, totalNumberEvents=1;
                 long    firstEventNumber=1, startTime=0L;
-                boolean haveEnd;
-                boolean nonFatalError;
-                boolean havePhysicsEvents;
-                boolean gotFirstBuildEvent;
-                boolean gotBank;
+                boolean haveEnd, havePhysicsEvents;
+                boolean isSync, nonFatalError;
+                boolean gotBank, gotFirstBuildEvent;
                 boolean isEventNumberInitiallySet = false;
                 EventType eventType = null;
 
@@ -1261,9 +1259,10 @@ System.out.println("  EB mod: Bt#" + btIndex + " found END events on all input c
                     havePhysicsEvents = buildingBanks[0].getEventType().isAnyPhysics();
 
                     // Check for identical syncs, uniqueness of ROC ids,
-                    // single-event-mode, identical (physics or ROC raw) event types,
+                    // identical (physics or ROC raw) event types,
                     // and the same # of events in each bank
                     nonFatalError |= Evio.checkConsistency(buildingBanks, firstEventNumber);
+                    isSync = buildingBanks[0].isSync();
 
 if (debug && nonFatalError) System.out.println("  EB mod: non-fatal ERROR @ pos 1\n");
 
@@ -1298,25 +1297,35 @@ if (debug && nonFatalError) System.out.println("  EB mod: non-fatal ERROR @ pos 
                     CODAClass myClass = emu.getCodaClass();
                     switch (myClass) {
                         case SEB:
-                            tag = CODATag.BUILT_BY_SEB.getValue();
+                            if (isSync) {
+                                tag = CODATag.BUILT_BY_SEB_SYNC.getValue();
+                            }
+                            else {
+                                tag = CODATag.BUILT_BY_SEB.getValue();
+                            }
                             // output event type
                             eventType = EventType.PHYSICS;
                             break;
 
                         case PEB:
-                            tag = CODATag.BUILT_BY_PEB.getValue();
+                            if (isSync) {
+                                tag = CODATag.BUILT_BY_PEB_SYNC.getValue();
+                            }
+                            else {
+                                tag = CODATag.BUILT_BY_PEB.getValue();
+                            }
                             eventType = EventType.PHYSICS;
                             break;
 
                         //case DC:
                         default:
                             eventType = EventType.PARTIAL_PHYSICS;
-                            tag = Evio.createCodaTag(buildingBanks[0].isSync(),
+                            tag = Evio.createCodaTag(isSync,
                                                      buildingBanks[0].hasError() || nonFatalError,
                                                      buildingBanks[0].getByteOrder() == ByteOrder.BIG_ENDIAN,
-                                                     buildingBanks[0].isSingleEventMode(),
+                                                     false, /* don't use single event mode */
                                                      id);
-//if (debug) System.out.println("  EB mod: tag = " + tag + ", is sync = " + buildingBanks[0].isSync() +
+//if (debug) System.out.println("  EB mod: tag = " + tag + ", is sync = " + isSync +
 //                   ", has error = " + (buildingBanks[0].hasError() || nonFatalError) +
 //                   ", is big endian = " + buildingBanks[0].getByteOrder() == ByteOrder.BIG_ENDIAN +
 //                   ", is single mode = " + buildingBanks[0].isSingleEventMode());
@@ -1411,7 +1420,7 @@ if (debug && nonFatalError) System.out.println("  EB mod: non-fatal ERROR @ pos 
                                       eventType, bufItem, bbSupply);
 
                     // If sync bit being set ...
-                    if (buildingBanks[0].isSync()) {
+                    if (isSync) {
                         eventNumberAtLastSync = firstEventNumber + totalNumberEvents;
                     }
 
