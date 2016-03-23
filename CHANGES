@@ -53,14 +53,13 @@ Version 2.6
     - fix bug in which EB releases user event buffer more than once.
 
     - emu domain sends prestart through emu with change in cMsg-5.0 2/23/16
-    - output channels for et, cmsg, emu, and file take user events arriving before
-      prestart event and place them after.
     - in emu output channel, fix bug in which all events following a "first event"
       are tagged as first events
     - in cmsg output channel:
             1) write thread count = 2 by default (15x better performance than 1)
             2) use internal buffer supply for efficiency
 
+    - 3/21/16
     - statistics are now being kept for EB and ER modules' input and output channels'
       occupancy levels (0=empty, 100=full). This is for finding bottlenecks.
     - in statistics message there are four new payload items:
@@ -68,3 +67,9 @@ Version 2.6
             2) array of ints with output channels' ring occupancy levels (0 - 100)
             3) array of Strings with input  channel names (corresponding to array #1)
             4) array of Strings with output channel names (corresponding to array #2)
+
+    - undo previous change in which output channels move all user events from before
+      to after prestart. They now pass everything in order received.
+    - the ER now throws away all events arriving prior to prestart with the exception
+      that "first events" arriving then will be saved and written after the prestart
+      event.
