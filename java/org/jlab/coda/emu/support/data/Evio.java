@@ -569,7 +569,6 @@ System.out.println("checkPayload: buf source id = " + pBuf.getSourceId() +
      * <ol>
      * <li>if there are any sync bits set, all must be sync banks
      * <li>the ROC ids of the banks must be unique
-     * <li>if any banks are in single-event-mode, all need to be in that mode
      * <li>at this point all banks are either physics events or ROC raw records,
      *     but must be identical types
      * <li>there are the same number of events in each bank
@@ -579,8 +578,7 @@ System.out.println("checkPayload: buf source id = " + pBuf.getSourceId() +
      * @param eventNumber   first event number in each bank (used for diagnostic output)
      *
      * @return <code>true</code> if non-fatal error occurred, else <code>false</code>
-     * @throws EmuException if some events are in single event mode and others are not;
-     *                      if some physics and others ROC raw event types;
+     * @throws EmuException if some physics and others ROC raw event types;
      *                      if there are a differing number of events in each payload bank;
      *                      if some events have a sync bit set and others do not.
      */
@@ -590,9 +588,6 @@ System.out.println("checkPayload: buf source id = " + pBuf.getSourceId() +
 
         // For each ROC raw data record check the sync bit
         int syncBankCount = 0;
-
-        // For each ROC raw data record check the single-event-mode bit
-        int singleEventModeBankCount = 0;
 
         // By the time this method is run, all input banks are either (partial)physics or ROC raw.
         // Just make sure they're all identical.
@@ -604,10 +599,6 @@ System.out.println("checkPayload: buf source id = " + pBuf.getSourceId() +
         for (int i=0; i < buildingBanks.length; i++) {
             if (buildingBanks[i].isSync()) {
                 syncBankCount++;
-            }
-
-            if (buildingBanks[i].isSingleEventMode()) {
-                singleEventModeBankCount++;
             }
 
             if (buildingBanks[i].getEventType().isAnyPhysics()) {
@@ -650,12 +641,6 @@ System.out.println("  EB mod: events have duplicate source ids");
             System.out.println();
 
             throw new EmuException("events out of sync at event " + eventNumber);
-        }
-
-        // If one is a single-event-mode, all must be
-        if (singleEventModeBankCount > 0 && singleEventModeBankCount != numBanks) {
-            // Some banks are single-event-mode and some are not, so we cannot build at this point
-            throw new EmuException("not all events are in single event mode");
         }
 
         // All must be physics or all must be ROC raw
