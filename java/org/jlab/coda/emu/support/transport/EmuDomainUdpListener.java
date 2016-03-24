@@ -230,7 +230,7 @@ public class EmuDomainUdpListener extends Thread {
                 }
 
                 int cMsgVersion = cMsgUtilities.bytesToInt(buf, 16); // cMsg version (see cMsg.EmuDomain.EmuClient.java)
-                int nameLen     = cMsgUtilities.bytesToInt(buf, 20); // length of sender's name (# chars)
+                int nameLen     = cMsgUtilities.bytesToInt(buf, 20); // length of destination component's name (# chars)
                 int expidLen    = cMsgUtilities.bytesToInt(buf, 24); // length of expid (# chars)
                 int pos = 28;
 
@@ -243,8 +243,7 @@ public class EmuDomainUdpListener extends Thread {
                     continue;
                 }
 
-                // destination/server CODA component name
-                // (this component's if client, probing server if server)
+                // destination (this) CODA component name (ignored if probe)
                 String componentName = null;
                 try {
                     componentName = new String(buf, pos, nameLen, "US-ASCII");
@@ -283,12 +282,7 @@ public class EmuDomainUdpListener extends Thread {
 //                System.out.println("          : multicaster's packet's UDP port = " + multicasterUdpPort);
 //                System.out.println("          : multicaster's expid = " + multicasterExpid);
 //                System.out.println("          : our port = " + server.localTempPort);
-//                if (msgType == cMsgNetworkConstants.emuDomainMulticastClient) {
-//                    System.out.println("          : component's name = " + componentName);
-//                }
-//                else {
-//                    System.out.println("          : prober's name = " + componentName);
-//                }
+//                System.out.println("          : destination component's name = " + componentName);
 
 
                 // If connection request from client, don't respond if they're
