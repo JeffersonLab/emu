@@ -14,12 +14,6 @@ package org.jlab.coda.emu.support.transport;
 import org.jlab.coda.cMsg.*;
 import org.jlab.coda.emu.support.codaComponent.CODAState;
 
-import java.io.*;
-import java.net.*;
-import java.util.*;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
-
 
 /**
  * Much of this copied from the the RCMulticastDomain's RCMulticast class.
@@ -35,15 +29,6 @@ public class EmuDomainServer extends Thread {
 
     /** The local port used temporarily while multicasting for other rc multicast servers. */
     int localTempPort;
-
-    /** Signal to coordinate the multicasting and waiting for responses. */
-    CountDownLatch multicastResponse = new CountDownLatch(1);
-
-    /** The host of the responding server to initial multicast probes of the local subnet. */
-    String respondingHost;
-
-    /** Only allow response to clients if server is properly started. */
-    volatile boolean acceptingClients;
 
     /** Thread that listens for UDP multicasts to this server and then responds. */
     private EmuDomainUdpListener listener;
