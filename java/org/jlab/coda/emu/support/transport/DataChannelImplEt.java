@@ -876,7 +876,7 @@ logger.debug("      DataChannel Et: reset " + name + " channel");
             String errorString = null;
 
             try {
-                int sourceId, recordId, printCounter=10;
+                int sourceId, recordId;
                 BlockHeaderV4 header4;
                 EventType eventType, bankType;
                 ControlType controlType;
@@ -1025,9 +1025,6 @@ Utilities.printBuffer(buf, 0, 21, "BAD EVENT ");
                         // 1 block per 2.2MB or 10K events. Thus we can get away with only
                         // looking at the very first block #.
                         recordId = header4.getNumber();
-if (printCounter-- > 0) {
-    logger.info("      DataChannel Et in: " + name + ", record id = " + recordId);
-}
 
                         // Number of evio event associated with this buffer.
                         int eventCount = compactReader.getEventCount();
@@ -1082,7 +1079,7 @@ logger.info("      DataChannel Et in: " + name + " got CONTROL event, " + contro
                             }
                             else if (eventType == EventType.USER) {
                                 if (hasFirstEvent) {
-logger.info("      DataChannel Et in: " + name + " got FIRST event");
+logger.info("      DataChannel Et in: " + name + " got FIRST (also USER) event");
                                 }
                                 else {
 logger.info("      DataChannel Et in: " + name + " got USER event");
