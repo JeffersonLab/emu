@@ -27,9 +27,6 @@ public class EmuDomainServer extends Thread {
     /** This server's UDP listening port. */
     final int serverPort;
 
-    /** The local port used temporarily while multicasting for other rc multicast servers. */
-    int localTempPort;
-
     /** Thread that listens for UDP multicasts to this server and then responds. */
     private EmuDomainUdpListener listener;
 

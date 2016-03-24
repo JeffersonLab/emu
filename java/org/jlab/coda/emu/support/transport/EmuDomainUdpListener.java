@@ -219,8 +219,7 @@ public class EmuDomainUdpListener extends Thread {
                     case cMsgNetworkConstants.emuDomainMulticastClient:
 //System.out.println("Emu UDP listen: client wants to connect");
                         break;
-                    // Packet from client just trying to locate emu multicast servers.
-                    // Send back a normal response but don't do anything else.
+                    // Multicasts from clients just trying to locate emu multicast servers.
                     case cMsgNetworkConstants.emuDomainMulticastProbe:
 //System.out.println("Emu UDP listen: I was probed");
                         break;
@@ -278,30 +277,27 @@ public class EmuDomainUdpListener extends Thread {
                     continue;
                 }
 
-                // Before sending a reply, check to see if we simply got a packet
-                // from our self when first connecting. Just ignore our own probing
-                // multicast.
-
-//                System.out.println("Emu UDP listen: accepting Clients = " + server.acceptingClients);
+//                System.out.println("Emu UDP listen:");
 //                System.out.println("          : local host = " + InetAddress.getLocalHost().getCanonicalHostName());
 //                System.out.println("          : multicaster's packet's host = " + multicasterHost);
 //                System.out.println("          : multicaster's packet's UDP port = " + multicasterUdpPort);
 //                System.out.println("          : multicaster's expid = " + multicasterExpid);
-//                System.out.println("          : component sending to name = " + componentName);
 //                System.out.println("          : our port = " + server.localTempPort);
+//                if (msgType == cMsgNetworkConstants.emuDomainMulticastClient) {
+//                    System.out.println("          : component's name = " + componentName);
+//                }
+//                else {
+//                    System.out.println("          : prober's name = " + componentName);
+//                }
 
-                if (multicasterUdpPort == server.localTempPort) {
-//System.out.println("Emu UDP listen: ignore my own udp messages");
-                    continue;
-                }
 
-                // If connection request from client, don't accept if they're
+                // If connection request from client, don't respond if they're
                 // looking to connect to a different emu name
                 if (msgType == cMsgNetworkConstants.emuDomainMulticastClient &&
                     !componentName.equalsIgnoreCase(emuName)) {
 
                     if (debug >= cMsgConstants.debugInfo) {
-                        System.out.println("Emu UDP listen: this emu wrong destination, I am " +
+                        System.out.println("Emu UDP listen: this emu is wrong destination, I am " +
                                                    emuName + ", client looking for " + componentName);
                     }
                     continue;
@@ -309,7 +305,7 @@ public class EmuDomainUdpListener extends Thread {
 
                 try {
                     sendPacket = new DatagramPacket(outBuf, outBuf.length, multicasterAddress, multicasterUdpPort);
-//System.out.println("Emu UDP listen: send response-to-probe packet to client");
+//System.out.println("Emu UDP listen: send response packet back");
                     multicastSocket.send(sendPacket);
                 }
                 catch (IOException e) {
