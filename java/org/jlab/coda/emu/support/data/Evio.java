@@ -528,8 +528,9 @@ System.out.println("checkPayload: unknown type, dump payload buffer");
             if (recordId != channel.getRecordId() &&
                 recordId != channel.getRecordId() + 1) {
 System.out.println("checkPayload: record ID out of sequence, got " + recordId +
-                   " but expecting " + channel.getRecordId() + " or " +
-                  (channel.getRecordId()+1) + ", type = " + eventType);
+                   ", expecting " + channel.getRecordId() + " or " +
+                  (channel.getRecordId()+1) + ", type = " + eventType +
+                   ", name = " + channel.name());
                 nonFatalRecordIdError = true;
             }
             // Store the current value here as a convenience for the next comparison
