@@ -534,7 +534,8 @@ logger.info("      DataChannel Et: # copy-ET-buffers in input supply -> " + numE
 
                 etSystem.open();
 
-                logger.info("      DataChannel Et: SUCCESS opening ET on host " + etSystem.getHost());
+                logger.info("      DataChannel Et: SUCCESS opening ET from local addr, " +
+                                    etSystem.getLocalAddress());
                 if (etSystem.getLanguage() == EtConstants.langJava) {
                     System.out.println(", written in Java");
                 }
