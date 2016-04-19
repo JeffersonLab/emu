@@ -21,10 +21,8 @@ import org.jlab.coda.emu.support.data.RingItem;
 
 /**
  * This interface defines an object that can send and
- * receive data in any format listed in the
- * {@link org.jlab.coda.emu.support.data.ModuleIoType} enum.
- * It refers to a particular connection (eg. a single socket
- * or cMsg connection object).
+ * receive data. It refers to a single, particular connection
+ * (eg. a single socket or cMsg connection object).
  *
  * @author heyes
  * @author timmer
