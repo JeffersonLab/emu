@@ -99,6 +99,8 @@ public interface DataChannel extends CODAStateMachine, StatedObject {
 
     /**
      * Get the relative fill level (0-100) of all the rings of this output channel.
+     * Module calls this to reports its output channels' levels.
+     * (Input levels are associated directly with the module).
      * @return relative fill level (0-100) of all the rings together
      */
     public int getOutputLevel();
