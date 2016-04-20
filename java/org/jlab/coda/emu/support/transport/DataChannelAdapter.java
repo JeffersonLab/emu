@@ -454,11 +454,18 @@ System.out.println("      DataChannel Adapter: prestart, nextEv (" + nextEvent +
 
     /** {@inheritDoc} */
     public int getOutputLevel() {
-        int count = 0;
+        int count = 0, maxOutputSize = (outputRingCount * outputRingItemCount);
+
         for (int i=0; i < outputRingCount; i++) {
             count += (int)(availableSequences[i] - nextSequences[i] + 1);
         }
-        count *= 100/(outputRingCount * outputRingItemCount);
+
+        // For input channel, when (available - next + 1) == ringSize, then
+        // the Q is full and ready to read. The opposite is true in output channel math.
+        // When that quantity == 0, that's when there's no more room to output to
+        // and the Q is full.
+        count = (maxOutputSize - count)*100/maxOutputSize;
+
         return count;
     }
 
@@ -485,8 +492,8 @@ System.out.println("      DataChannel Adapter: prestart, nextEv (" + nextEvent +
 //System.out.println("getNextOutputRingITem: WAITING");
                 availableSequences[ringIndex] = sequenceBarriers[ringIndex].waitFor(nextSequences[ringIndex]);
             }
-//System.out.println("getNextOutputRingITem: available seq = " + availableSequences[ringIndex]);
-//System.out.println("getNextOutputRingITem: try seq = " + nextSequences[ringIndex]);
+//System.out.println("getNextOutputRingITem: available seq = " + availableSequences[ringIndex] +
+//            ", next seq = " + nextSequences[ringIndex]);
 
             item = ringBuffersOut[ringIndex].get(nextSequences[ringIndex]);
 //System.out.println("getNextOutputRingITem: got seq = " + nextSequences[ringIndex]);
