@@ -19,7 +19,6 @@ import org.jlab.coda.emu.support.configurer.DataNotFoundException;
 import org.jlab.coda.emu.support.control.CmdExecException;
 import org.jlab.coda.emu.support.data.*;
 import org.jlab.coda.emu.support.transport.DataChannel;
-import org.jlab.coda.jevio.EvioException;
 
 import java.util.*;
 
@@ -43,42 +42,27 @@ import java.util.*;
  * Actual input channel ring buffer has thousands of events (not 6).
  * The producer is a single input channel which reads incoming data,
  * parses it and places it into the ring buffer.
+ * *
+ *  1 Input Channel
+ *  (evio bank              RB1
+ *   ring buffer)            |
+ *                           |
+ *                           V
+ *  1 RecordingThread:      RT1
+ *  Grab 1 event &           |
+ *  place in all module's    |
+ *  output channels          |
+ *                           |
+ *                           V
+ * Output Channel(s):    OC1, OC2, ...
+ * (1 ring buffer for
+ *  each channel)
  *
- * Recording threads are in no particular order.
- * The producer will only take slots that the recording threads have finished using.
- *
- * 1 Input Channel
- * (evio bank               RB1
- *  ring buffer)             |\\
- *                           | \ \
- *                           |  \ \
- *                           |   \ \
- *                           |    \  \
- *                           |     \   \
- *                           |      \    \
- *                           |       \     \
- *                           |        \      \
- *                           V        V       V
- *  RecordingThreads:       RT1      RT2      RTM
- *  Grab 1 event &           |        |        |
- *  place in all module's    |        |        |
- *  output channels          |        |        |
- *                           |        |        |
- *                           \        |       /
- *                            \       |      /
- *                             V      V     V
- * Output Channel(s):    OC1: RB1    RB2   RBM
- * (1 ring buffer for    OC2: RB1    RB2   RBM  ...
- *  each recording thd
- *  in each channel)
- *
- *
- *  M = 1 by default
  * </code></pre><p>
  *
- * This class is the event recording module. It is a multithreaded module which can have
- * several recording threads. Each of these threads exists for the purpose of taking
- * Evio banks off of the 1 input channel and placing a copy of each bank into all of
+ * This class is the event recording module. It has one recording thread.
+ * This thread exists for the purpose of taking buffers of Evio banks off
+ * of the 1 input channel and placing a copy of each bank into all of
  * the output channels. If no output channels are defined in the config file,
  * this module discards all events.
  *
@@ -90,11 +74,8 @@ public class EventRecording extends ModuleAdapter {
     /** There should only be one input DataChannel. */
     private DataChannel inputChannel;
 
-    /** The number of RecordThread objects. */
-    private int recordingThreadCount;
-
-    /** Container for threads used to record events. */
-    private LinkedList<RecordingThread> recordingThreadList = new LinkedList<RecordingThread>();
+    /** Thread used to record events. */
+    private RecordingThread recordingThread;
 
    /** END event detected by one of the recording threads. */
     private volatile boolean haveEndEvent;
@@ -117,14 +98,17 @@ public class EventRecording extends ModuleAdapter {
     /** Size of RingBuffer for input channel. */
     private int ringBufferSize;
 
-    /** One sequence per recording thread. */
-    public Sequence[] sequenceIn;
+    /** One sequence for recording thread. */
+    public Sequence sequenceIn;
 
     /** All recording threads share one barrier. */
     public SequenceBarrier barrierIn;
 
+    /** Available sequence (largest index of items desired). */
+    private long availableSequence;
 
-
+    /** Next sequence (index of next item desired). */
+    private long nextSequence;
 
 
 
@@ -143,9 +127,6 @@ public class EventRecording extends ModuleAdapter {
         // Currently, however, due to recent changes in which "first events"
         // arriving prior to a prestart are recorded after, only 1 recording
         // thread can be run without breaking this feature.
-        //recordingThreadCount = eventProducingThreads;
-        recordingThreadCount = 1;
-System.out.println("  ER mod: " + recordingThreadCount + " # recording threads");
     }
 
 
@@ -163,6 +144,7 @@ System.out.println("  ER mod: " + recordingThreadCount + " # recording threads")
      * @return  the one input channel in use.
      */
     public DataChannel getInputChannel() {return inputChannel;}
+
 
     /** {@inheritDoc} */
     public void clearChannels() {
@@ -191,73 +173,49 @@ System.out.println("  ER mod: " + recordingThreadCount + " # recording threads")
             RateCalculator.start();
         }
 
-        recordingThreadList.clear();
-        for (int i=0; i < recordingThreadCount; i++) {
-            RecordingThread thd = new RecordingThread(i, emu.getThreadGroup(), name+":recorder"+i);
-            recordingThreadList.add(thd);
-            thd.start();
-        }
+        recordingThread = new RecordingThread(emu.getThreadGroup(), name+":recorder");
+        recordingThread.start();
     }
 
 
     /**
-     * End all record threads because an END cmd or event came through.
+     * End record thread because an END cmd or event came through.
      * The record thread calling this method is not interrupted.
      *
-     * @param thisThread the record thread calling this method; if null,
-     *                   all record threads are interrupted
      * @param wait if <code>true</code> check if END event has arrived and
-     *             if all the Qs are empty, if not, wait up to 1/5 second.
+     *             if not, wait up to endingTimeLimit.
      */
-    private void endRecordThreads(RecordingThread thisThread, boolean wait) {
+    private void endRecordThread(boolean wait) {
 
-        if (wait) {
-            // Look to see if anything still on the input channel Q
+        if (wait && !haveEndEvent) {
             long startTime = System.currentTimeMillis();
-// TODO: fix this
-//            boolean haveUnprocessedEvents = channelQ.size() > 0;
-            boolean haveUnprocessedEvents = true;
 
             // Wait up to endingTimeLimit millisec for events to
             // be processed & END event to arrive, then proceed
-            while ((haveUnprocessedEvents || !haveEndEvent) &&
-                   (System.currentTimeMillis() - startTime < endingTimeLimit)) {
+            while (!haveEndEvent && (System.currentTimeMillis() - startTime < endingTimeLimit)) {
                 try {Thread.sleep(200);}
                 catch (InterruptedException e) {}
-// TODO: fix this
-//                haveUnprocessedEvents = channelQ.size() > 0;
-                haveUnprocessedEvents = false;
             }
 
-            if (haveUnprocessedEvents || !haveEndEvent) {
-if (debug) System.out.println("  ER mod: will end threads but no END event or ring not empty!");
+            if (!haveEndEvent) {
+if (debug) System.out.println("  ER mod: will end thread but no END event!");
                 moduleState = CODAState.ERROR;
-                emu.setErrorState("ER will end threads but no END event or ring not empty");
+                emu.setErrorState("ER will end thread but no END event");
             }
         }
 
         // NOTE: the EMU calls this ER module's end() and reset()
-        // methods which, in turn, call this method. In this case,
-        // all recording threads will be interrupted in the following code.
-
-        // Interrupt all recording threads except the one calling this method
-        for (Thread thd : recordingThreadList) {
-            if (thd == thisThread) continue;
-            thd.interrupt();
-            try {
-                thd.join(250);
-                if (thd.isAlive()) {
-                    thd.stop();
-                }
+        // methods which, in turn, call this method.
+        recordingThread.interrupt();
+        try {
+            recordingThread.join(250);
+            if (recordingThread.isAlive()) {
+                recordingThread.stop();
             }
-            catch (InterruptedException e) {}
+        }
+        catch (InterruptedException e) {
         }
     }
-
-
-    //---------------------------------------
-    // Threads
-    //---------------------------------------
 
 
     /**
@@ -266,34 +224,14 @@ if (debug) System.out.println("  ER mod: will end threads but no END event or ri
      * pulls one bank off the input DataChannel. The bank is copied and placed in each output
      * channel. The count of outgoing banks and the count of data words are incremented.
      *
-     * This class is written so that there must only be one RecordingThread run at any one time.
+     * This class is written so that there must only be one RecordingThread.
      * It also takes any events arriving prior to prestart and throws them away unless it's
      * a "first event" (user type) in which case it gets passed on to the output channel(s).
      */
     private class RecordingThread extends Thread {
 
-        /** The order of this recording thread, relative to the other recording threads,
-          * starting at zero. */
-        private final int order;
-
-        /** The total number of recording threads. */
-        private final int rtCount;
-
-        // RingBuffer Stuff
-
-        /** 1 sequence for this particular recording thread. */
-        private Sequence sequence;
-        /** Available sequence (largest index of items desired). */
-        private long availableSequence;
-        /** Next sequence (index of next item desired). */
-        private long nextSequence;
-
-
-
-        RecordingThread(int order, ThreadGroup group, String name) {
+        RecordingThread(ThreadGroup group, String name) {
             super(group, name);
-            this.order = order;
-            rtCount = recordingThreadCount;
         }
 
 
@@ -304,20 +242,11 @@ if (debug) System.out.println("  ER mod: will end threads but no END event or ri
             ControlType controlType = null;
             int totalNumberEvents=1, wordCount=0, firstEventsWords=0;
             ArrayList<RingItem> firstEvents = new ArrayList<RingItem>();
-
-            int skipCounter = order + 1;
             boolean gotBank, gotPrestart=false, isPrestart=false;
-
-            boolean takeRingStats = false;
-            if (order == 0) {
-                takeRingStats = true;
-            }
 
             // Ring Buffer stuff
             availableSequence = -2L;
-            sequence = sequenceIn[order];
-            nextSequence = sequence.get() + 1L;
-
+            nextSequence = sequenceIn.get() + 1L;
 
             while (moduleState == CODAState.ACTIVE || paused) {
 
@@ -328,16 +257,14 @@ if (debug) System.out.println("  ER mod: will end threads but no END event or ri
                     // Only wait or read-volatile-memory if necessary ...
                     if (availableSequence < nextSequence) {
                         // Available sequence may be larger than what we desired
-//System.out.println("  ER mod: " + order + ", wait for seq " + nextSequence);
+//System.out.println("  ER mod: wait for seq " + nextSequence);
                         availableSequence = barrierIn.waitFor(nextSequence);
-//System.out.println("  ER mod: " + order + ", got seq " + availableSequence);
-                        if (takeRingStats) {
-                            // scale from 0% to 100% of ring buffer size
-                            inputChanLevels[0] = ((int)(availableSequence - nextSequence) + 1)*100/ringBufferSize;
-//                            if (i==0 && printCounter++ % 10000000 == 0) {
-//                                System.out.print(inputChanLevel[0] + "\n");
-//                            }
-                        }
+//System.out.println("  ER mod: got seq " + availableSequence);
+                        // scale from 0% to 100% of ring buffer size
+                        inputChanLevels[0] = ((int)(availableSequence - nextSequence) + 1)*100/ringBufferSize;
+//                        if (i==0 && printCounter++ % 10000000 == 0) {
+//                            System.out.print(inputChanLevel[0] + "\n");
+//                        }
                     }
 
                     while (nextSequence <= availableSequence) {
@@ -348,19 +275,9 @@ if (debug) System.out.println("  ER mod: will end threads but no END event or ri
                         controlType = ringItem.getControlType();
                         totalNumberEvents = ringItem.getEventCount();
 
-                        // Skip over events being recorded by other recording threads.
-                        // Currently, only 1 thread allowed due to handling of first
-                        // events & prestart, so recordingThreadCount = 1.
-                        if (recordingThreadCount > 1 && skipCounter - 1 > 0)  {
-//System.out.println("  ER mod: " + order + ", skip " + nextSequence);
-                            nextSequence++;
-                            skipCounter--;
-                            continue;
-                        }
-
                         // Look at control events ...
                         if (controlType != null) {
-//System.out.println("  ER mod: " + order + ", got control event, " + controlType);
+//System.out.println("  ER mod: got control event, " + controlType);
                             // Looking for prestart
                             if (controlType.isPrestart()) {
                                 if (gotPrestart) {
@@ -383,24 +300,24 @@ if (debug) System.out.println("  ER mod: will end threads but no END event or ri
                         if (!gotPrestart) {
                             // Throw away all events except any "first events"
                             if (!ringItem.isFirstEvent()) {
-//System.out.println("  ER mod: " + order + ", THROWING AWAY event of type " + ringItem.getEventType());
+//System.out.println("  ER mod: THROWING AWAY event of type " + ringItem.getEventType());
                                 // Release ByteBuffer used by item since it will NOT
                                 // be sent to output channel where this is normally done.
                                 ringItem.releaseByteBuffer();
                             }
                             else {
                                 // Store first event(s) until prestart is received, then write
-//System.out.println("  ER mod: " + order + ", STORE \"first event\" of type " + ringItem.getEventType());
+//System.out.println("  ER mod: STORE \"first event\" of type " + ringItem.getEventType());
                                 firstEvents.add(ringItem);
                                 firstEventsWords += wordCount;
                             }
+
                             nextSequence++;
                             continue;
                         }
 
-//System.out.println("  ER mod: " + order + ", accept item " + nextSequence + ", type " + ringItem.getEventType());
+//System.out.println("  ER mod: accept item " + nextSequence + ", type " + ringItem.getEventType());
                         gotBank = true;
-                        skipCounter = rtCount;
                         break;
                     }
 
@@ -419,24 +336,24 @@ if (debug) System.out.println("  ER mod: will end threads but no END event or ri
                         // Prestart event is a special case as there may be "first events"
                         // which preceded it but now must come after.
                         if (isPrestart) {
-//System.out.println("  ER mod: " + order + ", sending PRESTART to out chan");
+//System.out.println("  ER mod: sending PRESTART to out chan");
                             // Place prestart event on first output channel
-                            eventToOutputChannel(ringItem, 0, order);
+                            eventToOutputChannel(ringItem, 0, 0);
 
                             // Now place "first events" on the first channel
                             for (RingItem ri : firstEvents) {
-//System.out.println("  ER mod: " + order + ", sending \"first event\" to out chan");
-                                eventToOutputChannel(ri, 0, order);
+//System.out.println("  ER mod: sending \"first event\" to out chan");
+                                eventToOutputChannel(ri, 0, 0);
                             }
 
                             // Copy each event and place one on each additional output channel
                             for (int j=1; j < outputChannelCount; j++) {
                                 PayloadBuffer bb = new PayloadBuffer((PayloadBuffer)ringItem);
-                                eventToOutputChannel(bb, j, order);
+                                eventToOutputChannel(bb, j, 0);
 
                                 for (RingItem ri : firstEvents) {
                                     bb = new PayloadBuffer((PayloadBuffer)ri);
-                                    eventToOutputChannel(bb, j, order);
+                                    eventToOutputChannel(bb, j, 0);
                                 }
                             }
 
@@ -444,13 +361,13 @@ if (debug) System.out.println("  ER mod: will end threads but no END event or ri
                         }
                         else {
                             // Place event on first output channel
-//System.out.println("  ER mod: " + order + ", call eventToOutputChannel()");
-                            eventToOutputChannel(ringItem, 0, order);
+//System.out.println("  ER mod: call eventToOutputChannel()");
+                            eventToOutputChannel(ringItem, 0, 0);
 
                             // Copy event and place one on each additional output channel
                             for (int j = 1; j < outputChannelCount; j++) {
                                 PayloadBuffer bb = new PayloadBuffer((PayloadBuffer) ringItem);
-                                eventToOutputChannel(bb, j, order);
+                                eventToOutputChannel(bb, j, 0);
                             }
                         }
                     }
@@ -462,7 +379,6 @@ if (debug) System.out.println("  ER mod: will end threads but no END event or ri
                     if (controlType == ControlType.END) {
 System.out.println("  ER mod: found END event");
                         haveEndEvent = true;
-                        endRecordThreads(this, false);
                         if (endCallback != null) endCallback.endWait();
                         return;
                     }
@@ -478,11 +394,13 @@ System.out.println("  ER mod: found END event");
                             for (RingItem ri : firstEvents) {
                                 ri.releaseByteBuffer();
                             }
+                            isPrestart = false;
+                            firstEvents.clear();
                         }
                     }
 
                     // Release the events back to the ring buffer for re-use
-                    sequence.set(nextSequence++);
+                    sequenceIn.set(nextSequence++);
 
                 }
                 catch (InterruptedException e) {
@@ -514,7 +432,7 @@ System.out.println("  ER mod: recording thread ending");
 
     }
 
-//
+
 //    /**
 //     * This thread is started by the GO transition and runs while the state of the module is ACTIVE.
 //     * When the state is ACTIVE and the list of output DataChannels is not empty, this thread
@@ -524,28 +442,8 @@ System.out.println("  ER mod: recording thread ending");
 //     */
 //    private class RecordingThread extends Thread {
 //
-//        /** The order of this recording thread, relative to the other recording threads,
-//          * starting at zero. */
-//        private final int order;
-//
-//        /** The total number of recording threads. */
-//        private final int rtCount;
-//
-//        // RingBuffer Stuff
-//
-//        /** 1 sequence for this particular recording thread. */
-//        private Sequence sequence;
-//        /** Available sequence (largest index of items desired). */
-//        private long availableSequence;
-//        /** Next sequence (index of next item desired). */
-//        private long nextSequence;
-//
-//
-//
-//        RecordingThread(int order, ThreadGroup group, String name) {
+//        RecordingThread(ThreadGroup group, String name) {
 //            super(group, name);
-//            this.order = order;
-//            rtCount = recordingThreadCount;
 //        }
 //
 //
@@ -556,18 +454,14 @@ System.out.println("  ER mod: recording thread ending");
 //            RingItem    ringItem    = null;
 //            ControlType controlType = null;
 //
-//            int skipCounter = order + 1;
 //            boolean gotBank;
 //
 //            boolean takeRingStats = false;
-//            if (order == 0) {
-//                takeRingStats = true;
-//            }
+//            takeRingStats = true;
 //
 //            // Ring Buffer stuff
 //            availableSequence = -2L;
-//            sequence = sequenceIn[order];
-//            nextSequence = sequence.get() + 1L;
+//            nextSequence = sequenceIn.get() + 1L;
 //
 //
 //            while (moduleState == CODAState.ACTIVE || paused) {
@@ -597,22 +491,12 @@ System.out.println("  ER mod: recording thread ending");
 //                        controlType = ringItem.getControlType();
 //                        totalNumberEvents = ringItem.getEventCount();
 //
-//                        // Skip over events being recorded by other recording threads
-//                        if (skipCounter - 1 > 0)  {
-////System.out.println("  ER mod: " + order + ", skip " + nextSequence);
-//                            nextSequence++;
-//                            skipCounter--;
-//                        }
-//                        // Found a bank, so do something with it (skipCounter[i] - 1 == 0)
-//                        else {
 ////System.out.println("  ER mod: " + order + ", accept item " + nextSequence + ", type " + ringItem.getEventType());
 //                            if (ringItem.getEventType() == EventType.CONTROL) {
-//System.out.println("  ER mod: " + order + ", got control event, " + ringItem.getControlType());
+//System.out.println("  ER mod: got control event, " + ringItem.getControlType());
 //                            }
 //                            gotBank = true;
-//                            skipCounter = rtCount;
 //                            break;
-//                        }
 //                    }
 //
 //                    if (!gotBank) {
@@ -633,12 +517,12 @@ System.out.println("  ER mod: recording thread ending");
 //
 //                        // Place event on first output channel
 ////System.out.println("  ER mod: " + order + ", call eventToOutputChannel()");
-//                        eventToOutputChannel(ringItem, 0, order);
+//                        eventToOutputChannel(ringItem, 0, 0);
 //
 //                        // Copy event and place one on each additional output channel
 //                        for (int j=1; j < outputChannelCount; j++) {
 //                            PayloadBuffer bb = new PayloadBuffer((PayloadBuffer)ringItem);
-//                            eventToOutputChannel(bb, j, order);
+//                            eventToOutputChannel(bb, j, 0);
 //                        }
 //                    }
 //
@@ -649,7 +533,6 @@ System.out.println("  ER mod: recording thread ending");
 //                    if (controlType == ControlType.END) {
 //System.out.println("  ER mod: found END event");
 //                        haveEndEvent = true;
-//                        endRecordThreads(this, false);
 //                        if (endCallback != null) endCallback.endWait();
 //                        return;
 //                    }
@@ -664,7 +547,7 @@ System.out.println("  ER mod: recording thread ending");
 //                    }
 //
 //                    // Release the events back to the ring buffer for re-use
-//                    sequence.set(nextSequence++);
+//                    sequenceIn.set(nextSequence++);
 //
 //                }
 //                catch (InterruptedException e) {
@@ -711,11 +594,11 @@ System.out.println("  ER mod: recording thread ending");
 
         if (RateCalculator != null) RateCalculator.interrupt();
 
-        // Recording threads must be immediately ended
-        endRecordThreads(null, false);
+        // Recording thread must be immediately ended
+        endRecordThread(false);
 
-        RateCalculator = null;
-        recordingThreadList.clear();
+        RateCalculator  = null;
+        recordingThread = null;
 
         paused = false;
 
@@ -751,11 +634,12 @@ System.out.println("  ER mod: recording thread ending");
         // followed by this module (followed by the output transports).
         if (RateCalculator != null) RateCalculator.interrupt();
 
-        // Recording threads should already be ended by END event
-        endRecordThreads(null, true);
+        // Recording thread should already be ended by END event.
+        // If not, wait for it 1/4 sec.
+        endRecordThread(true);
 
         RateCalculator = null;
-        recordingThreadList.clear();
+        recordingThread = null;
 
         paused = false;
 
@@ -784,9 +668,6 @@ System.out.println("  ER mod: recording thread ending");
         // Disruptor (RingBuffer) stuff for input channels
         //------------------------------------------------
 
-        // 1 sequence per recording thread
-        sequenceIn = new Sequence[recordingThreadCount];
-
         // Place to put ring level stats
         inputChanLevels = new int[1];
 
@@ -806,14 +687,11 @@ System.out.println("  ER mod: recording thread ending");
         // Have ring sizes handy for calculations
         ringBufferSize = ringBufferIn.getBufferSize();
 
-        // For each recording thread ...
-        for (int j=0; j < recordingThreadCount; j++) {
-            // We have 1 sequence for each recording thread
-            sequenceIn[j] = new Sequence(Sequencer.INITIAL_CURSOR_VALUE);
+        // We have 1 sequence for the recording thread
+        sequenceIn = new Sequence(Sequencer.INITIAL_CURSOR_VALUE);
 
-            // This sequence may be the last consumer before producer comes along
-            ringBufferIn.addGatingSequences(sequenceIn[j]);
-        }
+        // This sequence is the last consumer before producer comes along
+        ringBufferIn.addGatingSequences(sequenceIn);
 
         // We have 1 barrier (shared by recording threads)
         barrierIn = ringBufferIn.newBarrier();
