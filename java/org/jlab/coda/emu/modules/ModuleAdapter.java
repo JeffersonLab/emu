@@ -26,8 +26,9 @@ import org.jlab.coda.emu.support.transport.DataChannel;
 
 import java.nio.ByteOrder;
 import java.util.ArrayList;
-import java.util.Comparator;
+import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicReference;
 
 
@@ -92,10 +93,17 @@ public class ModuleAdapter implements EmuModule {
     /** Map containing attributes of this module given in config file. */
     protected final Map<String,String> attributeMap;
 
-    /** ArrayList of DataChannel objects that are inputs. */
+    /**
+     * ArrayList of DataChannel objects for this module that are inputs.
+     * It is only modified in the {@link #addInputChannels(ArrayList)} and
+     * {@link #clearChannels()} methods and then only by the main EMU thread
+     * in prestart. However, other threads (such as the EMU's statistics reporting
+     * thread) call methods which use its iterator or getters.
+     */
     protected ArrayList<DataChannel> inputChannels = new ArrayList<DataChannel>();
 
-    /** ArrayList of DataChannel objects that are outputs. */
+    /** ArrayList of DataChannel objects that are outputs. Only modified in prestart
+     *  but used during go when writing module output. */
     protected ArrayList<DataChannel> outputChannels = new ArrayList<DataChannel>();
 
     /** Number of output channels. */
@@ -109,9 +117,6 @@ public class ModuleAdapter implements EmuModule {
 
     /** Object used by Emu to be notified of END event arrival. */
     protected EmuEventNotify endCallback;
-
-    /** Comparator which tells queue how to sort elements. */
-    protected AttachComparator<Attached> comparator = new AttachComparator<Attached>();
 
     /** Do we produce big or little endian output in ByteBuffers? */
     protected ByteOrder outputOrder;
@@ -355,22 +360,17 @@ logger.info("  Module Adapter: SEB chunk = " + sebChunk);
     //-----------------------------------------------------------
 
     /** {@inheritDoc} */
-    public void go()       throws CmdExecException {
-        moduleState = CODAState.ACTIVE;}
+    public void go()       throws CmdExecException {moduleState = CODAState.ACTIVE;}
     /** {@inheritDoc} */
-    public void end()      throws CmdExecException {
-        moduleState = CODAState.DOWNLOADED;}
+    public void end()      throws CmdExecException {moduleState = CODAState.DOWNLOADED;}
     /** {@inheritDoc} */
     public void pause()    {paused = true;}
     /** {@inheritDoc} */
-    public void prestart() throws CmdExecException {
-        moduleState = CODAState.PAUSED;}
+    public void prestart() throws CmdExecException {moduleState = CODAState.PAUSED;}
     /** {@inheritDoc} */
-    public void download() throws CmdExecException {
-        moduleState = CODAState.DOWNLOADED;}
+    public void download() throws CmdExecException {moduleState = CODAState.DOWNLOADED;}
     /** {@inheritDoc} */
-    public void reset() {
-        moduleState = CODAState.CONFIGURED;}
+    public void reset()   {moduleState = CODAState.CONFIGURED;}
 
 
     /** {@inheritDoc} */
@@ -491,6 +491,11 @@ logger.info("  Module Adapter: SEB chunk = " + sebChunk);
         inputChannels.clear();
         outputChannels.clear();
         inputChannelCount = outputChannelCount = 0;
+
+        outputChanLevels = null;
+        outputChanNames  = null;
+        inputChanLevels  = null;
+        inputChanNames   = null;
     }
 
     /** {@inheritDoc} */
@@ -506,40 +511,6 @@ logger.info("  Module Adapter: SEB chunk = " + sebChunk);
     public boolean getSebChunking() {return chunkingForSebs;}
 
     //----------------------------------------------------------------
-
-    /** Keep some data together and store as an event attachment.
-     *  This class helps write events in the desired order.*/
-    final class EventOrder {
-        /** Output channel to use. */
-        DataChannel outputChannel;
-        /** Index into arrays for this output channel. */
-        int index;
-        /** Place of event in output order of this output channel. */
-        int inputOrder;
-        /** Lock to use for output to this output channel. */
-        Object lock;
-        /** If {@code true}, then its output order is not important. */
-        boolean aSync;
-    }
-
-    /**
-     * Class defining comparator which tells priority queue how to sort elements.
-     * @param <T> Must be PayloadBuffer in this case
-     */
-    final class AttachComparator<T> implements Comparator<T> {
-        public int compare(T o1, T o2) throws ClassCastException {
-            Attached a1 = (Attached) o1;
-            Attached a2 = (Attached) o2;
-            EventOrder eo1 = (EventOrder) (a1.getAttachment());
-            EventOrder eo2 = (EventOrder) (a2.getAttachment());
-
-            if (eo1 == null || eo2 == null) {
-                return 0;
-            }
-
-            return (eo1.inputOrder - eo2.inputOrder);
-        }
-    }
 
 
     /**
