@@ -914,7 +914,7 @@ logger.warn("      DataChannel Et in: " + name + " - PAUSED");
                     // Get events while checking periodically to see if we must go away.
                     // Do some work to get accurate error msgs back to run control.
                     try {
-//System.out.println("      DataChannel Et in: 4 " + name + " getEvents() ...");
+//System.out.print("      DataChannel Et in: " + name + " getEvents() ...");
                         if (useDirectEt) {
                             eventsDirect = etSysLocal.getEvents(attachmentLocal, Mode.TIMED.getValue(),
                                                                 etWaitTime, chunk);
@@ -1082,9 +1082,9 @@ logger.info("      DataChannel Et in: " + name + " got CONTROL event, " + contro
                                 if (hasFirstEvent) {
 logger.info("      DataChannel Et in: " + name + " got FIRST (also USER) event");
                                 }
-                                else {
-logger.info("      DataChannel Et in: " + name + " got USER event");
-                                }
+//                                else {
+//logger.info("      DataChannel Et in: " + name + " got USER event");
+//                                }
                             }
 
                             // Don't need to set controlType = null for each loop since each
@@ -4079,7 +4079,7 @@ logger.warn("      DataChannel Et out: exit thd w/ error = " + e.getMessage());
                         if (stopGetterThread) {
                             return;
                         }
-//System.out.println("      DataChannel Et out: GETTER get new events");
+//System.out.println("      DataChannel Et out: GETTER get new events of size " + etSystem.getEventSize() );
 
                         events = etSystem.newEvents(attachment, Mode.SLEEP, false, 0,
                                                     chunk, (int)etSystem.getEventSize(), group);
