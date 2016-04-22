@@ -184,7 +184,8 @@ public class Emu implements CODAComponent {
      * iterator ({@link #state()}, {@link #findModule(String)},
      * and {@link #getStatisticsModule()}) and therefore need to be synchronized.
      * Note that the CopyOnWriteArrayList is a thread-safe variant of the ArrayList
-     * and should not be too "expensive" to use since its size will be very small.
+     * and should not be too "expensive" to use since its size will be very small
+     * and add/remove methods will be seldom called.
      */
     private final CopyOnWriteArrayList<EmuModule> modules = new CopyOnWriteArrayList<EmuModule>();
 
@@ -804,10 +805,22 @@ System.out.println("Emu " + name + ": state set to ERROR\n\n");
                         timeToBuild   = (int[])  stats[8];
                     }
 
-                    inChanLevels  = statsModule.getInputLevels();
-                    outChanLevels = statsModule.getOutputLevels();
-                    inChanNames   = statsModule.getInputNames();
-                    outChanNames  = statsModule.getOutputNames();
+                    // Channel levels are only meaningful for EB & ER during go.
+                    // Channels are created at prestart and go away at end which
+                    // means that the returned arrays may be null at the beginning of
+                    // prestart and become null sometime during end.
+                    if (state == ACTIVE) {
+                        inChanLevels  = statsModule.getInputLevels();
+                        outChanLevels = statsModule.getOutputLevels();
+                        inChanNames   = statsModule.getInputNames();
+                        outChanNames  = statsModule.getOutputNames();
+                    }
+                    else {
+                        inChanLevels  = null;
+                        outChanLevels = null;
+                        inChanNames   = null;
+                        outChanNames  = null;
+                    }
                 }
 
                 try {
