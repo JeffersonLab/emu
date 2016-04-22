@@ -465,6 +465,7 @@ System.out.println("      DataChannel Adapter: prestart, nextEv (" + nextEvent +
         // When that quantity == 0, that's when there's no more room to output to
         // and the Q is full.
         count = (maxOutputSize - count)*100/maxOutputSize;
+//System.out.println("out level = " + count);
 
         return count;
     }
