@@ -104,13 +104,6 @@ public class EventRecording extends ModuleAdapter {
     /** All recording threads share one barrier. */
     public SequenceBarrier barrierIn;
 
-    /** Available sequence (largest index of items desired). */
-    private long availableSequence;
-
-    /** Next sequence (index of next item desired). */
-    private long nextSequence;
-
-
 
     /**
      * Constructor creates a new EventRecording instance.
@@ -245,8 +238,10 @@ if (debug) System.out.println("  ER mod: will end thread but no END event!");
             boolean gotBank, gotPrestart=false, isPrestart=false;
 
             // Ring Buffer stuff
-            availableSequence = -2L;
-            nextSequence = sequenceIn.get() + 1L;
+            // Available sequence (largest index of items desired)
+            long availableSequence = -2L;
+            // Next sequence (index of next item desired)
+            long nextSequence = sequenceIn.get() + 1L;
 
             while (moduleState == CODAState.ACTIVE || paused) {
 
