@@ -21,6 +21,7 @@ import org.jlab.coda.emu.support.control.CmdExecException;
 import org.jlab.coda.emu.support.data.RingItem;
 import org.jlab.coda.emu.support.data.RingItemFactory;
 import org.jlab.coda.emu.support.logger.Logger;
+import org.jlab.coda.jevio.Utilities;
 
 import java.nio.ByteOrder;
 import java.util.Arrays;
@@ -258,12 +259,19 @@ logger.info("      DataChannel Adapter: input ring item count -> " + inputRingIt
         else {
             // Set the number of items for the output chan ring buffers.
             // These cannot be more than any internal module.
-            outputRingItemCount = module.getInternalRingCount();
+            // The number returned by getInternalRingCount is for a single build thread
+            // times the number of build threads. Since a channel has one ring for each
+            // build thread, the # of items in any one ring is
+            // getInternalRingCount / buildThreadCount. Should be a power of 2 already
+            // but will enforce that.
+
+            outputRingItemCount = module.getInternalRingCount()/module.getEventProducingThreadCount();
             // If the module is not setting this, then it has no internal
             // ring of buffers, so set this to some reasonable value.
             if (outputRingItemCount < 1) {
                 outputRingItemCount = 128;
             }
+            outputRingItemCount = emu.closestPowerOfTwo(outputRingItemCount, false);
 logger.info("      DataChannel Adapter: output ring item count -> " + outputRingItemCount);
 
             // Do we send out single events or do we
