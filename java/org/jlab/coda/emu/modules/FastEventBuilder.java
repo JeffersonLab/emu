@@ -116,13 +116,6 @@ import java.util.concurrent.atomic.AtomicLong;
  */
 public class FastEventBuilder extends ModuleAdapter {
 
-    // There are 3 types of variable that can be used to release ring buffer resources.
-    // After testing, there is a fair amount of fluctuation from run to test run, but
-    // overall the AtomicLong seems to perform somewhat better. This is surprising, since
-    // I expected the volatile long to do better due to lower overhead and no CAS.
-
-    /** Number used to order the releasing of ring buffer resources of each build thread. */
-    private AtomicLong releaseIndex = new AtomicLong(0L);
 
     /** The number of BuildingThread objects. */
     private int buildingThreadCount;
@@ -270,7 +263,7 @@ public class FastEventBuilder extends ModuleAdapter {
         // If # build threads not explicitly set in config, make it 1
         // which seems to perform the best with high rates and small events.
         if (!epThreadsSetInConfig) {
-            buildingThreadCount = eventProducingThreads = 1;
+            buildingThreadCount = eventProducingThreads = 3;
         }
 logger.info("  EB mod: " + buildingThreadCount + " number of event building threads");
 
@@ -815,8 +808,21 @@ System.out.println("  EB mod: create Build Thread with index " + btIndex + ", co
                 // Send END event to first output channel
 System.out.println("  EB mod: send END event to output channel 0, ring " + endEventRingIndex +
                    ", ev# = " + evIndex);
-                // Write, but first wait until other build threads are done
-                writeEndEvent(endBuf, 0, endEventRingIndex);
+
+                // Write to first output channel
+                System.out.println("writeEndEvent: yield bt = " + btCount +
+                                           ", nextRelIndx = " + nextReleaseIndex);
+
+                eventToOutputChannel(endBuf, 0, endEventRingIndex);
+
+                // NOT necessary as we're done with build thread
+                //for (int i=0; i < inputChannelCount; i++) {
+                //    buildSequences[i].set(nextSequences[i]++);
+                //}
+
+                // Stats
+                eventCountTotal ++;
+                wordCountTotal  += 5;
 
                 // Send END event to other output channels
                 for (int j=1; j < outputChannelCount; j++) {
@@ -837,35 +843,6 @@ System.out.println("  EB mod: send END event to output channel " + j + ", ring "
             }
 
             if (endCallback != null) endCallback.endWait();
-        }
-
-
-        /**
-         * Write the given END event to the given channel and ring after first waiting
-         * for all other build threads to finish what they're building.
-         *
-         * @param itemOut    END event
-         * @param channelNum output channel index
-         * @param ringNum    output ring index
-         */
-        private void writeEndEvent(RingItem itemOut, int channelNum, int ringNum) {
-
-            // Wait to send END event until all other build threads
-            // have finished & sent what they're building ...
-            if (btCount > 1) {
-                //while (nextReleaseIndex > releaseIndexSeq.get()) {
-                //while (nextReleaseIndex > releaseIndexVol) {
-                while (nextReleaseIndex > releaseIndex.get()) {
-                    Thread.yield();
-                }
-            }
-
-            // TODO: this may not be necessary if ENDing since all build threads are ended anyway
-            for (int i=0; i < inputChannelCount; i++) {
-                buildSequences[i].set(nextSequences[i]++);
-            }
-
-            eventToOutputChannel(itemOut, channelNum, ringNum);
         }
 
 
@@ -1336,6 +1313,9 @@ System.out.println("  EB mod: Bt#" + btIndex + " found END events on all input c
                     // Start top level
                     builder.openBank(tag, totalNumberEvents, DataType.BANK);
 
+//                    // TODO: FAKE DELAY, REMOVE !!!
+//                    Thread.sleep(1);
+
 //Utilities.printBuffer(builder.getBuffer(), 0, 20, "TOP LEVEL OPEN event");
 
                     // If building with Physics events ...
@@ -1428,6 +1408,8 @@ System.out.println("  EB mod: Bt#" + btIndex + " found END events on all input c
                     // ring buffers of the components it uses to build the physics event.
                     // This releases them up for the postBuild thread to free
                     // up all the resources used in building.
+                    // PostBuild thread is only run if more than 1 build thread.
+                    // If only one, do release of resources here.
                     for (int i=0; i < inputChannelCount; i++) {
                         if (btCount == 1) {
                             buildingBanks[i].releaseByteBuffer();
@@ -1908,8 +1890,6 @@ if (debug) System.out.println("  EB mod: endBuildThreads: will end building/fill
         firstToGetGo.set(false);
         firstToGetEnd.set(false);
         firstToGetPrestart.set(false);
-
-        releaseIndex.set(0L);
 
         // Print thread names
 //        int thdCount = Thread.activeCount();
