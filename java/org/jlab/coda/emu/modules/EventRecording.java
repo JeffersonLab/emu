@@ -199,14 +199,16 @@ if (debug) System.out.println("  ER mod: will end thread but no END event!");
 
         // NOTE: the EMU calls this ER module's end() and reset()
         // methods which, in turn, call this method.
-        recordingThread.interrupt();
-        try {
-            recordingThread.join(250);
-            if (recordingThread.isAlive()) {
-                recordingThread.stop();
+        if (recordingThread != null) {
+            recordingThread.interrupt();
+            try {
+                recordingThread.join(250);
+                if (recordingThread.isAlive()) {
+                    recordingThread.stop();
+                }
             }
-        }
-        catch (InterruptedException e) {
+            catch (InterruptedException e) {
+            }
         }
     }
 
