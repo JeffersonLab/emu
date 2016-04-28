@@ -74,7 +74,7 @@ Version 2.6
       that "first events" arriving then will be saved and written after the prestart
       event.
 
-    - fix bug in calculating output channel fill level (4/22/2016)
+    - fix bug in calculating output channel fill level (4/22-28/2016)
     - make ER single threaded & fix bug recently introduced when rewritten to handle user
       and first events.
     - fix bug in DataChannelAdapter setting the # of ring items in each ring
@@ -82,4 +82,9 @@ Version 2.6
     - fix bug writing END event in EB with multiple build threads
     - make the single post-build thread into one thread for each input channel which
       increased performance up to 20% in case of 3 build threads
-
+    - fix bug in which ER has null pointer exception if end or reset call multiple
+      time in succession
+    - rewrite ET output channel code so it's 20% faster with peaks up to 50% faster.
+      Uses one less thread too. Does away with old limitation that at most 1/2 the number
+      of EB build buffers can be written into any one ET event (ring buffer circulation
+      problem).
