@@ -328,7 +328,7 @@ logger.info("  EB mod: " + buildingThreadCount + " number of event building thre
         }
         catch (NumberFormatException e) {}
 
-       // Number of items in each build thread ring. We need to limit this
+        // Number of items in each build thread ring. We need to limit this
         // since it costs real memory. For big events, 128 x 20MB events = 2.56GB
         // of mem used. Multiply that times the number of build threads.
         int ringCount = 128;
