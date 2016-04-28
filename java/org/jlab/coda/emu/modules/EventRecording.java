@@ -245,6 +245,8 @@ if (debug) System.out.println("  ER mod: will end thread but no END event!");
             // Next sequence (index of next item desired)
             long nextSequence = sequenceIn.get() + 1L;
 
+//            int printCounter=0;
+
             while (moduleState == CODAState.ACTIVE || paused) {
 
                 try {
@@ -256,11 +258,12 @@ if (debug) System.out.println("  ER mod: will end thread but no END event!");
                         // Available sequence may be larger than what we desired
 //System.out.println("  ER mod: wait for seq " + nextSequence);
                         availableSequence = barrierIn.waitFor(nextSequence);
-//System.out.println("  ER mod: got seq " + availableSequence);
                         // scale from 0% to 100% of ring buffer size
                         inputChanLevels[0] = ((int)(availableSequence - nextSequence) + 1)*100/ringBufferSize;
-//                        if (i==0 && printCounter++ % 10000000 == 0) {
-//                            System.out.print(inputChanLevel[0] + "\n");
+//System.out.println("  ER mod: avail = " + availableSequence + ", next = " + nextSequence +
+//", level = " + inputChanLevels[0]);
+//                        if (printCounter++ % 100000 == 0) {
+//                            System.out.println("in level = " + inputChanLevels[0]);
 //                        }
                     }
 
@@ -271,6 +274,8 @@ if (debug) System.out.println("  ER mod: will end thread but no END event!");
                         wordCount = ringItem.getNode().getLength() + 1;
                         controlType = ringItem.getControlType();
                         totalNumberEvents = ringItem.getEventCount();
+
+//                        Thread.sleep(10);
 
                         // Look at control events ...
                         if (controlType != null) {
