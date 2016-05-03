@@ -275,7 +275,7 @@ if (debug) System.out.println("  ER mod: will end thread but no END event!");
                         controlType = ringItem.getControlType();
                         totalNumberEvents = ringItem.getEventCount();
 
-//                        Thread.sleep(10);
+//                        Thread.sleep(1);
 
                         // Look at control events ...
                         if (controlType != null) {
