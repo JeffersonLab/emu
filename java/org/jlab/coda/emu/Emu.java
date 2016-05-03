@@ -1319,7 +1319,7 @@ logger.error("Emu " + name + ": got SET_RUN_TYPE command but no run type specifi
             int bufferLevel = cmd.getMessage().getUserInt();
             if (bufferLevel > 0) {
 //logger.info("Emu " + name + " SET_BUF_LEVEL: set to " + bufferLevel);
-//                setBufferLevel(bufferLevel);
+                setBufferLevel(bufferLevel);
             }
             else {
 logger.error("Emu " + name + ": got SET_BUF_LEVEL command but bad value (" + bufferLevel + ")");
