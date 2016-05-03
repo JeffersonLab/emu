@@ -1387,8 +1387,8 @@ logger.warn("      DataChannel Et in: " + name + " exit thd: " + e.getMessage())
                 boolean gotPrestart=false;
 
                 // Variables for consuming ring buffer items
-                long nextFillSequence = etFillSequence.get() + 1L;
-                long availableFillSequence = -1L;
+                long etNextFillSequence = etFillSequence.get() + 1L;
+                long etAvailableFillSequence = -1L;
 
 
                 top:
@@ -1419,23 +1419,23 @@ logger.warn("      DataChannel Et in: " + name + " exit thd: " + e.getMessage())
                         //----------------------------------------
                         // Release ET event for writings threads
                         //----------------------------------------
-//System.out.println("      DataChannel Et out filler : release ET event " + nextFillSequence);
-                        etFillSequence.set(nextFillSequence++);
+//System.out.println("      DataChannel Et out filler : release ET event " + etNextFillSequence);
+                        etFillSequence.set(etNextFillSequence++);
                     }
 
-//System.out.println("      DataChannel Et out filler: " + name + ", try getting next seq (" + nextFillSequence + ") for ET");
+//System.out.println("      DataChannel Et out filler: " + name + ", try getting next seq (" + etNextFillSequence + ") for ET");
                     // Do we wait for next ring slot or do we already have something from last time?
-                    if (availableFillSequence < nextFillSequence) {
+                    if (etAvailableFillSequence < etNextFillSequence) {
                         // Wait for next available ring slot
-                        availableFillSequence = etFillBarrier.waitFor(nextFillSequence);
+                        etAvailableFillSequence = etFillBarrier.waitFor(etNextFillSequence);
                     }
-//System.out.println("      DataChannel Et out filler: available Seq = " + availableFillSequence);
+//System.out.println("      DataChannel Et out filler: available Seq = " + etAvailableFillSequence);
 
                     //---------------------------------------------------------
                     // Get the next container object from internal ring's slot.
                     // This will contain the new ET event to place data into.
                     //---------------------------------------------------------
-                    container = rb.get(nextFillSequence);
+                    container = rb.get(etNextFillSequence);
                     container.isEnd = false;
                     container.itemCount = 0;
                     event = container.event;
@@ -1458,6 +1458,7 @@ logger.warn("      DataChannel Et in: " + name + " exit thd: " + e.getMessage())
                         else {
                             try {
                                 ringItem = getNextOutputRingItem(outputRingIndex);
+//                                if (isEB) sleep(1000);
 //System.out.println("     got evt from ring");
 //System.out.println(outputIndex + " : " + outputRingIndex + " : " + nextEvent);
                             }
@@ -1634,15 +1635,18 @@ logger.warn("      DataChannel Et in: " + name + " exit thd: " + e.getMessage())
 
                         container.itemCount++;
 
+                        // Added evio event/buf to this ET event
+                        banksInEtBuf++;
+                        bytesToEtBuf += ringItemSize;
+
                         // If this ring item's data is in a buffer which is part of a
                         // ByteBufferSupply object, release it back to the supply now.
                         // Otherwise call does nothing.
                         ringItem.releaseByteBuffer();
 
-                        // FREE UP this channel's input rings' slots/items for reuse.
-//System.out.println("      DataChannel Et out : release ring indexes and sequences");
-                        releaseOutputRingItem(outputRingIndex);
-
+                        // FREE UP this channel's input rings' slots/items for reuse
+                        // and get ready for next item.
+                        releaseCurrentAndGoToNextOutputRingItem(outputRingIndex);
 
                         // Handle END & GO events
                         if (pBankControlType != null) {
@@ -1667,7 +1671,7 @@ logger.warn("      DataChannel Et in: " + name + " exit thd: " + e.getMessage())
                                 // Cursor is the highest published sequence in the ring.
 
                                 //etFillSequence.set(rb.getCursor());
-                                etFillSequence.set(nextFillSequence);
+                                etFillSequence.set(etNextFillSequence);
 
                                 // Do not call shutdown() here since putter
                                 // thread must still do a putEvents().
@@ -1683,16 +1687,12 @@ logger.warn("      DataChannel Et in: " + name + " exit thd: " + e.getMessage())
                                 outputRingIndex = ringIndex;
                             }
                         }
-
-                        // Added evio event/buf to this ET event
-                        banksInEtBuf++;
-                        bytesToEtBuf += ringItemSize;
-
-                        // Next time we get an item off the input rings, use the correct ring.
-                        // This is only an issue when module has multiple event-processing threads.
-                        // It becomes even more complicated if module is a DC with output channels
-                        // to multiple SEBs.
-                        gotoNextRingItem(outputRingIndex);
+//
+//                        // Next time we get an item off the input rings, use the correct ring.
+//                        // This is only an issue when module has multiple event-processing threads.
+//                        // It becomes even more complicated if module is a DC with output channels
+//                        // to multiple SEBs.
+//                        gotoNextRingItem(outputRingIndex);
 
 //System.out.println("      DataChannel Et out " + outputIndex + ": go to item " + nextSequences[outputRingIndex] +
 //" on ring " + outputRingIndex);
