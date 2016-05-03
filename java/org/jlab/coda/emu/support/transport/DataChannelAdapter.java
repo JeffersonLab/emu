@@ -180,6 +180,11 @@ public class DataChannelAdapter extends CODAStateMachineAdapter implements DataC
     /** Maximum index of available ring items. */
     protected long[] availableSequences;
 
+    /** Maximum index of available ring items for use in calculating statistics.
+     *  Necessary since availableSequences is only updated when nextSequences
+     *  becomes equal to it. This quantity is always kept updated but by a
+     *  cheaper means (1 volatile read) through SequenceBarrier.cursor(). */
+    protected long[] availSeqStat;
 
     /** When releasing in sequence, the last sequence to have been released. */
     private long[] lastSequencesReleased;
@@ -314,6 +319,7 @@ logger.info("      DataChannel Adapter: # of ring buffers = " + outputRingCount)
         sequenceBarriers = new SequenceBarrier[outputRingCount];
         sequences = new Sequence[outputRingCount];
 
+        availSeqStat = new long[outputRingCount];
         nextSequences = new long[outputRingCount];
         availableSequences = new long[outputRingCount];
         Arrays.fill(availableSequences, -1L);
@@ -462,20 +468,18 @@ System.out.println("      DataChannel Adapter: prestart, nextEv (" + nextEvent +
 
     /** {@inheritDoc} */
     public int getOutputLevel() {
-        int count = 0, maxOutputSize = (outputRingCount * outputRingItemCount);
+        int count=0;
 
+        System.out.print("out level (avail,cursor) = ");
         for (int i=0; i < outputRingCount; i++) {
-            count += (int)(availableSequences[i] - nextSequences[i] + 1);
+            count += (int)(availSeqStat[i] - nextSequences[i] + 1);
         }
+//        System.out.print("cnt = " + count);
+        System.out.println();
 
-        // For input channel, when (available - next + 1) == ringSize, then
-        // the Q is full and ready to read. The opposite is true in output channel math.
-        // When that quantity == 0, that's when there's no more room to output to
-        // and the Q is full.
-        count = (maxOutputSize - count)*100/maxOutputSize;
-//System.out.println("out level = " + count);
+        // When (avail - next + 1) == ringSize, then the Q is full.
 
-        return count;
+        return count*100/(outputRingCount * outputRingItemCount);
     }
 
     /**
@@ -496,16 +500,25 @@ System.out.println("      DataChannel Adapter: prestart, nextEv (" + nextEvent +
 //            System.out.println("                     : nextSequences = " + nextSequences[ringIndex]);
 
         try  {
-            // Only wait for read-volatile-memory if necessary ...
+            // Only wait if necessary ...
             if (availableSequences[ringIndex] < nextSequences[ringIndex]) {
 //System.out.println("getNextOutputRingITem: WAITING");
-                availableSequences[ringIndex] = sequenceBarriers[ringIndex].waitFor(nextSequences[ringIndex]);
+                availSeqStat[ringIndex] = availableSequences[ringIndex] =
+                        sequenceBarriers[ringIndex].waitFor(nextSequences[ringIndex]);
             }
-//System.out.println("getNextOutputRingITem: available seq = " + availableSequences[ringIndex] +
-//            ", next seq = " + nextSequences[ringIndex]);
+            else {
+                // Keep this updated by a cheaper call, one volatile read, as opposed
+                // to the wait above. Allows good performance while keeping stats
+                // up to date.
+                availSeqStat[ringIndex] = sequenceBarriers[ringIndex].getCursor();
+            }
+//System.out.println("getNextOutputRingITem: available seq[" + ringIndex + "] = " +
+//                           availableSequences[ringIndex] +
+//                        ", next seq = " + nextSequences[ringIndex] +
+//" delta + 1 = " + (availableSequences[ringIndex] - nextSequences[ringIndex] +1));
 
             item = ringBuffersOut[ringIndex].get(nextSequences[ringIndex]);
-//System.out.println("getNextOutputRingITem: got seq = " + nextSequences[ringIndex]);
+//System.out.println("getNextOutputRingItem: got seq[" + ringIndex + "] = " + nextSequences[ringIndex]);
 //System.out.println("Got ring item " + item.getRecordId());
         }
         catch (final com.lmax.disruptor.TimeoutException ex) {
@@ -533,7 +546,10 @@ System.out.println("      DataChannel Adapter: prestart, nextEv (" + nextEvent +
      */
     protected void releaseCurrentAndGoToNextOutputRingItem(int ringIndex) {
         sequences[ringIndex].set(nextSequences[ringIndex]);
+//        System.out.print("releaseCurrentAndGoToNextOutputRingItem: rel[" + ringIndex +
+//                                 "] = " + nextSequences[ringIndex]);
         nextSequences[ringIndex]++;
+//        System.out.println("  ->  " + nextSequences[ringIndex]);
     }
 
     //
