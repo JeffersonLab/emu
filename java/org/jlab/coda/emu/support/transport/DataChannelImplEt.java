@@ -1458,7 +1458,7 @@ logger.warn("      DataChannel Et in: " + name + " exit thd: " + e.getMessage())
                         else {
                             try {
                                 ringItem = getNextOutputRingItem(outputRingIndex);
-//                                if (isEB) sleep(1000);
+//                                if (isEB) sleep(1);
 //System.out.println("     got evt from ring");
 //System.out.println(outputIndex + " : " + outputRingIndex + " : " + nextEvent);
                             }
@@ -1526,6 +1526,7 @@ logger.warn("      DataChannel Et in: " + name + " exit thd: " + e.getMessage())
                             // If data was previously written into this ET buf ...
                             else {
 //System.out.println("      DataChannel Et out: " + name + " item doesn't fit cause other stuff in there, do write close, get another ET event");
+//System.out.println("      DataChannel Et out: " + name + " banks in ET buf = " + banksInEtBuf);
                                 // Get another ET event to put this evio data into
                                 // and hope there is enough room for it.
                                 //
