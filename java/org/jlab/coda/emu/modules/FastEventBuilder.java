@@ -362,6 +362,27 @@ logger.info("  EB mod: internal ring buf count -> " + ringItemCount);
     }
 
 
+    /** {@inheritDoc}.
+     * This queries the first EB build thread for all the input channel levels. */
+    public int[] getInputLevels() {
+        try {
+            BuildingThread bt = buildingThreadList.get(0);
+            if (bt == null) {
+                return null;
+            }
+
+            for (int i=0; i < inputChannelCount; i++) {
+                inputChanLevels[i] = bt.getInputLevel(i);
+            }
+        }
+        catch (Exception e) {
+            return null;
+        }
+
+        return inputChanLevels;
+    }
+
+
     /**
      * This class takes RingItems from a RingBuffer (an input channel, eg. ROC),
      * and processes them making sure each item is a valid, evio, DAQ event.
@@ -719,16 +740,16 @@ if (debug) System.out.println("  EB mod: Roc raw or physics event in wrong forma
 
 
     /**
-     * This thread is started by the GO transition and runs while the state of the module is ACTIVE.
+     * This thread is started by the PRESTART transition.
+     * An empty buffer is obtained from a supply.
+     * One evio bank from each input channel are together built into a new event
+     * in that buffer. If this module has outputs, the built events are placed on
+     * an output channel.
      * <p/>
-     * When the state is ACTIVE and the list of output DataChannels is not empty, this thread
-     * selects an output by taking the next one from a simple iterator. The thread then pulls
-     * one DataBank off each input DataChannel and stores them in an ArrayList.
+     * If there are multiple output channels, in default operation, this thread
+     * selects an output by round-robin. If however, this is a DC with multiple
+     * SEBs to send events to, then things are more complicated.
      * <p/>
-     * An empty buffer big enough to store all of the banks pulled off the inputs is created.
-     * The incoming banks from the ArrayList are built into a new bank.
-     * The count of outgoing banks and the count of data words are incremented.
-     * If this module has outputs, built banks are placed on an output DataChannel.
      */
     class BuildingThread extends Thread {
 
@@ -783,6 +804,20 @@ System.out.println("  EB mod: create Build Thread with index " + btIndex + ", co
         }
 
 
+        /**
+         * Get the input level (how full is the ring buffer 0-100) of a single input channel
+         * @param chanIndex index of channel (starting at 0)
+         * @return input level
+         */
+        int getInputLevel(int chanIndex) {
+            // scale from 0% to 100% of ring buffer size
+            return ((int)(buildBarrierIn[chanIndex].getCursor() - nextSequences[chanIndex]) + 1)*100/ringBufferSize[chanIndex];
+        }
+
+
+        /**
+         * Handle the END event.
+         */
         private void handleEndEvent() {
 
 System.out.println("  EB mod: in handleEndEVent(), bt #" + btIndex + ", output chan count = " +
@@ -890,11 +925,6 @@ System.out.println("  EB mod: bbSupply -> " + ringItemCount + " # of bufs, direc
                 boolean gotBank, gotFirstBuildEvent;
                 boolean isEventNumberInitiallySet = false;
                 EventType eventType = null;
-
-                boolean takeRingStats = false;
-                if (btIndex == 0) {
-                    takeRingStats = true;
-                }
 
                 if (outputChannelCount > 1) outputChannelIndex = -1;
 
@@ -1007,20 +1037,13 @@ System.out.println("  EB mod: bbSupply -> " + ringItemCount + " # of bufs, direc
 
                             gotBank = false;
 
-                            // Only wait for a read of volatile memory if necessary ...
+                            // Only wait if necessary ...
                             if (availableSequences[i] < nextSequences[i]) {
                                 // Can BLOCK here waiting for item if none available, but can be interrupted
                                 // Available sequence may be larger than what we asked for.
 //System.out.println("  EB mod: bt" + btIndex + " ch" + i + ", wait for event (seq [" + i + "] = " +
 //                           nextSequences[i] + ")");
                                 availableSequences[i] = buildBarrierIn[i].waitFor(nextSequences[i]);
-                                if (takeRingStats) {
-                                    // scale from 0% to 100% of ring buffer size
-                                    inputChanLevels[i] = ((int)(availableSequences[i] - nextSequences[i]) + 1)*100/ringBufferSize[i];
-//                                    if (i==0 && printCounter++ % 10000000 == 0) {
-//                                        System.out.print(inputChanLevel[0] + "\n");
-//                                    }
-                                }
 //System.out.println("  EB mod: bt" + btIndex + " ch" + i + ", available seq[" + i + "]  = " + availableSequences[i]);
                             }
 
