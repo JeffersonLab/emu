@@ -180,12 +180,6 @@ public class DataChannelAdapter extends CODAStateMachineAdapter implements DataC
     /** Maximum index of available ring items. */
     protected long[] availableSequences;
 
-    /** Maximum index of available ring items for use in calculating statistics.
-     *  Necessary since availableSequences is only updated when nextSequences
-     *  becomes equal to it. This quantity is always kept updated but by a
-     *  cheaper means (1 volatile read) through SequenceBarrier.cursor(). */
-    protected long[] availSeqStat;
-
     /** When releasing in sequence, the last sequence to have been released. */
     private long[] lastSequencesReleased;
 
@@ -196,6 +190,11 @@ public class DataChannelAdapter extends CODAStateMachineAdapter implements DataC
      * lastSequenceReleased which have called release(), but not been released yet. */
     private int[] betweens;
 
+    /** Number of entries (filled slots) in each ring buffer of this output channel. */
+    protected int[] outputChannelFill;
+
+    /** Total number of slots in all output channel ring buffers. */
+    protected int totalRingCapacity;
 
 
 
@@ -303,6 +302,9 @@ logger.info("      DataChannel Adapter: # of ring buffers = " + outputRingCount)
             ringBuffersOut = new RingBuffer[outputRingCount];
             setupOutputRingBuffers();
 
+            // Total capacity of all ring buffers
+            totalRingCapacity = outputRingCount * outputRingItemCount;
+
             // Init arrays
             lastSequencesReleased = new long[outputRingCount];
             maxSequences = new long[outputRingCount];
@@ -319,7 +321,6 @@ logger.info("      DataChannel Adapter: # of ring buffers = " + outputRingCount)
         sequenceBarriers = new SequenceBarrier[outputRingCount];
         sequences = new Sequence[outputRingCount];
 
-        availSeqStat = new long[outputRingCount];
         nextSequences = new long[outputRingCount];
         availableSequences = new long[outputRingCount];
         Arrays.fill(availableSequences, -1L);
@@ -470,16 +471,17 @@ System.out.println("      DataChannel Adapter: prestart, nextEv (" + nextEvent +
     public int getOutputLevel() {
         int count=0;
 
-        System.out.print("out level (avail,cursor) = ");
         for (int i=0; i < outputRingCount; i++) {
-            count += (int)(availSeqStat[i] - nextSequences[i] + 1);
+            // getCursor() does 1 volatile read to get max available sequence.
+            // It's important to calculate the output channel level this way,
+            // especially for the ET channel since it may get stuck waiting for
+            // ET events to become available and not be able to update ring
+            // statistics (more specifically, availableSequences[]).
+            count += (int)(sequenceBarriers[i].getCursor() - nextSequences[i] + 1);
         }
-//        System.out.print("cnt = " + count);
-        System.out.println();
 
-        // When (avail - next + 1) == ringSize, then the Q is full.
-
-        return count*100/(outputRingCount * outputRingItemCount);
+        // When (cursor(or avail) - next + 1) == ringSize, then the Q is full.
+        return count*100/totalRingCapacity;
     }
 
     /**
@@ -503,14 +505,8 @@ System.out.println("      DataChannel Adapter: prestart, nextEv (" + nextEvent +
             // Only wait if necessary ...
             if (availableSequences[ringIndex] < nextSequences[ringIndex]) {
 //System.out.println("getNextOutputRingITem: WAITING");
-                availSeqStat[ringIndex] = availableSequences[ringIndex] =
+                availableSequences[ringIndex] =
                         sequenceBarriers[ringIndex].waitFor(nextSequences[ringIndex]);
-            }
-            else {
-                // Keep this updated by a cheaper call, one volatile read, as opposed
-                // to the wait above. Allows good performance while keeping stats
-                // up to date.
-                availSeqStat[ringIndex] = sequenceBarriers[ringIndex].getCursor();
             }
 //System.out.println("getNextOutputRingITem: available seq[" + ringIndex + "] = " +
 //                           availableSequences[ringIndex] +
