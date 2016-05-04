@@ -475,7 +475,7 @@ System.out.println("      DataChannel Adapter: prestart, nextEv (" + nextEvent +
             // getCursor() does 1 volatile read to get max available sequence.
             // It's important to calculate the output channel level this way,
             // especially for the ET channel since it may get stuck waiting for
-            // ET events to become available and not be able to update ring
+            // new ET events to become available and not be able to update ring
             // statistics (more specifically, availableSequences[]).
             count += (int)(sequenceBarriers[i].getCursor() - nextSequences[i] + 1);
         }
