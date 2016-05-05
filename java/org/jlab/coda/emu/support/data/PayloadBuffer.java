@@ -122,19 +122,25 @@ public class PayloadBuffer extends RingItemAdapter {
         item.attachment = null;
 
         if (buffer != null) {
-            // Allocate memory
-            item.buffer = ByteBuffer.allocate(buffer.capacity());
+            // To make this thread safe, we must duplicate the existing buffer
+            // so it's position and limit are never changed.
+            // Also, be sure to take care of byte order.
+            ByteOrder order = buffer.order();
+            ByteBuffer buf  = buffer.duplicate().order(order);
+            int pos = buf.position();
+            int lim = buf.limit();
 
-            // Store our current position and limit
-            int pos = buffer.position();
-            int lim = buffer.limit();
+            // Allocate memory
+            item.buffer = ByteBuffer.allocate(buf.capacity()).order(order);
 
             // Copy all data
-            buffer.limit(buffer.capacity()).position(0);
-            item.buffer.put(buffer);
+            buf.limit(buf.capacity()).position(0);
+            // Setting position to zero keeps temporarily
+            // setting the limit to below pos from happening
+            item.buffer.put(buf).position(0);
 
-            // restore original values
-            buffer.limit(lim).position(pos);
+            // Restore original values
+            item.buffer.limit(lim).position(pos);
         }
         else {
             item.buffer = null;
