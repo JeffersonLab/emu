@@ -117,7 +117,7 @@ public class PayloadBuffer extends RingItemAdapter {
     /** Clones this object setting the attachment to null. */
     public Object clone() {
         // Creates a bit wise copy (including only
-        // references for payloadBuffer & payloadBank).
+        // references for payloadBuffer).
         PayloadBuffer item = (PayloadBuffer) super.clone();
         item.attachment = null;
 
