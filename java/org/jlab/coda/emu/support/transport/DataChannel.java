@@ -31,6 +31,12 @@ import org.jlab.coda.emu.support.data.RingItem;
 public interface DataChannel extends CODAStateMachine, StatedObject {
 
     /**
+     * Get the type of transport this channel implements.
+     * @return type of transport this channel implements.
+     */
+    public TransportType getTransportType();
+
+    /**
      * Get the CODA ID number of the CODA component connected to this
      * data channel. In event building, this is used, for example, to check
      * the ROC id of incoming event which allows consistency checking.

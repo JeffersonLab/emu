@@ -21,7 +21,6 @@ import org.jlab.coda.emu.support.control.CmdExecException;
 import org.jlab.coda.emu.support.data.RingItem;
 import org.jlab.coda.emu.support.data.RingItemFactory;
 import org.jlab.coda.emu.support.logger.Logger;
-import org.jlab.coda.jevio.Utilities;
 
 import java.nio.ByteOrder;
 import java.util.Arrays;
@@ -43,7 +42,7 @@ import static com.lmax.disruptor.RingBuffer.createSingleProducer;
  * @author timmer
  *         (Apr 25, 2013)
  */
-public class DataChannelAdapter extends CODAStateMachineAdapter implements DataChannel {
+public abstract class DataChannelAdapter extends CODAStateMachineAdapter implements DataChannel {
 
     /** Channel id (corresponds to sourceId of ROCs for CODA event building). */
     protected int id;
@@ -412,6 +411,9 @@ System.out.println("      DataChannel Adapter: prestart, nextEv (" + nextEvent +
         return ringIndex;
     }
 
+
+    /** {@inheritDoc} */
+    abstract public TransportType getTransportType();
 
     /** {@inheritDoc} */
     public EmuModule getModule() {return module;}
