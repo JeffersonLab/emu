@@ -551,7 +551,6 @@ System.out.println("checkPayload: record ID out of sequence, got " + recordId +
 
             pBuf.setSync(Evio.isTagSyncEvent(tag));
             pBuf.setError(Evio.tagHasError(tag));
-            pBuf.setSingleEventMode(Evio.isTagSingleEventMode(tag));
         }
 
         // Check source ID of bank to see if it matches channel id
