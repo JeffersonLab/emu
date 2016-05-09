@@ -156,22 +156,19 @@ public class DataChannelImplCmsg extends DataChannelAdapter {
                 nextRingItem = ringBufferIn.next();
                 RingItem ringItem = ringBufferIn.get(nextRingItem);
 
-                ringItem.setNode(node);
-//                ringItem.setBuffer(node.getStructureBuffer(false));
-                ringItem.setEventType(bankType);
-                ringItem.setControlType(controlType);
-                ringItem.isFirstEvent(hasFirstEvent);
-                ringItem.setRecordId(recordId);
-                ringItem.setSourceId(sourceId);
-                ringItem.setSourceName(name);
-                ringItem.matchesId(sourceId == id);
-                // Set the event count properly for blocked events
                 if (bankType.isBuildable()) {
-                    ringItem.setEventCount(node.getNum());
+                    ringItem.setAll(null, null, node, bankType, controlType,
+                                   hasFirstEvent, id, recordId, sourceId,
+                                   node.getNum(), name, null, null);
                 }
                 else {
-                    ringItem.setEventCount(1);
+                    ringItem.setAll(null, null, node, bankType, controlType,
+                                   hasFirstEvent, id, recordId, sourceId,
+                                   1, name, null, null);
                 }
+
+                // Only the first event of first block can be "first event"
+                hasFirstEvent = false;
 
                 ringBufferIn.publish(nextRingItem);
 
@@ -320,6 +317,12 @@ logger.info("      DataChannel cmsg: write threads = " + writeThreadCount);
             dataOutputThread.start();
             dataOutputThread.waitUntilStarted();
         }
+    }
+
+
+    /** {@inheritDoc} */
+    public TransportType getTransportType() {
+        return TransportType.CMSG;
     }
 
 
