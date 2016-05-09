@@ -615,6 +615,22 @@ public class Emu implements CODAComponent {
         }
     }
 
+    /**
+     * Get list of input channels.
+     * @return list of input channels
+     */
+    public List<DataChannel> getInChannels() {
+        return inChannels;
+    }
+
+    /**
+     * Get list of output channels.
+     * @return list of output channels
+     */
+    public List<DataChannel> getOutChannels() {
+        return outChannels;
+    }
+
     //------------------------------------------------
     // State & Error methods
     //------------------------------------------------
