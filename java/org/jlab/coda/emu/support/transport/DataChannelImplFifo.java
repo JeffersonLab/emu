@@ -12,6 +12,7 @@
 package org.jlab.coda.emu.support.transport;
 
 import org.jlab.coda.emu.Emu;
+import org.jlab.coda.emu.EmuException;
 import org.jlab.coda.emu.EmuModule;
 import org.jlab.coda.emu.support.codaComponent.CODAState;
 import org.jlab.coda.emu.support.data.*;
@@ -67,6 +68,12 @@ public class DataChannelImplFifo extends DataChannelAdapter {
         movingThread = new Thread(emu.getThreadGroup(), mover, name());
         movingThread.start();
         mover.waitUntilStarted();
+    }
+
+
+    /** {@inheritDoc} */
+    public TransportType getTransportType() {
+        return TransportType.FIFO;
     }
 
 
@@ -139,60 +146,115 @@ public class DataChannelImplFifo extends DataChannelAdapter {
             latch.countDown();
 
             try {
-                 RingItem ringItem;
+                RingItem ringItem;
+                EventType pBankType;
+                ControlType pBankControlType;
+                boolean gotPrestart = false;
 
-                 // First event will be "prestart", by convention in ring 0
-                 ringItem = getNextOutputRingItem(0);
-                 writeEvioData(ringItem);
-                 releaseCurrentAndGoToNextOutputRingItem(0);
- logger.debug("      DataChannel Fifo helper: sent prestart");
+                // The 1st event may be a user event or a prestart.
+                // After the prestart, the next event may be "go", "end", or a user event.
+                // The non-END control events are placed on ring 0 of all output channels.
+                // The END event is placed in the ring in which the next data event would
+                // have gone. The user events are placed on ring 0 of only the first output
+                // channel.
 
-                 // First event will be "go" or "end", by convention in ring 0
-                 ringItem = getNextOutputRingItem(0);
-                 ControlType pBankControlType = ringItem.getControlType();
-                 writeEvioData(ringItem);
-                 releaseCurrentAndGoToNextOutputRingItem(0);
+                // Keep reading user & control events (all of which will appear in ring 0)
+                // until the 2nd control event (go or end) is read.
+                while (true) {
+                    // Read next event
+                    ringItem = getNextOutputRingItem(0);
+                    pBankType = ringItem.getEventType();
+                    pBankControlType = ringItem.getControlType();
+
+                    // If control event ...
+                    if (pBankType == EventType.CONTROL) {
+                        // if prestart ..
+                        if (pBankControlType == ControlType.PRESTART) {
+                            if (gotPrestart) {
+                                throw new EmuException("got 2 prestart events");
+                            }
+                            logger.debug("      DataChannel Fifo " + outputIndex + ": send prestart event");
+                            gotPrestart = true;
+                            writeEvioData(ringItem);
+                            releaseCurrentAndGoToNextOutputRingItem(0);
+                        }
+                        else {
+                            if (!gotPrestart) {
+                                throw new EmuException("prestart, not " + pBankControlType +
+                                                               ", must be first control event");
+                            }
+
+                            if (pBankControlType != ControlType.GO &&
+                                pBankControlType != ControlType.END) {
+                                throw new EmuException("second control event must be go or end");
+                            }
+
+                            logger.debug("      DataChannel Fifo " + outputIndex + ": send " + pBankControlType + " event");
+                            writeEvioData(ringItem);
+
+                            // Go to the next event
+                            releaseCurrentAndGoToNextOutputRingItem(0);
+
+                            // Done looking for the 2 control events
+                            break;
+                        }
+                    }
+                    // If user event ...
+                    else if (pBankType == EventType.USER) {
+                        // Write user event
+                        writeEvioData(ringItem);
+                        releaseCurrentAndGoToNextOutputRingItem(0);
+                    }
+                    // Only user and control events should come first, so error
+                    else {
+                        throw new EmuException(pBankType + " type of events must come after go event");
+                    }
+
+                    // Keep reading events till we hit go/end
+                    gotoNextRingItem(0);
+                    releaseCurrentAndGoToNextOutputRingItem(0);
+                }
+
 
                 if (pBankControlType == ControlType.END) {
-System.out.println("      DataChannel Fifo helper: " + name + " I sent end, quitting");
+System.out.println("      DataChannel Fifo: " + name + " I got END event, quitting");
                     return;
                 }
 
- logger.debug("      DataChannel Fifo out helper: sent go");
 
-                 while ( channelState == CODAState.PAUSED || channelState == CODAState.ACTIVE ) {
+                while ( channelState == CODAState.PAUSED || channelState == CODAState.ACTIVE ) {
 
-                     if (pause) {
-                         if (pauseCounter++ % 400 == 0) {
-                             try {Thread.sleep(5);}
-                             catch (InterruptedException e1) {}
-                         }
-                         continue;
-                     }
+                    if (pause) {
+                        if (pauseCounter++ % 400 == 0) {
+                            try {Thread.sleep(5);}
+                            catch (InterruptedException e1) {}
+                        }
+                        continue;
+                    }
 
 //logger.debug("      DataChannel Fifo helper: get next buffer from ring " + rbIndex);
-                     ringItem = getNextOutputRingItem(rbIndex);
-                     pBankControlType = ringItem.getControlType();
-                     writeEvioData(ringItem);
+                    ringItem = getNextOutputRingItem(rbIndex);
+                    pBankControlType = ringItem.getControlType();
+                    writeEvioData(ringItem);
 
 //logger.debug("      DataChannel Fifo helper: sent event");
 
 //logger.debug("      DataChannel Fifo helper: release ring item");
-                     releaseCurrentAndGoToNextOutputRingItem(rbIndex);
+                    releaseCurrentAndGoToNextOutputRingItem(rbIndex);
 
-                     rbIndex = ++rbIndex % outputRingCount;
+                    rbIndex = ++rbIndex % outputRingCount;
 //System.out.println("      DataChannel Fifo helper: switch ring to "+ rbIndex);
 
-                     if (pBankControlType == ControlType.END) {
- System.out.println("      DataChannel Fifo helper: " + name + " I got END event, quitting");
-                         return;
-                     }
+                    if (pBankControlType == ControlType.END) {
+System.out.println("      DataChannel Fifo helper: " + name + " I got END event, quitting");
+                        return;
+                    }
 
-                     // If I've been told to RESET ...
-                     if (gotResetCmd) {
-                         return;
-                     }
-                 }
+                    // If I've been told to RESET ...
+                    if (gotResetCmd) {
+                        return;
+                    }
+                }
 
             } catch (InterruptedException e) {
                 logger.warn("      DataChannel Fifo helper: " + name + "  interrupted thd, exiting");
@@ -203,8 +265,7 @@ logger.warn("      DataChannel Fifo helper : exit thd: " + e.getMessage());
             }
         }
 
-     }
-
+    }
 
 
 }
