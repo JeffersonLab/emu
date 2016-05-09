@@ -233,19 +233,6 @@ public interface RingItem extends Cloneable, Attached {
     public void setSync(boolean sync);
 
     /**
-     * Is this object in single event mode (only 1 physics event in a block)?
-     * @return {@code true} if this object is in single event mode, else {@code false}.
-     */
-    public boolean isSingleEventMode();
-
-    /**
-     * Sets whether or not this object is in single event mode.
-     * @param singleEventMode {@code true} if this object is in single event mode,
-     *                        else {@code false}.
-     */
-    public void setSingleEventMode(boolean singleEventMode);
-
-    /**
      * Did this object already have an error when first received from transport?
      * @return {@code true} if this object had an error when first received,
      *         else {@code false}.
@@ -298,5 +285,31 @@ public interface RingItem extends Cloneable, Attached {
      * @return ByteBufferItem object used to wrap the referenced ByteBuffer (if any, else null).
      */
     public ByteBufferItem getByteBufferItem();
+
+
+    /**
+     * For a ringItem producer, when a new item is obtained, it must have all
+     * of its values set or reset. This does so in one convenient method.
+     * Note that in general, only 1 of ev, buf, or node is specified.
+     *
+     * @param ev          EvioEvent object   (1st way of specifying evio data)
+     * @param buf         ByteBuffer object  (2nd way of specifying evio data)
+     * @param nd          EvioNode object    (3rd way of specifying evio data)
+     * @param eType       type of event: roc raw, physics, user, control, etc.
+     * @param cType       type of control event: prestart, go, end, etc.
+     * @param first       is this a "first" or "beginning-of-run" event
+     * @param chanId      ID of data channel this method is called for
+     * @param rId         record ID
+     * @param sId         CODA ID of data source
+     * @param evCount     number of events in data
+     * @param sName       name of data source
+     * @param bbItem      ByteBufferItem object holding the ByteBuffer containing
+     *                    the data
+     * @param bbSupply    Supply object containing the ByteBufferItem
+     */
+    public void setAll(EvioEvent ev, ByteBuffer buf, EvioNode nd, EventType eType,
+                       ControlType cType, boolean first, int chanId, int rId,
+                       int sId, int evCount, String sName,
+                       ByteBufferItem bbItem, ByteBufferSupply bbSupply);
 
 }

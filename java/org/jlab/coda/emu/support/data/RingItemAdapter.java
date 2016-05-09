@@ -79,9 +79,6 @@ abstract class RingItemAdapter implements RingItem {
     /** Is sync bank? from ROC raw data record 4-bit status. */
     protected boolean isSync;
 
-    /** Is single event mode? from ROC raw data record 4-bit status. */
-    protected boolean isSingleEventMode;
-
     /** Has error? from ROC raw data record 4-bit status. */
     protected boolean hasError;
 
@@ -136,7 +133,6 @@ abstract class RingItemAdapter implements RingItem {
         eventCount            = ringItem.getEventCount();
         firstEventNumber      = ringItem.getFirstEventNumber();
         isSync                = ringItem.isSync();
-        isSingleEventMode     = ringItem.isSingleEventMode();
         hasError              = ringItem.hasError();
         nonFatalBuildingError = ringItem.hasNonFatalBuildingError();
         attachment            = ringItem.getAttachment();
@@ -150,6 +146,32 @@ abstract class RingItemAdapter implements RingItem {
 
     /** {@inheritDoc} */
     abstract public int getTotalBytes();
+
+
+    /** {@inheritDoc} */
+    public void setAll(EvioEvent ev, ByteBuffer buf, EvioNode nd, EventType eType,
+                       ControlType cType, boolean first, int chanId, int rId,
+                       int sId, int evCount, String sName,
+                       ByteBufferItem bbItem, ByteBufferSupply bbSupply) {
+        event                 = ev;
+        buffer                = buf;
+        node                  = nd;
+        eventType             = eType;
+        controlType           = cType;
+        isFirst               = first;
+        recordId              = rId;
+        sourceId              = sId;
+        matchesId             = sId == chanId;
+        sourceName            = sName;
+        firstEventNumber      = 1;
+        isSync                = false;
+        hasError              = false;
+        nonFatalBuildingError = false;
+        attachment            = null;
+        byteBufferItem        = bbItem;
+        byteBufferSupply      = bbSupply;
+        eventCount            = evCount;
+    }
 
 
 
@@ -262,11 +284,6 @@ abstract class RingItemAdapter implements RingItem {
     public boolean isSync() {return isSync;}
     /** {@inheritDoc} */
     public void setSync(boolean sync) {isSync = sync;}
-
-    /** {@inheritDoc} */
-    public boolean isSingleEventMode() {return isSingleEventMode;}
-    /** {@inheritDoc} */
-    public void setSingleEventMode(boolean singleEventMode) {isSingleEventMode = singleEventMode;}
 
     /** {@inheritDoc} */
     public boolean hasError() {return hasError;}
