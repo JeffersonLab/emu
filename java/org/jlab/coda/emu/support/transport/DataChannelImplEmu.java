@@ -370,6 +370,12 @@ public class DataChannelImplEmu extends DataChannelAdapter {
 
 
     /** {@inheritDoc} */
+    public TransportType getTransportType() {
+        return TransportType.EMU;
+    }
+
+
+    /** {@inheritDoc} */
     public void prestart() throws CmdExecException {
         super.prestart();
 
@@ -789,23 +795,20 @@ public class DataChannelImplEmu extends DataChannelAdapter {
                 nextRingItem = ringBufferIn.next();
                 ri = ringBufferIn.get(nextRingItem);
 
-                //ri.setBuffer(node.getStructureBuffer(false));
-                ri.setEventType(bankType);
-                ri.setControlType(controlType);
-                ri.isFirstEvent(hasFirstEvent);
-                ri.setRecordId(recordId);
-                ri.setSourceId(sourceId);
-                ri.setSourceName(name);
-                ri.setNode(node);
-                ri.setReusableByteBuffer(bbSupply, bbItem);
-                ri.matchesId(sourceId == id);
-                // Set the event count properly for blocked events
+                // Set & reset all parameters of the ringItem
                 if (bankType.isBuildable()) {
-                    ri.setEventCount(node.getNum());
+                    ri.setAll(null, null, node, bankType, controlType,
+                              hasFirstEvent, id, recordId, sourceId,
+                              node.getNum(), name, bbItem, bbSupply);
                 }
                 else {
-                    ri.setEventCount(1);
+                    ri.setAll(null, null, node, bankType, controlType,
+                              hasFirstEvent, id, recordId, sourceId,
+                              1, name, bbItem, bbSupply);
                 }
+
+                // Only the first event of first block can be "first event"
+                hasFirstEvent = false;
 
                 ringBufferIn.publish(nextRingItem);
 
