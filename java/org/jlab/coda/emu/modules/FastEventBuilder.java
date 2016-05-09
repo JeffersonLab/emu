@@ -820,7 +820,7 @@ System.out.println("  EB mod: create Build Thread with index " + btIndex + ", co
          */
         private void handleEndEvent() {
 
-System.out.println("  EB mod: in handleEndEVent(), bt #" + btIndex + ", output chan count = " +
+System.out.println("  EB mod: in handleEndEvent(), bt #" + btIndex + ", output chan count = " +
                            outputChannelCount);
             // Put 1 END event on each output channel
             if (outputChannelCount > 0) {
