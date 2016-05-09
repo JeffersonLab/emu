@@ -87,6 +87,9 @@ public class DataChannelImplFile extends DataChannelAdapter {
     /** Number of evio events (banks) in file. */
     private int eventCount;
 
+    /** Does this file have a "first event" ? */
+    private boolean hasFirstEvent;
+
 
 
     /**
@@ -195,8 +198,9 @@ logger.info("      DataChannel File: dictionary file cannot be read");
                 compactFileReader = new EvioCompactReader(fileName);
 
                 // Get the first block header
-                /* First evio block header read from a version 4 file. */
+                // First evio block header read from a version 4 file
                 BlockHeaderV4 firstBlockHeader = compactFileReader.getFirstBlockHeader();
+                hasFirstEvent = firstBlockHeader.hasFirstEvent();
 
                 // Get the # of events in file
                 eventCount = compactFileReader.getEventCount();
@@ -249,6 +253,11 @@ logger.info("      DataChannel File: file = " + evioFileWriter.getCurrentFilePat
         }
     }
 
+
+    /** {@inheritDoc} */
+    public TransportType getTransportType() {
+        return TransportType.FILE;
+    }
 
 
     /** {@inheritDoc} */
@@ -431,21 +440,19 @@ logger.debug("      DataChannel File: reset() " + name + " - done");
                     nextRingItem = ringBufferIn.next();
                     ringItem = ringBufferIn.get(nextRingItem);
 
-                    ringItem.setNode(node);
-//                    ringItem.setBuffer(node.getStructureBuffer(false));
-                    ringItem.setEventType(bankType);
-                    ringItem.setControlType(controlType);
-                    ringItem.setRecordId(recordId);
-                    ringItem.setSourceId(sourceId);
-                    ringItem.setSourceName(name);
-                    ringItem.matchesId(sourceId == id);
-                    // Set the event count properly for blocked events
                     if (bankType.isBuildable()) {
-                        ringItem.setEventCount(node.getNum());
+                        ringItem.setAll(null, null, node, bankType, controlType,
+                                        hasFirstEvent, id, recordId, sourceId,
+                                        node.getNum(), name, null, null);
                     }
                     else {
-                        ringItem.setEventCount(1);
+                        ringItem.setAll(null, null, node, bankType, controlType,
+                                       hasFirstEvent, id, recordId, sourceId,
+                                       1, name, null, null);
                     }
+
+                    // In a file, only the first event can be a "first" or "beginning-of-run" event
+                    hasFirstEvent = false;
 
                     ringBufferIn.publish(nextRingItem);
 
@@ -456,11 +463,15 @@ logger.debug("      DataChannel File: reset() " + name + " - done");
                 nextRingItem = ringBufferIn.next();
                 ringItem = ringBufferIn.get(nextRingItem);
 
-                ringItem.setEvent(Evio.createControlEvent(ControlType.END, 0, 0, counter, 0, false));
-                ringItem.setEventType(EventType.CONTROL);
-                ringItem.setControlType(ControlType.END);
-                ringItem.setSourceName(name);
-                ringItem.setEventCount(1);
+                ringItem.setAll(Evio.createControlEvent(ControlType.END, 0, 0, counter, 0, false),
+                                null, null, EventType.CONTROL, ControlType.END,
+                                false, id, recordId, sourceId, 1, name, null, null);
+
+//                ringItem.setEvent(Evio.createControlEvent(ControlType.END, 0, 0, counter, 0, false));
+//                ringItem.setEventType(EventType.CONTROL);
+//                ringItem.setControlType(ControlType.END);
+//                ringItem.setSourceName(name);
+//                ringItem.setEventCount(1);
 
                 ringBufferIn.publish(nextRingItem);
 
