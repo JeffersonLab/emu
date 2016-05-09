@@ -53,6 +53,9 @@ public class DataChannelImplEt extends DataChannelAdapter {
     /** Use the evio block header's block number as a record id. */
     private int recordId;
 
+    /** Is this an input channel? */
+    private boolean input;
+
     /** Do we pause the dataThread? */
     private volatile boolean pause;
 
@@ -198,6 +201,7 @@ public class DataChannelImplEt extends DataChannelAdapter {
         // constructor of super class
         super(name, transport, attributeMap, input, emu, module, outputIndex);
 
+        this.input = input;
         dataTransportImplEt = transport;
 
         if (input) {
@@ -356,30 +360,6 @@ logger.info("      DataChannel Et: chunk = " + chunk);
                 // Connect to ET system
                 openEtSystem();
 
-                // RingBuffer supply of buffers to hold all ET event bytes
-                // ET system parameters
-                int etEventSize = (int) getEtEventSize();
-logger.info("      DataChannel Et: eventSize = " + etEventSize);
-
-                // Create reusable supply of ByteBuffer objects.
-                // Put a limit on the amount of memory (140MB). That may be
-                // the easiest way to figure out how many buffers to use.
-                // Number of bufs must be a power of 2.
-                // This will give 64, 2.1MB buffers.
-                int numEtBufs = 140000000 / etEventSize;
-                numEtBufs = numEtBufs < 8 ? 8 : numEtBufs;
-                // Make power of 2
-                if (Integer.bitCount(numEtBufs) != 1) {
-                    int newVal = numEtBufs/2;
-                    numEtBufs = 1;
-                    while (newVal > 0) {
-                        numEtBufs *= 2;
-                        newVal /= 2;
-                    }
-logger.info("      DataChannel Et: # copy-ET-buffers in input supply -> " + numEtBufs);
-                }
-
-                bbSupply = new ByteBufferSupply(numEtBufs, etEventSize, module.getOutputOrder(), false);
             }
             catch (Exception e) {
                 e.printStackTrace();
@@ -432,12 +412,6 @@ logger.info("      DataChannel Et: # copy-ET-buffers in input supply -> " + numE
             openEtSystem();
         }
 
-        // Start up threads to help with I/O
-        startHelper();
-
-        // State after prestart transition -
-        // during which this constructor is called
-        channelState = CODAState.PAUSED;
     }
 
 
@@ -621,6 +595,75 @@ logger.info("      DataChannel Et: closeEtSystem(), closed ET connection");
             etSystem.close();
             etSystem = null;
         }
+    }
+
+
+    /** {@inheritDoc} */
+    public TransportType getTransportType() {
+        return TransportType.ET;
+    }
+
+
+    /** {@inheritDoc} */
+    public void prestart() {
+        pause = false;
+
+        if (input) {
+            // At this point, all in & output channels have been created. All output channels
+            // and modules have had their prestart() methods called. Input channels are prestarted
+            // right after modules.
+            // In other words, at this point we know if we're attached to an ER and if that ER
+            // has one file output channel. If that's the case, then we can have a non-synchronized
+            // byte buffer supply.
+            // Since ER has only 1 recording thread, and every event is processed in order,
+            // and since a file output channel does the same, the byte buffer supply does
+            // not have to be synchronized as byte buffers are released in order.
+
+            // RingBuffer supply of buffers to hold all ET event bytes
+            // ET system parameters
+            int etEventSize = (int) getEtEventSize();
+            logger.info("      DataChannel Et: eventSize = " + etEventSize);
+
+            // For creating a reusable supply of ByteBuffer objects:
+            // Put a limit on the amount of memory (140MB). That may be
+            // the easiest way to figure out how many buffers to use.
+            // Number of bufs must be a power of 2.
+            // This will give 64, 2.1MB buffers.
+            int numEtBufs = 140000000 / etEventSize;
+            numEtBufs = numEtBufs < 8 ? 8 : numEtBufs;
+            // Make power of 2
+            if (Integer.bitCount(numEtBufs) != 1) {
+                int newVal = numEtBufs / 2;
+                numEtBufs = 1;
+                while (newVal > 0) {
+                    numEtBufs *= 2;
+                    newVal /= 2;
+                }
+                logger.info("      DataChannel Et: # copy-ET-buffers in input supply -> " + numEtBufs);
+            }
+
+            // If is ER and (0 output channels or 1 file output channel) ...
+            List<DataChannel> outChannels = emu.getOutChannels();
+            if (isER &&
+                    (outChannels.size() < 1 ||
+                        (outChannels.size() == 1 &&
+                            (outChannels.get(0).getTransportType() == TransportType.FILE)))) {
+
+                // Since ER has only 1 recording thread and every event is processed in order,
+                // and since the file output channel also processes all events in order,
+                // the byte buffer supply does not have to be synchronized as byte buffers are
+                // released in order. should make things faster.
+                bbSupply = new ByteBufferSupply(numEtBufs, etEventSize, module.getOutputOrder(), true);
+            }
+            else {
+                bbSupply = new ByteBufferSupply(numEtBufs, etEventSize, module.getOutputOrder(), false);
+            }
+        }
+
+        // Start up threads for I/O
+        startHelper();
+
+        channelState = CODAState.PAUSED;
     }
 
 
@@ -1065,25 +1108,24 @@ logger.info("      DataChannel Et in: " + name + " got FIRST (also USER) event")
 
 //System.out.println("      DataChannel Et in: wait for next ring buf for writing");
                             nextRingItem = ringBufferIn.next();
-//System.out.println("      DataChannel Et in: Got sequence " + nextRingItem);
+//System.out.println("      DataChannel Et in: Got sequence " + nextRingItem);\
+
                             ri = ringBufferIn.get(nextRingItem);
-//                            ri.setBuffer(node.getStructureBuffer(false));
-                            ri.setEventType(bankType);
-                            ri.setControlType(controlType);
-                            ri.isFirstEvent(hasFirstEvent);
-                            ri.setRecordId(recordId);
-                            ri.setSourceId(sourceId);
-                            ri.setSourceName(name);
-                            ri.setNode(node);
-                            ri.setReusableByteBuffer(bbSupply, bbItem);
-                            ri.matchesId(sourceId == id);
-                            // Set the event count properly for blocked events
+
+                            // Set & reset all parameters of the ringItem
                             if (bankType.isBuildable()) {
-                                ri.setEventCount(node.getNum());
+                                ri.setAll(null, null, node, bankType, controlType,
+                                          hasFirstEvent, id, recordId, sourceId,
+                                          node.getNum(), name, bbItem, bbSupply);
                             }
                             else {
-                                ri.setEventCount(1);
+                                ri.setAll(null, null, node, bankType, controlType,
+                                          hasFirstEvent, id, recordId, sourceId,
+                                          1, name, bbItem, bbSupply);
                             }
+
+                            // Only the first event of first block can be "first event"
+                            hasFirstEvent = false;
 
                             ringBufferIn.publish(nextRingItem);
 //System.out.println("      DataChannel Et in: published sequence " + nextRingItem);
@@ -1617,7 +1659,6 @@ logger.warn("      DataChannel Et in: " + name + " exit thd: " + e.getMessage())
                         //----------------------------------
                         // Write evio bank into ET buffer
                         //----------------------------------
-
                         EvioNode node  = ringItem.getNode();
                         ByteBuffer buf = ringItem.getBuffer();
                         if (buf != null) {
