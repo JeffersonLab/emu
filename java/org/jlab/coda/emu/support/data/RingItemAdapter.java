@@ -45,7 +45,7 @@ abstract class RingItemAdapter implements RingItem {
 
    //---------------------
 
-    /** What type of CODA events are contained in this bank (RocRaw, Physics, Control, ...)?
+    /** What type of CODA events are contained in this bank (RocRaw, Physics, Control, User, ...)?
      *  Only one type is stored in one RingItem object.
      *  Only one control event is stored in one RingItem object. */
     protected EventType eventType;
@@ -53,7 +53,10 @@ abstract class RingItemAdapter implements RingItem {
     /** If this is a control event, what type of control is it (SYNC, GO, END, ...)? */
     protected ControlType controlType;
 
-    /** Is this a "first event" to be written in each file split? */
+    /** Is this a USER event type? */
+    protected boolean isUser;
+
+    /** Is this USER event also a "first event" to be written in each file split? */
     protected boolean isFirst;
 
     /** If the event type is RocRaw, this is the CODA id of the source. */
@@ -125,6 +128,7 @@ abstract class RingItemAdapter implements RingItem {
         node                  = ringItem.getNode();
         eventType             = ringItem.getEventType();
         controlType           = ringItem.getControlType();
+        isUser                = ringItem.isUser();
         isFirst               = ringItem.isFirstEvent();
         sourceId              = ringItem.getSourceId();
         matchesId             = ringItem.matchesId();
@@ -150,14 +154,15 @@ abstract class RingItemAdapter implements RingItem {
 
     /** {@inheritDoc} */
     public void setAll(EvioEvent ev, ByteBuffer buf, EvioNode nd, EventType eType,
-                       ControlType cType, boolean first, int chanId, int rId,
-                       int sId, int evCount, String sName,
+                       ControlType cType, boolean user, boolean first, int chanId,
+                       int rId, int sId, int evCount, String sName,
                        ByteBufferItem bbItem, ByteBufferSupply bbSupply) {
         event                 = ev;
         buffer                = buf;
         node                  = nd;
         eventType             = eType;
         controlType           = cType;
+        isUser                = user;
         isFirst               = first;
         recordId              = rId;
         sourceId              = sId;
@@ -239,6 +244,11 @@ abstract class RingItemAdapter implements RingItem {
     public ControlType getControlType() {return controlType;}
     /** {@inheritDoc} */
     public void setControlType(ControlType type) {this.controlType = type;}
+
+    /** {@inheritDoc} */
+    public boolean isUser() {return isUser;}
+    /** {@inheritDoc} */
+    public void isUser(boolean isUser) {this.isUser = isUser;}
 
     /** {@inheritDoc} */
     public boolean isFirstEvent() {return isFirst;}
