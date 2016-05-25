@@ -398,6 +398,7 @@ logger.debug("      DataChannel File: reset() " + name + " - done");
             EventType bankType;
             ControlType controlType;
             RingItem ringItem;
+            boolean isUser = false;
 
             // I've started
             latch.countDown();
@@ -424,6 +425,7 @@ logger.debug("      DataChannel File: reset() " + name + " - done");
                     if (eventType == EventType.ROC_RAW) {
                         if (Evio.isUserEvent(node)) {
                             bankType = EventType.USER;
+                            isUser = true;
                         }
                     }
                     else if (eventType == EventType.CONTROL) {
@@ -436,23 +438,26 @@ logger.debug("      DataChannel File: reset() " + name + " - done");
                             return;
                         }
                     }
+                    else if (eventType == EventType.USER) {
+                        isUser = true;
+                    }
 
                     nextRingItem = ringBufferIn.next();
                     ringItem = ringBufferIn.get(nextRingItem);
 
                     if (bankType.isBuildable()) {
                         ringItem.setAll(null, null, node, bankType, controlType,
-                                        hasFirstEvent, id, recordId, sourceId,
+                                        isUser, hasFirstEvent, id, recordId, sourceId,
                                         node.getNum(), name, null, null);
                     }
                     else {
                         ringItem.setAll(null, null, node, bankType, controlType,
-                                       hasFirstEvent, id, recordId, sourceId,
+                                       isUser, hasFirstEvent, id, recordId, sourceId,
                                        1, name, null, null);
                     }
 
                     // In a file, only the first event can be a "first" or "beginning-of-run" event
-                    hasFirstEvent = false;
+                    isUser = hasFirstEvent = false;
 
                     ringBufferIn.publish(nextRingItem);
 
@@ -464,14 +469,8 @@ logger.debug("      DataChannel File: reset() " + name + " - done");
                 ringItem = ringBufferIn.get(nextRingItem);
 
                 ringItem.setAll(Evio.createControlEvent(ControlType.END, 0, 0, counter, 0, false),
-                                null, null, EventType.CONTROL, ControlType.END,
+                                null, null, EventType.CONTROL, ControlType.END, false,
                                 false, id, recordId, sourceId, 1, name, null, null);
-
-//                ringItem.setEvent(Evio.createControlEvent(ControlType.END, 0, 0, counter, 0, false));
-//                ringItem.setEventType(EventType.CONTROL);
-//                ringItem.setControlType(ControlType.END);
-//                ringItem.setSourceName(name);
-//                ringItem.setEventCount(1);
 
                 ringBufferIn.publish(nextRingItem);
 
