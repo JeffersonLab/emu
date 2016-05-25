@@ -414,7 +414,7 @@ logger.info("  EB mod: internal ring buf count -> " + ringItemCount);
 
         @Override
         public void run() {
-            RingItem pBuf;
+            RingItem ri;
 
             while (moduleState == CODAState.ACTIVE || paused) {
                 try {
@@ -425,8 +425,8 @@ logger.info("  EB mod: internal ring buf count -> " + ringItemCount);
 
                         if (dumpData) {
                             while (nextSequence <= availableSequence) {
-                                pBuf = ringBuffer.get(nextSequence);
-                                pBuf.releaseByteBuffer();
+                                ri = ringBuffer.get(nextSequence);
+                                ri.releaseByteBuffer();
                                 nextSequence++;
                             }
                             sequence.set(availableSequence);
@@ -436,19 +436,19 @@ logger.info("  EB mod: internal ring buf count -> " + ringItemCount);
 
 //System.out.println("  EB mod: available Seq = " + availableSequence + " in pre-processing");
                         while (nextSequence <= availableSequence) {
-                            pBuf = ringBuffer.get(nextSequence);
-                            Evio.checkPayload((PayloadBuffer)pBuf, channel);
+                            ri = ringBuffer.get(nextSequence);
+                            Evio.checkPayload((PayloadBuffer)ri, channel);
 
                             // Take user event and place on output channel
-                            if (pBuf.getEventType().isUser()) {
+                            if (ri.getEventType().isUser()) {
 //System.out.println("  EB mod: got user event in pre-processing order = " + pBuf.getByteOrder());
 
                                 // Swap headers, NOT DATA, if necessary
-                                if (outputOrder != pBuf.getByteOrder()) {
+                                if (outputOrder != ri.getByteOrder()) {
                                     try {
 //System.out.println("  EB mod: swap user event (not data)");
-                                        ByteBuffer buffy = pBuf.getBuffer();
-                                        EvioNode nody = pBuf.getNode();
+                                        ByteBuffer buffy = ri.getBuffer();
+                                        EvioNode nody = ri.getNode();
                                         if (buffy != null) {
                                             // Takes care of swapping of event in its own separate buffer,
                                             // headers not data
@@ -465,31 +465,34 @@ logger.info("  EB mod: internal ring buf count -> " + ringItemCount);
                                             // Swap headers but not data
                                             ByteDataTransformer.swapEvent(buffy, null, 0, 0, false, null);
                                             // Store in ringItem
-                                            pBuf.setBuffer(buffy);
-                                            pBuf.setNode(null);
+                                            ri.setBuffer(buffy);
+                                            ri.setNode(null);
                                             // Release claim on backing buffer since we are now
                                             // using a different buffer.
-                                            pBuf.releaseByteBuffer();
+                                            ri.releaseByteBuffer();
                                         }
                                     }
                                     catch (EvioException e) {/* should never happen */ }
                                 }
 
+                                // If same byte order, then we may have buffer or node.
+                                // Node in the usual case.
+
                                 // Send it on.
                                 // User events are thrown away if no output channels
                                 // since this event builder does nothing with them.
                                 // User events go into the first ring of the first channel.
-                                // Since all user events are dealt with here and since they're
-                                // now all in their own (non-ring) buffers, the build and
+                                // Since all user events are dealt with here
+                                // and since they're now all in their own (non-ring) buffers,
+                                // the build and
                                 // post-build threads can skip over them.
-                                eventToOutputChannel(pBuf, 0, 0);
+                                eventToOutputChannel(ri, 0, 0);
 //System.out.println("  EB mod: sent user event to output channel");
                             }
 
                             nextSequence++;
 //System.out.println("  EB mod:PreProcessing: next Seq = " + nextSequence + " in pre-processing");
                         }
-
 //System.out.println("  EB mod:PreProcessing: set Seq = " + availableSequence + " in pre-processing");
                         sequence.set(availableSequence);
                     }
@@ -1409,7 +1412,7 @@ System.out.println("  EB mod: Bt#" + btIndex + " found END events on all input c
                     // Each build thread must release the "slots" in the input channel
                     // ring buffers of the components it uses to build the physics event.
                     // This releases them up for the postBuild thread to free
-                    // up all the resources used in building.
+                    // up all the resources used in building in proper order.
                     // PostBuild thread is only run if more than 1 build thread.
                     // If only one, do release of resources here.
                     for (int i=0; i < inputChannelCount; i++) {
@@ -1517,8 +1520,10 @@ if (debug) System.out.println("  EB mod: Building thread is ending");
                         ri = ringBufferIn.get(nextSequence);
                         nextSequence++;
 
-                        // Skip over non-built events since user and control
-                        // events do not use the ring buffers for their data
+                        // Skip over non-built events since control
+                        // events do not use a supply buffer for their data.
+                        // User events may use the input channel supply
+                        // buffers, but they're released by the output channel.
                         if (!ri.getEventType().isBuildable()) {
                             continue;
                         }
@@ -1541,93 +1546,6 @@ if (debug) System.out.println("  EB mod: Building thread is ending");
             }
         }
     }
-
-//    /**
-//     * This class is a garbage-freeing thread which takes the ByteBuffers and
-//     * banks used to build an event and frees up their ring-based resources.
-//     * It takes the burden of doing this off of the build threads and allows
-//     * them to build without bothering to synchronize between themselves.
-//     */
-//    final class ReleaseRingResourceThread extends Thread {
-//        /** The total number of build threads. */
-//        private final int btCount = buildingThreadCount;
-//
-//        /** Time to quit thread. */
-//        private volatile boolean quit;
-//
-//
-//        /**
-//         * Constructor.
-//         *
-//         * @param group   thread group.
-//         * @param name    thread name.
-//         */
-//        ReleaseRingResourceThread(ThreadGroup group, String name) {
-//            super(group, name);
-//        }
-//
-//
-//        /**
-//         * Stop this freeing-resource thread.
-//         * @param force if true, call Thread.stop().
-//         */
-//        void killThread(boolean force) {
-//            quit = true;
-//            if (force) {
-//                this.stop();
-//            }
-//        }
-//
-//
-//        public void run() {
-//
-//            // Ring Buffer stuff
-//            long[] nextSequences = new long[inputChannelCount];
-//            long[] availableSequences = new long[inputChannelCount];
-//            Arrays.fill(availableSequences, -2L);
-//            PayloadBuffer[] buildingBanks = new PayloadBuffer[inputChannelCount];
-//
-//            try {
-//
-//                while (true) {
-//
-//                    // Cycle through channels
-//                    for (int i=0; i < inputChannelCount; i++) {
-//
-//                        // Available sequence may be larger than what we desired
-//                        availableSequences[i] = postBuildBarrier[i].waitFor(nextSequences[i]);
-//
-//                        // While we have new data to work with ...
-//                        while (nextSequences[i] <= availableSequences[i]) {
-//                            buildingBanks[i] = (PayloadBuffer) ringBuffersIn[i].get(nextSequences[i]);
-//
-//                            // Skip over non-built events
-//                            if (!buildingBanks[i].getEventType().isBuildable()) {
-//                                nextSequences[i]++;
-//                                continue;
-//                            }
-//
-//                            // Free claim on ByteBuffer
-//                            buildingBanks[i].releaseByteBuffer();
-//                            nextSequences[i]++;
-//                        }
-//
-//                        // Free RingItem(s) in input channel's ring for more input data
-//                        postBuildSequence[i].set(availableSequences[i]);
-//                    }
-//
-//                    if (quit) return;
-//                }
-//            }
-//            catch (AlertException e)       { /* won't happen */ }
-//            catch (InterruptedException e) { /* won't happen */ }
-//            catch (TimeoutException e)     { /* won't happen */ }
-//            catch (Exception e) {
-//                e.printStackTrace();
-//            }
-//        }
-//    }
-
 
 
 
