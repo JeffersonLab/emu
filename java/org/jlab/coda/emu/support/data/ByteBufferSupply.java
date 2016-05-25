@@ -41,10 +41,6 @@ import static com.lmax.disruptor.RingBuffer.createSingleProducer;
  */
 public class ByteBufferSupply {
 
-// For debugging:
-//    private static int id;
-//    private int myId;
-
     /** Initial size, in bytes, of ByteBuffers contained in each ByteBufferItem in ring. */
     private final int bufferSize;
 
@@ -86,12 +82,19 @@ public class ByteBufferSupply {
      * lastSequenceReleased which have called release(), but not been released yet. */
     private int between;
 
+    //------------------------------------------
+    // For item id
+    //------------------------------------------
+
+    private int itemCounter;
+
 
 
     /** Class used to initially create all items in ring buffer. */
     private final class ByteBufferFactory implements EventFactory<ByteBufferItem> {
         public ByteBufferItem newInstance() {
-            return new ByteBufferItem(bufferSize, order, direct, orderedRelease);
+            return new ByteBufferItem(bufferSize, order, direct,
+                                      orderedRelease, itemCounter++);
         }
     }
 
@@ -157,7 +160,6 @@ public class ByteBufferSupply {
         this.direct = direct;
         this.bufferSize = bufferSize;
         this.orderedRelease = orderedRelease;
-//        myId = id++;
 
         // Create ring buffer with "ringSize" # of elements,
         // each with ByteBuffers of size "bufferSize" bytes.
@@ -186,11 +188,11 @@ public class ByteBufferSupply {
         // Get object in that position (sequence) of ring buffer
         ByteBufferItem bufItem = ringBuffer.get(getSequence);
 
+        // Get item ready for use
+        bufItem.reset();
+
         // Store sequence for later releasing of the buffer
         bufItem.setProducerSequence(getSequence);
-
-        // Get ByteBuffer ready for being written into
-        bufItem.getBuffer().clear();
 
         return bufItem;
     }
@@ -239,6 +241,8 @@ public class ByteBufferSupply {
         // only be released for reuse if everyone releases their claim.
         if (byteBufferItem.decrementCounter()) {
             if (orderedRelease) {
+//System.out.println(" S" + byteBufferItem.getProducerSequence());
+//                System.out.println("    BBS: Ord release " + byteBufferItem.getProducerSequence());
                 sequence.set(byteBufferItem.getProducerSequence());
                 return;
             }
@@ -257,18 +261,19 @@ public class ByteBufferSupply {
 
                     // Set the new max
                     maxSequence = seq;
-//System.out.println(myId + " bbSupply: release, new max = " + maxSequence);
+//System.out.println("BBS: release, new max = " + maxSequence);
                 }
                 // If we're < max and > last, then we're in between
                 else if (seq > lastSequenceReleased) {
                     between++;
-//System.out.println(myId + " bbSupply: release, between = " + between);
+//System.out.println("BBS: release, between = " + between);
                 }
 
                 // If we now have everything between last & max, release it all.
                 // This way higher sequences are never released before lower.
                 if ((maxSequence - lastSequenceReleased - 1L) == between) {
-//System.out.println(myId + " bbSupply: release, free up to seq " + maxSequence);
+//System.out.println("    BBS: Max release " + maxSequence);
+//System.out.println(" r" + maxSequence);
                     sequence.set(maxSequence);
                     lastSequenceReleased = maxSequence;
                     between = 0;
