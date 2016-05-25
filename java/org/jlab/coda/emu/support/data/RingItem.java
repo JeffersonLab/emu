@@ -111,6 +111,12 @@ public interface RingItem extends Cloneable, Attached {
     public void setControlType(ControlType type);
 
     /**
+     * Is this object a USER event type?
+     * @return {@code true} if USEr event type, else {@code false}.
+     */
+    public boolean isUser();
+
+    /**
      * Is this object a first event?
      * @return {@code true} if first event, else {@code false}.
      */
@@ -297,6 +303,7 @@ public interface RingItem extends Cloneable, Attached {
      * @param nd          EvioNode object    (3rd way of specifying evio data)
      * @param eType       type of event: roc raw, physics, user, control, etc.
      * @param cType       type of control event: prestart, go, end, etc.
+     * @param user        is this a USER event type
      * @param first       is this a "first" or "beginning-of-run" event
      * @param chanId      ID of data channel this method is called for
      * @param rId         record ID
@@ -308,8 +315,8 @@ public interface RingItem extends Cloneable, Attached {
      * @param bbSupply    Supply object containing the ByteBufferItem
      */
     public void setAll(EvioEvent ev, ByteBuffer buf, EvioNode nd, EventType eType,
-                       ControlType cType, boolean first, int chanId, int rId,
-                       int sId, int evCount, String sName,
+                       ControlType cType, boolean user, boolean first, int chanId,
+                       int rId, int sId, int evCount, String sName,
                        ByteBufferItem bbItem, ByteBufferSupply bbSupply);
 
 }
