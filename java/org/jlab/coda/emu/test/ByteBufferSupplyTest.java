@@ -24,12 +24,12 @@ import java.util.concurrent.CountDownLatch;
  */
 public class ByteBufferSupplyTest {
 
-    private int size = 32, count = 4, getChunk=1;
+    private int size = 32, count = 4096, getChunk=1;
 
     // Let us know that the consumer thread has been started
     CountDownLatch startLatch;
     ByteBufferSupply bbSupply;
-    boolean simpleTest = false;
+    boolean simpleTest = true;
 
     /** Constructor. */
     ByteBufferSupplyTest(String[] args) {
@@ -113,8 +113,8 @@ public class ByteBufferSupplyTest {
         // Create a reusable supply of ByteBuffer objects
         bbSupply = new ByteBufferSupply(count, size);
         int index = 0;
-        boolean releaseBuf = false;
-        boolean publishBuf = true;
+        boolean releaseBuf = true;
+        boolean publishBuf = false;
 
         if (!simpleTest) {
             // Wait until consumer thread starts
@@ -132,7 +132,7 @@ public class ByteBufferSupplyTest {
 
         while (true) {
             // Grab a stored ByteBuffer
-            System.out.println("Try getting producer buf " + index++ + " ...");
+            //System.out.println("Try getting producer buf " + index++ + " ...");
             ByteBufferItem bufItem = bbSupply.get();
             System.out.println(", got producer buf with id = " + bufItem.getMyId());
 
@@ -140,12 +140,12 @@ public class ByteBufferSupplyTest {
                 System.out.println("do NOT release producer buf");
             }
             else {
-                System.out.println("release producer buf");
+                //System.out.println("release producer buf");
                 bbSupply.release(bufItem);
             }
 
             if (!publishBuf) {
-                System.out.println("do NOT publish producer buf");
+               // System.out.println("do NOT publish producer buf");
             }
             else {
                 System.out.println("publish producer buf");
@@ -153,13 +153,13 @@ public class ByteBufferSupplyTest {
             }
 
 
-            System.out.println("wait 2 sec\n");
-            try {
-                Thread.sleep(1000);
-            }
-            catch (InterruptedException e) {
-                e.printStackTrace();
-            }
+//            System.out.println("wait 2 sec\n");
+//            try {
+//                Thread.sleep(1000);
+//            }
+//            catch (InterruptedException e) {
+//                e.printStackTrace();
+//            }
         }
     }
 
