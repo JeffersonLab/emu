@@ -116,6 +116,7 @@ public class DataChannelImplCmsg extends DataChannelAdapter {
                 return;
             }
 
+            boolean isUser = false;
             boolean hasFirstEvent = blockHeader.hasFirstEvent();
             EventType eventType = EventType.getEventType(blockHeader.getEventType());
             int recordId = blockHeader.getNumber();
@@ -142,6 +143,7 @@ public class DataChannelImplCmsg extends DataChannelAdapter {
                 if (eventType == EventType.ROC_RAW) {
                     if (Evio.isUserEvent(node)) {
                         bankType = EventType.USER;
+                        isUser = true;
                     }
                 }
                 else if (eventType == EventType.CONTROL) {
@@ -152,23 +154,26 @@ public class DataChannelImplCmsg extends DataChannelAdapter {
                         return;
                     }
                 }
+                else if (eventType == EventType.USER) {
+                    isUser = true;
+                }
 
                 nextRingItem = ringBufferIn.next();
                 RingItem ringItem = ringBufferIn.get(nextRingItem);
 
                 if (bankType.isBuildable()) {
                     ringItem.setAll(null, null, node, bankType, controlType,
-                                   hasFirstEvent, id, recordId, sourceId,
+                                   isUser, hasFirstEvent, id, recordId, sourceId,
                                    node.getNum(), name, null, null);
                 }
                 else {
                     ringItem.setAll(null, null, node, bankType, controlType,
-                                   hasFirstEvent, id, recordId, sourceId,
+                                   isUser, hasFirstEvent, id, recordId, sourceId,
                                    1, name, null, null);
                 }
 
                 // Only the first event of first block can be "first event"
-                hasFirstEvent = false;
+                isUser = hasFirstEvent = false;
 
                 ringBufferIn.publish(nextRingItem);
 
