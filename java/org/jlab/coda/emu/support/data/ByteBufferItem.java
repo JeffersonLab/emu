@@ -43,7 +43,7 @@ public class ByteBufferItem {
     private long producerSequence;
 
     /** Sequence in which this object was taken from ring for use by a consumer with consumerGet(). */
-    private long ConsumerSequence;
+    private long consumerSequence;
 
     /** Track more than one user so this object can be released for reuse. */
     private AtomicInteger atomicCounter;
@@ -55,9 +55,6 @@ public class ByteBufferItem {
     private boolean multipleUsers;
 
     // For testing purposes
-
-    /** Counter for assigning unique id to each buffer item. */
-    static int idCounter=0;
 
     /** Unique id for each object of this class. */
     private final int myId;
@@ -83,7 +80,7 @@ public class ByteBufferItem {
      * @param order byte order of ByteBuffer to construct.
      */
     public ByteBufferItem(int bufferSize, ByteOrder order,
-                          boolean direct, boolean orderedRelease) {
+                          boolean direct, boolean orderedRelease, int myId) {
         this.order = order;
         this.direct = direct;
         this.bufferSize = bufferSize;
@@ -96,7 +93,17 @@ public class ByteBufferItem {
             buffer = ByteBuffer.allocate(bufferSize).order(order);
         }
 
-        myId = idCounter++;
+        this.myId = myId;
+    }
+
+
+    /**
+     * Method to reset this item each time it is retrieved from the supply.
+     */
+    public void reset() {
+        buffer.clear();
+        multipleUsers = false;
+        producerSequence = consumerSequence = 0L;
     }
 
 
@@ -118,14 +125,14 @@ public class ByteBufferItem {
      * Get the sequence of this item for consumer.
      * @return sequence of this item for consumer.
      */
-    public long getConsumerSequence() {return ConsumerSequence;}
+    public long getConsumerSequence() {return consumerSequence;}
 
 
     /**
      * Set the sequence of this item for consumer.
      * @param sequence sequence of this item for consumer.
      */
-    public void setConsumerSequence(long sequence) {this.ConsumerSequence = sequence;}
+    public void setConsumerSequence(long sequence) {this.consumerSequence = sequence;}
 
 
     /**
@@ -177,6 +184,23 @@ public class ByteBufferItem {
                 atomicCounter = new AtomicInteger(users);
             }
         }
+    }
+
+
+    /**
+     * Get the number of users of this buffer.
+     * @return number of users of this buffer.
+     */
+    public int getUsers() {
+        if (multipleUsers) {
+            if (orderedRelease) {
+                return volatileCounter;
+            }
+            else {
+                return atomicCounter.get();
+            }
+        }
+        return 1;
     }
 
 
