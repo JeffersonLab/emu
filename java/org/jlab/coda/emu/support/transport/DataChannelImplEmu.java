@@ -318,6 +318,8 @@ public class DataChannelImplEmu extends DataChannelAdapter {
         // quite a bit in speed.
         bbSupply = new ByteBufferSupply(16, maxBufferSize, ByteOrder.BIG_ENDIAN, direct, true);
 
+        System.out.println("      DataChannel Emu in: connection made from " + name);
+
         // Start thread to handle all socket input
         startInputThread();
     }
