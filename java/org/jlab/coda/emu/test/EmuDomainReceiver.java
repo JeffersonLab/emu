@@ -906,7 +906,7 @@ class InputDataChannelImplEmu {
         private CountDownLatch latch = new CountDownLatch(1);
 
         /** Read into ByteBuffers. */
-        private EvioCompactReader compactReader;
+        private EvioCompactReaderUnsync compactReader;
 
 
 
@@ -990,7 +990,7 @@ System.out.println("      DataChannel Emu in: get emuEnd cmd");
 
             try {
                 if (compactReader == null) {
-                    compactReader = new EvioCompactReader(buf);
+                    compactReader = new EvioCompactReaderUnsync(buf);
                 }
                 else {
                     compactReader.setBuffer(buf);
