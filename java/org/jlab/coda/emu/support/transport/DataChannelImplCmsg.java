@@ -929,7 +929,7 @@ logger.warn("      DataChannel cmsg out: " + name + " exit thd: " + e.getMessage
             private ByteBuffer buffer;
 
             /** Object for writing banks into message's data buffer. */
-            private EventWriter evWriter;
+            private EventWriterUnsync evWriter;
 
             /** Message to send with bank data inside. */
             private cMsgMessage msg;
@@ -985,8 +985,8 @@ logger.warn("      DataChannel cmsg out: " + name + " exit thd: " + e.getMessage
                 try {
                     // Create object to write evio banks into message buffer
                     if (evWriter == null) {
-                        evWriter = new EventWriter(buffer, 550000, 200, null, bitInfo,
-                                                   emu.getCodaid(), myRecordId);
+                        evWriter = new EventWriterUnsync(buffer, 550000, 200, null, bitInfo,
+                                                         emu.getCodaid(), myRecordId);
                     }
                     else {
                         evWriter.setBuffer(buffer, bitInfo, myRecordId);

@@ -844,7 +844,7 @@ logger.info("      DataChannel Emu in: " + name + " " + controlType + " event fr
         private final CountDownLatch startLatch = new CountDownLatch(1);
 
         /** Object to write (marshall) input buffers into larger, output evio buffer (next member). */
-        private EventWriter writer;
+        private EventWriterUnsync writer;
 
         /** Buffer to write events into so it can be sent in a cMsg message. */
         private ByteBuffer byteBuffer;
@@ -876,7 +876,7 @@ logger.info("      DataChannel Emu in: " + name + " " + controlType + " event fr
             // Create writer to write events into file format
             if (!singleEventOut) {
                 try {
-                    writer = new EventWriter(byteBuffer);
+                    writer = new EventWriterUnsync(byteBuffer);
                     writer.close();
                 }
                 catch (EvioException e) {/* never happen */}

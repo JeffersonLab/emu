@@ -62,7 +62,7 @@ public class DataChannelImplFile extends DataChannelAdapter {
     private String dictionaryXML;
 
     /** Evio file writer. */
-    private EventWriter evioFileWriter;
+    private EventWriterUnsync evioFileWriter;
 
     //----------------------------------------
     // Input file parameters
@@ -221,9 +221,9 @@ logger.info("      DataChannel File: dictionary file cannot be read");
                 boolean overWriteOK = true;
                 if (split > 0L) overWriteOK = false;
 
-                evioFileWriter = new EventWriter(fileName, directory, runType,
-                                                 runNumber, split, byteOrder,
-                                                 dictionaryXML, overWriteOK);
+                evioFileWriter = new EventWriterUnsync(fileName, directory, runType,
+                                                      runNumber, split, byteOrder,
+                                                      dictionaryXML, overWriteOK);
 logger.info("      DataChannel File: file = " + evioFileWriter.getCurrentFilePath());
 
                 // Tell emu what that output name is for stat reporting.

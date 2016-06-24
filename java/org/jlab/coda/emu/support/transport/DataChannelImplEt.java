@@ -1423,8 +1423,8 @@ logger.warn("      DataChannel Et in: " + name + " exit thd: " + e.getMessage())
                 // but we'll allow 10000 such banks per block header.
                 ByteBuffer etBuffer = ByteBuffer.allocate(128);
                 etBuffer.order(byteOrder);
-                EventWriter writer = new EventWriter(etBuffer, 550000, maxEvioItemsPerEtBuf,
-                                                     null, null, emu.getCodaid(), 0);
+                EventWriterUnsync writer = new EventWriterUnsync(etBuffer, 550000, maxEvioItemsPerEtBuf,
+                                                                 null, null, emu.getCodaid(), 0);
                 writer.close();
 
                 int bytesToEtBuf, ringItemSize=0, banksInEtBuf, myRecordId;
