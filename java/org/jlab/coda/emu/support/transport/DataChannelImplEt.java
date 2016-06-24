@@ -1006,10 +1006,9 @@ logger.warn("      DataChannel Et in: " + name + " - PAUSED");
                         bbItem.ensureCapacity(ev.getLength());
                         buf = bbItem.getBuffer();
                         copyBuffer(ev.getDataBuffer(), buf, ev.getLength());
-//System.out.println("  id "+ bbItem.getMyId() + ", seq " + bbItem.getProducerSequence() +
-//                   ", dat " + buf.getInt(40));
 
                         try {
+                            // These calls do not change buf position
                             if (compactReader == null) {
                                 compactReader = new EvioCompactReader(buf);
                             }
@@ -1046,8 +1045,6 @@ Utilities.printBuffer(buf, 0, 21, "BAD EVENT ");
                         // looking at the very first block #.
                         recordId = header4.getNumber();
 
-//                        Thread.sleep(1);
-//
                         // Number of evio event associated with this buffer.
                         int eventCount = compactReader.getEventCount();
 
@@ -1101,12 +1098,12 @@ logger.info("      DataChannel Et in: " + name + " got CONTROL event, " + contro
                             }
                             else if (eventType == EventType.USER) {
                                 isUser = true;
-                                if (hasFirstEvent) {
-logger.info("      DataChannel Et in: " + name + " got FIRST event");
-                                }
-                                else {
-logger.info("      DataChannel Et in: " + name + " got USER event");
-                                }
+//                                if (hasFirstEvent) {
+//logger.info("      DataChannel Et in: " + name + " got FIRST event");
+//                                }
+//                                else {
+//logger.info("      DataChannel Et in: " + name + " got USER event");
+//                                }
                             }
 
                             // Don't need to set controlType = null for each loop since each
@@ -1162,6 +1159,7 @@ logger.info("      DataChannel Et in: " + name + " found END event");
                         }
                         else {
                             etSystem.putEvents(attachment, events);
+                            //etSystem.dumpEvents(attachment, events);
                         }
                     }
                     catch (IOException e) {
@@ -1670,25 +1668,18 @@ System.out.println("      DataChannel Et out: " + name + " warning - getting big
                         ByteBuffer buf = ringItem.getBuffer();
 
                         if (buf != null) {
-//System.out.println("      DataChannel Et out " + outputIndex + ": write buf");
                             writer.writeEvent(buf);
                         }
                         else if (node != null) {
-//                            ByteBuffer nodeBuf = node.getBufferNode().getBuffer();
-//System.out.println("      DataChannel Et out " + outputIndex + ": write NODE");
-//                            int i= nodeBuf.getInt(40);
-                            // Last arg needs to be "true" or you"ll have "issues".
-                            // The evio written out gets garbled up.
+                            // The last arg is do we need to duplicate node's backing buffer?
+                            // Don't have to do that to keep our own lim/pos because the only
+                            // nodes that make it to an output channel are the USER events.
+                            // Even though it is almost never the case, if 2 USER events share
+                            // the same backing buffer, there still should be no problem.
+                            // Even if 2nd event is being scanned by CompactEventReader, while
+                            // previous event is being written right here, it should still be OK
+                            // since buffer lim or pos are not changed during scanning process.
                             writer.writeEvent(node, false, false);
-//
-//                            if (i !=  writer.getByteBuffer().getInt(40)) {
-//                                int j= nodeBuf.getInt(40);
-//System.out.println("Error: before " + i + ", after " + writer.getByteBuffer().getInt(40) +
-//", node after " + j + ", pos = " + nodeBuf.position());
-//                                Utilities.printBuffer(nodeBuf, 0, 11, "node buf");
-//                                Utilities.printBuffer(writer.getByteBuffer(), 0, 19, "ET buf");
-//                                System.out.println("Ri id = " + ringItem.getByteBufferItem().getMyId());
-//                            }
                         }
 
                         container.itemCount++;
@@ -1700,11 +1691,7 @@ System.out.println("      DataChannel Et out: " + name + " warning - getting big
                         // If this ring item's data is in a buffer which is part of a
                         // ByteBufferSupply object, release it back to the supply now.
                         // Otherwise call does nothing.
-//                        if (isEB) {
-// System.out.println("et out release "+ ringItem.getByteBufferItem().getMyId() +
-//                     ", " + ringItem.getByteBufferItem().getProducerSequence());
-//                        }
-                        ringItem.releaseByteBuffer();
+                       ringItem.releaseByteBuffer();
 
                         // FREE UP this channel's input rings' slots/items for next
                         // user - the thread which puts ET events back.
