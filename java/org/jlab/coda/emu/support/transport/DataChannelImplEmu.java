@@ -766,7 +766,7 @@ logger.info("      DataChannel Emu in: " + name + " " + controlType + " event fr
                 else if (eventType == EventType.USER) {
                     isUser = true;
                     if (hasFirstEvent) {
-                        logger.info("      DataChannel Emu in: " + name + " FIRST event");
+//                        logger.info("      DataChannel Emu in: " + name + " FIRST event");
                     }
                     else {
                         logger.info("      DataChannel Emu in: " + name + " USER event");
