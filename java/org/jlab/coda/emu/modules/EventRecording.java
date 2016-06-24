@@ -221,7 +221,8 @@ if (debug) System.out.println("  ER mod: will end thread but no END event!");
      *
      * This class is written so that there must only be one RecordingThread.
      * It also takes any events arriving prior to prestart and throws them away unless it's
-     * a "first event" (user type) in which case it gets passed on to the output channel(s).
+     * a "first event" (user type) in which case the very last "first event" gets passed on
+     * to the output channel(s).
      */
     private class RecordingThread extends Thread {
 
@@ -308,13 +309,56 @@ if (debug) System.out.println("  ER mod: will end thread but no END event!");
                                 ringItem.releaseByteBuffer();
                             }
                             else {
-                                // Store first event(s) until prestart is received, then write
+                                // Store first events until prestart is received, then write.
+                                //
+                                // We do NOT, however, want to leave them in the byte buffers
+                                // provided in the ET input channel which is part of a ring buffer.
+                                // There are a limited number of these and if not released immediately
+                                // here, these buffers may all get used up - bringing things to a
+                                // grinding halt in the ET input channel.
+                                //
+                                // Solution is to copy into a local buffer right now and release the
+                                // original buffer back to the ring.
+
+                                // If there is something to release ...
+                                if (ringItem.getByteBufferItem() != null) {
+                                    RingItem newRingItem;
+
+                                    // If data in byte buffer ...
+                                    if (ringItem.getBuffer() != null) {
+                                        // Cloning the ringItem makes a copy of the buffer it contains
+                                        newRingItem = (PayloadBuffer)((PayloadBuffer)ringItem).clone();
+                                    }
+                                    // If data in EvioNode ...
+                                    else {
+                                        // Get a copy of the data in a ByteBuffer
+                                        ringItem.setBuffer(ringItem.getNode().getStructureBuffer(true));
+                                    }
+
+                                    ringItem.setNode(null);
+                                    ringItem.setBuffer(null);
+                                    ringItem.releaseByteBuffer();
+                                }
+
 //System.out.println("  ER mod: STORE \"first event\" of type " + ringItem.getEventType());
+                                // copy into new ringItem
                                 firstEvents.add(ringItem);
                                 firstEventsWords += wordCount;
                             }
 
-                            nextSequence++;
+                            // Release the ring buffer slot of input channel for re-use.
+                            // This is fine since we copied the data and released the original data
+                            // (in the input channel byte buffer supply item).
+
+                            // TODO: DOn't think this is kosher since we copy these on to output channel
+                            // TODO: and keeping more than 4096 means input is using same ones.
+
+                            // TODO: CAN"T DO THIS UNTIL AFTER TO OUTPUT CHAN??? cause ringItem still in use
+                            // TODO: still needs to be copied into ringitem of output chan
+
+                            // It may work since we're not using node anymore, but not a good thing to do!
+                            sequenceIn.set(nextSequence++);
+
                             continue;
                         }
 
@@ -386,12 +430,16 @@ System.out.println("  ER mod: found END event");
                     }
 
                     // Do NOT release the reusable ByteBuffer back to its supply.
-                    // It was passed on to the input ring buffer of the output channel.
+                    // It was passed on to the ring buffer of the output channel.
                     // It's that channel that will release the buffer when it's done
                     // writing it to file or wherever.
-                    // But if NO output, it needs to be freed.
+                    // But if NO output, it needs to be freed now.
                     if (outputChannelCount < 1) {
-                        ringItem.releaseByteBuffer();
+                        // We want to release "first event" buffers before prestart - each in the order
+                        // obtained from the channel. That's because, for the ER with one file output
+                        // channel, the buffer supply is not synchronized and relies on the ER to
+                        // release all buffers from the ring sequentially. This is designed to keep
+                        // things fast.
                         if (isPrestart) {
                             for (RingItem ri : firstEvents) {
                                 ri.releaseByteBuffer();
@@ -399,9 +447,13 @@ System.out.println("  ER mod: found END event");
                             isPrestart = false;
                             firstEvents.clear();
                         }
+                        ringItem.releaseByteBuffer();
                     }
 
-                    // Release the events back to the ring buffer for re-use
+                    // Release the ring buffer slot of input channel for re-use,
+                    // which is fine even if we haven't released the data (in the input channel
+                    // byte buffer supply item). That's because when the slot is reused, it will
+                    // use a different buffer item from that supply.
                     sequenceIn.set(nextSequence++);
 
                 }
