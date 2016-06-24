@@ -894,7 +894,8 @@ System.out.println("  EB mod: bbSupply -> " + ringItemCount + " # of bufs, direc
                 CompactEventBuilder builder = null;
                 try {
                     // Internal buffer of 8 bytes will be overwritten later
-                    builder = new CompactEventBuilder(8, outputOrder, true);
+                    //builder = new CompactEventBuilder(8, outputOrder, true);
+                    builder = new CompactEventBuilder(8, outputOrder, false);
                 }
                 catch (EvioException e) {/*never happen */}
 
