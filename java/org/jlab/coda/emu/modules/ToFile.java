@@ -20,8 +20,7 @@ import org.jlab.coda.emu.support.control.CmdExecException;
 import org.jlab.coda.emu.support.data.ControlType;
 import org.jlab.coda.emu.support.data.RingItem;
 import org.jlab.coda.emu.support.transport.DataChannel;
-import org.jlab.coda.jevio.EventWriter;
-import org.jlab.coda.jevio.EvioException;
+import org.jlab.coda.jevio.*;
 
 import java.io.DataInputStream;
 import java.io.File;
@@ -84,7 +83,7 @@ public class ToFile extends ModuleAdapter {
     private String dictionaryXML;
     private long   split;
 
-    private EventWriter evioFileWriter;
+    private EventWriterUnsync evioFileWriter;
 
 
 
@@ -178,9 +177,9 @@ logger.info("      DataChannel File: dictionary file cannot be read");
             boolean overWriteOK = true;
             if (split > 0L) overWriteOK = false;
 
-            evioFileWriter = new EventWriter(fileName, directory, runType,
-                                             runNumber, split, outputOrder,
-                                             dictionaryXML, overWriteOK);
+            evioFileWriter = new EventWriterUnsync(fileName, directory, runType,
+                                                   runNumber, split, outputOrder,
+                                                   dictionaryXML, overWriteOK);
             logger.info("      DataChannel File: file = " + evioFileWriter.getCurrentFilePath());
 
             // Tell emu what that output name is for stat reporting.
