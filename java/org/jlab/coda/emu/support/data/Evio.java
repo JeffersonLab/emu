@@ -1473,7 +1473,7 @@ System.out.println("makeTriggerBankFromRocRaw: event type differs across ROCs, f
 
                     // Check event number consistency, but make sure we take
                     // endianness into account when looking at the data.
-                    trigIntArrays[j][i] = triggerData = ByteDataTransformer.toIntArray(triggerSegments[j][i].getByteData(false));
+                    trigIntArrays[j][i] = triggerData = triggerSegments[j][i].getIntData();
                     if (firstEvNum + i != triggerData[0]) {
 System.out.println("makeTriggerBankFromRocRaw: event # differs (in Bt# " + buildThreadOrder + ") for ROC id#" +
                         getTagCodaId(inputPayloadBanks[j].getNode().getTag()) + ", expected " +
