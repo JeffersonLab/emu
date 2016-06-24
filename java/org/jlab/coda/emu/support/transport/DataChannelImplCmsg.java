@@ -107,7 +107,7 @@ public class DataChannelImplCmsg extends DataChannelAdapter {
             ByteBuffer buf = ByteBuffer.wrap(data);
 //        Utilities.printBuffer(buf, 0, data.length/4, "buf, control?");
 
-            EvioCompactReader compactReader = new EvioCompactReader(buf);
+            EvioCompactReaderUnsync compactReader = new EvioCompactReaderUnsync(buf);
 
             BlockHeaderV4 blockHeader = compactReader.getFirstBlockHeader();
             if (blockHeader.getVersion() < 4) {

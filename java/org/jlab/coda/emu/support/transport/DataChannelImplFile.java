@@ -73,7 +73,7 @@ public class DataChannelImplFile extends DataChannelAdapter {
     private boolean isER;
 
     /** Evio file reader which does NOT deserialize into objects. */
-    private EvioCompactReader compactFileReader;
+    private EvioCompactReaderUnsync compactFileReader;
 
     /** EventType taken from first block header of file. */
     private EventType eventType;
@@ -195,7 +195,7 @@ logger.info("      DataChannel File: dictionary file cannot be read");
                 isER = (emu.getCodaClass() == CODAClass.ER);
 
                 // This will throw an exception if evio version < 4
-                compactFileReader = new EvioCompactReader(fileName);
+                compactFileReader = new EvioCompactReaderUnsync(fileName);
 
                 // Get the first block header
                 // First evio block header read from a version 4 file

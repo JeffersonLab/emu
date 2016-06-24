@@ -581,7 +581,7 @@ public class DataChannelImplEmu extends DataChannelAdapter {
         private CountDownLatch latch = new CountDownLatch(1);
 
         /** Read into ByteBuffers. */
-        private EvioCompactReader compactReader;
+        private EvioCompactReaderUnsync compactReader;
 
 
         /** Constructor. */
@@ -691,7 +691,7 @@ public class DataChannelImplEmu extends DataChannelAdapter {
 
             try {
                 if (compactReader == null) {
-                    compactReader = new EvioCompactReader(buf);
+                    compactReader = new EvioCompactReaderUnsync(buf);
                 }
                 else {
                     compactReader.setBuffer(buf);

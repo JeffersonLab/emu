@@ -900,7 +900,7 @@ logger.debug("      DataChannel Et: reset " + name + " channel");
                 ControlType controlType;
                 ByteBufferItem bbItem;
                 ByteBuffer buf;
-                EvioCompactReader compactReader = null;
+                EvioCompactReaderUnsync compactReader = null;
                 RingItem ri;
                 long t1, t2;
                 boolean delay = false;
@@ -1010,7 +1010,7 @@ logger.warn("      DataChannel Et in: " + name + " - PAUSED");
                         try {
                             // These calls do not change buf position
                             if (compactReader == null) {
-                                compactReader = new EvioCompactReader(buf);
+                                compactReader = new EvioCompactReaderUnsync(buf);
                             }
                             else {
                                 compactReader.setBuffer(buf);
