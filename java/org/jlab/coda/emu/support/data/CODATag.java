@@ -129,8 +129,7 @@ public enum CODATag {
      * @return <code>true</code> if built trigger tag, else <code>false</code>
      */
      public static boolean isBuiltTrigger(int value) {
-         CODATag cTag = getTagType(value);
-         return cTag != null && (cTag.value >= 0xff20 && cTag.value <= 0xff27);
+         return (value >= 0xff20 && value <= 0xff27);
      }
 
     /**
@@ -153,8 +152,7 @@ public enum CODATag {
      * @return <code>true</code> if raw trigger tag, else <code>false</code>
      */
      public static boolean isRawTrigger(int value) {
-         CODATag cTag = getTagType(value);
-         return cTag != null && (cTag.value >= 0xff10 && cTag.value <= 0xff12);
+         return (value >= 0xff10 && value <= 0xff12);
      }
 
     /**
@@ -166,8 +164,7 @@ public enum CODATag {
      * @return <code>true</code> if any kind of trigger tag, else <code>false</code>
      */
      public static boolean isTrigger(int value) {
-         CODATag cTag = getTagType(value);
-         return cTag != null && (cTag.value >= 0xff10 && cTag.value <= 0xff27);
+         return (value >= 0xff10 && value <= 0xff27);
      }
 
     /**
@@ -199,12 +196,9 @@ public enum CODATag {
      *          else <code>false</code>
      */
      public static boolean hasTimestamp(int value) {
-         CODATag cTag = getTagType(value);
-         if (cTag == null) return false;
-
-         return (cTag == RAW_TRIGGER_TS        || cTag == RAW_TRIGGER_TS_BIG    ||
-                 cTag == BUILT_TRIGGER_TS      || cTag == BUILT_TRIGGER_TS_RUN  ||
-                 cTag == BUILT_TRIGGER_TS_NRSD || cTag == BUILT_TRIGGER_TS_RUN_NRSD);
+         return (value == RAW_TRIGGER_TS.value        || value == RAW_TRIGGER_TS_BIG.value    ||
+                 value == BUILT_TRIGGER_TS.value      || value == BUILT_TRIGGER_TS_RUN.value  ||
+                 value == BUILT_TRIGGER_TS_NRSD.value || value == BUILT_TRIGGER_TS_RUN_NRSD.value);
      }
 
     /**
@@ -224,11 +218,8 @@ public enum CODATag {
      *          else <code>false</code>
      */
      public static boolean hasRunData(int value) {
-         CODATag cTag = getTagType(value);
-         if (cTag == null) return false;
-
-         return (cTag == BUILT_TRIGGER_RUN      || cTag == BUILT_TRIGGER_TS_RUN ||
-                 cTag == BUILT_TRIGGER_RUN_NRSD || cTag == BUILT_TRIGGER_TS_RUN_NRSD);
+         return (value == BUILT_TRIGGER_RUN.value      || value == BUILT_TRIGGER_TS_RUN.value ||
+                 value == BUILT_TRIGGER_RUN_NRSD.value || value == BUILT_TRIGGER_TS_RUN_NRSD.value);
      }
 
 
@@ -251,11 +242,8 @@ public enum CODATag {
      *         has roc-specific data segments present, else <code>false</code>
      */
      public static boolean hasRocSpecificData(int value) {
-         CODATag cTag = getTagType(value);
-         if (cTag == null) return false;
-
-         return !(cTag == BUILT_TRIGGER_NRSD     || cTag == BUILT_TRIGGER_TS_NRSD ||
-                  cTag == BUILT_TRIGGER_RUN_NRSD || cTag == BUILT_TRIGGER_TS_RUN_NRSD);
+         return !(value == BUILT_TRIGGER_NRSD.value     || value == BUILT_TRIGGER_TS_NRSD.value ||
+                  value == BUILT_TRIGGER_RUN_NRSD.value || value == BUILT_TRIGGER_TS_RUN_NRSD.value);
      }
 
 
@@ -278,10 +266,7 @@ public enum CODATag {
 //     *          else <code>false</code>
 //     */
 //     public static boolean isSparsified(int value) {
-//         CODATag cTag = getTagType(value);
-//         if (cTag == null) return false;
-//
-//         return (cTag == BUILT_TRIGGER_SPARSIFY || cTag == BUILT_TRIGGER_RUN_SPARSIFY);
+//         return (value == BUILT_TRIGGER_SPARSIFY.value || value == BUILT_TRIGGER_RUN_SPARSIFY.value);
 //     }
 
     /**
@@ -290,8 +275,7 @@ public enum CODATag {
      * @return <code>true</code> if any kind of sync event tag, else <code>false</code>
      */
      public static boolean isSyncEVent(int value) {
-         CODATag cTag = getTagType(value);
-         return cTag != null && (cTag == BUILT_BY_PEB_SYNC || cTag == BUILT_BY_SEB_SYNC);
+         return (value == BUILT_BY_PEB_SYNC.value || value == BUILT_BY_SEB_SYNC.value);
      }
 
     /**
