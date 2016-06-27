@@ -111,76 +111,74 @@ public enum CODATag {
 
     /**
      * Is this a built trigger tag?
+     * Values can range from 0xff20 to 0xff4f.
+     * Currently only 0xff20 to 0xff27 are used.
+     *
      * @return <code>true</code> if built trigger tag, else <code>false</code>
      */
     public boolean isBuiltTrigger() {
-        return (this == BUILT_TRIGGER_BANK     || this == BUILT_TRIGGER_TS ||
-                this == BUILT_TRIGGER_RUN      || this == BUILT_TRIGGER_TS_RUN ||
-                this == BUILT_TRIGGER_NRSD     || this == BUILT_TRIGGER_RUN_NRSD ||
-                this == BUILT_TRIGGER_TS_NRSD  || this == BUILT_TRIGGER_TS_RUN_NRSD);
+        return (value >= 0xff20 && value <= 0xff27);
     }
 
     /**
      * Is this a built trigger tag?
+     * Values can range from 0xff20 to 0xff4f.
+     * Currently only 0xff20 to 0xff27 are used.
+     *
      * @param value the tag value to check
      * @return <code>true</code> if built trigger tag, else <code>false</code>
      */
      public static boolean isBuiltTrigger(int value) {
          CODATag cTag = getTagType(value);
-         if (cTag == null) return false;
-
-         return (cTag == BUILT_TRIGGER_BANK     || cTag == BUILT_TRIGGER_TS ||
-                 cTag == BUILT_TRIGGER_RUN      || cTag == BUILT_TRIGGER_TS_RUN ||
-                 cTag == BUILT_TRIGGER_NRSD     || cTag == BUILT_TRIGGER_RUN_NRSD ||
-                 cTag == BUILT_TRIGGER_TS_NRSD  || cTag == BUILT_TRIGGER_TS_RUN_NRSD);
-    }
-
-    /**
-     * Is this a raw trigger tag?
-     * @return <code>true</code> if raw trigger tag, else <code>false</code>
-     */
-     public boolean isRawTrigger() {
-         return (this == RAW_TRIGGER || this == RAW_TRIGGER_TS || this == RAW_TRIGGER_TS_BIG);
+         return cTag != null && (cTag.value >= 0xff20 && cTag.value <= 0xff27);
      }
 
     /**
      * Is this a raw trigger tag?
+     * Values can range from 0xff10 to 0xff1f.
+     * Currently only 0xff10 to 0xff12 are used.
+     *
+     * @return <code>true</code> if raw trigger tag, else <code>false</code>
+     */
+     public boolean isRawTrigger() {
+         return (value >= 0xff10 && value <= 0xff12);
+     }
+
+    /**
+     * Is this a raw trigger tag?
+     * Values can range from 0xff10 to 0xff1f.
+     * Currently only 0xff10 to 0xff12 are used.
+     *
      * @param value the tag value to check
      * @return <code>true</code> if raw trigger tag, else <code>false</code>
      */
      public static boolean isRawTrigger(int value) {
          CODATag cTag = getTagType(value);
-         if (cTag == null) return false;
-
-         return (cTag == RAW_TRIGGER || cTag == RAW_TRIGGER_TS || cTag == RAW_TRIGGER_TS_BIG);
+         return cTag != null && (cTag.value >= 0xff10 && cTag.value <= 0xff12);
      }
 
     /**
      * Is this any kind of a trigger tag?
+     * Values can range from 0xff10 to 0xff4f.
+     * Currently only 0xff10 to 0xff27 are used.
+     *
      * @param value the tag value to check
      * @return <code>true</code> if any kind of trigger tag, else <code>false</code>
      */
      public static boolean isTrigger(int value) {
          CODATag cTag = getTagType(value);
-         if (cTag == null) return false;
-
-         return (cTag == RAW_TRIGGER || cTag == RAW_TRIGGER_TS || cTag == RAW_TRIGGER_TS_BIG ||
-                 cTag == BUILT_TRIGGER_BANK     || cTag == BUILT_TRIGGER_TS ||
-                 cTag == BUILT_TRIGGER_RUN      || cTag == BUILT_TRIGGER_TS_RUN ||
-                 cTag == BUILT_TRIGGER_NRSD     || cTag == BUILT_TRIGGER_RUN_NRSD ||
-                 cTag == BUILT_TRIGGER_TS_NRSD  || cTag == BUILT_TRIGGER_TS_RUN_NRSD);
+         return cTag != null && (cTag.value >= 0xff10 && cTag.value <= 0xff27);
      }
 
     /**
      * Is this any kind of a trigger tag?
+     * Values can range from 0xff10 to 0xff4f.
+     * Currently only 0xff10 to 0xff27 are used.
+     *
      * @return <code>true</code> if any kind of trigger tag, else <code>false</code>
      */
      public boolean isTrigger() {
-         return (this == RAW_TRIGGER || this == RAW_TRIGGER_TS || this == RAW_TRIGGER_TS_BIG ||
-                 this == BUILT_TRIGGER_BANK     || this == BUILT_TRIGGER_TS ||
-                 this == BUILT_TRIGGER_RUN      || this == BUILT_TRIGGER_TS_RUN ||
-                 this == BUILT_TRIGGER_NRSD     || this == BUILT_TRIGGER_RUN_NRSD ||
-                 this == BUILT_TRIGGER_TS_NRSD  || this == BUILT_TRIGGER_TS_RUN_NRSD);
+         return (value >= 0xff10 && value <= 0xff27);
       }
 
     /**
