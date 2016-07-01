@@ -76,8 +76,12 @@ public class ByteBufferItem {
 
     /**
      * Constructor.
+     *
      * @param bufferSize size in bytes of ByteBuffer to construct.
      * @param order byte order of ByteBuffer to construct.
+     * @param direct is the buffer direct (in memory not managed by JVM) or not.
+     * @param orderedRelease if true, release ByteBufferItems in same order as acquired.
+     * @param myId unique id of this object.
      */
     public ByteBufferItem(int bufferSize, ByteOrder order,
                           boolean direct, boolean orderedRelease, int myId) {
