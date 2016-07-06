@@ -96,12 +96,11 @@ abstract class RingItemAdapter implements RingItem {
 
     // Deal with ring buffers
 
-    /** This refers to a reusable ByteBufferSupply used for buffer (if any). */
+    /** This refers to a supply reusable ByteBuffers (if any). */
     protected ByteBufferSupply byteBufferSupply;
 
     /** This refers to the wrapper object of buffer in reusable ByteBufferSupply (if any). */
     protected ByteBufferItem byteBufferItem;
-
 
 
     /** Constructor. */
@@ -203,7 +202,6 @@ abstract class RingItemAdapter implements RingItem {
 
     /** {@inheritDoc} */
     public void setNode(EvioNode node) { this.node = node; }
-
 
 
     /** {@inheritDoc} */
