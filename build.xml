@@ -273,7 +273,7 @@
     <target name="installInPrefix" if="prefixDefined">
         <echo>Install ${jarName} into ${prefix}/jar </echo>
         <echo>Install ${disJarName} into ${prefix}/jar </echo>
-        <echo>Install ${lsJarName} into ${prefix}/jar </echo>
+        <echo>Install ${slJarName} into ${prefix}/jar </echo>
         <delete>
             <fileset dir="${prefix}/jar" includes="${allJarNames}" />
         </delete>
@@ -286,7 +286,7 @@
     <target name="installInCODA" unless="prefixDefined" if="codaDefined">
         <echo>Install ${jarName} into ${env.CODA}/common/jar</echo>
         <echo>Install ${disJarName} into ${env.CODA}/common/jar</echo>
-        <echo>Install ${lsJarName} into ${env.CODA}/common/jar</echo>
+        <echo>Install ${slJarName} into ${env.CODA}/common/jar</echo>
         <delete>
             <fileset dir="${env.CODA}/common/jar" includes="${allJarNames}" />
         </delete>
@@ -313,7 +313,7 @@
     <target name="uninstallFromPrefix" if="prefixDefined">
         <echo>Remove ${jarName} from ${prefix}</echo>
         <echo>Remove ${disJarName} from ${prefix}</echo>
-        <echo>Remove ${lsJarName} from ${prefix}</echo>
+        <echo>Remove ${slJarName} from ${prefix}</echo>
         <delete file="${prefix}/jar/${jarName}"/>
         <delete file="${prefix}/jar/${disJarName}"/>
         <delete file="${prefix}/jar/${slJarName}"/>
@@ -323,7 +323,7 @@
     <target name="uninstallFromCODA" unless="prefixDefined" if="codaDefined">
         <echo>Remove ${jarName} from ${env.CODA}/common/jar</echo>
         <echo>Remove ${disJarName} from ${env.CODA}/common/jar</echo>
-        <echo>Remove ${lsJarName} from ${env.CODA}/common/jar</echo>
+        <echo>Remove ${slJarName} from ${env.CODA}/common/jar</echo>
         <delete file="${env.CODA}/common/jar/${jarName}"/>
         <delete file="${env.CODA}/common/jar/${disJarName}"/>
         <delete file="${env.CODA}/common/jar/${slJarName}"/>
