@@ -150,7 +150,10 @@ public class ByteBufferItem {
      * Get the contained ByteBuffer.
      * @return contained ByteBuffer.
      */
-    public ByteBuffer getBuffer() {return buffer;}
+    public ByteBuffer getBuffer() {
+        buffer.position(0);
+        return buffer;
+    }
 
 
     /**
