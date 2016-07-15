@@ -312,51 +312,45 @@ if (debug) System.out.println("  ER mod: will end thread but no END event!");
                                 // Store first events until prestart is received, then write.
                                 //
                                 // We do NOT, however, want to leave them in the byte buffers
-                                // provided in the ET input channel which is part of a ring buffer.
+                                // provided in the ET input channel which are obtained from a
+                                // ByteBufferSupply and are thus part of a ring buffer.
                                 // There are a limited number of these and if not released immediately
                                 // here, these buffers may all get used up - bringing things to a
                                 // grinding halt in the ET input channel.
                                 //
-                                // Solution is to copy into a local buffer right now and release the
-                                // original buffer back to the ring.
+                                // We also do not want to increase "nextSequence" since if we keep
+                                // over 4096, the same ringItems will be reused when rb.get() is
+                                // called.
+                                //
+                                // Solution is to copy the ringItem right now and release the
+                                // original ringItem and the buffer from the supply.
 
-                                // If there is something to release ...
-                                if (ringItem.getByteBufferItem() != null) {
-                                    RingItem newRingItem;
 
-                                    // If data in byte buffer ...
-                                    if (ringItem.getBuffer() != null) {
-                                        // Cloning the ringItem makes a copy of the buffer it contains
-                                        newRingItem = (PayloadBuffer)((PayloadBuffer)ringItem).clone();
-                                    }
-                                    // If data in EvioNode ...
-                                    else {
-                                        // Get a copy of the data in a ByteBuffer
-                                        ringItem.setBuffer(ringItem.getNode().getStructureBuffer(true));
-                                    }
+                                // Cloning the ringItem makes a copy of the ByteBuffer it contains
+                                RingItem newRingItem = (PayloadBuffer)((PayloadBuffer)ringItem).clone();
 
-                                    ringItem.setNode(null);
-                                    ringItem.setBuffer(null);
-                                    ringItem.releaseByteBuffer();
+                                // If however, the data was NOT contained in a ByteBuffer but in
+                                // an EvioNode instead, copy that data ...
+                                if (ringItem.getBuffer() == null) {
+                                    // Get a copy of the node data into the buffer
+                                    newRingItem.setBuffer(ringItem.getNode().getStructureBuffer(true));
                                 }
 
+                                // Release old stuff
+                                ringItem.setNode(null);
+                                ringItem.setBuffer(null);
+                                ringItem.releaseByteBuffer();
+
 //System.out.println("  ER mod: STORE \"first event\" of type " + ringItem.getEventType());
-                                // copy into new ringItem
+                                // Copy new stuff into list
                                 firstEvents.add(ringItem);
                                 firstEventsWords += wordCount;
                             }
 
                             // Release the ring buffer slot of input channel for re-use.
-                            // This is fine since we copied the data and released the original data
-                            // (in the input channel byte buffer supply item).
+                            // This is fine since we copied the ringItem and released the
+                            // original data.
 
-                            // TODO: DOn't think this is kosher since we copy these on to output channel
-                            // TODO: and keeping more than 4096 means input is using same ones.
-
-                            // TODO: CAN"T DO THIS UNTIL AFTER TO OUTPUT CHAN??? cause ringItem still in use
-                            // TODO: still needs to be copied into ringitem of output chan
-
-                            // It may work since we're not using node anymore, but not a good thing to do!
                             sequenceIn.set(nextSequence++);
 
                             continue;
