@@ -27,6 +27,7 @@ import java.io.*;
 import java.net.Socket;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.nio.IntBuffer;
 import java.nio.channels.SocketChannel;
 import java.util.*;
 import java.util.concurrent.*;
@@ -104,6 +105,8 @@ public class DataChannelImplEmu extends DataChannelAdapter {
     /** Data input stream from TCP socket. */
     private DataInputStream in;
 
+    private SocketChannel socketChannel;
+
     /** TCP receive buffer size in bytes. */
     private int tcpRecvBuf;
 
@@ -121,9 +124,8 @@ public class DataChannelImplEmu extends DataChannelAdapter {
     /** Use direct ByteBuffer? */
     private boolean direct;
 
-    //-------------------------------------------
-    // Disruptor (RingBuffer)  Stuff
-    //-------------------------------------------
+    // Disruptor (RingBuffer)  stuff
+
     private long nextRingItem;
 
     /** Ring buffer holding ByteBuffers when using EvioCompactEvent reader for incoming events. */
@@ -176,6 +178,7 @@ public class DataChannelImplEmu extends DataChannelAdapter {
         // if INPUT channel
         if (input) {
             isER = (emu.getCodaClass() == CODAClass.ER);
+
             // size of TCP receive buffer (0 means use operating system default)
             tcpRecvBuf = 0;
             attribString = attributeMap.get("recvBuf");
@@ -199,7 +202,6 @@ public class DataChannelImplEmu extends DataChannelAdapter {
                     dumpData = true;
                 }
             }
-
         }
         // if OUTPUT channel
         else {
@@ -310,6 +312,7 @@ public class DataChannelImplEmu extends DataChannelAdapter {
         }
 
         // Use buffered streams for efficiency
+        socketChannel = socket.getChannel();
         in = new DataInputStream(new BufferedInputStream(socket.getInputStream(), 256000));
 
         // Create a ring buffer full of empty ByteBuffer objects
@@ -610,6 +613,10 @@ public class DataChannelImplEmu extends DataChannelAdapter {
                 long word;
                 int cmd, size;
                 boolean delay = false;
+                // For use with direct buffers
+                ByteBuffer wordCmdBuf = ByteBuffer.allocate(8);
+                IntBuffer ibuf = wordCmdBuf.asIntBuffer();
+
 
                 while (true) {
                     // If I've been told to RESET ...
@@ -633,9 +640,20 @@ public class DataChannelImplEmu extends DataChannelAdapter {
                     // These 2, 32-bit ints are sent in network byte order, cmd first.
                     // Reading a long assumes big endian so cmd, which is sent
                     // first, should appear in most significant bytes.
-                    word = in.readLong();
-                    cmd = (int) ((word >>> 32) & 0xffL);
-                    size = (int) word;   // just truncate for lowest 32 bytes
+                    if (direct) {
+                        socketChannel.read(wordCmdBuf);
+                        cmd  = ibuf.get();
+                        size = ibuf.get();
+                        ibuf.position(0);
+                        wordCmdBuf.position(0);
+                        //System.out.println("Direct: cmd = " + cmd + ", size = " + size);
+                    }
+                    else {
+                        word = in.readLong();
+                        cmd  = (int) ((word >>> 32) & 0xffL);
+                        size = (int) word;   // just truncate for lowest 32 bytes
+                        //System.out.println("Non-Direct: cmd = " + cmd + ", size = " + size);
+                    }
 
                     // 1st byte has command
                     switch (cmd) {
@@ -661,6 +679,7 @@ public class DataChannelImplEmu extends DataChannelAdapter {
                 logger.warn("      DataChannel Emu in: " + name + "  interrupted thd, exiting");
             }
             catch (Exception e) {
+                e.printStackTrace();
                 channelState = CODAState.ERROR;
                 // If error msg already set, this will not
                 // set it again. It will send it to rc.
@@ -685,9 +704,18 @@ public class DataChannelImplEmu extends DataChannelAdapter {
             // If buffer is too small, make a bigger one
             bbItem.ensureCapacity(evioBytes);
             ByteBuffer buf = bbItem.getBuffer();
-            buf.limit(evioBytes);
+            buf.position(0).limit(evioBytes);
 
-            in.readFully(buf.array(), 0, evioBytes);
+            if (direct) {
+                // Be sure to read everything
+                while (buf.position() < buf.limit()) {
+                    socketChannel.read(buf);
+                }
+                buf.position(0).limit(evioBytes);
+            }
+            else {
+                in.readFully(buf.array(), 0, evioBytes);
+            }
 
             try {
                 if (compactReader == null) {
@@ -881,6 +909,9 @@ logger.info("      DataChannel Emu in: " + name + " " + controlType + " event fr
                 }
                 catch (EvioException e) {/* never happen */}
             }
+
+            // Need do this only once
+            outGoingMsg.setUserInt(cMsgConstants.emuEvioFileFormat);
         }
 
 
@@ -907,9 +938,14 @@ logger.info("      DataChannel Emu in: " + name + " " + controlType + " event fr
             }
 
             // If we have no more room in buffer, send what we have so far
-            outGoingMsg.setUserInt(cMsgConstants.emuEvioFileFormat);
-            outGoingMsg.setByteArrayNoCopy(writer.getByteBuffer().array(), 0,
-                                           (int) writer.getBytesWrittenToBuffer());
+            if (direct) {
+                // writer.getByteBuffer gets a duplicate buffer all set for reading
+                outGoingMsg.setByteArray(writer.getByteBuffer());
+            }
+            else {
+                outGoingMsg.setByteArrayNoCopy(writer.getByteBuffer().array(), 0,
+                                               (int) writer.getBytesWrittenToBuffer());
+            }
             emuDomain.send(outGoingMsg);
 
             // Force things out over socket
@@ -1065,7 +1101,6 @@ logger.info("      DataChannel Emu in: " + name + " " + controlType + " event fr
 
             // Tell the world I've started
             startLatch.countDown();
-            int counter=1;
 
             try {
                 RingItem ringItem;
