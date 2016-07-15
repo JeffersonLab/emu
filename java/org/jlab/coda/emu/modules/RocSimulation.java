@@ -164,7 +164,7 @@ public class RocSimulation extends ModuleAdapter {
         if (detectorId < 0) detectorId = 0;
 
         // How many entangled events in one data block?
-        eventBlockSize = 2;
+        eventBlockSize = 10;
         try { eventBlockSize = Integer.parseInt(attributeMap.get("blockSize")); }
         catch (NumberFormatException e) { /* defaults to 1 */ }
         if (eventBlockSize <   1) eventBlockSize = 1;
@@ -193,7 +193,7 @@ public class RocSimulation extends ModuleAdapter {
         eventGeneratingThreads = new EventGeneratingThread[eventProducingThreads];
 
         // Is this ROC to be synced with others?
-        synced = true;
+        synced = false;
         s = attributeMap.get("sync");
         if (s != null) {
             if (s.equalsIgnoreCase("false") ||
@@ -292,7 +292,7 @@ public class RocSimulation extends ModuleAdapter {
      * @param buf     the event to place on output channel ring buffer
      * @param item    item corresponding to the buffer allowing buffer to be reused
      */
-    private void eventToOutputRing(int ringNum, ByteBuffer buf,
+    void eventToOutputRing(int ringNum, ByteBuffer buf,
                                    ByteBufferItem item, ByteBufferSupply bbSupply) {
 
         if (outputChannelCount < 1) {
@@ -348,9 +348,9 @@ public class RocSimulation extends ModuleAdapter {
     private ByteBuffer createSingleEventBuffer(int generatedDataWords, long eventNumber,
                                               long timestamp ) {
         int writeIndex=0;
+        int dataLen = 1 + generatedDataWords;
 
-        int[] data = new int[1 + generatedDataWords];
-
+        // Note: buf limit is set to its capacity in allocate()
         ByteBuffer buf = ByteBuffer.allocate(4*eventWordSize);
         buf.order(outputOrder);
 
@@ -366,56 +366,21 @@ public class RocSimulation extends ModuleAdapter {
         buf.putInt(writeIndex, (eventWordSize - 1)); writeIndex += 4;
         buf.putInt(writeIndex, secondWord); writeIndex += 4;
 
-//        if (outputOrder == ByteOrder.BIG_ENDIAN) {
-//            buf.putShort(writeIndex, (short) rocTag); writeIndex += 2;
-//            buf.put(writeIndex, (byte) (DataType.BANK.getValue() & 0x3f)); writeIndex++;
-//            buf.put(writeIndex, (byte) (eventBlockSize & 0xff));  writeIndex++;
-//        }
-//        else {
-//            buf.put(writeIndex, (byte) (eventBlockSize & 0xff));  writeIndex++;
-//            buf.put(writeIndex, (byte) (DataType.BANK.getValue() & 0x3f)); writeIndex++;
-//            buf.putShort(writeIndex, (short) rocTag); writeIndex += 2;
-//        }
 
         // Trigger bank header
         secondWord = CODATag.RAW_TRIGGER_TS.getValue() << 16 |
                      (DataType.SEGMENT.getValue() << 8) |
                      (eventBlockSize & 0xff);
 
-        buf.putInt(writeIndex, (eventWordSize - 2 - data.length - 2 - 1)); writeIndex += 4;
+        buf.putInt(writeIndex, (eventWordSize - 2 - dataLen - 2 - 1)); writeIndex += 4;
         buf.putInt(writeIndex, secondWord); writeIndex += 4;
 
-//        if (outputOrder == ByteOrder.BIG_ENDIAN) {
-//            buf.putShort(writeIndex, (short) CODATag.RAW_TRIGGER_TS.getValue()); writeIndex += 2;
-//            buf.put(writeIndex, (byte) (DataType.SEGMENT.getValue() & 0x3f)); writeIndex++;
-//            buf.put(writeIndex, (byte) (eventBlockSize & 0xff));  writeIndex++;
-//        }
-//        else {
-//            buf.put(writeIndex, (byte) (eventBlockSize & 0xff));  writeIndex++;
-//            buf.put(writeIndex, (byte) (DataType.SEGMENT.getValue() & 0x3f)); writeIndex++;
-//            buf.putShort(writeIndex, (short) CODATag.RAW_TRIGGER_TS.getValue()); writeIndex += 2;
-//        }
-
-        int segWord;
+        // segment header word = tag << 24 | ((padding << 22) & 0x3) | ((type << 16) & 0x3f) | length
+        int segWord = triggerType << 24 | (DataType.UINT32.getValue() << 16) | 3;
 
         // Add each segment
         for (int i = 0; i < eventBlockSize; i++) {
-            // segment header word = tag << 24 | ((padding << 22) & 0x3) | ((type << 16) & 0x3f) | length
-            segWord = triggerType << 24 |
-                      (DataType.UINT32.getValue() << 16) | 3;
-
             buf.putInt(writeIndex, segWord); writeIndex += 4;
-
-//            if (outputOrder == ByteOrder.BIG_ENDIAN) {
-//                buf.put(writeIndex, (byte) (triggerType & 0xff)); writeIndex++;
-//                buf.put(writeIndex, (byte) (DataType.UINT32.getValue() & 0x3f)); writeIndex++;
-//                buf.putShort(writeIndex, (short) 3);  writeIndex += 2;
-//            }
-//            else {
-//                buf.putShort(writeIndex, (short) 3);  writeIndex += 2;
-//                buf.put(writeIndex, (byte) (DataType.UINT32.getValue() & 0x3f)); writeIndex++;
-//                buf.put(writeIndex, (byte) (triggerType & 0xff)); writeIndex++;
-//            }
 
             // Generate 3 integers per event (no miscellaneous data)
             buf.putInt(writeIndex, (int) (eventNumber + i)); writeIndex += 4;
@@ -424,39 +389,29 @@ public class RocSimulation extends ModuleAdapter {
             timestamp += 4;
         }
 
-        // Create a single data block bank
-        int index = 0;
-
-        // First put in starting event # (32 bits)
-        data[index++] = (int)eventNumber;
 
         int dataTag = Evio.createCodaTag(false, false, true, false, detectorId);
         secondWord = dataTag << 16 |
                      (DataType.UINT32.getValue() << 8) |
                      (eventBlockSize & 0xff);
 
-        buf.putInt(writeIndex, data.length + 1); writeIndex += 4;
+        buf.putInt(writeIndex, dataLen + 1); writeIndex += 4;
         buf.putInt(writeIndex, secondWord); writeIndex += 4;
-//        if (outputOrder == ByteOrder.BIG_ENDIAN) {
-//            buf.putShort(writeIndex, (short) dataTag); writeIndex += 2;
-//            buf.put(writeIndex, (byte) (DataType.UINT32.getValue() & 0x3f)); writeIndex++;
-//            buf.put(writeIndex, (byte) (eventBlockSize & 0xff));  writeIndex++;
-//        }
-//        else {
-//            buf.put(writeIndex, (byte) (eventBlockSize & 0xff));  writeIndex++;
-//            buf.put(writeIndex, (byte) (DataType.UINT32.getValue() & 0x3f)); writeIndex++;
-//            buf.putShort(writeIndex, (short) dataTag); writeIndex += 2;
-//        }
-        for (int i : data) {
-            buf.putInt(writeIndex, i); writeIndex += 4;
+
+
+        // First put in starting event # (32 bits)
+        buf.putInt(writeIndex, (int)eventNumber); writeIndex += 4;
+        for (int i=0; i < generatedDataWords; i++) {
+            // Write a bunch of 1s
+            buf.putInt(writeIndex, 1); writeIndex += 4;
         }
 
         // buf is ready to read
         return buf;
     }
 
-
-    private void writeEventBuffer(ByteBuffer buf, ByteBuffer templateBuf,
+    //TODO: 1st
+    void writeEventBuffer(ByteBuffer buf, ByteBuffer templateBuf,
                                    long eventNumber, long timestamp, boolean copy) {
 
         // Since we're using recirculating buffers, we do NOT need to copy everything
@@ -561,6 +516,7 @@ public class RocSimulation extends ModuleAdapter {
         // Number of data words in each event
         private int generatedDataWords;
         private ByteBuffer templateBuffer;
+        private int templateBufferLimit;
 
 
         EventGeneratingThread(int id, ThreadGroup group, String name) {
@@ -582,6 +538,7 @@ System.out.println("  Roc mod: generatedDataWords = " + generatedDataWords);
 System.out.println("  Roc mod: eventWordSize = " + eventWordSize);
 
             templateBuffer = createSingleEventBuffer(generatedDataWords, myEventNumber, timestamp);
+            templateBufferLimit = templateBuffer.limit();
 
 
 System.out.println("  Roc mod: start With (id=" + myId + "):\n    record id = " + myRocRecordId +
@@ -598,7 +555,7 @@ System.out.println("  Roc mod: start With (id=" + myId + "):\n    record id = " 
             long t1, deltaT, t2;
             ByteBuffer buf = null;
             ByteBufferItem bufItem = null;
-            boolean copyWholeBuf = true, sendUser = true;
+            boolean copyWholeBuf = true;
 
             // We need for the # of buffers in our bbSupply object to be >=
             // the # of ring buffer slots in the output channel or we can get
@@ -610,8 +567,8 @@ System.out.println("  Roc mod: start With (id=" + myId + "):\n    record id = " 
             else {
                 bufSupplySize = 4096;
             }
+
             // Now create our own buffer supply to match
-            // TODO: change back to true .... once testing is done.
             bbSupply = new ByteBufferSupply(bufSupplySize, 4*eventWordSize, ByteOrder.BIG_ENDIAN, false);
 
             try {
