@@ -90,3 +90,12 @@ Version 2.6
       problem).
     - make EB build thread simpler and fix bug in which "end" which immediately follows
       "go" will hang EB if build thread index != 0
+
+Version 2.7
+    - Major improvements in performance. Made makeTriggerBankFromRocRaw() much more efficient
+      and generate much less garbage. Also made makeTriggerBankFromPhysics() more efficient.
+      The EB spends a large percentage of its time in these methods.
+
+      Much of the improvements are from using evio-5.2. In particular, CompactEventBuilder
+      was modified to generate much less garbage. EvioNode now has getIntData(), getLongData(),
+      and getShortData() methods which are faster than handling ByteBuffers.
