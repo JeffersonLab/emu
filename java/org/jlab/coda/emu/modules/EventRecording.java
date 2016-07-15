@@ -343,7 +343,7 @@ if (debug) System.out.println("  ER mod: will end thread but no END event!");
 
 //System.out.println("  ER mod: STORE \"first event\" of type " + ringItem.getEventType());
                                 // Copy new stuff into list
-                                firstEvents.add(ringItem);
+                                firstEvents.add(newRingItem);
                                 firstEventsWords += wordCount;
                             }
 
