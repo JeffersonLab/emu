@@ -738,6 +738,10 @@ public class DataChannelImplEmu extends DataChannelAdapter {
 
             hasFirstEvent = blockHeader.hasFirstEvent();
             EventType eventType = EventType.getEventType(blockHeader.getEventType());
+            if (eventType == null) {
+                errorMsg.compareAndSet(null, "DataChannel Emu in: bad format evio block header");
+                throw new EvioException("bad format evio block header");
+            }
             int recordId = blockHeader.getNumber();
 
             // Each PayloadBuffer contains a reference to the buffer it was
