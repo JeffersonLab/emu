@@ -704,6 +704,9 @@ public class DataChannelImplEmu extends DataChannelAdapter {
             bbItem.ensureCapacity(evioBytes);
             ByteBuffer buf = bbItem.getBuffer();
 
+            // If here, buf limit = capacity, position = 0
+            buf.limit(evioBytes);
+
             if (direct) {
                 // Be sure to read everything
                 while (buf.position() < buf.limit()) {
@@ -1026,19 +1029,6 @@ logger.info("      DataChannel Emu in: " + name + " found END event");
             }
             // If we're marshalling events into a single buffer before sending ...
             else {
-//System.out.println("  writeEvioData2: type = " + eType);
-                // Following is for testing with C emu producer:
-//                boolean a = true;
-//                while (a) {
-//                    try {
-//                        Thread.sleep(3000);
-//                    }
-//                    catch (InterruptedException e) {
-//                        e.printStackTrace();
-//                    }
-//                    System.out.print(".");
-//                }
-
                 // If we've already written at least 1 event AND
                 // (we have no more room in buffer OR we're changing event types),
                 // write what we have.
