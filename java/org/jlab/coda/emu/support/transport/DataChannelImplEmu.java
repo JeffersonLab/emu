@@ -1259,7 +1259,7 @@ logger.debug("      DataChannel Emu out " + outputIndex + ": send " + pBankContr
                     // Time expired so send out events we have\
 //System.out.println("time = " + emu.getTime() + ", lastSendTime = " + lastSendTime);
                     if (emu.getTime() - lastSendTime > timeout) {
-                        System.out.println("TIME FLUSH ******************");
+//System.out.println("TIME FLUSH ******************");
                         flushEvents(false);
                     }
                 }
