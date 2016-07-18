@@ -694,7 +694,6 @@ public class DataChannelImplEmu extends DataChannelAdapter {
 
             RingItem ri;
             EvioNode node;
-            EventType bankType;
             boolean hasFirstEvent, isUser=false;
             ControlType controlType = null;
 
@@ -704,7 +703,6 @@ public class DataChannelImplEmu extends DataChannelAdapter {
             // If buffer is too small, make a bigger one
             bbItem.ensureCapacity(evioBytes);
             ByteBuffer buf = bbItem.getBuffer();
-            buf.position(0).limit(evioBytes);
 
             if (direct) {
                 // Be sure to read everything
@@ -765,11 +763,10 @@ public class DataChannelImplEmu extends DataChannelAdapter {
                 // Complication: from the ROC, we'll be receiving USER events
                 // mixed in with and labeled as ROC Raw events. Check for that
                 // and fix it.
-                bankType = eventType;
                 if (eventType == EventType.ROC_RAW) {
                     if (Evio.isUserEvent(node)) {
                         isUser = true;
-                        bankType = EventType.USER;
+                        eventType = EventType.USER;
                         if (hasFirstEvent) {
                             logger.info("      DataChannel Emu in: " + name + " FIRST event from ROC RAW");
                         }
@@ -777,9 +774,6 @@ public class DataChannelImplEmu extends DataChannelAdapter {
                             logger.info("      DataChannel Emu in: " + name + " USER event from ROC RAW");
                         }
                     }
-//                    else {
-//                        logger.info("      DataChannel Emu in: " + name + " ROC RAW event");
-//                    }
                 }
                 else if (eventType == EventType.CONTROL) {
                     // Find out exactly what type of control event it is
@@ -794,7 +788,7 @@ logger.info("      DataChannel Emu in: " + name + " " + controlType + " event fr
                 else if (eventType == EventType.USER) {
                     isUser = true;
                     if (hasFirstEvent) {
-//                        logger.info("      DataChannel Emu in: " + name + " FIRST event");
+                        logger.info("      DataChannel Emu in: " + name + " FIRST event");
                     }
                     else {
                         logger.info("      DataChannel Emu in: " + name + " USER event");
@@ -809,7 +803,7 @@ logger.info("      DataChannel Emu in: " + name + " " + controlType + " event fr
                         // There should be no more events coming down the pike so
                         // go ahead write out existing events and then shut this
                         // thread down.
-                        logger.info("      DataChannel Emu in: " + name + " found END event");
+logger.info("      DataChannel Emu in: " + name + " found END event");
                         haveInputEndEvent = true;
                         // run callback saying we got end event
                         if (endCallback != null) endCallback.endWait();
@@ -823,13 +817,13 @@ logger.info("      DataChannel Emu in: " + name + " " + controlType + " event fr
                 ri = ringBufferIn.get(nextRingItem);
 
                 // Set & reset all parameters of the ringItem
-                if (bankType.isBuildable()) {
-                    ri.setAll(null, null, node, bankType, controlType,
+                if (eventType.isBuildable()) {
+                    ri.setAll(null, null, node, eventType, controlType,
                               isUser, hasFirstEvent, id, recordId, sourceId,
                               node.getNum(), name, bbItem, bbSupply);
                 }
                 else {
-                    ri.setAll(null, null, node, bankType, controlType,
+                    ri.setAll(null, null, node, eventType, controlType,
                               isUser, hasFirstEvent, id, recordId, sourceId,
                               1, name, bbItem, bbSupply);
                 }
@@ -844,7 +838,7 @@ logger.info("      DataChannel Emu in: " + name + " " + controlType + " event fr
                     // There should be no more events coming down the pike so
                     // go ahead write out existing events and then shut this
                     // thread down.
-                    logger.info("      DataChannel Emu in: " + name + " found END event");
+logger.info("      DataChannel Emu in: " + name + " found END event");
                     haveInputEndEvent = true;
                     // run callback saying we got end event
                     if (endCallback != null) endCallback.endWait();
