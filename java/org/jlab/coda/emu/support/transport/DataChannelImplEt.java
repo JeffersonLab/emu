@@ -48,13 +48,13 @@ import static com.lmax.disruptor.RingBuffer.createSingleProducer;
 public class DataChannelImplEt extends DataChannelAdapter {
 
     /** Data transport subclass object for Et. */
-    private DataTransportImplEt dataTransportImplEt;
+    private final DataTransportImplEt dataTransportImplEt;
 
     /** Use the evio block header's block number as a record id. */
     private int recordId;
 
     /** Is this an input channel? */
-    private boolean input;
+    private final boolean input;
 
     /** Do we pause the dataThread? */
     private volatile boolean pause;
@@ -136,7 +136,7 @@ public class DataChannelImplEt extends DataChannelAdapter {
 
     /** Time in microseconds to wait for the ET system to deliver requested events
      *  before throwing an EtTimeoutException. */
-    private int etWaitTime = 500000;
+    private final int etWaitTime = 500000;
 
 
     //-------------------------------------------
