@@ -98,4 +98,6 @@ Version 2.7
 
       Much of the improvements are from using evio-5.2. In particular, CompactEventBuilder
       was modified to generate much less garbage. EvioNode now has getIntData(), getLongData(),
-      and getShortData() methods which are faster than handling ByteBuffers.
+      and getShortData() methods which are faster than handling ByteBuffers. EvioCompactReaderUnsync
+      & EvioWriterUnsync replaces EvioCompactReader & EvioWriter with identical but unsynchronized
+      methods.
