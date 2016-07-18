@@ -42,7 +42,7 @@ import java.util.concurrent.*;
 public class DataChannelImplEmu extends DataChannelAdapter {
 
     /** Data transport subclass object for Emu. */
-    private DataTransportImplEmu dataTransportImplEmu;
+    private final DataTransportImplEmu dataTransportImplEmu;
 
     /** Do we pause the dataThread? */
     private volatile boolean pause;
@@ -89,7 +89,7 @@ public class DataChannelImplEmu extends DataChannelAdapter {
     private cMsg emuDomain;
 
     /** cMsg message into which out going data is placed in order to be written. */
-    private cMsgMessage outGoingMsg = new cMsgMessage();
+    private final cMsgMessage outGoingMsg = new cMsgMessage();
 
     // INPUT
 
