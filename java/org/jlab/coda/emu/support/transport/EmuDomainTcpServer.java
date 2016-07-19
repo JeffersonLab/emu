@@ -60,6 +60,7 @@ public class EmuDomainTcpServer extends Thread {
      * @param serverPort TCP port on which to receive transmissions from emu clients
      */
     public EmuDomainTcpServer(EmuDomainServer server, int serverPort) throws cMsgException {
+        setName("Emu-socket TCP server");
         this.server = server;
         this.serverPort = serverPort;
     }

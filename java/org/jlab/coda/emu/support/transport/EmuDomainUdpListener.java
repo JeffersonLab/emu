@@ -67,6 +67,7 @@ public class EmuDomainUdpListener extends Thread {
     public EmuDomainUdpListener(EmuDomainServer server, int port,
                                 String expid, String emuName) throws cMsgException {
 
+        setName("Emu-socket UDP listener");
         this.expid = expid;
         this.emuName = emuName;
         multicastPort = tcpPort = port;
