@@ -311,7 +311,7 @@ public class Emu implements CODAComponent {
         // Put this (which is a CODAComponent and therefore Runnable)
         // into a thread group and keep track of this object's thread.
         // This thread is started when statusMonitor.start() is called.
-        statusMonitor = new Thread(threadGroup, this, "State monitor");
+        statusMonitor = new Thread(threadGroup, this, "RC command executor");
         statusMonitor.start();
 
         // Start up status reporting thread (which needs cmsg to send msgs)
