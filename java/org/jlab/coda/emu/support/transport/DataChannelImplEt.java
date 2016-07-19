@@ -152,14 +152,17 @@ public class DataChannelImplEt extends DataChannelAdapter {
 
     /**
      * This method copies a ByteBuffer as efficiently as possible.
+     * It is <b>not</b> to be used in general since it assumes that the src data starts
+     * at position 0 and the destination data starts at position 0 as well.
+     * Any modification to srcBuf is ignored since the ET data buffer is not used
+     * once this copy is done.
+     *
      * @param srcBuf  buffer to copy.
      * @param destBuf buffer to copy into.
      * @param len     number of bytes to copy
      * @return destination buffer.
      */
     private static final ByteBuffer copyBuffer(ByteBuffer srcBuf, ByteBuffer destBuf, int len) {
-        int origPos = srcBuf.position();
-        int origLim = srcBuf.limit();
 
         if (srcBuf.hasArray() && destBuf.hasArray()) {
             System.arraycopy(srcBuf.array(), 0, destBuf.array(), 0, len);
@@ -168,11 +171,10 @@ public class DataChannelImplEt extends DataChannelAdapter {
             srcBuf.limit(len).position(0);
             destBuf.clear();
             destBuf.put(srcBuf);
-            srcBuf.limit(origLim).position(origPos);
         }
         destBuf.order(srcBuf.order());
 
-        return (ByteBuffer)destBuf.limit(len).position(0);
+        return (ByteBuffer)destBuf.position(0).limit(len);
     }
 
 
@@ -867,7 +869,7 @@ logger.debug("      DataChannel Et: reset " + name + " channel");
         private final CountDownLatch latch = new CountDownLatch(1);
 
         /** The minimum amount of milliseconds between updates to the M value. */
-        private long timeBetweenMupdates = 500;
+        private final long timeBetweenMupdates = 500;
 
 
         /** Constructor. */
@@ -896,7 +898,7 @@ logger.debug("      DataChannel Et: reset " + name + " channel");
             try {
                 int sourceId, recordId;
                 BlockHeaderV4 header4;
-                EventType eventType, bankType;
+                EventType eventType;
                 ControlType controlType;
                 ByteBufferItem bbItem;
                 ByteBuffer buf;
@@ -933,9 +935,9 @@ logger.warn("      DataChannel Et in: " + name + " - PAUSED");
                     try {
 //System.out.print("      DataChannel Et in: " + name + " getEvents() ...");
                         if (useDirectEt) {
-                            eventsDirect = etSysLocal.getEvents(attachmentLocal, Mode.TIMED.getValue(),
-                                                                etWaitTime, chunk);
-                            events = eventsDirect;
+                            events = eventsDirect = etSysLocal.getEvents(attachmentLocal,
+                                                                         Mode.TIMED.getValue(),
+                                                                         etWaitTime, chunk);
                         }
                         else {
                             events = etSystem.getEvents(attachment, Mode.TIMED,
@@ -1077,11 +1079,10 @@ Utilities.printBuffer(buf, 0, 21, "BAD EVENT ");
                             // Complication: from the ROC, we'll be receiving USER events
                             // mixed in with and labeled as ROC Raw events. Check for that
                             // and fix it.
-                            bankType = eventType;
                             if (eventType == EventType.ROC_RAW) {
                                 if (Evio.isUserEvent(node)) {
 logger.info("      DataChannel Et in: " + name + " got USER event from ROC");
-                                    bankType = EventType.USER;
+                                    eventType = EventType.USER;
                                     isUser = true;
                                 }
                             }
@@ -1116,13 +1117,13 @@ logger.info("      DataChannel Et in: " + name + " got CONTROL event, " + contro
                             ri = ringBufferIn.get(nextRingItem);
 
                             // Set & reset all parameters of the ringItem
-                            if (bankType.isBuildable()) {
-                                ri.setAll(null, null, node, bankType, controlType,
+                            if (eventType.isBuildable()) {
+                                ri.setAll(null, null, node, eventType, controlType,
                                           isUser, hasFirstEvent, id, recordId, sourceId,
                                           node.getNum(), name, bbItem, bbSupply);
                             }
                             else {
-                                ri.setAll(null, null, node, bankType, controlType,
+                                ri.setAll(null, null, node, eventType, controlType,
                                           isUser, hasFirstEvent, id, recordId,
                                           sourceId, 1, name, bbItem, bbSupply);
                             }
@@ -1388,10 +1389,9 @@ logger.warn("      DataChannel Et in: " + name + " exit thd: " + e.getMessage())
 
 
         /**
-         * Main thread of ET output channel, this thread gathers the appropriate number
-         * of evio events from a module's output to place into a single ET buffer and
-         * places them all in the same container for the data-writing threads to use.
-         * It organizes things for the write threads.
+         * Main thread of ET output channel. This thread gets a "new" ET event,
+         * gathers the appropriate number of evio events from a module's output
+         * and writes them into that single ET buffer.
          */
         @Override
         public void run() {
@@ -1482,9 +1482,6 @@ logger.warn("      DataChannel Et in: " + name + " exit thd: " + e.getMessage())
                     // This will contain the new ET event to place data into.
                     //---------------------------------------------------------
                     container = rb.get(etNextFillSequence);
-                    // do in event getting thread
-                    //container.isEnd = false;
-                    //container.itemCount = 0;
                     event = container.event;
                     //------------------------------------------
 
@@ -1552,8 +1549,8 @@ logger.warn("      DataChannel Et in: " + name + " exit thd: " + e.getMessage())
 //", container item count = " + container.itemCount);
 
                         // If this ring item will not fit into current ET buffer,
-                        // either because there is no memory or there's a limit on
-                        // the # of evio events in a single ET buffer...
+                        // either because there is no more room or there's a limit on
+                        // the # of evio events in a single ET buffer ...
                         if ((bytesToEtBuf + ringItemSize > etSize) ||
                                 (container.itemCount >= maxEvioItemsPerEtBuf)) {
                             // If nothing written into ET buf yet ...
@@ -1736,12 +1733,6 @@ System.out.println("      DataChannel Et out: " + name + " warning - getting big
                                 outputRingIndex = ringIndex;
                             }
                         }
-//
-//                        // Next time we get an item off the input rings, use the correct ring.
-//                        // This is only an issue when module has multiple event-processing threads.
-//                        // It becomes even more complicated if module is a DC with output channels
-//                        // to multiple SEBs.
-//                        gotoNextRingItem(outputRingIndex);
 
 //System.out.println("      DataChannel Et out " + outputIndex + ": go to item " + nextSequences[outputRingIndex] +
 //" on ring " + outputRingIndex);
