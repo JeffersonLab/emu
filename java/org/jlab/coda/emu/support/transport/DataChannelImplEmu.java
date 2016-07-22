@@ -279,6 +279,9 @@ public class DataChannelImplEmu extends DataChannelAdapter {
             if (attribString != null && cMsgUtilities.isDottedDecimal(attribString) == null) {
                 preferredSubnet = null;
             }
+            else {
+                preferredSubnet = attribString;
+            }
             logger.info("      DataChannel Emu: over subnet " + preferredSubnet);
         }
 
