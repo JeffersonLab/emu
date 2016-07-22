@@ -164,7 +164,7 @@ public class RocSimulation extends ModuleAdapter {
         if (detectorId < 0) detectorId = 0;
 
         // How many entangled events in one data block?
-        eventBlockSize = 10;
+        eventBlockSize = 20;
         try { eventBlockSize = Integer.parseInt(attributeMap.get("blockSize")); }
         catch (NumberFormatException e) { /* defaults to 1 */ }
         if (eventBlockSize <   1) eventBlockSize = 1;
@@ -184,7 +184,7 @@ public class RocSimulation extends ModuleAdapter {
 
         // How many iterations (writes of an entangled block of evio events)
         // before syncing fake ROCs together?
-        syncCount = 100000;
+        syncCount = 500000;
         try { syncCount = Integer.parseInt(attributeMap.get("syncCount")); }
         catch (NumberFormatException e) { /* defaults to 100k */ }
         if (syncCount < 10) syncCount = 10;
@@ -193,7 +193,7 @@ public class RocSimulation extends ModuleAdapter {
         eventGeneratingThreads = new EventGeneratingThread[eventProducingThreads];
 
         // Is this ROC to be synced with others?
-        synced = false;
+        synced = true;
         s = attributeMap.get("sync");
         if (s != null) {
             if (s.equalsIgnoreCase("false") ||
@@ -910,7 +910,6 @@ System.out.println("  Roc mod: inserted PRESTART event");
         if (synced) {
             cMsgServer = emu.getCmsgPortal().getCmsgServer();
             try {
-System.out.println("  Roc mod: subscribe() to sub = sync, type = ROC");
                 cmsgSubHandle = cMsgServer.subscribe("sync", "ROC", callback, null);
             }
             catch (cMsgException e) {/* never happen */}
