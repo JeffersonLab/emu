@@ -207,6 +207,20 @@ public class Emu implements CODAComponent {
     //------------------------------------------------
 
     /**
+     * In the case that a configuration has more than 1 data stream -
+     * the number of ERs or final EBs - the components that write to a file
+     * (usually the ERs) need to know how many data streams there are in the
+     * configuration. This is necessary because when choosing a file name, the
+     * stream number will need to be appended at the end to distinguish between
+     * data files from different streams. This integer provides that information
+     * and defaults to one with the actual value coming from a payload item in the
+     * configuration command from run control.<p>
+     *
+     * Currently this is unused.
+     */
+    int dataStreamCount = 1;
+
+    /**
      * Configuration data can come from 3 sources:
      * run control string, run control file name, and debug gui file name.
      */
@@ -2236,7 +2250,13 @@ if (debug) logger.info("Emu " + name + " config: change state to CONFIGURING");
                         rcConfigFile = pItem.getString();
                     }
 
-                    // May have all if platform's IP addresses, dot-decimal format
+                    // May have number of data streams (final EB and ERs) in this configuration.
+                    pItem = cmd.getArg(RCConstants.configPayloadStreamCount);
+                    if (pItem != null) {
+                        dataStreamCount = pItem.getInt();
+                    }
+
+                    // May have all of platform's IP addresses, dot-decimal format,
                     // along with platform's cMsg domain server's TCP port
                     pItem = cmd.getArg(RCConstants.configPayloadPlatformHosts);
                     if (pItem != null) {
