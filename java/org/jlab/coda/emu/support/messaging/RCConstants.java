@@ -159,6 +159,9 @@ public class RCConstants {
     public static final String configPayloadPlatformHosts = "platformHost";
     /** String used as payload name for item holding platform's cMsg domain server's TCP port. */
     public static final String configPayloadPlatformPort = "platformPort";
+    /** String used as payload name for item holding configuration's count of data streams -
+     *  the number of final event builders and event recorders. */
+    public static final String configPayloadStreamCount = "nStreams";
 
     /** String used as payload name for item holding run type int. */
     public static final String prestartPayloadRunType = "configId";
