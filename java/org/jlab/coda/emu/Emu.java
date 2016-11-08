@@ -404,7 +404,7 @@ public class Emu implements CODAComponent {
                     // Wait for a bit then check flag again.
                     if (resetting) {
 //logger.info("Emu " + name + ": stop executing commands");
-                        Thread.sleep(200);
+                        Thread.sleep(100);
                         continue;
                     }
 
