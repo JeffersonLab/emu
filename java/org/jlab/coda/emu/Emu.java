@@ -221,6 +221,15 @@ public class Emu implements CODAComponent {
     int dataStreamCount = 1;
 
     /**
+     * If the current configuration has more than 1 data stream -
+     * the number of ERs or final EBs - and this component is one that writes
+     * to a file, this number identifies its stream uniquely.<p>
+     *
+     * Currently this is unused.
+     */
+    int dataStreamId;
+
+    /**
      * Configuration data can come from 3 sources:
      * run control string, run control file name, and debug gui file name.
      */
@@ -395,7 +404,7 @@ public class Emu implements CODAComponent {
                     // Wait for a bit then check flag again.
                     if (resetting) {
 //logger.info("Emu " + name + ": stop executing commands");
-                        Thread.sleep(500);
+                        Thread.sleep(200);
                         continue;
                     }
 
@@ -2254,6 +2263,12 @@ if (debug) logger.info("Emu " + name + " config: change state to CONFIGURING");
                     pItem = cmd.getArg(RCConstants.configPayloadStreamCount);
                     if (pItem != null) {
                         dataStreamCount = pItem.getInt();
+                    }
+
+                    // May have this data stream's id number.
+                    pItem = cmd.getArg(RCConstants.configPayloadStreamId);
+                    if (pItem != null) {
+                        dataStreamId = pItem.getInt();
                     }
 
                     // May have all of platform's IP addresses, dot-decimal format,
