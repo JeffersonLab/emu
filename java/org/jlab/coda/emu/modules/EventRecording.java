@@ -259,14 +259,16 @@ if (debug) System.out.println("  ER mod: will end thread but no END event!");
                         // Available sequence may be larger than what we desired
 //System.out.println("  ER mod: wait for seq " + nextSequence);
                         availableSequence = barrierIn.waitFor(nextSequence);
-                        // scale from 0% to 100% of ring buffer size
-                        inputChanLevels[0] = ((int)(availableSequence - nextSequence) + 1)*100/ringBufferSize;
+                    }
+
+                    // scale from 0% to 100% of ring buffer size
+                    inputChanLevels[0] = ((int)(availableSequence - nextSequence) + 1)*100/ringBufferSize;
 //System.out.println("  ER mod: avail = " + availableSequence + ", next = " + nextSequence +
 //", level = " + inputChanLevels[0]);
 //                        if (printCounter++ % 100000 == 0) {
 //                            System.out.println("in level = " + inputChanLevels[0]);
 //                        }
-                    }
+
 
                     while (nextSequence <= availableSequence) {
 
