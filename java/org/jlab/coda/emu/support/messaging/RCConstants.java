@@ -162,6 +162,8 @@ public class RCConstants {
     /** String used as payload name for item holding configuration's count of data streams -
      *  the number of final event builders and event recorders. */
     public static final String configPayloadStreamCount = "nStreams";
+    /** String used as payload name for item holding component's data streams id. */
+    public static final String configPayloadStreamId = "streamID";
 
     /** String used as payload name for item holding run type int. */
     public static final String prestartPayloadRunType = "configId";
