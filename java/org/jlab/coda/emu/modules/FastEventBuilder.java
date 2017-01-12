@@ -250,10 +250,9 @@ public class FastEventBuilder extends ModuleAdapter {
         // Set number of building threads (always >= 1, set in ModuleAdapter constructor)
         buildingThreadCount = eventProducingThreads;
 
-        // If # build threads not explicitly set in config, make it 1
-        // which seems to perform the best with high rates and small events.
+        // If # build threads not explicitly set in config, make it 3 for now
         if (!epThreadsSetInConfig) {
-            buildingThreadCount = eventProducingThreads = 1;
+            buildingThreadCount = eventProducingThreads = 3;
         }
 logger.info("  EB mod: " + buildingThreadCount + " number of event building threads");
 
@@ -887,7 +886,7 @@ System.out.println("  EB mod: send END event to output channel " + j + ", ring "
                 // Direct buffers give better performance ??
                 //--------------------------------------------
 
-                ByteBufferSupply bbSupply = new ByteBufferSupply(1024, 2000, outputOrder, false);
+                ByteBufferSupply bbSupply = new ByteBufferSupply(ringItemCount, 2000, outputOrder, false);
 System.out.println("  EB mod: bbSupply -> " + ringItemCount + " # of bufs, direct = " + false);
 
                 // Object for building physics events in a ByteBuffer
