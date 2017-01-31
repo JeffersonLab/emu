@@ -1747,9 +1747,10 @@ System.out.println("Timestamp NOT consistent: ev #" + (firstEventNumber + j) + "
 
                 // Check to see if all trigger bank tags are the same
                 if (tag != firstTrigTag) {
-                    throw new EmuException("Trigger banks have different tags, " +
-                    Integer.toHexString(firstTrigTag) + " != " + Integer.toHexString(tag) +
-                    " from roc " + inputPayloadBanks[i].getSourceName());
+                    throw new EmuException("Trigger banks have different tags, 0x" +
+                    Integer.toHexString(firstTrigTag) + "(" + inputPayloadBanks[0].getSourceName() +
+                    ") != 0x" + Integer.toHexString(tag) +
+                    " (" + inputPayloadBanks[i].getSourceName() + ")");
                 }
             }
         }
@@ -2200,9 +2201,10 @@ System.out.println("makeTriggerBankFromRocRaw: event # differs (in Bt# " + build
 
                 // Check to see if all trigger bank tags are the same
                 if (tag != firstTrigTag) {
-                    throw new EmuException("Trigger banks have different tags, " +
-                    Integer.toHexString(firstTrigTag) + " != " + Integer.toHexString(tag) +
-                    " from roc " + inputPayloadBanks[i].getSourceName());
+                    throw new EmuException("Trigger banks have different tags, 0x" +
+                    Integer.toHexString(firstTrigTag) + "(" + inputPayloadBanks[0].getSourceName() +
+                    ") != 0x" + Integer.toHexString(tag) +
+                    " (" + inputPayloadBanks[i].getSourceName() + ")");
                 }
             }
         }
