@@ -256,16 +256,10 @@
 
     <!-- Install in scripts in $CODA -->
     <target name="installScriptsInCODA" unless="prefixDefined" if="codaDefined">
-        <echo>Install scripts into ${env.CODA}/common/bin, ${env.CODA}/Linux-i686/bin, and ${env.CODA}/Linux-x86_64/bin</echo>
+        <echo>Install scripts into ${env.CODA}/common/bin</echo>
         <!-- Using "exec", bash and cp preserves file permissions, but "copy" does not -->
         <exec executable="bash">
             <arg line="-c 'mkdir ${env.CODA}/common/bin; cp -pr ${scripts.dir}/* ${env.CODA}/common/bin'" />
-        </exec>
-        <exec executable="bash">
-            <arg line="-c 'mkdir ${env.CODA}/Linux-i686/bin; cp -pr ${scripts.dir}/* ${env.CODA}/Linux-i686/bin'" />
-        </exec>
-        <exec executable="bash">
-            <arg line="-c 'mkdir ${env.CODA}/Linux-x86_64/bin; cp -pr ${scripts.dir}/* ${env.CODA}/Linux-x86_64/bin'" />
         </exec>
     </target>
 
