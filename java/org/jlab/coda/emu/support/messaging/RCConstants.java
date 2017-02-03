@@ -182,6 +182,7 @@ public class RCConstants {
     public static final String    codaClass            = "codaClass";
     public static final String    state                = "state";
     public static final String    eventCount           = "eventCount";
+    public static final String    eventCount64         = "eventCount64";
     public static final String    eventRate            = "eventRate";
     public static final String    dataRate             = "dataRate";
     public static final String    numberOfLongs        = "dataCount";

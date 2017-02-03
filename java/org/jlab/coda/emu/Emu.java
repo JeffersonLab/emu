@@ -869,6 +869,7 @@ System.out.println("Emu " + name + ": state set to ERROR\n\n");
                     reportMsg.addPayloadItem(new cMsgPayloadItem(RCConstants.objectType, "coda3"));
 
                     reportMsg.addPayloadItem(new cMsgPayloadItem(RCConstants.eventCount, (int)eventCount));
+                    reportMsg.addPayloadItem(new cMsgPayloadItem(RCConstants.eventCount64, eventCount));
                     reportMsg.addPayloadItem(new cMsgPayloadItem(RCConstants.numberOfLongs, wordCount));
                     // in Hz
                     reportMsg.addPayloadItem(new cMsgPayloadItem(RCConstants.eventRate, eventRate));
@@ -921,7 +922,7 @@ System.out.println("Emu " + name + ": state set to ERROR\n\n");
 //                        System.out.println("Emu " + name + ": try sending STATUS REPORTING Msg:");
 //                        System.out.println("   " + RCConstants.state + " = " + stateName);
 //                        System.out.println("   " + RCConstants.codaClass + " = " + codaClass.name());
-//                        System.out.println("   " + RCConstants.eventCount + " = " + (int)eventCount);
+//                        System.out.println("   " + RCConstants.eventCount + " = " + eventCount);
 //                        System.out.println("   " + RCConstants.eventRate + " = " + eventRate);
 //                        System.out.println("   " + RCConstants.numberOfLongs + " = " + wordCount);
 //                        System.out.println("   " + RCConstants.dataRate + " = " + (double)wordRate);
