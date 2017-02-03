@@ -90,6 +90,9 @@ public class Emu implements CODAComponent {
     /** For a ROC, the smallest number of evio-events/et-buffer that DC/PEB found. */
     private volatile int bufferLevel;
 
+    /** For a file output channel, flag (set at prestart) telling whether to write file or not. */
+    private boolean fileWritingOn = true;
+
     /**
      * The Emu can display a window containing debug information, a message log
      * and toolbars that allow commands to be issued without Run Control.
@@ -558,6 +561,14 @@ public class Emu implements CODAComponent {
      * @param codaClass
      */
     public void setCodaClass(CODAClass codaClass) {this.codaClass = codaClass;}
+
+    /**
+     * Set the flag to tell file output channel to actually write the file or not.
+     * @return {@code true} if file output channel will actually write the file, else {@code false}.
+     */
+    public boolean isFileWritingOn() {
+        return fileWritingOn;
+    }
 
     /**
      * Get the debug GUI object.
@@ -1769,6 +1780,15 @@ if (debug) logger.info("Emu " + name + " prestart: change state to PRESTARTING")
                 pItem = cmd.getArg(RCConstants.runNumberPayload);
                 if (pItem != null) {
                     setRunNumber(pItem.getInt());
+                }
+            }
+            catch (cMsgException e) {/* never happen */}
+
+            try {
+                // Should have writing file flag
+                pItem = cmd.getArg(RCConstants.fileWritingPayload);
+                if (pItem != null) {
+                    fileWritingOn = pItem.getInt() != 0;
                 }
             }
             catch (cMsgException e) {/* never happen */}

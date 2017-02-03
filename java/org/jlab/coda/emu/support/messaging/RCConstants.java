@@ -174,6 +174,8 @@ public class RCConstants {
     public static final String sessionPayload   = "session";
     /** String used as payload name for item holding run type name. */
     public static final String runTypePayload   = "config";
+    /** String used as payload name for flag telling emu to stop/start file writing. */
+    public static final String fileWritingPayload = "fileWriting";
 
 
     // cMsg message payload item names in report-status message

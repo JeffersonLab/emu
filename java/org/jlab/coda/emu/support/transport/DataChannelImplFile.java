@@ -531,16 +531,18 @@ logger.debug("      DataChannel File: reset() " + name + " - done");
         private final void writeEvioData(RingItem ri, boolean forceToDisk)
                 throws IOException, EvioException {
 
-            if (ri.getBuffer() != null) {
-//logger.info("      DataChannel File out: write buffer with order = " + ri.getBuffer().order());
-                evioFileWriter.writeEvent(ri.getBuffer(), forceToDisk);
-            }
-            else {
-//logger.info("      DataChannel File out: write buffer with order = " + ri.getNode().getBufferNode().getBuffer().order());
-                // Last boolean arg means do (not) duplicate node's buffer when writing.
-                // Setting this to false led to problems since the input channel is using
-                // the buffer at the same time.
-                evioFileWriter.writeEvent(ri.getNode(), forceToDisk, true);
+            if (emu.isFileWritingOn()) {
+                if (ri.getBuffer() != null) {
+    //logger.info("      DataChannel File out: write buffer with order = " + ri.getBuffer().order());
+                    evioFileWriter.writeEvent(ri.getBuffer(), forceToDisk);
+                }
+                else {
+    //logger.info("      DataChannel File out: write buffer with order = " + ri.getNode().getBufferNode().getBuffer().order());
+                    // Last boolean arg means do (not) duplicate node's buffer when writing.
+                    // Setting this to false led to problems since the input channel is using
+                    // the buffer at the same time.
+                    evioFileWriter.writeEvent(ri.getNode(), forceToDisk, true);
+                }
             }
 
             ri.releaseByteBuffer();
@@ -615,7 +617,9 @@ logger.debug("      DataChannel File: reset() " + name + " - done");
 //System.out.println("      DataChannel File out " + outputIndex + ": found user event");
                         if (ringItem.isFirstEvent()) {
 //System.out.println("      DataChannel File out " + outputIndex + ": writing first event");
-                            evioFileWriter.setFirstEvent(ringItem.getNode());
+                            if (emu.isFileWritingOn()) {
+                                evioFileWriter.setFirstEvent(ringItem.getNode());
+                            }
                             // The writer will handle the first event from here
                             ringItem.releaseByteBuffer();
                         }
@@ -700,7 +704,9 @@ logger.debug("      DataChannel File out " + outputIndex + ": got  ev " + nextEv
                     try {
                         // If this a user and "first event", let the writer know
                         if (ringItem.isFirstEvent()) {
-                            evioFileWriter.setFirstEvent(ringItem.getNode());
+                            if (emu.isFileWritingOn()) {
+                                evioFileWriter.setFirstEvent(ringItem.getNode());
+                            }
                             // The writer will handle the first event from here,
                             // go to the next event now.
                             ringItem.releaseByteBuffer();
