@@ -686,8 +686,12 @@ public class DataChannelImplEmu extends DataChannelAdapter {
                 channelState = CODAState.ERROR;
                 // If error msg already set, this will not
                 // set it again. It will send it to rc.
-                emu.setErrorState("DataChannel Emu in: " + e.getMessage());
-                logger.warn("      DataChannel Emu in: " + name + " error: " + e.getMessage());
+                String errString = "DataChannel Emu in: error reading " + name;
+                if (e.getMessage() != null) {
+                    errString += " " + e.getMessage();
+                }
+                emu.setErrorState(errString);
+                logger.warn("      " + errString);
             }
 //System.out.println("      DataChannel Emu in: " + name + " end thread");
         }
@@ -731,21 +735,21 @@ public class DataChannelImplEmu extends DataChannelAdapter {
             }
             catch (EvioException e) {
                 e.printStackTrace();
-                errorMsg.compareAndSet(null, "DataChannel Emu in: data NOT evio v4 format");
+                errorMsg.compareAndSet(null, "DataChannel Emu in: " + name + " data NOT evio v4 format");
                 throw e;
             }
 
             // First block header in buffer
             BlockHeaderV4 blockHeader = compactReader.getFirstBlockHeader();
             if (blockHeader.getVersion() < 4) {
-                errorMsg.compareAndSet(null, "DataChannel Emu in: data NOT evio v4 format");
+                errorMsg.compareAndSet(null, "DataChannel Emu in: " + name + " data NOT evio v4 format");
                 throw new EvioException("Data not in evio v4 format");
             }
 
             hasFirstEvent = blockHeader.hasFirstEvent();
             EventType eventType = EventType.getEventType(blockHeader.getEventType());
             if (eventType == null) {
-                errorMsg.compareAndSet(null, "DataChannel Emu in: bad format evio block header");
+                errorMsg.compareAndSet(null, "DataChannel Emu in: " + name + " bad format evio block header");
                 throw new EvioException("bad format evio block header");
             }
             int recordId = blockHeader.getNumber();
