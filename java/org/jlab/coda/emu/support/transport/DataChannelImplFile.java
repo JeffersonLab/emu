@@ -563,6 +563,10 @@ logger.debug("      DataChannel File: reset() " + name + " - done");
                 ControlType pBankControlType;
                 boolean gotPrestart=false;
 
+                if (!emu.isFileWritingOn()) {
+                    logger.debug("      DataChannel File out " + outputIndex + ": File writing TURNED OFF");
+                }
+
                 // The 1st event may be a user event or a prestart.
                 // After the prestart, the next event may be "go", "end", or a user event.
                 // The non-END control events are placed on ring 0 of all output channels.
@@ -746,7 +750,9 @@ logger.debug("      DataChannel File out " + outputIndex + ": got  ev " + nextEv
                     if (pBankControlType == ControlType.END) {
 //System.out.println("      DataChannel File out, " + outputIndex + ": got END event");
                         try {
-                            evioFileWriter.close();
+                            if (emu.isFileWritingOn()) {
+                                evioFileWriter.close();
+                            }
                         }
                         catch (Exception e) {
                             errorMsg.compareAndSet(null, "Cannot write to file");
