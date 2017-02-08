@@ -310,11 +310,15 @@ logger.debug("      DataChannel File: reset() " + name + " channel");
                     PayloadBuffer endBuf = Evio.createControlBuffer(ControlType.END, emu.getRunNumber(),
                                                                     emu.getRunTypeId(), (int) eventsWritten,
                                                                     0, byteOrder, true);
-                    evioFileWriter.writeEvent(endBuf.getBuffer());
+                    if (emu.isFileWritingOn()) {
+                        evioFileWriter.writeEvent(endBuf.getBuffer());
+                    }
                 }
 
                 // Then close to save everything to disk.
-                evioFileWriter.close();
+                if (emu.isFileWritingOn()) {
+                    evioFileWriter.close();
+                }
             }
         } catch (Exception e) {}
 
@@ -649,12 +653,14 @@ logger.debug("      DataChannel File: reset() " + name + " - done");
                 // END may come right after PRESTART
                 if (pBankControlType == ControlType.END) {
 logger.debug("      DataChannel File out " + outputIndex + ": wrote end");
-                    try {
-                        evioFileWriter.close();
-                    }
-                    catch (Exception e) {
-                        errorMsg.compareAndSet(null, "Cannot write to file");
-                        throw e;
+                    if (emu.isFileWritingOn()) {
+                        try {
+                            evioFileWriter.close();
+                        }
+                        catch (Exception e) {
+                            errorMsg.compareAndSet(null, "Cannot write to file");
+                            throw e;
+                        }
                     }
                     // run callback saying we got end event
                     if (endCallback != null) endCallback.endWait();
@@ -749,14 +755,14 @@ logger.debug("      DataChannel File out " + outputIndex + ": got  ev " + nextEv
 
                     if (pBankControlType == ControlType.END) {
 //System.out.println("      DataChannel File out, " + outputIndex + ": got END event");
-                        try {
-                            if (emu.isFileWritingOn()) {
+                        if (emu.isFileWritingOn()) {
+                            try {
                                 evioFileWriter.close();
                             }
-                        }
-                        catch (Exception e) {
-                            errorMsg.compareAndSet(null, "Cannot write to file");
-                            throw e;
+                            catch (Exception e) {
+                                errorMsg.compareAndSet(null, "Cannot write to file");
+                                throw e;
+                            }
                         }
                         // run callback saying we got end event
                         if (endCallback != null) endCallback.endWait();
