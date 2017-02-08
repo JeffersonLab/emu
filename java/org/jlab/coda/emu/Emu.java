@@ -1789,9 +1789,6 @@ if (debug) logger.info("Emu " + name + " prestart: change state to PRESTARTING")
                 pItem = cmd.getArg(RCConstants.fileWritingPayload);
                 if (pItem != null) {
                     fileWritingOn = pItem.getInt() != 0;
-                    if (!fileWritingOn) {
-                        logger.debug("Emu " + name + " prestart: File writing TURNED OFF");
-                    }
                 }
             }
             catch (cMsgException e) {/* never happen */}
