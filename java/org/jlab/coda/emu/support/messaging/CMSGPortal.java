@@ -437,26 +437,30 @@ logger.warn("Emu: exit due to rc/cMsg connect error: " + e.getMessage());
             // 5-8   = warning
             // 9-12  = error
             // 13-14 = severe
-            // 15    = reserved
+            // 15    = rc gui console msg, severity text is settable
             //
             // < 9 is ignored by rc gui
 
             // Default to info message
-            if (errorLevel.equalsIgnoreCase("WARN")) {
-                errorMessage.setUserInt(5);
+            if (errorLevel.equalsIgnoreCase("INFO")) {
+                errorMessage.setUserInt(LoggingEvent.INFO);
+                item = new cMsgPayloadItem("severity", "INFO");
+            }
+            else if (errorLevel.equalsIgnoreCase("WARN")) {
+                errorMessage.setUserInt(LoggingEvent.WARN);
                 item = new cMsgPayloadItem("severity", "WARN");
             }
             else if (errorLevel.equalsIgnoreCase("ERROR")) {
-                errorMessage.setUserInt(9);
+                errorMessage.setUserInt(LoggingEvent.ERROR);
                 item = new cMsgPayloadItem("severity", "ERROR");
             }
             else if (errorLevel.equalsIgnoreCase("BUG")) {
-                errorMessage.setUserInt(13);
+                errorMessage.setUserInt(LoggingEvent.BUG);
                 item = new cMsgPayloadItem("severity","SEVERE");
             }
             else {
-                errorMessage.setUserInt(1);
-                item = new cMsgPayloadItem("severity", "INFO");
+                errorMessage.setUserInt(LoggingEvent.RC_GUI_CONSOLE);
+                item = new cMsgPayloadItem("severity", errorLevel);
             }
             errorMessage.addPayloadItem(item);
         }

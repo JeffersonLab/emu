@@ -568,7 +568,8 @@ logger.debug("      DataChannel File: reset() " + name + " - done");
                 boolean gotPrestart=false;
 
                 if (!emu.isFileWritingOn()) {
-                    logger.debug("      DataChannel File out " + outputIndex + ": File writing TURNED OFF");
+                    logger.rcConsole("      DataChannel File out " + outputIndex +
+                                     ": File writing TURNED OFF", "N");
                 }
 
                 // The 1st event may be a user event or a prestart.

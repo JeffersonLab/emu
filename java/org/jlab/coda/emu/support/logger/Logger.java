@@ -404,6 +404,19 @@ public class Logger {
     }
 
     /**
+     * Method rc gui console ...
+     *
+     * @param message of type String
+     * @param severityText text describing severity of message,
+     *                     in this case it's user settable
+     */
+    public void rcConsole(String message, String severityText) {
+        if (isErrorEnabled()) {
+            write(LoggingEvent.RC_GUI_CONSOLE, message, null, severityText);
+        }
+    }
+
+    /**
      * Method callAppenders ...
      *
      * @param event of type LoggingEvent

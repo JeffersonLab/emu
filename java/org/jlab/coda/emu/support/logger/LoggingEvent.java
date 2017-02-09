@@ -13,6 +13,16 @@ package org.jlab.coda.emu.support.logger;
 /** @author vlads */
 public class LoggingEvent {
 
+    // Severity ID #:
+    // 0     = reserved
+    // 1-4   = info
+    // 5-8   = warning
+    // 9-12  = error
+    // 13-14 = severe
+    // 15    = rc gui console msg, severity text is settable
+    //
+    // < 9 is ignored by rc gui
+
     /** Field DEBUG */
     public final static int DEBUG = 1;
 
@@ -20,13 +30,16 @@ public class LoggingEvent {
     public final static int INFO = 2;
 
     /** Field WARN */
-    public final static int WARN = 3;
+    public final static int WARN = 5;
 
     /** Field ERROR */
-    public final static int ERROR = 4;
+    public final static int ERROR = 9;
 
     /** Field BUG */
-    public final static int BUG = 5;
+    public final static int BUG = 13;
+
+    /** Field RC GUI CONSOLE */
+    public final static int RC_GUI_CONSOLE = 15;
 
     /** Field level */
     private int level;
@@ -174,6 +187,11 @@ public class LoggingEvent {
         return this.throwable;
     }
 
+
+    /**
+     * Get the string associated with the format level of this event.
+     * @return string associated with the format level of this event.
+     */
     public String getFormatedLevel() {
         switch (level) {
             case BUG:
@@ -186,6 +204,11 @@ public class LoggingEvent {
                 return "INFO";
             case DEBUG:
                 return "DEBUG";
+            case RC_GUI_CONSOLE:
+                if (hasData) {
+                    return (String)data;
+                }
+                return "NO_LEVEL";
             default:
                 return "UNKNOWN";
         }
