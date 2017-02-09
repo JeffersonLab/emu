@@ -11,6 +11,8 @@ endif
 #setenv PATH $CODA/$MACHINE/bin
 #setenv LD_LIBRARY_PATH $CODA/$MACHINE/lib
 
+setenv MALLOC_ARENA_MAX 1
+
 # For code profiling tools:
 #$JAVA_HOME/bin/java -XX:+UnlockCommercialFeatures -XX:+FlightRecorder -cp $CODA/common/jar/\* \
 

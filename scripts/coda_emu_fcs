@@ -11,6 +11,8 @@ endif
 #setenv PATH $CODA/$MACHINE/bin
 #setenv LD_LIBRARY_PATH $CODA/$MACHINE/lib
 
+setenv MALLOC_ARENA_MAX 1
+
 $JAVA_HOME/bin/java -cp $CODA/common/jar/\* \
     -Djava.net.preferIPv4Stack=true \
     -Djava.library.path=$CODA/$MACHINE/lib \
