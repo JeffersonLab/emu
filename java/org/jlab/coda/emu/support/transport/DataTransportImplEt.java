@@ -557,7 +557,6 @@ logger.debug("    DataTransport Et: tell ET to die - " + openConfig.getEtName())
         if (etSysLocal != null) {
 logger.debug("    DataTransport Et: shutdown local Java ET system");
             etSysLocal.shutdown();
-//            etSysLocal = null;
         }
         // Stop ET system running in a separate process
         else {
@@ -566,8 +565,7 @@ logger.debug("    DataTransport Et: try killing local C ET system");
                 try {
                     // Tell ET to die directly and remove file, if we're still attached.
                     etSystem.kill();
-//                    etSystem = null;
-logger.debug("    DataTransport Et: ET is dead");
+logger.debug("    DataTransport Et: told ET directly to die");
                     return true;
                 }
                 catch (IOException e) {
@@ -582,11 +580,12 @@ logger.debug("    DataTransport Et: ET is dead");
 
                 try {
                     processET.waitFor();
-//                    etSystem = null;
-logger.debug("    DataTransport Et: ET is dead");
+logger.debug("    DataTransport Et: used java process handle to kill ET");
                     killedIt = true;
+                    processET = null;
                 }
-                catch (InterruptedException e) {}
+                catch (InterruptedException e) {
+                }
             }
         }
 
@@ -656,8 +655,8 @@ logger.debug("    DataTransport Et: ET is dead");
         try {
             while (true) {
                 etSystem.open();
-                logger.debug("    DataTransport Et: kill existing ET system: " + name() +
-                        " on " + etSystem.getHost());
+                logger.debug("    DataTransport Et: opened existing ET system, " + name() +
+                        " on " + etSystem.getHost() + ", try to kill it ...");
                 killEtSystem();
             }
         }
