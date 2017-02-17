@@ -705,7 +705,7 @@ logger.debug("    DataTransport Et: used java process handle to kill ET");
                 }
 
                 // Pipe output to log file
-//                etCmd += " > " + (etOpenConfig.getEtName() + ".log");
+                etCmd += " > " + (etOpenConfig.getEtName() + ".log");
 
 //                String[] cmd = new String[] {"/bin/sh", "-c", etCmd};
 logger.debug("    DataTransport Et: create local C ET system, " + etOpenConfig.getEtName() + " with cmd:\n" + etCmd);
