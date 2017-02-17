@@ -704,12 +704,17 @@ logger.debug("    DataTransport Et: used java process handle to kill ET");
                     etCmd += " -nd";
                 }
 
-                // Pipe output to log file
-                etCmd += " > " + (etOpenConfig.getEtName() + ".log");
+//                // Pipe output to log file
+//                String cmds[] = new String[5];
+//                cmds[0] = "script";
+//                cmds[1] = "-c" ;
+//                cmds[2] = etCmd;
+//                cmds[3] = "-f" ;
+//                cmds[4] = etOpenConfig.getEtName() + ".log";
+//
+//                processET = Runtime.getRuntime().exec(cmds);
 
-//                String[] cmd = new String[] {"/bin/sh", "-c", etCmd};
 logger.debug("    DataTransport Et: create local C ET system, " + etOpenConfig.getEtName() + " with cmd:\n" + etCmd);
-//                processET = Runtime.getRuntime().exec(cmd);
                 processET = Runtime.getRuntime().exec(etCmd);
 
                 // Allow process a chance to run before testing if its terminated.
@@ -767,6 +772,7 @@ logger.debug("    DataTransport Et: created system " + etOpenConfig.getEtName() 
 
         }
         catch (Exception e) {
+            e.printStackTrace();
             etSystem = null;
             transportState = CODAState.ERROR;
             emu.setErrorState("Transport et: cannot run ET system, " + e.getMessage());
