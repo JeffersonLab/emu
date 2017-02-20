@@ -83,6 +83,16 @@ public class CMSGPortal implements LoggerAppender {
             rcUDL = "cMsg:rc://multicast/" + emu.getExpid();
         }
 
+        // User can specify, on the command line, the dot-decimal interface
+        // address for the rc server to use exclusively when connecting to
+        // this rc client. If no connection is possible at that address,
+        // then the rc connection will fail.
+        String rcAddress = System.getProperty("rcAddr");
+        if (rcAddress != null) {
+System.out.println("Emu: rc server must use address = " + rcAddress);
+            rcUDL += "&ip=" + rcAddress;
+        }
+
 System.out.println("Emu: CMSGPortal using rc UDL = " + rcUDL);
         logger = emu.getLogger();
         logger.addAppender(this);
