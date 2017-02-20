@@ -13,7 +13,7 @@ endif
 #setenv PATH $CODA/$MACHINE/bin
 #setenv LD_LIBRARY_PATH $CODA/$MACHINE/lib
 
-setenv MALLOC_ARENA_MAX 2
+#setenv MALLOC_ARENA_MAX 2
 
 if ($#argv > 2) then
 $JAVA_HOME/bin/java -cp $CODA/common/jar/\* \
