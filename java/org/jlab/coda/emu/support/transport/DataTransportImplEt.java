@@ -640,7 +640,7 @@ logger.debug("    DataTransport Et: used java process handle to kill ET");
                     EtConstants.hostAnywhere, mAddrs,
                     openConfig.getUdpPort(), 32);
 
-            etOpenConfig.setWaitTime(1000);
+            etOpenConfig.setWaitTime(2000);
             etOpenConfig.setConnectRemotely(true);
             etSystem = new EtSystem(etOpenConfig);
             //etSystem.setDebug(EtConstants.debugInfo);
