@@ -90,7 +90,7 @@ public class CMSGPortal implements LoggerAppender {
         String rcAddress = System.getProperty("rcAddr");
         if (rcAddress != null) {
 System.out.println("Emu: rc server must use address = " + rcAddress);
-            rcUDL += "&ip=" + rcAddress;
+            rcUDL += "?ip=" + rcAddress;
         }
 
 System.out.println("Emu: CMSGPortal using rc UDL = " + rcUDL);
