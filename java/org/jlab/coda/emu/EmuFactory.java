@@ -60,6 +60,7 @@ public class EmuFactory {
                 "        [-Dsession=xxx]      set experimental session name\n"+
                 "        [-Duser.name=xxx]    set user's name (defaults to expid, then session)\n"+
                 "        [-DcmsgUDL=xxx]      set UDL to connect to cMsg server\n"+
+                "        [-DrcAddr=xxx]       set IP address to use with RC server\n"+
                 "        [-DDebugUI]          display a control GUI\n");
     }
 
