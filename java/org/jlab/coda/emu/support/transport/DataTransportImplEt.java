@@ -677,7 +677,7 @@ logger.debug("    DataTransport Et: used java process handle to kill ET");
                 // After creating the ET, we want to connect in a different way,
                 // directly to a local system as a remote client (so no memory mapping).
                 etOpenConfig = new EtSystemOpenConfig(openConfig);
-                etOpenConfig.setWaitTime(2000);
+                etOpenConfig.setWaitTime(30000);
                 etOpenConfig.setConnectRemotely(true);
 
                 String etCmd = "et_start -v -f " + etOpenConfig.getEtName() +
