@@ -743,7 +743,7 @@ System.out.println("  ER mod: recording thread ending");
         // This sequence is the last consumer before producer comes along
         ringBufferIn.addGatingSequences(sequenceIn);
 
-        // We have 1 barrier (shared by recording threads)
+        // We have 1 barrier for recording thread
         barrierIn = ringBufferIn.newBarrier();
 
 
