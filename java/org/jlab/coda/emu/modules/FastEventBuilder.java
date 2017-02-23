@@ -151,6 +151,10 @@ public class FastEventBuilder extends ModuleAdapter {
     /** The eventNumber value when the last sync event arrived. */
     private volatile long eventNumberAtLastSync;
 
+    /** If <code>true</code>, this emu has received
+     *  all prestart events (1 per input channel). */
+    private volatile boolean haveAllPrestartEvents;
+
     /** If <code>true</code>, produce debug print out. */
     private boolean debug = true;
 
@@ -972,7 +976,8 @@ System.out.println("  EB mod: bbSupply -> " + ringItemCount + " # of bufs, direc
                     return;
                 }
 
-                System.out.println("  EB mod: got all PRESTART events");
+                haveAllPrestartEvents = true;
+System.out.println("  EB mod: got all PRESTART events");
 
                 // Second thing we do is look for the GO or END event and pass it on
                 try {
@@ -1903,6 +1908,7 @@ if (debug) System.out.println("  EB mod: endBuildThreads: will end building/fill
         runNumber = emu.getRunNumber();
         eventNumberAtLastSync = 1L;
         haveEndEvent = false;
+        haveAllPrestartEvents = false;
 
         // Print thread names
 //        int thdCount = Thread.activeCount();
@@ -1922,8 +1928,15 @@ if (debug) System.out.println("  EB mod: endBuildThreads: will end building/fill
     }
 
 
-    /** {@inheritDoc} */
-    public void go() {
+    /**
+     * {@inheritDoc}
+     * @throws CmdExecException if not all prestart events were received
+     */
+    public void go() throws CmdExecException {
+        if (!haveAllPrestartEvents) {
+            throw new CmdExecException("have not received all prestart events");
+        }
+
         moduleState = CODAState.ACTIVE;
         paused = false;
 
