@@ -159,6 +159,17 @@ public class Logger {
     }
 
     /**
+     * Method write ...
+     *
+     * @param level     of type int
+     * @param message   of type String
+     * @param data      of type Object
+     */
+    private void write(int level, String message, Object data) {
+        callAppenders(new LoggingEvent(level, message, null, null, data));
+    }
+
+    /**
      * Method debug ...
      *
      * @param message of type String
@@ -412,7 +423,7 @@ public class Logger {
      */
     public void rcConsole(String message, String severityText) {
         if (isErrorEnabled()) {
-            write(LoggingEvent.RC_GUI_CONSOLE, message, null, severityText);
+            write(LoggingEvent.RC_GUI_CONSOLE, message, severityText);
         }
     }
 
