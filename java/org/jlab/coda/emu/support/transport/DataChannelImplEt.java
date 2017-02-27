@@ -1559,9 +1559,11 @@ logger.warn("      DataChannel Et in: " + name + " exit thd: " + e.getMessage())
                                 etSystem.dumpEvents(attachment, new EtEvent[]{event});
 
                                 // Get 1 bigger & better ET buf as a replacement
+
 System.out.println("      DataChannel Et out: " + name + " warning - getting bigger (temp) ET event");
                                 EtEvent[] evts = etSystem.newEvents(attachment, Mode.SLEEP, false,
                                                                     0, 1, ringItemSize, group);
+emu.sendRcErrorMessage("Using ET over-sized temp event");
                                 event = evts[0];
 
                                 // Put the new ET buf into ring slot's container
