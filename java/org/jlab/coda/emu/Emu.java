@@ -1388,7 +1388,7 @@ logger.error("Emu " + name + ": got SET_BUF_LEVEL command but bad value (" + buf
                  (cmsgPortal.getRcServer() != null) &&
                  (cmsgPortal.getRcServer().isConnected())) {
 
-                replyToRunControl(RCConstants.getStatusResponse,
+                replyToRunControl(RCConstants.getStateResponse,
                                   null, state().name().toLowerCase(),
                                   cmd.getMessage());
             }
