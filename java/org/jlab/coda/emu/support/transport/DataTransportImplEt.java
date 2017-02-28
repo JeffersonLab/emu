@@ -714,10 +714,10 @@ logger.debug("    DataTransport Et: used java process handle to kill ET");
                 cmds[1] = "-c" ;
                 cmds[2] = etCmd;
                 cmds[3] = "-f" ;
-                cmds[4] = etOpenConfig.getEtName() + "-" + emu.getRunNumber()  + ".log";
+                cmds[4] = etOpenConfig.getEtName() + "-" + (emu.getRunNumber() + 1) + ".log";
 
 logger.debug("    DataTransport Et: create local C ET system, " + etOpenConfig.getEtName() + " with cmd:\n" +
-             "script -c \"" + etCmd + "\" -f " + etOpenConfig.getEtName()+ "-" + emu.getRunNumber() + ".log");
+             "script -c \"" + etCmd + "\" -f " + etOpenConfig.getEtName()+ "-" + (emu.getRunNumber() + 1) + ".log");
                 processET = Runtime.getRuntime().exec(cmds);
 
                 // Allow process a chance to run before testing if its terminated.
