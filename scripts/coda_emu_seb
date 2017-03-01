@@ -16,6 +16,7 @@ endif
 
 if ($#argv > 1) then
 $JAVA_HOME/bin/java -cp $CODA/common/jar/\* \
+    -XX:+PerfDisableSharedMem \
     -DrcAddr=$2 \
     -Djava.net.preferIPv4Stack=true \
     -Djava.library.path=$CODA/$MACHINE/lib \
@@ -24,6 +25,7 @@ $JAVA_HOME/bin/java -cp $CODA/common/jar/\* \
     -Dtype=SEB org.jlab.coda.emu.EmuFactory
 else
 $JAVA_HOME/bin/java -cp $CODA/common/jar/\* \
+    -XX:+PerfDisableSharedMem \
     -Djava.net.preferIPv4Stack=true \
     -Djava.library.path=$CODA/$MACHINE/lib \
     -DcmsgUDL="rc://multicast/"$EXPID \
