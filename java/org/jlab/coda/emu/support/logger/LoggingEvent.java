@@ -102,7 +102,7 @@ public class LoggingEvent {
      *
      * @return the data (type Object) of this LoggingEvent object.
      */
-    Object getData() {
+    public Object getData() {
         return this.data;
     }
 
@@ -111,7 +111,7 @@ public class LoggingEvent {
      *
      * @param data the data of this LoggingEvent object.
      */
-    void setData(Object data) {
+    public void setData(Object data) {
         this.data = data;
         this.hasData = true;
     }

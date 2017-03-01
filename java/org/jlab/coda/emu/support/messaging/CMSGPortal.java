@@ -412,10 +412,12 @@ logger.warn("Emu: exit due to rc/cMsg connect error: " + e.getMessage());
      * Update the cMsg message used to send dalogmsg's.
      * @param errorMsg    error message to send
      * @param errorLevel  error severity
+     * @param severityString  string for payload "severity"
      */
-    private void updateAndSendLoggingMessage(String errorMsg, String errorLevel) {
+    private void updateAndSendLoggingMessage(String errorMsg, int errorLevel,
+                                             String severityString) {
 
-        if (errorMsg == null || errorLevel == null) {
+        if (errorMsg == null) {
             return;
         }
 
@@ -452,27 +454,16 @@ logger.warn("Emu: exit due to rc/cMsg connect error: " + e.getMessage());
             // < 9 is ignored by rc gui
 
             // Default to info message
-            if (errorLevel.equalsIgnoreCase("INFO")) {
-                errorMessage.setUserInt(LoggingEvent.INFO);
-                item = new cMsgPayloadItem("severity", "INFO");
+            if (errorLevel < 1 || errorLevel > 15) {
+                errorLevel = LoggingEvent.INFO;
             }
-            else if (errorLevel.equalsIgnoreCase("WARN")) {
-                errorMessage.setUserInt(LoggingEvent.WARN);
-                item = new cMsgPayloadItem("severity", "WARN");
+
+            if (severityString != null && severityString.length() > 0) {
+                item = new cMsgPayloadItem("severity", severityString);
+                errorMessage.addPayloadItem(item);
             }
-            else if (errorLevel.equalsIgnoreCase("ERROR")) {
-                errorMessage.setUserInt(LoggingEvent.ERROR);
-                item = new cMsgPayloadItem("severity", "ERROR");
-            }
-            else if (errorLevel.equalsIgnoreCase("BUG")) {
-                errorMessage.setUserInt(LoggingEvent.BUG);
-                item = new cMsgPayloadItem("severity","SEVERE");
-            }
-            else {
-                errorMessage.setUserInt(LoggingEvent.RC_GUI_CONSOLE);
-                item = new cMsgPayloadItem("severity", errorLevel);
-            }
-            errorMessage.addPayloadItem(item);
+
+            errorMessage.setUserInt(errorLevel);
         }
         catch (cMsgException e) {/* never happen */}
 
@@ -499,7 +490,16 @@ logger.warn("Emu: exit due to rc/cMsg connect error: " + e.getMessage());
         if (event == null) {
             return;
         }
-        updateAndSendLoggingMessage(event.getMessage(), event.getFormatedLevel());
+
+        // Some events have a String data object
+        String severity = null;
+        Object obj = event.getData();
+        if ((obj != null) && (obj instanceof String)) {
+            severity = (String) obj;
+            System.out.println("\n\n\n\nCall dalog message method with severity string = " + severity + "\n\n\n\n");
+        }
+
+        updateAndSendLoggingMessage(event.getMessage(), event.getLevel(), severity);
     }
 
 
@@ -508,7 +508,7 @@ logger.warn("Emu: exit due to rc/cMsg connect error: " + e.getMessage());
      * @param text text of message
      */
     synchronized public void rcGuiErrorMessage(String text) {
-        updateAndSendLoggingMessage(text, "ERROR");
+        updateAndSendLoggingMessage(text, LoggingEvent.ERROR, null);
     }
 
 
