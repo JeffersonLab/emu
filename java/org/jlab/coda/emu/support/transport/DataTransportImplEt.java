@@ -26,10 +26,7 @@ import org.jlab.coda.emu.support.logger.Logger;
 import org.jlab.coda.et.system.SystemCreate;
 
 import java.io.*;
-import java.util.ArrayList;
-import java.util.Map;
-import java.util.Collection;
-import java.util.Arrays;
+import java.util.*;
 
 /**
  * This class specifies a single ET system to connect to.
@@ -706,7 +703,10 @@ logger.debug("    DataTransport Et: used java process handle to kill ET");
 
 //logger.debug("    DataTransport Et: create local C ET system, " + etOpenConfig.getEtName() +
 //                     " with cmd:\n" + etCmd);
-                //processET = Runtime.getRuntime().exec(etCmd);
+                Calendar cal = Calendar.getInstance();
+                String now = cal.get(Calendar.HOUR_OF_DAY) + ":" +
+                             cal.get(Calendar.MINUTE) + ":" +
+                             cal.get(Calendar.SECOND);
 
                 // Pipe output to log file
                 String cmds[] = new String[5];
@@ -714,10 +714,10 @@ logger.debug("    DataTransport Et: used java process handle to kill ET");
                 cmds[1] = "-c" ;
                 cmds[2] = etCmd;
                 cmds[3] = "-f" ;
-                cmds[4] = etOpenConfig.getEtName() + "-" + (emu.getRunNumber() + 1) + ".log";
+                cmds[4] = etOpenConfig.getEtName() + "-" + now + ".log";
 
 logger.debug("    DataTransport Et: create local C ET system, " + etOpenConfig.getEtName() + " with cmd:\n" +
-             "script -c \"" + etCmd + "\" -f " + etOpenConfig.getEtName()+ "-" + (emu.getRunNumber() + 1) + ".log");
+             "script -c \"" + etCmd + "\" -f " + etOpenConfig.getEtName()+ "-" + now + ".log");
                 processET = Runtime.getRuntime().exec(cmds);
 
                 // Allow process a chance to run before testing if its terminated.
