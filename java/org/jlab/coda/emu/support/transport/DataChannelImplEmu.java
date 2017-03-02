@@ -691,9 +691,8 @@ System.out.println("      DataChannel Emu in: unknown command from Emu client = 
                     errString += " " + e.getMessage();
                 }
                 emu.setErrorState(errString);
-                logger.warn("      " + errString);
+System.out.println("      " + errString);
             }
-//System.out.println("      DataChannel Emu in: " + name + " end thread");
         }
 
 
@@ -734,7 +733,6 @@ System.out.println("      DataChannel Emu in: unknown command from Emu client = 
                 }
             }
             catch (EvioException e) {
-                e.printStackTrace();
                 errorMsg.compareAndSet(null, "DataChannel Emu in: " + name + " data NOT evio v4 format");
                 throw e;
             }
@@ -742,7 +740,6 @@ System.out.println("      DataChannel Emu in: unknown command from Emu client = 
             // First block header in buffer
             BlockHeaderV4 blockHeader = compactReader.getFirstBlockHeader();
             if (blockHeader.getVersion() < 4) {
-System.out.println("      DataChannel Emu in: " + name + " data NOT evio v4 format");
                 errorMsg.compareAndSet(null, "DataChannel Emu in: " + name + " data NOT evio v4 format");
                 throw new EvioException("Data not in evio v4 format");
             }
@@ -750,7 +747,6 @@ System.out.println("      DataChannel Emu in: " + name + " data NOT evio v4 form
             hasFirstEvent = blockHeader.hasFirstEvent();
             EventType eventType = EventType.getEventType(blockHeader.getEventType());
             if (eventType == null) {
-System.out.println("      DataChannel Emu in: " + name + " bad format evio block header");
                 errorMsg.compareAndSet(null, "DataChannel Emu in: " + name + " bad format evio block header");
                 throw new EvioException("bad format evio block header");
             }
@@ -797,7 +793,6 @@ System.out.println("      DataChannel Emu in: " + name + " bad format evio block
                     controlType = ControlType.getControlType(node.getTag());
 logger.info("      DataChannel Emu in: " + name + " " + controlType + " event from ROC");
                     if (controlType == null) {
-System.out.println("      DataChannel Emu in: " + name + " found unidentified control event");
                         errorMsg.compareAndSet(null, "DataChannel Emu in: found unidentified control event");
                         throw new EvioException("Found unidentified control event");
                     }
@@ -1270,7 +1265,6 @@ logger.info("      DataChannel Emu out: " + name + " got RESET cmd, quitting");
                 channelState = CODAState.ERROR;
 System.out.println("      DataChannel Emu out:" + e.getMessage());
                 emu.setErrorState("DataChannel Emu out: " + e.getMessage());
-                logger.warn("      DataChannel Emu out: exit thd: " + e.getMessage());
             }
         }
 
