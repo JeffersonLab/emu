@@ -546,23 +546,23 @@ System.out.println("    DataTransport Et: ignoring preferred subnet of " + prefe
      */
     private boolean killEtSystem() {
 
-logger.debug("    DataTransport Et: tell ET to die - " + openConfig.getEtName());
+logger.info("    DataTransport Et: tell ET to die - " + openConfig.getEtName());
 
         boolean killedIt = false;
 
         // Stop ET system running in this JVM
         if (etSysLocal != null) {
-logger.debug("    DataTransport Et: shutdown local Java ET system");
+logger.info("    DataTransport Et: shutdown local Java ET system");
             etSysLocal.shutdown();
         }
         // Stop ET system running in a separate process
         else {
-logger.debug("    DataTransport Et: try killing local C ET system");
+logger.info("    DataTransport Et: try killing local C ET system");
             if (etSystem != null) {
                 try {
                     // Tell ET to die directly and remove file, if we're still attached.
                     etSystem.kill();
-logger.debug("    DataTransport Et: told ET directly to die");
+logger.info("    DataTransport Et: told ET directly to die");
                     return true;
                 }
                 catch (IOException e) {
@@ -577,7 +577,7 @@ logger.debug("    DataTransport Et: told ET directly to die");
 
                 try {
                     processET.waitFor();
-logger.debug("    DataTransport Et: used java process handle to kill ET");
+logger.info("    DataTransport Et: used java process handle to kill ET");
                     killedIt = true;
                     processET = null;
                 }
@@ -645,15 +645,15 @@ logger.debug("    DataTransport Et: used java process handle to kill ET");
         catch (EtException e) {
             transportState = CODAState.ERROR;
             emu.setErrorState("Transport et: self-contradictory ET system config");
-            logger.debug("    DataTransport Et: self-contradictory ET system config : " + name());
+            System.out.println("    DataTransport Et: self-contradictory ET system config : " + name());
             throw new CmdExecException("Self-contradictory ET system config", e);
         }
 
         try {
             while (true) {
                 etSystem.open();
-                logger.debug("    DataTransport Et: opened existing ET system, " + name() +
-                        " on " + etSystem.getHost() + ", try to kill it ...");
+                logger.info("    DataTransport Et: opened existing ET system, " + name() +
+                            " on " + etSystem.getHost() + ", try to kill it ...");
                 killEtSystem();
             }
         }
@@ -764,9 +764,8 @@ logger.debug("    DataTransport Et: create local C ET system, " + etOpenConfig.g
                     etSystem = null;
                     transportState = CODAState.ERROR;
                     emu.setErrorState("Transport et: created ET system " + etOpenConfig.getEtName() + ", but cannot connect");
-logger.debug("    DataTransport Et: created system " + etOpenConfig.getEtName() + ", cannot connect");
-                    e.printStackTrace();
-                    throw new CmdExecException("created ET, " + etOpenConfig.getEtName() + ", but cannot connect");
+System.out.println("    DataTransport Et: created system " + etOpenConfig.getEtName() + ", cannot connect");
+                    throw new CmdExecException("created ET, " + etOpenConfig.getEtName() + ", but cannot connect", e);
                 }
 
                 // Thread to run in case of control-C
@@ -779,6 +778,7 @@ logger.debug("    DataTransport Et: created system " + etOpenConfig.getEtName() 
             etSystem = null;
             transportState = CODAState.ERROR;
             emu.setErrorState("Transport et: cannot run ET system, " + e.getMessage());
+System.out.println("    DataTransport Et: created system " + e.getMessage());
             throw new CmdExecException("cannot run ET system", e);
         }
 
