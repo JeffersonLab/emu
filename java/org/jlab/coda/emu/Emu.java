@@ -304,7 +304,7 @@ public class Emu implements CODAComponent {
                 codaClass = cc;
             }
         }
-        System.out.println("Emu created, name = " + name + ", type = " + codaClass);
+System.out.println("Emu created, name = " + name + ", type = " + codaClass);
 
         this.name = name;
         this.debug = debug;
@@ -423,7 +423,7 @@ public class Emu implements CODAComponent {
                         } catch (IllegalArgumentException e) {
                             e.printStackTrace();
                             // This just means that the command was not supported
-                            logger.info("Emu " + name + ": command, " + cmd + ", not supported ");
+                            logger.warn("Emu " + name + ": command, " + cmd + ", not supported ");
                             continue;
                         }
                     }
@@ -696,7 +696,8 @@ public class Emu implements CODAComponent {
         synchronized (this) {
             this.state = state;
         }
-System.out.println("Emu " + name + ": state set to " + state.name() + "\n\n");
+logger.info("Emu " + name + ": state set to " + state.name());
+System.out.println("\n\n");
     }
 
     /**
@@ -722,7 +723,8 @@ System.out.println("Emu " + name + ": state set to " + state.name() + "\n\n");
                 // errorSent is reset to false in reset() method
                 errorSent = true;
             }
-System.out.println("Emu " + name + ": state set to ERROR\n\n");
+logger.error("Emu " + name + ": state set to ERROR");
+System.out.println("\n\n");
         }
     }
 
@@ -998,7 +1000,7 @@ System.out.println("Emu " + name + ": state set to ERROR\n\n");
 
     /** Exit this Emu (there still may be other threads running in the JVM). */
     void quit() {
-logger.info("Emu " + name + " quit: in");
+logger.info("Emu " + name + " quitting");
         // Shutdown all channel, module, & transport threads
         reset();
 
@@ -1026,7 +1028,7 @@ logger.info("Emu " + name + " quit: in");
      * Synchronized on emu.
      */
     synchronized public void reset() {
-logger.info("Emu " + name + " reset: in");
+logger.info("Emu " + name + " resetting");
         // Stop any more run control commands from being executed
         resetting = true;
 
@@ -1052,28 +1054,27 @@ logger.info("Emu " + name + " reset: in");
         // Reset channels first
         if (inChannels.size() > 0) {
             for (DataChannel chan : inChannels) {
-logger.info("Emu " + name + " reset: reset in chan " + chan.name());
+if (debug) System.out.println("Emu " + name + " reset: reset in chan " + chan.name());
                 chan.reset();
             }
         }
 
         // Reset all modules
         for (EmuModule module : modules) {
-logger.debug("Emu " + name + " reset: try to reset module " + module.name());
+if (debug) System.out.println("Emu " + name + " reset: try to reset module " + module.name());
             module.reset();
-//logger.debug("Emu reset: done resetting module " + module.name());
         }
 
         if (outChannels.size() > 0) {
             for (DataChannel chan : outChannels) {
-logger.info("Emu " + name + ": reset out chan " + chan.name());
+if (debug) System.out.println("Emu " + name + ": reset out chan " + chan.name());
                 chan.reset();
             }
         }
 
         // Reset transport objects
         for (DataTransport t : transports) {
-logger.debug("Emu " + name + " reset: reset transport " + t.name());
+if (debug) System.out.println("Emu " + name + " reset: reset transport " + t.name());
             t.reset();
         }
 
@@ -1707,7 +1708,7 @@ logger.info("Emu " + name + " go: change state to GOING");
             // Fake TS does not have any I/O so handle it here
             if (codaClass == CODAClass.TS) {
                 modules.get(0).go();
-if (debug) logger.info("Emu " + name + " go: GO cmd to module " + modules.get(0).name());
+if (debug) System.out.println("Emu " + name + " go: GO cmd to module " + modules.get(0).name());
                 setState(ACTIVE);
                 return;
             }
@@ -1720,39 +1721,39 @@ if (debug) logger.info("Emu " + name + " go: GO cmd to module " + modules.get(0)
 
             // (1) GO to transport objects
             for (DataTransport transport : transports) {
-if (debug) logger.debug("Emu " + name + " go: GO cmd to transport " + transport.name());
+if (debug) System.out.println("Emu " + name + " go: GO cmd to transport " + transport.name());
                 transport.go();
             }
 
             // (2) GO to output channels (of LAST module)
             if (outChannels.size() > 0) {
                 for (DataChannel chan : outChannels) {
-if (debug) logger.info("Emu " + name + " go: GO cmd to out chan " + chan.name());
+if (debug) System.out.println("Emu " + name + " go: GO cmd to out chan " + chan.name());
                     chan.go();
                 }
             }
 
             // (3) GO to all modules in reverse order (starting with last)
             for (int i=mods.size()-1; i >= 0; i--) {
-if (debug) logger.info("Emu " + name + " go: GO cmd to module " + mods.get(i).name());
+if (debug) System.out.println("Emu " + name + " go: GO cmd to module " + mods.get(i).name());
                 mods.get(i).go();
             }
 
             // (4) GO to input channels (of FIRST module)
             if (inChannels.size() > 0) {
                 for (DataChannel chan : inChannels) {
-if (debug) logger.info("Emu " + name + " go: GO cmd to in chan " + chan.name());
+if (debug) System.out.println("Emu " + name + " go: GO cmd to in chan " + chan.name());
                     chan.go();
                 }
             }
         }
         catch (OutOfMemoryError e) {
-logger.error("Emu " + name + " go: jvm out of memory, exiting");
+System.out.println("Emu " + name + " go: jvm out of memory, exiting");
             setErrorState("Emu " + name + " go: jvm out of memory, exiting");
             System.exit(-1);
         }
         catch (CmdExecException e) {
-logger.error("Emu " + name + " go: " + e.getMessage());
+System.out.println("Emu " + name + " go: " + e.getMessage());
             setErrorState("Emu " + name + " go: " + e.getMessage());
             return;
         }
@@ -1768,7 +1769,7 @@ logger.error("Emu " + name + " go: " + e.getMessage());
      * @param cmd
      */
     private void prestart(Command cmd) {
-if (debug) logger.info("Emu " + name + " prestart: change state to PRESTARTING");
+logger.info("Emu " + name + " prestart: change state to PRESTARTING");
         setState(PRESTARTING);
 
         // Run Control tells us our run number & runType.
@@ -1801,7 +1802,7 @@ if (debug) logger.info("Emu " + name + " prestart: change state to PRESTARTING")
             // Fake TS does not have transport channels so handle it here
             if (codaClass == CODAClass.TS) {
                 modules.get(0).prestart();
-                if (debug) logger.debug("Emu " + name + " prestart: PRESTART cmd to module " + modules.get(0).name());
+if (debug) System.out.println("Emu " + name + " prestart: PRESTART cmd to module " + modules.get(0).name());
                 setState(PAUSED);
                 return;
             }
@@ -1810,7 +1811,7 @@ if (debug) logger.info("Emu " + name + " prestart: change state to PRESTARTING")
             // PRESTART to transport objects first
             //------------------------------------------------
             for (DataTransport transport : transports) {
-                if (debug) logger.debug("Emu " + name + " prestart: PRESTART cmd to " + transport.name());
+if (debug) System.out.println("Emu " + name + " prestart: PRESTART cmd to " + transport.name());
                 transport.prestart();
             }
 
@@ -1949,7 +1950,7 @@ if (debug) logger.info("Emu " + name + " prestart: change state to PRESTARTING")
 
             // Output channels
             for (DataChannel chan : outChannels) {
-                if (debug) logger.debug("Emu " + name + " prestart: PRESTART cmd to OUT chan " + chan.name());
+if (debug) System.out.println("Emu " + name + " prestart: PRESTART cmd to OUT chan " + chan.name());
                 chan.prestart();
             }
 
@@ -1959,24 +1960,24 @@ if (debug) logger.info("Emu " + name + " prestart: change state to PRESTARTING")
                 // if previous transition was "END"
                 module.getEndCallback().reset();
 
-                if (debug) logger.debug("Emu " + name + " prestart: PRESTART cmd to module " + module.name());
+if (debug) System.out.println("Emu " + name + " prestart: PRESTART cmd to module " + module.name());
                 module.prestart();
             }
 
             // Input channels
             for (DataChannel chan : inChannels) {
-                if (debug) logger.debug("Emu " + name + " prestart: PRESTART cmd to IN chan " + chan.name());
+if (debug) System.out.println("Emu " + name + " prestart: PRESTART cmd to IN chan " + chan.name());
                 chan.prestart();
             }
 
         }
         catch (OutOfMemoryError e) {
-logger.error("Emu " + name + " prestart: jvm out of memory, exiting");
-                setErrorState("Emu " + name + " prestart: jvm out of memory, exiting");
-                System.exit(-1);
+System.out.println("Emu " + name + " prestart: jvm out of memory, exiting");
+            setErrorState("Emu " + name + " prestart: jvm out of memory, exiting");
+            System.exit(-1);
         }
         catch (Exception e) {
-logger.error("Emu " + name + " prestart: " + e.getMessage());
+System.out.println("Emu " + name + " prestart: " + e.getMessage());
             setErrorState("Emu " + name + " prestart: " + e.getMessage());
             return;
         }
@@ -1992,7 +1993,7 @@ logger.error("Emu " + name + " prestart: " + e.getMessage());
      * @param cmd
      */
     private void download(Command cmd) {
-if (debug) logger.info("Emu " + name + " download: change state to DOWNLOADING");
+logger.info("Emu " + name + " download: change state to DOWNLOADING");
         setState(DOWNLOADING);
 
         try {
@@ -2022,7 +2023,7 @@ if (debug) logger.info("Emu " + name + " download: change state to DOWNLOADING")
                     // close the existing transport objects first
                     // (this step is normally done from RESET).
                     for (DataTransport t : transports) {
-                        if (debug) logger.debug("Emu " + name + " download: transport " + t.name() + " reset");
+if (debug) System.out.println("Emu " + name + " download: transport " + t.name() + " reset");
                         t.reset();
                     }
 
@@ -2068,7 +2069,7 @@ logger.warn("Emu " + name + " download: transport section present in config but 
                             if (transportName == null) {
                                 throw new DataNotFoundException("transport name attribute missing in config");
                             }
-if (debug) logger.info("Emu " + name + " download: creating " + transportName);
+if (debug) System.out.println("Emu " + name + " download: creating " + transportName);
 
                             // Generate a name for the implementation of this transport
                             // from the name passed from the configuration.
@@ -2116,7 +2117,7 @@ logger.warn("Emu " + name + " download: transport section missing/incomplete fro
 
                 // Pass command down to all transport objects
                 for (DataTransport transport : transports) {
-if (debug) logger.debug("Emu " + name + " download: pass download down to " + transport.name());
+if (debug) System.out.println("Emu " + name + " download: pass download down to " + transport.name());
                     transport.download();
                 }
             }
@@ -2167,9 +2168,9 @@ if (debug) logger.debug("Emu " + name + " download: pass download down to " + tr
                     }
                     else {
 
-if (debug) logger.info("Emu " + name + " download: load module class " + moduleClassName +
-                       " to create a module of name " + n.getNodeName() +
-                       "\n  in classpath = " + System.getProperty("java.class.path"));
+if (debug) System.out.println("Emu " + name + " download: load module class " + moduleClassName +
+                              " to create a module of name " + n.getNodeName() +
+                              "\n  in classpath = " + System.getProperty("java.class.path"));
 
                         // Load the class using the JVM's standard class loader
                         Class c = Class.forName(moduleClassName);
@@ -2181,10 +2182,10 @@ if (debug) logger.info("Emu " + name + " download: load module class " + moduleC
                         // Create an instance
                         Object[] args = {n.getNodeName(), attributeMap, this};
                         module = (EmuModule) co.newInstance(args);
-//logger.info("Emu " + name + " download: load module " + moduleClassName);
+//if (debug) System.out.println("Emu " + name + " download: loaded module " + moduleClassName);
                     }
 
-if (debug) logger.info("Emu " + name + " download: create module " + module.name());
+if (debug) System.out.println("Emu " + name + " download: create module " + module.name());
 
                     // Give it object to notify Emu when END event comes through
                     module.registerEndCallback(new EmuEventNotify());
@@ -2198,18 +2199,18 @@ if (debug) logger.info("Emu " + name + " download: create module " + module.name
             // Pass DOWNLOAD to all the modules. "modules" is only
             // changed in this method so no synchronization is necessary.
             for (EmuModule module : modules) {
-if (debug) logger.info("Emu " + name + " download: pass download to module " + module.name());
+if (debug) System.out.println("Emu " + name + " download: pass download to module " + module.name());
                 module.download();
             }
         }
         catch (OutOfMemoryError e) {
-logger.error("Emu " + name + " download: jvm out of memory, exiting");
+System.out.println("Emu " + name + " download: jvm out of memory, exiting");
             setErrorState("Emu " + name + " download: jvm out of memory, exiting");
             System.exit(-1);
         }
         // This includes ClassNotFoundException
         catch (Exception e) {
-logger.error("Emu " + name + " download error: ", e.getMessage());
+System.out.println("Emu " + name + " download error: " + e.getMessage());
             setErrorState("Emu " + name + " download: " + e.getMessage());
             return;
         }
@@ -2225,7 +2226,7 @@ logger.error("Emu " + name + " download error: ", e.getMessage());
      * @param cmd
      */
     private void configure(Command cmd) {
-if (debug) logger.info("Emu " + name + " config: change state to CONFIGURING");
+logger.info("Emu " + name + " config: change state to CONFIGURING");
         setState(CONFIGURING);
 
         // save a reference to any previously used config
@@ -2311,7 +2312,7 @@ System.out.println("Emu " + name + " config: connect to cMsg server");
                 }
                 catch (cMsgException e) {/* never happen */}
                 catch (EmuException e) {
-logger.error("Emu " + name + " config: ", e.getMessage());
+System.out.println("Emu " + name + " config: " + e.getMessage());
                     setErrorState("Emu " + name + " config: " + e.getMessage());
                     return;
                 }
@@ -2387,7 +2388,7 @@ System.out.println("Emu " + name + " config: loading file " + rcConfigFile);
         }
         // parsing XML error
         catch (DataNotFoundException e) {
-logger.error("Emu " + name + " config: ", e.getMessage());
+System.out.println("Emu " + name + " config: " + e.getMessage());
             setErrorState("Emu " + name + " config: " + e.getMessage());
             return;
         }
@@ -2722,12 +2723,12 @@ if (debug) System.out.println("Emu " + name + " config: Got config type = " + my
 
             }
             catch (OutOfMemoryError e) {
-    logger.error("Emu " + name + " config: jvm out of memory, exiting");
+System.out.println("Emu " + name + " config: jvm out of memory, exiting");
                 setErrorState("Emu " + name + " config: jvm out of memory, exiting");
                 System.exit(-1);
             }
             catch (DataNotFoundException e) {
-logger.error("Emu " + name + " config: ", e.getMessage());
+System.out.println("Emu " + name + " config: " + e.getMessage());
                 setErrorState("Emu " + name + " config: " + e.getMessage());
                 lastConfigHadError = true;
                 return;
