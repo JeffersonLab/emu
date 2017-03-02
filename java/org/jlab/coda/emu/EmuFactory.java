@@ -61,6 +61,7 @@ public class EmuFactory {
                 "        [-Duser.name=xxx]    set user's name (defaults to expid, then session)\n"+
                 "        [-DcmsgUDL=xxx]      set UDL to connect to cMsg server\n"+
                 "        [-DrcAddr=xxx]       set IP address to use with RC server\n"+
+                "        [-Ddebug=true]       turn on debug printout\n"+
                 "        [-DDebugUI]          display a control GUI\n");
     }
 
@@ -178,14 +179,20 @@ System.out.println("Found types:");
             }
         }
 
+        // Debug print out option
+        boolean debugOn = false;
+        String debug = System.getProperty("debug");
+        if (debug != null && (debug.equalsIgnoreCase("on") || debug.equalsIgnoreCase("true"))) {
+            debugOn = true;
+        }
 
         // Create EMU objects here. By this time we should have all the names.
         for (int i=0; i < names.size(); i++) {
             if (types.size() > 0) {
-                new Emu(names.get(i), types.get(i), debugUI);
+                new Emu(names.get(i), types.get(i), debugUI, debugOn);
             }
             else {
-                new Emu(names.get(i), null, debugUI);
+                new Emu(names.get(i), null, debugUI, debugOn);
             }
         }
     }
