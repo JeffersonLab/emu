@@ -324,7 +324,7 @@ public class DataChannelImplEmu extends DataChannelAdapter {
         // quite a bit in speed.
         bbSupply = new ByteBufferSupply(16, maxBufferSize, ByteOrder.BIG_ENDIAN, direct, true);
 
-        System.out.println("      DataChannel Emu in: connection made from " + name);
+System.out.println("      DataChannel Emu in: connection made from " + name);
 
         // Start thread to handle all socket input
         startInputThread();
@@ -366,7 +366,7 @@ public class DataChannelImplEmu extends DataChannelAdapter {
         emuDomain = new cMsg(udl, name, "emu domain client");
         emuDomain.connect();
 
-        System.out.println("      DataChannel Emu: connected to server w/ UDL = " + udl);
+System.out.println("      DataChannel Emu: connected to server w/ UDL = " + udl);
 
         startOutputThread();
     }
@@ -669,7 +669,7 @@ public class DataChannelImplEmu extends DataChannelAdapter {
                             break;
 
                         default:
-                            System.out.println("      DataChannel Emu in: unknown command from Emu client = " + cmd);
+System.out.println("      DataChannel Emu in: unknown command from Emu client = " + cmd);
                     }
 
                     if (haveInputEndEvent) {
@@ -742,6 +742,7 @@ public class DataChannelImplEmu extends DataChannelAdapter {
             // First block header in buffer
             BlockHeaderV4 blockHeader = compactReader.getFirstBlockHeader();
             if (blockHeader.getVersion() < 4) {
+System.out.println("      DataChannel Emu in: " + name + " data NOT evio v4 format");
                 errorMsg.compareAndSet(null, "DataChannel Emu in: " + name + " data NOT evio v4 format");
                 throw new EvioException("Data not in evio v4 format");
             }
@@ -749,6 +750,7 @@ public class DataChannelImplEmu extends DataChannelAdapter {
             hasFirstEvent = blockHeader.hasFirstEvent();
             EventType eventType = EventType.getEventType(blockHeader.getEventType());
             if (eventType == null) {
+System.out.println("      DataChannel Emu in: " + name + " bad format evio block header");
                 errorMsg.compareAndSet(null, "DataChannel Emu in: " + name + " bad format evio block header");
                 throw new EvioException("bad format evio block header");
             }
@@ -795,6 +797,7 @@ public class DataChannelImplEmu extends DataChannelAdapter {
                     controlType = ControlType.getControlType(node.getTag());
 logger.info("      DataChannel Emu in: " + name + " " + controlType + " event from ROC");
                     if (controlType == null) {
+System.out.println("      DataChannel Emu in: " + name + " found unidentified control event");
                         errorMsg.compareAndSet(null, "DataChannel Emu in: found unidentified control event");
                         throw new EvioException("Found unidentified control event");
                     }
@@ -1129,7 +1132,7 @@ logger.info("      DataChannel Emu in: " + name + " found END event");
                             if (gotPrestart) {
                                 throw new EmuException("got 2 prestart events");
                             }
-logger.debug("      DataChannel Emu out " + outputIndex + ": send prestart event");
+logger.info("      DataChannel Emu out " + outputIndex + ": send prestart event");
                             gotPrestart = true;
                             writeEvioData(ringItem);
                         }
@@ -1144,7 +1147,7 @@ logger.debug("      DataChannel Emu out " + outputIndex + ": send prestart event
                                 throw new EmuException("second control event must be go or end");
                             }
 
-logger.debug("      DataChannel Emu out " + outputIndex + ": send " + pBankControlType + " event");
+logger.info("      DataChannel Emu out " + outputIndex + ": send " + pBankControlType + " event");
                             writeEvioData(ringItem);
 
                             // Release and go to the next event
@@ -1172,7 +1175,7 @@ logger.debug("      DataChannel Emu out " + outputIndex + ": send " + pBankContr
 
                 if (pBankControlType == ControlType.END) {
                     flushEvents(true);
-                    logger.debug("      DataChannel Emu out: " + name + " I got END event, quitting");
+logger.info("      DataChannel Emu out: " + name + " I got END event, quitting");
                     // run callback saying we got end event
                     if (endCallback != null) endCallback.endWait();
                     threadState = ThreadState.DONE;
@@ -1207,8 +1210,8 @@ logger.debug("      DataChannel Emu out " + outputIndex + ": send " + pBankContr
                         // in a ring which was not the one to be read next.
                         // We've had 1/4 second to read everything else so let's try
                         // reading END from this now-known "unexpected" ring.
-                        logger.debug("      DataChannel Emu out " + outputIndex + ": try again, read END from ringIndex " +
-                                             ringIndexEnd + " not " + ringIndex);
+logger.info("      DataChannel Emu out " + outputIndex + ": try again, read END from ringIndex " +
+                                          ringIndexEnd + " not " + ringIndex);
                         ringItem = getNextOutputRingItem(ringIndexEnd);
                     }
 
@@ -1223,7 +1226,7 @@ logger.debug("      DataChannel Emu out " + outputIndex + ": send " + pBankContr
                         throw e;
                     }
 
-//logger.debug("      DataChannel Emu out: send seq " + nextSequences[ringIndex] + ", release ring item");
+//logger.info("      DataChannel Emu out: send seq " + nextSequences[ringIndex] + ", release ring item");
                     releaseCurrentAndGoToNextOutputRingItem(ringIndex);
 
                     // Do not go to the next ring if we got a control or user event.
@@ -1232,12 +1235,12 @@ logger.debug("      DataChannel Emu out " + outputIndex + ": send " + pBankContr
                     // we know when to switch to the next ring.
                     if (outputRingCount > 1 && pBankControlType == null && !pBankType.isUser()) {
                         setNextEventAndRing();
-//logger.debug("      DataChannel Emu out, " + name + ": for seq " + nextSequences[ringIndex] + " SWITCH TO ring = " + ringIndex);
+//logger.info("      DataChannel Emu out, " + name + ": for seq " + nextSequences[ringIndex] + " SWITCH TO ring = " + ringIndex);
                     }
 
                     if (pBankControlType == ControlType.END) {
                         flushEvents(true);
-                        logger.debug("      DataChannel Emu out: " + name + " got END event, quitting");
+logger.info("      DataChannel Emu out: " + name + " got END event, quitting");
                         // run callback saying we got end event
                         if (endCallback != null) endCallback.endWait();
                         threadState = ThreadState.DONE;
@@ -1246,7 +1249,7 @@ logger.debug("      DataChannel Emu out " + outputIndex + ": send " + pBankContr
 
                     // If I've been told to RESET ...
                     if (gotResetCmd) {
-                        logger.debug("      DataChannel Emu out: " + name + " got RESET cmd, quitting");
+logger.info("      DataChannel Emu out: " + name + " got RESET cmd, quitting");
                         threadState = ThreadState.DONE;
                         return;
                     }
@@ -1265,8 +1268,9 @@ logger.debug("      DataChannel Emu out " + outputIndex + ": send " + pBankContr
             }
             catch (Exception e) {
                 channelState = CODAState.ERROR;
-                emu.setErrorState("DataChannel cmsg in: " + e.getMessage());
-                logger.warn("      DataChannel Emu out : exit thd: " + e.getMessage());
+System.out.println("      DataChannel Emu out:" + e.getMessage());
+                emu.setErrorState("DataChannel Emu out: " + e.getMessage());
+                logger.warn("      DataChannel Emu out: exit thd: " + e.getMessage());
             }
         }
 
