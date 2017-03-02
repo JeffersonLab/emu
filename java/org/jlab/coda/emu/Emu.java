@@ -127,7 +127,7 @@ public class Emu implements CODAComponent {
     /** Path that the data takes through the parts of the emu. */
     private EmuDataPath dataPath;
 
-    private final boolean debug = false;
+    private boolean debug = false;
 
     //------------------------------------------------
     // State / error
@@ -289,9 +289,10 @@ public class Emu implements CODAComponent {
      * @param name            name of Emu
      * @param type            CODA component type of Emu
      * @param debugUI         start a debug GUI
+     * @param debug           turn on debug printout
      * @throws EmuException   if name is null, or cannot connect to rc server
      */
-    public Emu(String name, String type, boolean debugUI) throws EmuException {
+    public Emu(String name, String type, boolean debugUI, boolean debug) throws EmuException {
 
         if (name == null) {
             throw new EmuException("Emu name not defined");
@@ -306,6 +307,7 @@ public class Emu implements CODAComponent {
         System.out.println("Emu created, name = " + name + ", type = " + codaClass);
 
         this.name = name;
+        this.debug = debug;
 
         // Set the name of this EMU
         setName(name);
@@ -1303,10 +1305,10 @@ logger.info("Emu " + name + " reset: done, setting state to " + state);
      * @param cmd of type Command
      */
     public void execute(Command cmd) {
-logger.info("Emu " + name + ": start executing cmd = " + cmd.name());
+System.out.println("Emu " + name + ": start executing cmd = " + cmd.name());
 
         if (resetting) {
-logger.warn("Emu " + name + ": do not execute cmd = " + cmd.name() + ", resetting");
+System.out.println("Emu " + name + ": do not execute cmd = " + cmd.name() + ", resetting");
             return;
         }
 
@@ -1332,7 +1334,7 @@ logger.warn("Emu " + name + ": do not execute cmd = " + cmd.name() + ", resettin
             if (pItem != null) {
                 try {
                     session = pItem.getString();
-if (debug) logger.info("Emu " + name + " SET_SESSION: set to " + session);
+if (debug) System.out.println("Emu " + name + " SET_SESSION: set to " + session);
                 }
                 catch (cMsgException e) {
 logger.error("Got SET_SESSION command but no session specified 1");
@@ -1352,7 +1354,7 @@ logger.error("Got SET_SESSION command but no session specified 2");
                 try {
                     String txt = pItem.getString();
                     setRunType(txt);
-if (debug) logger.info("Emu " + name + " SET_RUN_TYPE: set to " + txt);
+if (debug) System.out.println("Emu " + name + " SET_RUN_TYPE: set to " + txt);
                 }
                 catch (cMsgException e) {
 logger.error("Emu " + name + ": got SET_RUN_TYPE command but no run type specified 1");
@@ -1536,7 +1538,7 @@ logger.error("Emu " + name + ": got SET_BUF_LEVEL command but bad value (" + buf
         }
 
         if (state == ERROR) {
-logger.info("Emu " + name + ": transition NOT successful, state = ERROR");
+logger.error("Emu " + name + ": transition NOT successful, state = ERROR");
         }
     }
 
@@ -1546,7 +1548,7 @@ logger.info("Emu " + name + ": transition NOT successful, state = ERROR");
      * Implement end command.
      */
     private void end() {
-if (debug) logger.info("Emu " + name + " end: change state to ENDING");
+logger.info("Emu " + name + " end: change state to ENDING");
         setState(ENDING);
 
         // How long do we wait for the END event (in milliseconds)?
@@ -1559,7 +1561,7 @@ if (debug) logger.info("Emu " + name + " end: change state to ENDING");
             // Fake TS does not have any I/O so handle it here
             if (codaClass == CODAClass.TS) {
                 modules.get(0).end();
-if (debug) logger.info("Emu " + name + " end: END cmd to module " + modules.get(0).name());
+if (debug) System.out.println("Emu " + name + " end: END cmd to module " + modules.get(0).name());
                 setState(DOWNLOADED);
                 return;
             }
@@ -1584,9 +1586,9 @@ if (debug) logger.info("Emu " + name + " end: END cmd to module " + modules.get(
             for (EmuModule mod : mods) {
                 Class c = mod.getClass();
                 if (c.getName().equals("org.jlab.coda.emu.modules.RocSimulation")) {
-if (debug) logger.info("Emu " + name + " end: call end() in fake ROC " + mod.name());
+if (debug) System.out.println("Emu " + name + " end: call end() in fake ROC " + mod.name());
                     mod.end();
-if (debug) logger.info("Emu " + name + " end: end() done in fake ROC " + mod.name());
+if (debug) System.out.println("Emu " + name + " end: end() done in fake ROC " + mod.name());
                     break;
                 }
             }
@@ -1607,12 +1609,12 @@ if (debug) logger.info("Emu " + name + " end: end() done in fake ROC " + mod.nam
             // Look at the last module (30 sec timeout)
             if (mods.size() > 0) {
                 try {
-if (debug) logger.info("Emu " + name + " end: wait for END event in module " + mods.getLast().name());
+if (debug) System.out.println("Emu " + name + " end: wait for END event in module " + mods.getLast().name());
                     gotEndEvent = mods.getLast().getEndCallback().waitForEvent(timeout, timeUnits);
-if (debug) logger.info("Emu " + name + " end: got END event in module " + mods.getLast().name());
+if (debug) System.out.println("Emu " + name + " end: got END event in module " + mods.getLast().name());
                     if (!gotEndEvent) {
-if (debug) logger.info("Emu " + name + " end: timeout (30 sec) waiting for END event in module " + mods.getLast().name());
-                        setErrorState("Emu: timeout waiting for END event in module " + mods.getLast().name());
+if (debug) System.out.println("Emu " + name + " end: timeout (30 sec) waiting for END event in module " + mods.getLast().name());
+                        setErrorState("Emu " + name + " end: timeout waiting for END event in module " + mods.getLast().name());
                     }
                     gotAllEnds = gotEndEvent;
                 }
@@ -1623,12 +1625,12 @@ if (debug) logger.info("Emu " + name + " end: timeout (30 sec) waiting for END e
             if (gotAllEnds && outChannels.size() > 0) {
                 for (DataChannel chan : outChannels) {
                     try {
-if (debug) logger.info("Emu " + name + " end: output chan " + chan.name() + " call waitForEvent()");
+if (debug) System.out.println("Emu " + name + " end: output chan " + chan.name() + " call waitForEvent()");
                         gotEndEvent = chan.getEndCallback().waitForEvent(timeout, timeUnits);
-if (debug) logger.info("Emu " + name + " end: output chan " + chan.name() + " gotEndEvent = " + gotEndEvent);
+if (debug) System.out.println("Emu " + name + " end: output chan " + chan.name() + " gotEndEvent = " + gotEndEvent);
                         if (!gotEndEvent) {
-if (debug) logger.info("Emu " + name + " end: timeout (30 sec) waiting for END event in output chan " + chan.name());
-                            setErrorState("Emu: timeout waiting for END event in output chan " + chan.name());
+if (debug) System.out.println("Emu " + name + " end: timeout (30 sec) waiting for END event in output chan " + chan.name());
+                            setErrorState("Emu " + name + " end: timeout waiting for END event in output chan " + chan.name());
                         }
                         gotAllEnds = gotAllEnds && gotEndEvent;
                     }
@@ -1637,13 +1639,13 @@ if (debug) logger.info("Emu " + name + " end: timeout (30 sec) waiting for END e
             }
 
             if (!gotAllEnds) {
-                logger.info("Emu " + name + " end: END event did NOT make it through EMU");
+                logger.error("Emu " + name + " end: END event did NOT make it through EMU");
             }
 
             // (2) END command to input channels (of FIRST module)
             if (inChannels.size() > 0) {
                 for (DataChannel chan : inChannels) {
-if (debug) logger.info("Emu " + name + " end: END cmd to in chan " + chan.name());
+if (debug) System.out.println("Emu " + name + " end: END cmd to in chan " + chan.name());
                     chan.end();
                 }
             }
@@ -1657,33 +1659,33 @@ if (debug) logger.info("Emu " + name + " end: END cmd to in chan " + chan.name()
                     continue;
                 }
 
-if (debug) logger.info("Emu " + name + " end: END cmd to module " + mod.name());
+if (debug) System.out.println("Emu " + name + " end: END cmd to module " + mod.name());
                 mod.end();
             }
 
             // (4) END command to output channels (of LAST module)
             if (outChannels.size() > 0) {
                 for (DataChannel chan : outChannels) {
-if (debug) logger.info("Emu " + name + " end: END cmd to out chan " + chan.name());
+if (debug) System.out.println("Emu " + name + " end: END cmd to out chan " + chan.name());
                     chan.end();
                 }
             }
 
             // (5) END command to transport objects
             for (DataTransport transport : transports) {
-if (debug) logger.debug("Emu " + name + " end: END cmd to transport " + transport.name());
+if (debug) System.out.println("Emu " + name + " end: END cmd to transport " + transport.name());
                 transport.end();
             }
             fifoTransport.end();
 
         }
         catch (OutOfMemoryError e) {
-logger.error("Emu " + name + " end: jvm out of memory, exiting");
+System.out.println("Emu " + name + " end: jvm out of memory, exiting");
             setErrorState("Emu " + name + " end: jvm out of memory, exiting");
             System.exit(-1);
         }
         catch (CmdExecException e) {
-logger.error("Emu " + name + " end: " + e.getMessage());
+System.out.println("Emu " + name + " end: " + e.getMessage());
             setErrorState("Emu " + name + " end:" + e.getMessage());
             return;
         }
@@ -1698,7 +1700,7 @@ logger.error("Emu " + name + " end: " + e.getMessage());
      * Implement go command.
      */
     private void go() {
-if (debug) logger.info("Emu " + name + " go: change state to GOING");
+logger.info("Emu " + name + " go: change state to GOING");
         setState(GOING);
 
         try {
