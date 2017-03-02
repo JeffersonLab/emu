@@ -496,7 +496,6 @@ logger.warn("Emu: exit due to rc/cMsg connect error: " + e.getMessage());
         Object obj = event.getData();
         if ((obj != null) && (obj instanceof String)) {
             severity = (String) obj;
-            System.out.println("\n\n\n\nCall dalog message method with severity string = " + severity + "\n\n\n\n");
         }
 
         updateAndSendLoggingMessage(event.getMessage(), event.getLevel(), severity);
