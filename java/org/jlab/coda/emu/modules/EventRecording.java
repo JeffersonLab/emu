@@ -191,7 +191,7 @@ public class EventRecording extends ModuleAdapter {
             }
 
             if (!haveEndEvent) {
-if (debug) System.out.println("  ER mod: will end thread but no END event!");
+System.out.println("  ER mod: will end thread but no END event!");
                 moduleState = CODAState.ERROR;
                 emu.setErrorState("ER will end thread but no END event");
             }
@@ -419,7 +419,7 @@ if (debug) System.out.println("  ER mod: will end thread but no END event!");
 
                     // If END event, interrupt other record threads then quit this one.
                     if (controlType == ControlType.END) {
-System.out.println("  ER mod: found END event");
+logger.info("  ER mod: found END event");
                         haveEndEvent = true;
                         if (endCallback != null) endCallback.endWait();
                         return;
@@ -454,30 +454,30 @@ System.out.println("  ER mod: found END event");
 
                 }
                 catch (InterruptedException e) {
-if (debug) System.out.println("  ER mod: INTERRUPTED recording thread " + Thread.currentThread().getName());
+System.out.println("  ER mod: INTERRUPTED recording thread " + Thread.currentThread().getName());
                     return;
                 }
                 catch (AlertException e) {
-if (debug) System.out.println("  ER mod: ring buf alert");
+System.out.println("  ER mod: ring buf alert");
                     // If we haven't yet set the cause of error, do so now & inform run control
                     moduleState = CODAState.ERROR;
                     emu.setErrorState("ER ring buf alert");
                     return;
                 }
                 catch (TimeoutException e) {
-if (debug) System.out.println("  ER mod: ring buf timeout");
+System.out.println("  ER mod: ring buf timeout");
                     moduleState = CODAState.ERROR;
                     emu.setErrorState("ER ring buf timeout");
                     return;
                 }
                 catch (Exception e) {
-if (debug) System.out.println("  ER mod: MAJOR ERROR recording event: " + e.getMessage());
+System.out.println("  ER mod: MAJOR ERROR recording event: " + e.getMessage());
                     moduleState = CODAState.ERROR;
                     emu.setErrorState("ER MAJOR ERROR recording event: " + e.getMessage());
                     return;
                 }
             }
-System.out.println("  ER mod: recording thread ending");
+if (debug) System.out.println("  ER mod: recording thread ending");
         }
 
     }

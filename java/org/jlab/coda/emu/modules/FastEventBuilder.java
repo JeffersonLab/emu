@@ -990,7 +990,7 @@ System.out.println("  EB mod: got all PRESTART events");
                             if (btIndex == 0) {
                                 handleEndEvent();
                             }
-                            System.out.println("  EB mod: got all END events");
+System.out.println("  EB mod: got all END events");
                             return;
                         }
                         else {
@@ -1004,13 +1004,13 @@ System.out.println("  EB mod: got all PRESTART events");
                 }
                 catch (InterruptedException e) {
                     // If interrupted, then we must quit
-                    if (debug) System.out.println("  EB mod: interrupted while waiting for go event");
+if (debug) System.out.println("  EB mod: interrupted while waiting for go event");
                     emu.setErrorState("EB interrupted waiting for go event");
                     moduleState = CODAState.ERROR;
                     return;
                 }
 
-                System.out.println("  EB mod: got all GO events");
+System.out.println("  EB mod: got all GO events");
 
                 // Now do the event building
                 while (moduleState == CODAState.ACTIVE || paused) {
@@ -1324,9 +1324,6 @@ System.out.println("  EB mod: Bt#" + btIndex + " found END events on all input c
                     // Start top level
                     builder.openBank(tag, totalNumberEvents, DataType.BANK);
 
-//                    // TODO: FAKE DELAY, REMOVE !!!
-//                    Thread.sleep(1);
-
 //Utilities.printBuffer(builder.getBuffer(), 0, 20, "TOP LEVEL OPEN event");
 
                     // If building with Physics events ...
@@ -1434,23 +1431,23 @@ System.out.println("  EB mod: Bt#" + btIndex + " found END events on all input c
                 }
             }
             catch (InterruptedException e) {
-if (debug) System.out.println("  EB mod: INTERRUPTED build thread " + Thread.currentThread().getName());
+System.out.println("  EB mod: INTERRUPTED build thread " + Thread.currentThread().getName());
                 return;
             }
             catch (final TimeoutException e) {
-if (debug) System.out.println("  EB mod: timeout in ring buffer");
+System.out.println("  EB mod: timeout in ring buffer");
                 emu.setErrorState("EB timeout in ring buffer");
                 moduleState = CODAState.ERROR;
                 return;
             }
             catch (final AlertException e) {
-if (debug) System.out.println("  EB mod: alert in ring buffer");
+System.out.println("  EB mod: alert in ring buffer");
                 emu.setErrorState("EB alert in ring buffer");
                 moduleState = CODAState.ERROR;
                 return;
             }
             catch (Exception e) {
-if (debug) System.out.println("  EB mod: MAJOR ERROR building event: " + e.getMessage());
+System.out.println("  EB mod: MAJOR ERROR building event: " + e.getMessage());
                 emu.setErrorState("EB MAJOR ERROR building event: " + e.getMessage());
                 moduleState = CODAState.ERROR;
                 return;
@@ -1594,7 +1591,7 @@ System.out.println("\n  EB mod: calling processEnd() for chan " + i + "\n");
             }
 
             if (!haveEndEvent) {
-if (debug) System.out.println("  EB mod: endBuildThreads: will end building/filling threads but no END event or rings not empty");
+System.out.println("  EB mod: endBuildThreads: will end building/filling threads but no END event or rings not empty");
                 moduleState = CODAState.ERROR;
                 emu.setErrorState("EB will end building/filling threads but no END event or rings not empty");
             }
@@ -1783,6 +1780,7 @@ if (debug) System.out.println("  EB mod: endBuildThreads: will end building/fill
         // Event builder needs input
         if (inputChannelCount < 1) {
             moduleState = CODAState.ERROR;
+System.out.println("  EB mod: prestart, no input channels to EB");
             emu.setErrorState("no input channels to EB");
             throw new CmdExecException("no input channels to EB");
         }
@@ -1792,8 +1790,9 @@ if (debug) System.out.println("  EB mod: endBuildThreads: will end building/fill
             for (int j=i+1; j < inputChannelCount; j++) {
                 if (inputChannels.get(i).getID() == inputChannels.get(j).getID()) {
                     moduleState = CODAState.ERROR;
-                    emu.setErrorState("input channels duplicate rocIDs");
-                    throw new CmdExecException("input channels duplicate rocIDs");
+System.out.println("  EB mod: prestart, input channels have duplicate rocIDs");
+                    emu.setErrorState("input channels have duplicate rocIDs");
+                    throw new CmdExecException("input channels have duplicate rocIDs");
                 }
             }
         }
@@ -1934,6 +1933,7 @@ if (debug) System.out.println("  EB mod: endBuildThreads: will end building/fill
      */
     public void go() throws CmdExecException {
         if (!haveAllPrestartEvents) {
+System.out.println("  EB mod: go, have not received all prestart events");
             throw new CmdExecException("have not received all prestart events");
         }
 
