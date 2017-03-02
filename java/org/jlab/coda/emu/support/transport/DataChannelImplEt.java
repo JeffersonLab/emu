@@ -456,6 +456,8 @@ logger.info("      DataChannel Et: chunk = " + chunk);
                 attachmentLocal = etSysLocal.attach(stationLocal.getStationId());
             }
             catch (Exception e) {
+System.out.println("      DataChannel Et: can't create/attach to station " +
+                                          stationName + "; " + e.getMessage());
                 emu.setErrorState("DataChannel Et: can't create/attach to station " +
                                           stationName + "; " + e.getMessage());
                 channelState = CODAState.ERROR;
@@ -521,6 +523,7 @@ logger.info("      DataChannel Et: chunk = " + chunk);
                     errString += " multi/broadcasting to port " + config.getUdpPort();
                 }
 
+System.out.println("      DataChannel Et:" + errString + "; " + e.getMessage());
                 emu.setErrorState("DataChannel Et: " + errString + "; " + e.getMessage());
                 channelState = CODAState.ERROR;
                 throw new DataTransportException(errString, e);
@@ -545,6 +548,8 @@ logger.info("      DataChannel Et: chunk = " + chunk);
                 attachment = etSystem.attach(station);
             }
             catch (Exception e) {
+System.out.println("      DataChannel Et: can't create/attach to station " +
+                                   stationName + "; " + e.getMessage());
                 emu.setErrorState("DataChannel Et: can't create/attach to station " +
                                    stationName + "; " + e.getMessage());
                 channelState = CODAState.ERROR;
@@ -624,7 +629,7 @@ logger.info("      DataChannel Et: closeEtSystem(), closed ET connection");
             // RingBuffer supply of buffers to hold all ET event bytes
             // ET system parameters
             int etEventSize = (int) getEtEventSize();
-            logger.info("      DataChannel Et: eventSize = " + etEventSize);
+logger.info("      DataChannel Et: eventSize = " + etEventSize);
 
             // For creating a reusable supply of ByteBuffer objects:
             // Put a limit on the amount of memory (140MB). That may be
@@ -641,7 +646,7 @@ logger.info("      DataChannel Et: closeEtSystem(), closed ET connection");
                     numEtBufs *= 2;
                     newVal /= 2;
                 }
-                logger.info("      DataChannel Et: # copy-ET-buffers in input supply -> " + numEtBufs);
+logger.info("      DataChannel Et: # copy-ET-buffers in input supply -> " + numEtBufs);
             }
 
             // If is ER and (0 output channels or 1 file output channel) ...
@@ -1197,8 +1202,7 @@ logger.warn("      DataChannel Et in: " + name + "  interrupted thd, exiting");
                 // If we haven't yet set the cause of error, do so now & inform run control
                 if (errorString == null) errorString = e.getMessage();
                 emu.setErrorState(errorString);
-
-logger.warn("      DataChannel Et in: " + name + " exit thd: " + e.getMessage());
+System.out.println("      DataChannel Et in: " + name + " exit thd: " + errorString);
             }
         }
 
@@ -1559,11 +1563,10 @@ logger.warn("      DataChannel Et in: " + name + " exit thd: " + e.getMessage())
                                 etSystem.dumpEvents(attachment, new EtEvent[]{event});
 
                                 // Get 1 bigger & better ET buf as a replacement
+logger.rcConsole("      DataChannel Et out: " + name + " using over-sized (temp) ET event", "DANGER");
 
-System.out.println("      DataChannel Et out: " + name + " warning - getting bigger (temp) ET event");
                                 EtEvent[] evts = etSystem.newEvents(attachment, Mode.SLEEP, false,
                                                                     0, 1, ringItemSize, group);
-emu.sendRcErrorMessage("Using ET over-sized temp event");
                                 event = evts[0];
 
                                 // Put the new ET buf into ring slot's container
@@ -1898,18 +1901,22 @@ logger.warn("      DataChannel Et out: exit thd w/ error = " + e.getMessage());
                 }
                 catch (IOException e) {
                     channelState = CODAState.ERROR;
+System.out.println("      DataChannel Et out: " + name + " network communication error with Et");
                     emu.setErrorState("DataChannel Et out: network communication error with Et");
                 }
                 catch (EtException e) {
                     channelState = CODAState.ERROR;
+System.out.println("      DataChannel Et out: " + name + " internal error handling Et");
                     emu.setErrorState("DataChannel Et out: internal error handling Et");
                 }
                 catch (EtDeadException e) {
                     channelState = CODAState.ERROR;
+System.out.println("      DataChannel Et out: " + name + " Et system dead");
                     emu.setErrorState("DataChannel Et out: Et system dead");
                 }
                 catch (EtClosedException e) {
                     channelState = CODAState.ERROR;
+System.out.println("      DataChannel Et out: " + name + " Et connection closed");
                     emu.setErrorState("DataChannel Et out: Et connection closed");
                 }
                 finally {
@@ -2018,6 +2025,7 @@ logger.warn("      DataChannel Et out: exit thd w/ error = " + e.getMessage());
                 // ET system problem - run will come to an end
                 if (gotError) {
                     channelState = CODAState.ERROR;
+System.out.println("      DataChannel Et out: " + name + ", " + errorString);
                     emu.setErrorState(errorString);
                 }
 //System.out.println("      DataChannel Et out: GETTER is Quitting");
