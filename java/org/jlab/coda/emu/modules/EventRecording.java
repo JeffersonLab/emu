@@ -262,9 +262,7 @@ System.out.println("  ER mod: will end thread but no END event!");
                     }
 
                     // scale from 0% to 100% of ring buffer size
-                    inputChanLevels[0] = ((int)(availableSequence - nextSequence) + 1)*100/ringBufferSize;
-//System.out.println("  ER mod: avail = " + availableSequence + ", next = " + nextSequence +
-//", level = " + inputChanLevels[0]);
+                    inputChanLevels[0] = ((int)(ringBufferIn.getCursor() - nextSequence) + 1)*100/ringBufferSize;
 //                        if (printCounter++ % 100000 == 0) {
 //                            System.out.println("in level = " + inputChanLevels[0]);
 //                        }
