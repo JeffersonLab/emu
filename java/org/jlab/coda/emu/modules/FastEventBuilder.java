@@ -816,8 +816,15 @@ System.out.println("  EB mod: create Build Thread with index " + btIndex + ", co
          * @return input level
          */
         int getInputLevel(int chanIndex) {
-            // scale from 0% to 100% of ring buffer size
-            return ((int)(buildBarrierIn[chanIndex].getCursor() - nextSequences[chanIndex]) + 1)*100/ringBufferSize[chanIndex];
+            // Scale from 0% to 100% of ring buffer size.
+            // "nextSequences" is where the build thread is currently
+            // reading to build in an input channel, subtract that from
+            // the highest sequence published by the producer.
+
+            // This next line is most likely wrong.
+            //return ((int)(buildBarrierIn[chanIndex].getCursor() - nextSequences[chanIndex]) + 1)*100/ringBufferSize[chanIndex];
+
+            return ((int)(ringBuffersIn[chanIndex].getCursor() - nextSequences[chanIndex]) + 1)*100/ringBufferSize[chanIndex];
         }
 
 
