@@ -236,6 +236,8 @@ System.out.println("  ER mod: will end thread but no END event!");
 
             RingItem    ringItem    = null;
             ControlType controlType = null;
+            long t1, t2, counter = 0L;
+            final long timeBetweenSamples = 500; // sample every 1/2 sec
             int totalNumberEvents=1, wordCount=0, firstEventsWords=0;
             ArrayList<RingItem> firstEvents = new ArrayList<RingItem>();
             boolean gotBank, gotPrestart=false, isPrestart=false;
@@ -245,6 +247,9 @@ System.out.println("  ER mod: will end thread but no END event!");
             long availableSequence = -2L;
             // Next sequence (index of next item desired)
             long nextSequence = sequenceIn.get() + 1L;
+
+            // Beginning time for sampling control
+            t1 = System.currentTimeMillis();
 
 //            int printCounter=0;
 
@@ -262,11 +267,21 @@ System.out.println("  ER mod: will end thread but no END event!");
                     }
 
                     // scale from 0% to 100% of ring buffer size
-                    inputChanLevels[0] = ((int)(ringBufferIn.getCursor() - nextSequence) + 1)*100/ringBufferSize;
-//                        if (printCounter++ % 100000 == 0) {
-//                            System.out.println("in level = " + inputChanLevels[0]);
-//                        }
+                    t2 = emu.getTime();
+                    if (t2-t1 > timeBetweenSamples) {
+                        //inputChanLevels[0] = ((int)(availableSequence - nextSequence) + 1)*100/ringBufferSize;
+                        //inputChanLevels[0] = ((int)(ringBufferIn.getCursor() - nextSequence) + 1)*100/ringBufferSize;
 
+                        inputChanLevels[0] = ((int)(ringBufferIn.getCursor() -
+                                                    ringBufferIn.getMinimumGatingSequence()) + 1)*100/ringBufferSize;
+                        if (inputChanLevels[0] > 100) {
+                            System.out.println("INPUT CHANNEL LEVEL IS TOO HIGH = " + inputChanLevels[0]);
+                        }
+                        //if (printCounter++ % 100000 == 0) {
+                        //    System.out.println("in level = " + inputChanLevels[0]);
+                        //}
+                        t1 = t2;
+                    }
 
                     while (nextSequence <= availableSequence) {
 
@@ -276,7 +291,11 @@ System.out.println("  ER mod: will end thread but no END event!");
                         controlType = ringItem.getControlType();
                         totalNumberEvents = ringItem.getEventCount();
 
-//                        Thread.sleep(1);
+//                        // Code for testing changing input/output channel fill levels.
+//                        // TODO: Comment out when finished testing!!!
+//                        if (counter++ % 1000 == 0) {
+//                            Thread.sleep(1);
+//                        }
 
                         // Look at control events ...
                         if (controlType != null) {
