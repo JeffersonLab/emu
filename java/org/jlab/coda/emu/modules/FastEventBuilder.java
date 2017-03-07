@@ -256,7 +256,7 @@ public class FastEventBuilder extends ModuleAdapter {
 
         // If # build threads not explicitly set in config, make it 3 for now
         if (!epThreadsSetInConfig) {
-            buildingThreadCount = eventProducingThreads = 3;
+            buildingThreadCount = eventProducingThreads = 1;
         }
 logger.info("  EB mod: " + buildingThreadCount + " number of event building threads");
 
@@ -816,15 +816,11 @@ System.out.println("  EB mod: create Build Thread with index " + btIndex + ", co
          * @return input level
          */
         int getInputLevel(int chanIndex) {
-            // Scale from 0% to 100% of ring buffer size.
-            // "nextSequences" is where the build thread is currently
-            // reading to build in an input channel, subtract that from
-            // the highest sequence published by the producer.
-
-            // This next line is most likely wrong.
+            // scale from 0% to 100% of ring buffer size
             //return ((int)(buildBarrierIn[chanIndex].getCursor() - nextSequences[chanIndex]) + 1)*100/ringBufferSize[chanIndex];
-
-            return ((int)(ringBuffersIn[chanIndex].getCursor() - nextSequences[chanIndex]) + 1)*100/ringBufferSize[chanIndex];
+            //return ((int)(ringBuffersIn[chanIndex].getCursor() - nextSequences[chanIndex]) + 1)*100/ringBufferSize[chanIndex];
+            return ((int)(ringBuffersIn[chanIndex].getCursor() -
+                          ringBuffersIn[chanIndex].getMinimumGatingSequence()) + 1)*100/ringBufferSize[chanIndex];
         }
 
 
