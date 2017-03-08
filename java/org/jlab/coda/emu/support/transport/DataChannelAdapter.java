@@ -479,7 +479,9 @@ System.out.println("      DataChannel Adapter: prestart, nextEv (" + nextEvent +
             // especially for the ET channel since it may get stuck waiting for
             // new ET events to become available and not be able to update ring
             // statistics (more specifically, availableSequences[]).
-            count += (int)(sequenceBarriers[i].getCursor() - nextSequences[i] + 1);
+            //count += (int)(sequenceBarriers[i].getCursor() - nextSequences[i] + 1);
+
+            count += (int)(ringBuffersOut[i].getCursor() - nextSequences[i] + 1);
         }
 
         // When (cursor(or avail) - next + 1) == ringSize, then the Q is full.
