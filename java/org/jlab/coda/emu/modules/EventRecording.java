@@ -523,7 +523,7 @@ if (debug) System.out.println("  ER mod: recording thread ending");
 //
 //            boolean gotBank;
 //
-//            boolean takeRingStats = false;
+//            boolean takeRingStats = false;               n
 //            takeRingStats = true;
 //
 //            // Ring Buffer stuff
@@ -736,7 +736,8 @@ if (debug) System.out.println("  ER mod: recording thread ending");
         //------------------------------------------------
 
         // Place to put ring level stats
-        inputChanLevels = new int[1];
+        inputChanLevels  = new int[1];
+        outputChanLevels = new int[outputChannelCount];
 
         // channel name for easy gathering of stats
         inputChanNames = new String[1];
