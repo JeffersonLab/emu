@@ -5,26 +5,50 @@
 
 if ($#argv > 1) then
     echo
-    echo "Usage: cmsg_monitor <hostname(optional)>"
+    echo "Usage: cmsg_monitor [<host or udl>] [-h or -help]"
+    echo "(Be sure to surround UDL with quotes)"
     echo
     exit
 else if ($#argv == 1) then
-    if ($1 == '-h' || $1 == '-help') then
+    if ("${1}" == "-h" || "${1}" == "-help") then
         echo
-        echo "Usage: cmsg_monitor <hostname(optional)>"
+    echo "Usage: cmsg_monitor [<host or udl>] [-h or -help]"
+        echo "(Be sure to surround UDL with quotes)"
         echo
         exit
     endif
 endif
 
-set udl="cMsg://localhost:45000/cMsg/${EXPID}?cmsgpassword=${EXPID}"
+# Create a unique name based on current time so no trouble connecting to cMsg server
+set name="monitor_`date +"%s"`"
 
 if ($#argv > 0) then
-    set udl="cMsg://${1}:45000/cMsg/${EXPID}?cmsgpassword=${EXPID}"
+    # If we have one arg, parse it.
+    # First check to see if it's a host name or udl.
+    # The UDL's first 5 chars will be "cMsg:" so split on the ":"
+
+    set first=`echo "${1}" | cut -d: -f1`
+
+    if ($first == "cMsg") then
+        # echo "Using UDL from cmd line"
+        set udl="${1}"
+    else
+        # echo "Using hostname from cmd line"
+        set udl="cMsg://${1}:45000/cMsg/${EXPID}?cmsgpassword=${EXPID}"
+    endif
+
+else
+
+    # If we have no args, create a local UDL
+    # echo "Create a local UDL from EXPID"
+    set udl="cMsg://localhost:45000/cMsg/${EXPID}?cmsgpassword=${EXPID}"
+
 endif
+
+echo "Using udl = $udl"
 
 $JAVA_HOME/bin/java -cp $CODA/common/jar/\* \
     -XX:+PerfDisableSharedMem \
     -Djava.net.preferIPv4Stack=true \
     -Djava.library.path=$CODA/$MACHINE/lib \
-    org.jlab.coda.cMsg.apps.cMsgMonitor -n monitor -u "$udl"
+    org.jlab.coda.cMsg.apps.cMsgMonitor -n "$name" -u "$udl"
