@@ -1935,7 +1935,7 @@ System.out.println("  EB mod: prestart, input channels have duplicate rocIDs");
      * @throws CmdExecException if not all prestart events were received
      */
     public void go() throws CmdExecException {
-        if (!haveAllPrestartEvents) {
+        if (!haveAllPrestartEvents && !dumpData) {
 System.out.println("  EB mod: go, have not received all prestart events");
             throw new CmdExecException("have not received all prestart events");
         }
