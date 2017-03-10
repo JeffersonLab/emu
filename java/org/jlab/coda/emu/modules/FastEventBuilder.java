@@ -1455,6 +1455,45 @@ System.out.println("  EB mod: MAJOR ERROR building event: " + e.getMessage());
                 moduleState = CODAState.ERROR;
                 return;
             }
+            finally {
+                PayloadBuffer buildingBank;
+                long cursor, lastCursor;
+
+                // If we're exiting due to an error, make sure all the input channels
+                // are drained. This makes ROC recovery much easier.
+
+                // Grab banks from each channel
+                for (int i=0; i < inputChannelCount; i++) {
+
+                    cursor = buildBarrierIn[i].getCursor();
+
+                    while (true) {
+                        try {
+                            availableSequences[i] = buildBarrierIn[i].waitFor(cursor);
+                        }
+                        catch (Exception e) {}
+
+                        // While we have data to read ...
+                        while (nextSequences[i] <= availableSequences[i]) {
+                            buildingBank = (PayloadBuffer) ringBuffersIn[i].get(nextSequences[i]);
+//System.out.println("  EB mod: clean inputs, releasing seq " + nextSequences[i] + " from channel #" + i);
+                            if (btCount == 1) {
+                                buildingBank.releaseByteBuffer();
+                            }
+                            nextSequences[i] ++;
+                        }
+                        buildSequences[i].set(availableSequences[i]);
+
+                        lastCursor = cursor;
+                        cursor = buildBarrierIn[i].getCursor();
+
+                        if (cursor == lastCursor) {
+                            break;
+                        }
+                    }
+                }
+            }
+
 if (debug) System.out.println("  EB mod: Building thread is ending");
         }
 
