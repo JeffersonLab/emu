@@ -1341,11 +1341,7 @@ System.out.println("      DataChannel Et in: " + name + " exit thd: " + errorStr
             try {this.join(oneThreadWaitTime);}
             catch (InterruptedException e) {}
 
-            if (this.isAlive() || putter.isAlive() || getter.isAlive()) {
-                return false;
-            }
-
-            return true;
+            return !(this.isAlive() || putter.isAlive() || getter.isAlive());
         }
 
 
