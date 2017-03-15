@@ -667,6 +667,26 @@ System.out.println("Emu created, name = " + name + ", type = " + codaClass);
         return outChannels;
     }
 
+    /**
+     * Get the id number of the data stream this emu is a part of.
+     * Only relevant if this emu is an EB which outputs to a single ER,
+     * or has an output file channel.
+     * @return  data stream id.
+     */
+    public int getDataStreamId() {
+        return dataStreamId;
+    }
+
+    /**
+     * Get the total number of data streams in the configuration which contains this emu.
+     * @return total number of data streams in this configuration.
+     */
+    public int getDataStreamCount() {
+        return dataStreamCount;
+    }
+
+
+
     //------------------------------------------------
     // State & Error methods
     //------------------------------------------------
@@ -2287,12 +2307,14 @@ logger.info("Emu " + name + " config: change state to CONFIGURING");
                     pItem = cmd.getArg(RCConstants.configPayloadStreamCount);
                     if (pItem != null) {
                         dataStreamCount = pItem.getInt();
+System.out.println("Emu " + name + " config: data stream count = " + dataStreamCount);
                     }
 
                     // May have this data stream's id number.
                     pItem = cmd.getArg(RCConstants.configPayloadStreamId);
                     if (pItem != null) {
                         dataStreamId = pItem.getInt();
+System.out.println("Emu " + name + " config: data stream ID = " + dataStreamId);
                     }
 
                     // May have all of platform's IP addresses, dot-decimal format,
