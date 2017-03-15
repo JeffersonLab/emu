@@ -44,7 +44,7 @@ public abstract class DataTransportAdapter extends CODAStateMachineAdapter imple
      * Making this an atomically settable String ensures that only 1 thread
      * at a time can change its value. That way it's only set once per error.
      */
-    protected AtomicReference<String> errorMsg = new AtomicReference<String>();
+    protected AtomicReference<String> errorMsg = new AtomicReference<>();
 
     /** Emu object that created this transport. */
     protected Emu emu;

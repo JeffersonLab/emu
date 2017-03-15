@@ -346,7 +346,7 @@ class LocalEmuDomainUdpListener extends Thread {
         DataOutputStream out       = new DataOutputStream(baos);
 
         // Get our local IP addresses, canonical first
-        ArrayList<String> ipAddresses = new ArrayList<String>(cMsgUtilities.getAllIpAddresses());
+        ArrayList<String> ipAddresses = new ArrayList<>(cMsgUtilities.getAllIpAddresses());
 
         try {
             // Put our special #s, TCP listening port, expid,

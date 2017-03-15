@@ -24,10 +24,10 @@ public class EmuFactory {
 
 
     /** List of CODA component names. All names must be defined. */
-    private LinkedList<String> names = new LinkedList<String>();
+    private LinkedList<String> names = new LinkedList<>();
 
     /** List of CODA component types. Type default to EMU if not given. */
-    private LinkedList<String> types = new LinkedList<String>();
+    private LinkedList<String> types = new LinkedList<>();
 
 
 

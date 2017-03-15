@@ -91,7 +91,7 @@ public enum CODACommand {
 
 
     /** Ways in which a command's input obtained from a cMsg message. */
-    public enum InputType {
+    public static enum InputType {
         /** By calling msg.getText(). */
         TEXT,
         /** By calling msg.userInt(). */
@@ -130,7 +130,7 @@ public enum CODACommand {
 
 
     /** Map of string of incoming message from run control to an enum/command. */
-    private final static HashMap<String, CODACommand> commandTypeToEnumMap = new HashMap<String, CODACommand>();
+    private final static HashMap<String, CODACommand> commandTypeToEnumMap = new HashMap<>();
 
 
     // Fill static hashmap after all enum objects created.

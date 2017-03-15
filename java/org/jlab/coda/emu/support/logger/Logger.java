@@ -27,16 +27,16 @@ public class Logger {
     private final String FQCN = Logger.class.getName();
 
     /** Field fqcnSet */
-    private final Set<String> fqcnSet = new HashSet<String>();
+    private final Set<String> fqcnSet = new HashSet<>();
 
     /** Field logFunctionsSet */
-    private final Set<String> logFunctionsSet = new HashSet<String>();
+    private final Set<String> logFunctionsSet = new HashSet<>();
 
     /** Field java13 */
     private boolean java13 = false;
 
     /** Field loggerAppenders */
-    private final List<LoggerAppender> loggerAppenders = new Vector<LoggerAppender>();
+    private final List<LoggerAppender> loggerAppenders = new Vector<>();
 
     /** Field enable_debug */
     private boolean enable_debug = true;

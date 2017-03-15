@@ -36,10 +36,10 @@ public class SmartToolbar extends JToolBar {
     private static final long serialVersionUID = 7241838854981192095L;
 
     /** Field buttonHandlers */
-    private final HashMap<String, Command> buttonHandlers = new HashMap<String, Command>();
+    private final HashMap<String, Command> buttonHandlers = new HashMap<>();
 
     /** Store JTextField objects for certain commands. */
-    private final HashMap<String, JTextField> textFields = new HashMap<String, JTextField>();
+    private final HashMap<String, JTextField> textFields = new HashMap<>();
 
     /** No-arg constructor. */
     public SmartToolbar() {

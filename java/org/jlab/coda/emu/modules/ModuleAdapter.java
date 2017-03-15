@@ -77,7 +77,7 @@ public class ModuleAdapter implements EmuModule {
      * Making this an atomically settable String ensures that only 1 thread
      * at a time can change its value. That way it's only set once per error.
      */
-    protected AtomicReference<String> errorMsg = new AtomicReference<String>();
+    protected AtomicReference<String> errorMsg = new AtomicReference<>();
 
     /** Emu this module belongs to. */
     protected final Emu emu;
@@ -98,11 +98,11 @@ public class ModuleAdapter implements EmuModule {
      * in prestart. However, other threads (such as the EMU's statistics reporting
      * thread) call methods which use its iterator or getters.
      */
-    protected ArrayList<DataChannel> inputChannels = new ArrayList<DataChannel>();
+    protected ArrayList<DataChannel> inputChannels = new ArrayList<>();
 
     /** ArrayList of DataChannel objects that are outputs. Only modified in prestart
      *  but used during go when writing module output. */
-    protected ArrayList<DataChannel> outputChannels = new ArrayList<DataChannel>();
+    protected ArrayList<DataChannel> outputChannels = new ArrayList<>();
 
     /** Number of output channels. */
     protected int inputChannelCount;

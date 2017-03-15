@@ -62,7 +62,7 @@ public enum CODAClass {
     private final int priority;
 
     /** Map containing mapping of string of CODA class name to an enum/command. */
-    private static HashMap<String, CODAClass> codaClassToEnumMap = new HashMap<String, CODAClass>();
+    private static HashMap<String, CODAClass> codaClassToEnumMap = new HashMap<>();
 
     // Fill static hashmap after all enum objects created.
     static {

@@ -38,8 +38,7 @@ public class DataTransportImplEmu extends DataTransportAdapter {
 
     private EmuDomainServer emuServer;
 
-    final HashMap<Integer, DataChannelImplEmu> inputChannelTable =
-            new HashMap<Integer, DataChannelImplEmu>(16);
+    final HashMap<Integer, DataChannelImplEmu> inputChannelTable = new HashMap<>(16);
 
 
 

@@ -552,7 +552,7 @@ logger.debug("      DataChannel cmsg: reset() " + name + " done");
                 // Create one list for each write thread.
                 ArrayList<RingItem>[] bankListArray = new ArrayList[writeThreadCount];
                 for (int i=0; i < writeThreadCount; i++) {
-                    bankListArray[i] = new ArrayList<RingItem>();
+                    bankListArray[i] = new ArrayList<>();
                     msgs[i] = new cMsgMessage();
                     msgs[i].setSubject(subject);
                     msgs[i].setType(type);

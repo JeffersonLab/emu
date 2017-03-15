@@ -52,13 +52,13 @@ public class TsSimulation extends ModuleAdapter {
     private boolean debug = true;
 
     /** List of expected fake ROCs we need to communicate with. */
-    private ArrayList<String> expectedRocs = new ArrayList<String>(10);
+    private ArrayList<String> expectedRocs = new ArrayList<>(10);
 
     /** List of responding fake ROCs. */
-    private ArrayList<String> respondingRocs = new ArrayList<String>(10);
+    private ArrayList<String> respondingRocs = new ArrayList<>(10);
 
     /** List of state of responding fake ROCs. */
-    private ArrayList<Integer> respondingStates = new ArrayList<Integer>(10);
+    private ArrayList<Integer> respondingStates = new ArrayList<>(10);
 
     /** Instantiate a callback to use in subscription. */
     private myCallback callback = new myCallback();

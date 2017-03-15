@@ -239,7 +239,7 @@ System.out.println("  ER mod: will end thread but no END event!");
             long t1, t2, counter = 0L;
             final long timeBetweenSamples = 500; // sample every 1/2 sec
             int totalNumberEvents=1, wordCount=0, firstEventsWords=0;
-            ArrayList<RingItem> firstEvents = new ArrayList<RingItem>();
+            ArrayList<RingItem> firstEvents = new ArrayList<>();
             boolean gotBank, gotPrestart=false, isPrestart=false;
 
             // Ring Buffer stuff

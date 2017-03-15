@@ -32,7 +32,7 @@ public class QueueAppender implements LoggerAppender {
      * @param bufferSize size of queue to create
      */
     public QueueAppender(int bufferSize) {
-        queue = new ArrayBlockingQueue<LoggingEvent>(bufferSize);
+        queue = new ArrayBlockingQueue<>(bufferSize);
     }
 
     /**

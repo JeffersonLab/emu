@@ -629,7 +629,7 @@ logger.info("    DataTransport Et: used java process handle to kill ET");
         // We also want to connect as a remote user so no memory-mapping
         // is needlessly taking place.
         try {
-            ArrayList<String> mAddrs = new ArrayList<String>();
+            ArrayList<String> mAddrs = new ArrayList<>();
             mAddrs.add(EtConstants.multicastAddr);
 
             // multicasting constructor

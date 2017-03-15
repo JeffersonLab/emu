@@ -28,10 +28,10 @@ import java.util.LinkedList;
 public class EmuDataPath {
 
     /** This is a doubly linked list of all module objects. */
-    private final LinkedList<Module> modules = new LinkedList<Module>();
+    private final LinkedList<Module> modules = new LinkedList<>();
 
     /** This is a doubly linked list of all EMU modules. */
-    private final LinkedList<EmuModule> emuModules = new LinkedList<EmuModule>();
+    private final LinkedList<EmuModule> emuModules = new LinkedList<>();
 
 
     /** Class to store module-related data. */

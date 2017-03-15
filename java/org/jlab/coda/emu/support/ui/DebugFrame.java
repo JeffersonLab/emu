@@ -86,7 +86,7 @@ public class DebugFrame extends JFrame {
         // 3) If so, reset their action listener to grab the input from gui
         //--------------------------------------------------------------------
         // place to store input-expecting buttons & their associated toolbar
-        LinkedHashMap<JButton, SmartToolbar> buttons = new LinkedHashMap<JButton, SmartToolbar>();
+        LinkedHashMap<JButton, SmartToolbar> buttons = new LinkedHashMap<>();
 
         SmartToolbar[] toolbars = new SmartToolbar[] {smartToolbar,  smartToolbar1,
                                                       smartToolbar2, smartToolbar3};

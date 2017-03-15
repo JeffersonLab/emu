@@ -45,11 +45,11 @@ public class RocSynchronizer {
     private boolean debug;
 
     // List of expected fake ROCs we need to communicate with
-    private ArrayList<String> expectedRocs = new ArrayList<String>(10);
+    private ArrayList<String> expectedRocs = new ArrayList<>(10);
     // List of actually responding fake ROCs
-    private ArrayList<String> respondingRocs = new ArrayList<String>(10);
+    private ArrayList<String> respondingRocs = new ArrayList<>(10);
     // List of actually state of responding fake ROCs
-    private ArrayList<Integer> respondingStates = new ArrayList<Integer>(10);
+    private ArrayList<Integer> respondingStates = new ArrayList<>(10);
 
 
     /** Constructor. */

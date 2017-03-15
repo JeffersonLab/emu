@@ -137,7 +137,7 @@ public class Emu implements CODAComponent {
      * Making this an atomically settable String ensures that only 1 thread
      * at a time can change its value. That way it's only set once per error.
      */
-    protected AtomicReference<String> errorMsg = new AtomicReference<String>();
+    protected AtomicReference<String> errorMsg = new AtomicReference<>();
 
     /**
      * Flag to ensure that a single error in this emu only sends
@@ -189,16 +189,16 @@ public class Emu implements CODAComponent {
      * and should not be too "expensive" to use since its size will be very small
      * and add/remove methods will be seldom called.
      */
-    private final CopyOnWriteArrayList<EmuModule> modules = new CopyOnWriteArrayList<EmuModule>();
+    private final CopyOnWriteArrayList<EmuModule> modules = new CopyOnWriteArrayList<>();
 
     /** List of input channels. */
-    private final CopyOnWriteArrayList<DataChannel> inChannels = new CopyOnWriteArrayList<DataChannel>();
+    private final CopyOnWriteArrayList<DataChannel> inChannels = new CopyOnWriteArrayList<>();
 
     /** List of output channels. */
-    private final CopyOnWriteArrayList<DataChannel> outChannels = new CopyOnWriteArrayList<DataChannel>();
+    private final CopyOnWriteArrayList<DataChannel> outChannels = new CopyOnWriteArrayList<>();
 
     /** Vector containing all DataTransport objects. */
-    private final CopyOnWriteArrayList<DataTransport> transports = new CopyOnWriteArrayList<DataTransport>();
+    private final CopyOnWriteArrayList<DataTransport> transports = new CopyOnWriteArrayList<>();
 
     /** The Fifo transport is handled separately from the other transports. */
     private DataTransportImplFifo fifoTransport;
@@ -316,7 +316,7 @@ System.out.println("Emu created, name = " + name + ", type = " + codaClass);
         Configurer.setLogger(logger);
 
         // Create the FIFO transport object
-        HashMap<String, String> attrs = new HashMap<String, String>();
+        HashMap<String, String> attrs = new HashMap<>();
         attrs.put("class", "Fifo");
         attrs.put("server", "false");
         try {
@@ -333,7 +333,7 @@ System.out.println("Emu created, name = " + name + ", type = " + codaClass);
         }
 
         // Define place to put incoming commands
-        mailbox = new ArrayBlockingQueue<Command>(100);
+        mailbox = new ArrayBlockingQueue<>(100);
 
         // Put this (which is a CODAComponent and therefore Runnable)
         // into a thread group and keep track of this object's thread.
@@ -1857,10 +1857,10 @@ if (debug) System.out.println("Emu " + name + " prestart: PRESTART cmd to " + tr
                     // Clear out all channels created in previous PRESTART
                     module.clearChannels();
 
-                    ArrayList<DataChannel> in = new ArrayList<DataChannel>();
-                    ArrayList<DataChannel> out = new ArrayList<DataChannel>();
-                    ArrayList<DataChannel> inFifo = new ArrayList<DataChannel>();
-                    ArrayList<DataChannel> outFifo = new ArrayList<DataChannel>();
+                    ArrayList<DataChannel> in = new ArrayList<>();
+                    ArrayList<DataChannel> out = new ArrayList<>();
+                    ArrayList<DataChannel> inFifo = new ArrayList<>();
+                    ArrayList<DataChannel> outFifo = new ArrayList<>();
 
                     int outputChannelCount = 0;
 
@@ -1903,7 +1903,7 @@ if (debug) System.out.println("Emu " + name + " prestart: PRESTART cmd to " + tr
                         DataTransport trans = findTransport(channelTransName);
 
                         // Store all attributes in a hashmap to pass to channel
-                        Map<String, String> attributeMap = new HashMap<String, String>();
+                        Map<String, String> attributeMap = new HashMap<>();
                         for (int j = 0; j < nnm.getLength(); j++) {
                             Node a = nnm.item(j);
 //System.out.println("Emu " + name + " prestart: Put (" + a.getNodeName() + "," + a.getNodeValue() + ") into attribute map for channel " + channelName);
@@ -2070,7 +2070,7 @@ logger.warn("Emu " + name + " download: transport section present in config but 
                             String transportType = n.getNodeName();
 
                             // store all attributes in a hashmap
-                            Map<String, String> attrib = new HashMap<String, String>();
+                            Map<String, String> attrib = new HashMap<>();
                             if (n.hasAttributes()) {
                                 NamedNodeMap attr = n.getAttributes();
 
@@ -2154,7 +2154,7 @@ if (debug) System.out.println("Emu " + name + " download: pass download down to 
                     NamedNodeMap nm2 = n.getAttributes();
 
                     // Store all attributes in a hashmap to pass to module
-                    Map<String, String> attributeMap = new HashMap<String, String>();
+                    Map<String, String> attributeMap = new HashMap<>();
                     for (int j=0; j < nm2.getLength(); j++) {
                         Node a = nm2.item(j);
                         attributeMap.put(a.getNodeName(), a.getNodeValue());

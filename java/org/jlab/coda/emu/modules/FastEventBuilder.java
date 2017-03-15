@@ -129,7 +129,7 @@ public class FastEventBuilder extends ModuleAdapter {
     private int buildingThreadCount;
 
     /** Container for threads used to build events. */
-    private ArrayList<BuildingThread> buildingThreadList = new ArrayList<BuildingThread>();
+    private ArrayList<BuildingThread> buildingThreadList = new ArrayList<>();
 
     /** Threads (one for each input channel) used to take Evio data from
      *  input channels and check them for proper format. */
