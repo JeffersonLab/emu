@@ -2170,38 +2170,41 @@ if (debug) System.out.println("Emu " + name + " download: pass download down to 
                     // What type of module are we creating?
                     EmuModule module;
 
-                    if (moduleClassName.equals("EventRecording")) {
+                    switch (moduleClassName) {
+                        case "EventRecording":
                             module = new EventRecording(n.getNodeName(), attributeMap, this);
-                    }
-                    else if (moduleClassName.equals("EventBuilding")) {
+                            break;
+                        case "EventBuilding":
                             module = new FastEventBuilder(n.getNodeName(), attributeMap, this);
-                    }
-                    else if (moduleClassName.equals("RocSimulation")) {
+                            break;
+                        case "RocSimulation":
                             module = new RocSimulation(n.getNodeName(), attributeMap, this);
-                    }
-                    else if (moduleClassName.equals("FarmController")) {
-                        module = new FarmController(n.getNodeName(), attributeMap, this);
-                    }
-                    else if (moduleClassName.equals("TsSimulation")) {
-                        module = new TsSimulation(n.getNodeName(), attributeMap, this);
-                    }
-                    else {
+                            break;
+                        case "FarmController":
+                            module = new FarmController(n.getNodeName(), attributeMap, this);
+                            break;
+                        case "TsSimulation":
+                            module = new TsSimulation(n.getNodeName(), attributeMap, this);
+                            break;
+                        default:
 
-if (debug) System.out.println("Emu " + name + " download: load module class " + moduleClassName +
-                              " to create a module of name " + n.getNodeName() +
-                              "\n  in classpath = " + System.getProperty("java.class.path"));
+                            if (debug)
+                                System.out.println("Emu " + name + " download: load module class " + moduleClassName +
+                                                           " to create a module of name " + n.getNodeName() +
+                                                           "\n  in classpath = " + System.getProperty("java.class.path"));
 
-                        // Load the class using the JVM's standard class loader
-                        Class c = Class.forName(moduleClassName);
+                            // Load the class using the JVM's standard class loader
+                            Class c = Class.forName(moduleClassName);
 
-                        // Constructor required to have a string, a map, and an emu as args
-                        Class[] parameterTypes = {String.class, Map.class, Emu.class};
-                        Constructor co = c.getConstructor(parameterTypes);
+                            // Constructor required to have a string, a map, and an emu as args
+                            Class[] parameterTypes = {String.class, Map.class, Emu.class};
+                            Constructor co = c.getConstructor(parameterTypes);
 
-                        // Create an instance
-                        Object[] args = {n.getNodeName(), attributeMap, this};
-                        module = (EmuModule) co.newInstance(args);
+                            // Create an instance
+                            Object[] args = {n.getNodeName(), attributeMap, this};
+                            module = (EmuModule) co.newInstance(args);
 //if (debug) System.out.println("Emu " + name + " download: loaded module " + moduleClassName);
+                            break;
                     }
 
 if (debug) System.out.println("Emu " + name + " download: create module " + module.name());

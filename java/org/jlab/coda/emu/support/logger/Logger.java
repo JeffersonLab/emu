@@ -289,7 +289,7 @@ public class Logger {
             return;
         }
         Class klass;
-        StringBuffer buf = new StringBuffer();
+        StringBuilder buf = new StringBuilder();
         buf.append(message).append(" ");
         if (obj instanceof Class) {
             klass = (Class) obj;
