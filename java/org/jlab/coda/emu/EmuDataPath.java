@@ -199,7 +199,8 @@ public class EmuDataPath {
         StringBuilder sb = new StringBuilder();
         sb.append("input -> ");
         for (Module mod : modules) {
-            sb.append(mod.moduleName + " -> ");
+            sb.append(mod.moduleName);
+            sb.append(" -> ");
         }
         sb.append(" output");
 
