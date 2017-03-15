@@ -122,13 +122,6 @@ public class DataChannelImplFile extends DataChannelAdapter {
         }
         catch (Exception e) {}
 
-        // Filename given in config file?
-        try {
-            fileName = attributeMap.get("fileName");
-//logger.info("      DataChannel File: config file name = " + fileName);
-        }
-        catch (Exception e) {}
-
         // Dictionary given in config file?
         try {
             String dictionaryFile = attributeMap.get("dictionary");
@@ -173,6 +166,15 @@ logger.info("      DataChannel File: dictionary file cannot be read");
         }
         catch (Exception e) {}
 
+        //----------------------------------
+        // Create file name
+        //----------------------------------
+        try {
+            // Filename given in config file?
+            fileName = attributeMap.get("fileName");
+        }
+        catch (Exception e) {}
+
         if (fileName == null) {
             if (input) {
                 fileName = "codaInputFile.dat";
@@ -188,6 +190,8 @@ logger.info("      DataChannel File: dictionary file cannot be read");
                 }
             }
         }
+        //logger.info("      DataChannel File: config file name = " + fileName);
+        //----------------------------------
 
         try {
             if (input) {
@@ -220,9 +224,15 @@ logger.info("      DataChannel File: dictionary file cannot be read");
                 boolean overWriteOK = true;
                 if (split > 0L) overWriteOK = false;
 
+//                evioFileWriter = new EventWriterUnsync(fileName, directory, runType,
+//                                                      runNumber, split, byteOrder,
+//                                                      dictionaryXML, overWriteOK);
+
                 evioFileWriter = new EventWriterUnsync(fileName, directory, runType,
-                                                      runNumber, split, byteOrder,
-                                                      dictionaryXML, overWriteOK);
+                                                       runNumber, split, 4194304, 10000, 0,
+                                                       byteOrder,dictionaryXML, null, overWriteOK,
+                                                       false, null, emu.getDataStreamId());
+
 logger.info("      DataChannel File: file = " + evioFileWriter.getCurrentFilePath());
 
                 // Tell emu what that output name is for stat reporting.

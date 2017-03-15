@@ -12,7 +12,6 @@
 package org.jlab.coda.emu.support.data;
 
 import com.lmax.disruptor.EventFactory;
-import org.jlab.coda.jevio.EvioEvent;
 
 
 /**

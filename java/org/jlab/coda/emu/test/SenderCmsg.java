@@ -5,15 +5,15 @@ import org.jlab.coda.cMsg.cMsg;
 import org.jlab.coda.cMsg.cMsgMessage;
 import org.jlab.coda.cMsg.cMsgConstants;
 import org.jlab.coda.jevio.*;
-import org.jlab.coda.emu.support.data.Evio;
+//import org.jlab.coda.emu.support.data.Evio;
 
-import javax.xml.stream.XMLStreamWriter;
-import javax.xml.stream.XMLOutputFactory;
-import javax.xml.stream.XMLStreamException;
-import java.net.Socket;
+//import javax.xml.stream.XMLStreamWriter;
+//import javax.xml.stream.XMLOutputFactory;
+//import javax.xml.stream.XMLStreamException;
+//import java.net.Socket;
 import java.io.*;
 import java.nio.ByteBuffer;
-import java.util.concurrent.TimeoutException;
+//import java.util.concurrent.TimeoutException;
 
 /**
  * This class is designed to send data to an EMU.

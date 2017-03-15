@@ -22,7 +22,6 @@ import org.jlab.coda.emu.support.configurer.Configurer;
 import org.jlab.coda.emu.support.configurer.DataNotFoundException;
 import org.jlab.coda.emu.support.control.CmdExecException;
 import org.jlab.coda.emu.support.control.Command;
-import org.jlab.coda.emu.support.codaComponent.State;
 import org.jlab.coda.emu.support.logger.Logger;
 import org.jlab.coda.emu.support.messaging.CMSGPortal;
 import org.jlab.coda.emu.support.messaging.RCConstants;

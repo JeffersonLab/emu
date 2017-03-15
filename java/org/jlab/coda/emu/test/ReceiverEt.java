@@ -3,14 +3,12 @@ package org.jlab.coda.emu.test;
 import org.jlab.coda.et.*;
 import org.jlab.coda.et.enums.Mode;
 import org.jlab.coda.et.exception.*;
-import org.jlab.coda.jevio.EventParser;
 import org.jlab.coda.jevio.EvioEvent;
 import org.jlab.coda.jevio.EvioException;
 import org.jlab.coda.jevio.EvioReader;
 
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
-import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 

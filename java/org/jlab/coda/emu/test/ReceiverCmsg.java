@@ -1,16 +1,10 @@
 package org.jlab.coda.emu.test;
 
 import org.jlab.coda.cMsg.*;
-import org.jlab.coda.jevio.EvioBank;
-import org.jlab.coda.jevio.EvioException;
 import org.jlab.coda.jevio.EventParser;
 
-import javax.xml.stream.XMLStreamWriter;
-import javax.xml.stream.XMLOutputFactory;
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
-import java.io.StringWriter;
-import java.nio.ByteOrder;
 
 /**
  * This class is designed to receive output from an EMU.

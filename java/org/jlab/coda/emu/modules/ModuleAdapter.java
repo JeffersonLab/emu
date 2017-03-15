@@ -26,9 +26,7 @@ import org.jlab.coda.emu.support.transport.DataChannel;
 
 import java.nio.ByteOrder;
 import java.util.ArrayList;
-import java.util.List;
 import java.util.Map;
-import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicReference;
 
 

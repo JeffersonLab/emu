@@ -4,7 +4,6 @@ package org.jlab.coda.emu.support.ui;
 
 import javax.swing.*;
 import java.awt.*;
-import java.awt.event.*;
 import java.beans.*;
 
 /**
