@@ -67,9 +67,6 @@ public class Configurer implements DOMErrorHandler, LSParserFilter {
             // create one item of this class
             Configurer instance = new Configurer();
 
-            // create Error Handler (an item of this class)
-            DOMErrorHandler errorHandler = instance;
-
             // get DOM Implementation using DOM Registry
             // bug bug: use default SUN implementation instead?
             //System.setProperty(DOMImplementationRegistry.PROPERTY, "org.apache.xerces.dom.DOMXSImplementationSourceImpl");
@@ -91,7 +88,7 @@ public class Configurer implements DOMErrorHandler, LSParserFilter {
             domBuilder.setFilter(instance);
 
             // set error handler in DOM parser
-            config.setParameter("error-handler", errorHandler);
+            config.setParameter("error-handler", instance);
 
             // set validation feature in DOM parser
             config.setParameter("validate", Boolean.FALSE);
@@ -547,10 +544,9 @@ System.out.println("treeToPanel: child's \"name\" attribute name is " + nameAttr
             // if we have NOT found the partialPath among the child nodes ...
             if (found == null) {
                 // it could be an attribute so look for attribute named partialPath
-                Node el = n;
 
                 // returns null if not an Element object
-                NamedNodeMap nnm = el.getAttributes();
+                NamedNodeMap nnm = n.getAttributes();
                 if (nnm != null) {
 //System.out.println("getNode: Looking for " + partialPath + " in " + n + ", attri = " + nnm);
                     found = nnm.getNamedItem(partialPath);
