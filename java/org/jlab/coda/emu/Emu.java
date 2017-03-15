@@ -1840,6 +1840,7 @@ if (debug) System.out.println("Emu " + name + " prestart: PRESTART cmd to " + tr
             inChannels.clear();
             outChannels.clear();
 
+            // modulesConfig never null cause checked in download transition
             Node modulesConfig = Configurer.getNode(configuration(), "component/modules");
             Node moduleNode = modulesConfig.getFirstChild();
             // For each module in the list of modules ...
@@ -2022,8 +2023,8 @@ logger.info("Emu " + name + " download: change state to DOWNLOADING");
 
             // Check for config problems
             if (modulesConfig == null) {
-                // Only happens if  emu.configuration() is null
-                throw new DataNotFoundException("config never loaded");
+                // Only happens if  emu.configuration() is null or config file is faulty
+                throw new DataNotFoundException("config never loaded / faulty");
             }
 
             // Need modules to create an emu
@@ -2050,9 +2051,8 @@ if (debug) System.out.println("Emu " + name + " download: transport " + t.name()
                     transports.clear();
 
                     Node m = Configurer.getNode(configuration(), "component/transports");
-                    if (!m.hasChildNodes()) {
-logger.warn("Emu " + name + " download: transport section present in config but no transports");
-                        return;
+                    if (m == null|| !m.hasChildNodes()) {
+                        throw new DataNotFoundException("transport section or info missing in config");
                     }
 
                     NodeList l = m.getChildNodes();
