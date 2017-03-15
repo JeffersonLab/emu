@@ -184,9 +184,7 @@ public class EmuDataPath {
      * @return <code>true</code> if module in path, else <code>false</code>
      */
     synchronized public boolean containsModule(EmuModule module) {
-        if (emuModules == null) {
-            getEmuModules();
-        }
+        getEmuModules();
         return emuModules.contains(module);
     }
 
