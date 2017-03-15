@@ -91,7 +91,7 @@ public enum CODACommand {
 
 
     /** Ways in which a command's input obtained from a cMsg message. */
-    public static enum InputType {
+    public enum InputType {
         /** By calling msg.getText(). */
         TEXT,
         /** By calling msg.userInt(). */

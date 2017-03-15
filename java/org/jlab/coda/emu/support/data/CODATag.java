@@ -97,7 +97,7 @@ public enum CODATag {
     }
 
 
-    private CODATag(int value) {
+    CODATag(int value) {
         this.value = value;
     }
 

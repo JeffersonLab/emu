@@ -81,7 +81,7 @@ public enum ControlType {
     }
 
 
-    private ControlType(int value, int ordinalValue) {
+    ControlType(int value, int ordinalValue) {
         this.value = value;
         this.ordinalValue = ordinalValue;
     }
