@@ -733,14 +733,17 @@ logger.debug("    DataTransport Et: create local C ET system, " + etOpenConfig.g
                 }
 
                 if (terminated) {
-                    String errorOut = null;
+                    String errorOut = "";
                     // grab any output
                     String[] retStrings = gatherAllOutput(processET, true);
                     if (retStrings[0] != null) {
                         errorOut += retStrings[0];
                     }
                     if (retStrings[1] != null) {
-                        errorOut += "\n" + retStrings[0];
+                        if (retStrings[0] != null) {
+                            errorOut += "\n";
+                        }
+                        errorOut += retStrings[1];
                     }
 
                     transportState = CODAState.ERROR;
