@@ -97,9 +97,9 @@ public class MDIDesktopPane extends JDesktopPane {
         manager.setNormalSize();
         int frameHeight = getBounds().height/allFrames.length;
         int y = 0;
-        for (int i = 0; i < allFrames.length; i++) {
-            allFrames[i].setSize(getBounds().width,frameHeight);
-            allFrames[i].setLocation(0,y);
+        for (Component allFrame : allFrames) {
+            allFrame.setSize(getBounds().width, frameHeight);
+            allFrame.setLocation(0, y);
             y = y + frameHeight;
         }
     }
@@ -191,12 +191,12 @@ class MDIDesktopManager extends DefaultDesktopManager {
 
         if (scrollPane != null) {
             JInternalFrame allFrames[] = desktop.getAllFrames();
-            for (int i = 0; i < allFrames.length; i++) {
-                if (allFrames[i].getX()+allFrames[i].getWidth()>x) {
-                    x = allFrames[i].getX() + allFrames[i].getWidth();
+            for (JInternalFrame frame : allFrames) {
+                if (frame.getX() + frame.getWidth() > x) {
+                    x = frame.getX() + frame.getWidth();
                 }
-                if (allFrames[i].getY()+allFrames[i].getHeight()>y) {
-                    y = allFrames[i].getY() + allFrames[i].getHeight();
+                if (frame.getY() + frame.getHeight() > y) {
+                    y = frame.getY() + frame.getHeight();
                 }
             }
             Dimension d=scrollPane.getVisibleRect().getSize();
