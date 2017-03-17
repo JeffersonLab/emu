@@ -226,12 +226,12 @@ public final class Statistics {
 
         fillHistogram();
 
-        System.out.println("\n" + label);
-        System.out.println("    Mean = " + mean + " " + units + ", min = " + min + ", max = " + max);
+        System.out.println('\n' + label);
+        System.out.println("    Mean = " + mean + ' ' + units + ", min = " + min + ", max = " + max);
         for (int i=0; i < binCount; i++) {
             System.out.println( (startingBinValue + i*binSize) + " - " +
                                 (startingBinValue + ((i+1)*binSize - 1)) +
-                                 " " + units + " = " + histogram[i+5]);
+                                 ' ' + units + " = " + histogram[i+5]);
         }
         System.out.println();
     }

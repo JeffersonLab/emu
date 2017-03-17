@@ -539,7 +539,8 @@ System.out.println("checkPayload: record ID out of sequence, got " + recordId +
             tag = node.getTag();
 
             if (sourceId != getTagCodaId(tag)) {
-                System.out.println("checkPayload: buf source Id (" + sourceId + ") != buf's id from tag (" + getTagCodaId(tag) + ")");
+                System.out.println("checkPayload: buf source Id (" + sourceId +
+                                           ") != buf's id from tag (" + getTagCodaId(tag) + ')');
                 nonFatalError = true;
             }
 
@@ -1744,9 +1745,9 @@ System.out.println("Timestamp NOT consistent: ev #" + (firstEventNumber + j) + "
                 // Check to see if all trigger bank tags are the same
                 if (tag != firstTrigTag) {
                     throw new EmuException("Trigger banks have different tags, 0x" +
-                    Integer.toHexString(firstTrigTag) + "(" + inputPayloadBanks[0].getSourceName() +
+                    Integer.toHexString(firstTrigTag) + '(' + inputPayloadBanks[0].getSourceName() +
                     ") != 0x" + Integer.toHexString(tag) +
-                    " (" + inputPayloadBanks[i].getSourceName() + ")");
+                    " (" + inputPayloadBanks[i].getSourceName() + ')');
                 }
             }
         }
@@ -1871,7 +1872,7 @@ System.out.println("makeTriggerBankFromRocRaw: event type differs across ROCs, f
                     if (evNum != triggerData[0]) {
 System.out.println("makeTriggerBankFromRocRaw: event # differs (in Bt# " + buildThreadOrder + ") for ROC id#" +
                         getTagCodaId(inputPayloadBanks[j].getNode().getTag()) + ", expected " +
-                        evNum + " got " + (triggerData[0]) + " (0x" + Integer.toHexString(triggerData[0]) + ")");
+                        evNum + " got " + (triggerData[0]) + " (0x" + Integer.toHexString(triggerData[0]) + ')');
                         nonFatalError = true;
                     }
 
@@ -2198,9 +2199,9 @@ System.out.println("makeTriggerBankFromRocRaw: event # differs (in Bt# " + build
                 // Check to see if all trigger bank tags are the same
                 if (tag != firstTrigTag) {
                     throw new EmuException("Trigger banks have different tags, 0x" +
-                    Integer.toHexString(firstTrigTag) + "(" + inputPayloadBanks[0].getSourceName() +
+                    Integer.toHexString(firstTrigTag) + '(' + inputPayloadBanks[0].getSourceName() +
                     ") != 0x" + Integer.toHexString(tag) +
-                    " (" + inputPayloadBanks[i].getSourceName() + ")");
+                    " (" + inputPayloadBanks[i].getSourceName() + ')');
                 }
             }
         }
@@ -2291,7 +2292,7 @@ System.out.println("makeTriggerBankFromRocRaw: event type differs across ROCs, f
                     if (firstEvNum + i != triggerData[0]) {
 System.out.println("makeTriggerBankFromRocRaw: event # differs (in Bt# " + buildThreadOrder + ") for ROC id#" +
                         getTagCodaId(inputPayloadBanks[j].getNode().getTag()) + ", expected " +
-                        (firstEvNum+i) + " got " + (triggerData[0]) + " (0x" + Integer.toHexString(triggerData[0]) + ")");
+                        (firstEvNum+i) + " got " + (triggerData[0]) + " (0x" + Integer.toHexString(triggerData[0]) + ')');
                         nonFatalError = true;
                     }
 

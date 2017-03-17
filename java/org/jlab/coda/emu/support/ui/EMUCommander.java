@@ -112,7 +112,7 @@ System.out.println("Document : " + Configurer.serialize(d));
                     String content = Configurer.serialize(d);
 
                     msg.addPayloadItem(new cMsgPayloadItem("configuration", content));
-System.out.println("\"" + content + "\"");
+System.out.println('\"' + content + '\"');
                 } catch (Exception e) {
                     System.err.println("Exception " + e);
                 }

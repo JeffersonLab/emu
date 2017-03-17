@@ -38,7 +38,8 @@ public class PrintAppender implements LoggerAppender {
             return "";
         }
         // Make Line# clickable in eclipse
-        return ste.getClassName() + "." + ste.getMethodName() + "(" + ste.getFileName() + ":" + ste.getLineNumber() + ")";
+        return ste.getClassName() + '.' + ste.getMethodName() +
+                '(' + ste.getFileName() + ':' + ste.getLineNumber() + ')';
     }
 
     /**
@@ -55,7 +56,7 @@ public class PrintAppender implements LoggerAppender {
 
         String data = "";
         if (event.hasData()) {
-            data = " [" + event.getFormatedData() + "]";
+            data = " [" + event.getFormatedData() + ']';
         }
         out.println(event.getMessage() + data + "\t  " + formatLocation(event.getLocation()));
         if (event.getThrowable() != null) {

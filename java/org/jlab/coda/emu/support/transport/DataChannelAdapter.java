@@ -370,7 +370,8 @@ System.out.println("      DataChannel Adapter: chunking for SEBs = " + chunkingF
         // Initialize the ring number (of first buildable event)
         ringIndex = (int) (nextEvent % outputRingCount);
 
-System.out.println("      DataChannel Adapter: prestart, nextEv (" + nextEvent + "), ringIndex (" + ringIndex + ")");
+System.out.println("      DataChannel Adapter: prestart, nextEv (" +
+                           nextEvent + "), ringIndex (" + ringIndex + ')');
     }
 
 

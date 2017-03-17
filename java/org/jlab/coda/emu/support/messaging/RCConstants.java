@@ -36,15 +36,15 @@ public class RCConstants {
     // Subscriptions
 
     /** String used as type in subscription that receives transition commands. */
-    public static final String transitionCommandType = transitionCommand + "*";
+    public static final String transitionCommandType = transitionCommand + '*';
     /** String used as type in subscription that receives run commands. */
-    public static final String runCommandType        = runCommand + "*";
+    public static final String runCommandType        = runCommand + '*';
     /** String used as type in subscription that receives session commands. */
-    public static final String sessionCommandType    = sessionCommand + "*";
+    public static final String sessionCommandType    = sessionCommand + '*';
     /** String used as type in subscription that receives rc response commands. */
-    public static final String rcResponseCommandType = rcResponseCommand + "*";
+    public static final String rcResponseCommandType = rcResponseCommand + '*';
     /** String used as type in subscription that receives coda info commands. */
-    public static final String codaInfoCommandType = codaInfoCommand + "*";
+    public static final String codaInfoCommandType = codaInfoCommand + '*';
 
     // Types in messages sent to run control
 

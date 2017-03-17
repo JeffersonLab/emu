@@ -54,7 +54,7 @@ class LoggerDataWrapper {
      * @param v2 of type long
      */
     public LoggerDataWrapper(long v1, long v2) {
-        this.text = String.valueOf(v1) + " " + String.valueOf(v2);
+        this.text = String.valueOf(v1) + ' ' + String.valueOf(v2);
     }
 
     /**
@@ -64,7 +64,7 @@ class LoggerDataWrapper {
      * @param v2 of type String
      */
     public LoggerDataWrapper(String v1, String v2) {
-        this.text = v1 + " " + v2;
+        this.text = v1 + ' ' + v2;
     }
 
     /**

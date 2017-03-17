@@ -1364,7 +1364,7 @@ logger.error("Emu " + name + ": got SET_RUN_TYPE command but no run type specifi
                 bufferLevel = bufLevel;
             }
             else {
-logger.error("Emu " + name + ": got SET_BUF_LEVEL command but bad value (" + bufLevel + ")");
+logger.error("Emu " + name + ": got SET_BUF_LEVEL command but bad value (" + bufLevel + ')');
             }
             return;
         }
@@ -2580,7 +2580,7 @@ if (debug) System.out.println("Emu " + name + " config: Got config type = " + my
                             if (codaID > -1 && chanID > -1 && codaID != chanID) {
                                 throw new DataNotFoundException("CODA id (" + codaID +
                                                                 ") does not match config file output chan id (" +
-                                                                 chanID + ")");
+                                                                 chanID + ')');
                             }
                         }
                     }

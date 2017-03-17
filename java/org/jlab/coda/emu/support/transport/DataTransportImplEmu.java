@@ -75,14 +75,14 @@ public class DataTransportImplEmu extends DataTransportAdapter {
                     port = Integer.parseInt(portStr);
                     if (port < 1024 || port > 65535) {
                         transportState = CODAState.ERROR;
-                        emu.setErrorState("Transport Emu: bad port value (" + port + ")");
-                        throw new DataNotFoundException("Bad port value (" + port + ")");
+                        emu.setErrorState("Transport Emu: bad port value (" + port + ')');
+                        throw new DataNotFoundException("Bad port value (" + port + ')');
                     }
                 }
                 catch (NumberFormatException e) {
                     transportState = CODAState.ERROR;
-                    emu.setErrorState("Transport Emu: bad port value (" + portStr + ")");
-                    throw new DataNotFoundException("Bad port value (" + portStr + ")");
+                    emu.setErrorState("Transport Emu: bad port value (" + portStr + ')');
+                    throw new DataNotFoundException("Bad port value (" + portStr + ')');
                 }
             }
             else {

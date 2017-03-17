@@ -131,7 +131,7 @@ public class DataTransportImplEt extends DataTransportAdapter {
             // read each line of output
             while ((line = brErr.readLine()) != null) {
                 sb.append(line);
-                sb.append("\n");
+                sb.append('\n');
             }
         }
         catch (IOException e) {
@@ -197,7 +197,7 @@ public class DataTransportImplEt extends DataTransportAdapter {
         String etName = attrib.get("etName");
         if (etName == null) {
             // default name is <EXPID>_<EMU name> in /tmp directory
-            etName = "/tmp/" +  emu.getExpid() + "_" + emu.name();
+            etName = "/tmp/" +  emu.getExpid() + '_' + emu.name();
         }
 
         //--------------------------------------
@@ -704,7 +704,7 @@ logger.info("    DataTransport Et: used java process handle to kill ET");
 //                     " with cmd:\n" + etCmd);
                 Calendar cal = Calendar.getInstance();
                 String now = cal.get(Calendar.HOUR_OF_DAY) + ":" +
-                             cal.get(Calendar.MINUTE) + ":" +
+                             cal.get(Calendar.MINUTE) + ':' +
                              cal.get(Calendar.SECOND);
 
                 // Pipe output to log file
@@ -713,10 +713,10 @@ logger.info("    DataTransport Et: used java process handle to kill ET");
                 cmds[1] = "-c" ;
                 cmds[2] = etCmd;
                 cmds[3] = "-f" ;
-                cmds[4] = etOpenConfig.getEtName() + "-" + now + ".log";
+                cmds[4] = etOpenConfig.getEtName() + '-' + now + ".log";
 
 logger.debug("    DataTransport Et: create local C ET system, " + etOpenConfig.getEtName() + " with cmd:\n" +
-             "script -c \"" + etCmd + "\" -f " + etOpenConfig.getEtName()+ "-" + now + ".log");
+             "script -c \"" + etCmd + "\" -f " + etOpenConfig.getEtName()+ '-' + now + ".log");
                 processET = Runtime.getRuntime().exec(cmds);
 
                 // Allow process a chance to run before testing if its terminated.

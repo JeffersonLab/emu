@@ -337,8 +337,8 @@ System.out.println("      DataChannel Emu in: connection made from " + name);
 
         // "name" is name of this channel which also happens to be the
         // destination CODA component we want to connect to.
-        String udl = "emu://" + sendPort + "/" + emu.getExpid() +
-                "/" + name + "?codaId=" + getID();
+        String udl = "emu://" + sendPort + '/' + emu.getExpid() +
+                '/' + name + "?codaId=" + getID();
 
         if (maxBufferSize > 0) {
             udl += "&bufSize=" + maxBufferSize;
@@ -688,7 +688,7 @@ System.out.println("      DataChannel Emu in: unknown command from Emu client = 
                 // set it again. It will send it to rc.
                 String errString = "DataChannel Emu in: error reading " + name;
                 if (e.getMessage() != null) {
-                    errString += " " + e.getMessage();
+                    errString += ' ' + e.getMessage();
                 }
                 emu.setErrorState(errString);
 System.out.println("      " + errString);
@@ -791,7 +791,7 @@ System.out.println("      " + errString);
                     // Find out exactly what type of control event it is
                     // (May be null if there is an error).
                     controlType = ControlType.getControlType(node.getTag());
-logger.info("      DataChannel Emu in: " + name + " " + controlType + " event from ROC");
+logger.info("      DataChannel Emu in: " + name + ' ' + controlType + " event from ROC");
                     if (controlType == null) {
                         errorMsg.compareAndSet(null, "DataChannel Emu in: found unidentified control event");
                         throw new EvioException("Found unidentified control event");

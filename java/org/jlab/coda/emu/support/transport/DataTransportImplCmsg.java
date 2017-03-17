@@ -70,14 +70,14 @@ public class DataTransportImplCmsg extends DataTransportAdapter {
         // If using the platform's cMsg server, construct the proper udl
         // and put communication in the "CODA" namespace.
         if (udl.equalsIgnoreCase("platform")) {
-            udl = "cMsg://" + emu.getCmsgPortal().getPlatformHost() + ":" +
+            udl = "cMsg://" + emu.getCmsgPortal().getPlatformHost() + ':' +
                               emu.getCmsgPortal().getPlatformPort() +
                               "/cMsg/CODA/?cmsgpassword=" + emu.getExpid();
         }
 
         // create cmsg connection object (does NOT create connection yet)
         try {
-            cmsgConnection = new cMsg(udl, pname+"_"+emu.name() , "");
+            cmsgConnection = new cMsg(udl, pname + '_' + emu.name() , "");
         }
         catch (cMsgException e) {
             transportState = CODAState.ERROR;

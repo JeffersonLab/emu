@@ -399,7 +399,7 @@ public class Configurer implements DOMErrorHandler, LSParserFilter {
             if (nameAttr != null) {
 //System.out.println("treeToPanel:   name = " + nameAttr.getNodeValue());
                 dn.setValue(nameAttr.getNodeValue() +
-                                    " (" + node.getNodeName() + ")");
+                                    " (" + node.getNodeName() + ')');
             }
             else {
                 // do this to get Title in JInternalFrame

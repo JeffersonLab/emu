@@ -708,7 +708,7 @@ class LocalEmuDomainTcpServer extends Thread {
                                 if (codaId < 0) {
                                     if (debug >= cMsgConstants.debugInfo) {
                                         System.out.println("Emu domain server: bad coda id of sender (" +
-                                                           codaId + ")");
+                                                           codaId + ')');
                                     }
                                     channel.close();
                                     it.remove();
@@ -722,7 +722,7 @@ class LocalEmuDomainTcpServer extends Thread {
                                     // 40 bytes is smallest possible evio file format size
                                     if (debug >= cMsgConstants.debugInfo) {
                                         System.out.println("Emu domain server: bad buffer size from sender (" +
-                                                           bufferSizeDesired + ")");
+                                                           bufferSizeDesired + ')');
                                     }
                                     channel.close();
                                     it.remove();

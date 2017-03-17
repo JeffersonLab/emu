@@ -61,7 +61,7 @@ public class DataTransportImplFifo extends DataTransportAdapter {
                                                   int outputIndex)
             throws DataTransportException {
 
-        String channelName = name() + ":" + name;
+        String channelName = name() + ':' + name;
 
         // See if channel has already been created
         DataChannelImplFifo c = allChannels.get(channelName);

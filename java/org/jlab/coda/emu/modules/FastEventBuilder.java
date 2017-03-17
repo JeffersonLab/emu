@@ -1608,7 +1608,7 @@ if (debug) System.out.println("  EB mod: Building thread is ending");
         }
 
         for (int i=0; i < outputChannelCount; i++) {
-System.out.println("\n  EB mod: calling processEnd() for chan " + i + "\n");
+System.out.println("\n  EB mod: calling processEnd() for chan " + i + '\n');
             outputChannels.get(i).processEnd(evIndex, ringIndex);
         }
     }

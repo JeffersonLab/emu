@@ -290,7 +290,7 @@ public class Logger {
         }
         Class klass;
         StringBuilder buf = new StringBuilder();
-        buf.append(message).append(" ");
+        buf.append(message).append(' ');
         if (obj instanceof Class) {
             klass = (Class) obj;
             buf.append("class ");
@@ -301,7 +301,7 @@ public class Logger {
         buf.append(klass.getName()).append(" loaded by ");
         if (klass.getClassLoader() != null) {
             buf.append(klass.getClassLoader().hashCode());
-            buf.append(" ");
+            buf.append(' ');
             buf.append(klass.getClassLoader().getClass().getName());
         } else {
             buf.append("system");
@@ -410,7 +410,7 @@ public class Logger {
      */
     public void error(String message, Throwable t) {
         if (enable_error) {
-            write(LoggingEvent.ERROR, message + " " + t.toString(), t);
+            write(LoggingEvent.ERROR, message + ' ' + t.toString(), t);
         }
     }
 
