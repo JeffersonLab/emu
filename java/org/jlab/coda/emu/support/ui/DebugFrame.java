@@ -242,12 +242,12 @@ public class DebugFrame extends JFrame {
         theBox.setVisible(true);
     }
 
-    private void aboutMenuItemActionPerformed(ActionEvent e) {
+    private static void aboutMenuItemActionPerformed(ActionEvent e) {
         AboutBox theBox = new AboutBox();
         theBox.setVisible(true);
     }
 
-    private void quitMenuItemActionPerformed(ActionEvent e) {
+    private static void quitMenuItemActionPerformed(ActionEvent e) {
         System.exit(0);
     }
 

@@ -143,24 +143,6 @@ public class RocSynchronizer {
         return s;
     }
 
-    /**
-     * Method to wait on string from keyboard.
-     * @param s prompt string to print
-     * @return string typed in keyboard
-     */
-    public String inputStr(String s) {
-        String aLine = "";
-        BufferedReader input =  new BufferedReader(new InputStreamReader(System.in));
-        System.out.print(s);
-        try {
-            aLine = input.readLine();
-        }
-        catch (Exception e) {
-            e.printStackTrace();
-        }
-        return aLine;
-    }
-
 
     /**
      * This class defines the callback to be run when a message matching our subscription arrives.

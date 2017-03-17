@@ -132,6 +132,47 @@ public class RocSimulation extends ModuleAdapter {
     //----------------------------------------------------
 
 
+    /**
+     * Create a User event with a ByteBuffer which is ready to read.
+     *
+     * @param order byte order in which to write event into buffer
+     * @param isFirstEvent true if event is to be a "first event",
+     *                     that is, written as the first event in each file split
+     * @return created PayloadBuffer object containing User event in byte buffer
+     */
+    static private PayloadBuffer createUserBuffer(ByteOrder order, boolean isFirstEvent, int val) {
+        try {
+            CompactEventBuilder builder = new CompactEventBuilder(44, order);
+
+            // Create a single array of integers which is the bank data
+            // The user event looks like a Roc Raw event but with num = 0.
+            // tag=rocID, num=0 (indicates user event), type=bank
+            //builder.openBank(1, 0, DataType.BANK);
+            builder.openBank(2, 0, DataType.INT32);
+            builder.addIntData(new int[]{val});
+            builder.closeAll();
+            ByteBuffer bb = builder.getBuffer();
+
+            PayloadBuffer pBuf = new PayloadBuffer(bb);  // Ready to read buffer
+            // User events from the ROC come as type ROC RAW but with num = 0
+//            if (isFirstEvent) {
+                pBuf.setEventType(EventType.USER);
+//            }
+//            else {
+//                pBuf.setEventType(EventType.ROC_RAW);
+//            }
+            if (isFirstEvent) {
+                pBuf.isFirstEvent(true);
+            }
+
+            return pBuf;
+        }
+        catch (Exception e) {/* never happen */}
+
+        return null;
+    }
+
+
 
     /**
      * Constructor RocSimulation creates a simulated ROC instance.
@@ -452,46 +493,6 @@ public class RocSimulation extends ModuleAdapter {
 
         // Write event number into data bank
         buf.putInt(writeIndex, (int) eventNumber);
-    }
-
-    /**
-     * Create a User event with a ByteBuffer which is ready to read.
-     *
-     * @param order byte order in which to write event into buffer
-     * @param isFirstEvent true if event is to be a "first event",
-     *                     that is, written as the first event in each file split
-     * @return created PayloadBuffer object containing User event in byte buffer
-     */
-    private PayloadBuffer createUserBuffer(ByteOrder order, boolean isFirstEvent, int val) {
-        try {
-            CompactEventBuilder builder = new CompactEventBuilder(44, order);
-
-            // Create a single array of integers which is the bank data
-            // The user event looks like a Roc Raw event but with num = 0.
-            // tag=rocID, num=0 (indicates user event), type=bank
-            //builder.openBank(1, 0, DataType.BANK);
-            builder.openBank(2, 0, DataType.INT32);
-            builder.addIntData(new int[]{val});
-            builder.closeAll();
-            ByteBuffer bb = builder.getBuffer();
-
-            PayloadBuffer pBuf = new PayloadBuffer(bb);  // Ready to read buffer
-            // User events from the ROC come as type ROC RAW but with num = 0
-//            if (isFirstEvent) {
-                pBuf.setEventType(EventType.USER);
-//            }
-//            else {
-//                pBuf.setEventType(EventType.ROC_RAW);
-//            }
-            if (isFirstEvent) {
-                pBuf.isFirstEvent(true);
-            }
-
-            return pBuf;
-        }
-        catch (Exception e) {/* never happen */}
-
-        return null;
     }
 
 

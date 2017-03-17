@@ -4,6 +4,7 @@ import org.jlab.coda.cMsg.cMsgException;
 import org.jlab.coda.cMsg.cMsg;
 import org.jlab.coda.cMsg.cMsgMessage;
 import org.jlab.coda.cMsg.cMsgConstants;
+import org.jlab.coda.emu.EmuUtilities;
 import org.jlab.coda.jevio.*;
 //import org.jlab.coda.emu.support.data.Evio;
 
@@ -143,25 +144,6 @@ public class SenderCmsg {
         }
 
         return s;
-    }
-
-
-    /**
-     * Method to wait on string from keyboard.
-     * @param s prompt string to print
-     * @return string typed in keyboard
-     */
-    public String inputStr(String s) {
-        String aLine = "";
-        BufferedReader input =  new BufferedReader(new InputStreamReader(System.in));
-        System.out.print(s);
-        try {
-            aLine = input.readLine();
-        }
-        catch (Exception e) {
-            e.printStackTrace();
-        }
-        return aLine;
     }
 
 
@@ -335,13 +317,13 @@ System.out.println("Using udl = " + UDL);
         // enable message reception
         coda.start();
 
-        inputStr("Enter to GO");
+        EmuUtilities.inputStr("Enter to GO");
         stopSending = false;
 
         sendDataThread sender = new sendDataThread();
         sender.start();
 
-        inputStr("Enter to QUIT");
+        EmuUtilities.inputStr("Enter to QUIT");
         stopSending = true;
 
         try { Thread.sleep(10000); }

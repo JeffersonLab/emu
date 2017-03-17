@@ -72,7 +72,7 @@ public class DataTransportImplEt extends DataTransportAdapter {
 
     /** Class describing thread to be used for killing ET
      *  and removing file if JVM exited by control-C. */
-    private static class ControlCThread extends Thread {
+    static private class ControlCThread extends Thread {
         EtSystem etSys;
         String etFileName;
 
@@ -114,6 +114,67 @@ public class DataTransportImplEt extends DataTransportAdapter {
         }
     }
 
+
+    /**
+     * Get the output of a process - either error or regular output
+     * depending on the input stream.
+     *
+     * @param inputStream get process output from this stream
+     * @return String of process output
+     */
+    static private String getProcessOutput(InputStream inputStream) {
+        String line;
+        StringBuilder sb = new StringBuilder(300);
+        BufferedReader brErr = new BufferedReader(new InputStreamReader(inputStream));
+
+        try {
+            // read each line of output
+            while ((line = brErr.readLine()) != null) {
+                sb.append(line);
+                sb.append("\n");
+            }
+        }
+        catch (IOException e) {
+            // probably best to ignore this error
+        }
+
+        if (sb.length() > 0) {
+            // take off last \n we put in buffer
+            sb.deleteCharAt(sb.length()-1);
+            return sb.toString();
+        }
+
+        return null;
+    }
+
+
+    /**
+     * Get regular output (if monitor true) and error output
+     * of Process and return both as strings.
+     *
+     * @param monitor <code>true</code> if we store regular output, else <code>false</code>.
+     * @return array with both regular output (first element) and error output (second).
+     */
+    static private String[] gatherAllOutput(Process process, boolean monitor) {
+        String output;
+        String[] strs = new String[2];
+
+        // Grab regular output if requested.
+        if (monitor) {
+            output = getProcessOutput(process.getInputStream());
+            if (output != null) {
+                strs[0] = output;
+            }
+        }
+
+        // Always grab error output.
+        output = getProcessOutput(process.getErrorStream());
+        if (output != null) {
+            strs[1] = output;
+        }
+
+        return strs;
+    }
 
 
     /**
@@ -452,68 +513,6 @@ System.out.println("    DataTransport Et: ignoring preferred subnet of " + prefe
                     throws DataTransportException {
 
         return new DataChannelImplEt(name, this, attributeMap, isInput, emu, module, outputIndex);
-    }
-
-
-    /**
-     * Get the output of a process - either error or regular output
-     * depending on the input stream.
-     *
-     * @param inputStream get process output from this stream
-     * @return String of process output
-     */
-    private String getProcessOutput(InputStream inputStream) {
-        String line;
-        StringBuilder sb = new StringBuilder(300);
-        BufferedReader brErr = new BufferedReader(new InputStreamReader(inputStream));
-
-        try {
-            // read each line of output
-            while ((line = brErr.readLine()) != null) {
-                sb.append(line);
-                sb.append("\n");
-            }
-        }
-        catch (IOException e) {
-            // probably best to ignore this error
-        }
-
-        if (sb.length() > 0) {
-            // take off last \n we put in buffer
-            sb.deleteCharAt(sb.length()-1);
-            return sb.toString();
-        }
-
-        return null;
-    }
-
-
-    /**
-     * Get regular output (if monitor true) and error output
-     * of Process and return both as strings.
-     *
-     * @param monitor <code>true</code> if we store regular output, else <code>false</code>.
-     * @return array with both regular output (first element) and error output (second).
-     */
-    private String[] gatherAllOutput(Process process, boolean monitor) {
-        String output;
-        String[] strs = new String[2];
-
-        // Grab regular output if requested.
-        if (monitor) {
-            output = getProcessOutput(process.getInputStream());
-            if (output != null) {
-                strs[0] = output;
-            }
-        }
-
-        // Always grab error output.
-        output = getProcessOutput(process.getErrorStream());
-        if (output != null) {
-            strs[1] = output;
-        }
-
-        return strs;
     }
 
 

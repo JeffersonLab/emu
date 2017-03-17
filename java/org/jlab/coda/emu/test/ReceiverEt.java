@@ -1,5 +1,6 @@
 package org.jlab.coda.emu.test;
 
+import org.jlab.coda.emu.EmuUtilities;
 import org.jlab.coda.et.*;
 import org.jlab.coda.et.enums.Mode;
 import org.jlab.coda.et.exception.*;
@@ -127,25 +128,6 @@ public class ReceiverEt {
         }
 
         return s;
-    }
-
-
-    /**
-     * Method to wait on string from keyboard.
-     * @param s prompt string to print
-     * @return string typed in keyboard
-     */
-    public String inputStr(String s) {
-        String aLine = "";
-        BufferedReader input =  new BufferedReader(new InputStreamReader(System.in));
-        System.out.print(s);
-        try {
-            aLine = input.readLine();
-        }
-        catch (Exception e) {
-            e.printStackTrace();
-        }
-        return aLine;
     }
 
 
@@ -282,12 +264,12 @@ System.out.println("pri = " + mev.getPriority());
             return;
         }
 
-        inputStr("Enter to GO");
+        EmuUtilities.inputStr("Enter to GO");
 
         receiveDataThread receiver = new receiveDataThread();
         receiver.start();
 
-        inputStr("Enter to QUIT");
+        EmuUtilities.inputStr("Enter to QUIT");
 
         try { Thread.sleep(10000); }
         catch (InterruptedException e) { }

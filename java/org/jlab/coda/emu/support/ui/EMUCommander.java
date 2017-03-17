@@ -214,7 +214,7 @@ System.out.println("CMSGPortal.append error " + e.getMessage());
         System.exit(0);
     }
 
-    private void quitMenuItemActionPerformed(ActionEvent e) {
+    static private void quitMenuItemActionPerformed(ActionEvent e) {
         System.exit(0);
     }
 
@@ -223,7 +223,7 @@ System.out.println("CMSGPortal.append error " + e.getMessage());
         theBox.setVisible(true);
     }
 
-    private void aboutMenuItemActionPerformed(ActionEvent e) {
+    static private void aboutMenuItemActionPerformed(ActionEvent e) {
         AboutBox theBox = new AboutBox();
         theBox.setVisible(true);
     }

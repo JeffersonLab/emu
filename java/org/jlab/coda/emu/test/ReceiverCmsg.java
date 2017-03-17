@@ -130,7 +130,7 @@ public class ReceiverCmsg {
      * @param places number of decimal places
      * @return string representation of the double
      */
-    private static String doubleToString(double d, int places) {
+    static private String doubleToString(double d, int places) {
         if (places < 0) places = 0;
 
         double factor = Math.pow(10,places);
@@ -145,26 +145,6 @@ public class ReceiverCmsg {
         }
 
         return s;
-    }
-
-
-
-    /**
-     * Method to wait on string from keyboard.
-     * @param s prompt string to print
-     * @return string typed in keyboard
-     */
-    public String inputStr(String s) {
-        String aLine = "";
-        BufferedReader input =  new BufferedReader(new InputStreamReader(System.in));
-        System.out.print(s);
-        try {
-            aLine = input.readLine();
-        }
-        catch (Exception e) {
-            e.printStackTrace();
-        }
-        return aLine;
     }
 
 

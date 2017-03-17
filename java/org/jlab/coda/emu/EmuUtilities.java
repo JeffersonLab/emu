@@ -13,6 +13,8 @@ package org.jlab.coda.emu;
 
 import org.jlab.coda.emu.support.data.EventType;
 
+import java.io.BufferedReader;
+import java.io.InputStreamReader;
 import java.util.BitSet;
 
 /**
@@ -20,6 +22,56 @@ import java.util.BitSet;
  * @author timmer (8/6/14)
  */
 public class EmuUtilities {
+
+    /**
+     * Method to wait on string from keyboard.
+     * @param s prompt string to print
+     * @return string typed in keyboard
+     */
+    static public String inputStr(String s) {
+        String aLine = "";
+        BufferedReader input = new BufferedReader(new InputStreamReader(System.in));
+        System.out.print(s);
+        try {
+            aLine = input.readLine();
+        }
+        catch (Exception e) {
+            e.printStackTrace();
+        }
+        return aLine;
+    }
+
+
+    /**
+     * For the given number, return the closest power of two.
+     * @param value    number to find the closest power of two to.
+     * @param roundUp  if value argument is not a power of 2 already,
+     *                 {@code true} if caller wants to round up to
+     *                 number higher than value arg, or {@code false}
+     *                 if rounding to number lower than value arg.
+     * @return closest power of two
+     */
+    static public int closestPowerOfTwo(int value, boolean roundUp) {
+        if (value < 2) return 1;
+
+        // If "value" is not a power of 2 ...
+        if (Integer.bitCount(value) != 1) {
+            int origValue = value;
+            int newVal = value / 2;
+            value = 1;
+            while (newVal > 0) {
+                value *= 2;
+                newVal /= 2;
+            }
+
+            if (roundUp && (value < origValue)) {
+                value *= 2;
+            }
+        }
+
+        return value;
+    }
+
 
     /**
      * Encode the event type into the bit info word

@@ -14,6 +14,7 @@ package org.jlab.coda.emu.modules;
 import com.lmax.disruptor.*;
 import org.jlab.coda.emu.Emu;
 import org.jlab.coda.emu.EmuException;
+import org.jlab.coda.emu.EmuUtilities;
 import org.jlab.coda.emu.support.codaComponent.CODAClass;
 import org.jlab.coda.emu.support.codaComponent.CODAState;
 import org.jlab.coda.emu.support.codaComponent.State;
@@ -322,7 +323,7 @@ public class FastEventBuilderNoPre extends ModuleAdapter {
         }
 
         // Make sure it's a power of 2, round up
-        ringItemCount = emu.closestPowerOfTwo(ringCount, true);
+        ringItemCount = EmuUtilities.closestPowerOfTwo(ringCount, true);
         outputRingSize = getInternalRingCount();
 logger.info("  EB mod: internal ring buf count -> " + ringItemCount);
     }

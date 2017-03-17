@@ -980,37 +980,6 @@ System.out.println("\n\n");
     //-----------------------------------------------------
 
 
-    /**
-     * For the given number, return the closest power of two.
-     * @param value    number to find the closest power of two to.
-     * @param roundUp  if value argument is not a power of 2 already,
-     *                 {@code true} if caller wants to round up to
-     *                 number higher than value arg, or {@code false}
-     *                 if rounding to number lower than value arg.
-     * @return closest power of two
-     */
-    public int closestPowerOfTwo(int value, boolean roundUp) {
-        if (value < 2) return 1;
-
-        // If "value" is not a power of 2 ...
-        if (Integer.bitCount(value) != 1) {
-            int origValue = value;
-            int newVal = value / 2;
-            value = 1;
-            while (newVal > 0) {
-                value *= 2;
-                newVal /= 2;
-            }
-
-            if (roundUp && (value < origValue)) {
-                value *= 2;
-            }
-        }
-
-        return value;
-    }
-
-
     /** {@inheritDoc} */
     public void postCommand(Command cmd) throws InterruptedException {
         mailbox.put(cmd);
