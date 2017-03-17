@@ -171,7 +171,7 @@ public class SwingLogConsoleDialog extends JTextPane implements LoggerAppender {
      * @param eventTime of type long
      * @return String
      */
-    private String formatEventTime(long eventTime) {
+    static private String formatEventTime(long eventTime) {
         //String fullformat = "''yy EEE, MMM dd, HH:mm:ss.SSS ";
 
         DateFormat format = new SimpleDateFormat("HH:mm:ss.SSS");
