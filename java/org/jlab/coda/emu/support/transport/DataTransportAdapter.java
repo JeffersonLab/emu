@@ -142,6 +142,6 @@ public abstract class DataTransportAdapter extends CODAStateMachineAdapter imple
 
 
     /** {@inheritDoc} */
-    public void reset() {setConnected(false);}
+    public void reset() {connected = false;}
 
 }

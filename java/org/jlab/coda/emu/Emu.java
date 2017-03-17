@@ -1373,7 +1373,7 @@ logger.error("Got SET_SESSION command but no session specified 2");
             if (pItem != null) {
                 try {
                     String txt = pItem.getString();
-                    setRunType(txt);
+                    runType = txt;
 if (debug) System.out.println("Emu " + name + " SET_RUN_TYPE: set to " + txt);
                 }
                 catch (cMsgException e) {
@@ -1389,13 +1389,13 @@ logger.error("Emu " + name + ": got SET_RUN_TYPE command but no run type specifi
         // Run Control tells us our ROC output buffer level
         else if (codaCommand == SET_BUF_LEVEL) {
             // Get the new run type and store it
-            int bufferLevel = cmd.getMessage().getUserInt();
-            if (bufferLevel > 0) {
+            int bufLevel = cmd.getMessage().getUserInt();
+            if (bufLevel > 0) {
 //logger.info("Emu " + name + " SET_BUF_LEVEL: set to " + bufferLevel);
-                setBufferLevel(bufferLevel);
+                bufferLevel = bufLevel;
             }
             else {
-logger.error("Emu " + name + ": got SET_BUF_LEVEL command but bad value (" + bufferLevel + ")");
+logger.error("Emu " + name + ": got SET_BUF_LEVEL command but bad value (" + bufLevel + ")");
             }
             return;
         }
@@ -1801,7 +1801,7 @@ logger.info("Emu " + name + " prestart: change state to PRESTARTING");
                 // Should have run number
                 pItem = cmd.getArg(RCConstants.runNumberPayload);
                 if (pItem != null) {
-                    setRunNumber(pItem.getInt());
+                    runNumber = pItem.getInt();
                 }
             }
             catch (cMsgException e) {/* never happen */}
@@ -2256,7 +2256,7 @@ logger.info("Emu " + name + " config: change state to CONFIGURING");
         boolean newConfigLoaded = false;
 
         // Clear out old data
-        setOutputDestination(null);
+        outputDestination = null;
 
         try {
             // A msg from RC or a press of a debug GUI button can
@@ -2271,7 +2271,7 @@ logger.info("Emu " + name + " config: change state to CONFIGURING");
             try {
                 pItem = cmd.getArg(RCConstants.prestartPayloadRunType);
                 if (pItem != null) {
-                    setRunTypeId(pItem.getInt());
+                    runTypeId = pItem.getInt();
                 }
             }
             catch (cMsgException e) { }
@@ -2740,8 +2740,6 @@ if (debug) System.out.println("Emu " + name + " config: Got config type = " + my
                 if (dataPath.getModules().getLast().hasOutputFifo) {
                     throw new DataNotFoundException("last module cannot have output fifo");
                 }
-
-                setDataPath(dataPath);
 
 //System.out.println("DataPath -> " + dataPath);
 
