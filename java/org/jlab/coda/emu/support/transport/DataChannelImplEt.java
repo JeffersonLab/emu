@@ -136,7 +136,7 @@ public class DataChannelImplEt extends DataChannelAdapter {
 
     /** Time in microseconds to wait for the ET system to deliver requested events
      *  before throwing an EtTimeoutException. */
-    private final int etWaitTime = 500000;
+    private static final int etWaitTime = 500000;
 
 
     //-------------------------------------------
@@ -874,7 +874,7 @@ logger.debug("      DataChannel Et: reset " + name + " channel");
         private final CountDownLatch latch = new CountDownLatch(1);
 
         /** The minimum amount of milliseconds between updates to the M value. */
-        private final long timeBetweenMupdates = 500;
+        private static final long timeBetweenMupdates = 500;
 
 
         /** Constructor. */
@@ -1259,7 +1259,7 @@ System.out.println("      DataChannel Et in: " + name + " exit thd: " + errorStr
         private SequenceBarrier etFillBarrier;
 
         /** Maximum allowed number of evio ring items per ET event. */
-        private final int maxEvioItemsPerEtBuf = 10000;
+        private static final int maxEvioItemsPerEtBuf = 10000;
 
 
 

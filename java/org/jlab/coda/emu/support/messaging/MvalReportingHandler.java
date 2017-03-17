@@ -50,7 +50,7 @@ class MvalReportingHandler extends GenericCallback implements cMsgCallbackInterf
     /** Contains connection(s) to cMsg server. */
     private final CMSGPortal cmsgPortal;
 
-    private final boolean debug = false;
+    private static final boolean debug = false;
 
     private long timeAtLastUpdate;
 
