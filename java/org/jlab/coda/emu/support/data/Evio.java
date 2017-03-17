@@ -1203,18 +1203,14 @@ System.out.println("Timestamp NOT consistent: ev #" + (firstEventNumber + j) + "
             if (includeRunData) {
                 longData = new long[2+numEvents];
                 longData[0] = firstEventNumber;
-                for (int i=0; i < numEvents; i++) {
-                    longData[i+1] = timestampsAvg[i];
-                }
+                System.arraycopy(timestampsAvg, 0, longData, 1, numEvents);
                 longData[numEvents+1] = (((long)runNumber) << 32) | (runType & 0xffffffffL);
                 triggerTag = CODATag.BUILT_TRIGGER_TS_RUN.getValue();
             }
             else {
                 longData = new long[1+numEvents];
                 longData[0] = firstEventNumber;
-                for (int i=0; i < numEvents; i++) {
-                    longData[i+1] = timestampsAvg[i];
-                }
+                System.arraycopy(timestampsAvg, 0, longData, 1, numEvents);
                 triggerTag = CODATag.BUILT_TRIGGER_TS.getValue();
             }
         }
@@ -2361,18 +2357,14 @@ System.out.println("makeTriggerBankFromRocRaw: event # differs (in Bt# " + build
             if (includeRunData) {
                 longData = new long[2+numEvents];
                 longData[0] = firstEventNumber;
-                for (int i=0; i < numEvents; i++) {
-                    longData[i+1] = timestampsAvg[i];
-                }
+                System.arraycopy(timestampsAvg, 0, longData, 1, numEvents);
                 longData[numEvents+1] = (((long)runNumber) << 32) | (runType & 0xffffffffL);
                 trigTag = CODATag.BUILT_TRIGGER_TS_RUN;
             }
             else {
                 longData = new long[1+numEvents];
                 longData[0] = firstEventNumber;
-                for (int i=0; i < numEvents; i++) {
-                    longData[i+1] = timestampsAvg[i];
-                }
+                System.arraycopy(timestampsAvg, 0, longData, 1, numEvents);
                 trigTag = CODATag.BUILT_TRIGGER_TS;
             }
         }
