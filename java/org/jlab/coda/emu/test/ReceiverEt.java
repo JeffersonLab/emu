@@ -106,31 +106,6 @@ public class ReceiverEt {
     }
 
 
-    /**
-     * Method to convert a double to a string with a specified number of decimal places.
-     *
-     * @param d double to convert to a string
-     * @param places number of decimal places
-     * @return string representation of the double
-     */
-    private static String doubleToString(double d, int places) {
-        if (places < 0) places = 0;
-
-        double factor = Math.pow(10,places);
-        String s = "" + (double) (Math.round(d * factor)) / factor;
-
-        if (places == 0) {
-            return s.substring(0, s.length()-2);
-        }
-
-        while (s.length() - s.indexOf(".") < places+1) {
-            s += "0";
-        }
-
-        return s;
-    }
-
-
     class receiveDataThread extends Thread {
 
         public void run() {

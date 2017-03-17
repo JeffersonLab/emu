@@ -30,7 +30,7 @@ public class EmuUtilities {
      * @param places number of decimal places
      * @return string representation of the double
      */
-    private static String doubleToString(double d, int places) {
+    static public String doubleToString(double d, int places) {
         if (places < 0) places = 0;
 
         double factor = Math.pow(10,places);

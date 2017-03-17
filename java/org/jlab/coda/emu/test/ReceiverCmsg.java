@@ -1,6 +1,7 @@
 package org.jlab.coda.emu.test;
 
 import org.jlab.coda.cMsg.*;
+import org.jlab.coda.emu.EmuUtilities;
 import org.jlab.coda.jevio.EventParser;
 
 import java.io.BufferedReader;
@@ -124,31 +125,6 @@ public class ReceiverCmsg {
 
 
     /**
-     * Method to convert a double to a string with a specified number of decimal places.
-     *
-     * @param d double to convert to a string
-     * @param places number of decimal places
-     * @return string representation of the double
-     */
-    static private String doubleToString(double d, int places) {
-        if (places < 0) places = 0;
-
-        double factor = Math.pow(10,places);
-        String s = "" + (double) (Math.round(d * factor)) / factor;
-
-        if (places == 0) {
-            return s.substring(0, s.length()-2);
-        }
-
-        while (s.length() - s.indexOf(".") < places+1) {
-            s += "0";
-        }
-
-        return s;
-    }
-
-
-    /**
      * This class defines the callback to be run when a message matching our subscription arrives.
      */
     class myCallback extends cMsgCallbackAdapter {
@@ -231,8 +207,8 @@ public class ReceiverCmsg {
 
             if (debug) {
                 System.out.println("count = " + count + ", total = " + totalC);
-                System.out.println("freq  = " + doubleToString(freq, 1) + " Hz, Avg = " +
-                                   doubleToString(freqAvg, 1) + " Hz");
+                System.out.println("freq  = " + EmuUtilities.doubleToString(freq, 1) + " Hz, Avg = " +
+                                                EmuUtilities.doubleToString(freqAvg, 1) + " Hz");
             }
 
             if (!coda.isConnected()) {
