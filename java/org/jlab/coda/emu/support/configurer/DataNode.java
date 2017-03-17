@@ -137,17 +137,17 @@ public class DataNode {
     public void addToPanel(DataNode dn) {
         // if the node we're adding is a container, add the whole container into this one
         if (dn.isContainer()) {
-            hGroup.add(dn.getContainer());
-            rows.add(dn.getContainer());
+            hGroup.add(dn.container);
+            rows.add(dn.container);
         // else if the node we're adding is an attribute, use the layout manager of this
         // object and place in this container
         } else {
             GroupLayout.ParallelGroup   row = layout.createParallelGroup(GroupLayout.BASELINE);
             GroupLayout.SequentialGroup col = layout.createSequentialGroup();
-            row.add(dn.getTagField());
-            col.add(dn.getTagField());
-            row.add(dn.getValueField());
-            col.add(dn.getValueField());
+            row.add(dn.tagField);
+            col.add(dn.tagField);
+            row.add(dn.valueField);
+            col.add(dn.valueField);
             rows.add(row);
             hGroup.add(col);
         }
@@ -164,11 +164,11 @@ public class DataNode {
     public void removeFromPanel(DataNode dn) {
         // if the node we're removing is a container ...
         if (dn.isContainer()) {
-            layout.removeLayoutComponent(dn.getContainer());
+            layout.removeLayoutComponent(dn.container);
         // else if the node we're removing is an attribute ...
         } else {
-            layout.removeLayoutComponent(dn.getTagField());
-            layout.removeLayoutComponent(dn.getValueField());
+            layout.removeLayoutComponent(dn.tagField);
+            layout.removeLayoutComponent(dn.valueField);
         }
     }
 

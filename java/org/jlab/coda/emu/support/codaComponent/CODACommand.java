@@ -136,7 +136,7 @@ public enum CODACommand {
     // Fill static hashmap after all enum objects created.
     static {
         for (CODACommand item : CODACommand.values()) {
-            commandTypeToEnumMap.put(item.getCmdString(), item);
+            commandTypeToEnumMap.put(item.cmdString, item);
         }
     }
 
@@ -207,7 +207,7 @@ public enum CODACommand {
 
         // subtract out items that do NOT have the correct gui group
         for (CODACommand item : CODACommand.values()) {
-            if (item.getGuiGroup() != group) {
+            if (item.guiGroup != group) {
                 enumSet.remove(item);
             }
         }
