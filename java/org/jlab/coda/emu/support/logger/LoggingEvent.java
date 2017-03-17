@@ -103,7 +103,7 @@ public class LoggingEvent {
      * @return the data (type Object) of this LoggingEvent object.
      */
     public Object getData() {
-        return this.data;
+        return data;
     }
 
     /**
@@ -113,7 +113,7 @@ public class LoggingEvent {
      */
     public void setData(Object data) {
         this.data = data;
-        this.hasData = true;
+        hasData = true;
     }
 
     /**
@@ -132,10 +132,10 @@ public class LoggingEvent {
      */
     public String getFormatedData() {
         if (hasData()) {
-            if (getData() == null) {
+            if (data == null) {
                 return "{null}";
             } else {
-                return getData().toString();
+                return data.toString();
             }
         } else {
             return "";

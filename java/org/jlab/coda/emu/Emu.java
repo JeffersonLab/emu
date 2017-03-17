@@ -760,7 +760,7 @@ System.out.println("\n\n");
      */
     public void sendRcErrorMessage(String error) {
 //System.out.println("Emu " + name + " sending special RC display error Msg:\n *** " + error + " ***");
-        getCmsgPortal().rcGuiErrorMessage(error);
+        cmsgPortal.rcGuiErrorMessage(error);
     }
 
 // TODO: strictly speaking the EMU may have many output destinations, so which is right?
@@ -1425,7 +1425,7 @@ logger.error("Emu " + name + ": got SET_BUF_LEVEL command but bad value (" + buf
 
                 // CODA class set in module constructors
                 replyToRunControl(RCConstants.getCodaClassResponse,
-                                  null, getCodaClass().name(),
+                                  null, codaClass.name(),
                                   cmd.getMessage());
             }
             return;

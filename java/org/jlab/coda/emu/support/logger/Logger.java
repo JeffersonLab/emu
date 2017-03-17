@@ -175,7 +175,7 @@ public class Logger {
      * @param message of type String
      */
     public void debug(String message) {
-        if (isDebugEnabled()) {
+        if (enable_debug) {
             write(LoggingEvent.DEBUG, message, null);
         }
     }
@@ -187,7 +187,7 @@ public class Logger {
      * @param t       of type Throwable
      */
     public void debug(String message, Throwable t) {
-        if (isDebugEnabled()) {
+        if (enable_debug) {
             write(LoggingEvent.DEBUG, message, t);
         }
     }
@@ -198,7 +198,7 @@ public class Logger {
      * @param t of type Throwable
      */
     public void debug(Throwable t) {
-        if (isDebugEnabled()) {
+        if (enable_debug) {
             write(LoggingEvent.DEBUG, "error", t);
         }
     }
@@ -210,7 +210,7 @@ public class Logger {
      * @param v       of type String
      */
     public void debug(String message, String v) {
-        if (isDebugEnabled()) {
+        if (enable_debug) {
             write(LoggingEvent.DEBUG, message, null, v);
         }
     }
@@ -222,7 +222,7 @@ public class Logger {
      * @param o       of type Object
      */
     public void debug(String message, Object o) {
-        if (isDebugEnabled()) {
+        if (enable_debug) {
             write(LoggingEvent.DEBUG, message, null, new LoggerDataWrapper(o));
         }
     }
@@ -235,7 +235,7 @@ public class Logger {
      * @param v2      of type String
      */
     public void debug(String message, String v1, String v2) {
-        if (isDebugEnabled()) {
+        if (enable_debug) {
             write(LoggingEvent.DEBUG, message, null, new LoggerDataWrapper(v1, v2));
         }
     }
@@ -247,7 +247,7 @@ public class Logger {
      * @param v       of type long
      */
     public void debug(String message, long v) {
-        if (isDebugEnabled()) {
+        if (enable_debug) {
             write(LoggingEvent.DEBUG, message, null, new LoggerDataWrapper(v));
         }
     }
@@ -260,7 +260,7 @@ public class Logger {
      * @param v2      of type long
      */
     public void debug(String message, long v1, long v2) {
-        if (isDebugEnabled()) {
+        if (enable_debug) {
             write(LoggingEvent.DEBUG, message, null, new LoggerDataWrapper(v1, v2));
         }
     }
@@ -272,7 +272,7 @@ public class Logger {
      * @param v       of type boolean
      */
     public void debug(String message, boolean v) {
-        if (isDebugEnabled()) {
+        if (enable_debug) {
             write(LoggingEvent.DEBUG, message, null, new LoggerDataWrapper(v));
         }
     }
@@ -327,7 +327,7 @@ public class Logger {
      * @param data    of type String
      */
     public void info(String message, String data) {
-        if (isErrorEnabled()) {
+        if (enable_error) {
             write(LoggingEvent.INFO, message, null, data);
         }
     }
@@ -338,7 +338,7 @@ public class Logger {
      * @param message of type String
      */
     public void warn(String message) {
-        if (isErrorEnabled()) {
+        if (enable_error) {
             write(LoggingEvent.WARN, message, null);
         }
     }
@@ -349,7 +349,7 @@ public class Logger {
      * @param message of type String
      */
     public void error(String message) {
-        if (isErrorEnabled()) {
+        if (enable_error) {
             write(LoggingEvent.ERROR, message, null);
         }
     }
@@ -361,7 +361,7 @@ public class Logger {
      * @param v       of type long
      */
     public void error(String message, long v) {
-        if (isErrorEnabled()) {
+        if (enable_error) {
             write(LoggingEvent.ERROR, message, null, new LoggerDataWrapper(v));
         }
     }
@@ -373,7 +373,7 @@ public class Logger {
      * @param v       of type String
      */
     public void error(String message, String v) {
-        if (isErrorEnabled()) {
+        if (enable_error) {
             write(LoggingEvent.ERROR, message, null, v);
         }
     }
@@ -386,7 +386,7 @@ public class Logger {
      * @param t       of type Throwable
      */
     public void error(String message, String v, Throwable t) {
-        if (isErrorEnabled()) {
+        if (enable_error) {
             write(LoggingEvent.ERROR, message, t, v);
         }
     }
@@ -397,7 +397,7 @@ public class Logger {
      * @param t of type Throwable
      */
     public void error(Throwable t) {
-        if (isErrorEnabled()) {
+        if (enable_error) {
             write(LoggingEvent.ERROR, t.toString(), t);
         }
     }
@@ -409,7 +409,7 @@ public class Logger {
      * @param t       of type Throwable
      */
     public void error(String message, Throwable t) {
-        if (isErrorEnabled()) {
+        if (enable_error) {
             write(LoggingEvent.ERROR, message + " " + t.toString(), t);
         }
     }
@@ -422,7 +422,7 @@ public class Logger {
      *                     in this case it's user settable
      */
     public void rcConsole(String message, String severityText) {
-        if (isErrorEnabled()) {
+        if (enable_error) {
             write(LoggingEvent.RC_GUI_CONSOLE, message, severityText);
         }
     }
