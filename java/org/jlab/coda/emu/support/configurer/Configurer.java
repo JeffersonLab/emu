@@ -122,7 +122,7 @@ public class Configurer implements DOMErrorHandler, LSParserFilter {
             switch (el.getNodeType()) {
                 case Node.TEXT_NODE:
                     String str = el.getNodeValue().trim();
-                    if (str.equals("")) {
+                    if (str.isEmpty()) {
                         node.removeChild(el);
                     }
                     break;

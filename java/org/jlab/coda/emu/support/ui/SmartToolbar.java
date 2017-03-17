@@ -212,7 +212,7 @@ public class SmartToolbar extends JToolBar {
 System.out.println("READ TXT AS -> " + txt);
 
                 // blank entry means sending no msg
-                if (txt == null || txt.equals("")) {
+                if (txt == null || txt.isEmpty()) {
                     cmd.setMessage(null);
                 }
                 else {

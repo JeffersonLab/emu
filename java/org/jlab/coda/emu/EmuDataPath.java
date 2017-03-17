@@ -194,7 +194,7 @@ public class EmuDataPath {
      * @return a string representation of this object.
      */
     synchronized public String toString() {
-        StringBuilder sb = new StringBuilder();
+        StringBuilder sb = new StringBuilder(32);
         sb.append("input -> ");
         for (Module mod : modules) {
             sb.append(mod.moduleName);
