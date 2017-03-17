@@ -40,7 +40,7 @@ public class EmuUtilities {
             return s.substring(0, s.length()-2);
         }
 
-        while (s.length() - s.indexOf(".") < places+1) {
+        while (s.length() - s.indexOf('.') < places+1) {
             s += "0";
         }
 

@@ -315,7 +315,7 @@ public class Logger {
      * @param message of type String
      */
     public void info(String message) {
-        if (isErrorEnabled()) {
+        if (enable_error) {
             write(LoggingEvent.INFO, message, null);
         }
     }
