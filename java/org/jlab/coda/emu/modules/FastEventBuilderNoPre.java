@@ -323,7 +323,7 @@ public class FastEventBuilderNoPre extends ModuleAdapter {
         }
 
         // Make sure it's a power of 2, round up
-        ringItemCount = EmuUtilities.closestPowerOfTwo(ringCount, true);
+        ringItemCount = EmuUtilities.powerOfTwo(ringCount, true);
         outputRingSize = getInternalRingCount();
 logger.info("  EB mod: internal ring buf count -> " + ringItemCount);
     }

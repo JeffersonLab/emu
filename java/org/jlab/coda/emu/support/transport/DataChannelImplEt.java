@@ -1271,7 +1271,7 @@ System.out.println("      DataChannel Et in: " + name + " exit thd: " + errorStr
             // Making it 2xchunk slows it down quite a bit.
             // Making it chunk or chunk/2 is roughly the same on average
             // although, chunk/2 has bigger top speed.
-            ringSize = EmuUtilities.closestPowerOfTwo(chunk, true);
+            ringSize = EmuUtilities.powerOfTwo(chunk, true);
 
             // Create ring buffer used by 3 threads -
             //   1 to get new events from ET system and place into ring (producer of ring items)

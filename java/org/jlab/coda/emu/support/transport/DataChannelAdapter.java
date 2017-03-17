@@ -274,7 +274,7 @@ logger.info("      DataChannel Adapter: input ring item count -> " + inputRingIt
             if (outputRingItemCount < 1) {
                 outputRingItemCount = 128;
             }
-            outputRingItemCount = EmuUtilities.closestPowerOfTwo(outputRingItemCount, false);
+            outputRingItemCount = EmuUtilities.powerOfTwo(outputRingItemCount, false);
 logger.info("      DataChannel Adapter: output ring item count -> " + outputRingItemCount);
 
             // Do we send out single events or do we
