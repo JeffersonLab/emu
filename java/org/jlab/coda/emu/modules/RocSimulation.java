@@ -484,7 +484,7 @@ public class RocSimulation extends ModuleAdapter {
 //                pBuf.setEventType(EventType.ROC_RAW);
 //            }
             if (isFirstEvent) {
-                pBuf.isFirstEvent(isFirstEvent);
+                pBuf.isFirstEvent(true);
             }
 
             return pBuf;
