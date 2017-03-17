@@ -24,6 +24,31 @@ import java.util.BitSet;
 public class EmuUtilities {
 
     /**
+     * Method to convert a double to a string with a specified number of decimal places.
+     *
+     * @param d double to convert to a string
+     * @param places number of decimal places
+     * @return string representation of the double
+     */
+    private static String doubleToString(double d, int places) {
+        if (places < 0) places = 0;
+
+        double factor = Math.pow(10,places);
+        String s = "" + (double) (Math.round(d * factor)) / factor;
+
+        if (places == 0) {
+            return s.substring(0, s.length()-2);
+        }
+
+        while (s.length() - s.indexOf(".") < places+1) {
+            s += "0";
+        }
+
+        return s;
+    }
+
+
+    /**
      * Method to wait on string from keyboard.
      * @param s prompt string to print
      * @return string typed in keyboard
@@ -39,37 +64,6 @@ public class EmuUtilities {
             e.printStackTrace();
         }
         return aLine;
-    }
-
-
-    /**
-     * For the given number, return the closest power of two.
-     * @param value    number to find the closest power of two to.
-     * @param roundUp  if value argument is not a power of 2 already,
-     *                 {@code true} if caller wants to round up to
-     *                 number higher than value arg, or {@code false}
-     *                 if rounding to number lower than value arg.
-     * @return closest power of two
-     */
-    static public int closestPowerOfTwo(int value, boolean roundUp) {
-        if (value < 2) return 1;
-
-        // If "value" is not a power of 2 ...
-        if (Integer.bitCount(value) != 1) {
-            int origValue = value;
-            int newVal = value / 2;
-            value = 1;
-            while (newVal > 0) {
-                value *= 2;
-                newVal /= 2;
-            }
-
-            if (roundUp && (value < origValue)) {
-                value *= 2;
-            }
-        }
-
-        return value;
     }
 
 
@@ -162,5 +156,35 @@ public class EmuUtilities {
         return y;
     }
 
+
+    //    /**
+    //     * For the given number, return the closest power of two.
+    //     * @param value    number to find the closest power of two to.
+    //     * @param roundUp  if value argument is not a power of 2 already,
+    //     *                 {@code true} if caller wants to round up to
+    //     *                 number higher than value arg, or {@code false}
+    //     *                 if rounding to number lower than value arg.
+    //     * @return closest power of two
+    //     */
+    //    static public int powerOfTwoL(int value, boolean roundUp) {
+    //        if (value < 2) return 1;
+    //
+    //        // If "value" is not a power of 2 ...
+    //        if (Integer.bitCount(value) != 1) {
+    //            int origValue = value;
+    //            int newVal = value / 2;
+    //            value = 1;
+    //            while (newVal > 0) {
+    //                value *= 2;
+    //                newVal /= 2;
+    //            }
+    //
+    //            if (roundUp && (value < origValue)) {
+    //                value *= 2;
+    //            }
+    //        }
+    //
+    //        return value;
+    //    }
 
 }
