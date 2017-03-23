@@ -49,7 +49,7 @@ public class Command {
     private final CODACommand codaCommand;
 
     /** Map of arguments contained in the message from run control (in payload). */
-    private final HashMap<String, cMsgPayloadItem> args = new HashMap<>();
+    private final HashMap<String, cMsgPayloadItem> args = new HashMap<>(16);
 
 
 

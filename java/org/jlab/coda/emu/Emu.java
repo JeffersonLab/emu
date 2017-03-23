@@ -316,7 +316,7 @@ System.out.println("Emu created, name = " + name + ", type = " + codaClass);
         Configurer.setLogger(logger);
 
         // Create the FIFO transport object
-        HashMap<String, String> attrs = new HashMap<>();
+        HashMap<String, String> attrs = new HashMap<>(2);
         attrs.put("class", "Fifo");
         attrs.put("server", "false");
         try {
@@ -1827,10 +1827,10 @@ if (debug) System.out.println("Emu " + name + " prestart: PRESTART cmd to " + tr
                     // Clear out all channels created in previous PRESTART
                     module.clearChannels();
 
-                    ArrayList<DataChannel> in = new ArrayList<>();
-                    ArrayList<DataChannel> out = new ArrayList<>();
-                    ArrayList<DataChannel> inFifo = new ArrayList<>();
-                    ArrayList<DataChannel> outFifo = new ArrayList<>();
+                    ArrayList<DataChannel> in = new ArrayList<>(16);
+                    ArrayList<DataChannel> out = new ArrayList<>(4);
+                    ArrayList<DataChannel> inFifo = new ArrayList<>(2);
+                    ArrayList<DataChannel> outFifo = new ArrayList<>(2);
 
                     int outputChannelCount = 0;
 
@@ -1873,7 +1873,7 @@ if (debug) System.out.println("Emu " + name + " prestart: PRESTART cmd to " + tr
                         DataTransport trans = findTransport(channelTransName);
 
                         // Store all attributes in a hashmap to pass to channel
-                        Map<String, String> attributeMap = new HashMap<>();
+                        Map<String, String> attributeMap = new HashMap<>(8);
                         for (int j = 0; j < nnm.getLength(); j++) {
                             Node a = nnm.item(j);
 //System.out.println("Emu " + name + " prestart: Put (" + a.getNodeName() + "," + a.getNodeValue() + ") into attribute map for channel " + channelName);
@@ -2039,7 +2039,7 @@ if (debug) System.out.println("Emu " + name + " download: transport " + t.name()
                             String transportType = n.getNodeName();
 
                             // store all attributes in a hashmap
-                            Map<String, String> attrib = new HashMap<>();
+                            Map<String, String> attrib = new HashMap<>(8);
                             if (n.hasAttributes()) {
                                 NamedNodeMap attr = n.getAttributes();
 
@@ -2123,7 +2123,7 @@ if (debug) System.out.println("Emu " + name + " download: pass download down to 
                     NamedNodeMap nm2 = n.getAttributes();
 
                     // Store all attributes in a hashmap to pass to module
-                    Map<String, String> attributeMap = new HashMap<>();
+                    Map<String, String> attributeMap = new HashMap<>(8);
                     for (int j=0; j < nm2.getLength(); j++) {
                         Node a = nm2.item(j);
                         attributeMap.put(a.getNodeName(), a.getNodeValue());
@@ -2580,7 +2580,7 @@ if (debug) System.out.println("Emu " + name + " config: Got config type = " + my
                             if (codaID > -1 && chanID > -1 && codaID != chanID) {
                                 throw new DataNotFoundException("CODA id (" + codaID +
                                                                 ") does not match config file output chan id (" +
-                                                                 chanID + ')');
+                                                                 chanID + ")");
                             }
                         }
                     }

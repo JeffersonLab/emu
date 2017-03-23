@@ -115,7 +115,7 @@ public enum CODAState implements State {
     private final EnumSet<CODATransition> allowed;
 
     /** Map of CODAState name to an enum. */
-    private final static HashMap<String, CODAState> commandTypeToEnumMap = new HashMap<>();
+    private final static HashMap<String, CODAState> commandTypeToEnumMap = new HashMap<>(12);
 
 
     // Fill static hashmap after all enum objects created.

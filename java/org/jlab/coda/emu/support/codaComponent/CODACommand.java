@@ -130,7 +130,7 @@ public enum CODACommand {
 
 
     /** Map of string of incoming message from run control to an enum/command. */
-    private final static HashMap<String, CODACommand> commandTypeToEnumMap = new HashMap<>();
+    private final static HashMap<String, CODACommand> commandTypeToEnumMap = new HashMap<>(25);
 
 
     // Fill static hashmap after all enum objects created.

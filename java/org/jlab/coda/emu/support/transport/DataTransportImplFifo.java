@@ -28,7 +28,7 @@ import java.util.Map;
 public class DataTransportImplFifo extends DataTransportAdapter {
 
     /** Map of all Fifo channels. */
-    private final HashMap<String, DataChannelImplFifo> allChannels = new HashMap<>();
+    private final HashMap<String, DataChannelImplFifo> allChannels = new HashMap<>(4);
 
     /**
      * Constructor.

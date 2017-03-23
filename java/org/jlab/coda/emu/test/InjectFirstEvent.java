@@ -63,7 +63,7 @@ public class InjectFirstEvent {
         int group=1, delay=0, port=0;
         boolean verbose=false, remote=false;
         boolean multicast=false;
-        HashSet<String> multicastAddrs = new HashSet<>();
+        HashSet<String> multicastAddrs = new HashSet<>(4);
         String outgoingInterface=null, etName=null, host=null;
 
 

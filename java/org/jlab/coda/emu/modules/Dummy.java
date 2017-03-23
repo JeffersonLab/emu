@@ -33,7 +33,7 @@ public class Dummy extends ModuleAdapter {
     private boolean debug;
 
     /** Container for threads used to move events. */
-    private ArrayList<EventMovingThread> threadList = new ArrayList<>();
+    private ArrayList<EventMovingThread> threadList = new ArrayList<>(4);
 
     //-------------------------------------------
     // Disruptor (RingBuffer)  stuff

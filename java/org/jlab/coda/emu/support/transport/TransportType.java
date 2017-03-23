@@ -39,7 +39,7 @@ public enum TransportType {
 
 
     /** Map containing mapping of string of CODA class name to an enum/command. */
-    private static HashMap<String, TransportType> codaClassToEnumMap = new HashMap<>();
+    private static HashMap<String, TransportType> codaClassToEnumMap = new HashMap<>(5);
 
     // Fill static hashmap after all enum objects created.
     static {

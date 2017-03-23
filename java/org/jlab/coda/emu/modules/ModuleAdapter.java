@@ -98,11 +98,11 @@ public class ModuleAdapter implements EmuModule {
      * in prestart. However, other threads (such as the EMU's statistics reporting
      * thread) call methods which use its iterator or getters.
      */
-    protected ArrayList<DataChannel> inputChannels = new ArrayList<>();
+    protected ArrayList<DataChannel> inputChannels = new ArrayList<>(16);
 
     /** ArrayList of DataChannel objects that are outputs. Only modified in prestart
      *  but used during go when writing module output. */
-    protected ArrayList<DataChannel> outputChannels = new ArrayList<>();
+    protected ArrayList<DataChannel> outputChannels = new ArrayList<>(4);
 
     /** Number of output channels. */
     protected int inputChannelCount;
