@@ -36,7 +36,7 @@ public class DataTransportImplFile extends DataTransportAdapter {
                                      int outputIndex)
             throws DataTransportException {
 
-        return new DataChannelImplFile(name() + ':' + name, this, attributeMap,
+        return new DataChannelImplFile(name, this, attributeMap,
                                        isInput, emu, module, outputIndex);
     }
 }
