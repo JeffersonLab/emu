@@ -2039,7 +2039,7 @@ if (debug) System.out.println("Emu " + name + " download: transport " + t.name()
                             String transportType = n.getNodeName();
 
                             // store all attributes in a hashmap
-                            Map<String, String> attrib = new HashMap<>(8);
+                            Map<String, String> attrib = new HashMap<>(16);
                             if (n.hasAttributes()) {
                                 NamedNodeMap attr = n.getAttributes();
 
@@ -2123,7 +2123,7 @@ if (debug) System.out.println("Emu " + name + " download: pass download down to 
                     NamedNodeMap nm2 = n.getAttributes();
 
                     // Store all attributes in a hashmap to pass to module
-                    Map<String, String> attributeMap = new HashMap<>(8);
+                    Map<String, String> attributeMap = new HashMap<>(16);
                     for (int j=0; j < nm2.getLength(); j++) {
                         Node a = nm2.item(j);
                         attributeMap.put(a.getNodeName(), a.getNodeValue());
