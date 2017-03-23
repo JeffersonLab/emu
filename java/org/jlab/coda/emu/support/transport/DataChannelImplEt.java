@@ -292,7 +292,7 @@ logger.info("      DataChannel Et: chunk = " + chunk);
 //logger.info("      DataChannel Et: group = " + group);
 
         // Set station name. Use any defined in config file else use
-        // "station"+id for input and "GRAND_CENTRAL" for output.
+        // this channel's name for input and "GRAND_CENTRAL" for output.
         stationName = attributeMap.get("stationName");
 //logger.info("      DataChannel Et: station name = " + stationName);
 
@@ -356,7 +356,8 @@ logger.info("      DataChannel Et: chunk = " + chunk);
 
                 // create station if it does not already exist
                 if (stationName == null) {
-                    stationName = "station"+id;
+                    //stationName = "station"+id;
+                    stationName = name;
                 }
 
                 // Connect to ET system
