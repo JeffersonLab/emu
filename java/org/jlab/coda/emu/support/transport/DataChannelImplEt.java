@@ -356,8 +356,14 @@ logger.info("      DataChannel Et: chunk = " + chunk);
 
                 // create station if it does not already exist
                 if (stationName == null) {
-                    //stationName = "station"+id;
-                    stationName = name;
+                    // if this is an ER, make the station the ER's name
+                    if (isER) {
+                        stationName = emu.name();
+                    }
+                    // if this is an EB, make the station the input channel name
+                    else {
+                        stationName = name;
+                    }
                 }
 
                 // Connect to ET system
