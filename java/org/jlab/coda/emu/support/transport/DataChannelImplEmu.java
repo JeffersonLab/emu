@@ -206,18 +206,18 @@ public class DataChannelImplEmu extends DataChannelAdapter {
         // if OUTPUT channel
         else {
             // set TCP_NODELAY option on
-            noDelay = true;
+            noDelay = false;
             attribString = attributeMap.get("noDelay");
             if (attribString != null) {
-                if (attribString.equalsIgnoreCase("false") ||
-                    attribString.equalsIgnoreCase("off") ||
-                    attribString.equalsIgnoreCase("no")) {
-                    noDelay = false;
+                if (attribString.equalsIgnoreCase("true") ||
+                    attribString.equalsIgnoreCase("on") ||
+                    attribString.equalsIgnoreCase("yes")) {
+                    noDelay = true;
                 }
             }
 
             // size of TCP send buffer (0 means use operating system default)
-            tcpSendBuf = 0;
+            tcpSendBuf = 4020000;
             attribString = attributeMap.get("sendBuf");
             if (attribString != null) {
                 try {
