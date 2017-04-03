@@ -20,7 +20,7 @@ import org.w3c.dom.Document;
  * is necessary.
  * @author heyes
  */
-public interface CODAComponent extends Runnable, CommandAcceptor {
+public interface CODAComponent extends CommandAcceptor {
 
     /**
      * Get the configuration of this CODA component in the form of

@@ -108,12 +108,6 @@ public class Emu implements CODAComponent {
     /** If true, stop executing commands coming from run control. Used while resetting. */
     private volatile boolean resetting;
 
-    /**
-     * Commands from cMsg are converted into objects of
-     * class Command that are then posted in this mailbox queue.
-     */
-    private final ArrayBlockingQueue<Command> mailbox;
-
     /** A CMSGPortal object encapsulates all cMsg communication with Run Control. */
     private final CMSGPortal cmsgPortal;
 
@@ -146,14 +140,11 @@ public class Emu implements CODAComponent {
      */
     private boolean errorSent;
 
-    /** The Emu monitors it's own status via a thread. */
-    private Thread statusMonitor;
-
     /** State of the emu. */
-    private volatile State state = BOOTED;
+    private volatile CODAStateIF state = BOOTED;
 
     /** What was this emu's previous state? Useful when doing RESET transition. */
-    private State previousState = BOOTED;
+    private CODAStateIF previousState = BOOTED;
 
     /** An object used to log error and debug messages. */
     private final Logger logger;
@@ -276,6 +267,133 @@ public class Emu implements CODAComponent {
     /** If true, there was an error the last time the configure command was processed. */
     private boolean lastConfigHadError;
 
+    //------------------------------------------------
+    // Transitioning
+    //------------------------------------------------
+
+    /**
+     * Commands from cMsg are converted into objects of
+     * class Command that are then posted in this mailbox queue.
+     */
+    private ArrayBlockingQueue<Command> mailbox;
+
+    /** The Object which defines how to execute transition commands from RC. */
+    private TransitionExecutor transitionRunnable;
+
+    /**
+     * This class is run as a thread to execute transitions
+     * as directed by run control. Keep this separate from the Emu class since
+     * the thread which runs this must be killed at each reset (a transition
+     * can hang and we want reset to kill the transition and continue on).
+     * It must then be restarted. Can't do that with a single thread object like
+     * an Emu. Once a thread is stopped, it cannot be restarted in java.
+     */
+    private class TransitionExecutor implements Runnable {
+
+        volatile boolean endThread;
+        volatile boolean deadThread;
+
+        /**
+         * Tell thread to end when convenient.
+         */
+        public void kill() {
+            endThread = true;
+        }
+
+        /**
+         * We don't want to simply .stop() this thread as the mailbox
+         * object may have a mutex grabbed. Only exit when mailbox.poll()
+         * is not being called.
+         */
+        public void killAndwaitTillDead() {
+            endThread = true;
+            try {
+                while (!deadThread) {
+                    //System.out.println("WAIT till dead");
+                    Thread.sleep(200);
+                }
+            }
+            catch (InterruptedException e) {
+            }
+            //System.out.println("IT'S dead");
+        }
+
+        /**
+        * This method monitors the mailbox for incoming commands and
+        * monitors the state of the emu to detect any error conditions.
+        */
+       public void run() {
+
+           CODAStateIF oldState = null;
+
+           try {
+               while(true) {
+
+                   try {
+                       // If resetting, do not execute transitions
+                       if (resetting) {
+                           Thread.sleep(200);
+                           continue;
+                       }
+
+                       // Do NOT block forever
+                       final Command cmd = mailbox.poll(500, TimeUnit.MILLISECONDS);
+
+                       // If told to end, exit
+                       if (endThread) {
+                           deadThread = true;
+                           return;
+                       }
+
+                       if (cmd != null) {
+                           try {
+                               // Execute the transition command from RC
+                               execute(cmd);
+
+                           } catch (IllegalArgumentException e) {
+                               e.printStackTrace();
+                               // This just means that the command was not supported
+                               logger.warn("Emu " + name + ": command, " + cmd + ", not supported ");
+                               continue;
+                           }
+                       }
+
+                       // If modules are not loaded then our state is either
+                       // booted, configured, or error.
+
+                       if ((state != null) && (state != oldState)) {
+                           if (debugGUI != null) {
+                               // Enable/disable transition GUI buttons depending on
+                               // which transitions are allowed out of our current state.
+                               debugGUI.getToolBar().updateButtons(state);
+                           }
+
+                           try {
+                               Configurer.setValue(localConfig, "status/state", state.toString());
+                           } catch (DataNotFoundException e) {
+                               // This is almost impossible but catch anyway
+                               logger.info("Emu " + name + ": failed to set state in local config");
+                           }
+
+                           oldState = state;
+                       }
+
+                   } catch (InterruptedException e) {
+                       Thread.interrupted(); // clear interrupt flag
+                   }
+               }
+           }
+           finally {
+               logger.info("Emu " + name + ": exit main thread!!!");
+               deadThread = true;
+           }
+       }
+    }
+
+
+    //------------------------------------------------
+    // Constructor
+    //------------------------------------------------
 
     /**
      * Constructor.
@@ -305,11 +423,11 @@ public class Emu implements CODAComponent {
         }
 System.out.println("Emu created, name = " + name + ", type = " + codaClass);
 
-        this.name = name;
         this.debug = debug;
 
         // Set the name of this EMU
-        setName(name);
+        this.name = name;
+        if (debugGUI != null) debugGUI.setTitle(name);
 
         // Each emu has its own logger
         logger = new Logger();
@@ -332,14 +450,15 @@ System.out.println("Emu created, name = " + name + ", type = " + codaClass);
             debugGUI = new DebugFrame(this);
         }
 
-        // Define place to put incoming commands
-        mailbox = new ArrayBlockingQueue<>(100);
+        // Define place to put incoming commands.
+        // There should only be 1 transition command in the mailbox
+        // at any one time.
+        mailbox = new ArrayBlockingQueue<>(4);
 
-        // Put this (which is a CODAComponent and therefore Runnable)
-        // into a thread group and keep track of this object's thread.
-        // This thread is started when statusMonitor.start() is called.
-        statusMonitor = new Thread(threadGroup, this, "RC command executor");
-        statusMonitor.start();
+        // Run thread to execute transitions
+        transitionRunnable = new TransitionExecutor();
+        (new Thread(threadGroup, transitionRunnable,
+            "Transition command executor")).start();
 
         // Start up status reporting thread (which needs cmsg to send msgs)
         statusReportingThread = new StatusReportingThread();
@@ -392,70 +511,6 @@ System.out.println("Emu created, name = " + name + ", type = " + codaClass);
     }
 
 
-    /**
-     * This method monitors the mailbox for incoming commands and
-     * monitors the state of the emu to detect any error conditions.
-     */
-    public void run() {
-
-        State oldState = null;
-
-        try {
-            while(true) {
-
-                try {
-                    // While resetting, stop executing rc commands.
-                    // Wait for a bit then check flag again.
-                    if (resetting) {
-//logger.info("Emu " + name + ": stop executing commands");
-                        Thread.sleep(100);
-                        continue;
-                    }
-
-                    // Do NOT block forever here
-                    final Command cmd = mailbox.poll(1, TimeUnit.SECONDS);
-
-                    if (cmd != null) {
-                        try {
-                            this.execute(cmd);
-
-                        } catch (IllegalArgumentException e) {
-                            e.printStackTrace();
-                            // This just means that the command was not supported
-                            logger.warn("Emu " + name + ": command, " + cmd + ", not supported ");
-                            continue;
-                        }
-                    }
-
-                    // If modules are not loaded then our state is either
-                    // booted, configured, or error.
-
-                    if ((state != null) && (state != oldState)) {
-                        if (debugGUI != null) {
-                            // Enable/disable transition GUI buttons depending on
-                            // which transitions are allowed out of our current state.
-                            debugGUI.getToolBar().updateButtons(state);
-                        }
-
-                        try {
-                            Configurer.setValue(localConfig, "status/state", state.toString());
-                        } catch (DataNotFoundException e) {
-                            // This is almost impossible but catch anyway
-                            logger.info("Emu " + name + ": failed to set state in local config");
-                        }
-
-                        oldState = state;
-                    }
-
-                } catch (InterruptedException e) {
-                    Thread.interrupted(); // clear interrupt flag
-                }
-            }
-        }
-        finally {
-            logger.info("Emu " + name + ": exit main thread!!!");
-        }
-    }
 
     //------------------------------------------------
     // Getters & Setters
@@ -604,15 +659,6 @@ System.out.println("Emu created, name = " + name + ", type = " + codaClass);
     public long getEndingTimeLimit() {return endingTimeLimit;}
 
     /**
-     * This method sets the name of this CODAComponent object.
-     * @param name the name of this CODAComponent object.
-     */
-    private void setName(String name) {
-        this.name = name;
-        if (debugGUI != null) debugGUI.setTitle(name);
-    }
-
-    /**
      * Get the data path object that directs how the run control
      * commands are distributed among the EMU parts.
      *
@@ -697,7 +743,7 @@ System.out.println("Emu created, name = " + name + ", type = " + codaClass);
      * @return state before last transition
      * @return null if no transitions undergone yet
      */
-    public State previousState() {return previousState;}
+    public CODAStateIF previousState() {return previousState;}
 
     /** {@inheritDoc} */
     public String getError() {return errorMsg.get();}
@@ -709,7 +755,7 @@ System.out.println("Emu created, name = " + name + ", type = " + codaClass);
      * that the state does not change while it's being read.
      * @param state desired state of this Emu.
      */
-    public void setState(State state) {
+    public void setState(CODAStateIF state) {
         if (resetting) return;
 
         synchronized (this) {
@@ -748,7 +794,7 @@ System.out.println("\n\n");
     }
 
     /** {@inheritDoc} */
-    public State state() {return state;}
+    public CODAStateIF state() {return state;}
 
     //-----------------------------------------------------
     // Time & Status reporting methods
@@ -1004,8 +1050,8 @@ logger.info("Emu " + name + " quitting");
         // Interrupt both of Emu's threads
         statusReportingThread.interrupt();
 
-        // This thread is currently stopping itself
-        statusMonitor.stop();
+        // Stop executing transitions
+        transitionRunnable.kill();
     }
 
 
@@ -1022,18 +1068,16 @@ logger.info("Emu " + name + " resetting");
 
         state = RESETTING;
 
+        // Kill the thread currently executing transition commands
+        // just in case it's hung up on a transition.
+        transitionRunnable.killAndwaitTillDead();
+
         // Clear error until next one occurs
         errorSent = false;
         errorMsg.set(null);
 
         // Clear out any existing, un-executed commands
         mailbox.clear();
-
-        // Interrupt the main emu thread which is processing transition commands
-        // since it may be stuck in the middle of a transition. This thread
-        // should recover. This method is executed from a cMsg callback thread
-        // and is not affected by this call.
-        statusMonitor.interrupt();
 
         // The most difficult situation in which to do a RESET is when
         // data is flowing. It's best to send RESET cmds to various components
@@ -1077,6 +1121,11 @@ if (debug) System.out.println("Emu " + name + " reset: reset transport " + t.nam
             state = CONFIGURED;
         }
 logger.info("Emu " + name + " reset: done, setting state to " + state);
+
+        // Run thread to execute transitions
+        transitionRunnable = new TransitionExecutor();
+        (new Thread(threadGroup, transitionRunnable,
+            "Transition command executor")).start();
 
         // Allow run control commands to be executed once again
         resetting = false;
