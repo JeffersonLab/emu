@@ -16,7 +16,7 @@ import org.jlab.coda.cMsg.*;
 import org.jlab.coda.emu.Emu;
 import org.jlab.coda.emu.support.codaComponent.CODAClass;
 import org.jlab.coda.emu.support.codaComponent.CODAState;
-import org.jlab.coda.emu.support.codaComponent.State;
+import org.jlab.coda.emu.support.codaComponent.CODAStateIF;
 import org.jlab.coda.emu.support.configurer.Configurer;
 import org.jlab.coda.emu.support.configurer.DataNotFoundException;
 import org.jlab.coda.emu.support.control.CmdExecException;
@@ -734,7 +734,7 @@ System.out.println("  Roc mod: start With (id=" + myId + "):\n    record id = " 
         gotResetCommand = true;
 System.out.println("  Roc mod: reset()");
         Date theDate = new Date();
-        State previousState = moduleState;
+        CODAStateIF previousState = moduleState;
         moduleState = CODAState.CONFIGURED;
 
         eventRate = wordRate = 0F;

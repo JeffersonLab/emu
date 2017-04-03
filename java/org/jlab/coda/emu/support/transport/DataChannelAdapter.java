@@ -16,7 +16,7 @@ import com.lmax.disruptor.*;
 import org.jlab.coda.emu.*;
 import org.jlab.coda.emu.support.codaComponent.CODAState;
 import org.jlab.coda.emu.support.codaComponent.CODAStateMachineAdapter;
-import org.jlab.coda.emu.support.codaComponent.State;
+import org.jlab.coda.emu.support.codaComponent.CODAStateIF;
 import org.jlab.coda.emu.support.control.CmdExecException;
 import org.jlab.coda.emu.support.data.RingItem;
 import org.jlab.coda.emu.support.data.RingItemFactory;
@@ -60,7 +60,7 @@ public abstract class DataChannelAdapter extends CODAStateMachineAdapter impleme
     protected boolean singleEventOut;
 
     /** Channel state. */
-    protected State channelState;
+    protected CODAStateIF channelState;
 
     /**
      * Channel error message. reset() sets it back to null.
@@ -429,7 +429,7 @@ System.out.println("      DataChannel Adapter: prestart, nextEv (" +
     public void setRecordId(int recordId) {this.recordId = recordId;}
 
     /** {@inheritDoc} */
-    public State state() {return channelState;}
+    public CODAStateIF state() {return channelState;}
 
     /** {@inheritDoc} */
     public String getError() {return errorMsg.get();}

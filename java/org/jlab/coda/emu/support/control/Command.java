@@ -17,7 +17,7 @@ import org.jlab.coda.cMsg.cMsgMessage;
 import org.jlab.coda.cMsg.cMsgPayloadItem;
 import org.jlab.coda.emu.support.codaComponent.CODACommand;
 import org.jlab.coda.emu.support.codaComponent.CODATransition;
-import org.jlab.coda.emu.support.codaComponent.State;
+import org.jlab.coda.emu.support.codaComponent.CODAStateIF;
 
 import java.util.HashMap;
 
@@ -37,7 +37,7 @@ public class Command {
      * If this object wraps a transition command, this is
      * the state the emu is in if the transition successful.
      */
-    private State success;
+    private CODAStateIF success;
 
     /** Original cMsg message from Run Control containing command to be executed. */
     private cMsgMessage msg;
@@ -167,7 +167,7 @@ public class Command {
      *
      * @return the state the Emu enters upon success of a transition command, else null.
      */
-    public State success() {
+    public CODAStateIF success() {
         return success;
     }
 }

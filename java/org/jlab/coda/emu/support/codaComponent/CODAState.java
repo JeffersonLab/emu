@@ -19,7 +19,7 @@ import java.util.HashMap;
  * This class is an enum which lists all the possible CODA Emu
  * state-machine states. Each of these states has a corresponding set
  * of transitions that are allowed {@link CODATransition}.
- * This is the only class that implements the {@link State} interface.
+ * This is the only class that implements the {@link CODAStateIF} interface.
  * 
  * <code><pre>
  *                 *****************
@@ -64,7 +64,7 @@ import java.util.HashMap;
  * @author heyes
  * @author timmer
  */
-public enum CODAState implements State {
+public enum CODAState implements CODAStateIF {
 
     /** BOOTED state. */
     BOOTED("coda component not configured", EnumSet.of(CONFIGURE)),

@@ -22,7 +22,7 @@ public interface StatedObject {
      * Get the state of this object.
      * @return the state of this object
      */
-    public State state();
+    public CODAStateIF state();
 
     /**
      * Get any available error information.

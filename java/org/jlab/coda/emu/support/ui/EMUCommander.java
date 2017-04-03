@@ -23,7 +23,7 @@ import org.jlab.coda.emu.support.codaComponent.CODATransition;
 import org.jlab.coda.emu.support.configurer.Configurer;
 import org.jlab.coda.emu.support.control.Command;
 import org.jlab.coda.emu.support.control.CommandAcceptor;
-import org.jlab.coda.emu.support.codaComponent.State;
+import org.jlab.coda.emu.support.codaComponent.CODAStateIF;
 import org.jlab.coda.emu.support.logger.Logger;
 import org.jlab.coda.emu.support.logger.LoggingEvent;
 import org.jlab.coda.emu.support.logger.QueueAppender;
@@ -70,7 +70,7 @@ public class EMUCommander extends JFrame {
      */
     protected class CommandHandler implements CommandAcceptor {
         private String subject;
-        private State state = CODAState.BOOTED;
+        private CODAStateIF state = CODAState.BOOTED;
         private String errorMsg;
 
 
@@ -124,7 +124,7 @@ System.out.println("CMSGPortal.append server = " + server);
                 if (server != null) server.send(msg);
 
                 // resulting state if command succeeded
-                State tmp = cmd.success();
+                CODAStateIF tmp = cmd.success();
 
                 if (tmp != null) {
                     state = tmp;
@@ -147,7 +147,7 @@ System.out.println("CMSGPortal.append error " + e.getMessage());
             }
         }
 
-        public State state() {
+        public CODAStateIF state() {
             return state;
         }
 

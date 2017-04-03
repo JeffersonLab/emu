@@ -14,6 +14,7 @@ package org.jlab.coda.emu.modules;
 import com.lmax.disruptor.*;
 import org.jlab.coda.emu.*;
 import org.jlab.coda.emu.support.codaComponent.CODAState;
+import org.jlab.coda.emu.support.codaComponent.CODAStateIF;
 import org.jlab.coda.emu.support.configurer.Configurer;
 import org.jlab.coda.emu.support.configurer.DataNotFoundException;
 import org.jlab.coda.emu.support.control.CmdExecException;
@@ -656,7 +657,7 @@ if (debug) System.out.println("  ER mod: recording thread ending");
     /** {@inheritDoc} */
     public void reset() {
         Date theDate = new Date();
-        org.jlab.coda.emu.support.codaComponent.State previousState = moduleState;
+        CODAStateIF previousState = moduleState;
         moduleState = CODAState.CONFIGURED;
 
         if (RateCalculator != null) RateCalculator.interrupt();

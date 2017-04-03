@@ -18,7 +18,7 @@ import org.jlab.coda.emu.support.codaComponent.CODACommand;
 import org.jlab.coda.emu.support.codaComponent.CODATransition;
 import org.jlab.coda.emu.support.control.Command;
 import org.jlab.coda.emu.support.control.CommandAcceptor;
-import org.jlab.coda.emu.support.codaComponent.State;
+import org.jlab.coda.emu.support.codaComponent.CODAStateIF;
 
 import javax.swing.*;
 import java.awt.*;
@@ -69,7 +69,7 @@ public class SmartToolbar extends JToolBar {
      * Enable or disable buttons depending on the emu state.
      * @param state state used to decide which buttons to enable/disable.
      */
-    public void updateButtons(State state) {
+    public void updateButtons(CODAStateIF state) {
         // Transitions which are allowed out of our state.
         EnumSet<CODATransition> eSet = state.allowed();
 

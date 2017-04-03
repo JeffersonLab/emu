@@ -17,7 +17,7 @@ import org.jlab.coda.emu.EmuException;
 import org.jlab.coda.emu.EmuUtilities;
 import org.jlab.coda.emu.support.codaComponent.CODAClass;
 import org.jlab.coda.emu.support.codaComponent.CODAState;
-import org.jlab.coda.emu.support.codaComponent.State;
+import org.jlab.coda.emu.support.codaComponent.CODAStateIF;
 import org.jlab.coda.emu.support.configurer.Configurer;
 import org.jlab.coda.emu.support.configurer.DataNotFoundException;
 import org.jlab.coda.emu.support.control.CmdExecException;
@@ -1777,7 +1777,7 @@ System.out.println("  EB mod: endBuildThreads: will end building/filling threads
 
     /** {@inheritDoc} */
     public void reset() {
-        State previousState = moduleState;
+        CODAStateIF previousState = moduleState;
         moduleState = CODAState.CONFIGURED;
 
         // EB threads must be immediately ended

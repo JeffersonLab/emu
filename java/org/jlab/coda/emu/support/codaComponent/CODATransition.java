@@ -107,7 +107,7 @@ public enum CODATransition {
      * Returns the CODA run control State (CODAState enum object) upon success of this transition.
      * @return State (CODAState enum object) upon success of this transition
      */
-    public State success() {
+    public CODAStateIF success() {
         return CODAState.get(successState);
     }
 }

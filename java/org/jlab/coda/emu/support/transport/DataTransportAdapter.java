@@ -14,7 +14,7 @@ package org.jlab.coda.emu.support.transport;
 import org.jlab.coda.emu.Emu;
 import org.jlab.coda.emu.support.codaComponent.CODAStateMachineAdapter;
 import org.jlab.coda.emu.support.configurer.DataNotFoundException;
-import org.jlab.coda.emu.support.codaComponent.State;
+import org.jlab.coda.emu.support.codaComponent.CODAStateIF;
 import org.jlab.coda.emu.support.logger.Logger;
 
 import java.util.Map;
@@ -37,7 +37,7 @@ public abstract class DataTransportAdapter extends CODAStateMachineAdapter imple
     protected String name;
 
     /** DataTransport object's state. */
-    protected State transportState;
+    protected CODAStateIF transportState;
 
     /**
      * Possible error message. reset() sets it back to null.
@@ -106,7 +106,7 @@ public abstract class DataTransportAdapter extends CODAStateMachineAdapter imple
     public String name() {return name;}
 
     /** {@inheritDoc} */
-    public State state() {return transportState;}
+    public CODAStateIF state() {return transportState;}
 
     /** {@inheritDoc} */
     public String getError() {return errorMsg.get();}

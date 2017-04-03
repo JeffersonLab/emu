@@ -17,7 +17,7 @@ import java.util.EnumSet;
  * This interface defines a state of an object.
  * @author heyes
  */
-public interface State {
+public interface CODAStateIF {
     /**
      * Get the state name.
      * @return state name.

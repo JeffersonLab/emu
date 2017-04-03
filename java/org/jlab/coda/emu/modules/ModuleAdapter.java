@@ -17,7 +17,7 @@ import org.jlab.coda.emu.EmuEventNotify;
 import org.jlab.coda.emu.EmuModule;
 import org.jlab.coda.emu.support.codaComponent.CODAClass;
 import org.jlab.coda.emu.support.codaComponent.CODAState;
-import org.jlab.coda.emu.support.codaComponent.State;
+import org.jlab.coda.emu.support.codaComponent.CODAStateIF;
 import org.jlab.coda.emu.support.configurer.DataNotFoundException;
 import org.jlab.coda.emu.support.control.CmdExecException;
 import org.jlab.coda.emu.support.data.*;
@@ -86,7 +86,7 @@ public class ModuleAdapter implements EmuModule {
     protected final Logger logger;
 
     /** State of this module. */
-    protected volatile State moduleState = CODAState.BOOTED;
+    protected volatile CODAStateIF moduleState = CODAState.BOOTED;
 
     /** Map containing attributes of this module given in config file. */
     protected final Map<String,String> attributeMap;
@@ -382,7 +382,7 @@ logger.info("  Module Adapter: SEB chunk = " + sebChunk);
     //-----------------------------------------------------------
 
     /** {@inheritDoc} */
-    public State state() {return moduleState;}
+    public CODAStateIF state() {return moduleState;}
     /** {@inheritDoc} */
     public String getError() {return errorMsg.get();}
 
