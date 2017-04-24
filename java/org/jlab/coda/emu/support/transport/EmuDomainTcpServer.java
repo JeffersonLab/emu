@@ -88,8 +88,8 @@ public class EmuDomainTcpServer extends Thread {
                 serverChannel = ServerSocketChannel.open();
                 ServerSocket listeningSocket = serverChannel.socket();
                 listeningSocket.setReuseAddress(true);
-                // We prefer high bandwidth, low latency, & short connection times, in that order
-                listeningSocket.setPerformancePreferences(0,1,2);
+                // We prefer high bandwidth over low latency & short connection times
+                listeningSocket.setPerformancePreferences(0,0,1);
                 listeningSocket.bind(new InetSocketAddress(serverPort));
             }
             catch (IOException ex) {
