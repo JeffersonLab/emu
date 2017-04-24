@@ -79,6 +79,9 @@ abstract class RingItemAdapter implements RingItem {
     /** The event number of the first CODA event in this evio bank. */
     protected long firstEventNumber;
 
+    /** When reading from multiple rings, is it time to change to next ring? */
+    protected boolean switchRing;
+
     /** Is sync bank? from ROC raw data record 4-bit status. */
     protected boolean isSync;
 
@@ -122,25 +125,26 @@ abstract class RingItemAdapter implements RingItem {
      * @param ringItem ring item to copy.
      */
     public void copy(RingItem ringItem) {
-        event                 = ringItem.getEvent();
-        buffer                = ringItem.getBuffer();
-        node                  = ringItem.getNode();
-        eventType             = ringItem.getEventType();
-        controlType           = ringItem.getControlType();
-        isUser                = ringItem.isUser();
-        isFirst               = ringItem.isFirstEvent();
-        sourceId              = ringItem.getSourceId();
-        matchesId             = ringItem.matchesId();
-        sourceName            = ringItem.getSourceName();
-        recordId              = ringItem.getRecordId();
-        eventCount            = ringItem.getEventCount();
-        firstEventNumber      = ringItem.getFirstEventNumber();
-        isSync                = ringItem.isSync();
-        hasError              = ringItem.hasError();
+        event                  = ringItem.getEvent();
+        buffer                 = ringItem.getBuffer();
+        node                   = ringItem.getNode();
+        eventType              = ringItem.getEventType();
+        controlType            = ringItem.getControlType();
+        isUser                 = ringItem.isUser();
+        isFirst                = ringItem.isFirstEvent();
+        sourceId               = ringItem.getSourceId();
+        matchesId              = ringItem.matchesId();
+        sourceName             = ringItem.getSourceName();
+        recordId               = ringItem.getRecordId();
+        eventCount             = ringItem.getEventCount();
+        firstEventNumber       = ringItem.getFirstEventNumber();
+        switchRing             = ringItem.getSwitchRing();
+        isSync                 = ringItem.isSync();
+        hasError               = ringItem.hasError();
         nonFatalBuildingError = ringItem.hasNonFatalBuildingError();
-        attachment            = ringItem.getAttachment();
-        byteBufferItem        = ringItem.getByteBufferItem();
-        byteBufferSupply      = ringItem.getByteBufferSupply();
+        attachment             = ringItem.getAttachment();
+        byteBufferItem         = ringItem.getByteBufferItem();
+        byteBufferSupply       = ringItem.getByteBufferSupply();
     }
 
 
@@ -156,25 +160,26 @@ abstract class RingItemAdapter implements RingItem {
                        ControlType cType, boolean user, boolean first, int chanId,
                        int rId, int sId, int evCount, String sName,
                        ByteBufferItem bbItem, ByteBufferSupply bbSupply) {
-        event                 = ev;
-        buffer                = buf;
-        node                  = nd;
-        eventType             = eType;
-        controlType           = cType;
-        isUser                = user;
-        isFirst               = first;
-        recordId              = rId;
-        sourceId              = sId;
-        matchesId             = sId == chanId;
-        sourceName            = sName;
-        firstEventNumber      = 1;
-        isSync                = false;
-        hasError              = false;
+        event                  = ev;
+        buffer                 = buf;
+        node                   = nd;
+        eventType              = eType;
+        controlType            = cType;
+        isUser                 = user;
+        isFirst                = first;
+        recordId               = rId;
+        sourceId               = sId;
+        matchesId              = sId == chanId;
+        sourceName             = sName;
+        firstEventNumber       = 1;
+        switchRing             = false;
+        isSync                 = false;
+        hasError               = false;
         nonFatalBuildingError = false;
-        attachment            = null;
-        byteBufferItem        = bbItem;
-        byteBufferSupply      = bbSupply;
-        eventCount            = evCount;
+        attachment             = null;
+        byteBufferItem         = bbItem;
+        byteBufferSupply       = bbSupply;
+        eventCount             = evCount;
     }
 
 
@@ -287,6 +292,11 @@ abstract class RingItemAdapter implements RingItem {
     public long getFirstEventNumber() {return firstEventNumber;}
     /** {@inheritDoc} */
     public void setFirstEventNumber(long firstEventNumber) {this.firstEventNumber = firstEventNumber;}
+
+    /** {@inheritDoc} */
+    public boolean getSwitchRing() {return switchRing;}
+    /** {@inheritDoc} */
+    public void setSwitchRing(boolean switchRing) {this.switchRing = switchRing;}
 
     /** {@inheritDoc} */
     public boolean isSync() {return isSync;}

@@ -224,6 +224,20 @@ public interface RingItem extends Cloneable, Attached {
     public void setFirstEventNumber(long firstEventNumber);
 
     /**
+     * If merging contents of multiple rings, it's convenient to have a means
+     * to tell the caller when to switch reading from one ring to the next.
+     * @return true if time to switch ring being read, else false.
+     */
+    public boolean getSwitchRing();
+
+    /**
+     * If merging contents of multiple rings, it's convenient to have a means
+     * to tell the caller when to switch reading from one ring to the next.
+     * @param switchRing true if time to switch ring being read, else false.
+     */
+    public void setSwitchRing(boolean switchRing);
+
+    /**
      * Is this object is a sync event?
      * This condition is set by the ROC and it is only read - never set.
      * @return {@code true} if this object is a sync event, else {@code false}.
