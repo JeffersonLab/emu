@@ -15,6 +15,7 @@ import org.jlab.coda.emu.support.data.EventType;
 
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
+import java.nio.ByteBuffer;
 import java.util.BitSet;
 
 /**
@@ -24,13 +25,38 @@ import java.util.BitSet;
 public class EmuUtilities {
 
     /**
+     * Method to deep copy a ByteBuffer object.
+     *
+     * @param source  source ByteBuffer.
+     * @param target  target ByteBuffer.
+     * @return a copy of the source ByteBuffer.
+     */
+    static final public ByteBuffer deepCopy(ByteBuffer source) {
+
+        if (source == null) return null;
+        
+        int sourceP = source.position();
+        int sourceL = source.limit();
+        source.clear();
+
+        ByteBuffer target = ByteBuffer.allocate(source.capacity());
+        target.put(source);
+        target.flip();
+
+        source.position(sourceP);
+        source.limit(sourceL);
+        return target;
+    }
+
+
+    /**
      * Method to convert a double to a string with a specified number of decimal places.
      *
      * @param d double to convert to a string
      * @param places number of decimal places
      * @return string representation of the double
      */
-    static public String doubleToString(double d, int places) {
+    static final public String doubleToString(double d, int places) {
         if (places < 0) places = 0;
 
         double factor = Math.pow(10,places);
@@ -53,7 +79,7 @@ public class EmuUtilities {
      * @param s prompt string to print
      * @return string typed in keyboard
      */
-    static public String inputStr(String s) {
+    static final public String inputStr(String s) {
         String aLine = "";
         BufferedReader input = new BufferedReader(new InputStreamReader(System.in));
         System.out.print(s);
@@ -74,7 +100,7 @@ public class EmuUtilities {
      * @param bSet bit set which will become part of the bit info word
      * @param eType event type to be encoded
      */
-    static public void setEventType(BitSet bSet, EventType eType) {
+    static final public void setEventType(BitSet bSet, EventType eType) {
         int type = eType.getValue();
 
         // check args
@@ -97,7 +123,7 @@ public class EmuUtilities {
      *
      * @param bSet bit set which will become part of the bit info word
      */
-    static public void setFirstEvent(BitSet bSet) {
+    static final public void setFirstEvent(BitSet bSet) {
         // check arg
         if (bSet == null || bSet.size() < 7) {
             return;
@@ -114,7 +140,7 @@ public class EmuUtilities {
      *
      * @param bSet bit set which will become part of the bit info word
      */
-    static public void unsetFirstEvent(BitSet bSet) {
+    static final public void unsetFirstEvent(BitSet bSet) {
         // check arg
         if (bSet == null || bSet.size() < 7) {
             return;
@@ -132,7 +158,7 @@ public class EmuUtilities {
      * @param roundUp if true, round up, else down
      * @return -1 if value is negative or the closest power of 2 to value
      */
-    static public int powerOfTwo(int x, boolean roundUp) {
+    static final public int powerOfTwo(int x, boolean roundUp) {
         if (x < 0) return -1;
 
         // The following algorithms are found in
@@ -166,7 +192,7 @@ public class EmuUtilities {
     //     *                 if rounding to number lower than value arg.
     //     * @return closest power of two
     //     */
-    //    static public int powerOfTwoL(int value, boolean roundUp) {
+    //    static final public int powerOfTwoL(int value, boolean roundUp) {
     //        if (value < 2) return 1;
     //
     //        // If "value" is not a power of 2 ...
