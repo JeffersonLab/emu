@@ -11,6 +11,9 @@
 
 package org.jlab.coda.emu.support.data;
 
+import org.jlab.coda.emu.EmuException;
+import org.jlab.coda.emu.EmuUtilities;
+
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -54,6 +57,13 @@ public class ByteBufferItem {
     /** If true, we're track more than one user. */
     private boolean multipleUsers;
 
+    /**
+     * If true, and this item comes from a supply used in the sense of
+     * single-producer-single-consumer, then this flag can relay to the
+     * consumer the need to force any write.
+     */
+    private boolean force;
+
     // For testing purposes
 
     /** Unique id for each object of this class. */
@@ -70,6 +80,22 @@ public class ByteBufferItem {
      * @return {@code true} if direct buffer, else {@code false}.
      */
     public boolean isDirect() {return direct;}
+
+    /**
+     * Get the flag used to suggest a forced write to a consumer.
+     * @return flag used to suggest a forced write to a consumer.
+     */
+    public boolean getForce() {
+        return force;
+    }
+
+    /**
+     * Set the flag used to suggest a forced write to a consumer.
+     * @param force flag used to suggest a forced write to a consumer.
+     */
+    public void setForce(boolean force) {
+        this.force = force;
+    }
 
     //--------------------------------
 
@@ -96,6 +122,45 @@ public class ByteBufferItem {
         else {
             buffer = ByteBuffer.allocate(bufferSize).order(order);
         }
+
+        this.myId = myId;
+    }
+
+
+    /**
+     * Constructor used to initially fill each ByteBufferItem of a ByteBufferSupply
+     * with a copy of a template buffer.
+     *
+     * @param templateBuf    this item's buffer is a copy this of template ByteBuffer.
+     * @param orderedRelease if true, release ByteBufferItems in same order as acquired.
+     * @param myId unique id of this object.
+     *
+     * @throws EmuException if buffer arg is null
+     */
+    public ByteBufferItem(ByteBuffer templateBuf, boolean orderedRelease, int myId)
+            throws EmuException {
+
+        if (templateBuf == null) {
+            throw new EmuException("Buffer arg is null");
+        }
+
+        this.order = templateBuf.order();
+        this.direct = templateBuf.isDirect();
+        this.bufferSize = templateBuf.capacity();
+        this.orderedRelease = orderedRelease;
+
+        if (direct) {
+            buffer = ByteBuffer.allocateDirect(bufferSize).order(order);
+            for (int i=0; i < bufferSize; i++) {
+                buffer.put(i, templateBuf.get(i));
+            }
+        }
+        else {
+            buffer = ByteBuffer.allocate(bufferSize).order(order);
+            System.arraycopy(templateBuf.array(), 0, buffer.array(), 0, bufferSize);
+        }
+        buffer.position(templateBuf.position());
+        buffer.limit(templateBuf.limit());
 
         this.myId = myId;
     }
@@ -152,6 +217,15 @@ public class ByteBufferItem {
      */
     public ByteBuffer getBuffer() {
         buffer.position(0);
+        return buffer;
+    }
+
+
+    /**
+     * Get the contained ByteBuffer without any modifications.
+     * @return contained ByteBuffer without any modifications.
+     */
+    public ByteBuffer getBufferAsIs() {
         return buffer;
     }
 
@@ -216,49 +290,12 @@ public class ByteBufferItem {
      * if no longer using it so it may be reused later.
      * @return {@code true} if no one using buffer now, else {@code false}.
      */
-    boolean decrementCounterOrig() {
-        // Only use atomic object if "users" > 1
-        return atomicCounter == null || atomicCounter.decrementAndGet() < 1;
-    }
-
-
-    /**
-     * Called by buffer user by way of {@link ByteBufferSupply#release(ByteBufferItem)}
-     * if no longer using it so it may be reused later.
-     * @return {@code true} if no one using buffer now, else {@code false}.
-     */
     boolean decrementCounter() {
         if (!multipleUsers) return true;
         if (orderedRelease) return (--volatileCounter < 1);
         return (atomicCounter.decrementAndGet() < 1);
     }
 
-
-    /**
-     * If a reference to this ByteBufferItem is copied, then it is necessary to increase
-     * the number of users. Although this method is not safe to call in general,
-     * it is safe, for example, if a RingItem is copied in the ER <b>BEFORE</b>
-     * it is copied again onto multiple output channels' rings and then released.
-     * Currently this is only used in just such a situation - in the ER when a ring
-     * item must be copied and placed on all extra output channels. In this case,
-     * there is always at least one existing user.
-     *
-     * @param additionalUsers number of users to add
-     */
-    public void addUsersOrig(int additionalUsers) {
-        if (additionalUsers < 1) return;
-
-        // If there was only 1 original user of the ByteBuffer ...
-        if (atomicCounter == null) {
-            // The original user's BB is now in the process of being copied
-            // so it still exists (decrementCounter not called yet).
-            // Total users now = 1 + additionalUsers.
-            atomicCounter = new AtomicInteger(additionalUsers + 1);
-        }
-        else {
-            atomicCounter.addAndGet(additionalUsers);
-        }
-    }
 
     /**
      * If a reference to this ByteBufferItem is copied, then it is necessary to increase
