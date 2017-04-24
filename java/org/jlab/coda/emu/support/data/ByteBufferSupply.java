@@ -14,6 +14,7 @@ package org.jlab.coda.emu.support.data;
 
 import com.lmax.disruptor.*;
 
+import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 
 import static com.lmax.disruptor.RingBuffer.createSingleProducer;
@@ -99,6 +100,21 @@ public class ByteBufferSupply {
     }
 
 
+    /** Class used to initially create all items in ring buffer. */
+    private final class CopyByteBufferFactory implements EventFactory<ByteBufferItem> {
+        private final ByteBuffer templateBuf;
+
+        public CopyByteBufferFactory(ByteBuffer templateBuf) {
+            this.templateBuf = templateBuf;
+        }
+
+        public ByteBufferItem newInstance() {
+            return new ByteBufferItem(bufferSize, order, direct,
+                                      orderedRelease, itemCounter++);
+        }
+    }
+
+
     /**
      * Constructor.
      * Buffers are big endian and not direct.
@@ -175,6 +191,60 @@ public class ByteBufferSupply {
         nextConsumerSequence = sequence.get() + 1;
     }
 
+
+    /**
+     * Constructor. Used when wanting a source of ByteBuffers which are copies of the
+     * one given as an argument. Useful when testing.
+     *
+     * @param ringSize        number of ByteBufferItem objects in ring buffer.
+     * @param templateBuf     each item in this ring is a copy this of template ByteBuffer.
+     * @param orderedRelease  if true, the user promises to release the ByteBufferItems
+     *                        in the same order as acquired. This avoids using
+     *                        synchronized code (no locks).
+     * @throws IllegalArgumentException bad arg or ringSize not power of 2.
+     */
+    public ByteBufferSupply(int ringSize, ByteBuffer templateBuf, boolean orderedRelease)
+            throws IllegalArgumentException {
+
+        if (templateBuf == null) {
+            throw new IllegalArgumentException("template buf is null");
+        }
+
+        if (ringSize < 1) {
+            throw new IllegalArgumentException("positive args only");
+        }
+
+        if (Integer.bitCount(ringSize) != 1) {
+            throw new IllegalArgumentException("ringSize must be a power of 2");
+        }
+
+        this.order = templateBuf.order();
+        this.direct = templateBuf.isDirect();
+        this.bufferSize = templateBuf.remaining();
+        this.orderedRelease = orderedRelease;
+
+        // Create ring buffer with "ringSize" # of elements,
+        // each a copy of templateBuf.
+        // The ByteBuffer can be changed by the user by using
+        // the setBuffer() method of the ByteBufferItem object.
+        ringBuffer = createSingleProducer(new CopyByteBufferFactory(templateBuf), ringSize,
+                                          new YieldingWaitStrategy());
+
+        // Barrier to keep unreleased buffers from being reused
+        barrier  = ringBuffer.newBarrier();
+        sequence = new Sequence(Sequencer.INITIAL_CURSOR_VALUE);
+        ringBuffer.addGatingSequences(sequence);
+        nextConsumerSequence = sequence.get() + 1;
+    }
+
+
+    /**
+     *
+     * @return
+     */
+    public long getFillLevel() {
+        return 100*(ringBuffer.getCursor() - ringBuffer.getMinimumGatingSequence())/ringBuffer.getBufferSize();
+    }
 
     /**
      * Get the next available item in ring buffer for writing data into.
@@ -292,31 +362,35 @@ public class ByteBufferSupply {
     synchronized public void consumerRelease(ByteBufferItem byteBufferItem) {
         if (byteBufferItem == null) return;
 
-        // Sequence we want to release
-        long seq = byteBufferItem.getConsumerSequence();
+        // Each item may be used by several objects/threads. It will
+        // only be released for reuse if everyone releases their claim.
+        if (byteBufferItem.decrementCounter()) {
+            // Sequence we want to release
+            long seq = byteBufferItem.getConsumerSequence();
 
-        // If we got a new max ...
-        if (seq > maxSequence) {
-            // If the old max was > the last released ...
-            if (maxSequence > lastSequenceReleased) {
-                // we now have a sequence between last released & new max
+            // If we got a new max ...
+            if (seq > maxSequence) {
+                // If the old max was > the last released ...
+                if (maxSequence > lastSequenceReleased) {
+                    // we now have a sequence between last released & new max
+                    between++;
+                }
+
+                // Set the new max
+                maxSequence = seq;
+            }
+            // If we're < max and > last, then we're in between
+            else if (seq > lastSequenceReleased) {
                 between++;
             }
 
-            // Set the new max
-            maxSequence = seq;
-        }
-        // If we're < max and > last, then we're in between
-        else if (seq > lastSequenceReleased) {
-            between++;
-        }
-
-        // If we now have everything between last & max, release it all.
-        // This way higher sequences are never released before lower.
-        if ( (maxSequence - lastSequenceReleased - 1L) == between) {
-            sequence.set(maxSequence);
-            lastSequenceReleased = maxSequence;
-            between = 0;
+            // If we now have everything between last & max, release it all.
+            // This way higher sequences are never released before lower.
+            if ((maxSequence - lastSequenceReleased - 1L) == between) {
+                sequence.set(maxSequence);
+                lastSequenceReleased = maxSequence;
+                between = 0;
+            }
         }
     }
 
