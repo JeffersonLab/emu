@@ -23,14 +23,17 @@ import org.jlab.coda.emu.support.control.CmdExecException;
 import org.jlab.coda.emu.support.data.*;
 import org.jlab.coda.jevio.*;
 
-import java.io.*;
+import java.io.BufferedInputStream;
+import java.io.DataInputStream;
+import java.io.IOException;
 import java.net.Socket;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.IntBuffer;
 import java.nio.channels.SocketChannel;
-import java.util.*;
-import java.util.concurrent.*;
+import java.util.BitSet;
+import java.util.Map;
+import java.util.concurrent.CountDownLatch;
 
 /**
  * This class implement a data channel which
@@ -88,8 +91,6 @@ public class DataChannelImplEmu extends DataChannelAdapter {
     /** Connection to emu domain server. */
     private cMsg emuDomain;
 
-    /** cMsg message into which out going data is placed in order to be written. */
-    private final cMsgMessage outGoingMsg = new cMsgMessage();
 
     // INPUT
 
@@ -180,7 +181,7 @@ public class DataChannelImplEmu extends DataChannelAdapter {
             isER = (emu.getCodaClass() == CODAClass.ER);
 
             // size of TCP receive buffer (0 means use operating system default)
-            tcpRecvBuf = 0;
+            tcpRecvBuf = 3000000;
             attribString = attributeMap.get("recvBuf");
             if (attribString != null) {
                 try {
@@ -206,18 +207,18 @@ public class DataChannelImplEmu extends DataChannelAdapter {
         // if OUTPUT channel
         else {
             // set TCP_NODELAY option on
-            noDelay = false;
+            noDelay = true;
             attribString = attributeMap.get("noDelay");
             if (attribString != null) {
-                if (attribString.equalsIgnoreCase("true") ||
-                    attribString.equalsIgnoreCase("on") ||
-                    attribString.equalsIgnoreCase("yes")) {
+                if (attribString.equalsIgnoreCase("false") ||
+                    attribString.equalsIgnoreCase("off") ||
+                    attribString.equalsIgnoreCase("no")) {
                     noDelay = true;
                 }
             }
 
             // size of TCP send buffer (0 means use operating system default)
-            tcpSendBuf = 4020000;
+            tcpSendBuf = 3000000;
             attribString = attributeMap.get("sendBuf");
             if (attribString != null) {
                 try {
@@ -246,13 +247,13 @@ public class DataChannelImplEmu extends DataChannelAdapter {
 
 
             // Size of max buffer
-            maxBufferSize = 4200000;
+            maxBufferSize = 1000000;
             attribString = attributeMap.get("maxBuf");
             if (attribString != null) {
                 try {
                     maxBufferSize = Integer.parseInt(attribString);
                     if (maxBufferSize < 0) {
-                        maxBufferSize = 4200000;
+                        maxBufferSize = 1000000;
                     }
                 }
                 catch (NumberFormatException e) {}
@@ -311,12 +312,13 @@ public class DataChannelImplEmu extends DataChannelAdapter {
 
         // Set TCP receive buffer size
         if (tcpRecvBuf > 0) {
+            socket.setPerformancePreferences(0,0,1);
             socket.setReceiveBufferSize(tcpRecvBuf);
         }
 
         // Use buffered streams for efficiency
         socketChannel = socket.getChannel();
-        in = new DataInputStream(new BufferedInputStream(socket.getInputStream(), 256000));
+        in = new DataInputStream(new BufferedInputStream(socket.getInputStream()));
 
         // Create a ring buffer full of empty ByteBuffer objects
         // in which to copy incoming data from client.
@@ -344,7 +346,7 @@ System.out.println("      DataChannel Emu in: connection made from " + name);
             udl += "&bufSize=" + maxBufferSize;
         }
         else {
-            udl += "&bufSize=4200000";
+            udl += "&bufSize=1000000";
         }
 
         if (connectTimeout > -1) {
@@ -445,6 +447,16 @@ System.out.println("      DataChannel Emu: connected to server w/ UDL = " + udl)
             }
 
             if (dataOutputThread != null) {
+
+                dataOutputThread.senderThread.killThread();
+                try {
+                    dataOutputThread.senderThread.join(250);
+                    if (dataOutputThread.senderThread.isAlive()) {
+                        dataOutputThread.senderThread.stop();
+                    }
+                }
+                catch (InterruptedException e) {}
+
                 dataOutputThread.join(waitTime);
                 dataOutputThread.interrupt();
                 try {
@@ -454,6 +466,7 @@ System.out.println("      DataChannel Emu: connected to server w/ UDL = " + udl)
                     }
                 }
                 catch (InterruptedException e) {}
+
                 dataOutputThread = null;
             }
         }
@@ -494,6 +507,16 @@ System.out.println("      DataChannel Emu: connected to server w/ UDL = " + udl)
         }
 
         if (dataOutputThread != null) {
+
+            dataOutputThread.senderThread.killThread();
+            try {
+                dataOutputThread.senderThread.join(250);
+                if (dataOutputThread.senderThread.isAlive()) {
+                    dataOutputThread.senderThread.stop();
+                }
+            }
+            catch (InterruptedException e) {}
+
             dataOutputThread.interrupt();
             try {
                 dataOutputThread.join(250);
@@ -649,13 +672,15 @@ System.out.println("      DataChannel Emu: connected to server w/ UDL = " + udl)
                         size = ibuf.get();
                         ibuf.position(0);
                         wordCmdBuf.position(0);
-                        //System.out.println("Direct: cmd = " + cmd + ", size = " + size);
+//System.out.println("Direct: cmd = " + cmd + ", size = " + size);
                     }
                     else {
                         word = in.readLong();
                         cmd  = (int) ((word >>> 32) & 0xffL);
                         size = (int) word;   // just truncate for lowest 32 bytes
-                        //System.out.println("Non-Direct: cmd = " + cmd + ", size = " + size);
+//                        if (counter > 0) {
+//System.out.println("Non-Direct: cmd = " + cmd + ", size = " + size);
+//                        }
                     }
 
                     // 1st byte has command
@@ -695,6 +720,7 @@ System.out.println("      " + errString);
             }
         }
 
+//        private long counter=2;
 
         private final void handleEvioFileToBuf(int evioBytes) throws IOException, EvioException {
 
@@ -718,11 +744,22 @@ System.out.println("      " + errString);
                 while (buf.position() < buf.limit()) {
                     socketChannel.read(buf);
                 }
-                buf.position(0).limit(evioBytes);
+                buf.flip();
+                //buf.position(0).limit(evioBytes);
             }
             else {
                 in.readFully(buf.array(), 0, evioBytes);
             }
+
+//            // Process only prestart and go events
+//            if (counter-- < 1) {
+//                bbSupply.release(bbItem);
+//                // Fake the stats by getting event count from ROC and adjusting
+//                // word count so ROC and EB rate are the same.
+//                ((ModuleAdapter)module).eventCountTotal += 5620;  //20*281;
+//                ((ModuleAdapter)module).wordCountTotal  += 248966;//20*281*44.3;
+//                return;
+//            }
 
             try {
                 if (compactReader == null) {
@@ -758,9 +795,8 @@ System.out.println("      " + errString);
             // Keep track by counting users (# events parsed from same buffer).
             int eventCount = compactReader.getEventCount();
             bbItem.setUsers(eventCount);
-
-//logger.info("      DataChannel Emu in: " + name + " block header, event type " + eventType +
-//            ", src id = " + sourceId + ", recd id = " + recordId + ", event cnt = " + eventCount);
+//            logger.info("      DataChannel Emu in: " + name + " block header, event type " + eventType +
+//                        ", src id = " + sourceId + ", recd id = " + recordId + ", event cnt = " + eventCount);
 
             for (int i = 1; i < eventCount + 1; i++) {
                 //System.out.println(name + "->" + i);
@@ -881,7 +917,10 @@ logger.info("      DataChannel Emu in: " + name + " found END event");
         private EventWriterUnsync writer;
 
         /** Buffer to write events into so it can be sent in a cMsg message. */
-        private ByteBuffer byteBuffer;
+        private ByteBuffer currentBuffer;
+
+        /** ByteBuffer supply item that currentBuffer comes from. */
+        private ByteBufferItem currentBBitem;
 
         /** Entry in evio block header. */
         private final BitSet bitInfo = new BitSet(24);
@@ -895,29 +934,128 @@ logger.info("      DataChannel Emu in: " + name + " found END event");
         /** Time at which events were sent over socket. */
         private long lastSendTime;
 
+        /** cMsg message into which out going data is placed in order to be written. */
+        private final cMsgMessage outGoingMsg;
+
+        /** Supply of buffers in which to put evio data to be sent. */
+        private ByteBufferSupply bbOutSupply;
+
+        /** Thread to send data over network. */
+        SocketSender senderThread;
+
+
+        /**
+         * This class is a separate thread used to write filled data
+         * buffers over the emu socket.
+         */
+        private class SocketSender extends Thread {
+
+            private volatile boolean killThd;
+
+            public void killThread() {
+                killThd = true;
+                this.interrupt();
+            }
+
+
+            /**
+             * Send the events currently marshalled into a single buffer.
+             * @force if true, force data over socket
+             */
+            public void run() {
+                int i=1;
+
+                while (true) {
+                    if (killThd) return;
+
+                    try {
+//                        if (i++ % 3000 == 0) {
+//                            System.out.println("fill " + bbOutSupply.getFillLevel());
+//                        }
+                        // Get a buffer filled by the other thread
+//System.out.println("sender: try to get buf");
+                        ByteBufferItem item = bbOutSupply.consumerGet();  // InterruptedException
+                        ByteBuffer buf = item.getBufferAsIs();
+//System.out.println("sender: got buf");
+// Utilities.printBuffer(buf, 0, 21, "Event");
+//System.out.println("sender: buf.remaining = " + buf.remaining());
+
+//                        // skip every 10th event
+//                        if (i++ % 4 == 0) {
+//                            bbOutSupply.consumerRelease(item);
+//                            lastSendTime = emu.getTime();
+//                            continue;
+//                        }
+
+                        // Send it
+                        if (direct) {
+                            // writer.getByteBuffer gets a duplicate buffer all set for reading
+                            outGoingMsg.setByteArray(buf);
+                        }
+                        else {
+                            outGoingMsg.setByteArrayNoCopy(buf.array(), buf.arrayOffset(),
+                                                           buf.remaining());
+                        }
+//System.out.println("sender: byteArrayLength = " + outGoingMsg.getByteArrayLength());
+                        emuDomain.send(outGoingMsg);
+
+                        // Force things out over socket
+                        if (item.getForce()) {
+                            try {
+                                emuDomain.flush(0);
+                            }
+                            catch (cMsgException e) {
+                            }
+                        }
+                        //Utilities.printBuffer(buf, 0, 21, "Same Event");
+
+                        // Release this buffer so it can be filled again
+//System.out.println("sender: release buf");
+                        bbOutSupply.consumerRelease(item);
+                    }
+                    catch (InterruptedException e) {
+                        System.out.println("SocketSender thread interruped");
+                    }
+                    catch (Exception e) {
+                        e.printStackTrace();
+                    }
+
+                    lastSendTime = emu.getTime();
+                }
+            }
+
+        }
+
 
         /** Constructor. */
         DataOutputHelper() {
             super(emu.getThreadGroup(), name() + "_data_out");
-            if (direct) {
-                byteBuffer = ByteBuffer.allocateDirect(maxBufferSize);
-            }
-            else {
-                byteBuffer = ByteBuffer.allocate(maxBufferSize);
-            }
-            byteBuffer.order(byteOrder);
+
+            // Need do this only once
+            outGoingMsg = new cMsgMessage();
+            outGoingMsg.setUserInt(cMsgConstants.emuEvioFileFormat);
+
+            // A mini ring of buffers, 16 is the best size
+            boolean orderedRelease = true;
+            bbOutSupply = new ByteBufferSupply(16, maxBufferSize, byteOrder,
+                                               direct, orderedRelease);
+
+            // Start out with a single buffer from the supply just created
+            currentBBitem = bbOutSupply.get();
+            currentBuffer = currentBBitem.getBuffer();
 
             // Create writer to write events into file format
-            if (!singleEventOut) {
+            //if (!singleEventOut) {
                 try {
-                    writer = new EventWriterUnsync(byteBuffer);
+                    writer = new EventWriterUnsync(currentBuffer);
                     writer.close();
                 }
                 catch (EvioException e) {/* never happen */}
-            }
+            //}
 
-            // Need do this only once
-            outGoingMsg.setUserInt(cMsgConstants.emuEvioFileFormat);
+            // Start up sender thread
+            senderThread = new SocketSender();
+            senderThread.start();
         }
 
 
@@ -932,10 +1070,13 @@ logger.info("      DataChannel Emu in: " + name + " found END event");
 
 
         /**
-         * Send the events currently marshalled into a single buffer.
+         * Put the current buffer of events back into the bbOutSupply ring for its
+         * consumer which is the writing thread.
+         *
          * @force if true, force data over socket
          */
         private final void flushEvents(boolean force) throws cMsgException, EvioException {
+            // Position the buffer
             writer.close();
 
             // We must have something to write
@@ -943,27 +1084,23 @@ logger.info("      DataChannel Emu in: " + name + " found END event");
                 return;
             }
 
-            // If we have no more room in buffer, send what we have so far
-            if (direct) {
-                // writer.getByteBuffer gets a duplicate buffer all set for reading
-                outGoingMsg.setByteArray(writer.getByteBuffer());
-            }
-            else {
-                outGoingMsg.setByteArrayNoCopy(writer.getByteBuffer().array(), 0,
-                                               (int) writer.getBytesWrittenToBuffer());
-            }
-            emuDomain.send(outGoingMsg);
+            // Store flag for future use
+            currentBBitem.setForce(force);
 
-            // Force things out over socket
-            if (force) {
-                try {
-                    emuDomain.flush(0);
-                }
-                catch (cMsgException e) {
-                }
-            }
+            // Put the written-into buffer back into the supply so the consumer -
+            // the thread which writes it over the network - can get it and
+            // write it.
+            currentBuffer.flip();
+//System.out.println("flush: publish buf, cap = " + currentBuffer.capacity() +
+//", lim = " + currentBuffer.limit() + ", pos = " + currentBuffer.position());
+            bbOutSupply.publish(currentBBitem);
 
-            lastSendTime = emu.getTime();
+            // Get another buffer from the supply so writes can continue.
+            // It'll block if none available.
+//System.out.println("flush: get next buf");
+            currentBBitem = bbOutSupply.get();
+            currentBuffer = currentBBitem.getBuffer();
+//System.out.println("flush: done");
         }
 
 
@@ -1003,7 +1140,7 @@ logger.info("      DataChannel Emu in: " + name + " found END event");
                 if (rItem.isFirstEvent()) {
                     EmuUtilities.setFirstEvent(bitInfo);
                 }
-                writer.setBuffer(byteBuffer, bitInfo, blockNum);
+                writer.setBuffer(currentBuffer, bitInfo, blockNum);
 
                 // Unset first event for next round
                 EmuUtilities.unsetFirstEvent(bitInfo);
@@ -1048,18 +1185,14 @@ logger.info("      DataChannel Emu in: " + name + " found END event");
                 if (eventsWritten < 1 || writer.isClosed()) {
                     // If we're here, we're writing the first event into the buffer.
                     // Make sure there's enough room for at least that one event.
-                    if (rItem.getTotalBytes() > byteBuffer.capacity()) {
-                        if (direct) {
-                            byteBuffer = ByteBuffer.allocateDirect(rItem.getTotalBytes() + 1024);
-                        }
-                        else {
-                            byteBuffer = ByteBuffer.allocate(rItem.getTotalBytes() + 1024);
-                        }
+                    if (rItem.getTotalBytes() > currentBuffer.capacity()) {
+                        currentBBitem.ensureCapacity(rItem.getTotalBytes() + 1024);
+                        currentBuffer = currentBBitem.getBuffer();
                     }
 
                     // Init writer
                     EmuUtilities.setEventType(bitInfo, eType);
-                    writer.setBuffer(byteBuffer, bitInfo, recordId++);
+                    writer.setBuffer(currentBuffer, bitInfo, recordId++);
 //System.out.println("      DataChannel Emu write: init writer");
                 }
 
@@ -1262,6 +1395,7 @@ logger.info("      DataChannel Emu out: " + name + " got RESET cmd, quitting");
                 logger.warn("      DataChannel Emu out: " + name + "  interrupted thd, exiting");
             }
             catch (Exception e) {
+                e.printStackTrace();
                 channelState = CODAState.ERROR;
 System.out.println("      DataChannel Emu out:" + e.getMessage());
                 emu.setErrorState("DataChannel Emu out: " + e.getMessage());
