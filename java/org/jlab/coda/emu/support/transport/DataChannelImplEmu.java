@@ -1395,7 +1395,6 @@ logger.info("      DataChannel Emu out: " + name + " got RESET cmd, quitting");
                 logger.warn("      DataChannel Emu out: " + name + "  interrupted thd, exiting");
             }
             catch (Exception e) {
-                e.printStackTrace();
                 channelState = CODAState.ERROR;
 System.out.println("      DataChannel Emu out:" + e.getMessage());
                 emu.setErrorState("DataChannel Emu out: " + e.getMessage());
