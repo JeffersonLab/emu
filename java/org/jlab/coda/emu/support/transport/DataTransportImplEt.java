@@ -26,6 +26,8 @@ import org.jlab.coda.emu.support.logger.Logger;
 import org.jlab.coda.et.system.SystemCreate;
 
 import java.io.*;
+import java.net.ServerSocket;
+import java.net.Socket;
 import java.util.*;
 
 /**
@@ -745,10 +747,24 @@ logger.debug("    DataTransport Et: create local C ET system, " + etOpenConfig.g
                         errorOut += retStrings[1];
                     }
 
-                    transportState = CODAState.ERROR;
-                    emu.setErrorState("Transport et: " + errorOut);
-                    logger.debug(errorOut);
-                    throw new CmdExecException(errorOut);
+                    try {
+                        // Check to see if it bombs here in which case there's
+                        // another ET system running on this port on this host.
+                        ServerSocket socketserv = new ServerSocket(systemConfig.getServerPort());
+
+                        transportState = CODAState.ERROR;
+                        emu.setErrorState("Transport et: " + errorOut);
+                        logger.debug(errorOut);
+                        throw new CmdExecException(errorOut);
+                    }
+                    catch (IOException ex) {
+                        transportState = CODAState.ERROR;
+                        emu.setErrorState("cannot run ET system, port " +
+                                           systemConfig.getServerPort() + " already in use");
+                        logger.debug("cannot run ET system, port " +
+                                     systemConfig.getServerPort() + " already in use");
+                        throw new CmdExecException(errorOut);
+                    }
                 }
 
                 // There is no feedback mechanism to tell if
@@ -766,21 +782,18 @@ logger.debug("    DataTransport Et: create local C ET system, " + etOpenConfig.g
                     etSystem = null;
                     transportState = CODAState.ERROR;
                     emu.setErrorState("Transport et: created ET system " + etOpenConfig.getEtName() + ", but cannot connect");
-System.out.println("    DataTransport Et: created system " + etOpenConfig.getEtName() + ", cannot connect");
                     throw new CmdExecException("created ET, " + etOpenConfig.getEtName() + ", but cannot connect", e);
                 }
 
                 // Thread to run in case of control-C
                 shutdownThread.reset(etSystem, etOpenConfig.getEtName());
             }
-
         }
         catch (Exception e) {
             e.printStackTrace();
             etSystem = null;
             transportState = CODAState.ERROR;
             emu.setErrorState("Transport et: cannot run ET system, " + e.getMessage());
-System.out.println("    DataTransport Et: created system " + e.getMessage());
             throw new CmdExecException("cannot run ET system", e);
         }
 
