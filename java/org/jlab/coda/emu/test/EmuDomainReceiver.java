@@ -14,12 +14,14 @@ package org.jlab.coda.emu.test;
 
 import org.jlab.coda.cMsg.*;
 import org.jlab.coda.emu.support.data.*;
+import org.jlab.coda.emu.support.transport.DataChannelImplEmu;
 import org.jlab.coda.emu.support.transport.DataTransportImplEmu;
 import org.jlab.coda.jevio.*;
 
 import java.io.*;
 import java.net.*;
 import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
 import java.nio.channels.ServerSocketChannel;
@@ -37,7 +39,7 @@ import java.util.concurrent.CountDownLatch;
 public class EmuDomainReceiver {
 
     private boolean debug;
-    private int tcpPort;
+    private int tcpPort=46100;
     private String expid;
     private String name = "Eb1";
 
@@ -270,7 +272,7 @@ class LocalEmuDomainUdpListener extends Thread {
     private MulticastSocket multicastSocket;
 
     /** Level of debug output for this class. */
-    private int debug = cMsgConstants.debugError;
+    private int debug = cMsgConstants.debugInfo;
 
     private String expid;
     private String emuName;
@@ -300,6 +302,8 @@ class LocalEmuDomainUdpListener extends Thread {
         multicastPort = tcpPort = port;
 
         try {
+System.out.println("Listening for multicasts on port " + multicastPort);
+
             // Create a UDP socket for accepting multi/unicasts from the Emu client
             multicastSocket = new MulticastSocket(multicastPort);
             SocketAddress sa =
@@ -347,6 +351,7 @@ class LocalEmuDomainUdpListener extends Thread {
 
         // Get our local IP addresses, canonical first
         ArrayList<String> ipAddresses = new ArrayList<>(cMsgUtilities.getAllIpAddresses());
+        List<InterfaceAddress> ifAddrs = cMsgUtilities.getAllIpInfo();
 
         try {
             // Put our special #s, TCP listening port, expid,
@@ -355,14 +360,33 @@ class LocalEmuDomainUdpListener extends Thread {
             out.writeInt(cMsgNetworkConstants.magicNumbers[1]);
             out.writeInt(cMsgNetworkConstants.magicNumbers[2]);
             out.writeInt(tcpPort);
-            out.writeInt(ipAddresses.size());
-            try {
-                for (String addr : ipAddresses) {
-                    out.writeInt(addr.length());
-                    out.write(addr.getBytes("US-ASCII"));
+            //out.writeInt(ipAddresses.size());
+            // List of all IP data (no IPv6, no loopback, no down interfaces)
+            int addrCount = ifAddrs.size();
+            // Let folks know how many address pairs are coming
+            out.writeInt(addrCount);
+//System.out.println("Emu listen: create a response packet with port = " + tcpPort +
+//                               ", addr list items = " + ipAddresses.size());
+
+            for (InterfaceAddress ifAddr : ifAddrs) {
+                Inet4Address bAddr;
+                try { bAddr = (Inet4Address)ifAddr.getBroadcast(); }
+                catch (ClassCastException e) {
+                    // should never happen since IPv6 already removed
+                    continue;
                 }
+                // send IP addr
+                String ipAddr = ifAddr.getAddress().getHostAddress();
+                out.writeInt(ipAddr.length());
+                out.write(ipAddr.getBytes("US-ASCII"));
+//System.out.println("Emu listen: addr = " + ipAddr + ", len = " + ipAddr.length());
+                // send broadcast addr
+                String broadcastAddr = bAddr.getHostAddress();
+                out.writeInt(broadcastAddr.length());
+                out.write(broadcastAddr.getBytes("US-ASCII"));
+//System.out.println("Emu listen: bcast addr = " + broadcastAddr + ", len = " + broadcastAddr.length());
             }
-            catch (UnsupportedEncodingException e) { }
+
             out.flush();
             out.close();
 
@@ -387,7 +411,7 @@ class LocalEmuDomainUdpListener extends Thread {
                 if (killThreads) { return; }
 
                 packet.setLength(2048);
-//System.out.println("Emu listen: WAITING TO RECEIVE PACKET");
+System.out.println("Emu listen: WAITING TO RECEIVE PACKET");
                 multicastSocket.receive(packet);   // blocks
 
                 if (killThreads) { return; }
@@ -421,16 +445,16 @@ class LocalEmuDomainUdpListener extends Thread {
                 switch (msgType) {
                     // Multicasts from emu clients
                     case cMsgNetworkConstants.emuDomainMulticastClient:
-//System.out.println("Emu listen: client wants to connect");
+System.out.println("Emu listen: client wants to connect");
                         break;
                     // Packet from client just trying to locate emu multicast servers.
                     // Send back a normal response but don't do anything else.
                     case cMsgNetworkConstants.emuDomainMulticastProbe:
-//System.out.println("Emu listen: I was probed");
+System.out.println("Emu listen: I was probed");
                         break;
                     // Ignore packets from unknown sources
                     default:
-//System.out.println("Emu listen: unknown command");
+System.out.println("Emu listen: unknown command");
                         continue;
                 }
 
@@ -442,7 +466,8 @@ class LocalEmuDomainUdpListener extends Thread {
                  // Check for conflicting cMsg versions
                 if (cMsgVersion != cMsgConstants.version) {
                     if (debug >= cMsgConstants.debugInfo) {
-                        System.out.println("Emu listen: conflicting cMsg versions, ignoring");
+                        System.out.println("Emu listen: conflicting cMsg versions, client = " + cMsgVersion +
+                        ", cMsg lib = " + cMsgConstants.version);
                     }
                     continue;
                 }
@@ -576,12 +601,15 @@ class LocalEmuDomainTcpServer extends Thread {
             System.out.println("Emu domain TCP server: running");
         }
 
-        // Direct buffer for reading 3 magic & 3 other integers with non-blocking IO
-        int BYTES_TO_READ = 6*4;
+        // Direct buffer for reading 3 magic & 5 other integers with non-blocking IO
+        int BYTES_TO_READ = 8*4;
         ByteBuffer buffer = ByteBuffer.allocateDirect(BYTES_TO_READ);
 
         Selector selector = null;
         ServerSocketChannel serverChannel = null;
+        
+        // Create a channel new
+        InputDataChannelImplEmu emuChannel = new InputDataChannelImplEmu();
 
         try {
             // Get things ready for a select call
@@ -624,7 +652,7 @@ class LocalEmuDomainTcpServer extends Thread {
                     }
                     continue;
                 }
-//System.out.println("Emu domain server: someone trying to connect");
+System.out.println("Emu domain server: someone trying to connect");
 
                 // Get an iterator of selected keys (ready sockets)
                 Iterator it = selector.selectedKeys().iterator();
@@ -643,7 +671,7 @@ class LocalEmuDomainTcpServer extends Thread {
                         // Check to see if this is a legit cMsg client or some imposter.
                         // Don't want to block on read here since it may not be a cMsg
                         // client and may block forever - tying up the server.
-                        int version, codaId=-1, bufferSizeDesired=-1;
+                        int version, codaId=-1, bufferSizeDesired=-1, socketCount=-1, socketPosition=-1;
                         int bytes, bytesRead=0, loops=0;
                         buffer.clear();
                         buffer.limit(BYTES_TO_READ);
@@ -728,6 +756,32 @@ class LocalEmuDomainTcpServer extends Thread {
                                     it.remove();
                                     continue keyLoop;
                                 }
+
+                                // Number of sockets expected to be made by client
+                                socketCount = buffer.getInt();
+System.out.println("Got socket count = " + socketCount);
+                                if (socketCount < 1) {
+                                    if (debug >= cMsgConstants.debugInfo) {
+                                        System.out.println("    Transport Emu: domain server, bad socket count of sender (" +
+                                                                   socketCount + ')');
+                                    }
+                                    channel.close();
+                                    it.remove();
+                                    continue keyLoop;
+                                }
+
+                                // Position of this socket compared to others: 1, 2, ...
+                                socketPosition = buffer.getInt();
+System.out.println("Got socket position = " + socketPosition);
+                                if (socketCount < 1) {
+                                    if (debug >= cMsgConstants.debugInfo) {
+                                        System.out.println("    Transport Emu: domain server, bad socket position of sender (" +
+                                                                   socketPosition + ')');
+                                    }
+                                    channel.close();
+                                    it.remove();
+                                    continue keyLoop;
+                                }
                             }
                             else {
                                 // Give client 10 loops (.1 sec) to send its stuff, else no deal
@@ -744,13 +798,11 @@ class LocalEmuDomainTcpServer extends Thread {
                         // Go back to using streams
                         channel.configureBlocking(true);
 
-                        // Create a channel new
-                        InputDataChannelImplEmu emuChannel = new InputDataChannelImplEmu();
-
                         // The emu (not socket) channel will start a
                         // thread to handle all further communication.
                         try {
-                            emuChannel.attachToInput(channel, codaId, bufferSizeDesired);
+                            emuChannel.attachToInput(channel, codaId, bufferSizeDesired,
+                                                     socketCount, socketPosition);
                         }
                         catch (IOException e) {
                             if (debug >= cMsgConstants.debugInfo) {
@@ -803,11 +855,11 @@ class InputDataChannelImplEmu {
 
     // INPUT
 
-    /** Thread used to input data. */
-    private DataInputHelper dataInputThread;
+    /** Threads used to input data. */
+    private DataInputHelper[] dataInputThread;
 
-    /** Data input stream from TCP socket. */
-    private DataInputStream in;
+    /** Data input streams from TCP sockets. */
+    private DataInputStream[] in;
 
     /** TCP receive buffer size in bytes. */
     private int tcpRecvBuf;
@@ -818,13 +870,24 @@ class InputDataChannelImplEmu {
      *  Allows good initial value of ByteBuffer size.  */
     private int maxBufferSize;
 
+    /**
+     * In order to get a higher throughput for fast networks (e.g. infiniband),
+     * this emu channel may use multiple sockets underneath. Defaults to 1.
+     */
+    private int socketCount;
+
+    /** Number of sockets created so far. */
+    private int socketsConnected;
+
     //-------------------------------------------
     // Disruptor (RingBuffer)  Stuff
     //-------------------------------------------
 //    private long nextRingItem;
 
-    /** Ring buffer holding ByteBuffers when using EvioCompactEvent reader for incoming events. */
-    protected ByteBufferSupply bbSupply;
+    /** Ring buffers holding ByteBuffers when using EvioCompactEvent reader for incoming events. */
+    protected ByteBufferSupply[] bbSupply;
+
+    StatisticsThread statThread;
 
 //    /** Ring buffer - one per input channel. */
 //    protected RingBuffer<RingItem> ringBufferIn;
@@ -855,43 +918,78 @@ class InputDataChannelImplEmu {
      * that socket is passed to this method and a thread is spawned to handle all
      * communications over it. Only used for input channel.
      *
-     * @param channel
+     * @param channel        data input socket/channel
+     * @param sourceId       CODA id # of data source
+     * @param maxBufferSize  biggest chunk of data expected to be sent by data producer
+     * @param socketCount    total # of sockets data producer will be making
+     * @param socketPosition position with respect to other data producers: 1, 2 ...
+     *
+     * @throws IOException   if exception dealing with socket or input stream
      */
-    void attachToInput(SocketChannel channel, int sourceId, int maxBufferSize) throws IOException {
+    void attachToInput(SocketChannel channel, int sourceId, int maxBufferSize,
+                       int socketCount, int socketPosition) throws IOException {
+        // Initialize things once
+        if (in == null) {
+            in = new DataInputStream[socketCount];
+            bbSupply = new ByteBufferSupply[socketCount];
+            //socketChannel = new SocketChannel[socketCount];
+            dataInputThread = new DataInputHelper[socketCount];
+            statThread = new StatisticsThread(socketCount);
+        }
+        // If establishing multiple sockets for this single emu channel,
+        // make sure their settings are compatible.
+        else {
+            if (socketCount != this.socketCount) {
+                System.out.println("Bad socketCount: " + socketCount + ", != previous " + this.socketCount);
+            }
+
+            if (sourceId != this.sourceId) {
+                System.out.println("Bad sourceId: " + sourceId + ", != previous " + this.sourceId);
+            }
+        }
+
         this.sourceId = sourceId;
+        this.socketCount = socketCount;
         this.maxBufferSize = maxBufferSize;
 
         // Set socket options
         Socket socket = channel.socket();
-        // Set TCP no-delay so no packets are delayed
-        socket.setTcpNoDelay(noDelay);
+
+        socketsConnected++;
+System.out.println("attachToInput: socketsConnected = " + socketsConnected +
+", socketCount = " + socketCount);
+
         // Set TCP receive buffer size
         if (tcpRecvBuf > 0) {
+            socket.setPerformancePreferences(0,0,1);
             socket.setReceiveBufferSize(tcpRecvBuf);
         }
 
         // Use buffered streams for efficiency
-        in = new DataInputStream(new BufferedInputStream(socket.getInputStream(), 256000));
+        //socketChannel[socketPosition - 1] = channel;
+        in[socketPosition - 1] = new DataInputStream(new BufferedInputStream(socket.getInputStream()));
 
         // Create a ring buffer full of empty ByteBuffer objects
         // in which to copy incoming data from client.
-        bbSupply = new ByteBufferSupply(128, maxBufferSize);
+        // NOTE: Using direct buffers works but performance is poor and fluctuates
+        // quite a bit in speed.
+        bbSupply[socketPosition - 1] = new ByteBufferSupply(16, maxBufferSize);
 
-        // Start thread to handle all socket input
-        startInputThread();
+        // Start thread to handle socket input
+        dataInputThread[socketPosition - 1] = new DataInputHelper(socketPosition - 1);
+
+        // If this is the last socket, make sure all threads are started up before proceeding
+        if (socketsConnected == socketCount) {
+            System.out.println("Trying to start statThread");
+            statThread.start();
+            for (int i=0; i < socketCount; i++) {
+                dataInputThread[i].setStatThread(statThread);
+                dataInputThread[i].waitUntilStarted();
+            }
+        }
     }
 
 
-
-    /**
-     * For input channel, start the DataInputHelper thread which takes Evio
-     * file-format data, parses it, puts the parsed Evio banks into the ring buffer.
-     */
-    private final void startInputThread() {
-        dataInputThread = new DataInputHelper();
-        dataInputThread.start();
-        dataInputThread.waitUntilStarted();
-    }
 
 
 
@@ -907,11 +1005,28 @@ class InputDataChannelImplEmu {
         /** Read into ByteBuffers. */
         private EvioCompactReaderUnsync compactReader;
 
+        /** Index corresponding to position are we relative to the other socket(s). */
+        private final int socketIndex;
+
+        /** Data input stream from TCP socket. */
+        private DataInputStream inStream;
+
+        private StatisticsThread statThread;
+
 
 
         /** Constructor. */
-        DataInputHelper() {
+        DataInputHelper(int socketIndex) {
+            this.socketIndex = socketIndex;
+            inStream = in[socketIndex];
+
 System.out.println("      DataChannel Emu in: start EMU input thread");
+            start();
+        }
+        
+
+        public void setStatThread(StatisticsThread statThread) {
+            this.statThread = statThread;
         }
 
 
@@ -937,7 +1052,7 @@ System.out.println("      DataChannel Emu in: start EMU input thread");
                 while ( true ) {
 
                     // Read the command first
-                    command = in.readInt();
+                    command = inStream.readInt();
 //System.out.println("      DataChannel Emu in: cmd = 0x" + Integer.toHexString(command));
 //                    Thread.sleep(1000);
 
@@ -974,10 +1089,11 @@ System.out.println("      DataChannel Emu in: get emuEnd cmd");
             ControlType controlType = null;
 
             // Get a reusable ByteBuffer
-            ByteBufferItem bbItem = bbSupply.get();
+            ByteBufferItem bbItem = bbSupply[socketIndex].get();
 
             // Read the length of evio file-format data to come
-            int evioBytes = in.readInt();
+            int evioBytes = inStream.readInt();
+            statThread.addBytes(evioBytes + 8);
 
             // If buffer is too small, make a bigger one
             bbItem.ensureCapacity(evioBytes);
@@ -985,7 +1101,7 @@ System.out.println("      DataChannel Emu in: get emuEnd cmd");
             buf.position(0).limit(evioBytes);
 
             // Read evio file-format data
-            in.readFully(buf.array(), 0, evioBytes);
+            inStream.readFully(buf.array(), 0, evioBytes);
 
             try {
                 if (compactReader == null) {
@@ -1031,7 +1147,7 @@ System.out.println("      DataChannel Emu in: get emuEnd cmd");
                     }
                 }
 
-                bbSupply.release(bbItem);
+                bbSupply[socketIndex].release(bbItem);
 
                 // Handle end event ...
                 if (controlType == ControlType.END) {
@@ -1046,6 +1162,90 @@ System.out.println("      DataChannel Emu in: found END event");
             }
         }
 
+    }
+
+    /** Class to calculate and print statistics. */
+    private class StatisticsThread extends Thread {
+
+        private boolean init;
+        private long totalBytes, oldVal, totalT, totalCount;
+        long localByteCount, t, deltaT, deltaCount;
+        private int skip = 2, timeInterval=5, socketCount=1;
+
+        private volatile int byteCount;
+
+        public StatisticsThread(int socketCount) {
+            this.socketCount = socketCount;
+        }
+
+        public void clear() {
+            totalBytes    = 0L;
+            totalT        = 0L;
+            totalCount    = 0L;
+            byteCount     = 0;
+            oldVal        = 0L;
+            skip          = 2;
+            init          = true;
+            t = System.currentTimeMillis();
+        }
+
+
+        public void addBytes(int bytes) {
+            byteCount += bytes;
+        }
+
+
+        public void run() {
+
+            int sleepTime = 1000*timeInterval;
+
+            clear();
+
+            while (true) {
+
+                try {
+                    Thread.sleep(sleepTime);
+                } catch (InterruptedException ex) {}
+
+                // Local copy of volatile int
+                localByteCount = byteCount;
+
+                deltaT = System.currentTimeMillis() - t;
+
+                if (localByteCount > 0) {
+
+                    if (!init) {
+                         totalBytes += localByteCount;
+                    }
+
+                    if (skip-- < 1) {
+                        totalT += deltaT;
+                        deltaCount = totalBytes - oldVal;
+                        totalCount += deltaCount;
+
+                        System.out.printf("%3.2e bytes/s in %d sec, %3.2e avg,  %d sockets\n",
+                                          (deltaCount*1000./deltaT), timeInterval,
+                                          ((totalCount*1000.)/totalT), socketCount);
+                    }
+                    else {
+                        System.out.printf("%3.2e bytes/s in %d sec,  %d sockets\n",
+                                          (localByteCount*1000./deltaT), timeInterval,
+                                          socketCount);
+                    }
+
+                    // Remove effect of printing rate calculations
+                    t = System.currentTimeMillis();
+
+                    init = false;
+                    oldVal = totalBytes;
+                    byteCount = 0;
+                }
+                else {
+                    System.out.println("No bytes read in the last " + timeInterval + " seconds.");
+                    clear();
+                }
+            }
+        }
     }
 
 
