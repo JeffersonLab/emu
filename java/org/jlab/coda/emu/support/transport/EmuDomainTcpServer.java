@@ -69,11 +69,11 @@ public class EmuDomainTcpServer extends Thread {
     /** This method is executed as a thread. */
     public void run() {
         if (debug >= cMsgConstants.debugInfo) {
-            System.out.println("    Transport Emu: domain TCP server running");
+            System.out.println("    Transport Emu: domain TCP server running, listening on port " + serverPort);
         }
 
-        // Direct buffer for reading 3 magic & 3 other integers with non-blocking IO
-        int BYTES_TO_READ = 6*4;
+        // Direct buffer for reading 3 magic & 5 other integers with non-blocking IO
+        int BYTES_TO_READ = 8*4;
         ByteBuffer buffer = ByteBuffer.allocateDirect(BYTES_TO_READ);
 
         Selector selector = null;
@@ -139,7 +139,7 @@ public class EmuDomainTcpServer extends Thread {
                         // Check to see if this is a legit cMsg client or some imposter.
                         // Don't want to block on read here since it may not be a cMsg
                         // client and may block forever - tying up the server.
-                        int version, codaId=-1, bufferSizeDesired=-1;
+                        int version, codaId=-1, bufferSizeDesired=-1, socketCount=-1, socketPosition=-1;
                         int bytes, bytesRead=0, loops=0;
                         buffer.clear();
                         buffer.limit(BYTES_TO_READ);
@@ -218,7 +218,33 @@ public class EmuDomainTcpServer extends Thread {
                                     // 40 bytes is smallest possible evio file format size
                                     if (debug >= cMsgConstants.debugInfo) {
                                         System.out.println("    Transport Emu: domain server, bad buffer size from sender (" +
-                                                           bufferSizeDesired + ')');
+                                                                   bufferSizeDesired + ')');
+                                    }
+                                    channel.close();
+                                    it.remove();
+                                    continue keyLoop;
+                                }
+
+                                // Number of sockets expected to be made by client
+                                socketCount = buffer.getInt();
+//System.out.println("Got socket count = " + socketCount);
+                                if (socketCount < 1) {
+                                    if (debug >= cMsgConstants.debugInfo) {
+                                        System.out.println("    Transport Emu: domain server, bad socket count of sender (" +
+                                                                   socketCount + ')');
+                                    }
+                                    channel.close();
+                                    it.remove();
+                                    continue keyLoop;
+                                }
+
+                                // Position of this socket compared to others: 1, 2, ...
+                                socketPosition = buffer.getInt();
+//System.out.println("Got socket position = " + socketPosition);
+                                if (socketCount < 1) {
+                                    if (debug >= cMsgConstants.debugInfo) {
+                                        System.out.println("    Transport Emu: domain server, bad socket position of sender (" +
+                                                                   socketPosition + ')');
                                     }
                                     channel.close();
                                     it.remove();
@@ -255,7 +281,8 @@ public class EmuDomainTcpServer extends Thread {
                         // The emu (not socket) channel will start a
                         // thread to handle all further communication.
                         try {
-                            emuChannel.attachToInput(channel, codaId, bufferSizeDesired);
+                            emuChannel.attachToInput(channel, codaId, bufferSizeDesired,
+                                                     socketCount, socketPosition);
                         }
                         catch (IOException e) {
                             if (debug >= cMsgConstants.debugInfo) {
