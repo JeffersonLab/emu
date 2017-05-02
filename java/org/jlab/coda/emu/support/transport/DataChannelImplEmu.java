@@ -741,6 +741,9 @@ System.out.println("      DataChannel Emu: connected to server w/ UDL = " + udl)
             ByteBuffer wordCmdBuf = ByteBuffer.allocate(8);
             IntBuffer ibuf = wordCmdBuf.asIntBuffer();
 
+            ByteBuffer buf;
+            ByteBufferItem item;
+
             try {
                 while (true) {
                     // If I've been told to RESET ...
@@ -760,8 +763,7 @@ System.out.println("      DataChannel Emu: connected to server w/ UDL = " + udl)
                         continue;
                     }
 
-                    ByteBufferItem item = bbInSupply[socketIndex].get();
-                    ByteBuffer buf = item.getBuffer();
+                    item = bbInSupply[socketIndex].get();
 
                     // First read the command & size with one read, into a long.
                     // These 2, 32-bit ints are sent in network byte order, cmd first.
@@ -773,6 +775,9 @@ System.out.println("      DataChannel Emu: connected to server w/ UDL = " + udl)
                         size = ibuf.get();
                         ibuf.position(0);
                         wordCmdBuf.position(0);
+
+                        item.ensureCapacity(size);
+                        buf = item.getBuffer();
                         buf.limit(size);
 
                         // Be sure to read everything
@@ -787,6 +792,8 @@ System.out.println("      DataChannel Emu: connected to server w/ UDL = " + udl)
                         cmd  = (int) ((word >>> 32) & 0xffL);
                         size = (int)   word;   // just truncate for lowest 32 bytes
 //System.out.println("size = " + size);
+                        item.ensureCapacity(size);
+                        buf = item.getBuffer();
                         buf.limit(size);
 
                         inStream.readFully(item.getBuffer().array(), 0, size);
@@ -1246,6 +1253,13 @@ System.out.println("      DataChannel Emu in:" + e.getMessage());
                 }
                 else {
                     blockNum = -1;
+                }
+
+                // If we're here, we're writing the first event into the buffer.
+                // Make sure there's enough room for that one event.
+                if (rItem.getTotalBytes() > currentBuffer.capacity()) {
+                    currentBBitem.ensureCapacity(rItem.getTotalBytes() + 1024);
+                    currentBuffer = currentBBitem.getBuffer();
                 }
 
                 // Write the event ..
