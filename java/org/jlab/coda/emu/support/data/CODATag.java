@@ -37,13 +37,18 @@ public enum CODATag {
 
     // Trigger banks without roc-specific data
     /** No timestamp, no run and no roc-specific data. */
-    BUILT_TRIGGER_NRSD           (0xFF24),
+    BUILT_TRIGGER_NRSD          (0xFF24),
     /** Timestamp and no roc-specific data. */
-    BUILT_TRIGGER_TS_NRSD        (0xFF25),
+    BUILT_TRIGGER_TS_NRSD       (0xFF25),
     /** Run and no roc-specific data. */
-    BUILT_TRIGGER_RUN_NRSD       (0xFF26),
+    BUILT_TRIGGER_RUN_NRSD      (0xFF26),
     /** Timestamp and run, but no roc-specific data. */
-    BUILT_TRIGGER_TS_RUN_NRSD    (0xFF27),
+    BUILT_TRIGGER_TS_RUN_NRSD   (0xFF27),
+
+    // Trigger banks error condition
+    /** At least one ROC used in building this trigger bank
+     *  has a bad or nonexistent trigger bank of its own. */
+    BUILT_TRIGGER_ROC_ERROR     (0xFF4F),
 
     // Physics event
     /** Event built by primary event builder. */
