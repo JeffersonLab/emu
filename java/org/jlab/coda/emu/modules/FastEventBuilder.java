@@ -1257,8 +1257,6 @@ System.out.println("  EB mod: Bt#" + btIndex + " found END events on all input c
                     nonFatalError |= Evio.checkConsistency(buildingBanks, firstEventNumber);
                     isSync = buildingBanks[0].isSync();
 
-//if (debug && nonFatalError) System.out.println("  EB mod: non-fatal ERROR @ pos 1\n");
-
                     //--------------------------------------------------------------------
                     // Build trigger bank, number of ROCs given by number of buildingBanks
                     //--------------------------------------------------------------------
@@ -1313,6 +1311,11 @@ System.out.println("  EB mod: Bt#" + btIndex + " found END events on all input c
                         //case DC:
                         default:
                             eventType = EventType.PARTIAL_PHYSICS;
+                            // Check input banks for non-fatal errors
+                            for (PayloadBuffer pBank : buildingBanks)  {
+                                nonFatalError |= pBank.hasNonFatalBuildingError();
+                            }
+
                             tag = Evio.createCodaTag(isSync,
                                                      buildingBanks[0].hasError() || nonFatalError,
                                                      buildingBanks[0].getByteOrder() == ByteOrder.BIG_ENDIAN,
@@ -1330,6 +1333,8 @@ System.out.println("  EB mod: Bt#" + btIndex + " found END events on all input c
                     builder.openBank(tag, totalNumberEvents, DataType.BANK);
 
 //Utilities.printBuffer(builder.getBuffer(), 0, 20, "TOP LEVEL OPEN event");
+                    // Reset this to see if creating trigger bank causes an error
+                    nonFatalError = false;
 
                     // If building with Physics events ...
                     if (havePhysicsEvents) {
@@ -1354,14 +1359,14 @@ System.out.println("  EB mod: Bt#" + btIndex + " found END events on all input c
                                                                         timestampSlop, btIndex);
                     }
 
-//if (debug && nonFatalError) System.out.println("  EB mod: non-fatal ERROR @ pos 2\n");
-
-                    // Check input banks for non-fatal errors
-                    for (PayloadBuffer pBank : buildingBanks)  {
-                        nonFatalError |= pBank.hasNonFatalBuildingError();
+                    // If the trigger bank has an error, go back and reset its tag
+                    if (nonFatalError && emu.getCodaClass() == CODAClass.DC) {
+                        tag = Evio.createCodaTag(isSync,true,
+                                                 buildingBanks[0].getByteOrder() == ByteOrder.BIG_ENDIAN,
+                                                 false, /* don't use single event mode */
+                                                 id);
+                        builder.setTopLevelTag((short)tag);
                     }
-
-//if (debug && nonFatalError) System.out.println("  EB mod: non-fatal ERROR @ pos 3\n");
 
                     if (havePhysicsEvents) {
 //if (debug) System.out.println("  EB mod: build physics event with physics banks");
