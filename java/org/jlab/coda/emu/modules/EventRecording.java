@@ -426,7 +426,10 @@ System.out.println("  ER mod: will end thread but no END event!");
 
                             // Copy event and place one on each additional output channel
                             for (int j = 1; j < outputChannelCount; j++) {
+                                // This copy shares the underlying buffer / buffer item / buffer supply
                                 PayloadBuffer bb = new PayloadBuffer((PayloadBuffer) ringItem);
+                                ByteBufferItem item = bb.getByteBufferItem();
+                                if (item != null) item.addUsers(1);
                                 eventToOutputChannel(bb, j, 0);
                             }
                         }
