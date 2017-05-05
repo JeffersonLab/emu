@@ -1327,8 +1327,6 @@ System.out.println("  EB mod: Bt#" + btIndex + " found END events on all input c
 //                   ", is single mode = " + buildingBanks[0].isSingleEventMode());
                     }
 
-                    // TODO: Problem, non fatal errors cannot be known in advance of building???
-
                     // Start top level
                     builder.openBank(tag, totalNumberEvents, DataType.BANK);
 
