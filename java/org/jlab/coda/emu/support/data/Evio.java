@@ -1663,7 +1663,7 @@ System.out.println("Timestamp NOT consistent: ev #" + (firstEventNumber + j) + "
      *                      for a single event before the error bit is set in a bank's
      *                      status. Only used when checkTimestamps arg is <code>true</code>
      *
-     * @return <code>true</code> if non fatal error occurred, else <code>false</code>
+     * @return <code>true</code> if recoverable error occurred, else <code>false</code>
      * @throws EmuException for major error in event building which necessitates stopping the build
      */
     public static boolean makeTriggerBankFromRocRaw(PayloadBuffer[] inputPayloadBanks,
@@ -1684,7 +1684,10 @@ System.out.println("Timestamp NOT consistent: ev #" + (firstEventNumber + j) + "
         boolean turnOffChecks = false;
 
         int tag, firstTrigTag=0, rocTrigBankCount=0;
+        // Number of rocs
         int numROCs = inputPayloadBanks.length;
+        // Number of rocs with timestamp info
+        int numRocsWithTSs = numROCs;
         int numEvents = inputPayloadBanks[0].getNode().getNum();
 
         EvioNode rocNode, trigBank;
@@ -1868,9 +1871,7 @@ System.out.println("Timestamp NOT consistent: ev #" + (firstEventNumber + j) + "
         short[] evData = new short[numEvents];
         // For checking the consistency of timestamps
         long ts, timestampsMax, timestampsMin;
-        boolean haveTypeInfo = false;
-        // Number of rocs with timestamp info
-        int numRocsWithTSs;
+        boolean haveTypeInfo;
         EvioNode triggerSegment;
 
         for (int i=0; i < numEvents; i++) {
@@ -1879,6 +1880,7 @@ System.out.println("Timestamp NOT consistent: ev #" + (firstEventNumber + j) + "
             timestampsMin = Long.MAX_VALUE;
             evNum = firstEvNum + i;
             numRocsWithTSs = numROCs;
+            haveTypeInfo = false;
 
             for (int j=0; j < numROCs; j++) {
 
@@ -2046,7 +2048,7 @@ System.out.println("makeTriggerBankFromRocRaw: event # differs (in Bt# " + build
             e.printStackTrace();
         }
 
-        return nonFatalError;
+        return nonFatalError || fatalError;
     }
 
 
