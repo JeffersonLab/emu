@@ -653,24 +653,31 @@ logger.info("      DataChannel Et: eventSize = " + etEventSize);
                     numEtBufs *= 2;
                     newVal /= 2;
                 }
-logger.info("      DataChannel Et: # copy-ET-buffers in input supply -> " + numEtBufs);
+                logger.info("      DataChannel Et: # copy-ET-buffers in input supply -> " + numEtBufs);
             }
 
-            // If is ER and (0 output channels or 1 file output channel) ...
-            List<DataChannel> outChannels = emu.getOutChannels();
-            if (isER &&
-                    ((outChannels.size() < 1) ||
+            // If ER
+            if (isER) {
+                List<DataChannel> outChannels = emu.getOutChannels();
+                // if (0 output channels or 1 file output channel) ...
+                if (((outChannels.size() < 1) ||
                         (outChannels.size() == 1 &&
-                            (outChannels.get(0).getTransportType() == TransportType.FILE)))) {
+                                (outChannels.get(0).getTransportType() == TransportType.FILE)))) {
 
-                // Since ER has only 1 recording thread and every event is processed in order,
-                // and since the file output channel also processes all events in order,
-                // the byte buffer supply does not have to be synchronized as byte buffers are
-                // released in order. Should make things faster.
-                bbSupply = new ByteBufferSupply(numEtBufs, etEventSize, module.getOutputOrder(), false, true);
+                    // Since ER has only 1 recording thread and every event is processed in order,
+                    // and since the file output channel also processes all events in order,
+                    // the byte buffer supply does not have to be synchronized as byte buffers are
+                    // released in order. Will make things faster.
+                    bbSupply = new ByteBufferSupply(numEtBufs, etEventSize, module.getOutputOrder(), false, true);
+                }
+                else {
+                    // If ER has more than one output, buffers may not be released sequentially
+                    bbSupply = new ByteBufferSupply(numEtBufs, etEventSize, module.getOutputOrder(), false);
+                }
             }
             else {
-                bbSupply = new ByteBufferSupply(numEtBufs, etEventSize, module.getOutputOrder(), false);
+                // EBs all release these ByteBuffers in order in the ReleaseRingResourceThread thread
+                bbSupply = new ByteBufferSupply(numEtBufs, etEventSize, module.getOutputOrder(), false, true);
             }
         }
 

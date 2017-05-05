@@ -34,6 +34,7 @@ import java.nio.ByteOrder;
 import java.nio.IntBuffer;
 import java.nio.channels.SocketChannel;
 import java.util.BitSet;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 
@@ -380,9 +381,36 @@ public class DataChannelImplEmu extends DataChannelAdapter {
         // in which to copy incoming data from client.
         // NOTE: Using direct buffers works but performance is poor and fluctuates
         // quite a bit in speed.
-        bbInSupply[socketPosition - 1] = new ByteBufferSupply(16, maxBufferSize,
-                                                              ByteOrder.BIG_ENDIAN, direct,
-                                                             true);
+
+        // If ER
+        if (isER) {
+            List<DataChannel> outChannels = emu.getOutChannels();
+            // if (0 output channels or 1 file output channel) ...
+            if (((outChannels.size() < 1) ||
+                    (outChannels.size() == 1 &&
+                            (outChannels.get(0).getTransportType() == TransportType.FILE)))) {
+
+                // Since ER has only 1 recording thread and every event is processed in order,
+                // and since the file output channel also processes all events in order,
+                // the byte buffer supply does not have to be synchronized as byte buffers are
+                // released in order. Will make things faster.
+                bbInSupply[socketPosition - 1] = new ByteBufferSupply(16, maxBufferSize,
+                                                                      ByteOrder.BIG_ENDIAN, direct,
+                                                                     true);
+            }
+            else {
+                // If ER has more than one output, buffers may not be released sequentially
+                bbInSupply[socketPosition - 1] = new ByteBufferSupply(16, maxBufferSize,
+                                                                      ByteOrder.BIG_ENDIAN, direct,
+                                                                     false);
+            }
+        }
+        else {
+            // EBs all release these ByteBuffers in order in the ReleaseRingResourceThread thread
+            bbInSupply[socketPosition - 1] = new ByteBufferSupply(16, maxBufferSize,
+                                                                  ByteOrder.BIG_ENDIAN, direct,
+                                                                 true);
+        }
 
 System.out.println("      DataChannel Emu in: connection made from " + name);
 
