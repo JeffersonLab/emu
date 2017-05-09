@@ -381,10 +381,11 @@ public class DataChannelImplEmu extends DataChannelAdapter {
         // in which to copy incoming data from client.
         // Using direct buffers works but performance is poor and fluctuates
         // quite a bit in speed.
-        // Put a limit on the amount of memory (140MB). That may be
+        // Put a limit on the amount of memory, 128MB. A max buffer size
+        // of 1MB seems to work best which means 128 total buffers. That may be
         // the easiest way to figure out how many buffers to use.
         // Number of bufs must be a power of 2 and a minimum of 16.
-        int numBufs = 140000000 / maxBufferSize;
+        int numBufs = 128000000 / maxBufferSize;
         numBufs = numBufs < 16 ? 16 : numBufs;
         // Make power of 2, round up
         numBufs = EmuUtilities.powerOfTwo(numBufs, true);
