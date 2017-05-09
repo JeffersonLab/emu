@@ -379,12 +379,21 @@ public class DataChannelImplEmu extends DataChannelAdapter {
 
         // Create a ring buffer full of empty ByteBuffer objects
         // in which to copy incoming data from client.
-        // NOTE: Using direct buffers works but performance is poor and fluctuates
+        // Using direct buffers works but performance is poor and fluctuates
         // quite a bit in speed.
+        // Put a limit on the amount of memory (140MB). That may be
+        // the easiest way to figure out how many buffers to use.
+        // Number of bufs must be a power of 2 and a minimum of 16.
+        int numBufs = 140000000 / maxBufferSize;
+        numBufs = numBufs < 16 ? 16 : numBufs;
+        // Make power of 2, round up
+        numBufs = EmuUtilities.powerOfTwo(numBufs, true);
+logger.info("      DataChannel Emu in: " + numBufs + " buffers in input supply");
 
         // If ER
         if (isER) {
             List<DataChannel> outChannels = emu.getOutChannels();
+
             // if (0 output channels or 1 file output channel) ...
             if (((outChannels.size() < 1) ||
                     (outChannels.size() == 1 &&
@@ -394,25 +403,25 @@ public class DataChannelImplEmu extends DataChannelAdapter {
                 // and since the file output channel also processes all events in order,
                 // the byte buffer supply does not have to be synchronized as byte buffers are
                 // released in order. Will make things faster.
-                bbInSupply[socketPosition - 1] = new ByteBufferSupply(16, maxBufferSize,
+                bbInSupply[socketPosition - 1] = new ByteBufferSupply(numBufs, maxBufferSize,
                                                                       ByteOrder.BIG_ENDIAN, direct,
                                                                      true);
             }
             else {
                 // If ER has more than one output, buffers may not be released sequentially
-                bbInSupply[socketPosition - 1] = new ByteBufferSupply(16, maxBufferSize,
+                bbInSupply[socketPosition - 1] = new ByteBufferSupply(numBufs, maxBufferSize,
                                                                       ByteOrder.BIG_ENDIAN, direct,
                                                                      false);
             }
         }
         else {
             // EBs all release these ByteBuffers in order in the ReleaseRingResourceThread thread
-            bbInSupply[socketPosition - 1] = new ByteBufferSupply(16, maxBufferSize,
+            bbInSupply[socketPosition - 1] = new ByteBufferSupply(numBufs, maxBufferSize,
                                                                   ByteOrder.BIG_ENDIAN, direct,
                                                                  true);
         }
 
-System.out.println("      DataChannel Emu in: connection made from " + name);
+logger.info("      DataChannel Emu in: connection made from " + name);
 
         // Start thread to handle socket input
         dataInputThread[socketPosition - 1] = new DataInputHelper(socketPosition);
@@ -469,7 +478,7 @@ System.out.println("      DataChannel Emu in: connection made from " + name);
         emuDomain = new cMsg(udl, name, "emu domain client");
         emuDomain.connect();
 
-System.out.println("      DataChannel Emu: connected to server w/ UDL = " + udl);
+logger.info("      DataChannel Emu out: connected to server w/ UDL = " + udl);
 
         startOutputThread();
     }
