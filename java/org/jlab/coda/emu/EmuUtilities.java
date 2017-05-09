@@ -156,7 +156,7 @@ public class EmuUtilities {
      *
      * @param x value to get the power of 2 closest to.
      * @param roundUp if true, round up, else down
-     * @return -1 if value is negative or the closest power of 2 to value
+     * @return -1 if x is negative or the closest power of 2 to value
      */
     static final public int powerOfTwo(int x, boolean roundUp) {
         if (x < 0) return -1;
