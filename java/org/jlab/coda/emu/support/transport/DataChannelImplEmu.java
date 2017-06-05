@@ -183,13 +183,13 @@ public class DataChannelImplEmu extends DataChannelAdapter {
         }
 
         // use direct ByteBuffers or not
-        direct = false;
+        direct = true;
         String attribString = attributeMap.get("direct");
         if (attribString != null) {
-            if (attribString.equalsIgnoreCase("true") ||
-                    attribString.equalsIgnoreCase("on") ||
-                    attribString.equalsIgnoreCase("yes")) {
-                direct = true;
+            if (attribString.equalsIgnoreCase("false") ||
+                    attribString.equalsIgnoreCase("off") ||
+                    attribString.equalsIgnoreCase("no")) {
+                direct = false;
             }
         }
 
@@ -244,7 +244,7 @@ public class DataChannelImplEmu extends DataChannelAdapter {
                 if (attribString.equalsIgnoreCase("false") ||
                     attribString.equalsIgnoreCase("off") ||
                     attribString.equalsIgnoreCase("no")) {
-                    noDelay = true;
+                    noDelay = false;
                 }
             }
 
@@ -278,13 +278,13 @@ public class DataChannelImplEmu extends DataChannelAdapter {
 
 
             // Size of max buffer
-            maxBufferSize = 1000000;
+            maxBufferSize = 4000000;
             attribString = attributeMap.get("maxBuf");
             if (attribString != null) {
                 try {
                     maxBufferSize = Integer.parseInt(attribString);
                     if (maxBufferSize < 0) {
-                        maxBufferSize = 1000000;
+                        maxBufferSize = 4000000;
                     }
                 }
                 catch (NumberFormatException e) {}
@@ -381,11 +381,12 @@ public class DataChannelImplEmu extends DataChannelAdapter {
         // in which to copy incoming data from client.
         // Using direct buffers works but performance is poor and fluctuates
         // quite a bit in speed.
-        // Put a limit on the amount of memory, 128MB. A max buffer size
-        // of 1MB seems to work best which means 128 total buffers. That may be
+        // Put a limit on the amount of memory, 256MB. A max buffer size
+        // of 1MB seems to work best which means 256 total buffers. That may be
         // the easiest way to figure out how many buffers to use.
         // Number of bufs must be a power of 2 and a minimum of 16.
-        int numBufs = 128000000 / maxBufferSize;
+//int numBufs = 256000000 / maxBufferSize;
+        int numBufs = 128;
         numBufs = numBufs < 16 ? 16 : numBufs;
         // Make power of 2, round up
         numBufs = EmuUtilities.powerOfTwo(numBufs, true);
