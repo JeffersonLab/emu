@@ -277,8 +277,24 @@ public class Emu implements CODAComponent {
      */
     private ArrayBlockingQueue<Command> mailbox;
 
+    /**
+     * Commands from cMsg are converted into objects of
+     * class Command that are then stored in this array.
+     * Used as a ring.
+     */
+    private Command[] rcCommands;
+
+    /**
+     * Index into rcCommands which indicates the next transition command
+     * from run control to execute.
+     */
+    private int rcCommandIndex;
+
     /** The Object which defines how to execute transition commands from RC. */
     private TransitionExecutor transitionRunnable;
+
+    /** The thread created from the transitionRunnable object. */
+    private Thread transitionThread;
 
     /**
      * This class is run as a thread to execute transitions
@@ -294,11 +310,26 @@ public class Emu implements CODAComponent {
         volatile boolean deadThread;
 
         /**
+         * Tell thread to stop immediately.
+         */
+        public void stop() {
+            endThread = true;
+
+            // If thread stuck in mailbox.poll, this will get it out & end thread
+            transitionThread.interrupt();
+
+            // Wait 1/5 second
+            try {Thread.sleep(200);}
+            catch (InterruptedException e) {}
+            
+            // If thread is stuck in a transition, this will brutally kill thread
+            transitionThread.stop();
+        }
+
+        /**
          * Tell thread to end when convenient.
          */
-        public void kill() {
-            endThread = true;
-        }
+        public void kill() {endThread = true;}
 
         /**
          * We don't want to simply .stop() this thread as the mailbox
@@ -379,12 +410,13 @@ public class Emu implements CODAComponent {
                        }
 
                    } catch (InterruptedException e) {
-                       Thread.interrupted(); // clear interrupt flag
+                       logger.info("Emu " + name + ": interrupted transition thread");
+                       return;
                    }
                }
            }
            finally {
-               logger.info("Emu " + name + ": exit main thread!!!");
+               logger.info("Emu " + name + ": exit transition thread");
                deadThread = true;
            }
        }
@@ -454,11 +486,13 @@ System.out.println("Emu created, name = " + name + ", type = " + codaClass);
         // There should only be 1 transition command in the mailbox
         // at any one time.
         mailbox = new ArrayBlockingQueue<>(4);
+        rcCommands = new Command[100];
 
         // Run thread to execute transitions
         transitionRunnable = new TransitionExecutor();
-        (new Thread(threadGroup, transitionRunnable,
-            "Transition command executor")).start();
+        transitionThread = new Thread(threadGroup, transitionRunnable,
+                                       "Transition command executor");
+        transitionThread.start();
 
         // Start up status reporting thread (which needs cmsg to send msgs)
         statusReportingThread = new StatusReportingThread();
@@ -1029,6 +1063,7 @@ System.out.println("\n\n");
     /** {@inheritDoc} */
     public void postCommand(Command cmd) throws InterruptedException {
         mailbox.put(cmd);
+        //rcCommands
     }
 
 
@@ -1036,7 +1071,10 @@ System.out.println("\n\n");
     void quit() {
 logger.info("Emu " + name + " quitting");
         // Shutdown all channel, module, & transport threads
-        reset();
+        // as well as transition executing thread
+        reset(false);
+
+        statusReportingThread.interrupt();
 
         // Get rid of thread watching cMsg connection
         try {
@@ -1046,12 +1084,6 @@ logger.info("Emu " + name + " quitting");
 
         // Get rid of any GUI
         if (debugGUI != null) debugGUI.dispose();
-
-        // Interrupt both of Emu's threads
-        statusReportingThread.interrupt();
-
-        // Stop executing transitions
-        transitionRunnable.kill();
     }
 
 
@@ -1061,16 +1093,32 @@ logger.info("Emu " + name + " quitting");
      * RESET must always have top priority and is executed in the cMsg callback.
      * Synchronized on emu.
      */
-    synchronized public void reset() {
+    public void reset() {
+        reset(true);
+    }
+
+
+    /**
+     * This method executes a RESET command.
+     * We don't queued it up and possibly have it wait like a transition command.
+     * RESET must always have top priority and is executed in the cMsg callback.
+     * Synchronized on emu.
+     *
+     * @param restartTransitionThd if true, restart the transition executing thread
+     *                             at the end of this method.
+     */
+    synchronized private void reset(boolean restartTransitionThd) {
 logger.info("Emu " + name + " resetting");
         // Stop any more run control commands from being executed
         resetting = true;
 
         state = RESETTING;
 
-        // Kill the thread currently executing transition commands
-        // just in case it's hung up on a transition.
-        transitionRunnable.killAndwaitTillDead();
+        // Immediately stop the thread currently executing transition commands
+        // just in case it's hung up on a transition. This may leave
+        // threads in modules and channels still hung up, but they
+        // will be stopped when their individual reset() methods are called.
+        transitionRunnable.stop();
 
         // Clear error until next one occurs
         errorSent = false;
@@ -1123,9 +1171,12 @@ if (debug) System.out.println("Emu " + name + " reset: reset transport " + t.nam
 logger.info("Emu " + name + " reset: done, setting state to " + state);
 
         // Run thread to execute transitions
-        transitionRunnable = new TransitionExecutor();
-        (new Thread(threadGroup, transitionRunnable,
-            "Transition command executor")).start();
+        if (restartTransitionThd) {
+            transitionRunnable = new TransitionExecutor();
+            transitionThread = new Thread(threadGroup, transitionRunnable,
+                                          "Transition command executor");
+            transitionThread.start();
+        }
 
         // Allow run control commands to be executed once again
         resetting = false;
@@ -1739,7 +1790,7 @@ System.out.println("Emu " + name + " end: " + e.getMessage());
      */
     private void go() {
 logger.info("Emu " + name + " go: change state to GOING");
-        setState(GOING);
+        setState(ACTIVATING);
 
         try {
             // Fake TS does not have any I/O so handle it here
