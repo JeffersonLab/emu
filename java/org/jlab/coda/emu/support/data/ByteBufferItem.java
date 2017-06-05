@@ -109,7 +109,7 @@ public class ByteBufferItem {
      * @param orderedRelease if true, release ByteBufferItems in same order as acquired.
      * @param myId unique id of this object.
      */
-    public ByteBufferItem(int bufferSize, ByteOrder order,
+    ByteBufferItem(int bufferSize, ByteOrder order,
                           boolean direct, boolean orderedRelease, int myId) {
         this.order = order;
         this.direct = direct;
@@ -134,15 +134,8 @@ public class ByteBufferItem {
      * @param templateBuf    this item's buffer is a copy this of template ByteBuffer.
      * @param orderedRelease if true, release ByteBufferItems in same order as acquired.
      * @param myId unique id of this object.
-     *
-     * @throws EmuException if buffer arg is null
      */
-    public ByteBufferItem(ByteBuffer templateBuf, boolean orderedRelease, int myId)
-            throws EmuException {
-
-        if (templateBuf == null) {
-            throw new EmuException("Buffer arg is null");
-        }
+    ByteBufferItem(ByteBuffer templateBuf, boolean orderedRelease, int myId) {
 
         this.order = templateBuf.order();
         this.direct = templateBuf.isDirect();
@@ -213,6 +206,7 @@ public class ByteBufferItem {
 
     /**
      * Get the contained ByteBuffer.
+     * Position is set to 0.
      * @return contained ByteBuffer.
      */
     public ByteBuffer getBuffer() {

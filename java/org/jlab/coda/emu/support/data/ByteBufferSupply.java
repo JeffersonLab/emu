@@ -13,43 +13,62 @@ package org.jlab.coda.emu.support.data;
 
 
 import com.lmax.disruptor.*;
+import org.jlab.coda.emu.EmuException;
 
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.util.List;
 
 import static com.lmax.disruptor.RingBuffer.createSingleProducer;
 
 /**
- * This class is used to provide a very fast supply of ByteBuffer
- * objects for reuse in 2 different modes (uses Disruptor software package).<p>
+ * This class is used to provide a very fast supply of ByteBuffer objects
+ * (actually ByteBufferItem objects each of which wraps a ByteBuffer)
+ * for reuse in 3 different modes (uses Disruptor software package).<p>
  *
- * First, it can be used as a simple supply of ByteBuffers.
+ * 1) It can be used as a simple supply of ByteBuffer(Item)s.
  * In this mode, only get() and release() are called. A user does a get(),
  * uses that buffer, then calls release() when done with it. If there are
  * multiple users of a single buffer (say 5), then call bufferItem.setUsers(5)
  * before it is used and the buffer is only released when all 5 users have
  * called release().<p>
  *
- * Alternatively, it can be used as a supply of ByteBuffers in which a single
+ * 2) As in the first usage, it can be used as a supply of ByteBuffers,
+ * but each buffer can be preset to a specific ByteBuffer object. Thus
+ * it can act as a supply of buffers in which each contains specific data.
+ * Because of the circular nature of the ring used to implement this code,
+ * after all ByteBuffers have been gotten by the user for the first time,
+ * it starts back over with the first -- going round and round.<p>
+ *
+ * To implement this, use the constructor which takes a list of ByteBuffer
+ * objects with which to fill this supply. The user does a getAsIs() which
+ * does <b>not</b> clear the buffer's position and limit. When finished
+ * reading/writing, user calls release(). It's up to the user to maintain
+ * proper values for the buffer's position and limit since it will be used again.
+ * If there are multiple users of a single buffer (say 5), then call
+ * bufferItem.setUsers(5) before it is used and the buffer is only released
+ * when all 5 users have called release().<p>
+ *
+ * 3) It can be used as a supply of ByteBuffers in which a single
  * producer provides data for a single consumer which is waiting for that data.
  * The producer does a get(), fills the buffer with data, and finally does a publish()
  * to let the consumer know the data is ready. Simultaneously, a consumer does a
  * consumerGet() to access the data once it is ready. The consumer then calls
  * consumerRelease() when finished which allows the producer to reuse the
- * now unused buffer.
+ * now unused buffer.<p>
  *
  * @author timmer (4/7/14)
  */
 public class ByteBufferSupply {
 
     /** Initial size, in bytes, of ByteBuffers contained in each ByteBufferItem in ring. */
-    private final int bufferSize;
+    private int bufferSize;
 
     /** Byte order of ByteBuffer in each ByteBufferItem. */
-    private final ByteOrder order;
+    private ByteOrder order;
 
     /** Are the buffers created, direct? */
-    private final boolean direct;
+    private boolean direct;
 
     /** Ring buffer. */
     private final RingBuffer<ByteBufferItem> ringBuffer;
@@ -101,16 +120,17 @@ public class ByteBufferSupply {
 
 
     /** Class used to initially create all items in ring buffer. */
-    private final class CopyByteBufferFactory implements EventFactory<ByteBufferItem> {
-        private final ByteBuffer templateBuf;
+    private final class PredefinedByteBufferFactory implements EventFactory<ByteBufferItem> {
 
-        public CopyByteBufferFactory(ByteBuffer templateBuf) {
-            this.templateBuf = templateBuf;
+        private int index;
+        private final List<ByteBuffer> bufList;
+
+        public PredefinedByteBufferFactory(List<ByteBuffer> bufList) {
+            this.bufList = bufList;
         }
 
         public ByteBufferItem newInstance() {
-            return new ByteBufferItem(bufferSize, order, direct,
-                                      orderedRelease, itemCounter++);
+            return new ByteBufferItem(bufList.get(index++), orderedRelease, itemCounter++);
         }
     }
 
@@ -179,8 +199,6 @@ public class ByteBufferSupply {
 
         // Create ring buffer with "ringSize" # of elements,
         // each with ByteBuffers of size "bufferSize" bytes.
-        // The ByteBuffer can be changed by the user by using
-        // the setBuffer() method of the ByteBufferItem object.
         ringBuffer = createSingleProducer(new ByteBufferFactory(), ringSize,
                                           new YieldingWaitStrategy());
 
@@ -193,22 +211,19 @@ public class ByteBufferSupply {
 
 
     /**
-     * Constructor. Used when wanting a source of ByteBuffers which are copies of the
-     * one given as an argument. Useful when testing.
+     * Constructor. Used when wanting a source of ByteBuffers which already
+     * contain data. Useful when testing.
      *
      * @param ringSize        number of ByteBufferItem objects in ring buffer.
-     * @param templateBuf     each item in this ring is a copy this of template ByteBuffer.
+     * @param bufList         list of ByteBuffers used to populate this supply.
+     *                        List must contain ringSize number of buffers.
      * @param orderedRelease  if true, the user promises to release the ByteBufferItems
      *                        in the same order as acquired. This avoids using
      *                        synchronized code (no locks).
      * @throws IllegalArgumentException bad arg or ringSize not power of 2.
      */
-    public ByteBufferSupply(int ringSize, ByteBuffer templateBuf, boolean orderedRelease)
+    public ByteBufferSupply(int ringSize, List<ByteBuffer> bufList, boolean orderedRelease)
             throws IllegalArgumentException {
-
-        if (templateBuf == null) {
-            throw new IllegalArgumentException("template buf is null");
-        }
 
         if (ringSize < 1) {
             throw new IllegalArgumentException("positive args only");
@@ -218,16 +233,14 @@ public class ByteBufferSupply {
             throw new IllegalArgumentException("ringSize must be a power of 2");
         }
 
-        this.order = templateBuf.order();
-        this.direct = templateBuf.isDirect();
-        this.bufferSize = templateBuf.remaining();
+        if (bufList == null || bufList.size() < ringSize) {
+            throw new IllegalArgumentException("bufList is null or size < ringSize");
+        }
+
         this.orderedRelease = orderedRelease;
 
-        // Create ring buffer with "ringSize" # of elements,
-        // each a copy of templateBuf.
-        // The ByteBuffer can be changed by the user by using
-        // the setBuffer() method of the ByteBufferItem object.
-        ringBuffer = createSingleProducer(new CopyByteBufferFactory(templateBuf), ringSize,
+        // Create ring buffer with "ringSize" # of elements taken from bufList.
+        ringBuffer = createSingleProducer(new PredefinedByteBufferFactory(bufList), ringSize,
                                           new YieldingWaitStrategy());
 
         // Barrier to keep unreleased buffers from being reused
@@ -247,9 +260,9 @@ public class ByteBufferSupply {
     }
 
     /**
-     * Get the next available item in ring buffer for writing data into.
+     * Get the next available item in ring buffer for writing/reading data.
      * Not sure if this method is thread-safe.
-     * @return next available item in ring buffer for writing data into.
+     * @return next available item in ring buffer.
      */
     public ByteBufferItem get() {
         // Next available item claimed by data producer
@@ -260,6 +273,29 @@ public class ByteBufferSupply {
 
         // Get item ready for use
         bufItem.reset();
+
+        // Store sequence for later releasing of the buffer
+        bufItem.setProducerSequence(getSequence);
+
+        return bufItem;
+    }
+
+
+    /**
+     * Get the next available item in ring buffer for writing/reading data.
+     * Does not set the ByteBuffer to position = 0 and limit = capacity.
+     * In other words, it facilitates reading existing data from the buffer.
+     * When finished with this item, it's up to the user to set position and
+     * limit to the correct value for the next user.
+     * Not sure if this method is thread-safe.
+     * @return next available item in ring buffer.
+     */
+    public ByteBufferItem getAsIs() {
+        // Next available item claimed by data producer
+        long getSequence = ringBuffer.next();
+
+        // Get object in that position (sequence) of ring buffer
+        ByteBufferItem bufItem = ringBuffer.get(getSequence);
 
         // Store sequence for later releasing of the buffer
         bufItem.setProducerSequence(getSequence);
