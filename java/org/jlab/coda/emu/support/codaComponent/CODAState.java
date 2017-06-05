@@ -92,8 +92,8 @@ public enum CODAState implements CODAStateIF {
     /** Prestarting state - in the process of prestarting. */
     PRESTARTING("between downloaded and paused", EnumSet.noneOf(CODATransition.class)),
 
-    /** Going state - in the process of becoming active. */
-    GOING("between paused and active", EnumSet.noneOf(CODATransition.class)),
+    /** Activating state - in the process of becoming active. */
+    ACTIVATING("between paused and active", EnumSet.noneOf(CODATransition.class)),
 
     /** Ending state - got END command but no END event yet. */
     ENDING("ending run", EnumSet.noneOf(CODATransition.class)),
