@@ -874,6 +874,7 @@ logger.debug("      DataChannel Emu: end(), interrupt main output thread ");
                 logger.warn("      DataChannel Emu in: " + name + "  socket closed, exiting reading thd");
             }
             catch (Exception e) {
+                closeInputSockets();
                 if (haveInputEndEvent) {
 //System.out.println("EOF but aleady have end event, so quit thread");
                     return;
@@ -939,7 +940,8 @@ System.out.println("      " + errString);
                             " parserMerger thread interrupted, quitting");
             }
             catch (EvioException e) {
-                // Bad data format or unknown control event
+                // Bad data format or unknown control event.
+                closeInputSockets();
                 channelState = CODAState.ERROR;
                 emu.setErrorState("DataChannel Emu in: " + e.getMessage());
             }
@@ -981,7 +983,8 @@ System.out.println("      DataChannel Emu in: data NOT evio v4 format 1");
              // First block header in buffer
              BlockHeaderV4 blockHeader = compactReader.getFirstBlockHeader();
              if (blockHeader.getVersion() < 4) {
-                 throw new EvioException("Data not in evio v4 format");
+                 throw new EvioException("Data not in evio v4 but in version " +
+                                                 blockHeader.getVersion());
              }
 
              hasFirstEvent = blockHeader.hasFirstEvent();
