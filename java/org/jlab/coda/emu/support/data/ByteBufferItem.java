@@ -64,10 +64,18 @@ public class ByteBufferItem {
      */
     private boolean force;
 
+    /**
+     * Need to track whether this item was obtained through consumerGet() or
+     * through either get() / getAsIs() since they must be released differently.
+     */
+    private boolean fromConsumerGet;
+
     // For testing purposes
 
     /** Unique id for each object of this class. */
     private final int myId;
+
+
 
     /**
      * Get the unique id of this object.
@@ -95,6 +103,23 @@ public class ByteBufferItem {
      */
     public void setForce(boolean force) {
         this.force = force;
+    }
+
+    /**
+     * Was this item obtained through a call to consumerGet()?
+     * @return {@code true} only if item obtained through a call to consumerGet().
+     */
+    public boolean isFromConsumerGet() {
+        return fromConsumerGet;
+    }
+
+    /**
+     * Set whether this item was obtained through a call to consumerGet().
+     * @param fromConsumerGet {@code true} only if item obtained through
+     *                        a call to consumerGet().
+     */
+    public void setFromConsumerGet(boolean fromConsumerGet) {
+        this.fromConsumerGet = fromConsumerGet;
     }
 
     //--------------------------------
