@@ -291,11 +291,11 @@ public class RocSimulation extends ModuleAdapter {
 
     /** Kill all threads immediately because a RESET cmd came through.  */
     private void killThreads() {
-        System.out.println("Start killThreads()");
+//System.out.println("  Roc mod: start killThreads()");
         // The order in which these threads are shutdown does(should) not matter.
         // Transport objects should already have been shutdown followed by this module.
         if (RateCalculator != null) {
-            System.out.println("  interrupt rate calc thread");
+//System.out.println("  Roc mod: interrupt rate calc thread");
             RateCalculator.interrupt();
         }
         RateCalculator = null;
@@ -306,18 +306,18 @@ public class RocSimulation extends ModuleAdapter {
                 // block on the uninterruptible rb.next() method call and RESET never
                 // completes. First give it a chance to end gracefully.
                 thd.interrupt();
-                System.out.println("  interrupt event generating thread");
+//System.out.println("  Roc mod: interrupt event generating thread");
                 try {
                     thd.join(250);
                     if (thd.isAlive()) {
-                        System.out.println("  stop event generating thread");
+//System.out.println("  Roc mod: stop event generating thread");
                         thd.stop();
                     }
                 }
                 catch (InterruptedException e) {}
             }
         }
-        System.out.println("Done killThreads()");
+//System.out.println("  Roc mod: done killThreads()");
     }
 
 
