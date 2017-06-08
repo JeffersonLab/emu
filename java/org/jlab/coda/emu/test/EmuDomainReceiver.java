@@ -14,14 +14,12 @@ package org.jlab.coda.emu.test;
 
 import org.jlab.coda.cMsg.*;
 import org.jlab.coda.emu.support.data.*;
-import org.jlab.coda.emu.support.transport.DataChannelImplEmu;
 import org.jlab.coda.emu.support.transport.DataTransportImplEmu;
 import org.jlab.coda.jevio.*;
 
 import java.io.*;
 import java.net.*;
 import java.nio.ByteBuffer;
-import java.nio.ByteOrder;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
 import java.nio.channels.ServerSocketChannel;
