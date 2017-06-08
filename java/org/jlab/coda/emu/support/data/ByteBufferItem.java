@@ -11,9 +11,6 @@
 
 package org.jlab.coda.emu.support.data;
 
-import org.jlab.coda.emu.EmuException;
-import org.jlab.coda.emu.EmuUtilities;
-
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.concurrent.atomic.AtomicInteger;

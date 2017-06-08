@@ -192,7 +192,7 @@ public class ByteBufferSupplyTest {
                     else {
                         for (int i=0; i < getChunk; i++) {
                             System.out.println("     Release consumer buf with id = " + bufItems[i].getMyId());
-                            bbSupply.consumerRelease(bufItems[i]);
+                            bbSupply.release(bufItems[i]);
                         }
                     }
 

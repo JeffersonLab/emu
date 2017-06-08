@@ -1066,7 +1066,7 @@ logger.info("      DataChannel Emu in: got " + controlType + " event from " + na
                  }
 
                  if (dumpData) {
-                     bbSupply.consumerRelease(item);
+                     bbSupply.release(item);
 
                      // Handle end event ...
                      if (controlType == ControlType.END) {
@@ -1243,7 +1243,7 @@ logger.info("      DataChannel Emu in: got " + controlType + " event from " + na
                         }
 
                         // Release this buffer so it can be filled again
-                        supply.consumerRelease(item);
+                        supply.release(item);
                     }
                     catch (InterruptedException e) {
 //System.out.println("SocketSender thread interruped");

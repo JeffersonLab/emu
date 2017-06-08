@@ -656,7 +656,7 @@ System.out.println("Starting SocketSender thread, pos = " + position);
                     domainOut.flush();
 
                     // Release this buffer so it can be filled again
-                    bbSupply.consumerRelease(item);
+                    bbSupply.release(item);
                 }
             }
             catch (UnsupportedEncodingException e) {

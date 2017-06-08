@@ -582,7 +582,7 @@ System.out.println("EmuBlastee: " + controlType + " event from ROC");
             }
 
             if (dumpData) {
-                bbSupply.consumerRelease(item);
+                bbSupply.release(item);
                 continue;
             }
 
@@ -648,7 +648,7 @@ System.out.println("EmuBlastee: found END event");
                     RingItem ri = ringBuffer.get(nextSequence);
 
                     // Now that we're "done" with this evio ring item, free underlying buffer
-                    ri.getByteBufferSupply().consumerRelease(ri.getByteBufferItem());
+                    ri.getByteBufferSupply().release(ri.getByteBufferItem());
                     // Move on to the next ring item
                     sequence.set(nextSequence++);
                 }
@@ -672,7 +672,7 @@ System.out.println("EmuBlastee: found END event");
                 while (true) {
                     for (ByteBufferSupply supply : allSupplies.values()) {
                         ByteBufferItem item = supply.consumerGet();
-                        supply.consumerRelease(item);
+                        supply.release(item);
                     }
                 }
             }
@@ -752,7 +752,7 @@ System.out.println("Starting merger");
 
                         parseToRing(item, bbSupply);
 
-                        bbSupply.consumerRelease(item);
+                        bbSupply.release(item);
                     }
 
 

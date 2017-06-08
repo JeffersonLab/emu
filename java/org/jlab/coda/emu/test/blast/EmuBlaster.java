@@ -567,7 +567,7 @@ public class EmuBlaster {
                     }
 
                     // Release this buffer so it can be filled again
-                    bbSupply.consumerRelease(item);
+                    bbSupply.release(item);
                 }
             }
             catch (SocketTimeoutException e) {

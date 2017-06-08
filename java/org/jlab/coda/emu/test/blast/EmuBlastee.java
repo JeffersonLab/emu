@@ -469,7 +469,7 @@ System.out.println("Start handling client " + me + ", bufferSize = " + bufferSiz
 
                         ByteBufferItem item = bbSupply.consumerGet();
                         parseToRing(item);
-                        bbSupply.consumerRelease(item);
+                        bbSupply.release(item);
                     }
                 }
                 catch (Exception e) {
@@ -582,7 +582,7 @@ System.out.println("EmuBlastee: " + controlType + " event from ROC");
                     }
 
                     if (dumpData) {
-                        bbSupply.consumerRelease(item);
+                        bbSupply.release(item);
                         continue;
                     }
 
@@ -638,7 +638,7 @@ System.out.println("EmuBlastee: found END event");
                 while (true) {
                     for (ByteBufferSupply supply : allSupplies.values()) {
                         ByteBufferItem item = supply.consumerGet();
-                        supply.consumerRelease(item);
+                        supply.release(item);
                     }
                 }
             }

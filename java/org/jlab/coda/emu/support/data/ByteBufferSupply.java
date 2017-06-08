@@ -54,7 +54,7 @@ import static com.lmax.disruptor.RingBuffer.createSingleProducer;
  * The producer does a get(), fills the buffer with data, and finally does a publish()
  * to let the consumer know the data is ready. Simultaneously, a consumer does a
  * consumerGet() to access the data once it is ready. The consumer then calls
- * consumerRelease() when finished which allows the producer to reuse the
+ * release() when finished which allows the producer to reuse the
  * now unused buffer.<p>
  *
  * @author timmer (4/7/14)
@@ -338,83 +338,40 @@ public class ByteBufferSupply {
 
 
     /**
-     * Release claim on the given ring buffer item so it becomes available for reuse.
-     * This method <b>ensures</b> that sequences are released in order and is
-     * thread-safe. To be used only in conjunction with {@link #get()}.
-     * @param byteBufferItem item in ring buffer to release for reuse.
-     */
-    public void release(ByteBufferItem byteBufferItem) {
-        if (byteBufferItem == null) return;
-
-        // Each item may be used by several objects/threads. It will
-        // only be released for reuse if everyone releases their claim.
-        if (byteBufferItem.decrementCounter()) {
-            if (orderedRelease) {
-//System.out.println(" S" + byteBufferItem.getProducerSequence());
-//                System.out.println("    BBS: Ord release " + byteBufferItem.getProducerSequence());
-                sequence.set(byteBufferItem.getProducerSequence());
-                return;
-            }
-
-            synchronized (this) {
-                // Sequence we want to release
-                long seq = byteBufferItem.getProducerSequence();
-
-                // If we got a new max ...
-                if (seq > maxSequence) {
-                    // If the old max was > the last released ...
-                    if (maxSequence > lastSequenceReleased) {
-                        // we now have a sequence between last released & new max
-                        between++;
-                    }
-
-                    // Set the new max
-                    maxSequence = seq;
-//System.out.println("BBS: release, new max = " + maxSequence);
-                }
-                // If we're < max and > last, then we're in between
-                else if (seq > lastSequenceReleased) {
-                    between++;
-//System.out.println("BBS: release, between = " + between);
-                }
-
-                // If we now have everything between last & max, release it all.
-                // This way higher sequences are never released before lower.
-                if ((maxSequence - lastSequenceReleased - 1L) == between) {
-//System.out.println("    BBS: Max release " + maxSequence);
-//System.out.println(" r" + maxSequence);
-                    sequence.set(maxSequence);
-                    lastSequenceReleased = maxSequence;
-                    between = 0;
-                }
-            }
-        }
-    }
-
-
-    /**
      * Consumer releases claim on the given ring buffer item so it becomes available for reuse.
      * This method <b>ensures</b> that sequences are released in order and is thread-safe.
      * To be used in conjunction with {@link #get()} and {@link #consumerGet()}.
-     * @param byteBufferItem item in ring buffer to release for reuse.
+     * @param item item in ring buffer to release for reuse.
      */
-    public void consumerRelease(ByteBufferItem byteBufferItem) {
-        if (byteBufferItem == null) return;
+    public void release(ByteBufferItem item) {
+        if (item == null) return;
 
         // Each item may be used by several objects/threads. It will
         // only be released for reuse if everyone releases their claim.
-        if (byteBufferItem.decrementCounter()) {
+        if (item.decrementCounter()) {
             if (orderedRelease) {
-//System.out.println(" S" + byteBufferItem.getConsumerSequence());
-//System.out.println("    BBS: Ord release " + byteBufferItem.getConsumerSequence());
-                sequence.set(byteBufferItem.getConsumerSequence());
+                if (item.isFromConsumerGet()) {
+//System.out.println(" S" + item.getConsumerSequence());
+//System.out.println("    BBS: Ord release " + item.getConsumerSequence());
+                    sequence.set(item.getConsumerSequence());
+                }
+                else {
+//System.out.println(" S" + item.getProducerSequence());
+//System.out.println("    BBS: Ord release " + item.getProducerSequence());
+                    sequence.set(item.getProducerSequence());
+                }
                 return;
             }
-//System.out.println("    BBS: consumerRelease go into SYNC code");
+//System.out.println("    BBS: release go into SYNC code");
 
             synchronized (this) {
                 // Sequence we want to release
-                long seq = byteBufferItem.getConsumerSequence();
+                long seq;
+                if (item.isFromConsumerGet()) {
+                    seq = item.getConsumerSequence();                }
+                else {
+                    seq = item.getProducerSequence();
+                }
 
                 // If we got a new max ...
                 if (seq > maxSequence) {
@@ -439,48 +396,6 @@ public class ByteBufferSupply {
                     lastSequenceReleased = maxSequence;
                     between = 0;
                 }
-            }
-        }
-    }
-
-
-    /**
-     * Consumer releases claim on the given ring buffer item so it becomes available for reuse.
-     * This method <b>ensures</b> that sequences are released in order and is thread-safe.
-     * To be used in conjunction with {@link #get()} and {@link #consumerGet()}.
-     * @param byteBufferItem item in ring buffer to release for reuse.
-     */
-    synchronized public void consumerReleaseOrig(ByteBufferItem byteBufferItem) {
-        if (byteBufferItem == null) return;
-
-        // Each item may be used by several objects/threads. It will
-        // only be released for reuse if everyone releases their claim.
-        if (byteBufferItem.decrementCounter()) {
-            // Sequence we want to release
-            long seq = byteBufferItem.getConsumerSequence();
-
-            // If we got a new max ...
-            if (seq > maxSequence) {
-                // If the old max was > the last released ...
-                if (maxSequence > lastSequenceReleased) {
-                    // we now have a sequence between last released & new max
-                    between++;
-                }
-
-                // Set the new max
-                maxSequence = seq;
-            }
-            // If we're < max and > last, then we're in between
-            else if (seq > lastSequenceReleased) {
-                between++;
-            }
-
-            // If we now have everything between last & max, release it all.
-            // This way higher sequences are never released before lower.
-            if ((maxSequence - lastSequenceReleased - 1L) == between) {
-                sequence.set(maxSequence);
-                lastSequenceReleased = maxSequence;
-                between = 0;
             }
         }
     }
