@@ -301,11 +301,13 @@ public class EmuDomainTcpServer extends Thread {
                 }
             }
         }
-        catch (IOException ex) {
+        catch (Exception ex) {
             server.transport.transportState = CODAState.ERROR;
-            server.transport.emu.setErrorState("Transport Emu: IO error in emu TCP server");
+            server.transport.emu.setErrorState("Transport Emu: in emu TCP server: " +
+                                                       ex.getMessage());
             if (debug >= cMsgConstants.debugError) {
-                System.out.println("    Transport Emu: domain server, IO error");
+                System.out.println("    Transport Emu: domain server error, " +
+                                           ex.getMessage());
             }
         }
         finally {
