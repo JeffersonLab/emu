@@ -600,29 +600,29 @@ logger.info("      DataChannel Emu out: connected to server w/ UDL = " + udl);
                 dataOutputThread.stop();
             }
 
-//            for (int i=0; i < socketCount; i++) {
-////logger.debug("      DataChannel Emu: end(), kill output thread " + i + " by interrupting");
-//
-//                // If this is a fake ROC, end() was executed by the module first
-//                // which creates and sends the END event. Then this output channel
-//                // gets the END event, followed very closely by this method being
-//                // called. If we don't have a delay right here, then we will most
-//                // likely be stopping the thread that actually sends the END event
-//                // over the wire before the event gets to it. Thus, the following
-//                // one second delay.
-//                try {Thread.sleep(1000);}
-//                catch (InterruptedException e) {}
-//
-//                dataOutputThread.sender[i].killThread();
-//
-//                try {dataOutputThread.sender[i].join(quarterSec);}
-//                catch (InterruptedException e) {}
-//
-//                if (dataOutputThread.sender[i].isAlive()) {
-////logger.debug("      DataChannel Emu: end(), stop sender " + i);
-//                    dataOutputThread.sender[i].stop();
-//                }
-//            }
+            for (int i=0; i < socketCount; i++) {
+//logger.debug("      DataChannel Emu: end(), kill output thread " + i + " by interrupting");
+
+                // If this is a fake ROC, end() was executed by the module first
+                // which creates and sends the END event. Then this output channel
+                // gets the END event, followed very closely by this method being
+                // called. If we don't have a delay right here, then we will most
+                // likely be stopping the thread that actually sends the END event
+                // over the wire before the event gets to it. Thus, the following
+                // one second delay.
+                try {Thread.sleep(1000);}
+                catch (InterruptedException e) {}
+
+                dataOutputThread.sender[i].killThread();
+
+                try {dataOutputThread.sender[i].join(quarterSec);}
+                catch (InterruptedException e) {}
+
+                if (dataOutputThread.sender[i].isAlive()) {
+//logger.debug("      DataChannel Emu: end(), stop sender " + i);
+                    dataOutputThread.sender[i].stop();
+                }
+            }
 
             dataOutputThread = null;
 
@@ -678,16 +678,16 @@ logger.info("      DataChannel Emu out: connected to server w/ UDL = " + udl);
 
         if (dataOutputThread != null) {
 
-//            for (int i=0; i < socketCount; i++) {
-//                dataOutputThread.sender[i].killThread();
-//                try {
-//                    dataOutputThread.sender[i].join(quarterSec);
-//                    if (dataOutputThread.sender[i].isAlive()) {
-//                        dataOutputThread.sender[i].stop();
-//                    }
-//                }
-//                catch (InterruptedException e) {}
-//            }
+            for (int i=0; i < socketCount; i++) {
+                dataOutputThread.sender[i].killThread();
+                try {
+                    dataOutputThread.sender[i].join(quarterSec);
+                    if (dataOutputThread.sender[i].isAlive()) {
+                        dataOutputThread.sender[i].stop();
+                    }
+                }
+                catch (InterruptedException e) {}
+            }
 
             dataOutputThread.interrupt();
             try {
@@ -1132,7 +1132,7 @@ logger.info("      DataChannel Emu in: got " + controlType + " event from " + na
       * and write them over network to an Emu domain input channel using the Emu
       * domain output channel.
       */
-     private class DataOutputHelper extends Thread {
+     private class DataOutputHelperNew extends Thread {
 
          /** Help in pausing DAQ. */
          private int pauseCounter;
@@ -1160,7 +1160,7 @@ logger.info("      DataChannel Emu in: got " + controlType + " event from " + na
 
 
          /** Constructor. */
-         DataOutputHelper() {
+         DataOutputHelperNew() {
              super(emu.getThreadGroup(), name() + "_data_out");
              if (direct) {
                  byteBuffer = ByteBuffer.allocateDirect(maxBufferSize);
@@ -1539,7 +1539,7 @@ logger.info("      DataChannel Emu in: got " + controlType + " event from " + na
      * and write them over network to an Emu domain input channel using the Emu
      * domain output channel.
      */
-    private final class DataOutputHelperOrig extends Thread {
+    private final class DataOutputHelper extends Thread {
 
         /** Help in pausing DAQ. */
         private int pauseCounter;
@@ -1670,7 +1670,7 @@ logger.info("      DataChannel Emu in: got " + controlType + " event from " + na
 
 
         /** Constructor. */
-        DataOutputHelperOrig() {
+        DataOutputHelper() {
             super(emu.getThreadGroup(), name() + "_data_out");
 
             // All buffers will be released in order in this code.
