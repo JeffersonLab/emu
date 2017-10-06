@@ -723,6 +723,8 @@ logger.debug("    DataTransport Et: create local C ET system, " + etOpenConfig.g
                 // various environmental variables being used back to another, more basic
                 // source. Running script here caused an issue with Hall D in which the ET
                 // system used one lib and the ET calls in emu used another.
+                // Script can be set to use bash if set with SHELL env var. Bash will not
+                // redine these variables.
                 // Scrap this for now!
                 //processET = Runtime.getRuntime().exec(cmds);
                 processET = Runtime.getRuntime().exec(etCmd);
