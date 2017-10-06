@@ -719,7 +719,13 @@ logger.info("    DataTransport Et: used java process handle to kill ET");
 
 logger.debug("    DataTransport Et: create local C ET system, " + etOpenConfig.getEtName() + " with cmd:\n" +
              "script -c \"" + etCmd + "\" -f " + etOpenConfig.getEtName()+ '-' + now + ".log");
-                processET = Runtime.getRuntime().exec(cmds);
+                // Unfortunately, the "script" command spawns a csh which can redefine
+                // various environmental variables being used back to another, more basic
+                // source. Running script here caused an issue with Hall D in which the ET
+                // system used one lib and the ET calls in emu used another.
+                // Scrap this for now!
+                //processET = Runtime.getRuntime().exec(cmds);
+                processET = Runtime.getRuntime().exec(etCmd);
 
                 // Allow process a chance to run before testing if its terminated.
                 Thread.yield();
