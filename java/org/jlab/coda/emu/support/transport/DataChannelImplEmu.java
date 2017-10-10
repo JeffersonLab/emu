@@ -218,7 +218,7 @@ public class DataChannelImplEmu extends DataChannelAdapter {
             isER = (emu.getCodaClass() == CODAClass.ER);
 
             // size of TCP receive buffer (0 means use operating system default)
-            //tcpRecvBuf = 3000000;
+            //tcpRecvBuf = 3000000;     // THIS VALUE DOES NOT WORK FOR 1G Ethernet!!!
             tcpRecvBuf = 0;
             attribString = attributeMap.get("recvBuf");
             if (attribString != null) {
@@ -256,7 +256,7 @@ public class DataChannelImplEmu extends DataChannelAdapter {
             }
 
             // size of TCP send buffer (0 means use operating system default)
-            //tcpSendBuf = 3000000;
+            //tcpSendBuf = 3000000;     // THIS VALUE DOES NOT WORK FOR 1G Ethernet!!!
             tcpSendBuf = 0;
             attribString = attributeMap.get("sendBuf");
             if (attribString != null) {
@@ -1132,7 +1132,7 @@ logger.info("      DataChannel Emu in: got " + controlType + " event from " + na
       * and write them over network to an Emu domain input channel using the Emu
       * domain output channel.
       */
-     private class DataOutputHelperNew extends Thread {
+     private class DataOutputHelperOld extends Thread {
 
          /** Help in pausing DAQ. */
          private int pauseCounter;
@@ -1160,7 +1160,7 @@ logger.info("      DataChannel Emu in: got " + controlType + " event from " + na
 
 
          /** Constructor. */
-         DataOutputHelperNew() {
+         DataOutputHelperOld() {
              super(emu.getThreadGroup(), name() + "_data_out");
              if (direct) {
                  byteBuffer = ByteBuffer.allocateDirect(maxBufferSize);
