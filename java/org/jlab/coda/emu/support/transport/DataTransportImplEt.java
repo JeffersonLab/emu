@@ -702,23 +702,25 @@ logger.info("    DataTransport Et: used java process handle to kill ET");
                     etCmd += " -nd";
                 }
 
-//logger.debug("    DataTransport Et: create local C ET system, " + etOpenConfig.getEtName() +
-//                     " with cmd:\n" + etCmd);
-                Calendar cal = Calendar.getInstance();
-                String now = cal.get(Calendar.HOUR_OF_DAY) + ":" +
-                             cal.get(Calendar.MINUTE) + ':' +
-                             cal.get(Calendar.SECOND);
+logger.debug("    DataTransport Et: create local C ET system, " + etOpenConfig.getEtName() +
+                     " with cmd:\n" + etCmd);
 
-                // Pipe output to log file
-                String cmds[] = new String[5];
-                cmds[0] = "script";
-                cmds[1] = "-c" ;
-                cmds[2] = etCmd;
-                cmds[3] = "-f" ;
-                cmds[4] = etOpenConfig.getEtName() + '-' + now + ".log";
+//                Calendar cal = Calendar.getInstance();
+//                String now = cal.get(Calendar.HOUR_OF_DAY) + ":" +
+//                             cal.get(Calendar.MINUTE) + ':' +
+//                             cal.get(Calendar.SECOND);
+//
+//                // Pipe output to log file
+//                String cmds[] = new String[5];
+//                cmds[0] = "script";
+//                cmds[1] = "-c" ;
+//                cmds[2] = etCmd;
+//                cmds[3] = "-f" ;
+//                cmds[4] = etOpenConfig.getEtName() + '-' + now + ".log";
+//
+//logger.debug("    DataTransport Et: create local C ET system, " + etOpenConfig.getEtName() + " with cmd:\n" +
+//             "script -c \"" + etCmd + "\" -f " + etOpenConfig.getEtName()+ '-' + now + ".log");
 
-logger.debug("    DataTransport Et: create local C ET system, " + etOpenConfig.getEtName() + " with cmd:\n" +
-             "script -c \"" + etCmd + "\" -f " + etOpenConfig.getEtName()+ '-' + now + ".log");
                 // Unfortunately, the "script" command spawns a csh which can redefine
                 // various environmental variables being used back to another, more basic
                 // source. Running script here caused an issue with Hall D in which the ET
@@ -727,6 +729,7 @@ logger.debug("    DataTransport Et: create local C ET system, " + etOpenConfig.g
                 // redine these variables.
                 // Scrap this for now!
                 //processET = Runtime.getRuntime().exec(cmds);
+
                 processET = Runtime.getRuntime().exec(etCmd);
 
                 // Allow process a chance to run before testing if its terminated.
