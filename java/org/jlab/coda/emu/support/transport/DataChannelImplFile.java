@@ -231,11 +231,14 @@ logger.info("      DataChannel File: dictionary file cannot be read");
 //                evioFileWriter = new EventWriterUnsync(fileName, directory, runType,
 //                                                       runNumber, split, 4194304, 10000, 0,
 //                                                       byteOrder,dictionaryXML, null, overWriteOK,
-//                                                       false, null, emu.getDataStreamId());
+//                                                       false, null, emu.getDataStreamId(),
+// emu.getDataStreamCount());
                 evioFileWriter = new EventWriterUnsync(fileName, directory, runType,
                                                        runNumber, split, 250000, 10000, 0,
                                                        byteOrder,dictionaryXML, null, overWriteOK,
-                                                       false, null, emu.getDataStreamId());
+                                                       false, null,
+                                                       emu.getDataStreamId(),
+                                                       emu.getDataStreamCount());
 
 logger.info("      DataChannel File: file = " + evioFileWriter.getCurrentFilePath());
 
