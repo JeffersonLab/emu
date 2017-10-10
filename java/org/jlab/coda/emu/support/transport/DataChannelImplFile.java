@@ -768,6 +768,11 @@ logger.info("      DataChannel File out " + outputIndex + ": got ev " + nextEven
                     if (split > 0L && evioFileWriter.getSplitCount() > splitCount) {
                         emu.setOutputDestination(evioFileWriter.getCurrentFilename());
                         splitCount = evioFileWriter.getSplitCount();
+                        // HallD wants a warning if splitCount > 3 digits (ie 999).
+                        // But send it only once (hence the upper limit).
+                        if ( (splitCount > 999) && (split <= (999 + emu.getDataStreamCount())) ) {
+                            emu.sendRcErrorMessage("WARNING ONLY: split number over 999");
+                        }
                     }
 
                     if (pBankControlType == ControlType.END) {
