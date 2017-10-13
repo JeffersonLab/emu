@@ -374,8 +374,7 @@ public class DataChannelImplEmu extends DataChannelAdapter {
         socketsConnected++;
 
         // Set socket options
-        Socket sock;
-        sock = socket[socketPosition - 1] = channel.socket();
+        Socket sock = socket[socketPosition - 1] = channel.socket();
 
         // Set TCP receive buffer size
         if (tcpRecvBuf > 0) {
@@ -791,11 +790,11 @@ logger.info("      DataChannel Emu out: connected to server w/ UDL = " + udl);
         /** Supply of ByteBuffers to use for this socket. */
         private final ByteBufferSupply bbSupply;
 
-
+ private int sockNum;
         /** Constructor. */
         DataInputHelper(int socketPosition) {
             super(emu.getThreadGroup(), name() + "_data_in");
-
+sockNum = socketPosition;
             int socketIndex = socketPosition - 1;
 
             inStream = in[socketIndex];
@@ -876,7 +875,7 @@ logger.info("      DataChannel Emu out: connected to server w/ UDL = " + udl);
                         word = inStream.readLong();
                         cmd  = (int) ((word >>> 32) & 0xffL);
                         size = (int)   word;   // just truncate for lowest 32 bytes
-//System.out.println("size = " + size);
+//System.out.println("Incoming msg size = " + size);
                         item.ensureCapacity(size);
                         buf = item.getBuffer();
                         buf.limit(size);
@@ -884,6 +883,8 @@ logger.info("      DataChannel Emu out: connected to server w/ UDL = " + udl);
                         inStream.readFully(item.getBuffer().array(), 0, size);
                     }
 
+System.out.println("      DataChannel Emu in: " + name + " read msg on sock #" + sockNum +
+                   " (size = " + size + "), place into ring item, and publish");
                     bbSupply.publish(item);
                 }
             }
@@ -894,9 +895,14 @@ logger.info("      DataChannel Emu out: connected to server w/ UDL = " + udl);
                 logger.warn("      DataChannel Emu in: " + name + "  socket closed, exiting reading thd");
             }
             catch (Exception e) {
+e.printStackTrace();
+
+System.out.println("      DataChannel Emu in: " + name + " close sockets");
                 closeInputSockets();
+                
                 if (haveInputEndEvent) {
-//System.out.println("EOF but aleady have end event, so quit reading thread");
+System.out.println("      DataChannel Emu in: " + name +
+                   " EOF but aleady have end event, so quit reading thread");
                     return;
                 }
                 channelState = CODAState.ERROR;
@@ -960,8 +966,10 @@ System.out.println("      " + errString);
                             " parserMerger thread interrupted, quitting");
             }
             catch (EvioException e) {
+e.printStackTrace();
+
                 // Bad data format or unknown control event.
-System.out.println("parser evio excep, call closeInputSockets");
+System.out.println("      DataChannel Emu in: " + name + " close sockets from parser-merger");
                 closeInputSockets();
                 channelState = CODAState.ERROR;
                 emu.setErrorState("DataChannel Emu in: " + e.getMessage());
@@ -989,6 +997,7 @@ System.out.println("parser evio excep, call closeInputSockets");
 //System.out.println("p1, buf lim = " + buf.limit() + ", cap = " + buf.capacity());
 //Utilities.printBuffer(buf, 0, 100, "Buf");
              try {
+System.out.println("      DataChannel Emu in: try parsing buf");
                  if (reader == null) {
                      reader = new EvioCompactReaderUnsync(buf);
                  }
@@ -1022,8 +1031,8 @@ System.out.println("      DataChannel Emu in: data NOT evio v4 format 1");
              // Keep track by counting users (# events parsed from same buffer).
              int eventCount = reader.getEventCount();
              item.setUsers(eventCount);
-//    System.out.println("      DataChannel Emu in: block header, event type " + eventType +
-//                       ", recd id = " + recordId + ", event cnt = " + eventCount);
+    System.out.println("      DataChannel Emu in: block header, event type " + eventType +
+                       ", recd id = " + recordId + ", event cnt = " + eventCount);
 
              for (int i = 1; i < eventCount + 1; i++) {
                  if (isER) {
