@@ -373,8 +373,10 @@ public class DataChannelImplEmu extends DataChannelAdapter {
 
         socketsConnected++;
 
+        int index = socketPosition - 1;
+
         // Set socket options
-        Socket sock = socket[socketPosition - 1] = channel.socket();
+        Socket sock = socket[index] = channel.socket();
 
         // Set TCP receive buffer size
         if (tcpRecvBuf > 0) {
@@ -383,8 +385,8 @@ public class DataChannelImplEmu extends DataChannelAdapter {
         }
 
         // Use buffered streams for efficiency
-        socketChannel[socketPosition - 1] = channel;
-        in[socketPosition - 1] = new DataInputStream(new BufferedInputStream(sock.getInputStream()));
+        socketChannel[index] = channel;
+        in[index] = new DataInputStream(new BufferedInputStream(sock.getInputStream()));
 
         // Create a ring buffer full of empty ByteBuffer objects
         // in which to copy incoming data from client.
@@ -414,20 +416,20 @@ logger.info("      DataChannel Emu in: " + numBufs + " buffers in input supply")
                 // and since the file output channel also processes all events in order,
                 // the byte buffer supply does not have to be synchronized as byte buffers are
                 // released in order. Will make things faster.
-                bbInSupply[socketPosition - 1] = new ByteBufferSupply(numBufs, maxBufferSize,
+                bbInSupply[index] = new ByteBufferSupply(numBufs, maxBufferSize,
                                                                       ByteOrder.BIG_ENDIAN, direct,
                                                                      true);
             }
             else {
                 // If ER has more than one output, buffers may not be released sequentially
-                bbInSupply[socketPosition - 1] = new ByteBufferSupply(numBufs, maxBufferSize,
+                bbInSupply[index] = new ByteBufferSupply(numBufs, maxBufferSize,
                                                                       ByteOrder.BIG_ENDIAN, direct,
                                                                      false);
             }
         }
         else {
             // EBs all release these ByteBuffers in order in the ReleaseRingResourceThread thread
-            bbInSupply[socketPosition - 1] = new ByteBufferSupply(numBufs, maxBufferSize,
+            bbInSupply[index] = new ByteBufferSupply(numBufs, maxBufferSize,
                                                                   ByteOrder.BIG_ENDIAN, direct,
                                                                  true);
         }
@@ -435,8 +437,8 @@ logger.info("      DataChannel Emu in: " + numBufs + " buffers in input supply")
 logger.info("      DataChannel Emu in: connection made from " + name);
 
         // Start thread to handle socket input
-        dataInputThread[socketPosition - 1] = new DataInputHelper(socketPosition);
-        dataInputThread[socketPosition - 1].start();
+        dataInputThread[index] = new DataInputHelper(socketPosition);
+        dataInputThread[index].start();
 
         // If this is the last socket, make sure all threads are started up before proceeding
         if (socketsConnected == socketCount) {
@@ -444,6 +446,7 @@ logger.info("      DataChannel Emu in: connection made from " + name);
             for (int i=0; i < socketCount; i++) {
                 dataInputThread[i].waitUntilStarted();
             }
+logger.info("      DataChannel Emu in: attachToInput(), last connection made, parser thd started, input threads running");
         }
     }
 
