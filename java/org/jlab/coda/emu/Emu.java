@@ -881,12 +881,12 @@ System.out.println("\n\n");
         /** Reuse this msg - overwriting fields each time. */
         private final cMsgMessage reportMsg;
 
-        /** Time - updated every statusReportingPeriod milliseconds. */
+        /** Time - updated every 1/4 seconds. */
         private volatile long time;
 
         /**
          * Get the time from System.currentTimeMillis(), but it's updated
-         * only every second or thereabouts.
+         * only every 1/4 seconds or thereabouts.
          * @return time from System.currentTimeMillis()
          */
         public long getTime() {
@@ -1637,6 +1637,9 @@ logger.error("Emu " + name + ": transition NOT successful, state = ERROR");
      * Implement end command.
      */
     private void end() {
+boolean debugOrig = debug;
+debug = true;
+
 logger.info("Emu " + name + " end: change state to ENDING");
         setState(ENDING);
 
@@ -1652,6 +1655,7 @@ logger.info("Emu " + name + " end: change state to ENDING");
                 modules.get(0).end();
 if (debug) System.out.println("Emu " + name + " end: END cmd to module " + modules.get(0).name());
                 setState(DOWNLOADED);
+debug = debugOrig;
                 return;
             }
 
@@ -1778,7 +1782,8 @@ System.out.println("Emu " + name + " end: " + e.getMessage());
             setErrorState("Emu " + name + " end:" + e.getMessage());
             return;
         }
-
+        
+debug = debugOrig;
         if (state == ERROR) return;
         setState(DOWNLOADED);
     }
@@ -2039,14 +2044,16 @@ if (debug) System.out.println("Emu " + name + " prestart: PRESTART cmd to " + tr
 
             // Output channels
             for (DataChannel chan : outChannels) {
+                // Reset the notification latch as it may have been used
+                // if previous transition was "END"
+                chan.getEndCallback().reset();
+
 if (debug) System.out.println("Emu " + name + " prestart: PRESTART cmd to OUT chan " + chan.name());
                 chan.prestart();
             }
 
             // Modules
             for (EmuModule module : modules) {
-                // Reset the notification latch as it may have been used
-                // if previous transition was "END"
                 module.getEndCallback().reset();
 
 if (debug) System.out.println("Emu " + name + " prestart: PRESTART cmd to module " + module.name());
@@ -2055,6 +2062,8 @@ if (debug) System.out.println("Emu " + name + " prestart: PRESTART cmd to module
 
             // Input channels
             for (DataChannel chan : inChannels) {
+                chan.getEndCallback().reset();
+
 if (debug) System.out.println("Emu " + name + " prestart: PRESTART cmd to IN chan " + chan.name());
                 chan.prestart();
             }
