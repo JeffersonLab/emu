@@ -252,13 +252,13 @@ public class EmuDomainTcpServer extends Thread {
                                 }
                             }
                             else {
-                                // Give client 10 loops (.1 sec) to send its stuff, else no deal
+                                // Give client 10 loops (2 sec) to send its stuff, else no deal
                                 if (++loops > 10) {
                                     channel.close();
                                     it.remove();
                                     continue keyLoop;
                                 }
-                                try { Thread.sleep(30); }
+                                try { Thread.sleep(200); }
                                 catch (InterruptedException e) { }
                             }
                         }
