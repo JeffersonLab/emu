@@ -334,7 +334,10 @@ public class DataChannelImplEmu extends DataChannelAdapter {
     /**
      * Once a client connects to the Emu domain server in the Emu transport object,
      * that socket is passed to this method and a thread is spawned to handle all
-     * communications over it. Only used for input channel.
+     * communications over it. Only used for input channel.<p>
+     *     
+     * This method is called synchronously by a single thread in the
+     * EmuDomainTcpServer class.
      *
      * @param channel        data input socket/channel
      * @param sourceId       CODA id # of data source
