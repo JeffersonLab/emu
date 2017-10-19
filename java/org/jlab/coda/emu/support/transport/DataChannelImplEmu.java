@@ -449,7 +449,7 @@ logger.info("      DataChannel Emu in: connection made from " + name);
             for (int i=0; i < socketCount; i++) {
                 dataInputThread[i].waitUntilStarted();
             }
-logger.info("      DataChannel Emu in: attachToInput(), last connection made, parser thd started, input threads running");
+logger.info("      DataChannel Emu in: last connection made, parser thd started, input threads running");
         }
     }
 
@@ -618,13 +618,14 @@ logger.info("      DataChannel Emu out: connected to server w/ UDL = " + udl);
                 try {Thread.sleep(1000);}
                 catch (InterruptedException e) {}
 
+                // Interrupt sending thread
                 dataOutputThread.sender[i].killThread();
 
                 try {dataOutputThread.sender[i].join(quarterSec);}
                 catch (InterruptedException e) {}
 
                 if (dataOutputThread.sender[i].isAlive()) {
-//logger.debug("      DataChannel Emu: end(), stop sender " + i);
+logger.debug("      DataChannel Emu: end(), STOP sender " + i + " for " + name);
                     dataOutputThread.sender[i].stop();
                 }
             }
@@ -632,6 +633,7 @@ logger.info("      DataChannel Emu out: connected to server w/ UDL = " + udl);
             dataOutputThread = null;
 
             try {
+logger.debug("      DataChannel Emu: end(), close output channel " + name);
                 closeOutputChannel();
             }
             catch (cMsgException e) {
@@ -824,7 +826,7 @@ logger.info("      DataChannel Emu out: connected to server w/ UDL = " + udl);
             latch.countDown();
 
             long word;
-            int cmd, size;
+            int cmd=-1, size=-1;
             boolean delay = false;
             // For use with direct buffers
             ByteBuffer wordCmdBuf = ByteBuffer.allocate(8);
@@ -897,6 +899,8 @@ logger.info("      DataChannel Emu out: connected to server w/ UDL = " + udl);
                 logger.warn("      DataChannel Emu in: " + name + "  socket closed, exiting reading thd");
             }
             catch (Exception e) {
+System.out.println("      DataChannel Emu in: error reading socket, cmd = " + cmd + ", size = " + size);
+e.printStackTrace();
                 closeInputSockets();
                 
                 if (haveInputEndEvent) {
