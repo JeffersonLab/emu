@@ -103,7 +103,7 @@ public class Emu implements CODAComponent {
     private final ThreadGroup threadGroup;
 
     /** Maximum time to wait when commanded to END but no END event received. */
-    private long endingTimeLimit = 60000;
+    private long endingTimeLimit = 30000;
 
     /** If true, stop executing commands coming from run control. Used while resetting. */
     private volatile boolean resetting;
@@ -1643,8 +1643,8 @@ debug = true;
 logger.info("Emu " + name + " end: change state to ENDING");
         setState(ENDING);
 
-        // How long do we wait for the END event (in milliseconds)?
-        long timeout = 30000;
+        // How long do we wait for the END event (milliseconds)?
+        long timeout = endingTimeLimit;
 
         // Unit of time for waiting is milliseconds.
         TimeUnit timeUnits = TimeUnit.MILLISECONDS;
@@ -1686,48 +1686,64 @@ if (debug) System.out.println("Emu " + name + " end: end() done in fake ROC " + 
                 }
             }
 
-            boolean gotEndEvent, gotAllEnds = true;
+            boolean gotEndEvent, gotAllEnds=true;
 
-            // Look at the input channels for END first - NO TIMEOUT
+            // Look at the input channels for END first
             if (inChannels.size() > 0) {
                 for (DataChannel chan : inChannels) {
                     try {
-                        chan.getEndCallback().waitForEvent();
-                        gotAllEnds = true;
+if (debug) System.out.println("Emu " + name + " end: in chan " + chan.name() + " call waitForEvent()");
+                        gotEndEvent = chan.getEndCallback().waitForEvent(timeout, timeUnits);
+if (debug) System.out.println("Emu " + name + " end: in chan " + chan.name() + " gotEndEvent = " + gotEndEvent);
+                        if (!gotEndEvent) {
+if (debug) System.out.println("Emu " + name + " end: timeout (30 sec) waiting for END event in in-chan " + chan.name());
+                            setErrorState("Emu " + name + " end: timeout waiting for END event in in-chan " + chan.name());
+                            gotAllEnds = false;
+                            break;
+                        }
                     }
                     catch (InterruptedException e) {}
                 }
             }
 
-            // Look at the last module (30 sec timeout)
-            if (mods.size() > 0) {
+            // Only bother looking downstream if all input channels received END
+            if (gotAllEnds) {
+                // Look at the last module
                 try {
-if (debug) System.out.println("Emu " + name + " end: wait for END event in module " + mods.getLast().name());
+                    if (debug)
+                        System.out.println("Emu " + name + " end: wait for END event in module " + mods.getLast().name());
                     gotEndEvent = mods.getLast().getEndCallback().waitForEvent(timeout, timeUnits);
-if (debug) System.out.println("Emu " + name + " end: got END event in module " + mods.getLast().name());
+                    if (debug)
+                        System.out.println("Emu " + name + " end: got END event in module " + mods.getLast().name());
                     if (!gotEndEvent) {
-if (debug) System.out.println("Emu " + name + " end: timeout (30 sec) waiting for END event in module " + mods.getLast().name());
+                        if (debug)
+                            System.out.println("Emu " + name + " end: timeout (30 sec) waiting for END event in module " + mods.getLast().name());
                         setErrorState("Emu " + name + " end: timeout waiting for END event in module " + mods.getLast().name());
                     }
                     gotAllEnds = gotEndEvent;
                 }
-                catch (InterruptedException e) {}
-            }
+                catch (InterruptedException e) {
+                }
 
-            // Look at the output channels (30 sec timeout for each chan)
-            if (gotAllEnds && outChannels.size() > 0) {
-                for (DataChannel chan : outChannels) {
-                    try {
-if (debug) System.out.println("Emu " + name + " end: output chan " + chan.name() + " call waitForEvent()");
-                        gotEndEvent = chan.getEndCallback().waitForEvent(timeout, timeUnits);
-if (debug) System.out.println("Emu " + name + " end: output chan " + chan.name() + " gotEndEvent = " + gotEndEvent);
-                        if (!gotEndEvent) {
-if (debug) System.out.println("Emu " + name + " end: timeout (30 sec) waiting for END event in output chan " + chan.name());
-                            setErrorState("Emu " + name + " end: timeout waiting for END event in output chan " + chan.name());
+                // Look at the output channels only if all modules received END
+                if (gotAllEnds && outChannels.size() > 0) {
+                    for (DataChannel chan : outChannels) {
+                        try {
+                            if (debug)
+                                System.out.println("Emu " + name + " end: output chan " + chan.name() + " call waitForEvent()");
+                            gotEndEvent = chan.getEndCallback().waitForEvent(timeout, timeUnits);
+                            if (debug)
+                                System.out.println("Emu " + name + " end: output chan " + chan.name() + " gotEndEvent = " + gotEndEvent);
+                            if (!gotEndEvent) {
+                                if (debug)
+                                    System.out.println("Emu " + name + " end: timeout (30 sec) waiting for END event in output chan " + chan.name());
+                                setErrorState("Emu " + name + " end: timeout waiting for END event in output chan " + chan.name());
+                            }
+                            gotAllEnds = gotAllEnds && gotEndEvent;
                         }
-                        gotAllEnds = gotAllEnds && gotEndEvent;
+                        catch (InterruptedException e) {
+                        }
                     }
-                    catch (InterruptedException e) {}
                 }
             }
 
