@@ -1047,6 +1047,7 @@ System.out.println("      DataChannel Emu in: start EMU input thread");
                 int command;
                 boolean delay = false;
 
+                toploop:
                 while ( true ) {
 
                     // Read the command first
@@ -1060,7 +1061,11 @@ System.out.println("      DataChannel Emu in: start EMU input thread");
                             handleEvioFileToBuf();
                             break;
 
-// TODO: not used at present
+                        case cMsgConstants.emuEvioEndEvent:
+                            handleEvioFileToBuf();
+                            break toploop;
+
+                        // not used at present
                         case cMsgConstants.emuEnd:
 System.out.println("      DataChannel Emu in: get emuEnd cmd");
                             break;
