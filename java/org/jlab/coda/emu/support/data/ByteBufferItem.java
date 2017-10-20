@@ -67,6 +67,14 @@ public class ByteBufferItem {
      */
     private boolean fromConsumerGet;
 
+    /** Extra integer for user's convenience.
+     *  Gets reset to 0 each time supply.get() is called. */
+    private int userInt;
+
+    /** Extra boolean for user's convenience.
+     *  Gets reset to false each time supply.get() is called. */
+    private boolean userBoolean;
+
     // For testing purposes
 
     /** Unique id for each object of this class. */
@@ -118,6 +126,32 @@ public class ByteBufferItem {
     public void setFromConsumerGet(boolean fromConsumerGet) {
         this.fromConsumerGet = fromConsumerGet;
     }
+
+    /**
+     * Get the user integer.
+     * User int gets reset to 0 each time supply.get() is called.
+     * @return user integer.
+     */
+    public int getUserInt() {return userInt;}
+
+    /**
+     * Set the user integer.
+     * @param i user integer.
+     */
+    public void setUserInt(int i) {userInt = i;}
+
+    /**
+     * Get the user boolean.
+     * User boolean gets reset to false each time supply.get() is called.
+     * @return user boolean.
+     */
+    public boolean getUserBoolean() {return userBoolean;}
+
+    /**
+     * Set user boolean.
+     * @param bool user boolean.
+     */
+    public void setUserBoolean(boolean bool) {userBoolean = bool;}
 
     //--------------------------------
 
@@ -186,6 +220,8 @@ public class ByteBufferItem {
      */
     public void reset() {
         buffer.clear();
+        userInt = 0;
+        userBoolean = false;
         multipleUsers = false;
         producerSequence = consumerSequence = 0L;
     }
