@@ -1637,8 +1637,8 @@ logger.error("Emu " + name + ": transition NOT successful, state = ERROR");
      * Implement end command.
      */
     private void end() {
-boolean debugOrig = debug;
-debug = true;
+//boolean debugOrig = debug;
+//debug = true;
 
 logger.info("Emu " + name + " end: change state to ENDING");
         setState(ENDING);
@@ -1655,7 +1655,7 @@ logger.info("Emu " + name + " end: change state to ENDING");
                 modules.get(0).end();
 if (debug) System.out.println("Emu " + name + " end: END cmd to module " + modules.get(0).name());
                 setState(DOWNLOADED);
-debug = debugOrig;
+//debug = debugOrig;
                 return;
             }
 
@@ -1799,7 +1799,7 @@ System.out.println("Emu " + name + " end: " + e.getMessage());
             return;
         }
         
-debug = debugOrig;
+//debug = debugOrig;
         if (state == ERROR) return;
         setState(DOWNLOADED);
     }
@@ -1812,6 +1812,62 @@ debug = debugOrig;
     private void go() {
 logger.info("Emu " + name + " go: change state to GOING");
         setState(ACTIVATING);
+
+        //--------------------------------------------------------
+        //     Unfortunately, the prestart() command cannot
+        //     wait for the PRESTART event to make its way
+        //     through this emu before setting state to PAUSED. It's a chicken and
+        //     egg problem. If we don't set the state of this emu to PAUSED, the
+        //     component upstream cannot be sent the prestart() command. If that
+        //     does not happen, the PRESTART event will never be created by the ROC.
+        //
+        //     The task of making sure the PRESTART event makes it through this emu
+        //     must be done first thing by the go() command.
+        //--------------------------------------------------------
+
+        // How long do we wait for the PRESTART event (milliseconds)?
+        long timeout = endingTimeLimit;
+
+        // Unit of time for waiting is milliseconds.
+        TimeUnit timeUnits = TimeUnit.MILLISECONDS;
+
+//        boolean debugOrig = debug;
+//        debug = true;
+
+        boolean gotPrestartEvent, gotAllPrestarts=true;
+
+        // Only bother checking modules, forget about the channels.
+        // The only thing we have to worry about is that the EB module checks to
+        // see if all PRESTART events have arrived before it allows any building.
+        // Also nice if ER gets it so it can be written to file before GO.
+        if (codaClass == CODAClass.DC  || codaClass == CODAClass.ER  ||
+            codaClass == CODAClass.SEB || codaClass == CODAClass.PEB)  {
+
+            try {
+                // Look at the last module in config
+                EmuModule mod = modules.get(modules.size() - 1);
+
+if (debug) System.out.println("Emu " + name + " go: wait for PRESTART event in module " + mod.name());
+                gotPrestartEvent = mod.getPrestartCallback().waitForEvent(timeout, timeUnits);
+if (debug) System.out.println("Emu " + name + " go: got PRESTART event in module " + mod.name());
+                if (!gotPrestartEvent) {
+if (debug) System.out.println("Emu " + name + " go: timeout (30 sec) waiting for PRESTART event in module " + mod.name());
+                    setErrorState("Emu " + name + " go: timeout waiting for PRESTART event in module " + mod.name());
+                }
+                gotAllPrestarts = gotPrestartEvent;
+            }
+            catch (InterruptedException e) {}
+        }
+
+//        debug = debugOrig;
+
+        if (!gotAllPrestarts) {
+            logger.error("Emu " + name + " go: PRESTART event did NOT make it through emu");
+            setErrorState("Emu " + name + " go: PRESTART event did NOT make it through emu");
+            return;
+        }
+
+        // GO
 
         try {
             // Fake TS does not have any I/O so handle it here
@@ -2010,12 +2066,14 @@ if (debug) System.out.println("Emu " + name + " prestart: PRESTART cmd to " + tr
                             if (channelTransName.equals("Fifo")) {
                                 // Fifo does NOT notify Emu when END event comes through
                                 channel.registerEndCallback(null);
+                                channel.registerPrestartCallback(null);
                                 inFifo.add(channel);
                             }
                             else {
                                 if (channel != null) {
                                     // Give it object to notify Emu when END event comes through
                                     channel.registerEndCallback(new EmuEventNotify());
+                                    channel.registerPrestartCallback(new EmuEventNotify());
                                     in.add(channel);
                                 }
                             }
@@ -2027,11 +2085,13 @@ if (debug) System.out.println("Emu " + name + " prestart: PRESTART cmd to " + tr
                                                                       outputChannelCount++);
                             if (channelTransName.equals("Fifo")) {
                                 channel.registerEndCallback(null);
+                                channel.registerPrestartCallback(null);
                                 outFifo.add(channel);
                             }
                             else {
                                 if (channel != null) {
                                     channel.registerEndCallback(new EmuEventNotify());
+                                    channel.registerPrestartCallback(new EmuEventNotify());
                                     out.add(channel);
                                 }
                             }
@@ -2054,23 +2114,40 @@ if (debug) System.out.println("Emu " + name + " prestart: PRESTART cmd to " + tr
                 }
             } while ((moduleNode = moduleNode.getNextSibling()) != null);  // while another module exists ...
 
+
             //-------------------------
             // PRESTART to all:
-            //-------------------------
+            //
+            // (1) Cannot wait for prestart event before calling prestart() methods
+            //     since prestart() creates all the communication channels.
+            //
+            // (2) Call all prestart() methods of this emu to prepare for communication.
+            //
+            // (3) The last prestart command from RC is given to the ROC or
+            //     fake ROC. This creates the PRESTART event which moves downstream.
+            //
+            // (4) Unfortunately, we cannot wait for the PRESTART event to make its way
+            //     through this emu before setting state to PAUSED. It's a chicken and
+            //     egg problem. If we don't set the state of this emu to PAUSED, the
+            //     component upstream cannot be sent the prestart() command. If that
+            //     does not happen, the PRESTART event will never be created by the ROC.
+            //
+            //     The task of making sure the PRESTART event makes it through this emu
+            //     must be done first thing by the go() command.
+            //--------------------------------------------------------
 
             // Output channels
             for (DataChannel chan : outChannels) {
-                // Reset the notification latch as it may have been used
-                // if previous transition was "END"
-                chan.getEndCallback().reset();
-
 if (debug) System.out.println("Emu " + name + " prestart: PRESTART cmd to OUT chan " + chan.name());
                 chan.prestart();
             }
 
             // Modules
             for (EmuModule module : modules) {
+                // Since modules are created at download, the end and prestart
+                // callbacks are reused here and so must be reset.
                 module.getEndCallback().reset();
+                module.getPrestartCallback().reset();
 
 if (debug) System.out.println("Emu " + name + " prestart: PRESTART cmd to module " + module.name());
                 module.prestart();
@@ -2078,8 +2155,6 @@ if (debug) System.out.println("Emu " + name + " prestart: PRESTART cmd to module
 
             // Input channels
             for (DataChannel chan : inChannels) {
-                chan.getEndCallback().reset();
-
 if (debug) System.out.println("Emu " + name + " prestart: PRESTART cmd to IN chan " + chan.name());
                 chan.prestart();
             }
@@ -2305,6 +2380,7 @@ if (debug) System.out.println("Emu " + name + " download: create module " + modu
 
                     // Give it object to notify Emu when END event comes through
                     module.registerEndCallback(new EmuEventNotify());
+                    module.registerPrestartCallback(new EmuEventNotify());
 
                     dataPath.associateModule(module);
                     modules.add(module);
