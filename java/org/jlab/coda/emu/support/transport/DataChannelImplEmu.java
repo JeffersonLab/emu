@@ -912,7 +912,6 @@ System.out.println("      DataChannel Emu in: received END event on sock " + soc
                                     socketPosition + ", exit reading thd");
             }
             catch (Exception e) {
-e.printStackTrace();
                 if (haveInputEndEvent) {
 System.out.println("      DataChannel Emu in: " + name +
                    ", exception but aleady have END event, so exit reading thd");
@@ -1687,7 +1686,6 @@ logger.info("      DataChannel Emu in: got " + controlType + " event from " + na
 System.out.println("SocketSender thread interruped");
                     }
                     catch (Exception e) {
- e.printStackTrace();
                         channelState = CODAState.ERROR;
                         emu.setErrorState("DataChannel Emu out: " + e.getMessage());
                         return;
