@@ -981,6 +981,7 @@ System.out.println("  EB mod: bbSupply -> " + ringItemCount + " # of bufs, direc
                     return;
                 }
 
+                prestartCallback.endWait();
                 haveAllPrestartEvents = true;
 System.out.println("  EB mod: got all PRESTART events");
 

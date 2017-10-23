@@ -303,6 +303,7 @@ System.out.println("  ER mod: will end thread but no END event!");
 //System.out.println("  ER mod: got control event, " + controlType);
                             // Looking for prestart
                             if (controlType.isPrestart()) {
+                                prestartCallback.endWait();
                                 if (gotPrestart) {
                                     throw new EmuException("got 2 prestart events");
                                 }
@@ -416,7 +417,6 @@ System.out.println("  ER mod: will end thread but no END event!");
                                     eventToOutputChannel(bb, j, 0);
                                 }
                             }
-
                             isPrestart = false;
                         }
                         else {
