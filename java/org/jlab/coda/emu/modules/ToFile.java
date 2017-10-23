@@ -387,6 +387,9 @@ System.out.println("  ToFile mod: found END event");
                             if (endCallback != null) endCallback.endWait();
                             return;
                         }
+                        else if (controlType == ControlType.PRESTART) {
+                            prestartCallback.endWait();
+                        }
 
                         // Release the events back to the ring buffer for re-use
                         sequence.set(nextSequence++);

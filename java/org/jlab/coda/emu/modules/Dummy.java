@@ -230,8 +230,13 @@ public class Dummy extends ModuleAdapter {
                     eventType = ringItem.getEventType();
 
                     // If END event, clean up and quit
-                    if (eventType.isControl() && ringItem.getControlType().isEnd()) {
-                        if (endCallback != null) endCallback.endWait();
+                    if (eventType.isControl()) {
+                        if (ringItem.getControlType().isEnd()) {
+                            if (endCallback != null) endCallback.endWait();
+                        }
+                        else if (ringItem.getControlType().isPrestart()) {
+                            if (prestartCallback != null) prestartCallback.endWait();
+                        }
                         return;
                     }
                     else {
