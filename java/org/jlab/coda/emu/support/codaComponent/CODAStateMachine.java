@@ -55,14 +55,10 @@ public interface CODAStateMachine {
      */
     public void download() throws CmdExecException;
 
-
-
     /**
      * This method implements the RESET transition of the CODA run control state machine.
      */
     public void reset();
-
-
 
     /**
      * This method allows for setting a object used to notify the caller when an END event
@@ -77,5 +73,20 @@ public interface CODAStateMachine {
      * @return object used for notifying caller.
      */
     public EmuEventNotify getEndCallback();
+
+    /**
+     * This method allows for setting a object used to notify the caller when a PRESTART event
+     * has arrived (or any other occurrence for that matter).
+     * @param callback object used for notifying caller.
+     */
+    public void registerPrestartCallback(EmuEventNotify callback);
+
+    /**
+     * This method gets the callback object previously registered by the caller
+     * used to notify upon the arrival of a PRESTART event.
+     * @return object used for notifying caller.
+     */
+    public EmuEventNotify getPrestartCallback();
+
 
 }

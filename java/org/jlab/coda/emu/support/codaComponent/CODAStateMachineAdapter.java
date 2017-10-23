@@ -35,13 +35,16 @@ public class CODAStateMachineAdapter implements CODAStateMachine {
     /** {@inheritDoc} */
     public void download() throws CmdExecException {}
 
-
     /** {@inheritDoc} */
     public void reset() {}
-
 
     /** {@inheritDoc} */
     public void registerEndCallback(EmuEventNotify callback) {}
     /** {@inheritDoc} */
     public EmuEventNotify getEndCallback() {return null;}
+
+    /** {@inheritDoc} */
+    public void registerPrestartCallback(EmuEventNotify callback) {}
+    /** {@inheritDoc} */
+    public EmuEventNotify getPrestartCallback() {return null;}
 }

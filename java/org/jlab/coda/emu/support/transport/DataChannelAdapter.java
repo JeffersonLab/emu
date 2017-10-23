@@ -87,6 +87,9 @@ public abstract class DataChannelAdapter extends CODAStateMachineAdapter impleme
     /** Object used by Emu to be notified of END event arrival. */
     protected EmuEventNotify endCallback;
 
+    /** Object used by Emu to be notified of PRESTART event arrival. */
+    protected EmuEventNotify prestartCallback;
+
     /** Module to which this channel belongs. */
     protected final EmuModule module;
 
@@ -458,6 +461,12 @@ System.out.println("      DataChannel Adapter: prestart, nextEv (" +
 
     /** {@inheritDoc} */
     public EmuEventNotify getEndCallback() {return endCallback;}
+
+    /** {@inheritDoc} */
+    public void registerPrestartCallback(EmuEventNotify callback) {prestartCallback = callback;}
+
+    /** {@inheritDoc} */
+    public EmuEventNotify getPrestartCallback() {return prestartCallback;}
 
     /** {@inheritDoc} */
     public void processEnd(long eventIndex, int ringIndex) {

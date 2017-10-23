@@ -116,6 +116,9 @@ public class ModuleAdapter implements EmuModule {
     /** Object used by Emu to be notified of END event arrival. */
     protected EmuEventNotify endCallback;
 
+    /** Object used by Emu to be notified of PRESTART event arrival. */
+    protected EmuEventNotify prestartCallback;
+
     /** Do we produce big or little endian output in ByteBuffers? */
     protected ByteOrder outputOrder;
 
@@ -370,12 +373,15 @@ logger.info("  Module Adapter: SEB chunk = " + sebChunk);
     /** {@inheritDoc} */
     public void reset()   {moduleState = CODAState.CONFIGURED;}
 
-
     /** {@inheritDoc} */
     public void registerEndCallback(EmuEventNotify callback) {endCallback = callback;}
-
     /** {@inheritDoc} */
     public EmuEventNotify getEndCallback() {return endCallback;}
+
+    /** {@inheritDoc} */
+    public void registerPrestartCallback(EmuEventNotify callback) {prestartCallback = callback;}
+    /** {@inheritDoc} */
+    public EmuEventNotify getPrestartCallback() {return prestartCallback;}
 
     //-----------------------------------------------------------
     // For StatedObject interface
