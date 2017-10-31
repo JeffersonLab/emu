@@ -201,7 +201,7 @@ public class DataChannelImplEmu extends DataChannelAdapter {
         }
 
         // How many sockets to use underneath
-        socketCount = 2;
+        socketCount = 1;
         attribString = attributeMap.get("sockets");
         if (attribString != null) {
             try {
