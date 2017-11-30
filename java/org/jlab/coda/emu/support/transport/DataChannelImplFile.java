@@ -283,11 +283,6 @@ System.out.println("      DataChannel File out: Cannot create file, " + e.getMes
 
     /** {@inheritDoc} */
     public void end() {
-        // Then close to save everything to disk.
-        if (emu.isFileWritingOn()) {
-            evioFileWriter.close();
-        }
-
         logger.info("      DataChannel File: end() " + name);
 
         gotEndCmd = true;
