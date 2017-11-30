@@ -224,17 +224,8 @@ logger.info("      DataChannel File: dictionary file cannot be read");
                 boolean overWriteOK = true;
                 if (split > 0L) overWriteOK = false;
 
-//                evioFileWriter = new EventWriterUnsync(fileName, directory, runType,
-//                                                      runNumber, split, byteOrder,
-//                                                      dictionaryXML, overWriteOK);
-
-//                evioFileWriter = new EventWriterUnsync(fileName, directory, runType,
-//                                                       runNumber, split, 4194304, 10000, 0,
-//                                                       byteOrder,dictionaryXML, null, overWriteOK,
-//                                                       false, null, emu.getDataStreamId(),
-// emu.getDataStreamCount());
                 evioFileWriter = new EventWriterUnsync(fileName, directory, runType,
-                                                       runNumber, split, 250000, 10000, 0,
+                                                       runNumber, split, 4194304, 10000, 0,
                                                        byteOrder,dictionaryXML, null, overWriteOK,
                                                        false, null,
                                                        emu.getDataStreamId(),
@@ -273,9 +264,7 @@ System.out.println("      DataChannel File out: Cannot create file, " + e.getMes
 
 
     /** {@inheritDoc} */
-    public TransportType getTransportType() {
-        return TransportType.FILE;
-    }
+    public TransportType getTransportType() {return TransportType.FILE;}
 
 
     /** {@inheritDoc} */
@@ -284,15 +273,22 @@ System.out.println("      DataChannel File out: Cannot create file, " + e.getMes
         channelState = CODAState.ACTIVE;
     }
 
+    
     /** {@inheritDoc} */
     public void pause() {
         pause = true;
         channelState = CODAState.PAUSED;
     }
 
-    /** {@inheritDoc}. Formerly this code was the close() method. */
+
+    /** {@inheritDoc} */
     public void end() {
-        logger.warn("      DataChannel File: end() " + name);
+        // Then close to save everything to disk.
+        if (emu.isFileWritingOn()) {
+            evioFileWriter.close();
+        }
+
+        logger.info("      DataChannel File: end() " + name);
 
         gotEndCmd = true;
         gotResetCmd = false;
@@ -301,9 +297,7 @@ System.out.println("      DataChannel File out: Cannot create file, " + e.getMes
     }
 
 
-    /**
-     * {@inheritDoc}
-     */
+    /** {@inheritDoc} */
     public void reset() {
 logger.info("      DataChannel File: reset " + name + " channel");
 
