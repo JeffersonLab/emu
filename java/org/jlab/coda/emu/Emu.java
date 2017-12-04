@@ -1825,17 +1825,6 @@ logger.info("Emu " + name + " go: change state to GOING");
         //     must be done first thing by the go() command.
         //--------------------------------------------------------
 
-        // How long do we wait for the PRESTART event (milliseconds)?
-        long timeout = endingTimeLimit;
-
-        // Unit of time for waiting is milliseconds.
-        TimeUnit timeUnits = TimeUnit.MILLISECONDS;
-
-//        boolean debugOrig = debug;
-//        debug = true;
-
-        boolean gotPrestartEvent, gotAllPrestarts=true;
-
         // Only bother checking modules, forget about the channels.
         // The only thing we have to worry about is that the EB module checks to
         // see if all PRESTART events have arrived before it allows any building.
@@ -1848,23 +1837,10 @@ logger.info("Emu " + name + " go: change state to GOING");
                 EmuModule mod = modules.get(modules.size() - 1);
 
 if (debug) System.out.println("Emu " + name + " go: wait for PRESTART event in module " + mod.name());
-                gotPrestartEvent = mod.getPrestartCallback().waitForEvent(timeout, timeUnits);
+                mod.getPrestartCallback().waitForEvent();
 if (debug) System.out.println("Emu " + name + " go: got PRESTART event in module " + mod.name());
-                if (!gotPrestartEvent) {
-if (debug) System.out.println("Emu " + name + " go: timeout (30 sec) waiting for PRESTART event in module " + mod.name());
-                    setErrorState("Emu " + name + " go: timeout waiting for PRESTART event in module " + mod.name());
-                }
-                gotAllPrestarts = gotPrestartEvent;
             }
             catch (InterruptedException e) {}
-        }
-
-//        debug = debugOrig;
-
-        if (!gotAllPrestarts) {
-            logger.error("Emu " + name + " go: PRESTART event did NOT make it through emu");
-            setErrorState("Emu " + name + " go: PRESTART event did NOT make it through emu");
-            return;
         }
 
         // GO
