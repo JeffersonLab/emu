@@ -11,8 +11,7 @@
 
 package org.jlab.coda.emu;
 
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.*;
 
 /**
  * This class is designed for allowing the Emu to wait
@@ -29,6 +28,8 @@ public class EmuEventNotify {
 
     /** Object to sync with. */
     private CountDownLatch latch = new CountDownLatch(1);
+    // This does NOT work for some reason
+    //private CyclicBarrier barrier = new CyclicBarrier(2);
 
 
     /** Constructor with default wait time of 1 seconds. */
