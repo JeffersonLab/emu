@@ -906,6 +906,7 @@ System.out.println("\n\n");
             reportMsg = new cMsgMessage();
             reportMsg.setSubject(name);
             reportMsg.setType(RCConstants.reportStatus);
+            reportMsg.setReliableSend(false);
 
             setDaemon(true);
         }
