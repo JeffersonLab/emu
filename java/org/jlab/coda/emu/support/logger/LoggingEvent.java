@@ -29,10 +29,10 @@ public class LoggingEvent {
     /** Field INFO */
     public final static int INFO = 2;
 
-    /** Field WARN */
-    public final static int WARN = 5;
+    /** Field WARN, 5 - 8. */
+    public final static int WARN = 8;
 
-    /** Field ERROR */
+    /** Field ERROR, 9 - 12 */
     public final static int ERROR = 9;
 
     /** Field BUG */
