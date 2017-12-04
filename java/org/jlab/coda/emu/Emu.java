@@ -835,6 +835,15 @@ System.out.println("\n\n");
     //-----------------------------------------------------
 
     /**
+     * Send run control a warning message which gets displayed in its GUI.
+     * @param msg warning message
+     */
+    public void sendRcWarningMessage(String msg) {
+        cmsgPortal.rcGuiWarningMessage(msg);
+    }
+
+
+    /**
      * Send run control an error message which gets displayed in its GUI.
      * @param error error message
      */
@@ -1835,10 +1844,10 @@ logger.info("Emu " + name + " go: change state to GOING");
             try {
                 // Look at the last module in config
                 EmuModule mod = modules.get(modules.size() - 1);
-
-if (debug) System.out.println("Emu " + name + " go: wait for PRESTART event in module " + mod.name());
+System.out.println("Emu " + name + " go: waiting for PRESTART event in module " + mod.name());
+                sendRcWarningMessage("Emu " + name + " go: waiting for PRESTART event in module " + mod.name());
                 mod.getPrestartCallback().waitForEvent();
-if (debug) System.out.println("Emu " + name + " go: got PRESTART event in module " + mod.name());
+System.out.println("Emu " + name + " go: got PRESTART event in module " + mod.name());
             }
             catch (InterruptedException e) {}
         }
