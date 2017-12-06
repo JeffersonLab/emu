@@ -604,6 +604,7 @@ logger.info("      DataChannel File: reset " + name + " - done");
                             }
                             gotPrestart = true;
                             // Force prestart to hard disk
+System.out.println("      DataChannel File out " + outputIndex + ": try writing prestart event");
                             writeEvioData(ringItem, true);
 System.out.println("      DataChannel File out " + outputIndex + ": wrote prestart event");
                         }
@@ -619,6 +620,7 @@ System.out.println("      DataChannel File out " + outputIndex + ": wrote presta
                             }
 
                             // Do NOT force to hard disk as it may be go and will slow things down
+System.out.println("      DataChannel File out " + outputIndex + ": try writing " + pBankControlType + " event");
                             writeEvioData(ringItem, false);
 System.out.println("      DataChannel File out " + outputIndex + ": wrote " + pBankControlType + " event");
 
