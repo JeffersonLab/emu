@@ -602,10 +602,10 @@ logger.info("      DataChannel File: reset " + name + " - done");
                             if (gotPrestart) {
                                 throw new EmuException("got 2 PRESTART events");
                             }
-//System.out.println("      DataChannel File out " + outputIndex + ": found & write prestart event");
                             gotPrestart = true;
                             // Force prestart to hard disk
                             writeEvioData(ringItem, true);
+System.out.println("      DataChannel File out " + outputIndex + ": wrote prestart event");
                         }
                         else {
                             if (!gotPrestart) {
@@ -619,8 +619,8 @@ logger.info("      DataChannel File: reset " + name + " - done");
                             }
 
                             // Do NOT force to hard disk as it may be go and will slow things down
-//System.out.println("      DataChannel File out " + outputIndex + ": found & write " + pBankControlType + " event");
                             writeEvioData(ringItem, false);
+System.out.println("      DataChannel File out " + outputIndex + ": wrote " + pBankControlType + " event");
 
                             // Go to the next event
                             gotoNextRingItem(0);
@@ -633,17 +633,19 @@ logger.info("      DataChannel File: reset " + name + " - done");
                     else if (pBankType == EventType.USER) {
 //System.out.println("      DataChannel File out " + outputIndex + ": found user event");
                         if (ringItem.isFirstEvent()) {
-//System.out.println("      DataChannel File out " + outputIndex + ": writing first event");
+System.out.println("      DataChannel File out " + outputIndex + ": try writing first event");
                             if (emu.isFileWritingOn()) {
                                 evioFileWriter.setFirstEvent(ringItem.getNode());
                             }
+System.out.println("      DataChannel File out " + outputIndex + ": wrote first event");
                             // The writer will handle the first event from here
                             ringItem.releaseByteBuffer();
                         }
                         else {
                             // force to hard disk.
-//System.out.println("      DataChannel File out " + outputIndex + ": writing user event");
+System.out.println("      DataChannel File out " + outputIndex + ": try writing user event");
                             writeEvioData(ringItem, true);
+System.out.println("      DataChannel File out " + outputIndex + ": wrote user event");
                         }
                     }
                     // Only user and control events should come first, so error
