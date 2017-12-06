@@ -799,6 +799,7 @@ logger.warn("      DataChannel File out, " + outputIndex + ": interrupted thd, e
             } catch (Exception e) {
                 channelState = CODAState.ERROR;
                 emu.setErrorState("DataChannel File out: " + e.getMessage());
+                e.printStackTrace();
 System.out.println("      DataChannel File out, " + outputIndex + " : exit thd: " + e.getMessage());
             }
 
