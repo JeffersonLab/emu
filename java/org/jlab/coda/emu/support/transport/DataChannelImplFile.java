@@ -635,19 +635,37 @@ System.out.println("      DataChannel File out " + outputIndex + ": wrote " + pB
                     else if (pBankType == EventType.USER) {
 //System.out.println("      DataChannel File out " + outputIndex + ": found user event");
                         if (ringItem.isFirstEvent()) {
-System.out.println("      DataChannel File out " + outputIndex + ": try writing first event");
                             if (emu.isFileWritingOn()) {
-                                evioFileWriter.setFirstEvent(ringItem.getNode());
-                            }
+                                try {
+System.out.println("      DataChannel File out " + outputIndex + ": try writing first event");
+                                    evioFileWriter.setFirstEvent(ringItem.getNode());
 System.out.println("      DataChannel File out " + outputIndex + ": wrote first event");
+                                }
+                                catch (EvioException e) {
+                                    // Probably here due to bad evio format
+                                    emu.sendRcWarningMessage(e.getMessage());
+System.out.println("      DataChannel File out " + outputIndex + ": failed writing \"first\" user event -> " + e.getMessage());
+Utilities.printBufferBytes(ringItem.getNode().getStructureBuffer(true), 0, 80, "Bad user event bytes:");
+System.out.println("\n      DataChannel File out " + outputIndex + ": IGNORING USER EVENT, go to next event");
+                                }
+                            }
                             // The writer will handle the first event from here
                             ringItem.releaseByteBuffer();
                         }
                         else {
                             // force to hard disk.
+                            try {
 System.out.println("      DataChannel File out " + outputIndex + ": try writing user event");
-                            writeEvioData(ringItem, true);
+                                writeEvioData(ringItem, true);
 System.out.println("      DataChannel File out " + outputIndex + ": wrote user event");
+                            }
+                            catch (EvioException e) {
+                                // Probably here due to bad evio format
+                                emu.sendRcWarningMessage(e.getMessage());
+System.out.println("      DataChannel File out " + outputIndex + ": failed writing user event -> " + e.getMessage());
+Utilities.printBufferBytes(ringItem.getNode().getStructureBuffer(true), 0, 80, "Bad user event bytes:");
+System.out.println("\n      DataChannel File out " + outputIndex + ": IGNORING USER EVENT, go to next event");
+                            }
                         }
                     }
                     // Only user and control events should come first, so error
