@@ -1194,7 +1194,13 @@ System.out.println("  EB mod: END paired with " + eType + " event from " +
                                         // Check to see if there is anything to read so we don't block.
                                         // If not, move on to the next ring.
                                         if (!ringBuffersIn[i].isPublished(veryNextSequence)) {
-                                            break;
+                                            // Only break (and throw a major error) if this EB has
+                                            // received the END command. Because only then do we know
+                                            // that all ROCS have ENDED and sent all their data.
+                                            if (moduleState == CODAState.DOWNLOADED ||
+                                                moduleState != CODAState.ACTIVE) {
+                                                break;
+                                            }
                                         }
 
                                         available = buildBarrierIn[i].waitFor(veryNextSequence);
