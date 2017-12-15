@@ -586,10 +586,10 @@ logger.info("      DataChannel Emu out: connected to server w/ UDL = " + udl);
                 try {dataInputThread[i].join(quarterSec);}
                 catch (InterruptedException e) {}
 
-//logger.debug("      DataChannel Emu: end(), interrupt thread " + i);
+logger.debug("      DataChannel Emu: end(), interrupt input thread " + i);
                 dataInputThread[i].interrupt();
                 if (dataInputThread[i].isAlive()) {
-//logger.debug("      DataChannel Emu: end(), stop thread " + i);
+logger.debug("      DataChannel Emu: end(), stop input thread " + i);
                     dataInputThread[i].stop();
                 }
 
