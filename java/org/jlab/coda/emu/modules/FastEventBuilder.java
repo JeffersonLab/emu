@@ -1018,6 +1018,8 @@ if (debug) System.out.println("  EB mod: interrupted while waiting for go event"
 
 System.out.println("  EB mod: got all GO events");
 
+                long endSequence = -1;
+
                 // Now do the event building
                 while (moduleState == CODAState.ACTIVE || paused) {
 
@@ -1134,6 +1136,7 @@ System.out.println("  EB mod: got all GO events");
                             // At this point all controls are END events
                             haveEnd = true;
                             endEventCount++;
+                            endSequence = nextSequences[i];
 
                             if (!gotFirstBuildEvent) {
                                 // Don't do all the stuff for a
@@ -1172,14 +1175,13 @@ System.out.println("  EB mod: got all GO events");
 
                             EventType   eType = buildingBanks[i].getEventType();
                             ControlType cType = buildingBanks[i].getControlType();
+                            String     source = buildingBanks[i].getSourceName();
 
                             if (cType != null)  {
-System.out.println("  EB mod: END paired with " + cType + " event from " +
-                   buildingBanks[i].getSourceName());
+System.out.println("  EB mod: " + cType + " event from " + source + " at sequence " + endSequence);
                             }
                             else {
-System.out.println("  EB mod: END paired with " + eType + " event from " +
-                   buildingBanks[i].getSourceName());
+System.out.println("  EB mod: END paired with " + eType + " event from " + source);
                             }
 
                             // If this channel doesn't have an END, try finding it somewhere in ring
@@ -1189,29 +1191,35 @@ System.out.println("  EB mod: END paired with " + eType + " event from " +
                                 PayloadBuffer pBuf;
                                 long available, veryNextSequence = nextSequences[i]+1;
 
+System.out.println("  EB mod: looking for END from " + source + " at sequence " + veryNextSequence);
                                 try  {
                                     while (true) {
                                         // Check to see if there is anything to read so we don't block.
                                         // If not, move on to the next ring.
                                         if (!ringBuffersIn[i].isPublished(veryNextSequence)) {
+System.out.println("  EB mod: sequence " + veryNextSequence + " not published (available) yet");
                                             // Only break (and throw a major error) if this EB has
                                             // received the END command. Because only then do we know
                                             // that all ROCS have ENDED and sent all their data.
                                             if (moduleState == CODAState.DOWNLOADED ||
                                                 moduleState != CODAState.ACTIVE) {
+System.out.println("  EB mod: stop looking for END from " + source + " as module state = " + moduleState);
                                                 break;
                                             }
                                         }
 
+System.out.println("  EB mod: waiting for next item from " + source + " at sequence " + veryNextSequence);
                                         available = buildBarrierIn[i].waitFor(veryNextSequence);
+System.out.println("  EB mod: got items from " + source + " up to sequence " + available);
 
                                         while (veryNextSequence <= available) {
                                             offset++;
                                             pBuf = (PayloadBuffer) ringBuffersIn[i].get(veryNextSequence);
+System.out.println("  EB mod: found event of type " + pBuf.getEventType() + " from " + source + ", back " + offset +
+                           " places in ring with seq = " + veryNextSequence);
                                             if (pBuf.getControlType() == ControlType.END) {
                                                 // Found the END event
-System.out.println("  EB mod: got END from " + buildingBanks[i].getSourceName() +
-                   ", back " + offset + " places in ring");
+System.out.println("  EB mod: got END from " + source + ", back " + offset + " places in ring");
                                                 finalEndEventCount++;
                                                 done = true;
                                                 break;
@@ -1224,7 +1232,9 @@ System.out.println("  EB mod: got END from " + buildingBanks[i].getSourceName() 
                                         }
                                     }
                                 }
-                                catch (final TimeoutException e) {}
+                                catch (final TimeoutException e) {
+System.out.println("  EB mod: timed out waiting for item from " + source + " at sequence " + veryNextSequence);
+                                }
                                 catch (final AlertException e)   {}
                             }
                         }
