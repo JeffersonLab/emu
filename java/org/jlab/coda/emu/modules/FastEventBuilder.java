@@ -1137,6 +1137,7 @@ System.out.println("  EB mod: got all GO events");
                             haveEnd = true;
                             endEventCount++;
                             endSequence = nextSequences[i];
+System.out.println("  EB mod: bt" + btIndex + ", found END event from " + buildingBanks[i].getSourceName() + " at seq " + endSequence);
 
                             if (!gotFirstBuildEvent) {
                                 // Don't do all the stuff for a
@@ -1178,10 +1179,10 @@ System.out.println("  EB mod: got all GO events");
                             String     source = buildingBanks[i].getSourceName();
 
                             if (cType != null)  {
-System.out.println("  EB mod: " + cType + " event from " + source + " at sequence " + endSequence);
+System.out.println("  EB mod: bt" + btIndex + ", " + cType + " event from " + source + " at sequence " + endSequence);
                             }
                             else {
-System.out.println("  EB mod: END paired with " + eType + " event from " + source);
+System.out.println("  EB mod: bt" + btIndex + ", END paired with " + eType + " event from " + source);
                             }
 
                             // If this channel doesn't have an END, try finding it somewhere in ring
@@ -1191,35 +1192,35 @@ System.out.println("  EB mod: END paired with " + eType + " event from " + sourc
                                 PayloadBuffer pBuf;
                                 long available, veryNextSequence = nextSequences[i]+1;
 
-System.out.println("  EB mod: looking for END from " + source + " at sequence " + veryNextSequence);
+System.out.println("  EB mod: bt" + btIndex + ", looking for END from " + source + " at sequence " + veryNextSequence);
                                 try  {
                                     while (true) {
                                         // Check to see if there is anything to read so we don't block.
                                         // If not, move on to the next ring.
                                         if (!ringBuffersIn[i].isPublished(veryNextSequence)) {
-System.out.println("  EB mod: sequence " + veryNextSequence + " not published (available) yet");
+System.out.println("  EB mod: bt" + btIndex + ", sequence " + veryNextSequence + " not published (available) yet");
                                             // Only break (and throw a major error) if this EB has
                                             // received the END command. Because only then do we know
                                             // that all ROCS have ENDED and sent all their data.
                                             if (moduleState == CODAState.DOWNLOADED ||
                                                 moduleState != CODAState.ACTIVE) {
-System.out.println("  EB mod: stop looking for END from " + source + " as module state = " + moduleState);
+System.out.println("  EB mod: bt" + btIndex + " stop looking for END from " + source + " as module state = " + moduleState);
                                                 break;
                                             }
                                         }
 
-System.out.println("  EB mod: waiting for next item from " + source + " at sequence " + veryNextSequence);
+System.out.println("  EB mod: bt" + btIndex + " waiting for next item from " + source + " at sequence " + veryNextSequence);
                                         available = buildBarrierIn[i].waitFor(veryNextSequence);
-System.out.println("  EB mod: got items from " + source + " up to sequence " + available);
+System.out.println("  EB mod: bt" + btIndex + " got items from " + source + " up to sequence " + available);
 
                                         while (veryNextSequence <= available) {
                                             offset++;
                                             pBuf = (PayloadBuffer) ringBuffersIn[i].get(veryNextSequence);
-System.out.println("  EB mod: found event of type " + pBuf.getEventType() + " from " + source + ", back " + offset +
+System.out.println("  EB mod: bt" + btIndex + " found event of type " + pBuf.getEventType() + " from " + source + ", back " + offset +
                            " places in ring with seq = " + veryNextSequence);
                                             if (pBuf.getControlType() == ControlType.END) {
                                                 // Found the END event
-System.out.println("  EB mod: got END from " + source + ", back " + offset + " places in ring");
+System.out.println("  EB mod: bt" + btIndex + " got END from " + source + ", back " + offset + " places in ring");
                                                 finalEndEventCount++;
                                                 done = true;
                                                 break;
@@ -1233,7 +1234,7 @@ System.out.println("  EB mod: got END from " + source + ", back " + offset + " p
                                     }
                                 }
                                 catch (final TimeoutException e) {
-System.out.println("  EB mod: timed out waiting for item from " + source + " at sequence " + veryNextSequence);
+System.out.println("  EB mod: bt" + btIndex + " timed out waiting for item from " + source + " at sequence " + veryNextSequence);
                                 }
                                 catch (final AlertException e)   {}
                             }
@@ -1249,7 +1250,7 @@ System.out.println("  EB mod: timed out waiting for item from " + source + " at 
                         }
                         else {
                             emu.sendRcErrorMessage("All END events found, but out of order");
-System.out.println("  EB mod: have all ENDs, but differing # of physics events in channels");
+System.out.println("  EB mod: bt" + btIndex + " have all ENDs, but differing # of physics events in channels");
                         }
 
                         // If we're here, we've found all ENDs, continue on with warning ...
@@ -1259,7 +1260,7 @@ System.out.println("  EB mod: have all ENDs, but differing # of physics events i
 
                     // If we have all END events ...
                     if (haveEnd) {
-System.out.println("  EB mod: Bt#" + btIndex + " found END events on all input channels");
+System.out.println("  EB mod: bt#" + btIndex + " found END events on all input channels");
                         haveEndEvent = true;
                         handleEndEvent();
                         return;
