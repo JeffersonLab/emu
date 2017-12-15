@@ -1192,6 +1192,10 @@ System.out.println("  EB mod: bt" + btIndex + ", END paired with " + eType + " e
                                 PayloadBuffer pBuf;
                                 long available, veryNextSequence = nextSequences[i]+1;
 
+                                // Release buffer as it will no longer be used
+                                buildingBanks[i].releaseByteBuffer();
+                                buildSequences[i].set(nextSequences[i]);
+
 System.out.println("  EB mod: bt" + btIndex + ", looking for END from " + source + " at sequence " + veryNextSequence);
                                 try  {
                                     while (true) {
@@ -1216,8 +1220,8 @@ System.out.println("  EB mod: bt" + btIndex + " got items from " + source + " up
                                         while (veryNextSequence <= available) {
                                             offset++;
                                             pBuf = (PayloadBuffer) ringBuffersIn[i].get(veryNextSequence);
-System.out.println("  EB mod: bt" + btIndex + " found event of type " + pBuf.getEventType() + " from " + source + ", back " + offset +
-                           " places in ring with seq = " + veryNextSequence);
+//System.out.println("  EB mod: bt" + btIndex + " found event of type " + pBuf.getEventType() + " from " + source + ", back " + offset +
+//                           " places in ring with seq = " + veryNextSequence);
                                             if (pBuf.getControlType() == ControlType.END) {
                                                 // Found the END event
 System.out.println("  EB mod: bt" + btIndex + " got END from " + source + ", back " + offset + " places in ring");
@@ -1225,6 +1229,8 @@ System.out.println("  EB mod: bt" + btIndex + " got END from " + source + ", bac
                                                 done = true;
                                                 break;
                                             }
+
+                                            pBuf.releaseByteBuffer();
                                             buildSequences[i].set(veryNextSequence++);
                                         }
 
