@@ -1050,6 +1050,13 @@ System.out.println("      DataChannel Emu in: data NOT evio v4 format 1");
                  else {
                      node = reader.getScannedEvent(i);
                  }
+                 
+                 // This should NEVER happen
+                 if (node == null) {
+System.out.println("      DataChannel Emu in: WARNING, event count = " + eventCount +
+                   " but get(Scanned)Event(" + i + ") is null - evio parsing bug");
+                     continue;
+                 }
 
                  // Complication: from the ROC, we'll be receiving USER events
                  // mixed in with and labeled as ROC Raw events. Check for that
