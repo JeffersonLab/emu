@@ -1702,11 +1702,11 @@ if (debug) System.out.println("Emu " + name + " end: end() done in fake ROC " + 
             if (inChannels.size() > 0) {
                 for (DataChannel chan : inChannels) {
                     try {
-System.out.println("Emu " + name + " end: in chan " + chan.name() + " call waitForEvent()");
+if (debug) System.out.println("Emu " + name + " end: in chan " + chan.name() + " call waitForEvent()");
                         gotEndEvent = chan.getEndCallback().waitForEvent(timeout, timeUnits);
-System.out.println("Emu " + name + " end: in chan " + chan.name() + " gotEndEvent = " + gotEndEvent);
+if (debug) System.out.println("Emu " + name + " end: in chan " + chan.name() + " gotEndEvent = " + gotEndEvent);
                         if (!gotEndEvent) {
-System.out.println("Emu " + name + " end: timeout (30 sec) waiting for END event in in-chan " + chan.name());
+if (debug) System.out.println("Emu " + name + " end: timeout (30 sec) waiting for END event in in-chan " + chan.name());
                             setErrorState("Emu " + name + " end: timeout waiting for END event in in-chan " + chan.name());
                             gotAllEnds = false;
                             break;
@@ -1720,11 +1720,11 @@ System.out.println("Emu " + name + " end: timeout (30 sec) waiting for END event
             if (gotAllEnds) {
                 // Look at the last module
                 try {
-System.out.println("Emu " + name + " end: wait for END event in module " + mods.getLast().name());
+if (debug) System.out.println("Emu " + name + " end: wait for END event in module " + mods.getLast().name());
                     gotEndEvent = mods.getLast().getEndCallback().waitForEvent(timeout, timeUnits);
-System.out.println("Emu " + name + " end: got END event in module " + mods.getLast().name());
+if (debug) System.out.println("Emu " + name + " end: got END event in module " + mods.getLast().name());
                     if (!gotEndEvent) {
-System.out.println("Emu " + name + " end: timeout (30 sec) waiting for END event in module " + mods.getLast().name());
+if (debug) System.out.println("Emu " + name + " end: timeout (30 sec) waiting for END event in module " + mods.getLast().name());
                         setErrorState("Emu " + name + " end: timeout waiting for END event in module " + mods.getLast().name());
                     }
                     gotAllEnds = gotEndEvent;
@@ -1736,11 +1736,11 @@ System.out.println("Emu " + name + " end: timeout (30 sec) waiting for END event
                 if (gotAllEnds && outChannels.size() > 0) {
                     for (DataChannel chan : outChannels) {
                         try {
-System.out.println("Emu " + name + " end: output chan " + chan.name() + " call waitForEvent()");
+if (debug) System.out.println("Emu " + name + " end: output chan " + chan.name() + " call waitForEvent()");
                             gotEndEvent = chan.getEndCallback().waitForEvent(timeout, timeUnits);
-System.out.println("Emu " + name + " end: output chan " + chan.name() + " gotEndEvent = " + gotEndEvent);
+if (debug)System.out.println("Emu " + name + " end: output chan " + chan.name() + " gotEndEvent = " + gotEndEvent);
                             if (!gotEndEvent) {
-System.out.println("Emu " + name + " end: timeout (30 sec) waiting for END event in output chan " + chan.name());
+if (debug) System.out.println("Emu " + name + " end: timeout (30 sec) waiting for END event in output chan " + chan.name());
                                 setErrorState("Emu " + name + " end: timeout waiting for END event in output chan " + chan.name());
                             }
                             gotAllEnds = gotAllEnds && gotEndEvent;
@@ -1758,7 +1758,7 @@ System.out.println("Emu " + name + " end: timeout (30 sec) waiting for END event
             // (2) END command to input channels (of FIRST module)
             if (inChannels.size() > 0) {
                 for (DataChannel chan : inChannels) {
-System.out.println("Emu " + name + " end: END cmd to in chan " + chan.name());
+if (debug) System.out.println("Emu " + name + " end: END cmd to in chan " + chan.name());
                     chan.end();
                 }
             }
@@ -1772,14 +1772,14 @@ System.out.println("Emu " + name + " end: END cmd to in chan " + chan.name());
                     continue;
                 }
 
-System.out.println("Emu " + name + " end: END cmd to module " + mod.name());
+if (debug) System.out.println("Emu " + name + " end: END cmd to module " + mod.name());
                 mod.end();
             }
 
             // (4) END command to output channels (of LAST module)
             if (outChannels.size() > 0) {
                 for (DataChannel chan : outChannels) {
-System.out.println("Emu " + name + " end: END cmd to out chan " + chan.name());
+if (debug) System.out.println("Emu " + name + " end: END cmd to out chan " + chan.name());
                     chan.end();
                 }
             }
