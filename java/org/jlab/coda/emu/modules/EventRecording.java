@@ -324,7 +324,7 @@ System.out.println("  ER mod: will end thread but no END event!");
                         if (!gotPrestart) {
                             // Throw away all events except any "first events"
                             if (!ringItem.isFirstEvent()) {
-//System.out.println("  ER mod: THROWING AWAY event of type " + ringItem.getEventType());
+System.out.println("  ER mod: THROWING AWAY event of type " + ringItem.getEventType() + " which arrived before PRESTART event");
                                 // Release ByteBuffer used by item since it will NOT
                                 // be sent to output channel where this is normally done.
                                 ringItem.releaseByteBuffer();
@@ -362,7 +362,7 @@ System.out.println("  ER mod: will end thread but no END event!");
                                 ringItem.setBuffer(null);
                                 ringItem.releaseByteBuffer();
 
-//System.out.println("  ER mod: STORE \"first event\" of type " + ringItem.getEventType());
+System.out.println("  ER mod: STORE \"first event\" of type " + ringItem.getEventType() + " which arrived before PRESTART event");
                                 // Copy new stuff into list
                                 firstEvents.add(newRingItem);
                                 firstEventsWords += wordCount;
@@ -403,7 +403,7 @@ System.out.println("  ER mod: will end thread but no END event!");
 
                             // Now place "first events" on the first channel
                             for (RingItem ri : firstEvents) {
-//System.out.println("  ER mod: sending \"first event\" to out chan");
+System.out.println("  ER mod: sending \"first event\" to out chan");
                                 eventToOutputChannel(ri, 0, 0);
                             }
 
