@@ -884,6 +884,99 @@ System.out.println("  EB mod: send END event to output channel " + j + ", ring "
             if (endCallback != null) endCallback.endWait();
         }
 
+        
+        /**
+         * Method to search for END event on each channel when END found on one channel but
+         * not at the same place on the other channels. Takes multiple build threads into
+         * account.
+         * @param endChannel  channel on which END event was already found
+         * @param endSequence sequence at which the END event was found
+         * @return total number of END events found
+         */
+        private int findEnd(int endChannel, long endSequence, int endEventCount) {
+            // If the END event is far back on any of the communication channels, in order to be able
+            // to read in those events, resources must be released after being read/used.
+            // All build sequences must advance together for things to be released.
+
+            try {
+                long available;
+
+                // For each channel ...
+                for (int ch=0; ch < inputChannelCount; ch++) {
+
+                    if (ch == endChannel) {
+                        // We've already found the END event on this channel
+                        continue;
+                    }
+
+                    int offset = 0;
+                    boolean done = false;
+                    long veryNextSequence = endSequence + 1L;
+
+                    while (true) {
+                        // Check to see if there is anything to read so we don't block.
+                        // If not, move on to the next ring.
+                        if (!ringBuffersIn[ch].isPublished(veryNextSequence)) {
+//System.out.println("  EB mod: findEnd, for chan " + ch + ", sequence " + veryNextSequence + " not available yet");
+                            // Only break (and throw a major error) if this EB has
+                            // received the END command. Because only then do we know
+                            // that all ROCS have ENDED and sent all their data.
+                            if (moduleState == CODAState.DOWNLOADED ||
+                                    moduleState != CODAState.ACTIVE) {
+System.out.println("  EB mod: findEnd, stop looking for END on channel " + ch + " as module state = " + moduleState);
+                                break;
+                            }
+                            // Wait for events to arrive
+                            Thread.sleep(100);
+                            // Try again
+                            continue;
+                        }
+
+//System.out.println("  EB mod: findEnd, waiting for next item from chan " + ch + " at sequence " + veryNextSequence);
+                        available = buildBarrierIn[ch].waitFor(veryNextSequence);
+//System.out.println("  EB mod: findEnd, got items from chan " + ch + " up to sequence " + available);
+
+                        while (veryNextSequence <= available) {
+                            offset++;
+                            PayloadBuffer pBuf = (PayloadBuffer) ringBuffersIn[ch].get(veryNextSequence);
+                            String source = pBuf.getSourceName();
+//System.out.println("  EB mod: findEnd, on chan " + ch + " found event of type " + pBuf.getEventType() + " from " + source + ", back " + offset +
+//                   " places in ring with seq = " + veryNextSequence);
+                            if (pBuf.getControlType() == ControlType.END) {
+                                // Found the END event
+System.out.println("  EB mod: findEnd, chan " + ch + " got END from " + source + ", back " + offset + " places in ring");
+                                endEventCount++;
+                                done = true;
+                                break;
+                            }
+
+                            // Release buffer - done once. If btCount > 1, then the
+                            // ReleaseRingResourceThread will release the buffer.
+                            if (btCount == 1) {
+                                pBuf.releaseByteBuffer();
+                            }
+
+                            // Advance sequence for all build threads
+                            for (int bt = 0; bt < btCount; bt++) {
+                                buildSequenceIn[bt][ch].set(veryNextSequence);
+                            }
+                            veryNextSequence++;
+                        }
+
+                        if (done) {
+                            break;
+                        }
+                    }
+                }
+            }
+            catch (InterruptedException e) {
+            }
+            catch (Exception e) {
+                e.printStackTrace();
+            }
+
+            return endEventCount;
+        }
 
 
         public void run() {
@@ -1040,6 +1133,7 @@ System.out.println("  EB mod: got all GO events");
                     haveEnd = false;
                     gotFirstBuildEvent = false;
                     endEventCount = 0;
+                    int endChannel = -1;
                     //int printCounter = 0;
 
                     // Start the clock on how long it takes to build the next event
@@ -1137,6 +1231,7 @@ System.out.println("  EB mod: got all GO events");
                             haveEnd = true;
                             endEventCount++;
                             endSequence = nextSequences[i];
+                            endChannel = i;
 System.out.println("  EB mod: bt" + btIndex + ", found END event from " + buildingBanks[i].getSourceName() + " at seq " + endSequence);
 
                             if (!gotFirstBuildEvent) {
@@ -1169,85 +1264,18 @@ System.out.println("  EB mod: bt" + btIndex + ", found END event from " + buildi
                         // If all our channels have an END, we can end normally
                         // with a warning about the mismatch in number of events.
 
-                        int finalEndEventCount = endEventCount;
+                        // Put a delay in here because "findEnd" releases ring slots
+                        // which get filled with new data being read by input channels -
+                        // perhaps before the other build threads have a chance to finish
+                        // building their last few events and so they may get corrupted.
+                        // This delay gives the other build threads the chance to finish
+                        // building what they can.
+                        Thread.sleep(500);
 
-                        // Look through ring buffers to see if we can find the rest ...
-                        for (int i=0; i < inputChannelCount; i++) {
-
-                            EventType   eType = buildingBanks[i].getEventType();
-                            ControlType cType = buildingBanks[i].getControlType();
-                            String     source = buildingBanks[i].getSourceName();
-
-                            if (cType != null)  {
-System.out.println("  EB mod: bt" + btIndex + ", " + cType + " event from " + source + " at sequence " + endSequence);
-                            }
-                            else {
-System.out.println("  EB mod: bt" + btIndex + ", END paired with " + eType + " event from " + source);
-                            }
-
-                            // If this channel doesn't have an END, try finding it somewhere in ring
-                            if (cType != ControlType.END) {
-                                int offset = 0;
-                                boolean done = false;
-                                PayloadBuffer pBuf;
-                                long available, veryNextSequence = nextSequences[i]+1;
-
-                                // Release buffer as it will no longer be used
-                                buildingBanks[i].releaseByteBuffer();
-                                buildSequences[i].set(nextSequences[i]);
-
-System.out.println("  EB mod: bt" + btIndex + ", looking for END from " + source + " at sequence " + veryNextSequence);
-                                try  {
-                                    while (true) {
-                                        // Check to see if there is anything to read so we don't block.
-                                        // If not, move on to the next ring.
-                                        if (!ringBuffersIn[i].isPublished(veryNextSequence)) {
-System.out.println("  EB mod: bt" + btIndex + ", sequence " + veryNextSequence + " not published (available) yet");
-                                            // Only break (and throw a major error) if this EB has
-                                            // received the END command. Because only then do we know
-                                            // that all ROCS have ENDED and sent all their data.
-                                            if (moduleState == CODAState.DOWNLOADED ||
-                                                moduleState != CODAState.ACTIVE) {
-System.out.println("  EB mod: bt" + btIndex + " stop looking for END from " + source + " as module state = " + moduleState);
-                                                break;
-                                            }
-                                        }
-
-System.out.println("  EB mod: bt" + btIndex + " waiting for next item from " + source + " at sequence " + veryNextSequence);
-                                        available = buildBarrierIn[i].waitFor(veryNextSequence);
-System.out.println("  EB mod: bt" + btIndex + " got items from " + source + " up to sequence " + available);
-
-                                        while (veryNextSequence <= available) {
-                                            offset++;
-                                            pBuf = (PayloadBuffer) ringBuffersIn[i].get(veryNextSequence);
-//System.out.println("  EB mod: bt" + btIndex + " found event of type " + pBuf.getEventType() + " from " + source + ", back " + offset +
-//                           " places in ring with seq = " + veryNextSequence);
-                                            if (pBuf.getControlType() == ControlType.END) {
-                                                // Found the END event
-System.out.println("  EB mod: bt" + btIndex + " got END from " + source + ", back " + offset + " places in ring");
-                                                finalEndEventCount++;
-                                                done = true;
-                                                break;
-                                            }
-
-                                            pBuf.releaseByteBuffer();
-                                            buildSequences[i].set(veryNextSequence++);
-                                        }
-
-                                        if (done) {
-                                            break;
-                                        }
-                                    }
-                                }
-                                catch (final TimeoutException e) {
-System.out.println("  EB mod: bt" + btIndex + " timed out waiting for item from " + source + " at sequence " + veryNextSequence);
-                                }
-                                catch (final AlertException e)   {}
-                            }
-                        }
+                        int finalEndEventCount = findEnd(endChannel, endSequence, endEventCount);
 
                         // If we still can't find all ENDs, throw exception - major error
-                        if (finalEndEventCount!= inputChannelCount) {
+                        if (finalEndEventCount != inputChannelCount) {
                             emu.sendRcErrorMessage("Missing " +
                                                    (inputChannelCount - finalEndEventCount) +
                                                    " END events, ending anyway");
@@ -1262,7 +1290,6 @@ System.out.println("  EB mod: bt" + btIndex + " have all ENDs, but differing # o
                         // If we're here, we've found all ENDs, continue on with warning ...
                         nonFatalError = true;
                     }
-
 
                     // If we have all END events ...
                     if (haveEnd) {
@@ -1509,7 +1536,7 @@ System.out.println("  EB mod: MAJOR ERROR building event: " + e.getMessage());
                             if (btCount == 1) {
                                 buildingBank.releaseByteBuffer();
                             }
-                            nextSequences[i] ++;
+                            nextSequences[i]++;
                         }
                         buildSequences[i].set(availableSequences[i]);
 
