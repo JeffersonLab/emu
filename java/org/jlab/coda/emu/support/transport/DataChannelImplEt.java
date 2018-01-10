@@ -239,14 +239,14 @@ logger.info("      DataChannel Et: creating output channel " + name);
             catch (NumberFormatException e) {}
         }
 
-        // set TCP_NODELAY option on
-        boolean noDelay = false;
+        // set TCP_NODELAY option off
+        boolean noDelay = true;
         attribString = attributeMap.get("noDelay");
         if (attribString != null) {
-            if (attribString.equalsIgnoreCase("true") ||
-                attribString.equalsIgnoreCase("on")   ||
-                attribString.equalsIgnoreCase("yes"))   {
-                noDelay = true;
+            if (attribString.equalsIgnoreCase("false") ||
+                attribString.equalsIgnoreCase("off")   ||
+                attribString.equalsIgnoreCase("no"))   {
+                noDelay = false;
             }
         }
 
