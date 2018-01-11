@@ -599,6 +599,16 @@ logger.debug("      DataChannel Emu: end(), stop input thread " + i);
             dataInputThread = null;
 
             closeInputSockets();
+
+            try {parserMergerThread.join(quarterSec);}
+            catch (InterruptedException e) {}
+
+logger.debug("      DataChannel Emu: end(), interrupt parser/merger thread");
+            parserMergerThread.interrupt();
+            if (parserMergerThread.isAlive()) {
+logger.debug("      DataChannel Emu: end(), stop parser/merger thread");
+                parserMergerThread.stop();
+            }
         }
 
         if (dataOutputThread != null) {
