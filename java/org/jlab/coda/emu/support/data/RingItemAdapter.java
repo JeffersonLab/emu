@@ -195,9 +195,7 @@ abstract class RingItemAdapter implements RingItem {
     }
 
     /** {@inheritDoc} */
-    public ByteBuffer getBuffer() {
-        return buffer;
-    }
+    public ByteBuffer getBuffer() {return buffer;}
 
     /** {@inheritDoc} */
     public void setBuffer(ByteBuffer buffer) { this.buffer = buffer; }
