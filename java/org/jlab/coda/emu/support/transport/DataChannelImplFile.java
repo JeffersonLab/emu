@@ -638,7 +638,13 @@ System.out.println("      DataChannel File out " + outputIndex + ": wrote " + pB
                             if (emu.isFileWritingOn()) {
                                 try {
 System.out.println("      DataChannel File out " + outputIndex + ": try writing first event");
-                                    evioFileWriter.setFirstEvent(ringItem.getNode());
+                                    // Buffer always gets first priority
+                                    if (ringItem.getBuffer() != null) {
+                                        evioFileWriter.setFirstEvent(ringItem.getBuffer());
+                                    }
+                                    else {
+                                        evioFileWriter.setFirstEvent(ringItem.getNode());
+                                    }
 System.out.println("      DataChannel File out " + outputIndex + ": wrote first event");
                                 }
                                 catch (EvioException e) {
