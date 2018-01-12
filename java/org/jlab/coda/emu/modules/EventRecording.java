@@ -355,6 +355,7 @@ System.out.println("  ER mod: THROWING AWAY event of type " + ringItem.getEventT
                                 if (ringItem.getBuffer() == null) {
                                     // Get a copy of the node data into the buffer
                                     newRingItem.setBuffer(ringItem.getNode().getStructureBuffer(true));
+                                    newRingItem.setNode(null);
                                 }
 
                                 // Release old stuff
