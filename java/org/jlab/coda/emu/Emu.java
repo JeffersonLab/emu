@@ -1647,8 +1647,8 @@ logger.error("Emu " + name + ": transition NOT successful, state = ERROR");
      * Implement end command.
      */
     private void end() {
-//boolean debugOrig = debug;
-//debug = true;
+boolean debugOrig = debug;
+debug = true;
 
 logger.info("Emu " + name + " end: change state to ENDING");
         setState(ENDING);
@@ -1665,7 +1665,7 @@ logger.info("Emu " + name + " end: change state to ENDING");
                 modules.get(0).end();
 if (debug) System.out.println("Emu " + name + " end: END cmd to module " + modules.get(0).name());
                 setState(DOWNLOADED);
-//debug = debugOrig;
+debug = debugOrig;
                 return;
             }
 
@@ -1803,8 +1803,9 @@ System.out.println("Emu " + name + " end: " + e.getMessage());
             return;
         }
         
-//debug = debugOrig;
+debug = debugOrig;
         if (state == ERROR) return;
+System.out.println("Emu " + name + " end: try setting state to DOWNLOADED");
         setState(DOWNLOADED);
     }
 
