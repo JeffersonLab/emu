@@ -588,10 +588,10 @@ logger.info("      DataChannel Emu out: connected to server w/ UDL = " + udl);
 
 logger.debug("      DataChannel Emu: end(), interrupt input thread " + i);
                 dataInputThread[i].interrupt();
-                if (dataInputThread[i].isAlive()) {
-logger.debug("      DataChannel Emu: end(), stop input thread " + i);
-                    dataInputThread[i].stop();
-                }
+//                if (dataInputThread[i].isAlive()) {
+//logger.debug("      DataChannel Emu: end(), stop input thread " + i);
+//                    dataInputThread[i].stop();
+//                }
 
                 dataInputThread[i] = null;
             }
@@ -605,10 +605,10 @@ logger.debug("      DataChannel Emu: end(), stop input thread " + i);
 
 logger.debug("      DataChannel Emu: end(), interrupt parser/merger thread");
             parserMergerThread.interrupt();
-            if (parserMergerThread.isAlive()) {
-logger.debug("      DataChannel Emu: end(), stop parser/merger thread");
-                parserMergerThread.stop();
-            }
+//            if (parserMergerThread.isAlive()) {
+//logger.debug("      DataChannel Emu: end(), stop parser/merger thread");
+//                parserMergerThread.stop();
+//            }
         }
 
         if (dataOutputThread != null) {
@@ -618,9 +618,9 @@ logger.debug("      DataChannel Emu: end(), stop parser/merger thread");
 
 //logger.debug("      DataChannel Emu: end(), interrupt main output thread ");
             dataOutputThread.interrupt();
-            if (dataOutputThread.isAlive()) {
-                dataOutputThread.stop();
-            }
+//            if (dataOutputThread.isAlive()) {
+//                dataOutputThread.stop();
+//            }
 
             for (int i=0; i < socketCount; i++) {
 //logger.debug("      DataChannel Emu: end(), kill output thread " + i + " by interrupting");
@@ -631,10 +631,10 @@ logger.debug("      DataChannel Emu: end(), stop parser/merger thread");
                 try {dataOutputThread.sender[i].join(quarterSec);}
                 catch (InterruptedException e) {}
 
-                if (dataOutputThread.sender[i].isAlive()) {
-logger.debug("      DataChannel Emu: end(), STOP sender " + i + " for " + name);
-                    dataOutputThread.sender[i].stop();
-                }
+//                if (dataOutputThread.sender[i].isAlive()) {
+//logger.debug("      DataChannel Emu: end(), STOP sender " + i + " for " + name);
+//                    dataOutputThread.sender[i].stop();
+//                }
             }
 
             dataOutputThread = null;
