@@ -1700,9 +1700,9 @@ System.out.println("  EB mod: endBuildThreads: will end building/filling threads
             RateCalculator.interrupt();
             try {
                 RateCalculator.join(250);
-                if (RateCalculator.isAlive()) {
-                    RateCalculator.stop();
-                }
+//                if (RateCalculator.isAlive()) {
+//                    RateCalculator.stop();
+//                }
             }
             catch (InterruptedException e) {}
             RateCalculator = null;
@@ -1719,9 +1719,9 @@ System.out.println("  EB mod: endBuildThreads: will end building/filling threads
             thd.interrupt();
             try {
                 thd.join(250);
-                if (thd.isAlive()) {
-                    thd.stop();
-                }
+//                if (thd.isAlive()) {
+//                    thd.stop();
+//                }
             }
             catch (InterruptedException e) {}
         }
@@ -1733,9 +1733,9 @@ System.out.println("  EB mod: endBuildThreads: will end building/filling threads
                 qf.interrupt();
                 try {
                     qf.join(250);
-                    if (qf.isAlive()) {
-                        qf.stop();
-                    }
+//                    if (qf.isAlive()) {
+//                        qf.stop();
+//                    }
                 }
                 catch (InterruptedException e) {}
             }
@@ -1750,9 +1750,9 @@ System.out.println("  EB mod: endBuildThreads: will end building/filling threads
                     rt.interrupt();
                     try {
                         rt.join(250);
-                        if (rt.isAlive()) {
-                            rt.stop();
-                        }
+//                        if (rt.isAlive()) {
+//                            rt.stop();
+//                        }
                     }
                     catch (InterruptedException e) {
                     }
