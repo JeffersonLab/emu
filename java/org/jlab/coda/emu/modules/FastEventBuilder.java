@@ -1852,23 +1852,28 @@ System.out.println("  EB mod: endBuildThreads: will end building/filling threads
 
     /** {@inheritDoc} */
     public void end() {
+System.out.println("  EB mod: end(), set state tp DOWNLOADED");
         moduleState = CODAState.DOWNLOADED;
 
         // Print out time-to-build-event histogram
         if (timeStatsOn) {
+System.out.println("  EB mod: end(), print histogram");
             statistics.printBuildTimeHistogram("Time to build one event:", "nsec");
         }
 
         // Build & pre-processing threads should already be ended by END event
+System.out.println("  EB mod: end(), call endThreads(true)");
         endThreads(true);
 
         paused = false;
 
         try {
             // Set end-of-run time in local XML config / debug GUI
+System.out.println("  EB mod: end(), set internal ending time parameter");
             Configurer.setValue(emu.parameters(), "status/run_end_time", (new Date()).toString());
         }
         catch (DataNotFoundException e) {}
+System.out.println("  EB mod: end(), done");
     }
 
 
