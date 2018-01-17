@@ -1413,231 +1413,236 @@ System.out.println("Emu " + name + ": do not execute cmd = " + cmd.name() + ", r
 
         CODACommand codaCommand = cmd.getCodaCommand();
 
-        // Some commands are for the EMU itself and not
-        // the EMU subcomponents, so return immediately.
+        try {
+            // Some commands are for the EMU itself and not
+            // the EMU subcomponents, so return immediately.
 
-        if (codaCommand == START_REPORTING) {
-            statusReportingOn = true;
-            return;
-        }
+            if (codaCommand == START_REPORTING) {
+                statusReportingOn = true;
+                return;
+            }
 
-        else if (codaCommand == STOP_REPORTING) {
-            statusReportingOn = false;
-            return;
-        }
+            else if (codaCommand == STOP_REPORTING) {
+                statusReportingOn = false;
+                return;
+            }
 
-        // Run Control tells us our session
-        else if (codaCommand == SET_SESSION) {
-            // Get the new session and store it
-            cMsgPayloadItem pItem = cmd.getArg(RCConstants.sessionPayload);
-            if (pItem != null) {
-                try {
-                    session = pItem.getString();
-if (debug) System.out.println("Emu " + name + " SET_SESSION: set to " + session);
+            // Run Control tells us our session
+            else if (codaCommand == SET_SESSION) {
+                // Get the new session and store it
+                cMsgPayloadItem pItem = cmd.getArg(RCConstants.sessionPayload);
+                if (pItem != null) {
+                    try {
+                        session = pItem.getString();
+    if (debug) System.out.println("Emu " + name + " SET_SESSION: set to " + session);
+                    }
+                    catch (cMsgException e) {
+    logger.error("Got SET_SESSION command but no session specified 1");
+                    }
                 }
-                catch (cMsgException e) {
-logger.error("Got SET_SESSION command but no session specified 1");
+                else {
+    logger.error("Got SET_SESSION command but no session specified 2");
                 }
+                return;
             }
-            else {
-logger.error("Got SET_SESSION command but no session specified 2");
-            }
-            return;
-        }
 
-        // Run Control tells us our run type
-        else if (codaCommand == SET_RUN_TYPE) {
-            // Get the new run type and store it
-            cMsgPayloadItem pItem = cmd.getArg(RCConstants.runTypePayload);
-            if (pItem != null) {
-                try {
-                    String txt = pItem.getString();
-                    runType = txt;
-if (debug) System.out.println("Emu " + name + " SET_RUN_TYPE: set to " + txt);
+            // Run Control tells us our run type
+            else if (codaCommand == SET_RUN_TYPE) {
+                // Get the new run type and store it
+                cMsgPayloadItem pItem = cmd.getArg(RCConstants.runTypePayload);
+                if (pItem != null) {
+                    try {
+                        String txt = pItem.getString();
+                        runType = txt;
+    if (debug) System.out.println("Emu " + name + " SET_RUN_TYPE: set to " + txt);
+                    }
+                    catch (cMsgException e) {
+    logger.error("Emu " + name + ": got SET_RUN_TYPE command but no run type specified 1");
+                    }
                 }
-                catch (cMsgException e) {
-logger.error("Emu " + name + ": got SET_RUN_TYPE command but no run type specified 1");
+                else {
+    logger.error("Emu " + name + ": got SET_RUN_TYPE command but no run type specified 2");
                 }
+                return;
             }
-            else {
-logger.error("Emu " + name + ": got SET_RUN_TYPE command but no run type specified 2");
+
+            // Run Control tells us our ROC output buffer level
+            else if (codaCommand == SET_BUF_LEVEL) {
+                // Get the new run type and store it
+                int bufLevel = cmd.getMessage().getUserInt();
+                if (bufLevel > 0) {
+    //logger.info("Emu " + name + " SET_BUF_LEVEL: set to " + bufferLevel);
+                    bufferLevel = bufLevel;
+                }
+                else {
+    logger.error("Emu " + name + ": got SET_BUF_LEVEL command but bad value (" + bufLevel + ')');
+                }
+                return;
             }
-            return;
-        }
 
-        // Run Control tells us our ROC output buffer level
-        else if (codaCommand == SET_BUF_LEVEL) {
-            // Get the new run type and store it
-            int bufLevel = cmd.getMessage().getUserInt();
-            if (bufLevel > 0) {
-//logger.info("Emu " + name + " SET_BUF_LEVEL: set to " + bufferLevel);
-                bufferLevel = bufLevel;
+            //------------------------------------
+            // SENDING INFO BACK TO RUN CONTROL
+            //------------------------------------
+
+            // Send back our state
+            else if (codaCommand == GET_STATE) {
+                if ( (cmsgPortal != null) &&
+                     (cmsgPortal.getRcServer() != null) &&
+                     (cmsgPortal.getRcServer().isConnected())) {
+
+                    replyToRunControl(RCConstants.getStateResponse,
+                                      null, state().name().toLowerCase(),
+                                      cmd.getMessage());
+                }
+                return;
             }
-            else {
-logger.error("Emu " + name + ": got SET_BUF_LEVEL command but bad value (" + bufLevel + ')');
+
+            // Send back our CODA class
+            else if (codaCommand == GET_CODA_CLASS) {
+                if ( (cmsgPortal != null) &&
+                     (cmsgPortal.getRcServer() != null) &&
+                     (cmsgPortal.getRcServer().isConnected())) {
+
+                    // CODA class set in module constructors
+                    replyToRunControl(RCConstants.getCodaClassResponse,
+                                      null, codaClass.name(),
+                                      cmd.getMessage());
+                }
+                return;
             }
-            return;
-        }
 
-        //------------------------------------
-        // SENDING INFO BACK TO RUN CONTROL
-        //------------------------------------
+            // Send back our object type
+            else if (codaCommand == GET_OBJECT_TYPE) {
+                if ( (cmsgPortal != null) &&
+                     (cmsgPortal.getRcServer() != null) &&
+                     (cmsgPortal.getRcServer().isConnected())) {
 
-        // Send back our state
-        else if (codaCommand == GET_STATE) {
-            if ( (cmsgPortal != null) &&
-                 (cmsgPortal.getRcServer() != null) &&
-                 (cmsgPortal.getRcServer().isConnected())) {
-
-                replyToRunControl(RCConstants.getStateResponse,
-                                  null, state().name().toLowerCase(),
-                                  cmd.getMessage());
+                    replyToRunControl(RCConstants.getObjectTypeResponse,
+                                      null, objectType,
+                                      cmd.getMessage());
+                }
+                return;
             }
-            return;
-        }
 
-        // Send back our CODA class
-        else if (codaCommand == GET_CODA_CLASS) {
-            if ( (cmsgPortal != null) &&
-                 (cmsgPortal.getRcServer() != null) &&
-                 (cmsgPortal.getRcServer().isConnected())) {
+            // Send back our session
+            else if (codaCommand == GET_SESSION) {
+                if ( (cmsgPortal != null) &&
+                     (cmsgPortal.getRcServer() != null) &&
+                     (cmsgPortal.getRcServer().isConnected())) {
 
-                // CODA class set in module constructors
-                replyToRunControl(RCConstants.getCodaClassResponse,
-                                  null, codaClass.name(),
-                                  cmd.getMessage());
+                    replyToRunControl(RCConstants.getSessionResponse,
+                                      null, session,
+                                      cmd.getMessage());
+                }
+                return;
             }
-            return;
-        }
 
-        // Send back our object type
-        else if (codaCommand == GET_OBJECT_TYPE) {
-            if ( (cmsgPortal != null) &&
-                 (cmsgPortal.getRcServer() != null) &&
-                 (cmsgPortal.getRcServer().isConnected())) {
+            // Send back our run number
+            else if (codaCommand == GET_RUN_NUMBER) {
+                if ( (cmsgPortal != null) &&
+                     (cmsgPortal.getRcServer() != null) &&
+                     (cmsgPortal.getRcServer().isConnected())) {
 
-                replyToRunControl(RCConstants.getObjectTypeResponse,
-                                  null, objectType,
-                                  cmd.getMessage());
+                    replyToRunControl(RCConstants.getRunNumberResponse,
+                                      RCConstants.runNumberPayload, (long)runNumber,
+                                      cmd.getMessage());
+                }
+                return;
             }
-            return;
-        }
 
-        // Send back our session
-        else if (codaCommand == GET_SESSION) {
-            if ( (cmsgPortal != null) &&
-                 (cmsgPortal.getRcServer() != null) &&
-                 (cmsgPortal.getRcServer().isConnected())) {
+            // Send back our run type
+            else if (codaCommand == GET_RUN_TYPE) {
+                if ( (cmsgPortal != null) &&
+                     (cmsgPortal.getRcServer() != null) &&
+                     (cmsgPortal.getRcServer().isConnected())) {
 
-                replyToRunControl(RCConstants.getSessionResponse,
-                                  null, session,
-                                  cmd.getMessage());
+                    replyToRunControl(RCConstants.getRunTypeResponse,
+                                      null, runType,
+                                      cmd.getMessage());
+                }
+                return;
             }
-            return;
-        }
 
-        // Send back our run number
-        else if (codaCommand == GET_RUN_NUMBER) {
-            if ( (cmsgPortal != null) &&
-                 (cmsgPortal.getRcServer() != null) &&
-                 (cmsgPortal.getRcServer().isConnected())) {
+            // Send back our config id
+            else if (codaCommand == GET_CONFIG_ID) {
+                if ( (cmsgPortal != null) &&
+                     (cmsgPortal.getRcServer() != null) &&
+                     (cmsgPortal.getRcServer().isConnected())) {
 
-                replyToRunControl(RCConstants.getRunNumberResponse,
-                                  RCConstants.runNumberPayload, (long)runNumber,
-                                  cmd.getMessage());
+                    replyToRunControl(RCConstants.getConfigIdResponse,
+                                      null, codaid,
+                                      cmd.getMessage());
+                }
+                return;
             }
-            return;
-        }
 
-        // Send back our run type
-        else if (codaCommand == GET_RUN_TYPE) {
-            if ( (cmsgPortal != null) &&
-                 (cmsgPortal.getRcServer() != null) &&
-                 (cmsgPortal.getRcServer().isConnected())) {
+            // Send back our roc buffer level
+            else if (codaCommand == GET_BUF_LEVEL) {
+                if ( (cmsgPortal != null) &&
+                     (cmsgPortal.getRcServer() != null) &&
+                     (cmsgPortal.getRcServer().isConnected())) {
 
-                replyToRunControl(RCConstants.getRunTypeResponse,
-                                  null, runType,
-                                  cmd.getMessage());
+                    replyToRunControl(RCConstants.getRocBufferLevelResponse,
+                                      null, bufferLevel,
+                                      cmd.getMessage());
+                }
+                return;
             }
-            return;
-        }
 
-        // Send back our config id
-        else if (codaCommand == GET_CONFIG_ID) {
-            if ( (cmsgPortal != null) &&
-                 (cmsgPortal.getRcServer() != null) &&
-                 (cmsgPortal.getRcServer().isConnected())) {
-
-                replyToRunControl(RCConstants.getConfigIdResponse,
-                                  null, codaid,
-                                  cmd.getMessage());
+            // If given the "exit" command, do that after the modules have exited
+            if (codaCommand == EXIT) {
+                quit();
+                return;
             }
-            return;
-        }
 
-        // Send back our roc buffer level
-        else if (codaCommand == GET_BUF_LEVEL) {
-            if ( (cmsgPortal != null) &&
-                 (cmsgPortal.getRcServer() != null) &&
-                 (cmsgPortal.getRcServer().isConnected())) {
-
-                replyToRunControl(RCConstants.getRocBufferLevelResponse,
-                                  null, bufferLevel,
-                                  cmd.getMessage());
+            // Save the current state if attempting a transition
+            if (codaCommand.isTransition()) {
+                previousState = state;
             }
-            return;
-        }
 
-        // If given the "exit" command, do that after the modules have exited
-        if (codaCommand == EXIT) {
-            quit();
-            return;
-        }
+            //--------------------------
+            // CONFIGURE
+            //--------------------------
+            // When we are told to CONFIGURE, the EMU handles this even though
+            // this command is still passed on down to the modules.
+            if (codaCommand == CONFIGURE) {
+                configure(cmd);
+            }
 
-        // Save the current state if attempting a transition
-        if (codaCommand.isTransition()) {
-            previousState = state;
-        }
+            //--------------------------
+            // DOWNLOAD
+            //--------------------------
+            else if (codaCommand == DOWNLOAD) {
+                download(cmd);
+            }
 
-        //--------------------------
-        // CONFIGURE
-        //--------------------------
-        // When we are told to CONFIGURE, the EMU handles this even though
-        // this command is still passed on down to the modules.
-        if (codaCommand == CONFIGURE) {
-            configure(cmd);
-        }
+            //--------------------------
+            // PRESTART
+            //--------------------------
+            else if (codaCommand == PRESTART) {
+                prestart(cmd);
+            }
 
-        //--------------------------
-        // DOWNLOAD
-        //--------------------------
-        else if (codaCommand == DOWNLOAD) {
-            download(cmd);
-        }
+            //--------------------------
+            // GO
+            //--------------------------
+            else if (codaCommand == GO) {
+                go();
+            }
 
-        //--------------------------
-        // PRESTART
-        //--------------------------
-        else if (codaCommand == PRESTART) {
-            prestart(cmd);
-        }
+            //--------------------------
+            // END
+            //--------------------------
+            else if (codaCommand == END) {
+                end();
+            }
 
-        //--------------------------
-        // GO
-        //--------------------------
-        else if (codaCommand == GO) {
-            go();
+            if (state == ERROR) {
+    logger.error("Emu " + name + ": transition NOT successful, state = ERROR");
+            }
         }
-
-        //--------------------------
-        // END
-        //--------------------------
-        else if (codaCommand == END) {
-            end();
-        }
-
-        if (state == ERROR) {
-logger.error("Emu " + name + ": transition NOT successful, state = ERROR");
+        catch (Exception e) {
+            e.printStackTrace();
         }
     }
 
