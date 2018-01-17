@@ -653,8 +653,8 @@ logger.info("      DataChannel Et: eventSize = " + etEventSize);
                     numEtBufs *= 2;
                     newVal /= 2;
                 }
-                logger.info("      DataChannel Et: # copy-ET-buffers in input supply -> " + numEtBufs);
             }
+logger.info("      DataChannel Et: # copy-ET-buffers in input supply -> " + numEtBufs);
 
             // If ER
             if (isER) {
