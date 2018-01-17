@@ -1802,6 +1802,12 @@ System.out.println("Emu " + name + " end: " + e.getMessage());
             setErrorState("Emu " + name + " end:" + e.getMessage());
             return;
         }
+        catch (Exception e) {
+            e.printStackTrace();
+            System.out.println("Emu " + name + " end: " + e.getMessage());
+            setErrorState("Emu " + name + " end:" + e.getMessage());
+            return;
+        }
         
 debug = debugOrig;
         if (state == ERROR) return;
