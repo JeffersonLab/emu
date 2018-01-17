@@ -917,20 +917,25 @@ System.out.println("\n\n");
             long lastMsgTime = 0L;
             time = System.currentTimeMillis();
 
-            while (!Thread.interrupted()) {
+            try {
+                while (!Thread.interrupted()) {
 
-                if (time - lastMsgTime >= statusReportingPeriod) {
-                    sendStatusMessage();
-                    lastMsgTime = time;
-                }
+                    if (time - lastMsgTime >= statusReportingPeriod) {
+                        sendStatusMessage();
+                        lastMsgTime = time;
+                    }
 
-                try {
-                    Thread.sleep(250);
-                    time = System.currentTimeMillis();
+                    try {
+                        Thread.sleep(250);
+                        time = System.currentTimeMillis();
+                    }
+                    catch (InterruptedException e) {
+                        return;
+                    }
                 }
-                catch (InterruptedException e) {
-                    return;
-                }
+            }
+            catch (Exception e) {
+                e.printStackTrace();
             }
         }
 
