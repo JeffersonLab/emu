@@ -1939,7 +1939,7 @@ System.out.println("  EB mod: endBuildThreads: will end building/filling threads
         // EB threads must be immediately ended
         interruptThreads(false);
         joinThreads();
-        stopBlockingThreads();
+        //stopBlockingThreads();
         RateCalculator = null;
         buildingThreadList.clear();
         preProcessors = null;
