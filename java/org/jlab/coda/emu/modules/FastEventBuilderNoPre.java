@@ -29,6 +29,7 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.*;
 
+//TODO: For this to be useful, it needs to be brought up to date with FastEventBuilder
 /**
  * <pre><code>
  *
