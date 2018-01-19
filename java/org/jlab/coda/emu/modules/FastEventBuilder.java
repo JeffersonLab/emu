@@ -847,11 +847,13 @@ System.out.println("  EB mod: in handleEndEvent(), bt #" + btIndex + ", output c
                 endEventRingIndex = btIndex;
 
                 // Send END event to first output channel
-System.out.println("  EB mod: send END event to output channel 0, ring " + endEventRingIndex +
+System.out.println("  EB mod: try sending END event to output channel 0, ring " + endEventRingIndex +
                    ", ev# = " + evIndex);
 
                 // Write to first output channel
                 eventToOutputChannel(endBuf, 0, endEventRingIndex);
+System.out.println("  EB mod: sent END event to output channel 0, ring " + endEventRingIndex +
+                                   ", ev# = " + evIndex);
 
                 for (int i=0; i < inputChannelCount; i++) {
                     buildSequences[i].set(nextSequences[i]++);
@@ -865,13 +867,15 @@ System.out.println("  EB mod: send END event to output channel 0, ring " + endEv
                 for (int j=1; j < outputChannelCount; j++) {
                     // Copy END event
                     PayloadBuffer pb = new PayloadBuffer(endBuf);
-System.out.println("  EB mod: send END event to output channel " + j + ", ring " + endEventRingIndex +
+System.out.println("  EB mod: try sending END event to output channel " + j + ", ring " + endEventRingIndex +
                    ", ev# = " + evIndex);
 
                     // Already waited for other build threads to finish before
                     // writing END to first channel above, so now we can go ahead
                     // and write END to other channels without waiting.
                     eventToOutputChannel(pb, j, endEventRingIndex);
+System.out.println("  EB mod: sent END event to output channel " + j + ", ring " + endEventRingIndex +
+                                       ", ev# = " + evIndex);
                 }
 
                 // Direct all output channels to the correct ring
