@@ -57,12 +57,6 @@ public class DataChannelImplEmu extends DataChannelAdapter {
     /** Read END event from input ring. */
     private volatile boolean haveInputEndEvent;
 
-    /** Got END command from Run Control. */
-    private volatile boolean gotEndCmd;
-
-    /** Got RESET command from Run Control. */
-    private volatile boolean gotResetCmd;
-
     /**
      * If true, dump incoming data immediately so it does not get put on
      * the ring but does get parsed. Use this for testing incoming data rate.
@@ -559,13 +553,78 @@ logger.info("      DataChannel Emu out: connected to server w/ UDL = " + udl);
         channelState = CODAState.PAUSED;
     }
 
+
+    /**
+     * Interrupt all threads.
+     */
+    private void interruptThreads() {
+        if (dataInputThread != null) {
+            for (int i=0; i < socketCount; i++) {
+                if (dataInputThread[i] == null) {
+                    continue;
+                }
+logger.debug("      DataChannel Emu: end(), interrupt input thread " + i);
+                dataInputThread[i].interrupt();
+            }
+
+logger.debug("      DataChannel Emu: end(), interrupt parser/merger thread");
+            parserMergerThread.interrupt();
+        }
+
+        if (dataOutputThread != null) {
+logger.debug("      DataChannel Emu: end(), interrupt main output thread ");
+            dataOutputThread.interrupt();
+
+            for (int i=0; i < socketCount; i++) {
+logger.debug("      DataChannel Emu: end(), interrupt output thread " + i);
+                dataOutputThread.sender[i].endThread();
+            }
+        }
+    }
+
+    
+    /**
+     * Try joining all threads, up to 1 sec each.
+     */
+    private void joinThreads() {
+        if (dataInputThread != null) {
+            for (int i=0; i < socketCount; i++) {
+                if (dataInputThread[i] == null) {
+                    continue;
+                }
+
+                try {dataInputThread[i].join(1000);}
+                catch (InterruptedException e) {}
+
+logger.debug("      DataChannel Emu: end(), joined input thread " + i);
+            }
+
+            try {parserMergerThread.join(1000);}
+            catch (InterruptedException e) {}
+
+logger.debug("      DataChannel Emu: end(), joined parser/merger thread");
+        }
+
+        if (dataOutputThread != null) {
+
+            try {dataOutputThread.join(1000);}
+            catch (InterruptedException e) {}
+
+logger.debug("      DataChannel Emu: end(), joined main output thread ");
+
+            for (int i=0; i < socketCount; i++) {
+                try {dataOutputThread.sender[i].join(1000);}
+                catch (InterruptedException e) {}
+logger.debug("      DataChannel Emu: end(), joined output thread " + i);
+            }
+        }
+    }
+    
+
     /** {@inheritDoc}. Formerly this code was the close() method. */
     public void end() {
-
         gotEndCmd   = true;
         gotResetCmd = false;
-
-        long quarterSec=250;
 
         // The emu's emu.end() method first waits (up to 60 sec) for the END event to be read
         // by input channels, processed by the module, and finally to be sent by
@@ -573,70 +632,23 @@ logger.info("      DataChannel Emu out: connected to server w/ UDL = " + udl);
         // Threads and sockets can be shutdown quickly, since we've already
         // waited for the END event.
 
-        // Time to wait before ending each thread
-        long waitTime = emu.getEndingTimeLimit()/socketCount;
+        interruptThreads();
+        joinThreads();
 
+        // Clean up
         if (dataInputThread != null) {
-
             for (int i=0; i < socketCount; i++) {
-                if (dataInputThread[i] == null) {
-                    continue;
-                }
-
-                try {dataInputThread[i].join(quarterSec);}
-                catch (InterruptedException e) {}
-
-logger.debug("      DataChannel Emu: end(), interrupt input thread " + i);
-                dataInputThread[i].interrupt();
-//                if (dataInputThread[i].isAlive()) {
-//logger.debug("      DataChannel Emu: end(), stop input thread " + i);
-//                    dataInputThread[i].stop();
-//                }
-
                 dataInputThread[i] = null;
             }
-
             dataInputThread = null;
-
+            parserMergerThread = null;
             closeInputSockets();
-
-            try {parserMergerThread.join(quarterSec);}
-            catch (InterruptedException e) {}
-
-logger.debug("      DataChannel Emu: end(), interrupt parser/merger thread");
-            parserMergerThread.interrupt();
-//            if (parserMergerThread.isAlive()) {
-//logger.debug("      DataChannel Emu: end(), stop parser/merger thread");
-//                parserMergerThread.stop();
-//            }
         }
 
         if (dataOutputThread != null) {
-
-            try {dataOutputThread.join(quarterSec);}
-            catch (InterruptedException e) {}
-
-//logger.debug("      DataChannel Emu: end(), interrupt main output thread ");
-            dataOutputThread.interrupt();
-//            if (dataOutputThread.isAlive()) {
-//                dataOutputThread.stop();
-//            }
-
             for (int i=0; i < socketCount; i++) {
-//logger.debug("      DataChannel Emu: end(), kill output thread " + i + " by interrupting");
-
-                // Interrupt sending thread
-                dataOutputThread.sender[i].killThread();
-
-                try {dataOutputThread.sender[i].join(quarterSec);}
-                catch (InterruptedException e) {}
-
-//                if (dataOutputThread.sender[i].isAlive()) {
-//logger.debug("      DataChannel Emu: end(), STOP sender " + i + " for " + name);
-//                    dataOutputThread.sender[i].stop();
-//                }
+                dataOutputThread.sender[i] = null;
             }
-
             dataOutputThread = null;
 
             try {
@@ -650,6 +662,97 @@ logger.debug("      DataChannel Emu: end(), close output channel " + name);
     }
 
 
+//    /** {@inheritDoc}. Formerly this code was the close() method. */
+//    public void end() {
+//
+//        gotEndCmd   = true;
+//        gotResetCmd = false;
+//
+//        long quarterSec=250;
+//
+//        // The emu's emu.end() method first waits (up to 60 sec) for the END event to be read
+//        // by input channels, processed by the module, and finally to be sent by
+//        // the output channels. Then it calls everyone's end() method including this one.
+//        // Threads and sockets can be shutdown quickly, since we've already
+//        // waited for the END event.
+//
+//        // Time to wait before ending each thread
+//        long waitTime = emu.getEndingTimeLimit()/socketCount;
+//
+//        if (dataInputThread != null) {
+//
+//            for (int i=0; i < socketCount; i++) {
+//                if (dataInputThread[i] == null) {
+//                    continue;
+//                }
+//
+//                try {dataInputThread[i].join(quarterSec);}
+//                catch (InterruptedException e) {}
+//
+//logger.debug("      DataChannel Emu: end(), interrupt input thread " + i);
+//                dataInputThread[i].interrupt();
+////                if (dataInputThread[i].isAlive()) {
+////logger.debug("      DataChannel Emu: end(), stop input thread " + i);
+////                    dataInputThread[i].stop();
+////                }
+//
+//                dataInputThread[i] = null;
+//            }
+//
+//            dataInputThread = null;
+//
+//            closeInputSockets();
+//
+//            try {parserMergerThread.join(quarterSec);}
+//            catch (InterruptedException e) {}
+//
+//logger.debug("      DataChannel Emu: end(), interrupt parser/merger thread");
+//            parserMergerThread.interrupt();
+////            if (parserMergerThread.isAlive()) {
+////logger.debug("      DataChannel Emu: end(), stop parser/merger thread");
+////                parserMergerThread.stop();
+////            }
+//        }
+//
+//        if (dataOutputThread != null) {
+//
+//            try {dataOutputThread.join(quarterSec);}
+//            catch (InterruptedException e) {}
+//
+////logger.debug("      DataChannel Emu: end(), interrupt main output thread ");
+//            dataOutputThread.interrupt();
+////            if (dataOutputThread.isAlive()) {
+////                dataOutputThread.stop();
+////            }
+//
+//            for (int i=0; i < socketCount; i++) {
+////logger.debug("      DataChannel Emu: end(), kill output thread " + i + " by interrupting");
+//
+//                // Interrupt sending thread
+//                dataOutputThread.sender[i].endThread();
+//
+//                try {dataOutputThread.sender[i].join(quarterSec);}
+//                catch (InterruptedException e) {}
+//
+////                if (dataOutputThread.sender[i].isAlive()) {
+////logger.debug("      DataChannel Emu: end(), STOP sender " + i + " for " + name);
+////                    dataOutputThread.sender[i].stop();
+////                }
+//            }
+//
+//            dataOutputThread = null;
+//
+//            try {
+//logger.debug("      DataChannel Emu: end(), close output channel " + name);
+//                closeOutputChannel();
+//            }
+//            catch (cMsgException e) {}
+//        }
+//
+//        channelState = CODAState.DOWNLOADED;
+//    }
+
+
     /**
      * {@inheritDoc}
      * Reset this channel by interrupting the data sending threads and closing ET system.
@@ -658,65 +761,104 @@ logger.debug("      DataChannel Emu: end(), close output channel " + name);
         gotEndCmd = false;
         gotResetCmd = true;
 
-        // How long do we wait for each input or output thread
-        // to end before we just terminate them?
-        long quarterSec=250;
+        interruptThreads();
+        joinThreads();
 
-//logger.debug("      DataChannel Emu: reset(), in");
+        // Clean up
         if (dataInputThread != null) {
             for (int i=0; i < socketCount; i++) {
-                // Protect against multiple calls of reset()
-                if (dataInputThread[i] == null) {
-                    continue;
-                }
-//logger.debug("      DataChannel Emu: reset(), interrupt thread " + i);
-                dataInputThread[i].interrupt();
-                try {
-//logger.debug("      DataChannel Emu: reset(), join thread " + i);
-                    dataInputThread[i].join(quarterSec);
-                    if (dataInputThread[i].isAlive()) {
-//logger.debug("      DataChannel Emu: reset(), stop thread " + i);
-                        dataInputThread[i].stop();
-                    }
-                }
-                catch (InterruptedException e) {
-                }
                 dataInputThread[i] = null;
             }
-
+            dataInputThread = null;
+            parserMergerThread = null;
             closeInputSockets();
         }
 
         if (dataOutputThread != null) {
-
             for (int i=0; i < socketCount; i++) {
-                dataOutputThread.sender[i].killThread();
-                try {
-                    dataOutputThread.sender[i].join(quarterSec);
-                    if (dataOutputThread.sender[i].isAlive()) {
-                        dataOutputThread.sender[i].stop();
-                    }
-                }
-                catch (InterruptedException e) {}
+                dataOutputThread.sender[i] = null;
             }
-
-            dataOutputThread.interrupt();
-            try {
-                dataOutputThread.join(quarterSec);
-                if (dataOutputThread.isAlive()) {
-                    dataOutputThread.stop();
-                }
-            }
-            catch (InterruptedException e) {}
-
-            try {closeOutputChannel();}
-            catch (cMsgException e) {}
-
             dataOutputThread = null;
+
+            try {
+logger.debug("      DataChannel Emu: end(), close output channel " + name);
+                closeOutputChannel();
+            }
+            catch (cMsgException e) {}
         }
 
+        errorMsg.set(null);
         channelState = CODAState.CONFIGURED;
     }
+
+
+//    /**
+//     * {@inheritDoc}
+//     * Reset this channel by interrupting the data sending threads and closing ET system.
+//     */
+//    public void reset() {
+//        gotEndCmd = false;
+//        gotResetCmd = true;
+//
+//        // How long do we wait for each input or output thread
+//        // to end before we just terminate them?
+//        long quarterSec=250;
+//
+////logger.debug("      DataChannel Emu: reset(), in");
+//        if (dataInputThread != null) {
+//            for (int i=0; i < socketCount; i++) {
+//                // Protect against multiple calls of reset()
+//                if (dataInputThread[i] == null) {
+//                    continue;
+//                }
+////logger.debug("      DataChannel Emu: reset(), interrupt thread " + i);
+//                dataInputThread[i].interrupt();
+//                try {
+////logger.debug("      DataChannel Emu: reset(), join thread " + i);
+//                    dataInputThread[i].join(quarterSec);
+//                    if (dataInputThread[i].isAlive()) {
+////logger.debug("      DataChannel Emu: reset(), stop thread " + i);
+//                        dataInputThread[i].stop();
+//                    }
+//                }
+//                catch (InterruptedException e) {
+//                }
+//                dataInputThread[i] = null;
+//            }
+//
+//            closeInputSockets();
+//        }
+//
+//        if (dataOutputThread != null) {
+//
+//            for (int i=0; i < socketCount; i++) {
+//                dataOutputThread.sender[i].endThread();
+//                try {
+//                    dataOutputThread.sender[i].join(quarterSec);
+//                    if (dataOutputThread.sender[i].isAlive()) {
+//                        dataOutputThread.sender[i].stop();
+//                    }
+//                }
+//                catch (InterruptedException e) {}
+//            }
+//
+//            dataOutputThread.interrupt();
+//            try {
+//                dataOutputThread.join(quarterSec);
+//                if (dataOutputThread.isAlive()) {
+//                    dataOutputThread.stop();
+//                }
+//            }
+//            catch (InterruptedException e) {}
+//
+//            try {closeOutputChannel();}
+//            catch (cMsgException e) {}
+//
+//            dataOutputThread = null;
+//        }
+//
+//        channelState = CODAState.CONFIGURED;
+//    }
 
 
 //    /**
@@ -1637,7 +1779,7 @@ logger.info("      DataChannel Emu in: got " + controlType + " event from " + na
             /**
              * Kill this thread which is sending messages/data to other end of emu socket.
              */
-            final void killThread() {
+            final void endThread() {
 //System.out.println("SocketSender: killThread, set flag, interrupt");
                 killThd = true;
                 this.interrupt();
@@ -1701,6 +1843,7 @@ logger.info("      DataChannel Emu in: got " + controlType + " event from " + na
                     }
                     catch (InterruptedException e) {
 System.out.println("SocketSender thread interruped");
+                        return;
                     }
                     catch (Exception e) {
                         channelState = CODAState.ERROR;

@@ -142,11 +142,7 @@ public class FarmController extends ModuleAdapter {
         // Interrupt the event moving thread
         eventMovingThread.interrupt();
         try {
-            eventMovingThread.join(250);
-            // Kill it if it hasn't stopped in 1/4 sec
-            if (eventMovingThread.isAlive()) {
-                eventMovingThread.stop();
-            }
+            eventMovingThread.join(1000);
         }
         catch (InterruptedException e) {}
      }

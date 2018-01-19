@@ -700,6 +700,40 @@ logger.info("      DataChannel Et: # copy-ET-buffers in input supply -> " + numE
         channelState = CODAState.PAUSED;
     }
 
+
+    /**
+     * Interrupt all threads.
+     */
+    private void interruptThreads() {
+        // Don't close ET system until helper threads are done
+        if (dataInputThread != null) {
+            dataInputThread.interrupt();
+        }
+
+        if (dataOutputThread != null) {
+            dataOutputThread.shutdown();
+        }
+    }
+
+
+    /**
+     * Try joining all threads, up to 1 sec each.
+     */
+    private void joinThreads() {
+        // Don't close ET system until helper threads are done
+        try {
+            if (dataInputThread != null) {
+                dataInputThread.join(1000);
+            }
+        }
+        catch (InterruptedException e) {}
+
+        if (dataOutputThread != null) {
+            dataOutputThread.waitForThreadsToEnd(1000);
+        }
+    }
+
+    
     /** {@inheritDoc}. Formerly this code was the close() method. */
     public void end() {
 logger.info("      DataChannel Et: " + name + " - end threads & close ET system");
@@ -711,57 +745,88 @@ logger.info("      DataChannel Et: " + name + " - end threads & close ET system"
         // Do NOT interrupt threads which are communicating with the ET server.
         // This will mess up future communications !!!
 
-        // How long do we wait for each input or output thread
-        // to end before we just terminate them?
-        // The total time for an emu to wait for the END transition
-        // is emu.endingTimeLimit. Dividing that by the number of
-        // in/output threads is probably a good guess.
-        int waitTime;
+        // The emu's emu.end() method first waits (up to 60 sec) for the END event to be read
+        // by input channels, processed by the module, and finally to be sent by
+        // the output channels. Then it calls everyone's end() method including this one.
+        // Threads and sockets can be shutdown quickly, since we've already
+        // waited for the END event.
 
-        // Don't close ET system until helper threads are done
-        try {
-            waitTime = (int) emu.getEndingTimeLimit();
-//System.out.println("      DataChannel Et: waiting for input thread to end ...");
-            if (dataInputThread != null) {
-                dataInputThread.join(waitTime);
-                // kill it if not already dead since we waited as long as possible
-                dataInputThread.interrupt();
-                try {
-                    dataInputThread.join(250);
-                    if (dataInputThread.isAlive()) {
-                        // kill it since we waited as long as possible
-                        dataInputThread.stop();
-                    }
-                }
-                catch (InterruptedException e) {}
-            }
-
-            if (dataOutputThread != null) {
-                waitTime = (int) emu.getEndingTimeLimit();
-                dataOutputThread.shutdown();
-//System.out.println("      DataChannel Et: try joining output thread for " + (waitTime/1000) + " sec");
-                if (!dataOutputThread.waitForThreadsToEnd(waitTime)) {
-                    // Kill everything since we waited as long as possible
-//System.out.println("      DataChannel Et: end(), kill all output threads");
-                    dataOutputThread.killFromOutside();
-                }
-//System.out.println("      DataChannel Et: output thread done");
-            }
-//System.out.println("      DataChannel Et: all helper thds done");
-        }
-        catch (InterruptedException e) {
-        }
+        interruptThreads();
+        joinThreads();
 
         // At this point all threads should be done
         try {
             closeEtSystem();
         }
-        catch (DataTransportException e) {
-        }
+        catch (DataTransportException e) {}
 
         channelState = CODAState.DOWNLOADED;
 logger.info("      DataChannel Et: end() done");
     }
+
+
+//    /** {@inheritDoc}. Formerly this code was the close() method. */
+//    public void end() {
+//logger.info("      DataChannel Et: " + name + " - end threads & close ET system");
+//
+//        gotEndCmd = true;
+//        gotResetCmd = false;
+//        stopGetterThread = true;
+//
+//        // Do NOT interrupt threads which are communicating with the ET server.
+//        // This will mess up future communications !!!
+//
+//        // The emu's emu.end() method first waits (up to 60 sec) for the END event to be read
+//        // by input channels, processed by the module, and finally to be sent by
+//        // the output channels. Then it calls everyone's end() method including this one.
+//        // Threads and sockets can be shutdown quickly, since we've already
+//        // waited for the END event.
+//        int waitTime;
+//
+//        // Don't close ET system until helper threads are done
+//        try {
+//            waitTime = (int) emu.getEndingTimeLimit();
+////System.out.println("      DataChannel Et: waiting for input thread to end ...");
+//            if (dataInputThread != null) {
+//                dataInputThread.join(waitTime);
+//                // kill it if not already dead since we waited as long as possible
+//                dataInputThread.interrupt();
+//                try {
+//                    dataInputThread.join(250);
+//                    if (dataInputThread.isAlive()) {
+//                        // kill it since we waited as long as possible
+//                        dataInputThread.stop();
+//                    }
+//                }
+//                catch (InterruptedException e) {}
+//            }
+//
+//            if (dataOutputThread != null) {
+//                waitTime = (int) emu.getEndingTimeLimit();
+//                dataOutputThread.shutdown();
+////System.out.println("      DataChannel Et: try joining output thread for " + (waitTime/1000) + " sec");
+//                if (!dataOutputThread.waitForThreadsToEnd(waitTime)) {
+//                    // Kill everything since we waited as long as possible
+////System.out.println("      DataChannel Et: end(), kill all output threads");
+//                    dataOutputThread.killFromOutside();
+//                }
+////System.out.println("      DataChannel Et: output thread done");
+//            }
+////System.out.println("      DataChannel Et: all helper thds done");
+//        }
+//        catch (InterruptedException e) {
+//        }
+//
+//        // At this point all threads should be done
+//        try {
+//            closeEtSystem();
+//        }
+//        catch (DataTransportException e) {
+//        }
+//
+//        channelState = CODAState.DOWNLOADED;
+//logger.info("      DataChannel Et: end() done");
+//    }
 
 
     /**
@@ -775,34 +840,59 @@ logger.debug("      DataChannel Et: reset " + name + " channel");
         gotResetCmd = true;
         stopGetterThread = true;
 
-        if (dataInputThread != null) {
-            dataInputThread.interrupt();
-            try {
-                dataInputThread.join(250);
-                dataInputThread.stop();
-            }
-            catch (InterruptedException e) {}
-        }
+        interruptThreads();
+        joinThreads();
 
-        if (dataOutputThread != null) {
-            dataOutputThread.shutdown();
-            dataOutputThread.waitForThreadsToEnd(250);
-            // Kill everything since we waited as long as possible
-            dataOutputThread.killFromOutside();
-        }
-
-        // At this point all threads should be done
         try {
             closeEtSystem();
         }
-        catch (DataTransportException e) {
-        }
+        catch (DataTransportException e) {}
 
         errorMsg.set(null);
         channelState = CODAState.CONFIGURED;
 //logger.debug("      DataChannel Et: reset " + name + " - all done");
     }
 
+
+//    /**
+//     * {@inheritDoc}
+//     * Reset this channel by interrupting the data sending threads and closing ET system.
+//     */
+//    public void reset() {
+//logger.debug("      DataChannel Et: reset " + name + " channel");
+//
+//        gotEndCmd   = false;
+//        gotResetCmd = true;
+//        stopGetterThread = true;
+//
+//        if (dataInputThread != null) {
+//            dataInputThread.interrupt();
+//            try {
+//                dataInputThread.join(250);
+//                dataInputThread.stop();
+//            }
+//            catch (InterruptedException e) {}
+//        }
+//
+//        if (dataOutputThread != null) {
+//            dataOutputThread.shutdown();
+//            dataOutputThread.waitForThreadsToEnd(250);
+//            // Kill everything since we waited as long as possible
+//            dataOutputThread.killFromOutside();
+//        }
+//
+//        // At this point all threads should be done
+//        try {
+//            closeEtSystem();
+//        }
+//        catch (DataTransportException e) {
+//        }
+//
+//        errorMsg.set(null);
+//        channelState = CODAState.CONFIGURED;
+////logger.debug("      DataChannel Et: reset " + name + " - all done");
+//    }
+//
 
     /**
      * If this is an output channel, it may be blocked on reading from a module

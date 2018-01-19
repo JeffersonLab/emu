@@ -93,6 +93,9 @@ public class DataChannelImplFifo extends DataChannelAdapter {
     public void end() {
         gotEndCmd = true;
         gotResetCmd = false;
+        if (movingThread != null) {
+            movingThread.interrupt();
+        }
         channelState = CODAState.DOWNLOADED;
     }
 
@@ -100,10 +103,10 @@ public class DataChannelImplFifo extends DataChannelAdapter {
     public void reset() {
         gotEndCmd   = false;
         gotResetCmd = true;
-        channelState = CODAState.CONFIGURED;
         if (movingThread != null) {
-            movingThread.stop();
+            movingThread.interrupt();
         }
+        channelState = CODAState.CONFIGURED;
     }
 
 

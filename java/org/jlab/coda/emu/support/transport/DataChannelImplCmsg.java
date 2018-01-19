@@ -54,12 +54,6 @@ public class DataChannelImplCmsg extends DataChannelAdapter {
     /** Read END event from output ring. */
     private volatile boolean haveOutputEndEvent;
 
-    /** Got END command from Run Control. */
-    private volatile boolean gotEndCmd;
-
-    /** Got RESET command from Run Control. */
-    private volatile boolean gotResetCmd;
-
     // INPUT
 
     /** Store locally whether this channel's module is an ER or not.
@@ -353,6 +347,64 @@ logger.info("      DataChannel cmsg: write threads = " + writeThreadCount);
     }
 
 
+    /**
+     * Interrupt & join all threads.
+     */
+    private void interruptAndJoinThreads() {
+        try {
+            if (dataOutputThread != null) {
+                dataOutputThread.interrupt();
+                dataOutputThread.shutdown();
+//System.out.println("      DataChannel cmsg: try joining output thread for " + (waitTime/1000) + " sec");
+                dataOutputThread.join(1000);
+            }
+        }
+        catch (InterruptedException e) {}
+    }
+
+//    /** {@inheritDoc} */
+//    public void end() {
+//logger.warn("      DataChannel cmsg: end() " + name);
+//
+//        gotEndCmd = true;
+//        gotResetCmd = false;
+//
+//        // Do NOT interrupt threads which are communicating with the cMsg server.
+//        // This will mess up future communications !!!
+//
+//        // How long do we wait for each output thread
+//        // to end before we just terminate them?
+//        // The total time for an emu to wait for the END transition
+//        // is emu.endingTimeLimit. Dividing that by the number of
+//        // output threads is probably a good guess.
+//        long waitTime;
+//
+//        // Don't unsubscribe until helper threads are done
+//        try {
+//            if (dataOutputThread != null) {
+//                waitTime = emu.getEndingTimeLimit();
+////System.out.println("      DataChannel cmsg: try joining output thread for " + (waitTime/1000) + " sec");
+//                dataOutputThread.join(waitTime);
+//                // kill everything since we waited as long as possible
+//                dataOutputThread.interrupt();
+//                dataOutputThread.shutdown();
+////System.out.println("      DataChannel cmsg: output thread done");
+//            }
+////System.out.println("      DataChannel cmsg: all helper thds done");
+//        }
+//        catch (InterruptedException e) {}
+//
+//        // At this point all threads should be done
+//        if (sub != null) {
+//            try {
+//                dataTransportImplCmsg.getCmsgConnection().unsubscribe(sub);
+//            } catch (cMsgException e) {/* ignore */}
+//        }
+//
+//        channelState = CODAState.CONFIGURED;
+//logger.debug("      DataChannel cmsg: end() " + name + " done");
+//    }
+
     /** {@inheritDoc} */
     public void end() {
 logger.warn("      DataChannel cmsg: end() " + name);
@@ -363,37 +415,21 @@ logger.warn("      DataChannel cmsg: end() " + name);
         // Do NOT interrupt threads which are communicating with the cMsg server.
         // This will mess up future communications !!!
 
-        // How long do we wait for each output thread
-        // to end before we just terminate them?
-        // The total time for an emu to wait for the END transition
-        // is emu.endingTimeLimit. Dividing that by the number of
-        // output threads is probably a good guess.
-        long waitTime;
+        // The emu's emu.end() method first waits (up to 60 sec) for the END event to be read
+        // by input channels, processed by the module, and finally to be sent by
+        // the output channels. Then it calls everyone's end() method including this one.
+        // Threads and sockets can be shutdown quickly, since we've already
+        // waited for the END event.
+        interruptAndJoinThreads();
 
-        // Don't unsubscribe until helper threads are done
-        try {
-            if (dataOutputThread != null) {
-                waitTime = emu.getEndingTimeLimit();
-//System.out.println("      DataChannel cmsg: try joining output thread for " + (waitTime/1000) + " sec");
-                dataOutputThread.join(waitTime);
-                // kill everything since we waited as long as possible
-                dataOutputThread.interrupt();
-                dataOutputThread.shutdown();
-//System.out.println("      DataChannel cmsg: output thread done");
-            }
-//System.out.println("      DataChannel cmsg: all helper thds done");
-        }
-        catch (InterruptedException e) {}
-
-        // At this point all threads should be done
+        // Handle the input channel by unsubscribing
         if (sub != null) {
             try {
                 dataTransportImplCmsg.getCmsgConnection().unsubscribe(sub);
             } catch (cMsgException e) {/* ignore */}
         }
 
-        errorMsg.set(null);
-        channelState = CODAState.CONFIGURED;
+        channelState = CODAState.DOWNLOADED;
 logger.debug("      DataChannel cmsg: end() " + name + " done");
     }
 
@@ -408,19 +444,9 @@ logger.debug("      DataChannel cmsg: reset() " + name);
         gotEndCmd   = false;
         gotResetCmd = true;
 
-        // Don't unsubscribe until helper threads are done
-        if (dataOutputThread != null) {
-//System.out.println("      DataChannel cmsg: interrupt output thread ...");
-            dataOutputThread.interrupt();
-            dataOutputThread.shutdown();
-            // Make sure all threads are done.
-            try {
-                dataOutputThread.join(1000);}
-            catch (InterruptedException e) {}
-//System.out.println("      DataChannel cmsg: output thread done");
-        }
+        interruptAndJoinThreads();
 
-        // At this point all threads should be done
+        // Handle the input channel by unsubscribing
         if (sub != null) {
             try {
                 dataTransportImplCmsg.getCmsgConnection().unsubscribe(sub);
@@ -429,7 +455,6 @@ logger.debug("      DataChannel cmsg: reset() " + name);
 
         errorMsg.set(null);
         channelState = CODAState.CONFIGURED;
-
 logger.debug("      DataChannel cmsg: reset() " + name + " done");
     }
 
@@ -489,7 +514,7 @@ logger.debug("      DataChannel cmsg: reset() " + name + " done");
             // Only wait for threads to terminate if shutting
             // down gracefully for an END command.
             if (gotEndCmd) {
-                try { writeThreadPool.awaitTermination(100L, TimeUnit.MILLISECONDS); }
+                try { writeThreadPool.awaitTermination(1000L, TimeUnit.MILLISECONDS); }
                 catch (InterruptedException e) {}
             }
         }

@@ -288,6 +288,8 @@ System.out.println("      DataChannel File out: Cannot create file, " + e.getMes
         gotEndCmd = true;
         gotResetCmd = false;
 
+        if (dataThread != null) dataThread.interrupt();
+
         channelState = CODAState.DOWNLOADED;
     }
 

@@ -1591,11 +1591,9 @@ if (debug) System.out.println("  EB mod: Building thread is ending");
          * Stop this freeing-resource thread.
          * @param force if true, call Thread.stop().
          */
-        void killThread(boolean force) {
+        void endThread() {
             quit = true;
-            if (force) {
-                this.stop();
-            }
+            this.interrupt();
         }
 
 
@@ -1639,7 +1637,7 @@ if (debug) System.out.println("  EB mod: Building thread is ending");
                 }
             }
             catch (AlertException e)       { /* won't happen */ }
-            catch (InterruptedException e) { /* won't happen */ }
+            catch (InterruptedException e) {}
             catch (TimeoutException e)     { /* won't happen */ }
             catch (Exception e) {
                 e.printStackTrace();
@@ -1670,101 +1668,200 @@ System.out.println("\n  EB mod: calling processEnd() for chan " + i + '\n');
 
 
     /**
-     * End all EB threads because an END cmd/event or RESET cmd came through.
-     *
+     * Interrupt all EB threads because an END cmd/event or RESET cmd came through.
      * @param end if <code>true</code> called from end(), else called from reset()
      */
-    private void endThreads(boolean end) {
-        // Check if END event has arrived and if all the input ring buffers
-        // are empty, if not, wait up to endingTimeLimit (30) seconds.
-        if (end) {
-            long startTime = System.currentTimeMillis();
-
-            // Wait up to endingTimeLimit millisec for events to
-            // be processed & END event to arrive, then proceed
-            while (!haveEndEvent &&
-                   (System.currentTimeMillis() - startTime < endingTimeLimit)) {
-                try {Thread.sleep(200);}
-                catch (InterruptedException e) {}
-            }
-
-            if (!haveEndEvent) {
-System.out.println("  EB mod: endBuildThreads: will end building/filling threads but no END event or rings not empty");
-                moduleState = CODAState.ERROR;
-                emu.setErrorState("EB will end building/filling threads but no END event or rings not empty");
-            }
+    private void interruptThreads(boolean end) {
+        // Although the emu's end() method checks to see if the END event has made it
+        // all the way through, it gives up if it takes longer than about 30 seconds
+        // at each channel or module.
+        // Check again if END event has arrived.
+        if (end && !haveEndEvent) {
+System.out.println("  EB mod: endBuildThreads: will end building/filling threads but no END event");
+            moduleState = CODAState.ERROR;
+            emu.setErrorState("EB will end building/filling threads but no END event");
         }
 
-        // Kill the rate calculating thread
+        // Interrupt the rate calculating thread
         if (RateCalculator != null) {
             RateCalculator.interrupt();
-            try {
-                RateCalculator.join(250);
-//                if (RateCalculator.isAlive()) {
-//                    RateCalculator.stop();
-//                }
-            }
-            catch (InterruptedException e) {}
-            RateCalculator = null;
         }
 
-        // NOTE: EMU has a command executing thread which calls this EB module's execute
-        // method which, in turn, calls this method when an END cmd is sent. In this case
-        // all build threads will be interrupted in the following code.
-
-        // Interrupt all Building threads except the one calling this method
-        // (is only ever called by cmsg callback in emu, never by build thread)
+        // Interrupt all Building threads
         for (Thread thd : buildingThreadList) {
-            // Try to end thread nicely but it could hang on rb.next(), if so, kill it
+            // Try to end thread nicely but it could block on rb.next()
+            // when writing to output channel ring if no available space
             thd.interrupt();
-            try {
-                thd.join(250);
-//                if (thd.isAlive()) {
-//                    thd.stop();
-//                }
-            }
-            catch (InterruptedException e) {}
         }
-        buildingThreadList.clear();
 
         // Interrupt all PreProcessor threads
         if (preProcessors != null) {
             for (Thread qf : preProcessors) {
                 qf.interrupt();
-                try {
-                    qf.join(250);
-//                    if (qf.isAlive()) {
-//                        qf.stop();
-//                    }
-                }
-                catch (InterruptedException e) {}
             }
         }
-        preProcessors = null;
 
         // Interrupt release threads too
         if (buildingThreadCount > 1 && releaseThreads != null) {
             for (ReleaseRingResourceThread rt : releaseThreads) {
-                // If ending, try gradual approach
-                if (end) {
-                    rt.interrupt();
-                    try {
-                        rt.join(250);
-//                        if (rt.isAlive()) {
-//                            rt.stop();
-//                        }
-                    }
-                    catch (InterruptedException e) {
-                    }
-                }
-                else {
-                    // If resetting, immediately force thread to stop
-                    rt.killThread(true);
-                }
+                rt.endThread();
             }
         }
     }
 
+    /**
+     * Try joining all EB threads, up to 1 sec each.
+     */
+    private void joinThreads() {
+        // Join rate calculating thread
+        if (RateCalculator != null) {
+            try {
+                RateCalculator.join(1000);
+            }
+            catch (InterruptedException e) {}
+        }
+
+        // Join all Building threads
+        for (Thread thd : buildingThreadList) {
+            try {
+                thd.join(1000);
+            }
+            catch (InterruptedException e) {}
+        }
+
+        // Interrupt all PreProcessor threads
+        if (preProcessors != null) {
+            for (Thread qf : preProcessors) {
+                try {
+                    qf.join(1000);
+                }
+                catch (InterruptedException e) {}
+            }
+        }
+
+        // Join release threads
+        if (buildingThreadCount > 1 && releaseThreads != null) {
+            for (ReleaseRingResourceThread rt : releaseThreads) {
+                try {
+                    rt.join(1000);
+                }
+                catch (InterruptedException e) {}
+            }
+        }
+    }
+
+
+    /**
+     * Stop build threads that may be blocked.
+     */
+    private void stopBlockingThreads() {
+        // Building threads can block when trying to write to a full output channel ring (rb.next())
+        for (Thread thd : buildingThreadList) {
+            if (thd.isAlive()) {
+                thd.stop();
+            }
+        }
+
+        // Although the preprocessor threads can block on rb.next() when writing user events
+        // to output channel, it's extremely unlikely so don't bother stopping these threads.
+    }
+
+
+//    /**
+//     * End all EB threads because an END cmd/event or RESET cmd came through.
+//     *
+//     * @param end if <code>true</code> called from end(), else called from reset()
+//     */
+//    private void endThreads(boolean end) {
+//        // Check if END event has arrived and if all the input ring buffers
+//        // are empty, if not, wait up to endingTimeLimit (30) seconds.
+//        if (end) {
+//            long startTime = System.currentTimeMillis();
+//
+//            // Wait up to endingTimeLimit millisec for events to
+//            // be processed & END event to arrive, then proceed
+//            while (!haveEndEvent &&
+//                   (System.currentTimeMillis() - startTime < endingTimeLimit)) {
+//                try {Thread.sleep(200);}
+//                catch (InterruptedException e) {}
+//            }
+//
+//            if (!haveEndEvent) {
+//System.out.println("  EB mod: endBuildThreads: will end building/filling threads but no END event or rings not empty");
+//                moduleState = CODAState.ERROR;
+//                emu.setErrorState("EB will end building/filling threads but no END event or rings not empty");
+//            }
+//        }
+//
+//        // Kill the rate calculating thread
+//        if (RateCalculator != null) {
+//            RateCalculator.interrupt();
+//            try {
+//                RateCalculator.join(250);
+////                if (RateCalculator.isAlive()) {
+////                    RateCalculator.stop();
+////                }
+//            }
+//            catch (InterruptedException e) {}
+//            RateCalculator = null;
+//        }
+//
+//        // NOTE: EMU has a command executing thread which calls this EB module's execute
+//        // method which, in turn, calls this method when an END cmd is sent. In this case
+//        // all build threads will be interrupted in the following code.
+//
+//        // Interrupt all Building threads except the one calling this method
+//        // (is only ever called by cmsg callback in emu, never by build thread)
+//        for (Thread thd : buildingThreadList) {
+//            // Try to end thread nicely but it could hang on rb.next(), if so, kill it
+//            thd.interrupt();
+//            try {
+//                thd.join(250);
+////                if (thd.isAlive()) {
+////                    thd.stop();
+////                }
+//            }
+//            catch (InterruptedException e) {}
+//        }
+//        buildingThreadList.clear();
+//
+//        // Interrupt all PreProcessor threads
+//        if (preProcessors != null) {
+//            for (Thread qf : preProcessors) {
+//                qf.interrupt();
+//                try {
+//                    qf.join(250);
+////                    if (qf.isAlive()) {
+////                        qf.stop();
+////                    }
+//                }
+//                catch (InterruptedException e) {}
+//            }
+//        }
+//        preProcessors = null;
+//
+//        // Interrupt release threads too
+//        if (buildingThreadCount > 1 && releaseThreads != null) {
+//            for (ReleaseRingResourceThread rt : releaseThreads) {
+//                // If ending, try gradual approach
+//                if (end) {
+//                    rt.interrupt();
+//                    try {
+//                        rt.join(250);
+////                        if (rt.isAlive()) {
+////                            rt.stop();
+////                        }
+//                    }
+//                    catch (InterruptedException e) {
+//                    }
+//                }
+//                else {
+//                    // If resetting, immediately force thread to stop
+//                    rt.killThread(true);
+//                }
+//            }
+//        }
+//    }
 
     /**
      * Start threads for stats, pre-processing incoming events, and building events.
@@ -1836,7 +1933,12 @@ System.out.println("  EB mod: endBuildThreads: will end building/filling threads
         moduleState = CODAState.CONFIGURED;
 
         // EB threads must be immediately ended
-        endThreads(false);
+        interruptThreads(false);
+        joinThreads();
+        stopBlockingThreads();
+        RateCalculator = null;
+        buildingThreadList.clear();
+        preProcessors = null;
 
         paused = false;
 
@@ -1852,7 +1954,7 @@ System.out.println("  EB mod: endBuildThreads: will end building/filling threads
 
     /** {@inheritDoc} */
     public void end() {
-System.out.println("  EB mod: end(), set state tp DOWNLOADED");
+System.out.println("  EB mod: end(), set state to DOWNLOADED");
         moduleState = CODAState.DOWNLOADED;
 
         // Print out time-to-build-event histogram
@@ -1862,8 +1964,12 @@ System.out.println("  EB mod: end(), print histogram");
         }
 
         // Build & pre-processing threads should already be ended by END event
-System.out.println("  EB mod: end(), call endThreads(true)");
-        endThreads(true);
+System.out.println("  EB mod: end(), interrupt threads");
+        interruptThreads(true);
+        joinThreads();
+        RateCalculator = null;
+        buildingThreadList.clear();
+        preProcessors = null;
 
         paused = false;
 

@@ -172,44 +172,102 @@ public class EventRecording extends ModuleAdapter {
     }
 
 
+//    /**
+//     * End record thread because an END cmd or event came through.
+//     * The record thread calling this method is not interrupted.
+//     *
+//     * @param wait if <code>true</code> check if END event has arrived and
+//     *             if not, wait up to endingTimeLimit.
+//     */
+//    private void endRecordThread(boolean wait) {
+//
+//        if (wait && !haveEndEvent) {
+//            long startTime = System.currentTimeMillis();
+//
+//            // Wait up to endingTimeLimit millisec for events to
+//            // be processed & END event to arrive, then proceed
+//            while (!haveEndEvent && (System.currentTimeMillis() - startTime < endingTimeLimit)) {
+//                try {Thread.sleep(200);}
+//                catch (InterruptedException e) {}
+//            }
+//
+//            if (!haveEndEvent) {
+//System.out.println("  ER mod: will end thread but no END event!");
+//                moduleState = CODAState.ERROR;
+//                emu.setErrorState("ER will end thread but no END event");
+//            }
+//        }
+//
+//        // NOTE: the EMU calls this ER module's end() and reset()
+//        // methods which, in turn, call this method.
+//        if (recordingThread != null) {
+//            recordingThread.interrupt();
+//            try {
+//                recordingThread.join(250);
+//                if (recordingThread.isAlive()) {
+//                    recordingThread.stop();
+//                }
+//            }
+//            catch (InterruptedException e) {
+//            }
+//        }
+//    }
+
+
     /**
-     * End record thread because an END cmd or event came through.
+     * Interrupt record thread because an END cmd/event or RESET cmd came through.
      * The record thread calling this method is not interrupted.
      *
-     * @param wait if <code>true</code> check if END event has arrived and
-     *             if not, wait up to endingTimeLimit.
+     * @param end if <code>true</code> called from end(), else called from reset()
      */
-    private void endRecordThread(boolean wait) {
-
-        if (wait && !haveEndEvent) {
-            long startTime = System.currentTimeMillis();
-
-            // Wait up to endingTimeLimit millisec for events to
-            // be processed & END event to arrive, then proceed
-            while (!haveEndEvent && (System.currentTimeMillis() - startTime < endingTimeLimit)) {
-                try {Thread.sleep(200);}
-                catch (InterruptedException e) {}
-            }
-
-            if (!haveEndEvent) {
+    private void interruptThreads(boolean end) {
+        // Although the emu's end() method checks to see if the END event has made it
+        // all the way through, it gives up if it takes longer than about 30 seconds
+        // at each channel or module.
+        // Check again if END event has arrived.
+        if (end && !haveEndEvent) {
 System.out.println("  ER mod: will end thread but no END event!");
-                moduleState = CODAState.ERROR;
-                emu.setErrorState("ER will end thread but no END event");
-            }
+            moduleState = CODAState.ERROR;
+            emu.setErrorState("ER will end thread but no END event");
         }
 
-        // NOTE: the EMU calls this ER module's end() and reset()
-        // methods which, in turn, call this method.
+        if (RateCalculator != null) {
+            RateCalculator.interrupt();
+        }
+
         if (recordingThread != null) {
             recordingThread.interrupt();
+        }
+    }
+
+
+    /**
+     * Try joining record thread, up to 1 sec.
+     */
+    private void joinThreads() {
+        if (RateCalculator != null) {
             try {
-                recordingThread.join(250);
-                if (recordingThread.isAlive()) {
-                    recordingThread.stop();
-                }
+                RateCalculator.join(1000);
             }
-            catch (InterruptedException e) {
+            catch (InterruptedException e) {}
+        }
+
+        if (recordingThread != null) {
+            try {
+                recordingThread.join(1000);
             }
+            catch (InterruptedException e) {}
+        }
+    }
+
+
+    /**
+     * Stop record thread that may be blocked.
+     */
+    private void stopBlockingThreads() {
+        // Building threads can block when trying to write to a full output channel ring (rb.next())
+        if (recordingThread != null && recordingThread.isAlive()) {
+            recordingThread.stop();
         }
     }
 
@@ -664,10 +722,11 @@ if (debug) System.out.println("  ER mod: recording thread ending");
         CODAStateIF previousState = moduleState;
         moduleState = CODAState.CONFIGURED;
 
-        if (RateCalculator != null) RateCalculator.interrupt();
-
-        // Recording thread must be immediately ended
-        endRecordThread(false);
+        // Threads must be ended
+        interruptThreads(false);
+        joinThreads();
+        // Probably won't be blocked writing to the file in a non-interrptible way
+        //stopBlockingThreads();
 
         RateCalculator  = null;
         recordingThread = null;
@@ -701,14 +760,10 @@ if (debug) System.out.println("  ER mod: recording thread ending");
     public void end() {
         moduleState = CODAState.DOWNLOADED;
 
-        // The order in which these thread are shutdown does(should) not matter.
-        // Rocs should already have been shutdown, followed by the input transports,
-        // followed by this module (followed by the output transports).
-        if (RateCalculator != null) RateCalculator.interrupt();
-
         // Recording thread should already be ended by END event.
-        // If not, wait for it 1/4 sec.
-        endRecordThread(true);
+        // If not, wait for it 1 sec.
+        interruptThreads(true);
+        joinThreads();
 
         RateCalculator = null;
         recordingThread = null;

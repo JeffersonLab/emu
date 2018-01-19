@@ -294,11 +294,11 @@ logger.info("      DataChannel Adapter: output ring item count -> " + outputRing
 
             // Set endianness of output data, must be same as its module
             byteOrder = module.getOutputOrder();
-            logger.info("      DataChannel Adapter: byte order = " + byteOrder);
+logger.info("      DataChannel Adapter: byte order = " + byteOrder);
 
             // Set number of data output ring buffers (1 for each build thread)
             outputRingCount = module.getEventProducingThreadCount();
-logger.info("      DataChannel Adapter: # of ring buffers = " + outputRingCount);
+logger.info("      DataChannel Adapter: output ring buffer count (1/buildthread) = " + outputRingCount);
 
             // Create RingBuffers
             ringBuffersOut = new RingBuffer[outputRingCount];

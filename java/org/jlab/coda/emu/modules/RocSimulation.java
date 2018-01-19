@@ -308,11 +308,7 @@ public class RocSimulation extends ModuleAdapter {
                 thd.interrupt();
 //System.out.println("  Roc mod: interrupt event generating thread");
                 try {
-                    thd.join(250);
-                    if (thd.isAlive()) {
-//System.out.println("  Roc mod: stop event generating thread");
-                        thd.stop();
-                    }
+                    thd.join(1000);
                 }
                 catch (InterruptedException e) {}
             }
