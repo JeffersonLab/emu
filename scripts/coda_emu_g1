@@ -3,36 +3,35 @@
 # Script to start up a CODA EMU Data Concentrator
 # First argument is the name of the component
 
-if ($#argv < 1) then
-  echo "Usage: coda_emu_dc <name> <rc address(optional)>"
-  echo "(Note valid addresses: ipv4 dot decimal)"
+if ($#argv < 2) then
+  echo "Usage: coda_emu <name> <type> <rc address(optional)>"
+  echo "(Note valid emu types: DC, PEB, SEB, ER, FCS)"
+  echo "(     valid addresses: ipv4 dot decimal)"
   exit
 endif
-
 
 #setenv PATH $CODA/$MACHINE/bin
 #setenv LD_LIBRARY_PATH $CODA/$MACHINE/lib
 
 #setenv MALLOC_ARENA_MAX 2
 
-# For code profiling tools:
-#$JAVA_HOME/bin/java -XX:+UnlockCommercialFeatures -XX:+FlightRecorder -cp $CODA/common/jar/\* \
-
-if ($#argv > 1) then
+if ($#argv > 2) then
 $JAVA_HOME/bin/java -cp $CODA/common/jar/\* \
     -XX:+PerfDisableSharedMem \
-    -DrcAddr=$2 \
+    -XX:+UseG1GC \
+    -DrcAddr=$3 \
     -Djava.net.preferIPv4Stack=true \
     -Djava.library.path=$CODA/$MACHINE/lib \
     -DcmsgUDL="rc://multicast/"$EXPID \
     -Dname=$1 \
-    -Dtype=DC org.jlab.coda.emu.EmuFactory
+    -Dtype=$2 org.jlab.coda.emu.EmuFactory
 else
 $JAVA_HOME/bin/java -cp $CODA/common/jar/\* \
     -XX:+PerfDisableSharedMem \
+    -XX:+UseG1GC \
     -Djava.net.preferIPv4Stack=true \
     -Djava.library.path=$CODA/$MACHINE/lib \
     -DcmsgUDL="rc://multicast/"$EXPID \
     -Dname=$1 \
-    -Dtype=DC org.jlab.coda.emu.EmuFactory
+    -Dtype=$2 org.jlab.coda.emu.EmuFactory
 endif
