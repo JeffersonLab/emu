@@ -277,6 +277,11 @@ logger.info("      DataChannel Adapter: input ring item count -> " + inputRingIt
             if (outputRingItemCount < 1) {
                 outputRingItemCount = 128;
             }
+
+            if (emu.getCodaClass().isEventRecorder()) {
+                outputRingItemCount = 4096;
+            }
+
             outputRingItemCount = EmuUtilities.powerOfTwo(outputRingItemCount, false);
 logger.info("      DataChannel Adapter: output ring item count -> " + outputRingItemCount);
 
