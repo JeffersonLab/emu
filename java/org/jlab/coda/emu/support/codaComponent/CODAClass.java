@@ -117,4 +117,13 @@ public enum CODAClass {
         return (this == DC || this == SEB || this == PEB);
     }
 
+    /**
+     * Is this class representative of an event recording emu?
+     * @return {@code true} if this class represents an event recording emu,
+     *         else {@code false}.
+     */
+    public boolean isEventRecorder() {
+        return (this == ER);
+    }
+
 }
