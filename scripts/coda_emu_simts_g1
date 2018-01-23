@@ -19,7 +19,7 @@ if ($#argv > 1) then
 $JAVA_HOME/bin/java -cp $CODA/common/jar/\* \
     -XX:+PerfDisableSharedMem \
     -XX:+UseG1GC \
-    -mx100M \
+    -mx200M \
     -DrcAddr=$2 \
     -Djava.net.preferIPv4Stack=true \
     -Djava.library.path=$CODA/$MACHINE/lib \
@@ -30,7 +30,7 @@ else
 $JAVA_HOME/bin/java -cp $CODA/common/jar/\* \
     -XX:+PerfDisableSharedMem \
     -XX:+UseG1GC \
-    -mx100M \
+    -mx200M \
     -Djava.net.preferIPv4Stack=true \
     -Djava.library.path=$CODA/$MACHINE/lib \
     -DcmsgUDL="rc://multicast/"$EXPID \
