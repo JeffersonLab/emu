@@ -252,12 +252,13 @@ public class ByteBufferSupply {
 
 
     /**
-     *
-     * @return
+     * Get the fill level, 0% to 100%. Zero means empty, 100% means full with no more room.
+     * @return fill level, 0% to 100%.
      */
-    public long getFillLevel() {
-        return 100*(ringBuffer.getCursor() - ringBuffer.getMinimumGatingSequence())/ringBuffer.getBufferSize();
+    public int getFillLevel() {
+        return (int) (100*(ringBuffer.getCursor() - ringBuffer.getMinimumGatingSequence())/ringBuffer.getBufferSize());
     }
+
 
     /**
      * Get the next available item in ring buffer for writing/reading data.
