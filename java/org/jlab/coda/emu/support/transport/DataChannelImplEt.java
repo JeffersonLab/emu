@@ -619,6 +619,10 @@ logger.info("      DataChannel Et: closeEtSystem(), closed ET connection");
 
 
     /** {@inheritDoc} */
+    public int getInputLevel() {return bbSupply.getFillLevel();}
+
+    
+    /** {@inheritDoc} */
     public void prestart() {
         pause = false;
 
