@@ -335,20 +335,25 @@ logger.info("  Module Adapter: SEB chunk = " + sebChunk);
     /** {@inheritDoc} */
     public int[] getOutputLevels() {
         // The values in this array need to be obtained from each output channel
-        if (outputChannels != null && outputChanLevels != null) {
+        if (outputChanLevels != null) {
             int i=0;
             for (DataChannel chan : outputChannels) {
                 outputChanLevels[i++] = chan.getOutputLevel();
             }
         }
-
         return outputChanLevels;
     }
 
 
     /** {@inheritDoc} */
     public int[] getInputLevels() {
-        // The values in this array are set in the EB & ER modules
+        // The values in this array need to be obtained from each input channel
+        if (inputChanLevels != null) {
+            int i=0;
+            for (DataChannel chan : inputChannels) {
+                inputChanLevels[i++] = chan.getInputLevel();
+            }
+        }
         return inputChanLevels;
     }
 
