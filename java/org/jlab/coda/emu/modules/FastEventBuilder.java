@@ -367,25 +367,29 @@ logger.info("  EB mod: internal ring buf count -> " + ringItemCount);
     }
 
 
-    /** {@inheritDoc}.
-     * This queries the first EB build thread for all the input channel levels. */
-    public int[] getInputLevels() {
-        try {
-            BuildingThread bt = buildingThreadList.get(0);
-            if (bt == null) {
-                return null;
-            }
-
-            for (int i=0; i < inputChannelCount; i++) {
-                inputChanLevels[i] = bt.getInputLevel(i);
-            }
-        }
-        catch (Exception e) {
-            return null;
-        }
-
-        return inputChanLevels;
-    }
+//    /** {@inheritDoc}.
+//     * This queries the first EB build thread for all the input channel levels. */
+//    public int[] getInputLevels() {
+////        try {
+////            BuildingThread bt = buildingThreadList.get(0);
+////            if (bt == null) {
+////                return null;
+////            }
+////
+////            for (int i=0; i < inputChannelCount; i++) {
+////                inputChanLevels[i] = bt.getInputLevel(i);
+////            }
+////        }
+////        catch (Exception e) {
+////            return null;
+////        }
+//
+//        for (int i=0; i < inputChannelCount; i++) {
+//            inputChanLevels[i] = inputChannels.get(i).getInputLevel();
+//        }
+//
+//        return inputChanLevels;
+//    }
 
 
     /**
