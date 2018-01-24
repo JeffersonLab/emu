@@ -525,6 +525,18 @@ logger.info("      DataChannel Emu out: connected to server w/ UDL = " + udl);
 
 
     /** {@inheritDoc} */
+    public int getInputLevel() {
+        // Pick out the fullest of the socket buffer supplies
+        int supplyLevel, level = 0;
+        for (int i = 0; i < socketCount; i++)  {
+            supplyLevel = bbInSupply[i].getFillLevel();
+            level = level > supplyLevel ? level : supplyLevel;
+        }
+        return level;
+    }
+
+
+    /** {@inheritDoc} */
     public void prestart() throws CmdExecException {
         super.prestart();
 
