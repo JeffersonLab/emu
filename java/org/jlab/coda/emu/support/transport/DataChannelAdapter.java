@@ -264,7 +264,7 @@ logger.info("      DataChannel Adapter: input ring item count -> " + inputRingIt
         }
         else {
             // Set the number of items for the output chan ring buffers.
-            // These cannot be more than any internal module.
+            // We don't need any more slots than we have internal buffers.
             // The number returned by getInternalRingCount is for a single build thread
             // times the number of build threads. Since a channel has one ring for each
             // build thread, the # of items in any one ring is
@@ -278,6 +278,7 @@ logger.info("      DataChannel Adapter: input ring item count -> " + inputRingIt
                 outputRingItemCount = 128;
             }
 
+            // Event recorder has no internal byte buffer supply, so we can make this big
             if (emu.getCodaClass().isEventRecorder()) {
                 outputRingItemCount = 4096;
             }
@@ -483,6 +484,9 @@ System.out.println("      DataChannel Adapter: prestart, nextEv (" +
         if (ringIndex < 0) return -1L;
         return nextSequences[ringIndex];
     }
+
+    /** {@inheritDoc} */
+    public int getInputLevel() {return 0;}
 
     /** {@inheritDoc} */
     public int getOutputLevel() {
