@@ -326,6 +326,12 @@ logger.info("      DataChannel cmsg: write threads = " + writeThreadCount);
 
 
     /** {@inheritDoc} */
+    public int getInputLevel() {
+        return (int) (100*(ringBufferIn.getCursor() - ringBufferIn.getMinimumGatingSequence())/ringBufferIn.getBufferSize());
+    }
+
+
+    /** {@inheritDoc} */
     public void go() {
         if (input) {
             sub.restart();
