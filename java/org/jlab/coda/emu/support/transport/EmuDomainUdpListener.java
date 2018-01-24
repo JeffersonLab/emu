@@ -309,7 +309,8 @@ public class EmuDomainUdpListener extends Thread {
 
                 System.out.println("        Emu UDP: accept from host = " + multicasterHost +
                                    ", UDP port = " + multicasterUdpPort + ", name = " +
-                                   componentName + ", expid = " + multicasterExpid);
+                                   componentName + ", expid = " + multicasterExpid +
+                                   ": reply sent back");
             }
         }
         catch (IOException e) {
