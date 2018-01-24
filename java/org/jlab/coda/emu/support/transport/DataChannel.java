@@ -104,10 +104,16 @@ public interface DataChannel extends CODAStateMachine, StatedObject {
     public RingBuffer<RingItem>[] getRingBuffersOut();
 
     /**
+     * Get the relative fill level (0-100) of the ring of this input channel.
+     * @return relative fill level (0-100) of all the ring.
+     */
+    public int getInputLevel();
+
+    /**
      * Get the relative fill level (0-100) of all the rings of this output channel.
      * Module calls this to report its output channels' levels.
      * (Input levels are associated directly with the module).
-     * @return relative fill level (0-100) of all the rings together
+     * @return relative fill level (0-100) of all the rings together.
      */
     public int getOutputLevel();
 
