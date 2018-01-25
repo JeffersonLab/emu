@@ -399,6 +399,8 @@ public class DataChannelImplEmu extends DataChannelAdapter {
         int numBufs = 1024000000 / (maxBufferSize * channelCount);
         numBufs = numBufs <  16 ?  16 : numBufs;
         numBufs = numBufs > 128 ? 128 : numBufs;
+        numBufs = 64;
+        
         // Make power of 2, round up
         numBufs = EmuUtilities.powerOfTwo(numBufs, true);
 logger.info("      DataChannel Emu in: " + numBufs + " buffers in input supply");
