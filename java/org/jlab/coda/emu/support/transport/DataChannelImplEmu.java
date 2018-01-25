@@ -390,13 +390,15 @@ public class DataChannelImplEmu extends DataChannelAdapter {
         // in which to copy incoming data from client.
         // Using direct buffers works but performance is poor and fluctuates
         // quite a bit in speed.
-        // Put a limit on the amount of memory, 256MB. A max buffer size
-        // of 1MB seems to work best which means 256 total buffers. That may be
-        // the easiest way to figure out how many buffers to use.
-        // Number of bufs must be a power of 2 and a minimum of 16.
-//int numBufs = 256000000 / maxBufferSize;
-        int numBufs = 128;
-        numBufs = numBufs < 16 ? 16 : numBufs;
+        //
+        // A DC with 13 inputs can quickly consume too much memory if we're not careful.
+        // Put a limit on the total amount of memory used for all emu socket input channels.
+        // Total limit is 1GB. This is probably the easiest way to figure out how many buffers to use.
+        // Number of bufs must be a power of 2 with a minimum of 16 and max of 128.
+        int channelCount = emu.getInputChannelCount();
+        int numBufs = 1024000000 / (maxBufferSize * channelCount);
+        numBufs = numBufs <  16 ?  16 : numBufs;
+        numBufs = numBufs > 128 ? 128 : numBufs;
         // Make power of 2, round up
         numBufs = EmuUtilities.powerOfTwo(numBufs, true);
 logger.info("      DataChannel Emu in: " + numBufs + " buffers in input supply");
