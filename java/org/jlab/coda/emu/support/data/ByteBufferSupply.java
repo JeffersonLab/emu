@@ -252,11 +252,14 @@ public class ByteBufferSupply {
 
 
     /**
-     * Get the fill level, 0% to 100%. Zero means empty, 100% means full with no more room.
+     * What percentage of the byte buffers are being used?
+     * If this ring is full (of unused buffers), it corresponds to an empty input or output channel (0%).
+     * If it's empty then the channel is full (100%).
      * @return fill level, 0% to 100%.
      */
     public int getFillLevel() {
-        return (int) (100*(ringBuffer.getCursor() - ringBuffer.getMinimumGatingSequence())/ringBuffer.getBufferSize());
+        int ringCount = ringBuffer.getBufferSize();
+        return (int) (100*(ringCount - (ringBuffer.getCursor() - ringBuffer.getMinimumGatingSequence()))/ringCount);
     }
 
 
