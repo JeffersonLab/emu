@@ -222,6 +222,9 @@ public class Emu implements CODAComponent {
      */
     int dataStreamId;
 
+    /** The number of (non-fifo) input channels coming into the first module. */
+    private int firstModuleInputChannelCount;
+
     /**
      * Configuration data can come from 3 sources:
      * run control string, run control file name, and debug gui file name.
@@ -729,6 +732,13 @@ System.out.println("Emu created, name = " + name + ", type = " + codaClass);
             return modules.get(modules.size()-1);
         }
     }
+
+    /**
+     * Get out the number of input channels to the first module.
+     * This is determined when initially receiving the configure command.
+     * @return number of input channels to the first module.
+     */
+    public int getInputChannelCount() {return firstModuleInputChannelCount;}
 
     /**
      * Get list of input channels.
@@ -2689,6 +2699,13 @@ if (debug) System.out.println("Emu " + name + " config: Got config type = " + my
 
                 int dataPathCount = 0;
 
+                // While we're doing this, take the FIRST module and count the number
+                // of its input channels. This tells us how many channels are coming
+                // from the "outside".
+                int firstModuleIndex = 0;
+                firstModuleInputChannelCount = 0;
+                boolean foundFirstModule = false;
+
                 // List of modules
                 NodeList childList = modulesConfig.getChildNodes();
 
@@ -2720,6 +2737,13 @@ if (debug) System.out.println("Emu " + name + " config: Got config type = " + my
 
                     // List of channels in (children of) the module ...
                     NodeList childChannelList = moduleNode.getChildNodes();
+
+                    // Find the first module so we can count its input channels
+                    if (!foundFirstModule) {
+                        firstModuleIndex = j;
+//System.out.println("   Found first module, index = " + j + "\n\n");
+                        foundFirstModule = true;
+                    }
 
                     inputFifoCount  =  inputChannelCount = 0;
                     outputFifoCount = outputChannelCount = 0;
@@ -2759,6 +2783,11 @@ if (debug) System.out.println("Emu " + name + " config: Got config type = " + my
                             if (channelTransName.equals("Fifo")) {
                                 inputFifoCount++;
                                 inputFifoName = channelName;
+                            }
+                            else if (j == firstModuleIndex) {
+                                firstModuleInputChannelCount++;
+//                                System.out.println("  Found first module channel" + channelName +
+//                                                           ", chan count = " + firstModuleInputChannelCount + "\n\n");
                             }
                         }
                         else if (channelNode.getNodeName().equalsIgnoreCase("outchannel")) {
@@ -2840,6 +2869,8 @@ if (debug) System.out.println("Emu " + name + " config: Got config type = " + my
                 // Look through all modules trying to add them to path
                 again:
                 while (true) {
+
+                    boolean isFirstModule = false;
 
                     // Iterate through all modules
                     for (int j=0; j < childList.getLength(); j++) {
