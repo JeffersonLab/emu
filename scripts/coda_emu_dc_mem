@@ -21,8 +21,8 @@ endif
 if ($#argv > 1) then
 $JAVA_HOME/bin/java -cp $CODA/common/jar/\* \
     -XX:+PerfDisableSharedMem \
-    -Xmx=$2 \
-    -Xms=$2 \
+    -Xmx$2 \
+    -Xms$2 \
     -Djava.net.preferIPv4Stack=true \
     -Djava.library.path=$CODA/$MACHINE/lib \
     -DcmsgUDL="rc://multicast/"$EXPID \
