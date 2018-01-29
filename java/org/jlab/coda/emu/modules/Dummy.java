@@ -155,9 +155,6 @@ public class Dummy extends ModuleAdapter {
             thd.interrupt();
             try {
                 thd.join(250);
-                if (thd.isAlive()) {
-                    thd.stop();
-                }
             }
             catch (InterruptedException e) {}
         }
