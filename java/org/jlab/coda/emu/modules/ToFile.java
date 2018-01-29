@@ -282,14 +282,11 @@ if (debug) System.out.println("  ToFile mod: will end threads but no END event o
         // methods which, in turn, call this method. In this case,
         // all recording threads will be interrupted in the following code.
 
-        // Interrupt all recording threads except the one calling this method
+        // Interrupt recording thread
         if (thread != thisThread) {
             thread.interrupt();
             try {
                 thread.join(250);
-                if (thread.isAlive()) {
-                    thread.stop();
-                }
             }
             catch (InterruptedException e) {
             }
