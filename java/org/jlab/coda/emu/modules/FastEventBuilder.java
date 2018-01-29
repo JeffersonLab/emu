@@ -1759,20 +1759,20 @@ System.out.println("  EB mod: endBuildThreads: will end building/filling threads
     }
 
 
-    /**
-     * Stop build threads that may be blocked.
-     */
-    private void stopBlockingThreads() {
-        // Building threads can block when trying to write to a full output channel ring (rb.next())
-        for (Thread thd : buildingThreadList) {
-            if (thd.isAlive()) {
-                thd.stop();
-            }
-        }
-
-        // Although the preprocessor threads can block on rb.next() when writing user events
-        // to output channel, it's extremely unlikely so don't bother stopping these threads.
-    }
+//    /**
+//     * Stop build threads that may be blocked.
+//     */
+//    private void stopBlockingThreads() {
+//        // Building threads can block when trying to write to a full output channel ring (rb.next())
+//        for (Thread thd : buildingThreadList) {
+//            if (thd.isAlive()) {
+//                thd.stop();
+//            }
+//        }
+//
+//        // Although the preprocessor threads can block on rb.next() when writing user events
+//        // to output channel, it's extremely unlikely so don't bother stopping these threads.
+//    }
 
 
 //    /**
