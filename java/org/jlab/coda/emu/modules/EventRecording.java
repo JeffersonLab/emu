@@ -261,15 +261,15 @@ System.out.println("  ER mod: will end thread but no END event!");
     }
 
 
-    /**
-     * Stop record thread that may be blocked.
-     */
-    private void stopBlockingThreads() {
-        // Building threads can block when trying to write to a full output channel ring (rb.next())
-        if (recordingThread != null && recordingThread.isAlive()) {
-            recordingThread.stop();
-        }
-    }
+//    /**
+//     * Stop record thread that may be blocked.
+//     */
+//    private void stopBlockingThreads() {
+//        // Building threads can block when trying to write to a full output channel ring (rb.next())
+//        if (recordingThread != null && recordingThread.isAlive()) {
+//            recordingThread.stop();
+//        }
+//    }
 
 
     /**
