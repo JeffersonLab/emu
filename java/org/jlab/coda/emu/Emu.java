@@ -313,7 +313,8 @@ public class Emu implements CODAComponent {
         volatile boolean deadThread;
 
         /**
-         * Tell thread to stop immediately.
+         * Interrupt thread, wait up to 5 seconds for it to end.
+         * If it's still alive, call stop().
          */
         public void stop() {
             endThread = true;
@@ -321,12 +322,15 @@ public class Emu implements CODAComponent {
             // If thread stuck in mailbox.poll, this will get it out & end thread
             transitionThread.interrupt();
 
-            // Wait 1/5 second
-            try {Thread.sleep(200);}
+            // Wait 5 sec
+            try {transitionThread.join(5000);}
             catch (InterruptedException e) {}
             
             // If thread is stuck in a transition, this will brutally kill thread
-            transitionThread.stop();
+            if (transitionThread.isAlive()) {
+logger.info("Emu " + name + ": transition thread, stop() called for reset");
+                transitionThread.stop();
+            }
         }
 
         /**
