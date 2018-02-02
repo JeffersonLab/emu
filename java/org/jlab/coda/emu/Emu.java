@@ -328,8 +328,8 @@ public class Emu implements CODAComponent {
             
             // If thread is stuck in a transition, this will brutally kill thread
             if (transitionThread.isAlive()) {
-logger.info("Emu " + name + ": transition thread, stop() called for reset");
-                transitionThread.stop();
+logger.info("Emu " + name + ": WARNING transition thread still alive even after interrupt");
+                //transitionThread.stop();
             }
         }
 
