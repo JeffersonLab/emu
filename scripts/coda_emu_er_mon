@@ -1,10 +1,10 @@
 #!/bin/csh -f
 
-# Script to start up a CODA EMU Primary Event Builder
+# Script to start up a CODA EMU Event Recorder
 # First argument is the name of the component
 
 if ($#argv < 1) then
-  echo "Usage: coda_emu_peb <name> <rc address(optional)>"
+  echo "Usage: coda_emu_er <name> <rc address(optional)>"
   echo "(Note valid addresses: ipv4 dot decimal)"
   exit
 endif
@@ -13,8 +13,6 @@ endif
 #setenv LD_LIBRARY_PATH $CODA/$MACHINE/lib
 
 #setenv MALLOC_ARENA_MAX 2
-#    -XX:FlightRecorderOptions=defaultrecording=true \
-#    -Djavax.xml.parsers.SAXParserFactory=com.sun.org.apache.xerces.internal.jaxp.SAXParserFactoryImp \
 
 if ($#argv > 1) then
 $JAVA_HOME/bin/java -cp $CODA/common/jar/\* \
@@ -24,7 +22,7 @@ $JAVA_HOME/bin/java -cp $CODA/common/jar/\* \
     -Djava.library.path=$CODA/$MACHINE/lib \
     -DcmsgUDL="rc://multicast/"$EXPID \
     -Dname=$1 \
-    -Dtype=PEB org.jlab.coda.emu.EmuFactory
+    -Dtype=ER org.jlab.coda.emu.EmuFactory
 else
 $JAVA_HOME/bin/java -cp $CODA/common/jar/\* \
     -XX:+UnlockCommercialFeatures -XX:+FlightRecorder \
@@ -32,5 +30,5 @@ $JAVA_HOME/bin/java -cp $CODA/common/jar/\* \
     -Djava.library.path=$CODA/$MACHINE/lib \
     -DcmsgUDL="rc://multicast/"$EXPID \
     -Dname=$1 \
-    -Dtype=PEB org.jlab.coda.emu.EmuFactory
+    -Dtype=ER org.jlab.coda.emu.EmuFactory
 endif
