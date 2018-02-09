@@ -329,27 +329,40 @@ logger.info("      DataChannel Et: chunk = " + chunk);
                 }
                 catch (EtException e) { /* never happen */}
 
-                String idFilter = attributeMap.get("idFilter");
-                if (idFilter != null && idFilter.equalsIgnoreCase("on")) {
-                    // Create filter for station so only events from a particular ROC
-                    // (id as defined in config file) make it in.
-                    // Station filter is the built-in selection function.
-                    int[] selects = new int[EtConstants.stationSelectInts];
-                    Arrays.fill(selects, -1);
-                    selects[0] = id;
-                    stationConfig.setSelect(selects);
-                    stationConfig.setSelectMode(EtConstants.stationSelectMatch);
+                if (isER) {
+                    // Make the station the ER connects to a parallel station
+                    // so that if there is another ER connected, each will receive
+                    // half the events.
+                    stationName = emu.name();
+                    stationConfig.setSelectMode(EtConstants.stationSelectRRobin);
+                    stationConfig.setFlowMode(EtConstants.stationParallel);
+                    stationConfig.setBlockMode(EtConstants.stationBlocking);
+                    stationConfig.setRestoreMode(EtConstants.stationRestoreOut);
+                    stationConfig.setPrescale(1);
                 }
+                else {
+                    String idFilter = attributeMap.get("idFilter");
+                    if (idFilter != null && idFilter.equalsIgnoreCase("on")) {
+                        // Create filter for station so only events from a particular ROC
+                        // (id as defined in config file) make it in.
+                        // Station filter is the built-in selection function.
+                        int[] selects = new int[EtConstants.stationSelectInts];
+                        Arrays.fill(selects, -1);
+                        selects[0] = id;
+                        stationConfig.setSelect(selects);
+                        stationConfig.setSelectMode(EtConstants.stationSelectMatch);
+                    }
 
-                String controlFilter = attributeMap.get("controlFilter");
-                if (controlFilter != null && controlFilter.equalsIgnoreCase("on")) {
-                    // Create filter for station so only control events make it in.
-                    // Station filter is the built-in selection function.
-                    int[] selects = new int[EtConstants.stationSelectInts];
-                    Arrays.fill(selects, -1);
-                    selects[0] = EventType.CONTROL.getValue();
-                    stationConfig.setSelect(selects);
-                    stationConfig.setSelectMode(EtConstants.stationSelectMatch);
+                    String controlFilter = attributeMap.get("controlFilter");
+                    if (controlFilter != null && controlFilter.equalsIgnoreCase("on")) {
+                        // Create filter for station so only control events make it in.
+                        // Station filter is the built-in selection function.
+                        int[] selects = new int[EtConstants.stationSelectInts];
+                        Arrays.fill(selects, -1);
+                        selects[0] = EventType.CONTROL.getValue();
+                        stationConfig.setSelect(selects);
+                        stationConfig.setSelectMode(EtConstants.stationSelectMatch);
+                    }
                 }
 
                 // Note that controlFilter trumps idFilter
@@ -542,10 +555,26 @@ System.out.println("      DataChannel Et:" + errString + "; " + e.getMessage());
                 }
                 else {
                     try {
-                        station = etSystem.createStation(stationConfig, stationName);
-                        etSystem.setStationPosition(station, stationPosition, 0);
+                        if (isER) {
+                            // The guy who owns the ET system creates the head of the parallel stations
+                            if (dataTransportImplEt.tryToCreateET()) {
+System.out.println("      DataChannel Et: try creating station " + stationName + " at pos " + stationPosition +
+                       ", at parallel pos = head");
+                                station = etSystem.createStation(stationConfig, stationName, stationPosition, EtConstants.newHead);
+                            }
+                            else {
+System.out.println("      DataChannel Et: try creating station " + stationName + " at pos " + stationPosition +
+                       ", at parallel pos = end");
+                                station = etSystem.createStation(stationConfig, stationName, stationPosition, EtConstants.end);
+                            }
+                        }
+                        else {
+                            station = etSystem.createStation(stationConfig, stationName, stationPosition, 0);
+                        }
                     }
                     catch (EtExistsException e) {
+System.out.println("      DataChannel Et: try creating station " + stationName + " at pos " + stationPosition +
+                           ", but it exists so attach to existing");
                         station = etSystem.stationNameToObject(stationName);
                         etSystem.setStationPosition(station, stationPosition, 0);
                     }
