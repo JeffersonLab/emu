@@ -558,23 +558,23 @@ System.out.println("      DataChannel Et:" + errString + "; " + e.getMessage());
                         if (isER) {
                             // The guy who owns the ET system creates the head of the parallel stations
                             if (dataTransportImplEt.tryToCreateET()) {
-    System.out.println("      DataChannel Et: try creating station " + stationName + " at pos " + stationPosition +
-                       ", at parallel pos = " + EtConstants.newHead);
+System.out.println("      DataChannel Et: try creating station " + stationName + " at pos " + stationPosition +
+                   ", at parallel pos = head");
                                 station = etSystem.createStation(stationConfig, stationName, stationPosition, EtConstants.newHead);
                             }
                             else {
-    System.out.println("      DataChannel Et: try creating station " + stationName + " at pos " + stationPosition +
-                       ", at parallel pos = " + 1);
-                                station = etSystem.createStation(stationConfig, stationName, stationPosition, 1);
+System.out.println("      DataChannel Et: try creating station " + stationName + " at pos " + stationPosition +
+                   ", at parallel pos = end");
+                                station = etSystem.createStation(stationConfig, stationName, stationPosition, EtConstants.end);
                             }
                         }
                         else {
-                            etSystem.setStationPosition(station, stationPosition, 0);
+                            station = etSystem.createStation(stationConfig, stationName, stationPosition, 0);
                         }
                     }
                     catch (EtExistsException e) {
 System.out.println("      DataChannel Et: try creating station " + stationName + " at pos " + stationPosition +
-                           ", but it exists so attach to existing");
+                   ", but it exists so attach to existing");
                         station = etSystem.stationNameToObject(stationName);
                         etSystem.setStationPosition(station, stationPosition, 0);
                     }
