@@ -808,8 +808,15 @@ System.out.println("  Roc mod: reset()");
         PayloadBuffer pBuf = Evio.createControlBuffer(ControlType.END, 0, 0,
                                                       (int)eventCountTotal, 0,
                                                       outputOrder, false);
-        // Send to first ring
-        eventToOutputChannel(pBuf, 0, 0);
+        // Send to first ring on ALL channels
+        for (int i=0; i < outputChannelCount; i++) {
+            if (i > 0) {
+                // copy buffer and use that
+                pBuf = new PayloadBuffer(pBuf);
+            }
+            eventToOutputChannel(pBuf, i, 0);
+System.out.println("  Roc mod: inserted END event to channel " + i);
+        }
     }
 
 
@@ -872,9 +879,15 @@ System.out.println("  Roc mod: reset()");
         PayloadBuffer pBuf2 = Evio.createControlBuffer(ControlType.PRESTART, emu.getRunNumber(),
                                                       emu.getRunTypeId(), 0, 0,
                                                       outputOrder, false);
-        // Send to first ring
-        eventToOutputChannel(pBuf2, 0, 0);
-System.out.println("  Roc mod: inserted PRESTART event");
+        // Send to first ring on ALL channels
+        for (int i=0; i < outputChannelCount; i++) {
+            if (i > 0) {
+                // copy buffer and use that
+                pBuf2 = new PayloadBuffer(pBuf2);
+            }
+            eventToOutputChannel(pBuf2, i, 0);
+System.out.println("  Roc mod: inserted PRESTART event to channel " + i);
+        }
 
 //        // Send more user events right after prestart
 //        if (sendUser && emu.name().equals("Roc1")) {
@@ -926,8 +939,15 @@ System.out.println("  Roc mod: inserted PRESTART event");
         PayloadBuffer pBuf = Evio.createControlBuffer(ControlType.GO, 0, 0,
                                                       (int) eventCountTotal, 0,
                                                       outputOrder, false);
-        eventToOutputChannel(pBuf, 0, 0);
-System.out.println("  Roc mod: insert GO event");
+        // Send to first ring on ALL channels
+        for (int i=0; i < outputChannelCount; i++) {
+            if (i > 0) {
+                // copy buffer and use that
+                pBuf = new PayloadBuffer(pBuf);
+            }
+            eventToOutputChannel(pBuf, i, 0);
+System.out.println("  Roc mod: inserted GO event to channel " + i);
+        }
 
 //        try {
 //            Thread.sleep(500);
