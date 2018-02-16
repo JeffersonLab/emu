@@ -2056,6 +2056,7 @@ if (debug) System.out.println("Emu " + name + " prestart: PRESTART cmd to " + tr
                         // Get name of this channel
                         String channelName = channelNameNode.getNodeValue();
 //System.out.println("Emu " + name + " prestart: found channel of name " + channelName);
+
                         // Get "transp" attribute node from map
                         Node channelTranspNode = nnm.getNamedItem("transp");
                         if (channelTranspNode == null) {
@@ -2109,6 +2110,18 @@ if (debug) System.out.println("Emu " + name + " prestart: PRESTART cmd to " + tr
                             }
                             else {
                                 if (channel != null) {
+                                    pItem = cmd.getArg("ipList_" + channelName);
+                                    if (pItem != null) {
+                                        String[] ipList = pItem.getStringArray();
+                                        channel.setDestinationIpList(ipList);
+                                    }
+
+                                    pItem = cmd.getArg("baList_" + channelName);
+                                    if (pItem != null) {
+                                        String[] baList = pItem.getStringArray();
+                                        channel.setDestinationBaList(baList);
+                                    }
+
                                     channel.registerEndCallback(new EmuEventNotify());
                                     channel.registerPrestartCallback(new EmuEventNotify());
                                     out.add(channel);
@@ -2467,6 +2480,31 @@ logger.info("Emu " + name + " config: change state to CONFIGURING");
 
             if (msg != null) {
                 try {
+
+
+                    // Vardan's test
+                    pItem = cmd.getArg("ipList");
+                    if (pItem != null) {
+                        String[] ipList = pItem.getStringArray();
+                        System.out.println("CONFIG: Client IP List found:");
+                        for (String s : ipList) {
+                            System.out.println(" ip = " + s);
+                        }
+                    }
+
+                    pItem = cmd.getArg("baList");
+                    if (pItem != null) {
+                        String[] ipList = pItem.getStringArray();
+                        System.out.println("CONFIG: Client Broadcast List found:");
+                        for (String s : ipList) {
+                            System.out.println(" ip = " + s);
+                        }
+                    }
+
+
+
+
+
                     // If this is a Ts/RocSimulation emu, this is how we
                     // get the xml configuration string.
                     pItem = cmd.getArg(RCConstants.configPayloadFileContentRoc);
