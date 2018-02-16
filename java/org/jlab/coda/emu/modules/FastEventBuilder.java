@@ -1454,15 +1454,8 @@ System.out.println("  EB mod: bt#" + btIndex + " found END events on all input c
 
                     // Which output channel do we use?
                     if (outputChannelCount > 1) {
-                        // If we're a DC with multiple SEBs ...
-                        if (chunkingForSebs) {
-                            evGroupIndex = evIndex/sebChunk;
-                            outputChannelIndex = (int) (evGroupIndex % outputChannelCount);
-                        }
                         // Otherwise round-robin between all output channels
-                        else {
-                            outputChannelIndex = (outputChannelIndex + 1) % outputChannelCount;
-                        }
+                        outputChannelIndex = (outputChannelIndex + 1) % outputChannelCount;
                     }
                     evIndex += btCount;
 

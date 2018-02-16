@@ -49,25 +49,11 @@ public class ModuleAdapter implements EmuModule {
     /** Were the number of event producing threads explicitly set in config file? */
     protected boolean epThreadsSetInConfig;
 
-    /**
-     * If multiple final event builders (SEBs or PEBs) exist, since all DCs are connected
-     * to all SEBs, each DC must send the same number of contiguous buildable events to
-     * each SEB in the proper sequence for building to take place.
-     * This value should be set in the config file by jcedit.
-     */
-    protected int sebChunk;
-
     /** When the END event arrives this is its index, starting with 0 for prestart. */
     protected long endEventIndex;
 
     /** When the END event arrives this the output channel ring it is placed on. */
     protected int endEventRingIndex;
-
-    /**
-     * True if we're outputting from DC to multiple SEBs and so we need to chunk up events
-     * sent into batches of "sebChunk".
-     */
-    protected boolean chunkingForSebs;
 
     /** Name of this module. */
     protected final String name;
@@ -244,29 +230,6 @@ public class ModuleAdapter implements EmuModule {
 logger.info("  Module Adapter: output byte order = " + outputOrder);
 
 
-        // If this is a DC and there are multiple SEBs, set the number of
-        // evio events (all of the very same block level) to be sent,
-        // in sequence, to a single SEB before sending the same amount
-        // to the next SEB. Each SEB must get the same # of events from
-        // each DC.
-        sebChunk = 1;
-        str = attributeMap.get("sebChunk");
-        if (str != null) {
-            try {
-                // Note that the boolean "chunkingforSebs" is set in prestart
-                // by adding more than one output channel (see the method
-                // addOutputChannels()). Only when that is true, does sebChunk
-                // do anything.
-                int val = Integer.parseInt(str);
-                if (val > 0) {
-                    sebChunk = val;
-logger.info("  Module Adapter: SEB chunk = " + sebChunk);
-                }
-            }
-            catch (NumberFormatException e) {}
-        }
-
-
         // Does this module accurately represent the whole EMU's stats?
         representStatistics = true;
         str = attributeMap.get("repStats");
@@ -305,6 +268,7 @@ logger.info("  Module Adapter: SEB chunk = " + sebChunk);
 
         // Have any output channels?
         if (outputChannelCount < 1) {
+//            logger.info("  Module Adapter: no output channel so release event w/o publishing");
             itemOut.releaseByteBuffer();
             return;
         }
@@ -475,18 +439,6 @@ logger.info("  Module Adapter: SEB chunk = " + sebChunk);
         if (output_channels == null) return;
         this.outputChannels.addAll(output_channels);
         outputChannelCount = outputChannels.size();
-
-        if (outputChannelCount > 1) {
-            // This is a DC outputting to multiple SEBs (output channels).
-            // Since this is the case, we need to write a fixed, contiguous
-            // # of events to a single SEB before moving on to the next and
-            // writing the same amount of events there.
-            if (emu.getCodaClass() == CODAClass.DC) {
-//System.out.println("Set chunking FOR SEB, chunk = " + sebChunk);
-                chunkingForSebs = true;
-            }
-        }
-//System.out.println("So far, chunkingForSebs = " + chunkingForSebs);
     }
 
     /** {@inheritDoc} */
@@ -513,11 +465,6 @@ logger.info("  Module Adapter: SEB chunk = " + sebChunk);
     /** {@inheritDoc} */
     public ByteOrder getOutputOrder() {return outputOrder;}
 
-    /** {@inheritDoc} */
-    public int getSebChunk() {return sebChunk;}
-
-    /** {@inheritDoc} */
-    public boolean getSebChunking() {return chunkingForSebs;}
 
     //----------------------------------------------------------------
 
