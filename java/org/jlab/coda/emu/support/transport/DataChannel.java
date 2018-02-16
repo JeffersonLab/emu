@@ -129,4 +129,19 @@ public interface DataChannel extends CODAStateMachine, StatedObject {
      * @param ringIndex  ring to read END event on.
      */
     public void processEnd(long eventIndex, int ringIndex);
+
+    /**
+     * Set the output channel's list of possible destination IP addresses if connecting to server.
+     * @param ipList  list of possible destination IP addresses if connecting to server.
+     */
+    public void setDestinationIpList(String[] ipList);
+
+    /**
+     * Set the output channel's list of destination broadcast addresses each corresponding
+     * to the same element of the IpList.
+     * @param ipList   list of destination broadcast addresses each corresponding
+     *                 to the same element of the IpList.
+     */
+    public void setDestinationBaList(String[] baList);
+
 }
