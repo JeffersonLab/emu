@@ -136,12 +136,6 @@ public abstract class DataChannelAdapter extends CODAStateMachineAdapter impleme
      */
     protected long nextEvent;
 
-    /** Ring that the END event will show up on. */
-    protected volatile int ringIndexEnd;
-
-    /** END event's number or index (currently not used). */
-    protected volatile long eventIndexEnd;
-
     /** Keep track of output channel thread's state. */
     protected enum ThreadState {RUNNING, DONE, INTERRUPTED};
 
@@ -364,8 +358,9 @@ logger.info("      DataChannel Adapter: output ring buffer count (1/buildthread)
         // Initialize the ring number (of first buildable event)
         ringIndex = (int) (nextEvent % outputRingCount);
 
-System.out.println("      DataChannel Adapter: prestart, nextEv (" +
-                           nextEvent + "), ringIndex (" + ringIndex + ')');
+//System.out.println("      DataChannel Adapter: prestart, nextEv (" +
+//                           nextEvent + "), ringIndex (" + ringIndex + ')' +
+//                    ", output channel count = (" + outputChannelCount + ")");
     }
 
 
@@ -377,9 +372,14 @@ System.out.println("      DataChannel Adapter: prestart, nextEv (" +
      * @return index of ring that next event will be placed in
      */
     protected int setNextEventAndRing() {
+//        System.out.print("      DataChannel Adapter:next ev (" + nextEvent + ") -> (" +
+//                                   nextEvent + " + " + outputChannelCount + ") = ");
         nextEvent += outputChannelCount;
+//System.out.println(nextEvent);
+
         ringIndex = (int) (nextEvent % outputRingCount);
-//System.out.println("      DataChannel Adapter: set next ev (" + nextEvent + "), ring (" + ringIndex + ")");
+//System.out.println("      DataChannel Adapter: set next ev (" + nextEvent + "), nextEv % bt -> (" +
+//                           nextEvent + " % " + outputRingCount + ")");
         return ringIndex;
     }
 
@@ -435,12 +435,6 @@ System.out.println("      DataChannel Adapter: prestart, nextEv (" +
 
     /** {@inheritDoc} */
     public EmuEventNotify getPrestartCallback() {return prestartCallback;}
-
-    /** {@inheritDoc} */
-    public void processEnd(long eventIndex, int ringIndex) {
-        eventIndexEnd = eventIndex;
-        ringIndexEnd  = ringIndex;
-    }
 
     public long getNextSequence(int ringIndex) {
         if (ringIndex < 0) return -1L;
