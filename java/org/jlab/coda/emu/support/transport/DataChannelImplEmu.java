@@ -453,50 +453,132 @@ logger.info("      DataChannel Emu in: last connection made, parser thd started,
     }
 
 
+    /**
+     * Open a client output channel to the EmuSocket server.
+     * @throws cMsgException if communication problems with server.
+     */
     private final void openOutputChannel() throws cMsgException {
+
+        if (ipAddrList != null && bAddrList != null &&
+            ipAddrList.length > 0 && bAddrList.length > 0) {
+
+            directOutputChannel();
+        }
+        else {
+            multicastOutputChannel();
+        }
+    }
+
+    
+    /**
+     * Open a client output channel to the EmuSocket server using multicasting.
+     * @throws cMsgException if communication problems with server.
+     */
+    private final void multicastOutputChannel() throws cMsgException {
 
         // UDL ->  emu://port/expid/destCompName?codaId=id&timeout=sec&bufSize=size&tcpSend=size&noDelay
 
         // "name" is name of this channel which also happens to be the
         // destination CODA component we want to connect to.
-        String udl = "emu://" + sendPort + '/' + emu.getExpid() +
-                '/' + name + "?codaId=" + getID();
+        StringBuilder builder = new StringBuilder(256);
+
+        builder.append("emu://multicast:").append(sendPort).append('/').append(emu.getExpid());
+        builder.append('/').append(name).append("?codaId=").append(getID());
 
         if (maxBufferSize > 0) {
-            udl += "&bufSize=" + maxBufferSize;
+            builder.append("&bufSize=").append(maxBufferSize);
         }
         else {
-            udl += "&bufSize=4000000";
+            builder.append("&bufSize=4000000");
         }
 
         if (connectTimeout > -1) {
-            udl += "&timeout=" + connectTimeout;
+            builder.append("&timeout=").append(connectTimeout);
         }
 
         if (tcpSendBuf > 0) {
-            udl += "&tcpSend=" + tcpSendBuf;
+            builder.append("&tcpSend=").append(tcpSendBuf);
         }
 
         if (preferredSubnet != null) {
-            udl += "&subnet=" + preferredSubnet;
+            builder.append("&subnet=").append(preferredSubnet);
         }
 
         if (socketCount > 1) {
-            udl += "&sockets=" + socketCount;
+            builder.append("&sockets=").append(socketCount);
         }
 
         if (noDelay) {
-            udl += "&noDelay";
+            builder.append("&noDelay");
         }
 
+ logger.info("      DataChannel Emu out: will connect to server w/ multicast UDL = " + builder.toString());
         // This connection will contain "sockCount" number of sockets
         // which are all used to send data.
-        emuDomain = new cMsg(udl, name, "emu domain client");
+        emuDomain = new cMsg(builder.toString(), name, "emu domain client");
         emuDomain.connect();
 
-logger.info("      DataChannel Emu out: connected to server w/ UDL = " + udl);
-
         startOutputThread();
+    }
+
+
+    /**
+     * Open a direct client output channel to the EmuSocket TCP server.
+     * @throws cMsgException if communication problems with server.
+     */
+    private final void directOutputChannel() throws cMsgException {
+
+        // "name" is name of this channel which also happens to be the
+        // destination CODA component we want to connect to.
+        int addrCount = ipAddrList.length;
+
+        StringBuilder builder = new StringBuilder(256);
+
+        for (int i=0; i < addrCount; i++) {
+            builder.append("emu://").append(ipAddrList[i]).append(':').append(sendPort);
+            builder.append('/').append(emu.getExpid()).append('/').append(name);
+            builder.append("?codaId=").append(getID()).append("&subnet=").append(bAddrList[i]);
+
+            if (maxBufferSize > 0) {
+                builder.append("&bufSize=").append(maxBufferSize);
+            }
+            else {
+                builder.append("&bufSize=4000000");
+            }
+
+            if (connectTimeout > -1) {
+                builder.append("&timeout=").append(connectTimeout);
+            }
+
+            if (tcpSendBuf > 0) {
+                builder.append("&tcpSend=").append(tcpSendBuf);
+            }
+
+            if (socketCount > 1) {
+                builder.append("&sockets=").append(socketCount);
+            }
+
+            if (noDelay) {
+                builder.append("&noDelay");
+            }
+
+            // This connection will contain "sockCount" number of sockets
+            // which are all used to send data.
+            try {
+logger.info("      DataChannel Emu out: will directly connect to server w/ UDL = " + builder.toString());
+                emuDomain = new cMsg(builder.toString(), name, "emu domain client");
+                emuDomain.connect();
+                startOutputThread();
+                return;
+            }
+            catch (cMsgException e) {
+                logger.info("      DataChannel Emu out: could not connect to server at " + ipAddrList[i]);
+                builder.delete(0, builder.length());
+                continue;
+            }
+        }
+
+        throw new cMsgException("Cannot connect to any given IP addresses directly");
     }
 
 
@@ -892,54 +974,6 @@ logger.debug("      DataChannel Emu: end(), close output channel " + name);
         dataOutputThread = new DataOutputHelper();
         dataOutputThread.start();
         dataOutputThread.waitUntilStarted();
-    }
-
-
-    /**
-     * If this is an output channel, it may be blocked on reading from a module
-     * because the END event arrived on an unexpected ring
-     * (possible if module has more than one event-producing thread
-     * AND there is more than one output channel),
-     * this method interrupts and allows this channel to read the
-     * END event from the proper ring.
-     *
-     * @param eventIndex index of last buildable event before END event.
-     * @param ringIndex  ring to read END event on.
-     */
-    public final void processEnd(long eventIndex, int ringIndex) {
-
-//        super.processEnd(eventIndex, ringIndex);
-
-        eventIndexEnd = eventIndex;
-        ringIndexEnd  = ringIndex;
-
-        if (input || !dataOutputThread.isAlive()) {
-//logger.debug("      DataChannel Emu out " + outputIndex + ": processEnd(), thread already done");
-            return;
-        }
-
-        // Don't wait more than 1/2 second
-        int loopCount = 20;
-        while (dataOutputThread.threadState != ThreadState.DONE && (loopCount-- > 0)) {
-            try {
-                Thread.sleep(25);
-            }
-            catch (InterruptedException e) {
-                break;
-            }
-        }
-
-        if (dataOutputThread.threadState == ThreadState.DONE) {
-//logger.debug("      DataChannel Emu out " + outputIndex + ": processEnd(), thread done after waiting");
-            return;
-        }
-
-        // Probably stuck trying to get item from ring buffer,
-        // so interrupt it and get it to read the END event from
-        // the correct ring.
-//logger.debug("      DataChannel Emu out " + outputIndex + ": processEnd(), interrupt thread in state " +
-//                     dataOutputThread.threadState);
-        dataOutputThread.interrupt();
     }
 
 
@@ -1926,7 +1960,7 @@ System.out.println("SocketSender thread interruped");
          * @param userBool user boolean to be set in byte buffer item. In this case,
          *                 if true, event being flushed is single END event.
          */
-        private final void flushEvents(boolean force, boolean userBool) throws cMsgException, EvioException {
+        private final void flushEvents(boolean force, boolean userBool) {
             // Position the buffer
             writer.close();
 
@@ -1966,10 +2000,12 @@ System.out.println("SocketSender thread interruped");
          * them over socket.
          *
          * @param rItem event to write
+         * @throws IOException if error writing evio data to buf
+         * @throws EvioException if error writing evio data to buf (bad format)
          * @throws EmuException if no data to write
          */
         private final void writeEvioData(RingItem rItem)
-                throws cMsgException, IOException, EvioException, EmuException {
+                throws IOException, EvioException, EmuException {
 
             int blockNum;
             EventType eType = rItem.getEventType();
@@ -2009,7 +2045,18 @@ System.out.println("SocketSender thread interruped");
 
                 ByteBuffer buf = rItem.getBuffer();
                 if (buf != null) {
-                    writer.writeEvent(buf);
+                    try {
+//System.out.println("      DataChannel Emu write: single ev buf, pos = " + buf.position() +
+//", lim = " + buf.limit() + ", cap = " + buf.capacity());
+                        writer.writeEvent(buf);
+//                        Utilities.printBufferBytes(buf, 0, 20, "control?");
+                    }
+                    catch (Exception e) {
+System.out.println("      DataChannel Emu write: single ev buf, pos = " + buf.position() +
+                   ", lim = " + buf.limit() + ", cap = " + buf.capacity());
+                        Utilities.printBufferBytes(buf, 0, 20, "bad END?");
+                        throw e;
+                    }
                 }
                 else {
                     EvioNode node = rItem.getNode();
@@ -2188,20 +2235,7 @@ logger.info("      DataChannel Emu out: " + name + " got END event, quitting 1")
                         ringItem = getNextOutputRingItem(ringIndex);
                     }
                     catch (InterruptedException e) {
-                        threadState = ThreadState.INTERRUPTED;
-                        // If we're here we were blocked trying to read the next event.
-                        // If there are multiple event building threads in the module,
-                        // then the END event may show up in an unexpected ring.
-                        // The reason for this is that one thread writes to only one ring.
-                        // But since only 1 thread gets the END event, it must write it
-                        // into that ring in all output channels whether that ring was
-                        // the next place to put a data event or not. Thus it may end up
-                        // in a ring which was not the one to be read next.
-                        // We've had 1/4 second to read everything else so let's try
-                        // reading END from this now-known "unexpected" ring.
-logger.info("      DataChannel Emu out " + outputIndex + ": try again, read END from ringIndex " +
-                                          ringIndexEnd + " not " + ringIndex);
-                        ringItem = getNextOutputRingItem(ringIndexEnd);
+                        return;
                     }
 
                     pBankType = ringItem.getEventType();
@@ -2211,7 +2245,8 @@ logger.info("      DataChannel Emu out " + outputIndex + ": try again, read END 
                         writeEvioData(ringItem);
                     }
                     catch (Exception e) {
-                        errorMsg.compareAndSet(null, "Cannot write to file");
+                        e.printStackTrace();
+                        errorMsg.compareAndSet(null, "Cannot write data: " + e.getMessage());
                         throw e;
                     }
 
@@ -2254,6 +2289,7 @@ logger.info("      DataChannel Emu out: " + name + " got RESET cmd, quitting");
                 logger.warn("      DataChannel Emu out: " + name + "  interrupted thd, quitting");
             }
             catch (Exception e) {
+                e.printStackTrace();
                 channelState = CODAState.ERROR;
 System.out.println("      DataChannel Emu out:" + e.getMessage());
                 emu.setErrorState("DataChannel Emu out: " + e.getMessage());
