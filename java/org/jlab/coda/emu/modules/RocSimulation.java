@@ -225,7 +225,7 @@ public class RocSimulation extends ModuleAdapter {
 
         // How many iterations (writes of an entangled block of evio events)
         // before syncing fake ROCs together?
-        syncCount = 500000;
+        syncCount = 50003;
         try { syncCount = Integer.parseInt(attributeMap.get("syncCount")); }
         catch (NumberFormatException e) { /* defaults to 100k */ }
         if (syncCount < 10) syncCount = 10;
@@ -627,12 +627,12 @@ System.out.println("  Roc mod: start With (id=" + myId + "):\n    record id = " 
                         // Put generated events into output channel
                         eventToOutputRing(myId, buf, bufItem, bbSupply);
 
-                        // Delay things
-                        for (j=0; j < loops; j++) {
-                            for (i = 0; i < 15; i++) {
-                                k = k % 3;
-                            }
-                        }
+//                        // Delay things
+//                        for (j=0; j < loops; j++) {
+//                            for (i = 0; i < 15; i++) {
+//                                k = k % 3;
+//                            }
+//                        }
 
 //                        Thread.sleep(1000);
 
