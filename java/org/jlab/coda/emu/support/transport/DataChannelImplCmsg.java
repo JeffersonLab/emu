@@ -200,53 +200,6 @@ public class DataChannelImplCmsg extends DataChannelAdapter {
 
 
     /**
-     * If this is an output channel, it may be blocked on reading from a module
-     * because the END event arrived on an unexpected ring
-     * (possible if module has more than one event-producing thread
-     * AND there is more than one output channel),
-     * this method interrupts and allows this channel to read the
-     * END event from the proper ring.
-     *
-     * @param eventIndex index of last buildable event before END event.
-     * @param ringIndex  ring to read END event on.
-     */
-    public void processEnd(long eventIndex, int ringIndex) {
-
-//        super.processEnd(eventIndex, ringIndex);
-
-        eventIndexEnd = eventIndex;
-        ringIndexEnd  = ringIndex;
-
-        if (input || !dataOutputThread.isAlive()) {
-//logger.debug("      DataChannel cmsg out " + outputIndex + ": processEnd(), thread already done");
-            return;
-        }
-
-        // Don't wait more than 1/2 second
-        int loopCount = 20;
-        while (dataOutputThread.threadState != ThreadState.DONE && (loopCount-- > 0)) {
-            try {
-                Thread.sleep(25);
-            }
-            catch (InterruptedException e) { break; }
-        }
-
-        if (dataOutputThread.threadState == ThreadState.DONE) {
-//logger.debug("      DataChannel cmsg out " + outputIndex + ": processEnd(), thread done after waiting");
-            return;
-        }
-
-        // Probably stuck trying to get item from ring buffer,
-        // so interrupt it and get it to read the END event from
-        // the correct ring.
-//logger.debug("      DataChannel cmsg out " + outputIndex + ": processEnd(), interrupt thread in state " +
-//                     dataOutputThread.threadState);
-        dataOutputThread.interrupt();
-    }
-
-
-
-    /**
      * Constructor to create a new DataChannelImplCmsg instance. Used only by
      * {@link DataTransportImplCmsg#createChannel(String, Map, boolean, Emu, EmuModule, int)}
      * which is only used during PRESTART in the EmuModuleFactory.
@@ -715,14 +668,7 @@ logger.debug("      DataChannel cmsg out " + outputIndex + ": found " + pBankCon
                                     ringItem = getNextOutputRingItem(outputRingIndex);
                                 }
                                 catch (InterruptedException e) {
-                                    threadState = ThreadState.INTERRUPTED;
-                                    // If we're here we were blocked trying to read the next
-                                    // (END) event from the wrong ring. We've had 1/4 second
-                                    // to read everything else so let's try reading END from
-                                    // given ring.
-System.out.println("      DataChannel cmsg out: try again, read END from ringIndex " + ringIndexEnd +
-                                                               " not " + outputRingIndex);
-                                    ringItem = getNextOutputRingItem(ringIndexEnd);
+                                    return;
                                 }
                             }
 
