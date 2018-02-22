@@ -338,52 +338,6 @@ logger.info("      DataChannel File: reset " + name + " - done");
 
 
     /**
-     * If this is an output channel, it may be blocked on reading from a module
-     * because the END event arrived on an unexpected ring
-     * (possible if module has more than one event-producing thread
-     * AND there is more than one output channel),
-     * this method interrupts and allows this channel to read the
-     * END event from the proper ring.
-     *
-     * @param eventIndex index of last buildable event before END event.
-     * @param ringIndex  ring to read END event on.
-     */
-    public void processEnd(long eventIndex, int ringIndex) {
-
-//        super.processEnd(eventIndex, ringIndex);
-
-        eventIndexEnd = eventIndex;
-        ringIndexEnd  = ringIndex;
-
-        if (input || !dataOutputThread.isAlive()) {
-//logger.debug("      DataChannel File out " + outputIndex + ": processEnd(), thread already done");
-            return;
-        }
-
-        // Don't wait more than 1/2 second
-        int loopCount = 20;
-        while (dataOutputThread.threadState != ThreadState.DONE && (loopCount-- > 0)) {
-            try {
-                Thread.sleep(25);
-            }
-            catch (InterruptedException e) { break; }
-        }
-
-        if (dataOutputThread.threadState == ThreadState.DONE) {
-//logger.debug("      DataChannel File out " + outputIndex + ": processEnd(), thread done after waiting");
-            return;
-        }
-
-        // Probably stuck trying to get item from ring buffer,
-        // so interrupt it and get it to read the END event from
-        // the correct ring.
-//logger.debug("      DataChannel File out " + outputIndex + ": processEnd(), interrupt thread in state " +
-//                     dataOutputThread.threadState);
-        dataOutputThread.interrupt();
-    }
-
-
-    /**
      * Class <b>DataInputHelper</b>
      * This class reads data from the file and puts it on the ring.
      * Don't know if this will ever be useful. Might as well generate
@@ -726,20 +680,7 @@ logger.info("      DataChannel File out " + outputIndex + ": wrote GO");
 //Utilities.printBuffer(ringItem.getBuffer(), 0, 6, name+": ev" + nextEvent + ", ring " + ringIndex);
                     }
                     catch (InterruptedException e) {
-                        threadState = ThreadState.INTERRUPTED;
-                        // If we're here we were blocked trying to read the next event.
-                        // If there are multiple event building threads in the module,
-                        // then the END event may show up in an unexpected ring.
-                        // The reason for this is that one thread writes to only one ring.
-                        // But since only 1 thread gets the END event, it must write it
-                        // into that ring in all output channels whether that ring was
-                        // the next place to put a data event or not. Thus it may end up
-                        // in a ring which was not the one to be read next.
-                        // We've had 1/4 second to read everything else so let's try
-                        // reading END from this now-known "unexpected" ring.
-System.out.println("      DataChannel File out " + outputIndex + ": try again, read END from ringIndex "
-                           + ringIndexEnd + " not " + ringIndex);
-                        ringItem = getNextOutputRingItem(ringIndexEnd);
+                        return;
                     }
 
                     pBankType = ringItem.getEventType();
