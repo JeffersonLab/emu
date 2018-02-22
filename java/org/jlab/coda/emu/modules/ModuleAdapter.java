@@ -49,12 +49,6 @@ public class ModuleAdapter implements EmuModule {
     /** Were the number of event producing threads explicitly set in config file? */
     protected boolean epThreadsSetInConfig;
 
-    /** When the END event arrives this is its index, starting with 0 for prestart. */
-    protected long endEventIndex;
-
-    /** When the END event arrives this the output channel ring it is placed on. */
-    protected int endEventRingIndex;
-
     /** Name of this module. */
     protected final String name;
 
