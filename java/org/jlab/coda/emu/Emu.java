@@ -2113,12 +2113,20 @@ if (debug) System.out.println("Emu " + name + " prestart: PRESTART cmd to " + tr
                                     pItem = cmd.getArg("ipList_" + channelName);
                                     if (pItem != null) {
                                         String[] ipList = pItem.getStringArray();
+                                        System.out.println("Found destination IP list:");
+                                        for (String ip : ipList) {
+                                            System.out.println("  " + ip);
+                                        }
                                         channel.setDestinationIpList(ipList);
                                     }
 
                                     pItem = cmd.getArg("baList_" + channelName);
                                     if (pItem != null) {
                                         String[] baList = pItem.getStringArray();
+                                        System.out.println("Found destination broadcast list:");
+                                        for (String ip : baList) {
+                                            System.out.println("  " + ip);
+                                        }
                                         channel.setDestinationBaList(baList);
                                     }
 
