@@ -118,19 +118,6 @@ public interface DataChannel extends CODAStateMachine, StatedObject {
     public int getOutputLevel();
 
     /**
-     * If this is an output channel, it may be blocked on reading from a module
-     * because the END event arrived on an unexpected ring
-     * (possible if module has more than one event-producing thread
-     * AND there is more than one output channel),
-     * this method interrupts and allows this channel to read the
-     * END event from the proper ring.
-     *
-     * @param eventIndex index of last buildable event before END event.
-     * @param ringIndex  ring to read END event on.
-     */
-    public void processEnd(long eventIndex, int ringIndex);
-
-    /**
      * Set the output channel's list of possible destination IP addresses if connecting to server.
      * @param ipList  list of possible destination IP addresses if connecting to server.
      */
