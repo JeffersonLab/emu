@@ -1540,7 +1540,8 @@ System.out.println("Timestamp NOT consistent: ev #" + (firstEventNumber + j) + "
 
                 // check event number
                 if (firstEventNumber != commonLong[0]) {
-                    throw new EmuException("Trying to merge records with different event numbers");
+                    throw new EmuException("Trying to merge records with different event numbers: 1st bank = " +
+                    firstEventNumber + ", bank from chan " + i + " = " + commonLong[0]);
                 }
 
                 // check run number & type if all such data is present
