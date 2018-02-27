@@ -1241,6 +1241,24 @@ logger.debug("      DataChannel Et: reset " + name + " channel");
 
 
     /**
+      * Class used by the this input channel's internal RingBuffer
+      * to populate itself with etContainer objects.
+      */
+     private final class ContainerFactory implements EventFactory<EtContainer> {
+         public EtContainer newInstance() {
+             try {
+                 // This object holds an EtEvent array & more
+                 EtContainer con = new EtContainer(etSystem, chunk, (int)etSystem.getEventSize());
+                 return con;
+             }
+             catch (EtException e) {/* never happen */}
+             return null;
+         }
+     }
+
+
+
+    /**
      * Class used to get ET events, parse them into Evio banks,
      * and put them onto a single ring buffer.
      */
@@ -1318,23 +1336,6 @@ logger.debug("      DataChannel Et: reset " + name + " channel");
         void interruptThreads() {
             getter.interrupt();
             this.interrupt();
-        }
-
-
-        /**
-         * Class used by the this input channel's internal RingBuffer
-         * to populate itself with etContainer objects.
-         */
-        private final class ContainerFactory implements EventFactory<EtContainer> {
-            public EtContainer newInstance() {
-                try {
-                    // This object holds an EtEvent array & more
-                    EtContainer con = new EtContainer(etSystem, chunk, (int)etSystem.getEventSize());
-                    return con;
-                }
-                catch (EtException e) {/* never happen */}
-                return null;
-            }
         }
 
 
@@ -1697,12 +1698,12 @@ System.out.println("      DataChannel Et in: GETTER is Quitting");
                     // Do some work to get accurate error msgs back to run control.
                     try {
                         if (useDirectEt) {
-                            etContainer.putEvents(attachmentLocal, eventsDirect);
+                            etContainer.putEvents(attachmentLocal);
                             etSysLocal.putEvents(etContainer);
 
                         }
                         else {
-                            etContainer.putEvents(attachment, events, 0, validEvents);
+                            etContainer.putEvents(attachment, 0, validEvents);
                             etSystem.putEvents(etContainer);
                         }
 
@@ -1777,8 +1778,8 @@ System.out.println("      DataChannel Et in: GETTER is Quitting");
         /** Thread for putting filled ET events back into ET system. */
         private EvPutter putter;
 
-        /** Let a single waiter know that the main thread has been started. */
-        private final CountDownLatch startLatch = new CountDownLatch(1);
+        /** Let a single waiter know that the main threads have been started. */
+        private final CountDownLatch startLatch = new CountDownLatch(2);
 
         /** What state is this thread in? */
         private volatile ThreadState threadState;
@@ -1790,7 +1791,7 @@ System.out.println("      DataChannel Et in: GETTER is Quitting");
         private int ringSize;
 
         /** Internal ring buffer. */
-        private RingBuffer<EventHolder> rb;
+        private RingBuffer<EtContainer> rb;
 
         /** Used by first consumer (DataOutputHelper) to get ring buffer items. */
         private Sequence etFillSequence;
@@ -1807,17 +1808,15 @@ System.out.println("      DataChannel Et in: GETTER is Quitting");
         DataOutputHelper(ThreadGroup group, String name) {
             super(group, name);
 
-            // Closest power of 2 to chunk, rounded up.
-            // Making it 2xchunk slows it down quite a bit.
-            // Making it chunk or chunk/2 is roughly the same on average
-            // although, chunk/2 has bigger top speed.
-            ringSize = EmuUtilities.powerOfTwo(chunk, true);
+            // Ring will have 4 slots. Each is an EtContainer object containing
+            // "chunk" number of ET events.
+            int ringSize = 4;
 
-            // Create ring buffer used by 3 threads -
-            //   1 to get new events from ET system and place into ring (producer of ring items)
-            //   1 to get evio events and write them into ET event  (1st consumer of ring items)
-            //   1 to put events back into ET system (2nd consumer of ring items)
-            rb = createSingleProducer(new HolderFactory(), ringSize,
+            // Create ring buffer used by 2 threads -
+            //   1 to get events from ET system and place into ring (producer of ring items)
+            //   1 to get evio events and parse them into ET events and
+            //        put them back into ET system                  (consumer of ring items)
+            rb = createSingleProducer(new ContainerFactory(), ringSize,
                                       new YieldingWaitStrategy());
 
             // 1st consumer barrier of ring buffer, which gets evio
@@ -1896,38 +1895,6 @@ System.out.println("      DataChannel Et in: GETTER is Quitting");
         }
 
 
-        /** Object that holds an EtEvent and metadata in internal ring buffer. */
-        final private class EventHolder {
-            /** Place to hold ET event. */
-            private EtEvent event;
-
-            /** Is this the END event? */
-            private boolean isEnd;
-
-            /** Number of evio events in ET event. */
-            private int itemCount;
-
-            /** Bit info to set in EventWriter. */
-            private BitSet bitInfo = new BitSet(24);
-
-            /** Id to set in EventWriter. */
-            private int recordId;
-        }
-
-
-        /**
-         * Class used by the this output channel's internal RingBuffer
-         * to populate itself with holders of ET buffers.
-         */
-        final private class HolderFactory implements EventFactory<EventHolder> {
-            final public EventHolder newInstance() {
-                // This object holds an EtEvent
-                return new EventHolder();
-            }
-        }
-
-
-
         /**
          * Main thread of ET output channel. This thread gets a "new" ET event,
          * gathers the appropriate number of evio events from a module's output
@@ -1943,9 +1910,8 @@ System.out.println("      DataChannel Et in: GETTER is Quitting");
 
             try {
                 RingItem ringItem;
-                EventHolder holder;
 
-                EtEvent event = null;
+                EtEvent event;
                 EventType pBankType = null;
                 ControlType pBankControlType = null;
 
@@ -1957,7 +1923,7 @@ System.out.println("      DataChannel Et in: GETTER is Quitting");
                 int outputRingIndex = 0;
 
                 // Create writer with some args that get overwritten later.
-                // Make the block size bigger than the Roc's 4MB ET buffer
+                // Make the block size bigger than the Roc's 4.2MB ET buffer
                 // size so no additional block headers must be written.
                 // It should contain less than 100 ROC Raw records,
                 // but we'll allow 10000 such banks per block header.
@@ -1970,11 +1936,18 @@ System.out.println("      DataChannel Et in: GETTER is Quitting");
                 int bytesToEtBuf, ringItemSize=0, banksInEtBuf, myRecordId;
                 int etSize = (int) etSystem.getEventSize();
                 boolean etEventInitialized, isUserOrControl=false;
+                boolean isUser=false, isControl=false;
                 boolean gotPrestart=false;
 
                 // Variables for consuming ring buffer items
                 long etNextFillSequence = etFillSequence.get() + 1L;
                 long etAvailableFillSequence = -1L;
+
+                EtContainer etContainer;
+                EtEvent[] events;
+                int validEvents;
+                int itemCount;
+                BitSet bitInfo = new BitSet(24);
 
 
                 top:
@@ -1986,320 +1959,372 @@ System.out.println("      DataChannel Et in: GETTER is Quitting");
                     }
 
                     // Init variables
-                    myRecordId = 1;
-                    bytesToEtBuf = 0;
-                    banksInEtBuf = 0;
-                    etEventInitialized = false;
+                    event = null;
 
                     // Set time we started dealing with this ET event
                     startTime = emu.getTime();
 
-                    // Very first time through, event is null and we skip this
-                    if (event != null) {
-                        // Finish up the writing
-                        writer.close();
+                    // Get events
+                    try {
+                        //System.out.print("      DataChannel Et out: " + name + " getEvents() ...");
 
-                        // Be sure to set length of ET event to bytes of data actually written
-                        event.setLength((int)writer.getBytesWrittenToBuffer());
-
-                        //----------------------------------------
-                        // Release ET event for putting thread
-                        //----------------------------------------
-//System.out.println("      DataChannel Et out (" + name + "): filler, release ET event " + etNextFillSequence);
-                        etFillSequence.set(etNextFillSequence++);
-                    }
-
-//System.out.println("      DataChannel Et out (" + name + "): filler, try getting next seq (" + etNextFillSequence + ") for ET");
-                    // Do we wait for next ring slot or do we already have something from last time?
-                    if (etAvailableFillSequence < etNextFillSequence) {
-                        // Wait for next available ring slot
-                        etAvailableFillSequence = etFillBarrier.waitFor(etNextFillSequence);
-                    }
-//System.out.println("      DataChannel Et out (" + name + "): filler, available Seq = " + etAvailableFillSequence);
-
-                    //---------------------------------------------------------
-                    // Get the next holder object from internal ring's slot.
-                    // This will contain the new ET event to place data into.
-                    //---------------------------------------------------------
-                    holder = rb.get(etNextFillSequence);
-                    event = holder.event;
-                    //------------------------------------------
-
-                    while (true) {
-                        //--------------------------------------------------------
-                        // Get 1 item off of this channel's input rings which gets
-                        // stuff from last module.
-                        // (Have 1 ring for each module event-processing thread).
-                        //--------------------------------------------------------
-
-                        // If we already got a ring item (evio event) in
-                        // the previous loop and have not used it yet, then
-                        // don't bother getting another one right now.
-                        if (unusedRingItem != null) {
-                            ringItem = unusedRingItem;
-                            unusedRingItem = null;
+                        // Will block here if no available slots in ring.
+                        // It will unblock when more new, unfilled ET events are gotten by the evGetter thread.
+                        if (etAvailableFillSequence < etNextFillSequence) {
+                            // Wait for next available ring slot
+//logger.info("      DataChannel Et out (" + name + "): filler, wait for container");
+                            etAvailableFillSequence = etFillBarrier.waitFor(etNextFillSequence);
                         }
-                        else {
-                            try {
+                        etContainer = rb.get(etNextFillSequence);
+                        events = etContainer.getEventArray();
+                        validEvents = etContainer.getEventCount();
+//logger.info("      DataChannel Et out (" + name + "): filler, got container with " + validEvents + " events");
+                    }
+                    catch (InterruptedException e) {
+                        // Told to wake up because we're ending or resetting
+                        if (haveInputEndEvent) {
+                            logger.info("      DataChannel Et out: wake up " + name + ", other thd found END, quit");
+                        }
+                        else if (gotResetCmd) {
+                            logger.info("      DataChannel Et out: " + name + " got RESET cmd, quitting");
+                        }
+                        return;
+                    }
+                    catch (Exception e) {
+                        throw new EmuException("Error getting events to fill", e);
+                    }
+
+                    // For each event ...
+                    nextEvent:
+                    for (int j = 0; j < validEvents; j++) {
+//logger.info("      DataChannel Et out (" + name + "): filler, got ET event " + j);
+
+                        // Init variables
+                        myRecordId = 1;
+                        bytesToEtBuf = 0;
+                        banksInEtBuf = 0;
+                        etEventInitialized = false;
+                        itemCount = 0;
+
+                        // Very first time through, event is null and we skip this
+                        if (event != null) {
+//logger.info("      DataChannel Et out (" + name + "): filler, close writer for event " + j);
+                            // Finish up the writing for the current ET event
+                            writer.close();
+
+                            // Be sure to set length of ET event to bytes of data actually written
+                            event.setLength((int) writer.getBytesWrittenToBuffer());
+                        }
+
+                        // Get another ET event from the container
+                        event = events[j];
+
+                        //------------------------------------------
+
+                        while (true) {
+                            //--------------------------------------------------------
+                            // Get 1 item off of this channel's input rings which gets
+                            // stuff from last module.
+                            // (Have 1 ring for each module event-processing thread).
+                            //--------------------------------------------------------
+
+                            // If we already got a ring item (evio event) in
+                            // the previous loop and have not used it yet, then
+                            // don't bother getting another one right now.
+                            if (unusedRingItem != null) {
+                                ringItem = unusedRingItem;
+                                unusedRingItem = null;
+                            }
+                            else {
+                                try {
 //System.out.println("      DataChannel Et out (" + name + "): filler, get ring item from ring " + outputRingIndex);
-                                ringItem = getNextOutputRingItem(outputRingIndex);
+                                    ringItem = getNextOutputRingItem(outputRingIndex);
 //System.out.println("      DataChannel Et out (" + name + "): filler, got ring item from ring " + outputRingIndex);
 
 //                                if (isEB) sleep(1);
 //System.out.println("     got evt from ring");
 //System.out.println(outputIndex + " : " + outputRingIndex + " : " + nextEvent);
-                            }
-                            catch (InterruptedException e) {
-                                return;
-                            }
+                                }
+                                catch (InterruptedException e) {
+                                    return;
+                                }
 //System.out.println("done");
-                            pBankType = ringItem.getEventType();
-                            pBankControlType = ringItem.getControlType();
-                            isUserOrControl = pBankType.isUserOrControl();
+                                pBankType = ringItem.getEventType();
+                                pBankControlType = ringItem.getControlType();
+                                isUser = pBankType.isUser();
+                                isControl = pBankType.isControl();
+                                isUserOrControl = pBankType.isUserOrControl();
 
-                            // If no prestart yet ...
-                            if (!gotPrestart) {
-                                // and we have a control event ...
-                                if (pBankControlType != null) {
-                                    // See if it's a prestart
-                                    gotPrestart = pBankControlType.isPrestart();
-                                    // If not, error
-                                    if (!gotPrestart) {
-                                        throw new EmuException("Prestart event must be first control event");
+                                // If no prestart yet ...
+                                if (!gotPrestart) {
+                                    // and we have a control event ...
+                                    if (pBankControlType != null) {
+                                        // See if it's a prestart
+                                        gotPrestart = pBankControlType.isPrestart();
+                                        // If not, error
+                                        if (!gotPrestart) {
+                                            throw new EmuException("Prestart event must be first control event");
+                                        }
+                                    }
+                                    // Else if not a user event, error
+                                    else if (!isUser) {
+                                        throw new EmuException("Only user or prestart event allowed to be first");
                                     }
                                 }
-                                // Else if not a user event, error
-                                else if (!isUserOrControl) {
-                                    throw new EmuException("Only user or prestart event allowed to be first");
+
+                                // Allow for the possibility of having to write
+                                // 2 block headers in addition to this evio event.
+                                ringItemSize = ringItem.getTotalBytes() + 64;
+                            }
+
+                            //------------------------------------------------
+//System.out.println("      DataChannel Et out: " + name + " etSize = " + etSize + " <? bytesToEtBuf(" +
+//                           bytesToEtBuf + ") + ringItemSize (" + ringItemSize + ")" +
+//", item count = " + itemCount);
+
+                            // If this ring item will not fit into current ET buffer,
+                            // either because there is no more room or there's a limit on
+                            // the # of evio events in a single ET buffer ...
+                            if ((bytesToEtBuf + ringItemSize > etSize) ||
+                                    (itemCount >= maxEvioItemsPerEtBuf)) {
+                                // If nothing written into ET buf yet ...
+                                if (banksInEtBuf < 1) {
+                                    // Get rid of this ET buf which is too small
+                                    // Don't bother using the new methods for this as it likely never happens
+                                    etSystem.dumpEvents(attachment, new EtEvent[]{event});
+
+                                    // Get 1 bigger & better ET buf as a replacement
+                                    logger.rcConsole("\n      DataChannel Et out (" + name + "): filler, using over-sized (temp) ET event", "DANGER !!!\n");
+
+                                    EtEvent[] evts = etSystem.newEvents(attachment, Mode.SLEEP, false,
+                                                                        0, 1, ringItemSize, group);
+                                    event = evts[0];
+
+                                    // Put the new ET buf into container (realEvents array if remote)
+                                    events[j] = event;
+                                }
+                                // If data was previously written into this ET buf ...
+                                else {
+//System.out.println("      DataChannel Et out (" + name + "): filler, item doesn't fit cause other stuff in there, do write close, get another ET event");
+//System.out.println("      DataChannel Et out (" + name + "): filler, banks in ET buf = " + banksInEtBuf + ", isUserOrControl = " + isUserOrControl);
+                                    // Get another ET event to put this evio data into
+                                    // and hope there is enough room for it.
+                                    //
+                                    // On the next time through this while loop, do not
+                                    // grab another ring item since we already have this
+                                    // one we're in the middle of dealing with.
+                                    unusedRingItem = ringItem;
+
+                                    // Grab a new ET event and hope it fits in there
+                                    continue nextEvent;
+                                }
+                            }
+                            // If this event is a user or control event ...
+                            else if (isUserOrControl) {
+                                // If data was previously written into this ET buf ...
+                                if (banksInEtBuf > 0) {
+                                    // We want to put all user & control events into their
+                                    // very own ET events. This makes things much easier to
+                                    // handle downstream.
+
+                                    // Get another ET event to put this evio data into.
+                                    //
+                                    // On the next time through this while loop, do not
+                                    // grab another ring item since we already have this
+                                    // one we're in the middle of dealing with.
+                                    unusedRingItem = ringItem;
+
+                                    // Grab a new ET event and use it. Don't mix data types.
+                                    continue nextEvent;
+                                }
+
+                                // store info on END event
+                                if (pBankControlType == ControlType.END) {
+                                    etContainer.setHasEndEvent(true);
+                                    etContainer.setLastIndex(j);
+System.out.println("      DataChannel Et out (" + name + "): filler found END, last index = " + j);
                                 }
                             }
 
-                            // Allow for the possibility of having to write
-                            // 2 block headers in addition to this evio event.
-                            ringItemSize = ringItem.getTotalBytes() + 64;
-                        }
 
-                        //------------------------------------------------
-//System.out.println("      DataChannel Et out: " + name + " etSize = " + etSize + " <? bytesToEtBuf(" +
-//                           bytesToEtBuf + ") + ringItemSize (" + ringItemSize + ")" +
-//", holder item count = " + holder.itemCount);
-
-                        // If this ring item will not fit into current ET buffer,
-                        // either because there is no more room or there's a limit on
-                        // the # of evio events in a single ET buffer ...
-                        if ((bytesToEtBuf + ringItemSize > etSize) ||
-                                (holder.itemCount >= maxEvioItemsPerEtBuf)) {
-                            // If nothing written into ET buf yet ...
-                            if (banksInEtBuf < 1) {
-                                // Get rid of this ET buf which is too small
-                                // Don't bother using the new methods for this as it likely never happens
-                                etSystem.dumpEvents(attachment, new EtEvent[]{event});
-
-                                // Get 1 bigger & better ET buf as a replacement
-logger.rcConsole("\n      DataChannel Et out (" + name + "): filler, using over-sized (temp) ET event", "DANGER !!!\n");
-
-                                EtEvent[] evts = etSystem.newEvents(attachment, Mode.SLEEP, false,
-                                                                    0, 1, ringItemSize, group);
-                                event = evts[0];
-
-                                // Put the new ET buf into ring slot's holder
-                                holder.event = event;
-                            }
-                            // If data was previously written into this ET buf ...
-                            else {
-//System.out.println("      DataChannel Et out: " + name + " item doesn't fit cause other stuff in there, do write close, get another ET event");
-//System.out.println("      DataChannel Et out: " + name + " banks in ET buf = " + banksInEtBuf + ", isUserOrControl = " + isUserOrControl);
-                                // Get another ET event to put this evio data into
-                                // and hope there is enough room for it.
+                            //-------------------------------------------------------
+                            // Do the following once per holder/ET-event
+                            //-------------------------------------------------------
+                            if (!etEventInitialized) {
+                                // Set control words of ET event
                                 //
-                                // On the next time through this while loop, do not
-                                // grab another ring item since we already have this
-                                // one we're in the middle of dealing with.
-                                unusedRingItem = ringItem;
+                                // CODA owns the first ET event control int which contains source id.
+                                // If a PEB or SEB, set it to event type.
+                                // If a DC or ROC,  set this to coda id.
+                                if (isFinalEB) {
+                                    control[0] = pBankType.getValue();
+                                    event.setControl(control);
+                                }
+                                else if (isEB || isROC) {
+                                    event.setControl(control);
+                                }
 
-                                // Grab a new ET event and hope it fits in there
-                                continue top;
-                            }
-                        }
-                        // If this event is a user or control event ...
-                        else if (isUserOrControl) {
-                            // If data was previously written into this ET buf ...
-                            if (banksInEtBuf > 0) {
-                                // We want to put all user & control events into their
-                                // very own ET events. This makes things much easier to
-                                // handle downstream.
+                                // Set byte order
+                                event.setByteOrder(byteOrder);
 
-                                // Get another ET event to put this evio data into.
-                                //
-                                // On the next time through this while loop, do not
-                                // grab another ring item since we already have this
-                                // one we're in the middle of dealing with.
-                                unusedRingItem = ringItem;
+                                // Encode event type into bits
+                                bitInfo.clear();
+                                EmuUtilities.setEventType(bitInfo, pBankType);
 
-                                // Grab a new ET event and use it. Don't mix data types.
-                                continue top;
-                            }
+                                // Set recordId depending on what type this bank is
+                                if (!isUserOrControl) {
+                                    myRecordId = recordId++;
+                                }
+                                // If user event which is to be the first event,
+                                // mark it in the block header's bit info word.
+                                else if (ringItem.isFirstEvent()) {
+                                    EmuUtilities.setFirstEvent(bitInfo);
+                                }
 
-                            // store info on END event
-                            if (pBankControlType == ControlType.END) {
-                                holder.isEnd = true;
-                            }
-                        }
+                                // Prepare ET event's data buffer
+                                etBuffer = event.getDataBuffer();
+                                etBuffer.clear();
+                                etBuffer.order(byteOrder);
 
+                                // Do init once per ET event
+                                etEventInitialized = true;
 
-                        //-------------------------------------------------------
-                        // Do the following once per holder/ET-event
-                        //-------------------------------------------------------
-                        if (!etEventInitialized) {
-                            // Set control words of ET event
-                            //
-                            // CODA owns the first ET event control int which contains source id.
-                            // If a PEB or SEB, set it to event type.
-                            // If a DC or ROC,  set this to coda id.
-                            if (isFinalEB) {
-                                control[0] = pBankType.getValue();
-                                event.setControl(control);
-                            }
-                            else if (isEB || isROC) {
-                                event.setControl(control);
+                                // Initialize the writer which writes evio banks into ET buffer
+                                writer.setBuffer(etBuffer, bitInfo, myRecordId);
                             }
 
-                            // Set byte order
-                            event.setByteOrder(byteOrder);
+                            //----------------------------------
+                            // Write evio bank into ET buffer
+                            //----------------------------------
+                            EvioNode node = ringItem.getNode();
+                            ByteBuffer buf = ringItem.getBuffer();
 
-                            // Encode event type into bits
-                            //holder.bitInfo.clear();
-                            EmuUtilities.setEventType(holder.bitInfo, pBankType);
-
-                            // Set recordId depending on what type this bank is
-                            if (!isUserOrControl) {
-                                myRecordId = recordId++;
+                            if (buf != null) {
+                                writer.writeEvent(buf);
                             }
-                            // If user event which is to be the first event,
-                            // mark it in the block header's bit info word.
-                            else if (ringItem.isFirstEvent()) {
-                                EmuUtilities.setFirstEvent(holder.bitInfo);
+                            else if (node != null) {
+                                // The last arg is do we need to duplicate node's backing buffer?
+                                // Don't have to do that to keep our own lim/pos because the only
+                                // nodes that make it to an output channel are the USER events.
+                                // Even though it is almost never the case, if 2 USER events share
+                                // the same backing buffer, there still should be no problem.
+                                // Even if 2nd event is being scanned by CompactEventReader, while
+                                // previous event is being written right here, it should still be OK
+                                // since buffer lim or pos are not changed during scanning process.
+                                writer.writeEvent(node, false, false);
                             }
 
-                            // Values needed to initialize object which writes into ET buffer
-                            holder.recordId = myRecordId;
+                            itemCount++;
 
-                            // Prepare ET event's data buffer
-                            etBuffer = event.getDataBuffer();
-                            etBuffer.clear();
-                            etBuffer.order(byteOrder);
+                            // Added evio event/buf to this ET event
+                            banksInEtBuf++;
+                            bytesToEtBuf += ringItemSize;
 
-                            // Do init once per ET event
-                            etEventInitialized = true;
+                            // If this ring item's data is in a buffer which is part of a
+                            // ByteBufferSupply object, release it back to the supply now.
+                            // Otherwise call does nothing.
+                            ringItem.releaseByteBuffer();
 
-                            // Initialize the writer which writes evio banks into ET buffer
-                            writer.setBuffer(etBuffer, holder.bitInfo, holder.recordId);
-                        }
-
-                        //----------------------------------
-                        // Write evio bank into ET buffer
-                        //----------------------------------
-                        EvioNode node  = ringItem.getNode();
-                        ByteBuffer buf = ringItem.getBuffer();
-
-                        if (buf != null) {
-                            writer.writeEvent(buf);
-                        }
-                        else if (node != null) {
-                            // The last arg is do we need to duplicate node's backing buffer?
-                            // Don't have to do that to keep our own lim/pos because the only
-                            // nodes that make it to an output channel are the USER events.
-                            // Even though it is almost never the case, if 2 USER events share
-                            // the same backing buffer, there still should be no problem.
-                            // Even if 2nd event is being scanned by CompactEventReader, while
-                            // previous event is being written right here, it should still be OK
-                            // since buffer lim or pos are not changed during scanning process.
-                            writer.writeEvent(node, false, false);
-                        }
-
-                        holder.itemCount++;
-
-                        // Added evio event/buf to this ET event
-                        banksInEtBuf++;
-                        bytesToEtBuf += ringItemSize;
-
-                        // If this ring item's data is in a buffer which is part of a
-                        // ByteBufferSupply object, release it back to the supply now.
-                        // Otherwise call does nothing.
-                        ringItem.releaseByteBuffer();
-
-                        // FREE UP this channel's input rings' slots/items for next
-                        // user - the thread which puts ET events back.
-                        releaseCurrentAndGoToNextOutputRingItem(outputRingIndex);
+                            // FREE UP this channel's input rings' slots/items for next
+                            // user - the thread which puts ET events back.
+                            releaseCurrentAndGoToNextOutputRingItem(outputRingIndex);
 //System.out.println("      DataChannel Et out (" + name + "): filler, released item on ring " +
 //                           outputRingIndex  + ", go to next");
 
-                        // Handle END & GO events
-                        if (pBankControlType != null) {
+                            // Handle END & GO events
+                            if (pBankControlType != null) {
 //System.out.println("      DataChannel Et out " + outputIndex + ": have " +  pBankControlType +
 //                   " event, ringIndex = " + outputRingIndex);
-                            if (pBankControlType == ControlType.END) {
-                                // Finish up the writing
-                                writer.close();
+                                if (pBankControlType == ControlType.END) {
+                                    // Finish up the writing
+                                    writer.close();
+                                    event.setLength((int) writer.getBytesWrittenToBuffer());
 
-                                // Be sure to set length of ET event to bytes of data actually written
-                                event.setLength((int)writer.getBytesWrittenToBuffer());
+                                    // Tell Getter thread to stop getting new ET events
+                                    stopGetterThread = true;
 
-                                // Tell Getter thread to stop getting new ET events
-                                stopGetterThread = true;
+System.out.println("      DataChannel Et out (" + name + "): filler END seq = " +  (etNextFillSequence) +
+                   ", cursor seq = " + rb.getCursor() + ", last indext = " + etContainer.getLastIndex());
+                                    // Pass END and all unused new events after it to Putter thread.
+                                    // Cursor is the highest published sequence in the ring.
 
-                                // Mark ring item as END event
-                                holder.isEnd = true;
+                                    //etFillSequence.set(rb.getCursor());
+                                    etFillSequence.set(etNextFillSequence);
 
-//System.out.println("      DataChannel Et out " + outputIndex + ": organizer END seq = " +  (nextFillSequence) +
-//                   ", cursor seq = " + rb.getCursor());
-                                // Pass END and all unused new events after it to Putter thread.
-                                // Cursor is the highest published sequence in the ring.
-
-                                //etFillSequence.set(rb.getCursor());
-                                etFillSequence.set(etNextFillSequence);
-
-                                // Do not call shutdown() here since putter
-                                // thread must still do a putEvents().
-                                threadState = ThreadState.DONE;
-                                return;
+                                    // Do not call shutdown() here since putter
+                                    // thread must still do a putEvents().
+                                    threadState = ThreadState.DONE;
+                                    return;
+                                }
+                                else if (pBankControlType == ControlType.GO) {
+                                    // If the module has multiple build threads, then it's possible
+                                    // that the first buildable event (next one in this case)
+                                    // will NOT come on ring 0. Make sure we're looking for it
+                                    // on the right ring. It was set to the correct value in
+                                    // DataChannelAdapter.prestart().
+                                    outputRingIndex = ringIndex;
+                                }
                             }
-                            else if (pBankControlType == ControlType.GO) {
-                                // If the module has multiple build threads, then it's possible
-                                // that the first buildable event (next one in this case)
-                                // will NOT come on ring 0. Make sure we're looking for it
-                                // on the right ring. It was set to the correct value in
-                                // DataChannelAdapter.prestart().
-                                outputRingIndex = ringIndex;
-                            }
-                        }
 
-//System.out.println("      DataChannel Et out " + outputIndex + ": go to item " + nextSequences[outputRingIndex] +
+//System.out.println("      DataChannel Et out (" + name + "): go to item " + nextSequences[outputRingIndex] +
 //" on ring " + outputRingIndex);
 
-                        // Do not go to the next ring if we got a control or user event.
-                        // All prestart, go, & users go to the first ring. Just keep reading
-                        // from the same ring until we get to a buildable event. Then start
-                        // keeping count so we know when to switch to the next ring.
-                        if (outputRingCount > 1 && !isUserOrControl) {
-                            outputRingIndex = setNextEventAndRing();
+                            // Do not go to the next ring if we got a control or user event.
+                            // All prestart, go, & users go to the first ring. Just keep reading
+                            // from the same ring until we get to a buildable event. Then start
+                            // keeping count so we know when to switch to the next ring.
+                            if (outputRingCount > 1 && !isUserOrControl) {
+                                outputRingIndex = setNextEventAndRing();
 //System.out.println("      DataChannel Et out (" + name + "): for next ev " + nextEvent +
 //                           " SWITCH TO ring " + outputRingIndex + ", outputRingCount (bt threads) = " +
 //                           outputRingCount);
-                        }
+                            }
 
-                        // Implement a timeout for low rates.
-                        // Also switch to new ET event for user & control banks
-                        if ((emu.getTime() - startTime > TIMEOUT) || isUserOrControl) {
-//                            if (isUserOrControl) {
-//System.out.println("\n\n      DataChannel Et out, " + name + ": control ev = " + pBankControlType);
-//                            }
+                            // Implement a timeout for low rates.
+                            // We're done with this event and this container.
+                            // Send the container to the putter thread and to ET system.
+
+                            // Also switch to new ET event for user & control banks
+                            if ((emu.getTime() - startTime > TIMEOUT) || isUserOrControl) {
+                                // We want the PRESTART event to go right through without delay.
+                                // So don't wait for all new events to be filled before sending this
+                                // container to be put back into the ET system.
+                                if (pBankControlType == ControlType.PRESTART) {
+System.out.println("\n\n      DataChannel Et out (" + name + "): control ev = " + pBankControlType +
+                           ", go to next container, close writer for ev " + j);
+                                    // Finish up the writing for the last ET event
+                                    writer.close();
+                                    event.setLength((int) writer.getBytesWrittenToBuffer());
+
+                                    // Forget about any other unused events in the container
+                                    etContainer.setLastIndex(j);
+
+                                    // Release this container to putter thread
+                                    etFillSequence.set(etNextFillSequence++);
+                                    continue top;
+                                }
 //                                if (emu.getTime() - startTime > timeout) {
 //                                    System.out.println("TIME FLUSH ******************");
 //                                }
-                            continue top;
+                                continue nextEvent;
+                            }
                         }
                     }
+
+//logger.info("      DataChannel Et out (" + name + "): filler, close writer for last event " + (validEvents - 1));
+                    // Finish up the writing for the last ET event
+                    writer.close();
+
+                    // Be sure to set length of ET event to bytes of data actually written
+                    if (event == null) System.out.println("EVENT IS NULL");
+                    if (writer == null) System.out.println("WRITER IS NULL");
+                    event.setLength((int) writer.getBytesWrittenToBuffer());
+
+                    //----------------------------------------
+                    // Release container for putting thread
+                    //----------------------------------------
+//System.out.println("      DataChannel Et out (" + name + "): filler, release container " + etNextFillSequence);
+                    etFillSequence.set(etNextFillSequence++);
                 }
             }
             catch (InterruptedException e) {
@@ -2343,20 +2368,20 @@ logger.warn("      DataChannel Et out: exit thd w/ error = " + e.getMessage());
             /** {@inheritDoc} */
             public void run() {
 
-                EtEvent[] events = new EtEvent[ringSize];
-                EventHolder evHolder, endHolder = null;
+                // Tell the world I've started
+                startLatch.countDown();
+
+                EtEvent[] events;
                 EtContainer etContainer = null;
 
-                int  eventCount, eventsToPut;
+                int  endIndex=0, validEvents, eventsToPut, eventsToDump;
                 long availableSequence = -1L;
                 long nextSequence = sequence.get() + 1L;
+                boolean hasEnd = false;
 
                 try {
-
                     // This object is needed to use the new, garbage-free, sync-free ET interface
                     etContainer = new EtContainer(etSystem, chunk, (int)getEtEventSize());
-                    // Number of valid events in event arrays inside etContainer
-                    int validEvents;
 
                     while (true) {
                         if (gotResetCmd) {
@@ -2366,71 +2391,48 @@ logger.warn("      DataChannel Et out: exit thd w/ error = " + e.getMessage());
                         // Do we wait for next ring slot or do we already have something from last time?
                         if (availableSequence < nextSequence) {
                             // Wait for next available ring slot
-//System.out.println("      DataChannel Et out: PUTTER try getting seq " + nextSequence);
+//System.out.println("      DataChannel Et out (" + name + "): PUTTER try getting seq " + nextSequence);
                             availableSequence = barrier.waitFor(nextSequence);
-//System.out.println("      DataChannel Et out: PUTTER got up to seq " + availableSequence);
+                        }
+                        etContainer = rb.get(nextSequence);
+                        events = etContainer.getEventArray();
+
+                        // Total # of events
+                        validEvents = etContainer.getEventCount();
+                        // Look for the END event
+                        hasEnd = etContainer.hasEndEvent();
+//System.out.println("      DataChannel Et out (" + name + "): PUTTER got up to seq " + availableSequence +
+//                   " with " + validEvents + " valide events, hasEnd = " + hasEnd);
+
+                        if (hasEnd) {
+                            endIndex = etContainer.getLastIndex();
+                            eventsToPut = endIndex + 1;
+                            eventsToDump = validEvents - eventsToPut;
+                        }
+                        else {
+                            eventsToPut  = validEvents;
+                            eventsToDump = 0;
                         }
 
-                        //-------------------------------------------------------
-                        // Get all available ET events from ring & put in 1 call
-                        //-------------------------------------------------------
-
-                        // # of events available right now.
-                        // Warning: this may include extra, unused new ET events
-                        // which come after END event. Don't put those into ET sys.
-                        eventsToPut = eventCount = (int) (availableSequence - nextSequence + 1);
-//System.out.println("      DataChannel Et out: PUTTER count = " + eventCount);
-
-                        for (int i=0; i < eventCount; i++) {
-                            evHolder = rb.get(nextSequence++);
-                            events[i] = evHolder.event;
-
-                            // Don't go past the END event
-                            if (evHolder.isEnd) {
-                                endHolder = evHolder;
-                                eventsToPut = i+1;
-//System.out.println("      DataChannel Et out: PUTTER end seq = " + (nextSequence - 1L) +
-//                   ", available = " + availableSequence + ", eventCount = " + eventCount + ", eventsToPut = " + eventsToPut);
-                                break;
-                            }
-                        }
-
-                        // Put events back into ET system
-                        etContainer.putEvents(attachment, events, 0, eventsToPut);
+                        // Put all events with valid data back in ET system.
+                        etContainer.putEvents(attachment, 0, eventsToPut);
                         etSystem.putEvents(etContainer);
-                        //etSystem.putEvents(attachment, events, 0, eventsToPut);
+
+                        if (eventsToDump > 0) {
+                            // Dump all events with NO valid data. END is last valid event.
+                            etContainer.dumpEvents(attachment, endIndex+1, eventsToDump);
+                            etSystem.dumpEvents(etContainer);
+                        }
+
+                        sequence.set(nextSequence++);
 
                         // Checks the last event we're putting to see if it's the END event
-                        if (endHolder != null) {
-                            // Empty the ring of additional unused events
-                            // and dump them back into ET sys.
-                            int index=0;
-                            for (long l = nextSequence; l <= rb.getCursor(); l++) {
-                                events[index++] = rb.get(l).event;
-                            }
-
-                            if (index > 0) {
-//System.out.println("      DataChannel Et out: PUTTER dumping " + index + " ET events");
-                                etContainer.dumpEvents(attachment, events, 0, index);
-                                etSystem.dumpEvents(etContainer);
-                                //etSystem.dumpEvents(attachment, events, 0, index);
-                            }
-
-//System.out.println("      DataChannel Et out: " + name + " PUTTER releasing up to seq = " + rb.getCursor());
-                            // Release slots in internal ring
-                            sequence.set(rb.getCursor());
-
+                        if (hasEnd) {
                             // Run callback saying we got & have processed END event
                             if (endCallback != null) endCallback.endWait();
-
-//System.out.println("      DataChannel Et out: " + name + " got END event, quitting PUTTER thread, ET len = " + endEvent.getLength());
+System.out.println("      DataChannel Et out (" + name + "): PUTTER got END event, quitting thread");
                             return;
                         }
-
-                        // Tell ring we're done with these slots
-                        // and getter thread can use them now.
-//System.out.println("      DataChannel Et out: " + name + " PUTTER releasing up to seq = " + availableSequence);
-                        sequence.set(availableSequence);
                     }
                 }
                 catch (AlertException e) {
@@ -2439,7 +2441,7 @@ logger.warn("      DataChannel Et out: exit thd w/ error = " + e.getMessage());
                 }
                 catch (InterruptedException e) {
                     // Quit thread
-//System.out.println("      DataChannel Et out: " + name + " interrupted thread");
+System.out.println("      DataChannel Et out: " + name + " interrupted thread");
                 }
                 catch (TimeoutException e) {
                     // Never happen in our ring buffer
@@ -2450,11 +2452,13 @@ logger.warn("      DataChannel Et out: exit thd w/ error = " + e.getMessage());
                     channelState = CODAState.ERROR;
 System.out.println("      DataChannel Et out: " + name + " network communication error with Et");
                     emu.setErrorState("DataChannel Et out: network communication error with Et");
+                    e.printStackTrace();
                 }
                 catch (EtException e) {
                     channelState = CODAState.ERROR;
 System.out.println("      DataChannel Et out: " + name + " internal error handling Et");
                     emu.setErrorState("DataChannel Et out: internal error handling Et");
+                    e.printStackTrace();
                 }
                 catch (EtDeadException e) {
                     channelState = CODAState.ERROR;
@@ -2473,86 +2477,72 @@ System.out.println("      DataChannel Et out: " + name + " Et connection closed"
         }
 
 
-
         /**
-         * This class is a thread designed to get new ET events from the ET system.
+         * This class is a thread designed to get new events from the ET system.
          * It runs simultaneously with the thread that fills these events
          * with evio data and the thread that puts them back.
          */
-        private class EvGetter extends Thread {
+        final private class EvGetter extends Thread {
 
             /**
              * {@inheritDoc}<p>
-             * Get the ET events.
+             * Get the new ET events.
              */
             public void run() {
 
-                int evCount=0;
                 long sequence;
-                EtEvent[] events=null;
-                EventHolder holder;
                 boolean gotError = false;
                 String errorString = null;
                 EtContainer etContainer = null;
 
-                try {
-                    // This object is needed to use the new, garbage-free, sync-free ET interface
-                    etContainer = new EtContainer(etSystem, chunk, (int)getEtEventSize());
-                    // Number of valid events in event arrays inside etContainer
-                    int validEvents;
+                // Tell the world I've started
+                startLatch.countDown();
 
+                try {
                     while (true) {
                         if (stopGetterThread) {
                             return;
                         }
-//System.out.println("      DataChannel Et out: GETTER get new events");
+
+//System.out.println("      DataChannel Et out (" + name + "): GETTER get next container");
+                        // Will block here if no available slots in ring.
+                        // It will unblock when ET events are put back by the other thread.
+                        sequence = rb.next(); // This just spins on parkNanos
+                        etContainer = rb.get(sequence);
+//System.out.println("      DataChannel Et out (" + name + "): GETTER got next container");
+
+                        // Now that we have a free container, get nre events & store them in container
                         etContainer.newEvents(attachment, Mode.SLEEP, 0, chunk,
-                                              (int)etSystem.getEventSize(), group);
+                                              (int)etSystem.getEventSize(), group, true);
                         etSystem.newEvents(etContainer);
-                        validEvents = etContainer.getEventCount();
-//System.out.println("      DataChannel Et out: GETTER got " + validEvents + " new events");
-                        events = etContainer.getEventArray();
 
-//                        events = etSystem.newEvents(attachment, Mode.SLEEP, false, 0,
-//                                                    chunk, (int)etSystem.getEventSize(), group);
-//System.out.println("      DataChannel Et out: GETTER got " + validEvents + " new events");
-                        evCount = validEvents;
+                        // Set local reference to null for error recovery
+                        etContainer = null;
 
-                        // Place ET events, one-by-one, into ring buffer
-                        for  (int i=0; i < validEvents; i++) {
-                            if (stopGetterThread) {
-                                return;
-                            }
-
-                            // Will block here if no space in ring.
-                            // But it should unblock when ET events
-                            // are put back by the Putter thread.
-//System.out.println("      DataChannel Et out: GETTER try getting event slot in ring");
-                            sequence  = rb.next(); // This just spins on parkNanos
-                            holder = rb.get(sequence);
-                            holder.event = events[i];
-                            holder.isEnd = false;
-                            holder.itemCount = 0;
-                            holder.bitInfo.clear();
-                            rb.publish(sequence);
-//System.out.println("      DataChannel Et out: GETTER inserted event into ring");
-                            evCount--;
-                            if (stopGetterThread) {
-                                // DO SOMETHING;
-                            }
-                        }
+                        // Make container available for parsing/putting thread
+                        rb.publish(sequence++);
+//System.out.println("      DataChannel Et out (" + name + "): GETTER published container");
                     }
                 }
                 catch (EtWakeUpException e) {
-                    // Told to wake up because we're ending or resetting.
+                    // Told to wake up because we're ending or resetting
+                    if (haveInputEndEvent) {
+                        logger.info("      DataChannel Et out: wake up " + name + ", other thd found END, quit");
+                    }
+                    else if (gotResetCmd) {
+                        logger.info("      DataChannel Et out: " + name + " got RESET cmd, quitting");
+                    }
+                    return;
                 }
                 catch (IOException e) {
                     gotError = true;
                     errorString = "DataChannel Et out: network communication error with Et";
+                    e.printStackTrace();
                 }
                 catch (EtException e) {
                     gotError = true;
                     errorString = "DataChannel Et out: internal error handling Et";
+                    e.printStackTrace();
                 }
                 catch (EtDeadException e) {
                     gotError = true;
@@ -2566,36 +2556,879 @@ System.out.println("      DataChannel Et out: " + name + " Et connection closed"
                     gotError = true;
                     errorString = "DataChannel Et out: " + e.getMessage();
                 }
-                finally {
-                    // Dump any left over events
-                    if (evCount > 0) {
-                        try {
-                            if (etContainer != null) {
-//System.out.println("      DataChannel Et out: GETTER will dump " + evCount+ " ET events");
-                                etContainer.dumpEvents(attachment, events, events.length - evCount, evCount);
-                                etSystem.dumpEvents(etContainer);
-                            }
-                        }
-                        catch (Exception e1) {
-                            if (!gotError) {
-                                gotError = true;
-                                errorString = "DataChannel Et out: " + e1.getMessage();
-                            }
-                        }
-                    }
-                }
 
                 // ET system problem - run will come to an end
                 if (gotError) {
                     channelState = CODAState.ERROR;
-System.out.println("      DataChannel Et out: " + name + ", " + errorString);
+                    System.out.println("      DataChannel Et out: " + name + ", " + errorString);
                     emu.setErrorState(errorString);
                 }
-//System.out.println("      DataChannel Et out: GETTER is Quitting");
+System.out.println("      DataChannel Et out: GETTER is Quitting");
             }
         }
 
     }
+
+
+
+//
+//
+//    /**
+//      * The DataChannelImplEt class has 1 ring buffer (RB) to accept output from each
+//      * event-processing thread of a module.
+//      * It takes Evio banks from these, writes them into ET events and puts them into an
+//      * ET system. It uses its another RB internally. Sequentially, this is what happens:
+//      *
+//      * The getter thread gets new ET buffers and puts each into a holder of the internal RB.
+//      *
+//      * The main, DataOutputHelper, thread gets a single holder from the internal RB.
+//      * It also takes evio events from the other RBs which contain module output. Each
+//      * evio event is immediately written into the ET buffer. Once the ET buffer is full or
+//      * some other limiting condition is met, it places the holder back into the internal RB.
+//      *
+//      * Finally, the putter thread takes holder and their data-filled ET buffers and puts
+//      * them back into the ET system.
+//      */
+//     private class DataOutputHelper extends Thread {
+//
+//         /** Help in pausing DAQ. */
+//         private int pauseCounter;
+//
+//         /** Thread for getting new ET events. */
+//         private EvGetter getter;
+//
+//         /** Thread for putting filled ET events back into ET system. */
+//         private EvPutter putter;
+//
+//         /** Let a single waiter know that the main thread has been started. */
+//         private final CountDownLatch startLatch = new CountDownLatch(1);
+//
+//         /** What state is this thread in? */
+//         private volatile ThreadState threadState;
+//
+//         /** Place to store a bank off the ring for the next event out. */
+//         private RingItem unusedRingItem;
+//
+//         /** Number of items in internal ring buffer. */
+//         private int ringSize;
+//
+//         /** Internal ring buffer. */
+//         private RingBuffer<EventHolder> rb;
+//
+//         /** Used by first consumer (DataOutputHelper) to get ring buffer items. */
+//         private Sequence etFillSequence;
+//
+//         /** Used by first consumer to get ring buffer items. */
+//         private SequenceBarrier etFillBarrier;
+//
+//         /** Maximum allowed number of evio ring items per ET event. */
+//         private static final int maxEvioItemsPerEtBuf = 10000;
+//
+//
+//
+//         /** Constructor. */
+//         DataOutputHelper(ThreadGroup group, String name) {
+//             super(group, name);
+//
+//             // Closest power of 2 to chunk, rounded up.
+//             // Making it 2xchunk slows it down quite a bit.
+//             // Making it chunk or chunk/2 is roughly the same on average
+//             // although, chunk/2 has bigger top speed.
+//             ringSize = EmuUtilities.powerOfTwo(chunk, true);
+//
+//             // Create ring buffer used by 3 threads -
+//             //   1 to get new events from ET system and place into ring (producer of ring items)
+//             //   1 to get evio events and write them into ET event  (1st consumer of ring items)
+//             //   1 to put events back into ET system (2nd consumer of ring items)
+//             rb = createSingleProducer(new HolderFactory(), ringSize,
+//                                       new YieldingWaitStrategy());
+//
+//             // 1st consumer barrier of ring buffer, which gets evio
+//             // and writes it, depends on producer.
+//             etFillBarrier = rb.newBarrier();
+//             // 1st consumer sequence of ring buffer
+//             etFillSequence = new Sequence(Sequencer.INITIAL_CURSOR_VALUE);
+//
+//             // 2nd consumer to take filled ET buffers and put back into ET system,
+//             // depends on filling consumer.
+//             SequenceBarrier etPutBarrier = rb.newBarrier(etFillSequence);
+//             Sequence etPutSequence = new Sequence(Sequencer.INITIAL_CURSOR_VALUE);
+//             // Last sequence before producer can grab ring item
+//             rb.addGatingSequences(etPutSequence);
+//
+//             // Start consumer thread to put ET events back into ET system
+//             putter = new EvPutter(etPutSequence, etPutBarrier);
+//             putter.start();
+//
+//             // Start producer thread for getting new ET events
+//             getter = new EvGetter();
+//             getter.start();
+//         }
+//
+//
+//         /** A single waiter can call this method which returns when thread was started. */
+//         private void waitUntilStarted() {
+//             try {
+//                 startLatch.await();
+//             }
+//             catch (InterruptedException e) {}
+//         }
+//
+//
+//         /** Kill all this object's threads from an external thread. */
+//         private void killFromOutside() {
+//             // Kill all threads
+//             getter.stop();
+//             putter.stop();
+//             this.stop();
+//         }
+//
+//
+//         /**
+//          * Wait for all this object's threads to end, for the given time.
+//          * @param milliseconds
+//          * @return true if all threads ended, else false
+//          */
+//         private boolean waitForThreadsToEnd(int milliseconds) {
+//             int oneThreadWaitTime = milliseconds/(3);
+//             if (oneThreadWaitTime < 0) {
+//                 oneThreadWaitTime = 0;
+//             }
+//
+//             try {getter.join(oneThreadWaitTime);}
+//             catch (InterruptedException e) {}
+//
+//             try {putter.join(oneThreadWaitTime);}
+//             catch (InterruptedException e) {}
+//
+//             try {this.join(oneThreadWaitTime);}
+//             catch (InterruptedException e) {}
+//
+//             return !(this.isAlive() || putter.isAlive() || getter.isAlive());
+//         }
+//
+//
+//         /** Stop all this object's threads from an external thread. */
+//         private void shutdown() {
+//             // If any EvGetter thread is stuck on etSystem.newEvents(), unstuck it
+//             try {
+//                 // Wake up getter thread
+//                 etSystem.wakeUpAttachment(attachment);
+//             }
+//             catch (Exception e) {}
+//         }
+//
+//
+//         /** Object that holds an EtEvent and metadata in internal ring buffer. */
+//         final private class EventHolder {
+//             /** Place to hold ET event. */
+//             private EtEvent event;
+//
+//             /** Is this the END event? */
+//             private boolean isEnd;
+//
+//             /** Number of evio events in ET event. */
+//             private int itemCount;
+//
+//             /** Bit info to set in EventWriter. */
+//             private BitSet bitInfo = new BitSet(24);
+//
+//             /** Id to set in EventWriter. */
+//             private int recordId;
+//         }
+//
+//
+//         /**
+//          * Class used by the this output channel's internal RingBuffer
+//          * to populate itself with holders of ET buffers.
+//          */
+//         final private class HolderFactory implements EventFactory<EventHolder> {
+//             final public EventHolder newInstance() {
+//                 // This object holds an EtEvent
+//                 return new EventHolder();
+//             }
+//         }
+//
+//
+//
+//         /**
+//          * Main thread of ET output channel. This thread gets a "new" ET event,
+//          * gathers the appropriate number of evio events from a module's output
+//          * and writes them into that single ET buffer.
+//          */
+//         @Override
+//         public void run() {
+//
+//             threadState = ThreadState.RUNNING;
+//
+//             // Tell the world I've started
+//             startLatch.countDown();
+//
+//             try {
+//                 RingItem ringItem;
+//                 EventHolder holder;
+//
+//                 EtEvent event = null;
+//                 EventType pBankType = null;
+//                 ControlType pBankControlType = null;
+//
+//                 // Time in milliseconds for writing if time expired
+//                 long startTime;
+//                 final long TIMEOUT = 2000L;
+//
+//                 // Always start out reading prestart & go events from ring 0
+//                 int outputRingIndex = 0;
+//
+//                 // Create writer with some args that get overwritten later.
+//                 // Make the block size bigger than the Roc's 4.2MB ET buffer
+//                 // size so no additional block headers must be written.
+//                 // It should contain less than 100 ROC Raw records,
+//                 // but we'll allow 10000 such banks per block header.
+//                 ByteBuffer etBuffer = ByteBuffer.allocate(128);
+//                 etBuffer.order(byteOrder);
+//                 EventWriterUnsync writer = new EventWriterUnsync(etBuffer, 1100000, maxEvioItemsPerEtBuf,
+//                                                                  null, null, emu.getCodaid(), 0);
+//                 writer.close();
+//
+//                 int bytesToEtBuf, ringItemSize=0, banksInEtBuf, myRecordId;
+//                 int etSize = (int) etSystem.getEventSize();
+//                 boolean etEventInitialized, isUserOrControl=false;
+//                 boolean gotPrestart=false;
+//
+//                 // Variables for consuming ring buffer items
+//                 long etNextFillSequence = etFillSequence.get() + 1L;
+//                 long etAvailableFillSequence = -1L;
+//
+//
+//                 top:
+//                 while (true) {
+//
+//                     if (pause) {
+//                         if (pauseCounter++ % 400 == 0) Thread.sleep(5);
+//                         continue;
+//                     }
+//
+//                     // Init variables
+//                     myRecordId = 1;
+//                     bytesToEtBuf = 0;
+//                     banksInEtBuf = 0;
+//                     etEventInitialized = false;
+//
+//                     // Set time we started dealing with this ET event
+//                     startTime = emu.getTime();
+//
+//                     // Very first time through, event is null and we skip this
+//                     if (event != null) {
+//                         // Finish up the writing
+//                         writer.close();
+//
+//                         // Be sure to set length of ET event to bytes of data actually written
+//                         event.setLength((int)writer.getBytesWrittenToBuffer());
+//
+//                         //----------------------------------------
+//                         // Release ET event for putting thread
+//                         //----------------------------------------
+// //System.out.println("      DataChannel Et out (" + name + "): filler, release ET event " + etNextFillSequence);
+//                         etFillSequence.set(etNextFillSequence++);
+//                     }
+//
+// //System.out.println("      DataChannel Et out (" + name + "): filler, try getting next seq (" + etNextFillSequence + ") for ET");
+//                     // Do we wait for next ring slot or do we already have something from last time?
+//                     if (etAvailableFillSequence < etNextFillSequence) {
+//                         // Wait for next available ring slot
+//                         etAvailableFillSequence = etFillBarrier.waitFor(etNextFillSequence);
+//                     }
+// //System.out.println("      DataChannel Et out (" + name + "): filler, available Seq = " + etAvailableFillSequence);
+//
+//                     //---------------------------------------------------------
+//                     // Get the next holder object from internal ring's slot.
+//                     // This will contain the new ET event to place data into.
+//                     //---------------------------------------------------------
+//                     holder = rb.get(etNextFillSequence);
+//                     event = holder.event;
+//                     //------------------------------------------
+//
+//                     while (true) {
+//                         //--------------------------------------------------------
+//                         // Get 1 item off of this channel's input rings which gets
+//                         // stuff from last module.
+//                         // (Have 1 ring for each module event-processing thread).
+//                         //--------------------------------------------------------
+//
+//                         // If we already got a ring item (evio event) in
+//                         // the previous loop and have not used it yet, then
+//                         // don't bother getting another one right now.
+//                         if (unusedRingItem != null) {
+//                             ringItem = unusedRingItem;
+//                             unusedRingItem = null;
+//                         }
+//                         else {
+//                             try {
+// //System.out.println("      DataChannel Et out (" + name + "): filler, get ring item from ring " + outputRingIndex);
+//                                 ringItem = getNextOutputRingItem(outputRingIndex);
+// //System.out.println("      DataChannel Et out (" + name + "): filler, got ring item from ring " + outputRingIndex);
+//
+// //                                if (isEB) sleep(1);
+// //System.out.println("     got evt from ring");
+// //System.out.println(outputIndex + " : " + outputRingIndex + " : " + nextEvent);
+//                             }
+//                             catch (InterruptedException e) {
+//                                 return;
+//                             }
+// //System.out.println("done");
+//                             pBankType = ringItem.getEventType();
+//                             pBankControlType = ringItem.getControlType();
+//                             isUserOrControl = pBankType.isUserOrControl();
+//
+//                             // If no prestart yet ...
+//                             if (!gotPrestart) {
+//                                 // and we have a control event ...
+//                                 if (pBankControlType != null) {
+//                                     // See if it's a prestart
+//                                     gotPrestart = pBankControlType.isPrestart();
+//                                     // If not, error
+//                                     if (!gotPrestart) {
+//                                         throw new EmuException("Prestart event must be first control event");
+//                                     }
+//                                 }
+//                                 // Else if not a user event, error
+//                                 else if (!isUserOrControl) {
+//                                     throw new EmuException("Only user or prestart event allowed to be first");
+//                                 }
+//                             }
+//
+//                             // Allow for the possibility of having to write
+//                             // 2 block headers in addition to this evio event.
+//                             ringItemSize = ringItem.getTotalBytes() + 64;
+//                         }
+//
+//                         //------------------------------------------------
+// //System.out.println("      DataChannel Et out: " + name + " etSize = " + etSize + " <? bytesToEtBuf(" +
+// //                           bytesToEtBuf + ") + ringItemSize (" + ringItemSize + ")" +
+// //", holder item count = " + holder.itemCount);
+//
+//                         // If this ring item will not fit into current ET buffer,
+//                         // either because there is no more room or there's a limit on
+//                         // the # of evio events in a single ET buffer ...
+//                         if ((bytesToEtBuf + ringItemSize > etSize) ||
+//                                 (holder.itemCount >= maxEvioItemsPerEtBuf)) {
+//                             // If nothing written into ET buf yet ...
+//                             if (banksInEtBuf < 1) {
+//                                 // Get rid of this ET buf which is too small
+//                                 // Don't bother using the new methods for this as it likely never happens
+//                                 etSystem.dumpEvents(attachment, new EtEvent[]{event});
+//
+//                                 // Get 1 bigger & better ET buf as a replacement
+// logger.rcConsole("\n      DataChannel Et out (" + name + "): filler, using over-sized (temp) ET event", "DANGER !!!\n");
+//
+//                                 EtEvent[] evts = etSystem.newEvents(attachment, Mode.SLEEP, false,
+//                                                                     0, 1, ringItemSize, group);
+//                                 event = evts[0];
+//
+//                                 // Put the new ET buf into ring slot's holder
+//                                 holder.event = event;
+//                             }
+//                             // If data was previously written into this ET buf ...
+//                             else {
+// //System.out.println("      DataChannel Et out: " + name + " item doesn't fit cause other stuff in there, do write close, get another ET event");
+// //System.out.println("      DataChannel Et out: " + name + " banks in ET buf = " + banksInEtBuf + ", isUserOrControl = " + isUserOrControl);
+//                                 // Get another ET event to put this evio data into
+//                                 // and hope there is enough room for it.
+//                                 //
+//                                 // On the next time through this while loop, do not
+//                                 // grab another ring item since we already have this
+//                                 // one we're in the middle of dealing with.
+//                                 unusedRingItem = ringItem;
+//
+//                                 // Grab a new ET event and hope it fits in there
+//                                 continue top;
+//                             }
+//                         }
+//                         // If this event is a user or control event ...
+//                         else if (isUserOrControl) {
+//                             // If data was previously written into this ET buf ...
+//                             if (banksInEtBuf > 0) {
+//                                 // We want to put all user & control events into their
+//                                 // very own ET events. This makes things much easier to
+//                                 // handle downstream.
+//
+//                                 // Get another ET event to put this evio data into.
+//                                 //
+//                                 // On the next time through this while loop, do not
+//                                 // grab another ring item since we already have this
+//                                 // one we're in the middle of dealing with.
+//                                 unusedRingItem = ringItem;
+//
+//                                 // Grab a new ET event and use it. Don't mix data types.
+//                                 continue top;
+//                             }
+//
+//                             // store info on END event
+//                             if (pBankControlType == ControlType.END) {
+//                                 holder.isEnd = true;
+//                             }
+//                         }
+//
+//
+//                         //-------------------------------------------------------
+//                         // Do the following once per holder/ET-event
+//                         //-------------------------------------------------------
+//                         if (!etEventInitialized) {
+//                             // Set control words of ET event
+//                             //
+//                             // CODA owns the first ET event control int which contains source id.
+//                             // If a PEB or SEB, set it to event type.
+//                             // If a DC or ROC,  set this to coda id.
+//                             if (isFinalEB) {
+//                                 control[0] = pBankType.getValue();
+//                                 event.setControl(control);
+//                             }
+//                             else if (isEB || isROC) {
+//                                 event.setControl(control);
+//                             }
+//
+//                             // Set byte order
+//                             event.setByteOrder(byteOrder);
+//
+//                             // Encode event type into bits
+//                             //holder.bitInfo.clear();
+//                             EmuUtilities.setEventType(holder.bitInfo, pBankType);
+//
+//                             // Set recordId depending on what type this bank is
+//                             if (!isUserOrControl) {
+//                                 myRecordId = recordId++;
+//                             }
+//                             // If user event which is to be the first event,
+//                             // mark it in the block header's bit info word.
+//                             else if (ringItem.isFirstEvent()) {
+//                                 EmuUtilities.setFirstEvent(holder.bitInfo);
+//                             }
+//
+//                             // Values needed to initialize object which writes into ET buffer
+//                             holder.recordId = myRecordId;
+//
+//                             // Prepare ET event's data buffer
+//                             etBuffer = event.getDataBuffer();
+//                             etBuffer.clear();
+//                             etBuffer.order(byteOrder);
+//
+//                             // Do init once per ET event
+//                             etEventInitialized = true;
+//
+//                             // Initialize the writer which writes evio banks into ET buffer
+//                             writer.setBuffer(etBuffer, holder.bitInfo, holder.recordId);
+//                         }
+//
+//                         //----------------------------------
+//                         // Write evio bank into ET buffer
+//                         //----------------------------------
+//                         EvioNode node  = ringItem.getNode();
+//                         ByteBuffer buf = ringItem.getBuffer();
+//
+//                         if (buf != null) {
+//                             writer.writeEvent(buf);
+//                         }
+//                         else if (node != null) {
+//                             // The last arg is do we need to duplicate node's backing buffer?
+//                             // Don't have to do that to keep our own lim/pos because the only
+//                             // nodes that make it to an output channel are the USER events.
+//                             // Even though it is almost never the case, if 2 USER events share
+//                             // the same backing buffer, there still should be no problem.
+//                             // Even if 2nd event is being scanned by CompactEventReader, while
+//                             // previous event is being written right here, it should still be OK
+//                             // since buffer lim or pos are not changed during scanning process.
+//                             writer.writeEvent(node, false, false);
+//                         }
+//
+//                         holder.itemCount++;
+//
+//                         // Added evio event/buf to this ET event
+//                         banksInEtBuf++;
+//                         bytesToEtBuf += ringItemSize;
+//
+//                         // If this ring item's data is in a buffer which is part of a
+//                         // ByteBufferSupply object, release it back to the supply now.
+//                         // Otherwise call does nothing.
+//                         ringItem.releaseByteBuffer();
+//
+//                         // FREE UP this channel's input rings' slots/items for next
+//                         // user - the thread which puts ET events back.
+//                         releaseCurrentAndGoToNextOutputRingItem(outputRingIndex);
+// //System.out.println("      DataChannel Et out (" + name + "): filler, released item on ring " +
+// //                           outputRingIndex  + ", go to next");
+//
+//                         // Handle END & GO events
+//                         if (pBankControlType != null) {
+// //System.out.println("      DataChannel Et out " + outputIndex + ": have " +  pBankControlType +
+// //                   " event, ringIndex = " + outputRingIndex);
+//                             if (pBankControlType == ControlType.END) {
+//                                 // Finish up the writing
+//                                 writer.close();
+//
+//                                 // Be sure to set length of ET event to bytes of data actually written
+//                                 event.setLength((int)writer.getBytesWrittenToBuffer());
+//
+//                                 // Tell Getter thread to stop getting new ET events
+//                                 stopGetterThread = true;
+//
+//                                 // Mark ring item as END event
+//                                 holder.isEnd = true;
+//
+// //System.out.println("      DataChannel Et out " + outputIndex + ": organizer END seq = " +  (nextFillSequence) +
+// //                   ", cursor seq = " + rb.getCursor());
+//                                 // Pass END and all unused new events after it to Putter thread.
+//                                 // Cursor is the highest published sequence in the ring.
+//
+//                                 //etFillSequence.set(rb.getCursor());
+//                                 etFillSequence.set(etNextFillSequence);
+//
+//                                 // Do not call shutdown() here since putter
+//                                 // thread must still do a putEvents().
+//                                 threadState = ThreadState.DONE;
+//                                 return;
+//                             }
+//                             else if (pBankControlType == ControlType.GO) {
+//                                 // If the module has multiple build threads, then it's possible
+//                                 // that the first buildable event (next one in this case)
+//                                 // will NOT come on ring 0. Make sure we're looking for it
+//                                 // on the right ring. It was set to the correct value in
+//                                 // DataChannelAdapter.prestart().
+//                                 outputRingIndex = ringIndex;
+//                             }
+//                         }
+//
+// //System.out.println("      DataChannel Et out " + outputIndex + ": go to item " + nextSequences[outputRingIndex] +
+// //" on ring " + outputRingIndex);
+//
+//                         // Do not go to the next ring if we got a control or user event.
+//                         // All prestart, go, & users go to the first ring. Just keep reading
+//                         // from the same ring until we get to a buildable event. Then start
+//                         // keeping count so we know when to switch to the next ring.
+//                         if (outputRingCount > 1 && !isUserOrControl) {
+//                             outputRingIndex = setNextEventAndRing();
+// //System.out.println("      DataChannel Et out (" + name + "): for next ev " + nextEvent +
+// //                           " SWITCH TO ring " + outputRingIndex + ", outputRingCount (bt threads) = " +
+// //                           outputRingCount);
+//                         }
+//
+//                         // Implement a timeout for low rates.
+//                         // Also switch to new ET event for user & control banks
+//                         if ((emu.getTime() - startTime > TIMEOUT) || isUserOrControl) {
+// //                            if (isUserOrControl) {
+// //System.out.println("\n\n      DataChannel Et out, " + name + ": control ev = " + pBankControlType);
+// //                            }
+// //                                if (emu.getTime() - startTime > timeout) {
+// //                                    System.out.println("TIME FLUSH ******************");
+// //                                }
+//                             continue top;
+//                         }
+//                     }
+//                 }
+//             }
+//             catch (InterruptedException e) {
+//                 // Interrupted while waiting for ring item
+// //logger.warn("      DataChannel Et out: " + name + "  interrupted thd, exiting");
+//             }
+//             catch (Exception e) {
+// logger.warn("      DataChannel Et out: exit thd w/ error = " + e.getMessage());
+//                 e.printStackTrace();
+//                 channelState = CODAState.ERROR;
+//                 emu.setErrorState("DataChannel Et out: " + e.getMessage());
+//             }
+//
+//             threadState = ThreadState.DONE;
+//         }
+//
+//
+//         /**
+//          * This class is a thread designed to put ET events that have been
+//          * filled with evio data, back into the ET system.
+//          * It runs simultaneously with the thread that fills these events
+//          * with evio data and the thread that gets them from the ET system.
+//          */
+//         private class EvPutter extends Thread {
+//
+//             private Sequence sequence;
+//             private SequenceBarrier barrier;
+//
+//
+//             /**
+//              * Constructor.
+//              * @param sequence  ring buffer sequence to use
+//              * @param barrier   ring buffer barrier to use
+//              */
+//             EvPutter(Sequence sequence, SequenceBarrier barrier) {
+//                 this.barrier = barrier;
+//                 this.sequence = sequence;
+//             }
+//
+//
+//             /** {@inheritDoc} */
+//             public void run() {
+//
+//                 EtEvent[] events = new EtEvent[ringSize];
+//                 EventHolder evHolder, endHolder = null;
+//                 EtContainer etContainer = null;
+//
+//                 int  eventCount, eventsToPut;
+//                 long availableSequence = -1L;
+//                 long nextSequence = sequence.get() + 1L;
+//
+//                 try {
+//
+// //                    // This object is needed to use the new, garbage-free, sync-free ET interface
+// //                    etContainer = new EtContainer(etSystem, chunk, (int)getEtEventSize());
+//                     // Number of valid events in event arrays inside etContainer
+//                     int validEvents;
+//
+//                     while (true) {
+//                         if (gotResetCmd) {
+//                             return;
+//                         }
+//
+//                         // Do we wait for next ring slot or do we already have something from last time?
+//                         if (availableSequence < nextSequence) {
+//                             // Wait for next available ring slot
+// //System.out.println("      DataChannel Et out: PUTTER try getting seq " + nextSequence);
+//                             availableSequence = barrier.waitFor(nextSequence);
+// //System.out.println("      DataChannel Et out: PUTTER got up to seq " + availableSequence);
+//                         }
+//
+//                         //-------------------------------------------------------
+//                         // Get all available ET events from ring & put in 1 call
+//                         //-------------------------------------------------------
+//
+//                         // # of events available right now.
+//                         // Warning: this may include extra, unused new ET events
+//                         // which come after END event. Don't put those into ET sys.
+//                         eventsToPut = eventCount = (int) (availableSequence - nextSequence + 1);
+// //System.out.println("      DataChannel Et out: PUTTER count = " + eventCount);
+//
+//                         for (int i=0; i < eventCount; i++) {
+//                             evHolder = rb.get(nextSequence++);
+//                             events[i] = evHolder.event;
+//
+//                             // Don't go past the END event
+//                             if (evHolder.isEnd) {
+//                                 endHolder = evHolder;
+//                                 eventsToPut = i+1;
+// //System.out.println("      DataChannel Et out: PUTTER end seq = " + (nextSequence - 1L) +
+// //                   ", available = " + availableSequence + ", eventCount = " + eventCount + ", eventsToPut = " + eventsToPut);
+//                                 break;
+//                             }
+//                         }
+//
+//                         // Put events back into ET system
+// //                        etContainer.putEvents(attachment, events, 0, eventsToPut);
+// //                        etSystem.putEvents(etContainer);
+//                         etSystem.putEvents(attachment, events, 0, eventsToPut);
+//
+//                         // Checks the last event we're putting to see if it's the END event
+//                         if (endHolder != null) {
+//                             // Empty the ring of additional unused events
+//                             // and dump them back into ET sys.
+//                             int index=0;
+//                             for (long l = nextSequence; l <= rb.getCursor(); l++) {
+//                                 events[index++] = rb.get(l).event;
+//                             }
+//
+//                             if (index > 0) {
+// //System.out.println("      DataChannel Et out: PUTTER dumping " + index + " ET events");
+// //                                etContainer.dumpEvents(attachment, events, 0, index);
+// //                                etSystem.dumpEvents(etContainer);
+//                                 etSystem.dumpEvents(attachment, events, 0, index);
+//                             }
+//
+// //System.out.println("      DataChannel Et out: " + name + " PUTTER releasing up to seq = " + rb.getCursor());
+//                             // Release slots in internal ring
+//                             sequence.set(rb.getCursor());
+//
+//                             // Run callback saying we got & have processed END event
+//                             if (endCallback != null) endCallback.endWait();
+//
+// //System.out.println("      DataChannel Et out: " + name + " got END event, quitting PUTTER thread, ET len = " + endEvent.getLength());
+//                             return;
+//                         }
+//
+//                         // Tell ring we're done with these slots
+//                         // and getter thread can use them now.
+// //System.out.println("      DataChannel Et out: " + name + " PUTTER releasing up to seq = " + availableSequence);
+//                         sequence.set(availableSequence);
+//                     }
+//                 }
+//                 catch (AlertException e) {
+//                     channelState = CODAState.ERROR;
+//                     emu.setErrorState("DataChannel Et out: ring buffer error");
+//                 }
+//                 catch (InterruptedException e) {
+//                     // Quit thread
+// //System.out.println("      DataChannel Et out: " + name + " interrupted thread");
+//                 }
+//                 catch (TimeoutException e) {
+//                     // Never happen in our ring buffer
+//                     channelState = CODAState.ERROR;
+//                     emu.setErrorState("DataChannel Et out: time out in ring buffer");
+//                 }
+//                 catch (IOException e) {
+//                     channelState = CODAState.ERROR;
+// System.out.println("      DataChannel Et out: " + name + " network communication error with Et");
+//                     emu.setErrorState("DataChannel Et out: network communication error with Et");
+//                 }
+//                 catch (EtException e) {
+//                     channelState = CODAState.ERROR;
+// System.out.println("      DataChannel Et out: " + name + " internal error handling Et");
+//                     emu.setErrorState("DataChannel Et out: internal error handling Et");
+//                 }
+//                 catch (EtDeadException e) {
+//                     channelState = CODAState.ERROR;
+// System.out.println("      DataChannel Et out: " + name + " Et system dead");
+//                     emu.setErrorState("DataChannel Et out: Et system dead");
+//                 }
+//                 catch (EtClosedException e) {
+//                     channelState = CODAState.ERROR;
+// System.out.println("      DataChannel Et out: " + name + " Et connection closed");
+//                     emu.setErrorState("DataChannel Et out: Et connection closed");
+//                 }
+//                 finally {
+//                     logger.info("      DataChannel Et out: PUTTER is Quitting");
+//                 }
+//             }
+//         }
+//
+//
+//
+//         /**
+//          * This class is a thread designed to get new ET events from the ET system.
+//          * It runs simultaneously with the thread that fills these events
+//          * with evio data and the thread that puts them back.
+//          */
+//         private class EvGetter extends Thread {
+//
+//             /**
+//              * {@inheritDoc}<p>
+//              * Get the ET events.
+//              */
+//             public void run() {
+//
+//                 int evCount=0;
+//                 long sequence;
+//                 EtEvent[] events=null;
+//                 EventHolder holder;
+//                 boolean gotError = false;
+//                 String errorString = null;
+//                 EtContainer etContainer = null;
+//
+//                 try {
+//                     // This object is needed to use the new, garbage-free, sync-free ET interface
+//                     etContainer = new EtContainer(etSystem, chunk, (int)getEtEventSize());
+//                     // Number of valid events in event arrays inside etContainer
+//                     int validEvents;
+//
+//                     while (true) {
+//                         if (stopGetterThread) {
+//                             return;
+//                         }
+// //System.out.println("      DataChannel Et out: GETTER get new events");
+//                         // The last arg (true) means allocate new internal mem for new events.
+//                         // We need to do that since in this thread we never put or dump
+//                         // but pass things on to another thread. Thus we don't want to
+//                         // overwrite the new events we just obtained.
+// //                        etContainer.newEvents(attachment, Mode.SLEEP, 0, chunk,
+// //                                              (int)etSystem.getEventSize(), group, true);
+// //                        etSystem.newEvents(etContainer);
+// //                        validEvents = etContainer.getEventCount();
+// ////System.out.println("      DataChannel Et out: GETTER got " + validEvents + " new events");
+// //                        events = etContainer.getEventArray();
+//
+//                         events = etSystem.newEvents(attachment, Mode.SLEEP, false, 0,
+//                                                     chunk, (int)etSystem.getEventSize(), group);
+// //System.out.println("      DataChannel Et out: GETTER got " + validEvents + " new events");
+//                         evCount = validEvents = events.length;
+// //                        evCount = validEvents;
+//
+//                         // Place ET events, one-by-one, into ring buffer
+//                         for  (int i=0; i < validEvents; i++) {
+//                             if (stopGetterThread) {
+//                                 return;
+//                             }
+//
+//                             // Will block here if no space in ring.
+//                             // But it should unblock when ET events
+//                             // are put back by the Putter thread.
+// //System.out.println("      DataChannel Et out: GETTER try getting event slot in ring");
+//                             sequence  = rb.next(); // This just spins on parkNanos
+//                             holder = rb.get(sequence);
+//                             holder.event = events[i];
+//                             holder.isEnd = false;
+//                             holder.itemCount = 0;
+//                             holder.bitInfo.clear();
+//                             rb.publish(sequence);
+// //System.out.println("      DataChannel Et out: GETTER inserted event into ring");
+//                             evCount--;
+//                             if (stopGetterThread) {
+//                                 // DO SOMETHING;
+//                             }
+//                         }
+//                     }
+//                 }
+//                 catch (EtWakeUpException e) {
+//                     // Told to wake up because we're ending or resetting.
+//                 }
+//                 catch (IOException e) {
+//                     gotError = true;
+//                     errorString = "DataChannel Et out: network communication error with Et";
+//                     e.printStackTrace();
+//                 }
+//                 catch (EtException e) {
+//                     gotError = true;
+//                     errorString = "DataChannel Et out: internal error handling Et";
+//                     e.printStackTrace();
+//                 }
+//                 catch (EtDeadException e) {
+//                     gotError = true;
+//                     errorString = "DataChannel Et out: Et system dead";
+//                 }
+//                 catch (EtClosedException e) {
+//                     gotError = true;
+//                     errorString = "DataChannel Et out: Et connection closed";
+//                 }
+//                 catch (Exception e) {
+//                     gotError = true;
+//                     errorString = "DataChannel Et out: " + e.getMessage();
+//                     e.printStackTrace();
+//                 }
+//                 finally {
+//                     // Dump any left over events
+//                     if (evCount > 0) {
+//                         try {
+// //                            if (etContainer != null) {
+// //System.out.println("      DataChannel Et out: GETTER will dump " + evCount+ " ET events");
+// //                                etContainer.dumpEvents(attachment, events, events.length - evCount, evCount);
+// //                                etSystem.dumpEvents(etContainer);
+//                                 etSystem.dumpEvents(attachment, events, events.length - evCount, evCount);
+// //                            }
+//                         }
+//                         catch (Exception e1) {
+//                             if (!gotError) {
+//                                 gotError = true;
+//                                 errorString = "DataChannel Et out: " + e1.getMessage();
+//                             }
+//                         }
+//                     }
+//                 }
+//
+//                 // ET system problem - run will come to an end
+//                 if (gotError) {
+//                     channelState = CODAState.ERROR;
+// System.out.println("      DataChannel Et out: " + name + ", " + errorString);
+//                     emu.setErrorState(errorString);
+//                 }
+// //System.out.println("      DataChannel Et out: GETTER is Quitting");
+//             }
+//         }
+//
+//     }
+//
 
 
 }
