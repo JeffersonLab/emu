@@ -1143,7 +1143,7 @@ logger.info("Emu " + name + " resetting");
 
         state = RESETTING;
 
-        // Immediately stop the thread currently executing transition commands
+        // Stop the thread currently executing transition commands
         // just in case it's hung up on a transition. This may leave
         // threads in modules and channels still hung up, but they
         // will be stopped when their individual reset() methods are called.
@@ -1955,6 +1955,10 @@ System.out.println("Emu " + name + " go: " + e.getMessage());
     private void prestart(Command cmd) {
 logger.info("Emu " + name + " prestart: change state to PRESTARTING");
         setState(PRESTARTING);
+
+        // This is a great time to collect garbage since emu input channels
+        // (which will be created in this method) tend to eat up a lot of memory.
+        System.gc();
 
         // Run Control tells us our run number & runType.
         // Get and store them.
