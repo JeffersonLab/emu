@@ -875,16 +875,14 @@ System.out.println("  Roc mod: inserted END event to channel " + i);
 //        }
 
 
-        // Put in PRESTART event
-        PayloadBuffer pBuf2 = Evio.createControlBuffer(ControlType.PRESTART, emu.getRunNumber(),
+        // Create PRESTART event
+        PayloadBuffer pBuf = Evio.createControlBuffer(ControlType.PRESTART, emu.getRunNumber(),
                                                       emu.getRunTypeId(), 0, 0,
                                                       outputOrder, false);
         // Send to first ring on ALL channels
         for (int i=0; i < outputChannelCount; i++) {
-            if (i > 0) {
-                // copy buffer and use that
-                pBuf2 = new PayloadBuffer(pBuf2);
-            }
+            // Copy buffer and use that
+            PayloadBuffer pBuf2 = new PayloadBuffer(pBuf);
             eventToOutputChannel(pBuf2, i, 0);
 System.out.println("  Roc mod: inserted PRESTART event to channel " + i);
         }
@@ -935,17 +933,15 @@ System.out.println("  Roc mod: inserted PRESTART event to channel " + i);
 //System.out.println("  Roc mod: we must have hit go after PAUSE");
         }
 
-        // Put in GO event
+        // Create GO event
         PayloadBuffer pBuf = Evio.createControlBuffer(ControlType.GO, 0, 0,
                                                       (int) eventCountTotal, 0,
                                                       outputOrder, false);
         // Send to first ring on ALL channels
         for (int i=0; i < outputChannelCount; i++) {
-            if (i > 0) {
-                // copy buffer and use that
-                pBuf = new PayloadBuffer(pBuf);
-            }
-            eventToOutputChannel(pBuf, i, 0);
+            // Copy buffer and use that
+            PayloadBuffer pBuf2 = new PayloadBuffer(pBuf);
+            eventToOutputChannel(pBuf2, i, 0);
 System.out.println("  Roc mod: inserted GO event to channel " + i);
         }
 
