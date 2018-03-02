@@ -261,7 +261,6 @@ public class FastEventBuilder extends ModuleAdapter {
         if (!epThreadsSetInConfig) {
             buildingThreadCount = eventProducingThreads = 2;
         }
-        buildingThreadCount = eventProducingThreads = 2;
 
 logger.info("  EB mod: # of event building threads = " + buildingThreadCount);
 
