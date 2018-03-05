@@ -888,15 +888,30 @@ System.out.println("  EB mod: sent END event to output channel  " + outputChanne
                     for (int i=0; i < inputChannelCount; i++) {
                         // 2 sec
                         int timeLeft = 2000;
+                        long ev = 0L;
 
                         // The last event to be cleaned up for this input chan
-                        long ev = releaseThreads[i].getLastSequence();
+                        if (buildingThreadCount > 1) {
+                            // For multiple build threads, there's an additional
+                            // cleanup or release thread which must process the last event.
+                            ev = releaseThreads[i].getLastSequence();
+                        }
+                        else {
+                            ev = buildSequenceIn[0][i].get();
+                        }
 
                         // If it's not to the one before END, it must still be writing
                         while (ev < evIndex - 1 && timeLeft > 0) {
                             try {Thread.sleep(200);}
                             catch (InterruptedException e) {}
-                            ev = releaseThreads[i].getLastSequence();
+
+                            if (buildingThreadCount > 1) {
+                                ev = releaseThreads[i].getLastSequence();
+                            }
+                            else {
+                                ev = buildSequenceIn[0][i].get();
+                            }
+
                             timeLeft -= 200;
                         }
 
