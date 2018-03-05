@@ -1589,6 +1589,7 @@ System.out.println("  EB mod: alert in ring buffer");
                 return;
             }
             catch (Exception e) {
+                e.printStackTrace();
 System.out.println("  EB mod: MAJOR ERROR building event: " + e.getMessage());
                 emu.setErrorState("EB MAJOR ERROR building event: " + e.getMessage());
                 moduleState = CODAState.ERROR;
