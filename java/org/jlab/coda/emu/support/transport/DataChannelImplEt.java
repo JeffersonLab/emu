@@ -633,10 +633,8 @@ System.out.println("      DataChannel Et: can't create/attach to station " +
                 // cannot communicate with ET
             }
 
-logger.info("      DataChannel Et: closeEtSystem(), close ET connection");
             etSystem.close();
             etSystem = null;
-//logger.info("      DataChannel Et: CLOSED ET connection");
         }
     }
 
@@ -1325,6 +1323,7 @@ logger.debug("      DataChannel Et: reset " + name + " channel");
 
         /** Interrupt both input channel threads. */
         void interruptThreads() {
+            stopGetterThread = true;
             getter.interrupt();
             this.interrupt();
         }
@@ -1387,10 +1386,13 @@ logger.debug("      DataChannel Et: reset " + name + " channel");
                 catch (EtWakeUpException e) {
                     // Told to wake up because we're ending or resetting
                     if (haveInputEndEvent) {
-                        logger.info("      DataChannel Et in: wake up " + name + ", other thd found END, quit");
+                        logger.info("      DataChannel Et in: " + name + ", Getter thd woken up, got END event");
                     }
                     else if (gotResetCmd) {
-                        logger.info("      DataChannel Et in: " + name + " got RESET cmd, quitting");
+                        logger.info("      DataChannel Et in: " + name + ", Getter thd woken up, got RESET cmd");
+                    }
+                    else {
+                        logger.info("      DataChannel Et in: " + name + ", Getter thd woken up");
                     }
                     return;
                 }
@@ -1674,8 +1676,6 @@ System.out.println("      DataChannel Et in: GETTER is Quitting");
                                 // thread down.
                                 logger.info("      DataChannel Et in: " + name + " found END event");
                                 haveInputEndEvent = true;
-                                // run callback saying we got end event
-                                if (endCallback != null) endCallback.endWait();
                                 break;
                             }
                         }
@@ -1718,7 +1718,25 @@ System.out.println("      DataChannel Et in: GETTER is Quitting");
                     }
 
                     if (haveInputEndEvent) {
-                        logger.info("      DataChannel Et in: have END, " + name + " quit thd");
+                        // At this point we need to wake up that Getter which is sleeping on
+                        // trying to get another event - which is not coming. If using JNI,
+                        // this will block forever.
+                        if (useDirectEt) {
+                            // NOT SURE WHAT TO DO HERE as there is no wakeup routine
+                            System.out.println("Might be an issue waking up the GETTER thread which is sleeping");
+                        }
+                        else {
+logger.info("      DataChannel Et in: wake up GETTER's getEvents() call so it can exit thread");
+                            etSystem.wakeUpAttachment(attachment);
+                        }
+
+                        // Run callback saying we got end event.
+                        // Need to wait until we put all events back and finish using ET system.
+                        // Otherwise, the emu thread orchestrating END, will assume we're done
+                        // and tell channels and modules to start executing the END commands.
+                        // Basically, we need to avoid calling et system calls simultaneously.
+                        if (endCallback != null) endCallback.endWait();
+                        logger.info("      DataChannel Et in: have END, " + name + " quit parsing thd");
                         return;
                     }
 
