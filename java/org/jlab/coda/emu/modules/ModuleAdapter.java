@@ -255,8 +255,8 @@ logger.info("  Module Adapter: output byte order = " + outputOrder);
      * single, specified output channel.
      *
      * @param itemOut    the event to place on output channel
-     * @param channelNum which output channel to place item on
-     * @param ringNum    which output channel ring buffer to place item on
+     * @param channelNum index of output channel to place item on
+     * @param ringNum    index of output channel ring buffer to place item on
      */
     protected void eventToOutputChannel(RingItem itemOut, int channelNum, int ringNum) {
 
@@ -268,6 +268,31 @@ logger.info("  Module Adapter: output byte order = " + outputOrder);
         }
 
         RingBuffer rb = outputChannels.get(channelNum).getRingBuffersOut()[ringNum];
+        long nextRingItem = rb.next();
+
+        RingItem ri = (RingItem) rb.get(nextRingItem);
+        ri.copy(itemOut);
+        rb.publish(nextRingItem);
+    }
+
+    /**
+     * This method is used to place an item onto a specified ring buffer of a
+     * single, specified output channel.
+     *
+     * @param itemOut    the event to place on output channel
+     * @param channel    which output channel to place item on
+     * @param ringNum    index of output channel ring buffer to place item on
+     */
+    protected void eventToOutputChannel(RingItem itemOut, DataChannel channel, int ringNum) {
+
+        // Have any output channels?
+        if (outputChannelCount < 1) {
+//            logger.info("  Module Adapter: no output channel so release event w/o publishing");
+            itemOut.releaseByteBuffer();
+            return;
+        }
+
+        RingBuffer rb = channel.getRingBuffersOut()[ringNum];
         long nextRingItem = rb.next();
 
         RingItem ri = (RingItem) rb.get(nextRingItem);
