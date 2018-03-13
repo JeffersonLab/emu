@@ -50,6 +50,9 @@ public abstract class DataChannelAdapter extends CODAStateMachineAdapter impleme
     /** Record id (corresponds to evio events flowing through data channel). */
     protected int recordId;
 
+    /** For ET output channel of ER, select a prescaled number of events to be sent. */
+    protected int prescale;
+
     /**
      * If we're a PEB or SEB and want to send 1 evio event per et-buffer/cmsg-message,
      * then this is true. If we want to cram as many evio events as possible in each
@@ -273,6 +276,20 @@ logger.info("      DataChannel Adapter: input ring item count -> " + inputRingIt
             outputRingItemCount = EmuUtilities.powerOfTwo(outputRingItemCount, false);
 logger.info("      DataChannel Adapter: output ring item count -> " + outputRingItemCount);
 
+            prescale = 1;
+            attribString = attributeMap.get("prescale");
+            if (attribString != null) {
+                try {
+                    int val = Integer.parseInt(attribString);
+                    if (val < 1) {
+                        val = 1;
+                    }
+                    prescale = val;
+                }
+                catch (NumberFormatException e) {}
+logger.info("      DataChannel Adapter: output prescale -> " + prescale);
+            }
+
             // Do we send out single events or do we
             // marshall them into one output buffer?
             singleEventOut = false;
@@ -468,6 +485,9 @@ logger.info("      DataChannel Adapter: output ring buffer count (1/buildthread)
 
     /** {@inheritDoc} */
     public void setDestinationBaList(String[] baList) {bAddrList = baList;}
+
+    /** {@inheritDoc} */
+    public int getPrescale() {return prescale;}
 
     /**
      * Gets the next ring buffer item placed there by the last module.
