@@ -627,14 +627,14 @@ System.out.println("  Roc mod: start With (id=" + myId + "):\n    record id = " 
                         // Put generated events into output channel
                         eventToOutputRing(myId, buf, bufItem, bbSupply);
 
-//                        // Delay things
-//                        for (j=0; j < loops; j++) {
-//                            for (i = 0; i < 15; i++) {
-//                                k = k % 3;
-//                            }
-//                        }
+                        // Delay things
+                        for (j=0; j < loops; j++) {
+                            for (i = 0; i < 15; i++) {
+                                k = k % 3;
+                            }
+                        }
 
-//                        Thread.sleep(1000);
+//                        Thread.sleep(10);
 
                         eventCountTotal += eventBlockSize;
                         wordCountTotal  += eventWordSize;
