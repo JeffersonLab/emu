@@ -131,4 +131,11 @@ public interface DataChannel extends CODAStateMachine, StatedObject {
      */
     public void setDestinationBaList(String[] baList);
 
+    /**
+     * Get the prescale value associated with this channel.
+     * Defaults to 1. Used only for ET output of ER.
+     * @return prescale value associated with this channel.
+     */
+    public int getPrescale();
+
 }
