@@ -1364,9 +1364,17 @@ logger.debug("      DataChannel Et: reset " + name + " channel");
                         etContainer = rb.get(sequence);
 
                         if (useDirectEt) {
-//                            We need to do a timed WAIT !!!
-                            etContainer.getEvents(attachmentLocal, Mode.SLEEP.getValue(), 0, chunk);
-                            etSysLocal.getEvents(etContainer);
+                            while (true) {
+                                try {
+                                    // We need to do a timed WAIT since getEvents is NOT interruptible
+                                    etContainer.getEvents(attachmentLocal, Mode.TIMED.getValue(), 500, chunk);
+                                    etSysLocal.getEvents(etContainer);
+                                }
+                                catch (EtTimeoutException e) {}
+                                if (stopGetterThread) {
+                                   return;
+                                }
+                            }
                         }
                         else {
                             // Now that we have a free container, get events & store them in container
@@ -1381,8 +1389,6 @@ logger.debug("      DataChannel Et: reset " + name + " channel");
                         rb.publish(sequence++);
                     }
                 }
-//                catch (InterruptedException e) {
-//                }
                 catch (EtWakeUpException e) {
                     // Told to wake up because we're ending or resetting
                     if (haveInputEndEvent) {
@@ -1721,6 +1727,7 @@ System.out.println("      DataChannel Et in: GETTER is Quitting");
                         // At this point we need to wake up that Getter which is sleeping on
                         // trying to get another event - which is not coming. If using JNI,
                         // this will block forever.
+                        stopGetterThread = true;
                         if (useDirectEt) {
                             // NOT SURE WHAT TO DO HERE as there is no wakeup routine
                             System.out.println("Might be an issue waking up the GETTER thread which is sleeping");
