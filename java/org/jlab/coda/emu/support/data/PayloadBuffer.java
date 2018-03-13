@@ -11,6 +11,7 @@
 
 package org.jlab.coda.emu.support.data;
 
+import org.jlab.coda.jevio.BufferNode;
 import org.jlab.coda.jevio.EvioNode;
 
 import java.nio.ByteBuffer;
@@ -79,10 +80,28 @@ public class PayloadBuffer extends RingItemAdapter {
      */
     public PayloadBuffer(PayloadBuffer buf) {
         super(buf);
-        // Share content but keep different limit, position, mark.
-        // This will work if and only if the buffer is written to.
-        buffer = buf.buffer.duplicate();
-        buffer.order(buf.buffer.order());
+
+        // If data is in the buffer ...
+        if (buf.buffer != null) {
+            // Share content but keep different limit, position, mark.
+            buffer = buf.buffer.duplicate();
+            buffer.order(buf.buffer.order());
+        }
+        // If data is in the node ...
+        else if (buf.node != null) {
+            // Copying a buffer is easy, just duplicate it. However, copying an
+            // EvioNode object is not so simple since it contains lots of references
+            // to objects. The best solution (since this is only used in the ER to
+            // copy user events, control events, and events going to ET output channel)
+            // is to copy the data directly into a buffer and ditch the node object.
+
+            // Get a copy of the node data into a new buffer
+            buffer = buf.getNode().getStructureBuffer(true);
+            node = null;
+            // No longer tied to buffer supply
+            byteBufferItem = null;
+            byteBufferSupply = null;
+        }
     }
 
     /**
@@ -122,6 +141,11 @@ public class PayloadBuffer extends RingItemAdapter {
         item.attachment = null;
 
         if (buffer != null) {
+            item.event = null;
+            // If we're cloning this, the buffer does not belong to a supply anymore
+            item.byteBufferItem   = null;
+            item.byteBufferSupply = null;
+
             // To make this thread safe, we must duplicate the existing buffer
             // so it's position and limit are never changed.
             // Also, be sure to take care of byte order.
