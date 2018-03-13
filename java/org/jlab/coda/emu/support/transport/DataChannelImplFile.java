@@ -560,9 +560,9 @@ logger.info("      DataChannel File: reset " + name + " - done");
                             }
                             gotPrestart = true;
                             // Force prestart to hard disk
-System.out.println("      DataChannel File out " + outputIndex + ": try writing prestart event");
+//System.out.println("      DataChannel File out " + outputIndex + ": try writing prestart event");
                             writeEvioData(ringItem, true);
-System.out.println("      DataChannel File out " + outputIndex + ": wrote prestart event");
+//System.out.println("      DataChannel File out " + outputIndex + ": wrote prestart event");
                         }
                         else {
                             if (!gotPrestart) {
@@ -576,9 +576,9 @@ System.out.println("      DataChannel File out " + outputIndex + ": wrote presta
                             }
 
                             // Do NOT force to hard disk as it may be go and will slow things down
-System.out.println("      DataChannel File out " + outputIndex + ": try writing " + pBankControlType + " event");
+//System.out.println("      DataChannel File out " + outputIndex + ": try writing " + pBankControlType + " event");
                             writeEvioData(ringItem, false);
-System.out.println("      DataChannel File out " + outputIndex + ": wrote " + pBankControlType + " event");
+//System.out.println("      DataChannel File out " + outputIndex + ": wrote " + pBankControlType + " event");
 
                             // Go to the next event
                             gotoNextRingItem(0);
@@ -593,7 +593,7 @@ System.out.println("      DataChannel File out " + outputIndex + ": wrote " + pB
                         if (ringItem.isFirstEvent()) {
                             if (emu.isFileWritingOn()) {
                                 try {
-System.out.println("      DataChannel File out " + outputIndex + ": try writing first event");
+//System.out.println("      DataChannel File out " + outputIndex + ": try writing first event");
                                     // Buffer always gets first priority
                                     if (ringItem.getBuffer() != null) {
                                         evioFileWriter.setFirstEvent(ringItem.getBuffer());
@@ -601,7 +601,7 @@ System.out.println("      DataChannel File out " + outputIndex + ": try writing 
                                     else {
                                         evioFileWriter.setFirstEvent(ringItem.getNode());
                                     }
-System.out.println("      DataChannel File out " + outputIndex + ": wrote first event");
+//System.out.println("      DataChannel File out " + outputIndex + ": wrote first event");
                                 }
                                 catch (EvioException e) {
                                     // Probably here due to bad evio format
@@ -617,9 +617,9 @@ System.out.println("\n      DataChannel File out " + outputIndex + ": IGNORING U
                         else {
                             // force to hard disk.
                             try {
-System.out.println("      DataChannel File out " + outputIndex + ": try writing user event");
+//System.out.println("      DataChannel File out " + outputIndex + ": try writing user event");
                                 writeEvioData(ringItem, true);
-System.out.println("      DataChannel File out " + outputIndex + ": wrote user event");
+//System.out.println("      DataChannel File out " + outputIndex + ": wrote user event");
                             }
                             catch (EvioException e) {
                                 // Probably here due to bad evio format
@@ -739,7 +739,6 @@ logger.info("      DataChannel File out " + outputIndex + ": got ev " + nextEven
                     }
 
                     if (pBankControlType == ControlType.END) {
-//System.out.println("      DataChannel File out, " + outputIndex + ": got END event");
                         if (emu.isFileWritingOn()) {
                             try {
                                 evioFileWriter.close();
@@ -750,7 +749,7 @@ logger.info("      DataChannel File out " + outputIndex + ": got ev " + nextEven
                             }
                         }
                         // run callback saying we got end event
-                        if (endCallback != null) endCallback.endWait();
+                        if (endCallback != null) {endCallback.endWait();}
                         threadState = ThreadState.DONE;
                         return;
                     }
