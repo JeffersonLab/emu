@@ -99,7 +99,7 @@ abstract class RingItemAdapter implements RingItem {
 
     // Deal with ring buffers
 
-    /** This refers to a supply reusable ByteBuffers (if any). */
+    /** This refers to a supply of reusable ByteBuffers from which buffer came (if any). */
     protected ByteBufferSupply byteBufferSupply;
 
     /** This refers to the wrapper object of buffer in reusable ByteBufferSupply (if any). */
@@ -141,7 +141,7 @@ abstract class RingItemAdapter implements RingItem {
         switchRing             = ringItem.getSwitchRing();
         isSync                 = ringItem.isSync();
         hasError               = ringItem.hasError();
-        nonFatalBuildingError = ringItem.hasNonFatalBuildingError();
+        nonFatalBuildingError  = ringItem.hasNonFatalBuildingError();
         attachment             = ringItem.getAttachment();
         byteBufferItem         = ringItem.getByteBufferItem();
         byteBufferSupply       = ringItem.getByteBufferSupply();
@@ -185,14 +185,10 @@ abstract class RingItemAdapter implements RingItem {
 
 
     /** {@inheritDoc} */
-    public EvioEvent getEvent() {
-        return event;
-    }
+    public EvioEvent getEvent() {return event;}
 
     /** {@inheritDoc} */
-    public void setEvent(EvioEvent event) {
-        this.event = event;
-    }
+    public void setEvent(EvioEvent event) {this.event = event;}
 
     /** {@inheritDoc} */
     public ByteBuffer getBuffer() {return buffer;}
@@ -314,11 +310,6 @@ abstract class RingItemAdapter implements RingItem {
     }
 
 
-
-    /**
-     * All members of this class (except attachment) are
-     * primitives/enums so bitwise copies are fine.
-     */
     public Object clone() {
         try {
             return super.clone();
