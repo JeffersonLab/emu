@@ -83,15 +83,17 @@ public class EventRecording extends ModuleAdapter {
     /** Thread used to record events. */
     private Thread recordingThread;
 
-    private DataChannel   emuInputChannel;
+    private DataChannel mainInputChannel;
     private DataChannel   etInputChannel;
     private DataChannel   etOutputChannel;
     private DataChannel[] fileOutputChannels;
     private RingItem[]    outputEvents;
 
-    int fileOutChannelCount;
-    int etOutChannelCount;
-    int emuIndex, etIndex, etOutIndex;
+    private int fileOutChannelCount;
+    private int etOutChannelCount;
+    private int mainIndex, etIndex, etOutIndex;
+
+    private boolean singleInput, singleOutput;
 
    /** END event detected by one of the recording threads. */
     private volatile boolean haveEndEvent;
@@ -168,8 +170,12 @@ public class EventRecording extends ModuleAdapter {
             RateCalculator.start();
         }
 
-
-        recordingThread = new RecordingThreadTwoToMany(emu.getThreadGroup(), name+":recorder");
+//        if (singleInput && singleOutput) {
+//            recordingThread = new RecordingThreadOneToOne(emu.getThreadGroup(), name+":recorder");
+//        }
+//        else {
+            recordingThread = new RecordingThreadTwoToMany(emu.getThreadGroup(), name + ":recorder");
+//        }
         recordingThread.start();
     }
 
@@ -540,15 +546,15 @@ if (debug) System.out.println("  ER mod: recording thread ending");
             final long timeBetweenSamples = 500; // sample every 1/2 sec
             int totalNumberEvents=1, wordCount=0, firstEventsWords=0;
             RingItem firstEvent = null;
-            boolean gotBank, gotPrestart=false, isPrestart=false, emuItem=true;
-            boolean isUserOrControl=false, isControl=false;
+            boolean gotBank, gotPrestart=false, isPrestart=false, mainItem=true;
+            boolean isUser=false, isControl=false, isFirst=false;
             EventType pBankType = null;
             int fileIndex=0;
             long physicsEventCounter=0;
 
             // Ring Buffer stuff, 1 input buffer for et & the other for emu
-            long emuAvailableSequence = -2L;
-            long emuNextSequence = sequencesIn[emuIndex].get() + 1L;
+            long mainAvailableSequence = -2L;
+            long mainNextSequence = sequencesIn[mainIndex].get() + 1L;
 
             long etAvailableSequence = -2L;
             long etNextSequence = sequencesIn[etIndex].get() + 1L;
@@ -562,13 +568,13 @@ if (debug) System.out.println("  ER mod: recording thread ending");
                     gotBank = false;
 
                     // Will BLOCK here waiting for item if none available
-                    if (emuAvailableSequence < emuNextSequence) {
-                        emuAvailableSequence = barriersIn[emuIndex].waitFor(emuNextSequence);
-//System.out.println("  ER mod: available seq " + emuAvailableSequence);
+                    if (mainAvailableSequence < mainNextSequence) {
+                        mainAvailableSequence = barriersIn[mainIndex].waitFor(mainNextSequence);
+//System.out.println("  ER mod: available seq " + mainAvailableSequence);
                     }
 
-                    // Non-blockingly check the ET system
-                    if (etAvailableSequence < etNextSequence) {
+                    // Non-blockingly check the (secondary) ET system
+                    if (!singleInput && (etAvailableSequence < etNextSequence)) {
                         // Before we wait, check to see if there's anything to wait for ...
                         if (ringBuffersIn[etIndex].getCursor() >= etNextSequence) {
 //System.out.println("Get event from ET ...");
@@ -580,9 +586,9 @@ if (debug) System.out.println("  ER mod: recording thread ending");
                     t2 = emu.getTime();
                     if (t2-t1 > timeBetweenSamples) {
                         // Scale from 0% to 100% of ring buffer size
-                        inputChanLevels[emuIndex] = ((int)(ringBuffersIn[emuIndex].getCursor() -
-                                                    ringBuffersIn[emuIndex].getMinimumGatingSequence()) + 1)*100 /
-                                                    ringBufferSizes[emuIndex];
+                        inputChanLevels[mainIndex] = ((int)(ringBuffersIn[mainIndex].getCursor() -
+                                                    ringBuffersIn[mainIndex].getMinimumGatingSequence()) + 1)*100 /
+                                                    ringBufferSizes[mainIndex];
 
                         inputChanLevels[etIndex] = ((int)(ringBuffersIn[etIndex].getCursor() -
                                                     ringBuffersIn[etIndex].getMinimumGatingSequence()) + 1)*100 /
@@ -590,21 +596,21 @@ if (debug) System.out.println("  ER mod: recording thread ending");
                         t1 = t2;
                     }
 
-//                    while (emuNextSequence <= emuAvailableSequence) {
+//                    while (mainNextSequence <= mainAvailableSequence) {
 
-                    while (emuNextSequence <= emuAvailableSequence ||
-                            etNextSequence <=  etAvailableSequence ) {
+                    while (mainNextSequence <= mainAvailableSequence ||
+                             etNextSequence <=   etAvailableSequence ) {
 
                         // Get item from input channel.
-                        // Deal with all ET (user) events first since they
+                        // Deal with all secondary ET (user) events first since they
                         // may come before prestart.
                         if (etNextSequence <= etAvailableSequence) {
                             ringItem = ringBuffersIn[etIndex].get(etNextSequence);
-                            emuItem = false;
+                            mainItem = false;
                         }
                         else {
-                            ringItem = ringBuffersIn[emuIndex].get(emuNextSequence);
-                            emuItem = true;
+                            ringItem = ringBuffersIn[mainIndex].get(mainNextSequence);
+                            mainItem = true;
                         }
 
                         wordCount = ringItem.getNode().getLength() + 1;
@@ -612,7 +618,8 @@ if (debug) System.out.println("  ER mod: recording thread ending");
                         totalNumberEvents = ringItem.getEventCount();
                         pBankType = ringItem.getEventType();
                         isControl = pBankType.isControl();
-                        isUserOrControl = pBankType.isUserOrControl();
+                        isUser    = pBankType.isUser();
+                        isFirst   = ringItem.isFirstEvent();
 
 //                        // Code for testing changing input/output channel fill levels.
 //                        // TODO: Comment out when finished testing!!!
@@ -623,8 +630,8 @@ if (debug) System.out.println("  ER mod: recording thread ending");
                         // Look at control events ...
                         if (isControl) {
 
-                            // Do not accept control events from ET
-                            if (!emuItem) {
+                            // Accept control events only from main channel
+                            if (!mainItem) {
 System.out.println("  ER mod: reject " + controlType + " event from ET input channel, release seq " + etNextSequence);
                                 ringItem.releaseByteBuffer();
                                 sequencesIn[etIndex].set(etNextSequence++);
@@ -690,8 +697,8 @@ System.out.println("  ER mod: THROWING AWAY event of type " + ringItem.getEventT
                             // Release the ring buffer slot of input channel for re-use.
                             // This is fine since we copied the ringItem and released the
                             // original data.
-                            if (emuItem) {
-                                sequencesIn[emuIndex].set(emuNextSequence++);
+                            if (mainItem) {
+                                sequencesIn[mainIndex].set(mainNextSequence++);
                             }
                             else {
                                 sequencesIn[etIndex].set(etNextSequence++);
@@ -712,13 +719,12 @@ System.out.println("  ER mod: THROWING AWAY event of type " + ringItem.getEventT
 
                     if (outputChannelCount > 0) {
 
-                        if (isUserOrControl) {
-                            // Since user and control events need to be duplicated and sent
+                        if (isControl || isFirst) {
+                            // Since control events & BOR event(s) need to be duplicated and sent
                             // over all output channels, and since they are contained in an
                             // EvioNode object, it's easiest to completely copy them into a
                             // new ByteBuffer. Thus, we don't need to mess with increasing
                             // the number of users of the buffer from the original supply.
-
 
                             // Avoid writing an event in an output channel while simultaneously
                             // copying it here for putting into another channel. You'll end up
@@ -731,13 +737,15 @@ System.out.println("  ER mod: THROWING AWAY event of type " + ringItem.getEventT
 
                             // Now place one on each output channel
                             for (int j=0; j < outputChannelCount; j++) {
-System.out.println("  ER mod: writing control/user (seq " + emuNextSequence +
+System.out.println("  ER mod: writing control/first (seq " + mainNextSequence +
                    '/' + etNextSequence + ") to channel " + fileOutputChannels[j].name());
                                 eventToOutputChannel(outputEvents[j], j, 0);
                             }
 
                             // Prestart event is a special case as there may be a "first" event
-                            // which preceded it but now must come after.
+                            // which preceded it but now must come after ... for each channel.
+                            // This "first" or Beginning-of-run (BOR) event will be sent over
+                            // all channels as opposed to the normal user events.
                             if (isPrestart) {
                                 if (firstEvent != null) {
                                     // Copy first event
@@ -753,6 +761,20 @@ System.out.println("  ER mod: sending first event to chan " + outputChannels.get
                                     }
                                 }
                                 isPrestart = false;
+                            }
+                        }
+                        // Non-BOR user event here
+                        else if (isUser) {
+System.out.println("  ER mod: writing user (seq " + mainNextSequence + '/' + etNextSequence + ')');
+                            // Put user events into 1 channel
+                            
+                            // By default make it the first file channel.
+                            // If none, then the ET channel.
+                            if (fileOutChannelCount > 0) {
+                                eventToOutputChannel(ringItem, fileOutputChannels[0], 0);
+                            }
+                            else if (etOutChannelCount > 0) {
+                                eventToOutputChannel(ringItem, etOutputChannel, 0);
                             }
                         }
                         // Physics event here
@@ -802,8 +824,8 @@ logger.info("  ER mod: found END event");
                     // which is fine even if we haven't released the data (in the input channel
                     // byte buffer supply item). That's because when the slot is reused, it will
                     // use a different buffer item from that supply.
-                    if (emuItem) {
-                        sequencesIn[emuIndex].set(emuNextSequence++);
+                    if (mainItem) {
+                        sequencesIn[mainIndex].set(mainNextSequence++);
                     }
                     else {
                         sequencesIn[etIndex].set(etNextSequence++);
@@ -922,48 +944,59 @@ if (debug) System.out.println("  ER mod: recording thread ending");
             return;
         }
 
+        // Help to direct logic in recording thread
+        if (inputChannels.size()  == 1) singleInput  = true;
+        if (outputChannels.size() == 1) singleOutput = true;
+
+        // Place to put ring level stats
+        inputChanLevels  = new int[inputChannelCount];
+        inputChanNames   = new String[inputChannelCount];
+        outputChanLevels = new int[outputChannelCount];
+        outputChanNames  = new String[outputChannelCount];
+
+        // Initialize variables
+        int indx = 0;
+        mainIndex = etIndex = etOutIndex = 0;
+        mainInputChannel = etInputChannel = null;
+        fileOutChannelCount = etOutChannelCount = 0;
+
+        //------------------------------------------------
+        // Disruptor (RingBuffer) stuff for channels
+        //------------------------------------------------
+        ringBuffersIn    = new RingBuffer[inputChannelCount];
+        ringBufferSizes  = new int[inputChannelCount];
+        sequencesIn      = new Sequence[inputChannelCount];
+        barriersIn       = new SequenceBarrier[inputChannelCount];
+        outputEvents     = new RingItem[outputChannelCount];
+
+
         try {
-            //------------------------------------------------
-            // Disruptor (RingBuffer) stuff for input channels
-            //------------------------------------------------
 
-            // Place to put ring level stats
-            inputChanLevels  = new int[inputChannelCount];
-            inputChanNames   = new String[inputChannelCount];
-            outputChanLevels = new int[outputChannelCount];
-            outputChanNames  = new String[outputChannelCount];
-
-            ringBuffersIn    = new RingBuffer[inputChannelCount];
-            ringBufferSizes  = new int[inputChannelCount];
-            sequencesIn      = new Sequence[inputChannelCount];
-            barriersIn       = new SequenceBarrier[inputChannelCount];
-            outputEvents     = new RingItem[outputChannelCount];
-
-            int indx = 0;
-            emuIndex = etIndex = etOutIndex = 0;
-            emuInputChannel = etInputChannel = null;
-            fileOutChannelCount = etOutChannelCount = 0;
-
-//System.out.println("  ER mod: prestart(): input chan count = " + inputChannels.size());
             for (DataChannel ch : inputChannels) {
 
-                if (ch.getTransportType() == TransportType.EMU) {
-                    emuInputChannel = ch;
-                    emuIndex = indx;
-//System.out.println("  ER mod: prestart(): emuIndex = " + emuIndex);
+                if (ch.getTransportType() == TransportType.ET) {
+                    // If there is a single input, ET is the main one
+                    if (singleInput) {
+                        mainInputChannel = ch;
+                        mainIndex = indx;
+                    }
+                    // If there are multiple inputs, ET is not the main one, emu socket is.
+                    else {
+                        etInputChannel = ch;
+                        etIndex = indx;
+                        // Only expecting user events. Not expecting END event on this
+                        // channel so go ahead and say it already got it so END
+                        // transition will not fail.
+                        ch.getEndCallback().endWait();
+                    }
                 }
-                else if (ch.getTransportType() == TransportType.ET) {
-                    etInputChannel = ch;
-                    // Not expecting END event on this channel so go ahead
-                    // and say it already got it so END transition will not fail.
-                    ch.getEndCallback().endWait();
-                    etIndex = indx;
-//System.out.println("  ER mod: prestart(): etIndex = " + etIndex);
+                else {
+                    mainInputChannel = ch;
+                    mainIndex = indx;
                 }
 
                 // Channel names for easy gathering of stats
                 inputChanNames[indx] = ch.name();
-//System.out.println("  ER mod: prestart(): in chan name = " + ch.name());
                 // Get input channels' ring buffers
                 ringBuffersIn[indx] = ch.getRingBufferIn();
                 // Have ring sizes handy for calculations
@@ -980,7 +1013,7 @@ if (debug) System.out.println("  ER mod: recording thread ending");
             }
 
             // Check to make sure we have proper input channels
-            if (inputChannelCount == 2 && (etInputChannel == null || emuInputChannel == null)) {
+            if (inputChannelCount == 2 && (etInputChannel == null || mainInputChannel == null)) {
                 throw new CmdExecException("For 2 input channels, must have 1 ET & 1 EMU");
             }
 
