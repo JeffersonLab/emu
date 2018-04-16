@@ -118,14 +118,15 @@ public interface DataChannel extends CODAStateMachine, StatedObject {
     public int getOutputLevel();
 
     /**
-     * Set the output channel's list of possible destination IP addresses if connecting to server.
+     * Set the output channel's list of possible destination IP addresses of emu TCP server
+     * when using emu sockets to communicate.
      * @param ipList  list of possible destination IP addresses if connecting to server.
      */
     public void setDestinationIpList(String[] ipList);
 
     /**
-     * Set the output channel's list of destination broadcast addresses each corresponding
-     * to the same element of the IpList.
+     * Set the output channel's list of destination broadcast addresses of emu TCP server
+     * when using emu sockets to communicate - each corresponding to the same element of the IpList.
      * @param ipList   list of destination broadcast addresses each corresponding
      *                 to the same element of the IpList.
      */
