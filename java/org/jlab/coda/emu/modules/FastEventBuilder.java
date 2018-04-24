@@ -708,7 +708,7 @@ if (debug) System.out.println("  EB mod: Roc raw or physics event in wrong forma
     }
 
 
-    /**
+   /**
      * This method writes the specified control event into all the output channels.
      *
      * @param isPrestart {@code true} if prestart event being written, else go event
@@ -721,27 +721,28 @@ if (debug) System.out.println("  EB mod: Roc raw or physics event in wrong forma
             return;
         }
 
-        // Put 1 control event on each output channel
+        // We have GO or PRESTART?
         ControlType controlType = isPrestart ? ControlType.PRESTART : ControlType.GO;
 
+        // Space for 1 control event per channel
+        PayloadBuffer[] controlBufs = new PayloadBuffer[outputChannelCount];
+
         // Create a new control event with updated control data in it
-        PayloadBuffer pBuf = Evio.createControlBuffer(controlType,
-                                                   runNumber, runTypeId,
-                                                   (int)eventCountTotal,
-                                                   0, outputOrder, false);
+        controlBufs[0] = Evio.createControlBuffer(controlType,
+                                                  runNumber, runTypeId,
+                                                  (int)eventCountTotal,
+                                                  0, outputOrder, false);
 
-        // Place event on first output channel, ring 0
-        eventToOutputChannel(pBuf, 0, 0);
+        // For the other output channels, duplicate first with separate position & limit.
+        // Important to do this duplication BEFORE sending to output channels or position
+        // and limit can be copied while changing.
+        for (int i=1; i < outputChannelCount; i++) {
+            controlBufs[i] =  new PayloadBuffer(controlBufs[0]);
+        }
 
-        // If multiple output channels ...
-        if (outputChannelCount > 1) {
-            for (int i = 1; i < outputChannelCount; i++) {
-                // "Copy" control event (same buf, separate pos & lim)
-                PayloadBuffer pbCopy = new PayloadBuffer(pBuf);
-
-                // Write event to output channel
-                eventToOutputChannel(pbCopy, i, 0);
-            }
+        // Write event to output channels
+        for (int i=0; i < outputChannelCount; i++) {
+            eventToOutputChannel(controlBufs[i], i, 0);
         }
 
         if (isPrestart) {
