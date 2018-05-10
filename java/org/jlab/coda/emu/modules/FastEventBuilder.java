@@ -923,8 +923,6 @@ System.out.println("  EB mod: sent END event to output channel  " + outputChanne
                     }
                 }
 
-                int ringIndex;
-
                 // Now send END to the other channels. Do this by going forward.
                 // Physics events are sent to output channels round-robin and are
                 // processed by build threads round-robin. So ...
@@ -1006,7 +1004,8 @@ System.out.println("  EB mod: sent END event to output channel  " + nextChannel)
                     while (true) {
                         // Check to see if there is anything to read so we don't block.
                         // If not, move on to the next ring.
-                        if (!ringBuffersIn[ch].isPublished(veryNextSequence)) {
+                        if (ringBuffersIn[ch].getCursor() < veryNextSequence) {
+                        //if (!ringBuffersIn[ch].isPublished(veryNextSequence)) {
 //System.out.println("  EB mod: findEnd, for chan " + ch + ", sequence " + veryNextSequence + " not available yet");
                             // Only break (and throw a major error) if this EB has
                             // received the END command. Because only then do we know
@@ -1535,19 +1534,8 @@ System.out.println("  EB mod: bt#" + btIndex + " found END events on all input c
 
                     //-------------------------
 
-                    // Which output channel do we use?
-                    // Round-robin only works for 1 build thread.
-                    // With multiple build threads:
-                    // first time, channel = btIndex, then
-                    // channel = (prev_channel + btCount) % outputChannelCount
+                    // Which output channel do we use?  Round-robin.
                     if (outputChannelCount > 1) {
-                        // If first time to write physic event, start with btIndex
-//                        if (outputChannelIndex < 0) {
-//                            outputChannelIndex = btIndex % outputChannelCount;
-//                        }
-//                        else {
-//                            outputChannelIndex = (outputChannelIndex + btCount) % outputChannelCount;
-//                        }
                         outputChannelIndex = (int) (evIndex % outputChannelCount);
                     }
 
@@ -1686,7 +1674,6 @@ if (debug) System.out.println("  EB mod: Building thread is ending");
 
         /**
          * Stop this freeing-resource thread.
-         * @param force if true, call Thread.stop().
          */
         void endThread() {
             quit = true;
