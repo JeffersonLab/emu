@@ -13,7 +13,6 @@ package org.jlab.coda.emu.support.data;
 
 
 import com.lmax.disruptor.*;
-import org.jlab.coda.emu.EmuException;
 
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
@@ -200,7 +199,12 @@ public class ByteBufferSupply {
         // Create ring buffer with "ringSize" # of elements,
         // each with ByteBuffers of size "bufferSize" bytes.
         ringBuffer = createSingleProducer(new ByteBufferFactory(), ringSize,
-                                          new YieldingWaitStrategy());
+                                          //new PhasedBackoffWaitStrategy(500L, 1000L, TimeUnit.NANOSECONDS, new LiteBlockingWaitStrategy()));
+                                          // new LiteBlockingWaitStrategy());
+                                          //new SleepingWaitStrategy(10000, 200000));   // 200 usec
+                                          new SpinCountBackoffWaitStrategy(10000, new LiteBlockingWaitStrategy()));
+                                          //new BlockingWaitStrategy());
+                                          //new YieldingWaitStrategy());
 
         // Barrier to keep unreleased buffers from being reused
         barrier  = ringBuffer.newBarrier();
@@ -241,7 +245,12 @@ public class ByteBufferSupply {
 
         // Create ring buffer with "ringSize" # of elements taken from bufList.
         ringBuffer = createSingleProducer(new PredefinedByteBufferFactory(bufList), ringSize,
-                                          new YieldingWaitStrategy());
+                                          //new PhasedBackoffWaitStrategy(500L, 1000L, TimeUnit.NANOSECONDS, new LiteBlockingWaitStrategy()));
+                                          //new LiteBlockingWaitStrategy());
+                                          //new BlockingWaitStrategy());
+                                          //new SleepingWaitStrategy(10000, 200000));   // 200 usec
+                                          new SpinCountBackoffWaitStrategy(10000, new LiteBlockingWaitStrategy()));
+                                          //new YieldingWaitStrategy());
 
         // Barrier to keep unreleased buffers from being reused
         barrier  = ringBuffer.newBarrier();
@@ -356,6 +365,64 @@ public class ByteBufferSupply {
         // Each item may be used by several objects/threads. It will
         // only be released for reuse if everyone releases their claim.
         if (item.decrementCounter()) {
+            // Sequence we want to release
+            long seq;
+            boolean isConsumerGet = item.isFromConsumerGet();
+
+            if (isConsumerGet) {
+                seq = item.getConsumerSequence();
+            }
+            else {
+                seq = item.getProducerSequence();
+            }
+
+            if (orderedRelease) {
+                sequence.set(seq);
+                return;
+            }
+//System.out.println("    BBS: release go into SYNC code");
+
+            synchronized (this) {
+                // If we got a new max ...
+                if (seq > maxSequence) {
+                    // If the old max was > the last released ...
+                    if (maxSequence > lastSequenceReleased) {
+                        // we now have a sequence between last released & new max
+                        between++;
+                    }
+
+                    // Set the new max
+                    maxSequence = seq;
+                }
+                // If we're < max and > last, then we're in between
+                else if (seq > lastSequenceReleased) {
+                    between++;
+                }
+
+                // If we now have everything between last & max, release it all.
+                // This way higher sequences are never released before lower.
+                if ((maxSequence - lastSequenceReleased - 1L) == between) {
+                    sequence.set(maxSequence);
+                    lastSequenceReleased = maxSequence;
+                    between = 0;
+                }
+            }
+        }
+    }
+
+
+    /**
+     * Consumer releases claim on the given ring buffer item so it becomes available for reuse.
+     * This method <b>ensures</b> that sequences are released in order and is thread-safe.
+     * To be used in conjunction with {@link #get()} and {@link #consumerGet()}.
+     * @param item item in ring buffer to release for reuse.
+     */
+    void releaseOrig(ByteBufferItem item) {
+        if (item == null) return;
+
+        // Each item may be used by several objects/threads. It will
+        // only be released for reuse if everyone releases their claim.
+        if (item.decrementCounter()) {
             if (orderedRelease) {
                 if (item.isFromConsumerGet()) {
 //System.out.println(" S" + item.getConsumerSequence());
@@ -406,6 +473,7 @@ public class ByteBufferSupply {
             }
         }
     }
+
 
 
     /**
