@@ -51,7 +51,7 @@ public class ByteBufferItem {
     /** Track more than one user so this object can be released for reuse. */
     private volatile int volatileCounter;
 
-    /** If true, we're track more than one user. */
+    /** If true, we're tracking more than one user. */
     private boolean multipleUsers;
 
     /**
