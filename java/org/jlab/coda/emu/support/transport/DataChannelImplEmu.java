@@ -38,6 +38,8 @@ import java.util.BitSet;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.locks.LockSupport;
 
 /**
  * This class implement a data channel which
@@ -206,12 +208,14 @@ public class DataChannelImplEmu extends DataChannelAdapter {
             }
             catch (NumberFormatException e) {}
         }
+        socketCount = 1;
         logger.info("      DataChannel Emu: TCP socket count = " + socketCount);
 
         // if INPUT channel
         if (input) {
             isER = (emu.getCodaClass() == CODAClass.ER);
-
+// minimize parsing
+//isER  = true;
             // size of TCP receive buffer (0 means use operating system default)
             //tcpRecvBuf = 3000000;     // THIS VALUE DOES NOT WORK FOR 1G Ethernet!!!
             tcpRecvBuf = 0;
@@ -227,6 +231,8 @@ public class DataChannelImplEmu extends DataChannelAdapter {
                 catch (NumberFormatException e) {}
             }
 
+logger.info("      DataChannel Emu: recvBuf = " + tcpRecvBuf);
+
             // set "data dump" option on
             attribString = attributeMap.get("dump");
             if (attribString != null) {
@@ -236,6 +242,11 @@ public class DataChannelImplEmu extends DataChannelAdapter {
                     dumpData = true;
                 }
             }
+            
+//            dumpData = true;
+logger.info("      DataChannel Emu: dumpData = " + dumpData);
+
+
         }
         // if OUTPUT channel
         else {
@@ -249,6 +260,7 @@ public class DataChannelImplEmu extends DataChannelAdapter {
                     noDelay = false;
                 }
             }
+logger.info("      DataChannel Emu: noDelay = " + noDelay);
 
             // size of TCP send buffer (0 means use operating system default)
             //tcpSendBuf = 3000000;     // THIS VALUE DOES NOT WORK FOR 1G Ethernet!!!
@@ -260,10 +272,11 @@ public class DataChannelImplEmu extends DataChannelAdapter {
                     if (tcpSendBuf < 0) {
                         tcpSendBuf = 0;
                     }
-                    logger.info("      DataChannel Emu: set sendBuf to " + tcpSendBuf);
+                    logger.info("      DataChannel Emu: sendBuf = " + tcpSendBuf);
                 }
                 catch (NumberFormatException e) {}
             }
+logger.info("      DataChannel Emu: set sendBuf to " + tcpSendBuf);
 
             // Send port
             sendPort = cMsgNetworkConstants.emuTcpPort;
@@ -399,11 +412,17 @@ public class DataChannelImplEmu extends DataChannelAdapter {
         int numBufs = 1024000000 / (maxBufferSize * channelCount);
         numBufs = numBufs <  16 ?  16 : numBufs;
         numBufs = numBufs > 128 ? 128 : numBufs;
+        // Reducing numBufs to 32 increases barrier.waitfor() time from .02% to .4% of EB time
         numBufs = 64;
         
         // Make power of 2, round up
         numBufs = EmuUtilities.powerOfTwo(numBufs, true);
 logger.info("      DataChannel Emu in: " + numBufs + " buffers in input supply");
+
+        boolean sequentialRelease = true;
+        if (module.getEventProducingThreadCount() > 1) {
+            sequentialRelease = false;
+        }
 
         // If ER
         if (isER) {
@@ -413,28 +432,29 @@ logger.info("      DataChannel Emu in: " + numBufs + " buffers in input supply")
             if (((outChannels.size() < 1) ||
                     (outChannels.size() == 1 &&
                             (outChannels.get(0).getTransportType() == TransportType.FILE)))) {
-
                 // Since ER has only 1 recording thread and every event is processed in order,
                 // and since the file output channel also processes all events in order,
                 // the byte buffer supply does not have to be synchronized as byte buffers are
                 // released in order. Will make things faster.
-                bbInSupply[index] = new ByteBufferSupply(numBufs, maxBufferSize,
-                                                                      ByteOrder.BIG_ENDIAN, direct,
-                                                                     true);
+                //sequentialRelease = true;
             }
             else {
                 // If ER has more than one output, buffers may not be released sequentially
-                bbInSupply[index] = new ByteBufferSupply(numBufs, maxBufferSize,
-                                                                      ByteOrder.BIG_ENDIAN, direct,
-                                                                     false);
+                sequentialRelease = false;
             }
         }
         else {
-            // EBs all release these ByteBuffers in order in the ReleaseRingResourceThread thread
-            bbInSupply[index] = new ByteBufferSupply(numBufs, maxBufferSize,
-                                                                  ByteOrder.BIG_ENDIAN, direct,
-                                                                 true);
+            // EBs release events sequentially if there's only 1 build thread,
+            // else the release is NOT sequential.
+            if (module.getEventProducingThreadCount() > 1) {
+                sequentialRelease = false;
+            }
         }
+
+        bbInSupply[index] = new ByteBufferSupply(numBufs, maxBufferSize,
+                                                 ByteOrder.BIG_ENDIAN, direct,
+                                                 sequentialRelease);
+logger.info("      DataChannel Emu in: seq release = " + sequentialRelease);
 
 logger.info("      DataChannel Emu in: connection made from " + name);
 
@@ -1309,6 +1329,18 @@ logger.info("      DataChannel Emu in: got " + controlType + " event from " + na
                          break;
                      }
 
+                     // Send control events on to module so we can prestart, go and take data
+                     if (!eventType.isBuildable()) {
+                         nextRingItem = ringBufferIn.next();
+                         ri = ringBufferIn.get(nextRingItem);
+
+                         ri.setAll(null, null, node, eventType, controlType,
+                                   isUser, hasFirstEvent, id, recordId, sourceId,
+                                   1, name, item, bbSupply);
+
+                         ringBufferIn.publish(nextRingItem);
+                     }
+
                      continue;
                  }
 
@@ -1349,412 +1381,6 @@ logger.info("      DataChannel Emu in: got " + controlType + " event from " + na
 
     }
 
-//    /**
-//      * Class used to take Evio banks from ring buffer (placed there by a module),
-//      * and write them over network to an Emu domain input channel using the Emu
-//      * domain output channel.
-//      */
-//     private class DataOutputHelperOld extends Thread {
-//
-//         /** Help in pausing DAQ. */
-//         private int pauseCounter;
-//
-//         /** Let a single waiter know that the main thread has been started. */
-//         private final CountDownLatch startLatch = new CountDownLatch(1);
-//
-//         /** Object to write (marshall) input buffers into larger, output evio buffer (next member). */
-//         private EventWriterUnsync writer;
-//
-//         /** Buffer to write events into so it can be sent in a cMsg message. */
-//         private ByteBuffer byteBuffer;
-//
-//         /** Entry in evio block header. */
-//         private final BitSet bitInfo = new BitSet(24);
-//
-//         /** Type of last event written out. */
-//         private EventType previousEventType;
-//
-//         /** What state is this thread in? */
-//         private volatile ThreadState threadState;
-//
-//         /** Time at which events were sent over socket. */
-//         private long lastSendTime;
-//
-//
-//         /** Constructor. */
-//         DataOutputHelperOld() {
-//             super(emu.getThreadGroup(), name() + "_data_out");
-//             if (direct) {
-//                 byteBuffer = ByteBuffer.allocateDirect(maxBufferSize);
-//             }
-//             else {
-//                 byteBuffer = ByteBuffer.allocate(maxBufferSize);
-//             }
-//             byteBuffer.order(byteOrder);
-//
-//             // Create writer to write events into file format
-//             if (!singleEventOut) {
-//                 try {
-//                     writer = new EventWriterUnsync(byteBuffer);
-//                     writer.close();
-//                 }
-//                 catch (EvioException e) {/* never happen */}
-//             }
-//
-//             // Need do this only once
-//             outGoingMsg.setUserInt(cMsgConstants.emuEvioFileFormat);
-//         }
-//
-//
-//         /** A single waiter can call this method which returns when thread was started. */
-//         private void waitUntilStarted() {
-//             try {
-//                 startLatch.await();
-//             }
-//             catch (InterruptedException e) {
-//             }
-//         }
-//
-//
-//         /**
-//          * Send the events currently marshalled into a single buffer.
-//          * @force if true, force data over socket
-//          */
-//         private final void flushEvents(boolean force) throws cMsgException, EvioException {
-//             writer.close();
-//
-//             // We must have something to write
-//             if (writer.getEventsWritten() < 1) {
-//                 return;
-//             }
-//
-//             // If we have no more room in buffer, send what we have so far
-//             if (direct) {
-//                 // writer.getByteBuffer gets a duplicate buffer all set for reading
-//                 outGoingMsg.setByteArray(writer.getByteBuffer());
-//             }
-//             else {
-//                 outGoingMsg.setByteArrayNoCopy(writer.getByteBuffer().array(), 0,
-//                                                (int) writer.getBytesWrittenToBuffer());
-//             }
-//             emuDomain.send(outGoingMsg);
-//
-//             // Force things out over socket
-//             if (force) {
-//                 try {
-//                     emuDomain.flush(0);
-//                 }
-//                 catch (cMsgException e) {
-//                 }
-//             }
-//
-//             lastSendTime = emu.getTime();
-//         }
-//
-//
-//         /**
-//          * Write events into internal buffer and, if need be, flush
-//          * them over socket.
-//          *
-//          * @param rItem event to write
-//          * @throws EmuException if no data to write
-//          */
-//         private final void writeEvioData(RingItem rItem)
-//                 throws cMsgException, IOException, EvioException, EmuException {
-//
-//             int blockNum;
-//             EventType eType = rItem.getEventType();
-//             boolean isBuildable = eType.isBuildable();
-//             int eventsWritten = writer.getEventsWritten();
-//
-//             // If we're sending out 1 event by itself ...
-//             if (singleEventOut || !isBuildable) {
-// //System.out.println("      DataChannel Emu write: type = " + eType);
-//                 // If we already have something stored-up to write, send it out first
-//                 if (eventsWritten > 0 && !writer.isClosed()) {
-// //System.out.println("      DataChannel Emu write: flush1");
-//                     flushEvents(false);
-//                 }
-//
-//                 if (isBuildable) {
-//                     blockNum = recordId++;
-//                 }
-//                 else {
-//                     blockNum = -1;
-//                 }
-//
-//                 // Write the event ..
-//                 EmuUtilities.setEventType(bitInfo, eType);
-//                 if (rItem.isFirstEvent()) {
-//                     EmuUtilities.setFirstEvent(bitInfo);
-//                 }
-//                 writer.setBuffer(byteBuffer, bitInfo, blockNum);
-//
-//                 // Unset first event for next round
-//                 EmuUtilities.unsetFirstEvent(bitInfo);
-//
-//                 ByteBuffer buf = rItem.getBuffer();
-//                 if (buf != null) {
-//                     writer.writeEvent(buf);
-//                 }
-//                 else {
-//                     EvioNode node = rItem.getNode();
-//                     if (node != null) {
-//                         writer.writeEvent(node, false);
-//                     }
-//                     else {
-//                         throw new EmuException("no data to write");
-//                     }
-//                 }
-//                 rItem.releaseByteBuffer();
-// //System.out.println("      DataChannel Emu out: flush2");
-//
-//                 // Force over socket if control event
-//                 if (eType.isControl()) {
-//                     flushEvents(true);
-//                 }
-//                 else {
-//                     flushEvents(false);
-//                 }
-//             }
-//             // If we're marshalling events into a single buffer before sending ...
-//             else {
-//                 // If we've already written at least 1 event AND
-//                 // (we have no more room in buffer OR we're changing event types),
-//                 // write what we have.
-//                 if ((eventsWritten > 0 && !writer.isClosed()) &&
-//                         (!writer.hasRoom(rItem.getTotalBytes()) || previousEventType != eType)) {
-// //System.out.println("      DataChannel Emu write: flush - no room, diff type");
-//                     flushEvents(false);
-//                     // Flush closes the writer so that the next "if" is true
-//                 }
-//
-//                 // Initialize writer if nothing written into buffer yet
-//                 if (eventsWritten < 1 || writer.isClosed()) {
-//                     // If we're here, we're writing the first event into the buffer.
-//                     // Make sure there's enough room for at least that one event.
-//                     if (rItem.getTotalBytes() > byteBuffer.capacity()) {
-//                         if (direct) {
-//                             byteBuffer = ByteBuffer.allocateDirect(rItem.getTotalBytes() + 1024);
-//                         }
-//                         else {
-//                             byteBuffer = ByteBuffer.allocate(rItem.getTotalBytes() + 1024);
-//                         }
-//                     }
-//
-//                     // Init writer
-//                     EmuUtilities.setEventType(bitInfo, eType);
-//                     writer.setBuffer(byteBuffer, bitInfo, recordId++);
-// //System.out.println("      DataChannel Emu write: init writer");
-//                 }
-//
-// //System.out.println("      DataChannel Emu write: write ev into buf");
-//                 // Write the new event ..
-//                 ByteBuffer buf = rItem.getBuffer();
-//                 if (buf != null) {
-//                     writer.writeEvent(buf);
-//                 }
-//                 else {
-//                     EvioNode node = rItem.getNode();
-//                     if (node != null) {
-//                         writer.writeEvent(node, false);
-//                     }
-//                     else {
-//                         throw new EmuException("no data to write");
-//                     }
-//                 }
-//
-//                 rItem.releaseByteBuffer();
-//             }
-//
-//             previousEventType = eType;
-//         }
-//
-//
-//         /** {@inheritDoc} */
-//         @Override
-//         public void run() {
-// //logger.debug("      DataChannel Emu out: started, w/ " + outputRingCount +  " output rings");
-//             threadState = ThreadState.RUNNING;
-//
-//             // Tell the world I've started
-//             startLatch.countDown();
-//
-//             try {
-//                 RingItem ringItem;
-//                 EventType pBankType;
-//                 ControlType pBankControlType;
-//                 boolean gotPrestart = false;
-//
-//                 // Time in milliseconds for writing if time expired
-//                 long timeout = 2000L;
-//                 lastSendTime = System.currentTimeMillis();
-//
-//                 // The 1st event may be a user event or a prestart.
-//                 // After the prestart, the next event may be "go", "end", or a user event.
-//                 // The non-END control events are placed on ring 0 of all output channels.
-//                 // The END event is placed in the ring in which the next data event would
-//                 // have gone. The user events are placed on ring 0 of only the first output
-//                 // channel.
-//
-//                 // Keep reading user & control events (all of which will appear in ring 0)
-//                 // until the 2nd control event (go or end) is read.
-//                 while (true) {
-//                     // Read next event
-//                     ringItem = getNextOutputRingItem(0);
-//                     pBankType = ringItem.getEventType();
-//                     pBankControlType = ringItem.getControlType();
-//
-//                     // If control event ...
-//                     if (pBankType == EventType.CONTROL) {
-//                         // if prestart ..
-//                         if (pBankControlType == ControlType.PRESTART) {
-//                             if (gotPrestart) {
-//                                 throw new EmuException("got 2 prestart events");
-//                             }
-// logger.debug("      DataChannel Emu out " + outputIndex + ": send prestart event");
-//                             gotPrestart = true;
-//                             writeEvioData(ringItem);
-//                         }
-//                         else {
-//                             if (!gotPrestart) {
-//                                 throw new EmuException("prestart, not " + pBankControlType +
-//                                                                ", must be first control event");
-//                             }
-//
-//                             if (pBankControlType != ControlType.GO &&
-//                                 pBankControlType != ControlType.END) {
-//                                 throw new EmuException("second control event must be go or end");
-//                             }
-//
-// logger.debug("      DataChannel Emu out " + outputIndex + ": send " + pBankControlType + " event");
-//                             writeEvioData(ringItem);
-//
-//                             // Release and go to the next event
-//                             releaseCurrentAndGoToNextOutputRingItem(0);
-//
-//                             // Done looking for the 2 control events
-//                             break;
-//                         }
-//                     }
-//                     // If user event ...
-//                     else if (pBankType == EventType.USER) {
-// //logger.debug("      DataChannel Emu out " + outputIndex + ": writing user event");
-//                         // Write user event
-//                         writeEvioData(ringItem);
-//                     }
-//                     // Only user and control events should come first, so error
-//                     else {
-//                         throw new EmuException(pBankType + " type of events must come after go event");
-//                     }
-//
-//                     // Keep reading events till we hit go/end
-//                     releaseCurrentAndGoToNextOutputRingItem(0);
-//                 }
-//
-//
-//                 if (pBankControlType == ControlType.END) {
-//                     flushEvents(true);
-//                     logger.debug("      DataChannel Emu out: " + name + " I got END event, quitting");
-//                     // run callback saying we got end event
-//                     if (endCallback != null) endCallback.endWait();
-//                     threadState = ThreadState.DONE;
-//                     return;
-//                 }
-//
-//                 while (true) {
-//
-//                     if (pause) {
-//                         if (pauseCounter++ % 400 == 0) {
-//                             try {
-//                                 Thread.sleep(5);
-//                             }
-//                             catch (InterruptedException e1) {
-//                             }
-//                         }
-//                         continue;
-//                     }
-//
-//                     try {
-//                         ringItem = getNextOutputRingItem(ringIndex);
-//                     }
-//                     catch (InterruptedException e) {
-//                         threadState = ThreadState.INTERRUPTED;
-//                         // If we're here we were blocked trying to read the next event.
-//                         // If there are multiple event building threads in the module,
-//                         // then the END event may show up in an unexpected ring.
-//                         // The reason for this is that one thread writes to only one ring.
-//                         // But since only 1 thread gets the END event, it must write it
-//                         // into that ring in all output channels whether that ring was
-//                         // the next place to put a data event or not. Thus it may end up
-//                         // in a ring which was not the one to be read next.
-//                         // We've had 1/4 second to read everything else so let's try
-//                         // reading END from this now-known "unexpected" ring.
-//                         logger.debug("      DataChannel Emu out " + outputIndex + ": try again, read END from ringIndex " +
-//                                              ringIndexEnd + " not " + ringIndex);
-//                         ringItem = getNextOutputRingItem(ringIndexEnd);
-//                     }
-//
-//                     pBankType = ringItem.getEventType();
-//                     pBankControlType = ringItem.getControlType();
-//
-//                     try {
-//                         writeEvioData(ringItem);
-//                     }
-//                     catch (Exception e) {
-//                         errorMsg.compareAndSet(null, "Cannot write to file");
-//                         throw e;
-//                     }
-//
-// //logger.debug("      DataChannel Emu out: send seq " + nextSequences[ringIndex] + ", release ring item");
-//                     releaseCurrentAndGoToNextOutputRingItem(ringIndex);
-//
-//                     // Do not go to the next ring if we got a control or user event.
-//                     // All prestart, go, & users go to the first ring. Just keep reading
-//                     // until we get to a built event. Then start keeping count so
-//                     // we know when to switch to the next ring.
-//                     if (outputRingCount > 1 && pBankControlType == null && !pBankType.isUser()) {
-//                         setNextEventAndRing();
-// //logger.debug("      DataChannel Emu out, " + name + ": for seq " + nextSequences[ringIndex] + " SWITCH TO ring = " + ringIndex);
-//                     }
-//
-//                     if (pBankControlType == ControlType.END) {
-//                         flushEvents(true);
-//                         logger.debug("      DataChannel Emu out: " + name + " got END event, quitting");
-//                         // run callback saying we got end event
-//                         if (endCallback != null) endCallback.endWait();
-//                         threadState = ThreadState.DONE;
-//                         return;
-//                     }
-//
-//                     // If I've been told to RESET ...
-//                     if (gotResetCmd) {
-//                         logger.debug("      DataChannel Emu out: " + name + " got RESET cmd, quitting");
-//                         threadState = ThreadState.DONE;
-//                         return;
-//                     }
-//
-//                     // Time expired so send out events we have\
-// //System.out.println("time = " + emu.getTime() + ", lastSendTime = " + lastSendTime);
-//                     if (emu.getTime() - lastSendTime > timeout) {
-// //System.out.println("TIME FLUSH ******************");
-//                         flushEvents(false);
-//                     }
-//                 }
-//
-//             }
-//             catch (InterruptedException e) {
-//                 logger.warn("      DataChannel Emu out: " + name + "  interrupted thd, exiting");
-//             }
-//             catch (Exception e) {
-//                 channelState = CODAState.ERROR;
-//                 emu.setErrorState("DataChannel cmsg in: " + e.getMessage());
-//                 logger.warn("      DataChannel Emu out : exit thd: " + e.getMessage());
-//             }
-//         }
-//
-//     }
-
 
     /**
      * Class used to take Evio banks from ring buffer (placed there by a module),
@@ -1791,13 +1417,27 @@ logger.info("      DataChannel Emu in: got " + controlType + " event from " + na
         private volatile ThreadState threadState;
 
         /** Time at which events were sent over socket. */
-        private long lastSendTime;
+        private volatile long lastSendTime;
 
         /** Sender threads to send data over network. */
         private final SocketSender[] sender;
 
         /** One ByteBufferSupply for each sender/socket. */
         private final ByteBufferSupply[] bbOutSupply;
+
+        /** When regulating output buffer flow, the last time a buffer was sent. */
+        private long lastBufSendTime;
+
+        /** When regulating output buffer flow, the current
+         * number of physics events written to buffer. */
+        private int currentEventCount;
+
+        /** Used to implement a precision sleep when regulating output data rate. */
+        private final long SLEEP_PRECISION = TimeUnit.MILLISECONDS.toNanos(2);
+        
+         /** Used to implement a precision sleep when regulating output data rate. */
+        private final long SPIN_YIELD_PRECISION = TimeUnit.MICROSECONDS.toNanos(2);
+
 
 
         /**
@@ -1841,7 +1481,6 @@ logger.info("      DataChannel Emu in: got " + controlType + " event from " + na
              * @force if true, force data over socket
              */
             public void run() {
-                int i=1;
                 boolean isEnd = false;
 
                 while (true) {
@@ -1870,7 +1509,7 @@ logger.info("      DataChannel Emu in: got " + controlType + " event from " + na
                         if (isEnd) {
                             outGoingMsg.setUserInt(cMsgConstants.emuEvioEndEvent);
                         }
-                        
+
                         // Send it
                         emuDomain.send(outGoingMsg);
 
@@ -1956,11 +1595,12 @@ System.out.println("SocketSender thread interruped");
          * Put the current buffer of events back into the bbOutSupply ring for its
          * consumer which is the writing thread.
          *
-         * @param force  if true, force data over socket
+         * @param force    if true, force data over socket
          * @param userBool user boolean to be set in byte buffer item. In this case,
          *                 if true, event being flushed is single END event.
+         * @param isData   if true, current item is data (not control or user event).
          */
-        private final void flushEvents(boolean force, boolean userBool) {
+        private final void flushEvents(boolean force, boolean userBool, boolean isData) {
             // Position the buffer
             writer.close();
 
@@ -1968,6 +1608,36 @@ System.out.println("SocketSender thread interruped");
             if (writer.getEventsWritten() < 1) {
                 return;
             }
+
+            // If we're regulating the flow of data buffers to send at a fixed rate ...
+            if (isData && regulateBufferRate) {
+                long now = System.nanoTime();
+                long elapsedTime = now - lastBufSendTime;
+                lastBufSendTime = now;
+
+                // If not enough time has elapsed since last send, wait
+                if (elapsedTime < nanoSecPerBuf) {
+                    // New, highly accurate sleep method
+                    long timeLeft = nanoSecPerBuf - elapsedTime;
+                    final long end = now + timeLeft;
+                    do {
+                        if (timeLeft > SLEEP_PRECISION) {
+                            try {Thread.sleep(1);}
+                            catch (InterruptedException e) {}
+                        } else {
+                            if (timeLeft > SPIN_YIELD_PRECISION) {
+                                Thread.yield();
+                            }
+                        }
+                        timeLeft = end - System.nanoTime();
+
+                    } while (timeLeft > 0);
+
+                    lastBufSendTime = System.nanoTime();
+                }
+            }
+
+            currentEventCount = 0;
 
             // Store flags for future use
             currentBBitem.setForce(force);
@@ -2014,9 +1684,16 @@ System.out.println("SocketSender thread interruped");
 
             // If we're sending out 1 event by itself ...
             if (singleEventOut || !isBuildable) {
+                currentEventCount = 0;
+                
                 // If we already have something stored-up to write, send it out first
                 if (eventsWritten > 0 && !writer.isClosed()) {
-                    flushEvents(false, false);
+                    if (previousEventType.isBuildable()) {
+                        flushEvents(false, false, true);
+                    }
+                    else {
+                        flushEvents(false, false, false);
+                    }
                 }
 
                 if (isBuildable) {
@@ -2072,12 +1749,12 @@ System.out.println("      DataChannel Emu write: single ev buf, pos = " + buf.po
                 // Force over socket if control event
                 if (eType.isControl()) {
                     if (rItem.getControlType() == ControlType.END) {
-                        flushEvents(true, true);
+                        flushEvents(true, true, false);
                     }
-                    flushEvents(true, false);
+                    flushEvents(true, false, false);
                 }
                 else {
-                    flushEvents(false, false);
+                    flushEvents(false, false, false);
                 }
             }
             // If we're marshalling events into a single buffer before sending ...
@@ -2085,10 +1762,18 @@ System.out.println("      DataChannel Emu write: single ev buf, pos = " + buf.po
                 // If we've already written at least 1 event AND
                 // (we have no more room in buffer OR we're changing event types),
                 // write what we have.
-                if ((eventsWritten > 0 && !writer.isClosed()) &&
-                        (!writer.hasRoom(rItem.getTotalBytes()) || previousEventType != eType)) {
-//System.out.println("      DataChannel Emu write: flush - no room, diff type");
-                    flushEvents(false, false);
+                if ((eventsWritten > 0 && !writer.isClosed())) {
+                    // If previous type not data ...
+                    if (previousEventType != eType) {
+//System.out.println("      DataChannel Emu write: switch types, call flush at current event count = " + currentEventCount);
+                        flushEvents(false, false, false);
+                    }
+                    // Else if there's no more room or have exceeded event count limit ...
+                    else if (!writer.hasRoom(rItem.getTotalBytes()) ||
+                            (regulateBufferRate && (currentEventCount >= eventsPerBuffer))) {
+//System.out.println("      DataChannel Emu write: call flush at current event count = " + currentEventCount);
+                        flushEvents(false, false, true);
+                    }
                     // Flush closes the writer so that the next "if" is true
                 }
 
@@ -2122,7 +1807,7 @@ System.out.println("      DataChannel Emu write: single ev buf, pos = " + buf.po
                         throw new EmuException("no data to write");
                     }
                 }
-
+                currentEventCount++;
                 rItem.releaseByteBuffer();
             }
 
@@ -2276,11 +1961,11 @@ logger.info("      DataChannel Emu out: " + name + " got RESET cmd, quitting");
                         return;
                     }
 
-                    // Time expired so send out events we have\
+                    // Time expired so send out events we have
 //System.out.println("time = " + emu.getTime() + ", lastSendTime = " + lastSendTime);
-                    if (emu.getTime() - lastSendTime > timeout) {
-//System.out.println("TIME FLUSH ******************");
-                        flushEvents(false, false);
+                    if (!regulateBufferRate && (emu.getTime() - lastSendTime > timeout)) {
+System.out.println("TIME FLUSH ******************");
+                        flushEvents(false, false, pBankType.isBuildable());
                     }
                 }
 
