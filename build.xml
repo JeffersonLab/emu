@@ -25,14 +25,13 @@
     <property name="jarPath"       value="${build.lib}/${jarName}" />
     <property name="local.jars"    value="${src.dir}/jars" />
 
-    <property name="disJarName"    value="disruptor-3.3.jar" />
+    <property name="disJarName"    value="disruptor-3.4.3.jar" />
     <property name="disJarPath"    value="${local.jars}/${disJarName}" />
 
     <property name="slJarName"     value="swing-layout.jar" />
     <property name="slJarPath"     value="${local.jars}/${slJarName}" />
 
     <!-- Targets -->
-    
     <!-- Help -->
     <target name="help">
         <echo message="Usage: ant [-Dprefix=dir] &lt;target1&gt; [target2 | target3 | ...]" />
