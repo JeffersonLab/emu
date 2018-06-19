@@ -115,6 +115,22 @@ public abstract class DataChannelAdapter extends CODAStateMachineAdapter impleme
     protected String[] bAddrList;
 
     //---------------------------------------------------------------------------
+    // OUTPUT DATA FLOW
+    //---------------------------------------------------------------------------
+
+    /** Use both bufsPerSec and eventsPerBuffer to regulate the data flow out of this channel. */
+    protected boolean regulateBufferRate;
+
+    /** Number of buffers per second of data to write over the output channel. */
+    protected double buffersPerSec;
+
+    /** Number of milliseconds between each buffer being sent. */
+    protected long nanoSecPerBuf;
+
+    /** Number of events to place into one data buffer for the output channel. */
+    protected int eventsPerBuffer;
+
+    //---------------------------------------------------------------------------
     // Used to determine which ring to get event from if multiple output channels
     //---------------------------------------------------------------------------
 
@@ -233,7 +249,7 @@ public abstract class DataChannelAdapter extends CODAStateMachineAdapter impleme
             // Set the number of items for the input ring buffers.
             // These contain evio events parsed from ET, cMsg,
             // or Emu domain buffers. They should not take up much mem.
-            inputRingItemCount = 4096;
+            inputRingItemCount = 2*4096;
 
             attribString = attributeMap.get("ringSize");
             if (attribString != null) {
@@ -340,7 +356,13 @@ logger.info("      DataChannel Adapter: output ring buffer count (1/buildthread)
         for (int i=0; i < outputRingCount; i++) {
             ringBuffersOut[i] =
                 createSingleProducer(new RingItemFactory(),
-                                     outputRingItemCount, new YieldingWaitStrategy());
+                                     outputRingItemCount,
+          //new PhasedBackoffWaitStrategy(500L, 1000L, TimeUnit.NANOSECONDS, new LiteBlockingWaitStrategy()));
+          new SpinCountBackoffWaitStrategy(30000, new LiteBlockingWaitStrategy()));
+          //new LiteBlockingWaitStrategy());
+          //new SleepingWaitStrategy(1000, 200000));   // 200 usec
+          //new YieldingWaitStrategy());
+          //new BlockingWaitStrategy());
 
             // One barrier for each ring
             sequenceBarriers[i] = ringBuffersOut[i].newBarrier();
@@ -357,7 +379,14 @@ logger.info("      DataChannel Adapter: output ring buffer count (1/buildthread)
     /** Setup the input channel ring buffers. */
     void setupInputRingBuffers() {
         ringBufferIn = createSingleProducer(new RingItemFactory(),
-                                            inputRingItemCount, new YieldingWaitStrategy());
+                                            inputRingItemCount,
+        new SpinCountBackoffWaitStrategy(30000, new LiteBlockingWaitStrategy()));
+        //new PhasedBackoffWaitStrategy(500L, 1000L, TimeUnit.NANOSECONDS, new LiteBlockingWaitStrategy()));
+        //new BusySpinWaitStrategy());
+        //new SleepingWaitStrategy(1000, 200000));   // 200 usec
+        //new LiteBlockingWaitStrategy());
+        //new BlockingWaitStrategy());
+        //new YieldingWaitStrategy());
     }
 
 
@@ -488,6 +517,14 @@ logger.info("      DataChannel Adapter: output ring buffer count (1/buildthread)
 
     /** {@inheritDoc} */
     public int getPrescale() {return prescale;}
+
+    /** {@inheritDoc} */
+    public void regulateOutputBufferRate(int eventsPerBuffer, double buffersPerSec) {
+        this.buffersPerSec = buffersPerSec;
+        this.eventsPerBuffer = eventsPerBuffer;
+        nanoSecPerBuf = (long) (1000000000./ buffersPerSec);
+        regulateBufferRate = true;
+    }
 
     /**
      * Gets the next ring buffer item placed there by the last module.
