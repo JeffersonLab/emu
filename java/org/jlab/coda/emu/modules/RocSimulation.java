@@ -205,14 +205,14 @@ public class RocSimulation extends ModuleAdapter {
         if (detectorId < 0) detectorId = 0;
 
         // How many entangled events in one data block?
-        eventBlockSize = 20;
+        eventBlockSize = 40;
         try { eventBlockSize = Integer.parseInt(attributeMap.get("blockSize")); }
         catch (NumberFormatException e) { /* defaults to 1 */ }
         if (eventBlockSize <   1) eventBlockSize = 1;
         else if (eventBlockSize > 255) eventBlockSize = 255;
 
         // How many bytes in a single event?
-        eventSize = 40;
+        eventSize = 75;
         try { eventSize = Integer.parseInt(attributeMap.get("eventSize")); }
         catch (NumberFormatException e) { /* defaults to 40 */ }
         if (eventSize < 1) eventSize = 1;
@@ -225,7 +225,7 @@ public class RocSimulation extends ModuleAdapter {
 
         // How many iterations (writes of an entangled block of evio events)
         // before syncing fake ROCs together?
-        syncCount = 50003;
+        syncCount = 20000;
         try { syncCount = Integer.parseInt(attributeMap.get("syncCount")); }
         catch (NumberFormatException e) { /* defaults to 100k */ }
         if (syncCount < 10) syncCount = 10;
