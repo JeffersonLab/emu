@@ -2391,13 +2391,15 @@ if (debug) System.out.println("Emu " + name + " download: pass download down to 
                             module = new FastEventBuilder(n.getNodeName(), attributeMap, this);
                             break;
                         case "RocSimulation":
-                            module = new RocSimulation(n.getNodeName(), attributeMap, this);
+                            //module = new RocSimulation(n.getNodeName(), attributeMap, this);
+                            module = new RocFixedRateSimulation(n.getNodeName(), attributeMap, this);
                             break;
                         case "FarmController":
                             module = new FarmController(n.getNodeName(), attributeMap, this);
                             break;
                         case "TsSimulation":
-                            module = new TsSimulation(n.getNodeName(), attributeMap, this);
+                            //module = new TsSimulation(n.getNodeName(), attributeMap, this);
+                            module = new TsFixedRateSimulation(n.getNodeName(), attributeMap, this);
                             break;
                         default:
 
