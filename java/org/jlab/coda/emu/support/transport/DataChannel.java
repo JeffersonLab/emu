@@ -127,7 +127,7 @@ public interface DataChannel extends CODAStateMachine, StatedObject {
     /**
      * Set the output channel's list of destination broadcast addresses of emu TCP server
      * when using emu sockets to communicate - each corresponding to the same element of the IpList.
-     * @param ipList   list of destination broadcast addresses each corresponding
+     * @param baList   list of destination broadcast addresses each corresponding
      *                 to the same element of the IpList.
      */
     public void setDestinationBaList(String[] baList);
@@ -138,5 +138,16 @@ public interface DataChannel extends CODAStateMachine, StatedObject {
      * @return prescale value associated with this channel.
      */
     public int getPrescale();
+
+    /**
+     * Turn on regulation of the flow of data through an output channel.
+     * Currently this is implemented only for the emu socket channel - for testing purposes.
+     * It sets the rate of output buffers (typically 4MB each) and specifies
+     * the number of ROC (entangled) events per buffer.
+     *
+     * @param eventsPerBuffer   events per output 4 MB buffer.
+     * @param buffersPerSec     desired number of buffers to be sent per second.
+     */
+    public void regulateOutputBufferRate(int eventsPerBuffer, double buffersPerSec);
 
 }
