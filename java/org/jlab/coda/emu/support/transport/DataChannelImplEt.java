@@ -1295,7 +1295,8 @@ logger.debug("      DataChannel Et: reset " + name + " channel");
             //   1 to get evio events and parse them into ET events and
             //        put them back into ET system                  (consumer of ring items)
             rb = createSingleProducer(new ContainerFactory(), ringSize,
-                                      new YieldingWaitStrategy());
+                                      new SpinCountBackoffWaitStrategy(10000, new LiteBlockingWaitStrategy()));
+                                      //new YieldingWaitStrategy());
 
             // Consumer barrier of ring buffer, which gets evio
             // and parses it and puts it back into ET.
@@ -1833,7 +1834,8 @@ logger.info("      DataChannel Et in: wake up GETTER's getEvents() call so it ca
             //   1 to get evio events and parse them into ET events and
             //        put them back into ET system                  (consumer of ring items)
             rb = createSingleProducer(new ContainerFactory(), ringSize,
-                                      new YieldingWaitStrategy());
+                                      new SpinCountBackoffWaitStrategy(10000, new LiteBlockingWaitStrategy()));
+                                      //new YieldingWaitStrategy());
 
             // 1st consumer barrier of ring buffer, which gets evio
             // and writes it, depends on producer.
