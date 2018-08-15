@@ -971,10 +971,11 @@ System.out.println("  EB mod: bbSupply -> " + ringItemCount + " # of bufs, direc
                 // Allocate arrays once here so building method does not have to
                 // allocate once per built event. Limiting efficient running to
                 // 1000 entangled events, else array gets allocated repeatedly.
-                long[]  longData    = new long[1000];
-                short[] evData      = new short[1000];
-                int[]   segmentData = new int[100];
-                int[]   returnLen   = new int[1];
+                long[]  longData     = new long[200];
+                short[] evData       = new short[200];
+                int[]   segmentData  = new int[100];
+                int[]   returnLen    = new int[1];
+                long[]  longDataZero = new long[200];
 
                 if (outputChannelCount > 1) outputChannelIndex = -1;
 
@@ -1415,6 +1416,8 @@ System.out.println("  EB mod: bt#" + btIndex + " found END events on all input c
                     }
                     // else if building with ROC raw records ...
                     else {
+                        // Zero out array used for timestamps
+                        System.arraycopy(longDataZero, 0, longData, 0, 200);
                         // Combine the trigger banks of input events into one
 //if (debug) System.out.println("  EB mod: create trigger bank from Rocs, sparsify = " + sparsify);
                         nonFatalError |= Evio.makeTriggerBankFromRocRaw(buildingBanks, builder,
