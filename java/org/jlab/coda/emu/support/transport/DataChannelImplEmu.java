@@ -1964,7 +1964,7 @@ logger.info("      DataChannel Emu out: " + name + " got RESET cmd, quitting");
                     // Time expired so send out events we have
 //System.out.println("time = " + emu.getTime() + ", lastSendTime = " + lastSendTime);
                     if (!regulateBufferRate && (emu.getTime() - lastSendTime > timeout)) {
-System.out.println("TIME FLUSH ******************");
+//System.out.println("TIME FLUSH ******************");
                         flushEvents(false, false, pBankType.isBuildable());
                     }
                 }
