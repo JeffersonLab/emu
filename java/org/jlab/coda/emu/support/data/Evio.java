@@ -1584,14 +1584,26 @@ System.out.println("Timestamp data is missing!");
         // Allow a slop of TIMESTAMP_SLOP from the max to min.
         if (checkTimestamps) {
             for (int j=0; j < numEvents; j++) {
+                if (timestampsMax[j] - timestampsMin[j] > timestampSlop) {
+                    nonFatalError = true;
+                    if (j == 0) {
+                        System.out.println("Timestamp NOT consistent, first ev : ev #" + (firstEventNumber + j) + ", diff = " +
+                                                   (timestampsMax[j] - timestampsMin[j]) + ", allowed = " + timestampSlop +
+                                                   ", TS sum over inputs = " + longData[j + 1] + ", TS avg = " +
+                                                   (longData[j + 1] /= numInputBanks));
+
+                        System.out.print("Timestamps for first ev : ");
+                        for (int i=0; i < numInputBanks; i++) {
+                            commonLong = triggerBanks[i].getChildAt(0).getLongData();
+                            System.out.print("0x" + Long.toHexString(commonLong[1]) + ",  ");
+
+                        }
+                        System.out.println("");
+                    }
+                }
+
                 // finish calculation to find average
                 longData[j+1] /= numInputBanks;
-
-                if (timestampsMax[j] - timestampsMin[j] > timestampSlop)  {
-                    nonFatalError = true;
-System.out.println("Timestamp NOT consistent: ev #" + (firstEventNumber + j) + ", diff = " +
-                  (timestampsMax[j] - timestampsMin[j]) + ", allowed = " + timestampSlop );
-                }
             }
         }
 
@@ -1954,13 +1966,16 @@ System.out.println("makeTriggerBankFromRocRaw: event # differs (in Bt# " + build
             if (checkTimestamps) {
                 // Calculate avg TS now
                 longData[i+1] /= numRocsWithTSs;
+if (i==0) {
+    System.out.println("Avg first TS = " + longData[i + 1]);
+}
 
                 // Now that we have the timestamp info, check them against each other,
                 // allowing a difference of timestampSlop from the max to min.
                 if (timestampsMax - timestampsMin > timestampSlop) {
                     nonFatalError = true;
-                    System.out.println("Timestamp NOT consistent: ev #" + (firstEvNum + i) + ", diff = " +
-                                               (timestampsMax - timestampsMin) + ", allowed = " + timestampSlop);
+System.out.println("Timestamp NOT consistent: ev #" + (firstEvNum + i) + ", diff = " +
+                   (timestampsMax - timestampsMin) + ", allowed = " + timestampSlop);
 
                     // Print out beginning of all rocs' buffers
                     for (PayloadBuffer inputPayloadBank : inputPayloadBanks) {
