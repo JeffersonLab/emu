@@ -34,6 +34,7 @@ import java.nio.ByteOrder;
 import java.nio.IntBuffer;
 import java.nio.channels.AsynchronousCloseException;
 import java.nio.channels.SocketChannel;
+import java.util.Arrays;
 import java.util.BitSet;
 import java.util.List;
 import java.util.Map;
@@ -85,14 +86,18 @@ public class DataChannelImplEmu extends DataChannelAdapter {
     /** Subnet client uses to connect to server if possible. */
     private String preferredSubnet;
 
+    /** List of IP addresses to connect to ordered by: 1) on preferred subnet,
+     *  2) on local subnet, 3) everything else. */
+    private List<String> orderedIpAddrs;
+
     /** Coda id of the data source. */
     private int sourceId;
 
     /** Connection to emu domain server. */
     private cMsg emuDomain;
 
-    /** cMsg message into which out going data is placed in order to be written. */
-    private final cMsgMessage outGoingMsg = new cMsgMessage();
+//    /** cMsg message into which out going data is placed in order to be written. */
+//    private final cMsgMessage outGoingMsg = new cMsgMessage();
 
 
     // INPUT
@@ -479,9 +484,7 @@ logger.info("      DataChannel Emu in: last connection made, parser thd started,
      */
     private final void openOutputChannel() throws cMsgException {
 
-        if (ipAddrList != null && bAddrList != null &&
-            ipAddrList.length > 0 && bAddrList.length > 0) {
-
+        if (orderedIpAddrs != null && orderedIpAddrs.size() > 0) {
             directOutputChannel();
         }
         else {
@@ -550,14 +553,17 @@ logger.info("      DataChannel Emu in: last connection made, parser thd started,
 
         // "name" is name of this channel which also happens to be the
         // destination CODA component we want to connect to.
-        int addrCount = ipAddrList.length;
 
         StringBuilder builder = new StringBuilder(256);
 
-        for (int i=0; i < addrCount; i++) {
-            builder.append("emu://").append(ipAddrList[i]).append(':').append(sendPort);
+        for (String ip : orderedIpAddrs) {
+            builder.append("emu://").append(ip).append(':').append(sendPort);
             builder.append('/').append(emu.getExpid()).append('/').append(name);
-            builder.append("?codaId=").append(getID()).append("&subnet=").append(bAddrList[i]);
+            builder.append("?codaId=").append(getID());
+
+            if (preferredSubnet != null) {
+                builder.append("&subnet=").append(preferredSubnet);
+            }
 
             if (maxBufferSize > 0) {
                 builder.append("&bufSize=").append(maxBufferSize);
@@ -592,7 +598,7 @@ logger.info("      DataChannel Emu out: will directly connect to server w/ UDL =
                 return;
             }
             catch (cMsgException e) {
-                logger.info("      DataChannel Emu out: could not connect to server at " + ipAddrList[i]);
+                logger.info("      DataChannel Emu out: could not connect to server at " + ip);
                 builder.delete(0, builder.length());
                 continue;
             }
@@ -648,6 +654,16 @@ logger.info("      DataChannel Emu out: will directly connect to server w/ UDL =
 
         if (input) return;
         try {
+            // Before we create a socket, order the destination IP addresses
+            // according to any preferred subnet.
+            orderedIpAddrs = cMsgUtilities.orderIPAddresses(Arrays.asList(ipAddrList),
+                                                            Arrays.asList(bAddrList),
+                                                            preferredSubnet);
+            System.out.println("Ordered destination IP list:");
+            for (String ip : orderedIpAddrs) {
+                System.out.println("  " + ip);
+            }
+
             openOutputChannel();
         }
         catch (Exception e) {
