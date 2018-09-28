@@ -765,7 +765,7 @@ System.out.println("  ER mod: sending first event to chan " + outputChannels.get
                         }
                         // Non-BOR user event here
                         else if (isUser) {
-System.out.println("  ER mod: writing user (seq " + mainNextSequence + '/' + etNextSequence + ')');
+//System.out.println("  ER mod: writing user (seq " + mainNextSequence + '/' + etNextSequence + ')');
                             // Put user events into 1 channel
                             
                             // By default make it the first file channel.
