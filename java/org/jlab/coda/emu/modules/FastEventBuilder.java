@@ -1523,6 +1523,7 @@ System.out.println("  EB mod: alert in ring buffer");
             catch (EmuException e) {
                 // EmuException from Evio.checkPayload() if
                 // Roc raw or physics banks are in the wrong format
+                e.printStackTrace();
                 System.out.println("  EB mod: Roc raw or physics event in wrong format");
                 emu.setErrorState("EB: Roc raw or physics event in wrong format");
                 moduleState = CODAState.ERROR;
