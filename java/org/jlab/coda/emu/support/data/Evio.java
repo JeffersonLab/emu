@@ -587,7 +587,7 @@ System.out.println("checkPayload: buf source id = " + pBuf.getSourceId() +
             throws EmuException {
         boolean nonFatalError = false;
 
-        // For each ROC raw data record check the sync bit
+        // For each data record check the sync bit
         int syncBankCount = 0;
 
         // By the time this method is run, all input banks are either (partial)physics or ROC raw.
