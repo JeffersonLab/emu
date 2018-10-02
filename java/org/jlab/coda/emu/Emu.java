@@ -1124,6 +1124,8 @@ logger.info("Emu " + name + " quitting");
      */
     public void reset() {
         reset(true);
+        // This is a good time to collect garbage
+        System.gc();
     }
 
 
@@ -1712,7 +1714,8 @@ debug = debugOrig;
             // Look for the RocSimulation module. If this emu is it, send the END cmd
             for (EmuModule mod : mods) {
                 Class c = mod.getClass();
-                if (c.getName().equals("org.jlab.coda.emu.modules.RocSimulation")) {
+                if (c.getName().equals("org.jlab.coda.emu.modules.RocSimulation") ||
+                    c.getName().equals("org.jlab.coda.emu.modules.RocFixedRateSimulation")) {
 if (debug) System.out.println("Emu " + name + " end: call end() in fake ROC " + mod.name());
                     mod.end();
 if (debug) System.out.println("Emu " + name + " end: end() done in fake ROC " + mod.name());
@@ -1796,7 +1799,8 @@ if (debug) System.out.println("Emu " + name + " end: END cmd to in chan " + chan
                 // Only use this code if there's 1 ROC and the run ends when hitting
                 // run control's END button.
                 // We already sent the END event to the RocSimulation module
-                if (mod.getClass().getName().equals("org.jlab.coda.emu.modules.RocSimulation")) {
+                if (mod.getClass().getName().equals("org.jlab.coda.emu.modules.RocSimulation") ||
+                    mod.getClass().getName().equals("org.jlab.coda.emu.modules.RocFixedRateSimulation")) {
                     continue;
                 }
 
@@ -2391,15 +2395,15 @@ if (debug) System.out.println("Emu " + name + " download: pass download down to 
                             module = new FastEventBuilder(n.getNodeName(), attributeMap, this);
                             break;
                         case "RocSimulation":
-                            //module = new RocSimulation(n.getNodeName(), attributeMap, this);
-                            module = new RocFixedRateSimulation(n.getNodeName(), attributeMap, this);
+                            module = new RocSimulation(n.getNodeName(), attributeMap, this);
+                            //module = new RocFixedRateSimulation(n.getNodeName(), attributeMap, this);
                             break;
                         case "FarmController":
                             module = new FarmController(n.getNodeName(), attributeMap, this);
                             break;
                         case "TsSimulation":
-                            //module = new TsSimulation(n.getNodeName(), attributeMap, this);
-                            module = new TsFixedRateSimulation(n.getNodeName(), attributeMap, this);
+                            module = new TsSimulation(n.getNodeName(), attributeMap, this);
+                            //module = new TsFixedRateSimulation(n.getNodeName(), attributeMap, this);
                             break;
                         default:
 
