@@ -69,7 +69,7 @@ public class EmuDomainTcpServer extends Thread {
     /** This method is executed as a thread. */
     public void run() {
         if (debug >= cMsgConstants.debugInfo) {
-            System.out.println("    Transport Emu: domain TCP server running, listening on port " + serverPort);
+            System.out.println("    Emu TCP Server: running, listening on port " + serverPort);
         }
 
         // Direct buffer for reading 3 magic & 5 other integers with non-blocking IO
@@ -93,7 +93,7 @@ public class EmuDomainTcpServer extends Thread {
                 listeningSocket.bind(new InetSocketAddress(serverPort));
             }
             catch (IOException ex) {
-                System.out.println("    Transport Emu: domain server, TCP port number " + serverPort + " already in use.");
+                System.out.println("    Emu TCP Server: TCP port number " + serverPort + " already in use.");
                 System.exit(-1);
             }
 
@@ -116,11 +116,12 @@ public class EmuDomainTcpServer extends Thread {
                 if (n == 0) {
                     // But first check to see if we've been commanded to die
                     if (killThreads) {
+                        System.out.println("    Emu TCP Server: thread exiting");
                         return;
                     }
                     continue;
                 }
-//System.out.println("    Transport Emu: domain server, someone trying to connect");
+//System.out.println("    Emu TCP Server: someone trying to connect");
 
                 // Get an iterator of selected keys (ready sockets)
                 Iterator it = selector.selectedKeys().iterator();
@@ -148,7 +149,7 @@ public class EmuDomainTcpServer extends Thread {
                         // Loop until all 6 integers of incoming data read or timeout
                         while (bytesRead < BYTES_TO_READ) {
                             if (debug >= cMsgConstants.debugInfo) {
-                                System.out.println("    Transport Emu: domain server, try reading rest of Buffer");
+                                System.out.println("    Emu TCP Server: try reading rest of Buffer");
                             }
 
                             bytes = channel.read(buffer);
@@ -163,7 +164,7 @@ public class EmuDomainTcpServer extends Thread {
                             bytesRead += bytes;
 
                             if (debug >= cMsgConstants.debugInfo) {
-                                System.out.println("    Transport Emu: domain server, bytes read = " + bytesRead);
+                                System.out.println("    Emu TCP Server: bytes read = " + bytesRead);
                             }
 
                             // If we've read everything, look to see what we got ...
@@ -178,7 +179,7 @@ public class EmuDomainTcpServer extends Thread {
                                     magic2 != cMsgNetworkConstants.magicNumbers[1] ||
                                     magic3 != cMsgNetworkConstants.magicNumbers[2])  {
                                     if (debug >= cMsgConstants.debugInfo) {
-                                        System.out.println("    Transport Emu: domain server, Magic #s did NOT match, ignore");
+                                        System.out.println("    Emu TCP Server: Magic #s did NOT match, ignore");
                                     }
                                     channel.close();
                                     it.remove();
@@ -190,7 +191,7 @@ public class EmuDomainTcpServer extends Thread {
 //System.out.println("Got version = " + version);
                                 if (version != cMsgConstants.version) {
                                     if (debug >= cMsgConstants.debugInfo) {
-                                        System.out.println("    Transport Emu: domain server, version mismatch, got " +
+                                        System.out.println("    Emu TCP Server: version mismatch, got " +
                                                             version + ", needed " + cMsgConstants.version);
                                     }
                                     channel.close();
@@ -203,7 +204,7 @@ public class EmuDomainTcpServer extends Thread {
 //System.out.println("Got coda id = " + codaId);
                                 if (codaId < 0) {
                                     if (debug >= cMsgConstants.debugInfo) {
-                                        System.out.println("    Transport Emu: domain server, bad coda id of sender (" +
+                                        System.out.println("    Emu TCP Server: bad coda id of sender (" +
                                                            codaId + ')');
                                     }
                                     channel.close();
@@ -217,7 +218,7 @@ public class EmuDomainTcpServer extends Thread {
                                 if (bufferSizeDesired < 4*10) {
                                     // 40 bytes is smallest possible evio file format size
                                     if (debug >= cMsgConstants.debugInfo) {
-                                        System.out.println("    Transport Emu: domain server, bad buffer size from sender (" +
+                                        System.out.println("    Emu TCP Server: bad buffer size from sender (" +
                                                                    bufferSizeDesired + ')');
                                     }
                                     channel.close();
@@ -230,7 +231,7 @@ public class EmuDomainTcpServer extends Thread {
 //System.out.println("Got socket count = " + socketCount);
                                 if (socketCount < 1) {
                                     if (debug >= cMsgConstants.debugInfo) {
-                                        System.out.println("    Transport Emu: domain server, bad socket count of sender (" +
+                                        System.out.println("    Emu TCP Server: bad socket count of sender (" +
                                                                    socketCount + ')');
                                     }
                                     channel.close();
@@ -243,7 +244,7 @@ public class EmuDomainTcpServer extends Thread {
 //System.out.println("Got socket position = " + socketPosition);
                                 if (socketCount < 1) {
                                     if (debug >= cMsgConstants.debugInfo) {
-                                        System.out.println("    Transport Emu: domain server, bad socket position of sender (" +
+                                        System.out.println("    Emu TCP Server: bad socket position of sender (" +
                                                                    socketPosition + ')');
                                     }
                                     channel.close();
@@ -270,7 +271,7 @@ public class EmuDomainTcpServer extends Thread {
                         DataChannelImplEmu emuChannel = server.transport.inputChannelTable.get(codaId);
                         if (emuChannel == null) {
                             if (debug >= cMsgConstants.debugInfo) {
-                                System.out.println("    Transport Emu: domain server, no emu input channel found for CODA id = " +
+                                System.out.println("    Emu TCP Server: no emu input channel found for CODA id = " +
                                                    codaId);
                             }
                             channel.close();
@@ -286,7 +287,7 @@ public class EmuDomainTcpServer extends Thread {
                         }
                         catch (IOException e) {
                             if (debug >= cMsgConstants.debugInfo) {
-                                System.out.println("    Transport Emu: domain server, " + e.getMessage());
+                                System.out.println("    Emu TCP Server: " + e.getMessage());
                             }
                             channel.close();
                             it.remove();
@@ -303,10 +304,10 @@ public class EmuDomainTcpServer extends Thread {
         }
         catch (Exception ex) {
             server.transport.transportState = CODAState.ERROR;
-            server.transport.emu.setErrorState("Transport Emu: in emu TCP server: " +
+            server.transport.emu.setErrorState("    Emu TCP Server: in emu TCP server: " +
                                                        ex.getMessage());
             if (debug >= cMsgConstants.debugError) {
-                System.out.println("    Transport Emu: domain server error, " +
+                System.out.println("    Emu TCP Server: error, " +
                                            ex.getMessage());
             }
         }
@@ -316,7 +317,7 @@ public class EmuDomainTcpServer extends Thread {
         }
 
         if (debug >= cMsgConstants.debugInfo) {
-            System.out.println("    Transport Emu: domain server, quitting");
+            System.out.println("    Emu TCP Server: quitting");
         }
     }
 
