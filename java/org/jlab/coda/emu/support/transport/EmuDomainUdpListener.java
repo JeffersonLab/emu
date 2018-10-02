@@ -91,6 +91,9 @@ public class EmuDomainUdpListener extends Thread {
             multicastSocket.setReceiveBufferSize(65535);
             multicastSocket.setReuseAddress(true);
             multicastSocket.setTimeToLive(32);
+            // Set a 2 sec timeout so this server does not
+            // block forever trying to read a packet.
+            multicastSocket.setSoTimeout(2000);
         }
         catch (IOException e) {
             System.out.println("    Emu UDP listen: UDP port number " + multicastPort + " already in use.");
