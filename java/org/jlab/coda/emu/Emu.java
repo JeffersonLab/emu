@@ -1122,11 +1122,7 @@ logger.info("Emu " + name + " quitting");
      * RESET must always have top priority and is executed in the cMsg callback.
      * Synchronized on emu.
      */
-    public void reset() {
-        reset(true);
-        // This is a good time to collect garbage
-        System.gc();
-    }
+    public void reset() {reset(true);}
 
 
     /**
@@ -1208,6 +1204,9 @@ logger.info("Emu " + name + " reset: done, setting state to " + state);
                                           "Transition command executor");
             transitionThread.start();
         }
+
+        // This is a good time to collect garbage
+        System.gc();
 
         // Allow run control commands to be executed once again
         resetting = false;
