@@ -425,6 +425,8 @@ logger.info("      DataChannel Emu: set sendBuf to " + tcpSendBuf);
 logger.info("      DataChannel Emu in: " + numBufs + " buffers in input supply");
 
         boolean sequentialRelease = true;
+        // EBs release events sequentially if there's only 1 build thread,
+        // else the release is NOT sequential.
         if (module.getEventProducingThreadCount() > 1) {
             sequentialRelease = false;
         }
@@ -448,13 +450,13 @@ logger.info("      DataChannel Emu in: " + numBufs + " buffers in input supply")
                 sequentialRelease = false;
             }
         }
-        else {
-            // EBs release events sequentially if there's only 1 build thread,
-            // else the release is NOT sequential.
-            if (module.getEventProducingThreadCount() > 1) {
-                sequentialRelease = false;
-            }
-        }
+//        else {
+//            // EBs release events sequentially if there's only 1 build thread,
+//            // else the release is NOT sequential.
+//            if (module.getEventProducingThreadCount() > 1) {
+//                sequentialRelease = false;
+//            }
+//        }
 
         bbInSupply[index] = new ByteBufferSupply(numBufs, maxBufferSize,
                                                  ByteOrder.BIG_ENDIAN, direct,
@@ -1473,6 +1475,8 @@ logger.info("      DataChannel Emu in: got " + controlType + " event from " + na
 
 
             SocketSender(ByteBufferSupply supply, int socketIndex) {
+                super(emu.getThreadGroup(), name() + "_sender_"+ socketIndex);
+
                 this.supply = supply;
                 // Need do this only once
                 outGoingMsg = new cMsgMessageFull();
