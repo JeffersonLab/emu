@@ -921,10 +921,11 @@ System.out.println("  EB mod: findEnd, chan " + ch + " got END from " + source +
                 // If there's only one output channel, release should be sequential.
                 // However, 2 output channels mean at least 2 threads - each of
                 // which is releasing members of the BB supply.
-                boolean releaseSequentially = true;
-                if (outputChannelCount > 1)  {
-                    releaseSequentially = false;
-                }
+                boolean releaseSequentially = false;
+//                boolean releaseSequentially = true;
+//                if (outputChannelCount > 1)  {
+//                    releaseSequentially = false;
+//                }
                 ByteBufferSupply bbSupply = new ByteBufferSupply(ringItemCount, 2000, outputOrder,
                                                                  false, releaseSequentially);
 System.out.println("  EB mod: bbSupply -> " + ringItemCount + " # of bufs, direct = " + false +
