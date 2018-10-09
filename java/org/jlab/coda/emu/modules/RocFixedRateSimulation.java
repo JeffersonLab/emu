@@ -854,8 +854,14 @@ System.out.println("  Roc mod: reset()");
                 // copy buffer and use that
                 pBuf = new PayloadBuffer(pBuf);
             }
-            eventToOutputChannel(pBuf, i, 0);
-System.out.println("  Roc mod: inserted END event to channel " + i);
+            try {
+                eventToOutputChannel(pBuf, i, 0);
+            }
+            catch (InterruptedException e) {
+                System.out.println("  Roc mod: end() interrupted");
+                return;
+            }
+            System.out.println("  Roc mod: inserted END event to channel " + i);
         }
     }
 
@@ -934,8 +940,14 @@ System.out.println("  Roc mod: PRESTART");
         for (int i=0; i < outputChannelCount; i++) {
             // Copy buffer and use that
             PayloadBuffer pBuf2 = new PayloadBuffer(pBuf);
-            eventToOutputChannel(pBuf2, i, 0);
-System.out.println("  Roc mod: inserted PRESTART event to channel " + i);
+            try {
+                eventToOutputChannel(pBuf2, i, 0);
+            }
+            catch (InterruptedException e) {
+                System.out.println("  Roc mod:  prestart() interrupted");
+                return;
+            }
+            System.out.println("  Roc mod: inserted PRESTART event to channel " + i);
         }
 
 //        // Send more user events right after prestart
@@ -1012,7 +1024,13 @@ System.out.println("  Roc mod: inserted PRESTART event to channel " + i);
         for (int i=0; i < outputChannelCount; i++) {
             // Copy buffer and use that
             PayloadBuffer pBuf2 = new PayloadBuffer(pBuf);
-            eventToOutputChannel(pBuf2, i, 0);
+            try {
+                eventToOutputChannel(pBuf2, i, 0);
+            }
+            catch (InterruptedException e) {
+                System.out.println("  Roc mod:  go() interrupted");
+            }
+
 System.out.println("  Roc mod: inserted GO event to channel " + i);
         }
 
