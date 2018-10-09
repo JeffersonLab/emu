@@ -78,6 +78,10 @@ public class RocSimulation extends ModuleAdapter {
     /** Is this ROC to be synced with others? */
     private boolean synced;
 
+    /** Set this ROC's sync bit set every syncBitCount events.
+     *  Value of 0 means no sync bit. */
+    private int syncBitCount;
+
     /** Connection to platform's cMsg name server. */
     private cMsg cMsgServer;
 
@@ -183,6 +187,9 @@ public class RocSimulation extends ModuleAdapter {
     public RocSimulation(String name, Map<String, String> attributeMap, Emu emu) {
 
         super(name, attributeMap, emu);
+
+        // Set the sync bit every 5000th record
+        syncBitCount = 5003;
 
         // Fill out message to send to synchronizer
         message = new cMsgMessage();
@@ -305,8 +312,8 @@ public class RocSimulation extends ModuleAdapter {
                 // Kill this thread with deprecated stop method because it can easily
                 // block on the uninterruptible rb.next() method call and RESET never
                 // completes. First give it a chance to end gracefully.
-                thd.interrupt();
-//System.out.println("  Roc mod: interrupt event generating thread");
+                thd.endThread();
+//System.out.println("  Roc mod: interrupted event generating thread");
                 try {
                     thd.join(1000);
                 }
@@ -449,7 +456,8 @@ public class RocSimulation extends ModuleAdapter {
 
     //TODO: 1st
     void writeEventBuffer(ByteBuffer buf, ByteBuffer templateBuf,
-                                   long eventNumber, long timestamp, boolean copy) {
+                          long eventNumber, long timestamp,
+                          boolean syncBit, boolean copy) {
 
         // Since we're using recirculating buffers, we do NOT need to copy everything
         // into the buffer each time. Once each of the buffers in the BufferSupply object
@@ -468,6 +476,17 @@ public class RocSimulation extends ModuleAdapter {
 
         // Get buf ready to read for output channel
         buf.position(0).limit(templateBuf.limit());
+
+        // Set sync bit in event bank header
+        // sync, error, isBigEndian, singleEventMode
+        int rocTag = Evio.createCodaTag(syncBit, false, true, false, id);
+
+        // 2nd bank header word = tag << 16 | ((padding & 0x3) << 14) | ((type & 0x3f) << 8) | num
+        int secondWord = rocTag << 16 |
+                         (DataType.BANK.getValue() << 8) |
+                         (eventBlockSize & 0xff);
+
+        buf.putInt(4, secondWord);
 
         // Skip over 2 bank headers
         int writeIndex = 16;
@@ -515,6 +534,9 @@ public class RocSimulation extends ModuleAdapter {
         private ByteBuffer templateBuffer;
         private int templateBufferLimit;
 
+        /** Boolean used to kill this thread. */
+        private volatile boolean killThd;
+
 
         EventGeneratingThread(int id, ThreadGroup group, String name) {
             super(group, name);
@@ -544,10 +566,20 @@ System.out.println("  Roc mod: start With (id=" + myId + "):\n    record id = " 
         }
 
 
+        /**
+         * Kill this thread which is sending messages/data to other end of emu socket.
+         */
+        final void endThread() {
+//System.out.println("SocketSender: killThread, set flag, interrupt");
+            killThd = true;
+            this.interrupt();
+        }
+
+
         public void run() {
 
             int  i,j,k=0;
-            int  skip=3,  userEventLoop = syncCount;
+            int  skip=3,  userEventLoop = syncCount, syncBitLoop = syncBitCount;
             long oldVal=0L, totalT=0L, totalCount=0L, bufCounter=0L;
             long t1, deltaT, t2;
             ByteBuffer buf = null;
@@ -603,8 +635,10 @@ System.out.println("  Roc mod: start With (id=" + myId + "):\n    record id = " 
                         Thread.sleep(250);
                     }
                     else {
+                        if (killThd) return;
+
                         // Add ROC Raw Records as PayloadBuffer objects
-                        // Get buffer from recirculating supply
+                        // Get buffer from recirculating supply.
                         bufItem = bbSupply.get();
                         buf = bufItem.getBuffer();
 
@@ -620,10 +654,21 @@ System.out.println("  Roc mod: start With (id=" + myId + "):\n    record id = " 
                         }
 //System.out.println("  Roc mod: write event");
 
-                        writeEventBuffer(buf, templateBuffer, myEventNumber,
-                                         timestamp, copyWholeBuf);
+                        if (--syncBitLoop == 0) {
+                            syncBitLoop = syncBitCount;
+                            // Set the sync bit
+                            writeEventBuffer(buf, templateBuffer, myEventNumber,
+                                             timestamp, true, copyWholeBuf);
+                        }
+                        else {
+                            writeEventBuffer(buf, templateBuffer, myEventNumber,
+                                             timestamp, false, copyWholeBuf);
+                        }
+//                        writeEventBuffer(buf, templateBuffer, myEventNumber,
+//                                         timestamp, copyWholeBuf);
 
 
+                        if (killThd) return;
                         // Put generated events into output channel
                         eventToOutputRing(myId, buf, bufItem, bbSupply);
 
@@ -737,8 +782,17 @@ System.out.println("  Roc mod: reset()");
         eventCountTotal = wordCountTotal = 0L;
 
         // rb.next() can block in endThreads() when doing a RESET.
-        // So just kill threads by force instead of being nice about it.
         killThreads();
+
+        if (synced) {
+            // Unsubscribe
+            try {
+                if (cmsgSubHandle != null) {
+                    cMsgServer.unsubscribe(cmsgSubHandle);
+                    cmsgSubHandle = null;
+                }
+            } catch (cMsgException e) {}
+        }
 
         paused = false;
 
@@ -814,8 +868,13 @@ System.out.println("  Roc mod: reset()");
                 // copy buffer and use that
                 pBuf = new PayloadBuffer(pBuf);
             }
-            eventToOutputChannel(pBuf, i, 0);
-System.out.println("  Roc mod: inserted END event to channel " + i);
+            try {
+                eventToOutputChannel(pBuf, i, 0);
+            }
+            catch (InterruptedException e) {
+                return;
+            }
+            System.out.println("  Roc mod: inserted END event to channel " + i);
         }
     }
 
@@ -883,8 +942,13 @@ System.out.println("  Roc mod: inserted END event to channel " + i);
         for (int i=0; i < outputChannelCount; i++) {
             // Copy buffer and use that
             PayloadBuffer pBuf2 = new PayloadBuffer(pBuf);
-            eventToOutputChannel(pBuf2, i, 0);
-System.out.println("  Roc mod: inserted PRESTART event to channel " + i);
+            try {
+                eventToOutputChannel(pBuf2, i, 0);
+            }
+            catch (InterruptedException e) {
+                return;
+            }
+            System.out.println("  Roc mod: inserted PRESTART event to channel " + i);
         }
 
 //        // Send more user events right after prestart
@@ -941,8 +1005,13 @@ System.out.println("  Roc mod: inserted PRESTART event to channel " + i);
         for (int i=0; i < outputChannelCount; i++) {
             // Copy buffer and use that
             PayloadBuffer pBuf2 = new PayloadBuffer(pBuf);
-            eventToOutputChannel(pBuf2, i, 0);
-System.out.println("  Roc mod: inserted GO event to channel " + i);
+            try {
+                eventToOutputChannel(pBuf2, i, 0);
+            }
+            catch (InterruptedException e) {
+                return;
+            }
+            System.out.println("  Roc mod: inserted GO event to channel " + i);
         }
 
 //        try {
