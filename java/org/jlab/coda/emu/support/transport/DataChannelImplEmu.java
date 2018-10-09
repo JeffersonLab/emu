@@ -695,24 +695,29 @@ logger.info("      DataChannel Emu out: will directly connect to server w/ UDL =
      */
     private void interruptThreads() {
         if (dataInputThread != null) {
+            // The parser merger thread needs to be interrupted first,
+            // otherwise the parseToRing method may get stuck waiting
+            // on further data in a loop around parkNanos().
+logger.debug("      DataChannel Emu: end/reset(), interrupt parser/merger thread");
+            parserMergerThread.interrupt();
+            try {Thread.sleep(10);}
+            catch (InterruptedException e) {}
+
             for (int i=0; i < socketCount; i++) {
                 if (dataInputThread[i] == null) {
                     continue;
                 }
-logger.debug("      DataChannel Emu: end(), interrupt input thread " + i);
+logger.debug("      DataChannel Emu: end/reset(), interrupt input thread " + i);
                 dataInputThread[i].interrupt();
             }
-
-logger.debug("      DataChannel Emu: end(), interrupt parser/merger thread");
-            parserMergerThread.interrupt();
         }
 
         if (dataOutputThread != null) {
-logger.debug("      DataChannel Emu: end(), interrupt main output thread ");
+logger.debug("      DataChannel Emu: end/reset(), interrupt main output thread ");
             dataOutputThread.interrupt();
 
             for (int i=0; i < socketCount; i++) {
-logger.debug("      DataChannel Emu: end(), interrupt output thread " + i);
+logger.debug("      DataChannel Emu: end/reset(), interrupt output thread " + i);
                 dataOutputThread.sender[i].endThread();
             }
         }
@@ -724,6 +729,11 @@ logger.debug("      DataChannel Emu: end(), interrupt output thread " + i);
      */
     private void joinThreads() {
         if (dataInputThread != null) {
+            try {parserMergerThread.join(1000);}
+            catch (InterruptedException e) {}
+
+logger.debug("      DataChannel Emu: end/reset(), joined parser/merger thread");
+
             for (int i=0; i < socketCount; i++) {
                 if (dataInputThread[i] == null) {
                     continue;
@@ -732,13 +742,8 @@ logger.debug("      DataChannel Emu: end(), interrupt output thread " + i);
                 try {dataInputThread[i].join(1000);}
                 catch (InterruptedException e) {}
 
-logger.debug("      DataChannel Emu: end(), joined input thread " + i);
+logger.debug("      DataChannel Emu: end/reset(), joined input thread " + i);
             }
-
-            try {parserMergerThread.join(1000);}
-            catch (InterruptedException e) {}
-
-logger.debug("      DataChannel Emu: end(), joined parser/merger thread");
         }
 
         if (dataOutputThread != null) {
@@ -746,12 +751,12 @@ logger.debug("      DataChannel Emu: end(), joined parser/merger thread");
             try {dataOutputThread.join(1000);}
             catch (InterruptedException e) {}
 
-logger.debug("      DataChannel Emu: end(), joined main output thread ");
+logger.debug("      DataChannel Emu: end/reset(), joined main output thread ");
 
             for (int i=0; i < socketCount; i++) {
                 try {dataOutputThread.sender[i].join(1000);}
                 catch (InterruptedException e) {}
-logger.debug("      DataChannel Emu: end(), joined output thread " + i);
+logger.debug("      DataChannel Emu: end/reset(), joined output thread " + i);
             }
         }
     }
@@ -1179,11 +1184,14 @@ System.out.println("      DataChannel Emu in: " + name +
      */
     private final class ParserMerger extends Thread {
 
-        EvioCompactReaderUnsync reader;
+        private EvioCompactReaderUnsync reader;
 
+        /** Constructor. */
+        ParserMerger() {
+            super(emu.getThreadGroup(), name() + "_parser_merger");
+        }
 
         public void run() {
-            long counter=0L, availableSequence;
             try {
                 // Simplify things when there's only 1 socket for better performance
                 if (socketCount == 1) {
@@ -1215,7 +1223,7 @@ System.out.println("      DataChannel Emu in: " + name +
             }
             catch (InterruptedException e) {
                 logger.warn("      DataChannel Emu in: " + name +
-                            " parserMerger thread interrupted, quitting");
+                            " parserMerger thread interrupted, quitting ####################################");
             }
             catch (EvioException e) {
                 // Bad data format or unknown control event.
@@ -1232,9 +1240,10 @@ System.out.println("      DataChannel Emu in: " + name +
          * @param bbSupply ByteBufferSupply item.
          * @return is the last evio event parsed the END event?
          * @throws EvioException
+         * @throws InterruptedException
          */
         private final boolean parseToRing(ByteBufferItem item, ByteBufferSupply bbSupply)
-                throws EvioException {
+                throws EvioException, InterruptedException {
 
              RingItem ri;
              EvioNode node;
@@ -1362,7 +1371,7 @@ logger.info("      DataChannel Emu in: got " + controlType + " event from " + na
                      continue;
                  }
 
-                 nextRingItem = ringBufferIn.next();
+                 nextRingItem = ringBufferIn.nextIntr(1);
                  ri = ringBufferIn.get(nextRingItem);
 
                  // Set & reset all parameters of the ringItem
@@ -1587,16 +1596,18 @@ System.out.println("SocketSender thread interruped");
                 sender[i].start();
             }
 
-            // Start out with a single buffer from the first supply just created
-            currentSenderIndex = 0;
-            currentBBitem = bbOutSupply[currentSenderIndex].get();
-            currentBuffer = currentBBitem.getBuffer();
-
             // Create writer to write events into file format
             try {
+
+                // Start out with a single buffer from the first supply just created
+                currentSenderIndex = 0;
+                currentBBitem = bbOutSupply[currentSenderIndex].get();
+                currentBuffer = currentBBitem.getBuffer();
+
                 writer = new EventWriterUnsync(currentBuffer);
                 writer.close();
             }
+            catch (InterruptedException e) {/* never happen */}
             catch (EvioException e) {/* never happen */}
         }
 
@@ -1619,8 +1630,9 @@ System.out.println("SocketSender thread interruped");
          * @param userBool user boolean to be set in byte buffer item. In this case,
          *                 if true, event being flushed is single END event.
          * @param isData   if true, current item is data (not control or user event).
+         * @throws InterruptedException
          */
-        private final void flushEvents(boolean force, boolean userBool, boolean isData) {
+        private final void flushEvents(boolean force, boolean userBool, boolean isData) throws InterruptedException{
             // Position the buffer
             writer.close();
 
@@ -1693,9 +1705,10 @@ System.out.println("SocketSender thread interruped");
          * @throws IOException if error writing evio data to buf
          * @throws EvioException if error writing evio data to buf (bad format)
          * @throws EmuException if no data to write
+         * @throws InterruptedException
          */
         private final void writeEvioData(RingItem rItem)
-                throws IOException, EvioException, EmuException {
+                throws IOException, EvioException, EmuException, InterruptedException {
 
             int blockNum;
             EventType eType = rItem.getEventType();
