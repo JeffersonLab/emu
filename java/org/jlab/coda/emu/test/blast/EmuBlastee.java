@@ -209,9 +209,6 @@ public class EmuBlastee {
 
     /**
      * Method to allow connections from EmuBlasters and read their data.
-     *
-     * @throws cMsgException if there are problems parsing the UDL or
-     *                       communication problems with the server
      */
     public void run() {
 
@@ -278,7 +275,7 @@ public class EmuBlastee {
 
         /**
          * Constructor.
-         * @param channel socket channel to client
+         * @param socket socket channel to client
          */
         ClientHandler(Socket socket) {
             this.socket = socket;
@@ -371,11 +368,12 @@ System.out.println("Start handling client " + me + ", bufferSize = " + bufferSiz
 
                 for (int blocks=0; blocks < blockCount; blocks++) {
 //System.out.println("Get BB");
-                    ByteBufferItem item = bbSupply.get();
-                    ByteBuffer buf = item.getBuffer();
-                    byte[] array = item.getBuffer().array();
+                    ByteBufferItem item = null;
 
                     try {
+                        item = bbSupply.get();
+                        ByteBuffer buf = item.getBuffer();
+                        byte[] array = item.getBuffer().array();
 
                         if (direct) {
                             channel.read(wordCmdBuf);
@@ -401,6 +399,10 @@ System.out.println("Start handling client " + me + ", bufferSize = " + bufferSiz
                             in.readFully(array, 0, size);
                         }
 
+                    }
+                    catch (InterruptedException ex) {
+                        blasteeStop = true;
+                        break;
                     }
                     catch (IOException ex) {
                         blasteeStop = true;

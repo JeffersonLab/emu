@@ -321,7 +321,6 @@ System.out.println("Merger is ready (handler count = " + merger.handlerCount + "
 
         /**
          * Constructor.
-         * @param channel socket channel to client
          */
         ClientHandler(int id, Socket socket, DataInputStream in, int socketCount, int socketPosition) {
             this.in = in;
@@ -395,11 +394,13 @@ System.out.println("Client " + me + ", bufferSize = " + bufferSize);
 
                 for (int blocks=0; blocks < blockCount; blocks++) {
 //System.out.println("Get BB " + me);
-                    ByteBufferItem item = bbSupply.get();
-                    ByteBuffer buf = item.getBuffer();
-                    byte[] array = item.getBuffer().array();
+                    ByteBufferItem item = null;
 
                     try {
+
+                        item = bbSupply.get();
+                        ByteBuffer buf = item.getBuffer();
+                        byte[] array = item.getBuffer().array();
 
                         if (direct) {
                             channel.read(wordCmdBuf);
@@ -425,6 +426,10 @@ System.out.println("Client " + me + ", bufferSize = " + bufferSize);
                             in.readFully(array, 0, size);
                         }
 
+                    }
+                    catch (InterruptedException ex) {
+                        blasteeStop = true;
+                        break;
                     }
                     catch (IOException ex) {
                         blasteeStop = true;
