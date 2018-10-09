@@ -278,11 +278,13 @@ public class ByteBufferSupply {
     /**
      * Get the next available item in ring buffer for writing/reading data.
      * Not sure if this method is thread-safe.
+     * 
      * @return next available item in ring buffer.
+     * @throws InterruptedException
      */
-    public ByteBufferItem get() {
+    public ByteBufferItem get() throws InterruptedException {
         // Next available item claimed by data producer
-        long getSequence = ringBuffer.next();
+        long getSequence = ringBuffer.nextIntr(1);
 
         // Get object in that position (sequence) of ring buffer
         ByteBufferItem bufItem = ringBuffer.get(getSequence);
@@ -305,11 +307,13 @@ public class ByteBufferSupply {
      * When finished with this item, it's up to the user to set position and
      * limit to the correct value for the next user.
      * Not sure if this method is thread-safe.
+     *
      * @return next available item in ring buffer.
+     * @throws InterruptedException
      */
-    public ByteBufferItem getAsIs() {
+    public ByteBufferItem getAsIs() throws InterruptedException {
         // Next available item claimed by data producer
-        long getSequence = ringBuffer.next();
+        long getSequence = ringBuffer.nextIntr(1);
 
         // Get object in that position (sequence) of ring buffer
         ByteBufferItem bufItem = ringBuffer.get(getSequence);
