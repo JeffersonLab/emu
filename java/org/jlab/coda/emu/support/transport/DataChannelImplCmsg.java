@@ -923,7 +923,10 @@ logger.warn("      DataChannel cmsg out: " + name + " exit thd: " + e.getMessage
              */
             EvWriter(ArrayList<RingItem> bankList, cMsgMessage msg,
                      int bankByteSize, int myRecordId) {
-                setupWriter(bankList, msg, bankByteSize, myRecordId);
+                try {
+                    setupWriter(bankList, msg, bankByteSize, myRecordId);
+                }
+                catch (InterruptedException e) {}
             }
 
             /**
@@ -933,9 +936,10 @@ logger.warn("      DataChannel cmsg out: " + name + " exit thd: " + e.getMessage
              * @param msg cMsg message in which to write the list of banks
              * @param bankByteSize total size of the banks in bytes <b>including block headers</b>
              * @param myRecordId value of starting block header's block number
+             * @throws InterruptedException
              */
             void setupWriter(ArrayList<RingItem> bankList, cMsgMessage msg,
-                     int bankByteSize, int myRecordId) {
+                     int bankByteSize, int myRecordId) throws InterruptedException {
 
                 this.msg = msg;
                 this.bankList = bankList;
