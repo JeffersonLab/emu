@@ -257,8 +257,10 @@ logger.info("  Module Adapter: output byte order = " + outputOrder);
      * @param itemOut    the event to place on output channel
      * @param channelNum index of output channel to place item on
      * @param ringNum    index of output channel ring buffer to place item on
+     * @throws InterruptedException
      */
-    protected void eventToOutputChannel(RingItem itemOut, int channelNum, int ringNum) {
+    protected void eventToOutputChannel(RingItem itemOut, int channelNum, int ringNum)
+                        throws InterruptedException{
 
         // Have any output channels?
         if (outputChannelCount < 1) {
@@ -268,7 +270,7 @@ logger.info("  Module Adapter: output byte order = " + outputOrder);
         }
 
         RingBuffer rb = outputChannels.get(channelNum).getRingBuffersOut()[ringNum];
-        long nextRingItem = rb.next();
+        long nextRingItem = rb.nextIntr(1);
 
         RingItem ri = (RingItem) rb.get(nextRingItem);
         ri.copy(itemOut);
