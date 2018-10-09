@@ -11,6 +11,7 @@
 
 package org.jlab.coda.emu.support.data;
 
+import org.jlab.coda.emu.EmuUtilities;
 import org.jlab.coda.emu.support.transport.DataChannel;
 import org.jlab.coda.jevio.*;
 import org.jlab.coda.emu.EmuException;
@@ -566,6 +567,106 @@ System.out.println("checkPayload: buf source id = " + pBuf.getSourceId() +
 
 
     /**
+      * Check the given payload buffer for correct record id, source id.
+      * Store sync and error info in payload buffer.
+      *
+      * @param pBuf          payload buffer to be examined
+      * @param channel       input channel buffer is from
+      * @param eventType     type of input event in buffer
+      * @param inputNode     EvioNode object representing event
+      * @param recordIdError non-fatal record id error found in
+      *                      {@link #checkInputType(int, DataChannel, EventType, EvioNode)}.
+      */
+     public static void checkInput(PayloadBuffer pBuf, DataChannel channel,
+                                   EventType eventType, EvioNode inputNode,
+                                   boolean recordIdError) {
+
+         int sourceId = pBuf.getSourceId();
+         boolean nonFatalError = false;
+
+         // Only worry about record id if event to be built.
+         // Initial recordId stored is 0, ignore that.
+         if (eventType != null && eventType.isBuildable()) {
+             int tag = inputNode.getTag();
+
+             if (sourceId != getTagCodaId(tag)) {
+                 System.out.println("checkPayload: buf source Id (" + sourceId +
+                                            ") != buf's id from tag (" + getTagCodaId(tag) + ')');
+                 nonFatalError = true;
+             }
+
+             pBuf.setSync(Evio.isTagSyncEvent(tag));
+             pBuf.setError(Evio.tagHasError(tag));
+         }
+
+         // Check source ID of bank to see if it matches channel id
+         if (!pBuf.matchesId()) {
+ System.out.println("checkPayload: buf source id = " + sourceId +
+                            " != input channel id = " + channel.getID());
+             nonFatalError = true;
+         }
+
+         pBuf.setNonFatalBuildingError(nonFatalError || recordIdError);
+     }
+
+
+     /**
+      * Check the given payload buffer for event type
+      * (physics, ROC raw, control, or user) as well as evio structure type.
+      *
+      * @param recordId  id associated with an incoming evio event
+      *                  (each of which may contain several physics events)
+      * @param channel   input channel buffer is from
+      * @param eventType type of input event
+      * @param inputNode EvioNode object representing event
+      * @return true if there is a non-fatal error with mismatched record ids, else false
+      * @throws EmuException if event is unknown type;
+      *                      if physics or roc raw bank has improper format
+      *
+      */
+     public static boolean checkInputType(int recordId, DataChannel channel,
+                                          EventType eventType, EvioNode inputNode)
+             throws EmuException {
+
+         // Only interested in physics, roc raw, control, and user events.
+         if (eventType == null || !eventType.isEbFriendly()) {
+             throw new EmuException("unknown event type");
+         }
+
+         boolean nonFatalRecordIdError = false;
+
+         if (eventType.isBuildable()) {
+             // The recordId associated with each bank is taken from the first
+             // evio block header in a single ET/emu-socket/cMsg-msg data buffer.
+             // For a physics or ROC raw type, it should start at zero and increase
+             // by one in the first evio block header of the next ET/cMsg-msg data buffer.
+             // NOTE: There may be multiple banks from the same buffer and
+             // they will all have the same recordId.
+             int chanRecordId = channel.getRecordId();
+
+             if (recordId != chanRecordId &&
+                 recordId != chanRecordId + 1) {
+                 System.out.println("checkPayload: record ID out of sequence, got " + recordId +
+                                            ", expecting " + chanRecordId + " or " +
+                                            (chanRecordId+1) + ", type = " + eventType +
+                                            ", name = " + channel.name());
+                 nonFatalRecordIdError = true;
+             }
+             // Store the current value here as a convenience for the next comparison
+             channel.setRecordId(recordId);
+
+             // Pick this event apart a little
+             if (inputNode.getDataTypeObj() != DataType.BANK &&
+                 inputNode.getDataTypeObj() != DataType.ALSOBANK) {
+                 throw new EmuException("ROC raw / physics record not in proper format");
+             }
+         }
+
+         return nonFatalRecordIdError;
+      }
+
+
+    /**
      * Check each payload bank - one from each input channel - for a number of issues:<p>
      * <ol>
      * <li>if there are any sync bits set, all must be sync banks
@@ -576,8 +677,8 @@ System.out.println("checkPayload: buf source id = " + pBuf.getSourceId() +
      * </ol>
      *
      * @param buildingBanks array containing banks that will be built together
-     * @param eventNumber   first event number in each bank (used for diagnostic output)
-     *
+     * @param eventNumber   first event number in each bank (used for diagnostic output).
+     *                      Currently event # will not be valid for SEB with multiple streams.
      * @return <code>true</code> if non-fatal error occurred, else <code>false</code>
      * @throws EmuException if some physics and others ROC raw event types;
      *                      if there are a differing number of events in each payload bank;
@@ -631,17 +732,27 @@ System.out.println("  EB mod: events have duplicate source ids");
         int numBanks = buildingBanks.length;
 
         // If one is a sync, all must be syncs
-        if (syncBankCount > 0 && syncBankCount != numBanks) {
-            // Some banks are sync banks and some are not
-            System.out.print("  EB mod: these channels have NO sync at event " + eventNumber + ": ");
-            for (PayloadBuffer buildingBank : buildingBanks) {
-                if (!buildingBank.isSync()) {
-                    System.out.print(buildingBank.getSourceName() + ", ");
-                }
-            }
-            System.out.println();
+        if (syncBankCount > 0) {
+//            System.out.println("  EB mod: event first 8 words: ");
+//            for (PayloadBuffer buildingBank : buildingBanks) {
+//                Utilities.printBufferBytes(buildingBank.getNode().getStructureBuffer(true),
+//                                           0, 32, buildingBank.getSourceName() );
+//                System.out.println();
+//            }
 
-            throw new EmuException("events out of sync at event " + eventNumber);
+            if (syncBankCount != numBanks) {
+                // Some banks are sync banks and some are not, currently event # will not be valid
+                // for SEB with multiple streams
+                System.out.print("  EB mod: these channels have NO sync at event " + eventNumber + ": ");
+                for (PayloadBuffer buildingBank : buildingBanks) {
+                    if (!buildingBank.isSync()) {
+                        System.out.print(buildingBank.getSourceName() + ", ");
+                    }
+                }
+                System.out.println();
+
+                throw new EmuException("events out of sync at event " + eventNumber);
+            }
         }
 
         // All must be physics or all must be ROC raw
@@ -1621,6 +1732,10 @@ System.out.println("Timestamp NOT consistent, first ev : ev #" + (firstEventNumb
             builder.openSegment(ebId, DataType.ULONG64);
             builder.addLongData(longData);
             builder.closeStructure();
+            if (longData[0] != firstEventNumber) {
+                System.out.println("ERROR !!!!!!!!!!!!!!!!!!!, longData[0] = " + longData[0] +
+                ", firstEventNumber = " + firstEventNumber);
+            }
 
             builder.addEvioNode(eventTypesSeg);
 
@@ -2381,7 +2496,7 @@ System.out.println("makeTriggerBankFromRocRaw: event # differs (in Bt# " + build
                 // allowing a difference of timestampSlop from the max to min.
                 if (timestampsMax - timestampsMin > timestampSlop) {
                     nonFatalError = true;
-                    System.out.println("Timestamp NOT consistent: ev #" + (firstEvNum + i) + ", diff = " +
+                    System.out.println("Timestamp NOT consistent: ev #" + evNum + ", diff = " +
                                                (timestampsMax - timestampsMin) + ", allowed = " + timestampSlop);
 
                     // Print out beginning of all rocs' buffers
@@ -2425,7 +2540,6 @@ System.out.println("makeTriggerBankFromRocRaw: event # differs (in Bt# " + build
             builder.openSegment(ebId, DataType.ULONG64);
             builder.addLongData(longData, 0 , longDataLen);
             builder.closeStructure();
-
             //----------------------------
             // 2) Add segment of event types
             //----------------------------
