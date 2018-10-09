@@ -1086,7 +1086,7 @@ System.out.println("      DataChannel Emu in: get emuEnd cmd");
         }
 
 
-        private final void handleEvioFileToBuf() throws IOException, EvioException {
+        private final void handleEvioFileToBuf() throws IOException, EvioException, InterruptedException {
 
             EvioNode node;
             ControlType controlType = null;
