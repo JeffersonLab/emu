@@ -1957,6 +1957,7 @@ System.out.println("Emu " + name + " go: " + e.getMessage());
      */
     private void prestart(Command cmd) {
 logger.info("Emu " + name + " prestart: change state to PRESTARTING");
+//        System.out.println("CMD; " + cmd.getMessage().toString());
         setState(PRESTARTING);
 
         // This is a great time to collect garbage since emu input channels
@@ -2213,6 +2214,7 @@ System.out.println("Emu " + name + " prestart: jvm out of memory, exiting");
             System.exit(-1);
         }
         catch (Exception e) {
+            e.printStackTrace();
 System.out.println("Emu " + name + " prestart: " + e.getMessage());
             setErrorState("Emu " + name + " prestart: " + e.getMessage());
             return;
