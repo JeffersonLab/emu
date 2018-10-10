@@ -1029,6 +1029,7 @@ System.out.println("  Roc mod: PRESTART");
             }
             catch (InterruptedException e) {
                 System.out.println("  Roc mod:  go() interrupted");
+                return;
             }
 
 System.out.println("  Roc mod: inserted GO event to channel " + i);
