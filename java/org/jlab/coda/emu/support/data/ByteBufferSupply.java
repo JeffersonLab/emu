@@ -330,6 +330,7 @@ public class ByteBufferSupply {
      * Get the next available item in ring buffer for getting data already written into.
      * Not sure if this method is thread-safe.
      * @return next available item in ring buffer for getting data already written into.
+     * @throws InterruptedException
      */
     public ByteBufferItem consumerGet() throws InterruptedException {
 
