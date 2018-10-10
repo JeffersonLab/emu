@@ -133,7 +133,7 @@ public class ByteBufferSupplyTest {
         while (true) {
             // Grab a stored ByteBuffer
             //System.out.println("Try getting producer buf " + index++ + " ...");
-            ByteBufferItem bufItem = null;
+            ByteBufferItem bufItem;
             try {
                 bufItem = bbSupply.get();
             }
