@@ -91,7 +91,7 @@ public class DataChannelImplFile extends DataChannelAdapter {
     private boolean hasFirstEvent;
 
     /** Use this object to set the sub stream ids if multiple output files per emu. */
-    static private AtomicInteger subStreamIdCount = new AtomicInteger(-1);
+    static private AtomicInteger subStreamIdCount = new AtomicInteger(0);
 
     
     /**
@@ -227,22 +227,16 @@ logger.info("      DataChannel File: dictionary file cannot be read");
                 boolean overWriteOK = true;
                 if (split > 0L) overWriteOK = false;
 
-                // Find the sub stream id if multiple output file channels
-                int subId = -1;
-                if (emu.getFileOutputCount() > 1) {
-                    subId = subStreamIdCount.incrementAndGet();
-                }
-
-logger.info("      DataChannel File: streamId = " + emu.getDataStreamId() + ", count = " +
-emu.getDataStreamCount() + ", subStreamId = " + subId + "< ****** filecount = " + emu.getFileOutputCount());
-
                 evioFileWriter = new EventWriterUnsync(fileName, directory, runType,
                                                        runNumber, split, 4194304, 10000, 0,
                                                        byteOrder,dictionaryXML, null, overWriteOK,
                                                        false, null,
                                                        emu.getDataStreamId(),
-                                                       emu.getDataStreamCount(),
-                                                       subId);
+                                                       subStreamIdCount.getAndIncrement(), // starting splitNumber
+                                                       emu.getFileOutputCount()); // splitIncrement
+
+logger.info("      DataChannel File: streamId = " + emu.getDataStreamId() + ", count = " +
+            emu.getDataStreamCount() + ", filecount = " + emu.getFileOutputCount());
 
 logger.info("      DataChannel File: file = " + evioFileWriter.getCurrentFilePath());
 
