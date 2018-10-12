@@ -25,6 +25,7 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * Implementation of a DataChannel reading/writing from/to a file in EVIO format.
@@ -41,7 +42,7 @@ public class DataChannelImplFile extends DataChannelAdapter {
     /** Thread used to output data. */
     private DataOutputHelper dataOutputThread;
 
-    /** Name of file being written -to / read-from. */
+    /** Name of file being written-to / read-from. */
     private String fileName;
 
     //----------------------------------------
@@ -89,8 +90,10 @@ public class DataChannelImplFile extends DataChannelAdapter {
     /** Does this file have a "first event" ? */
     private boolean hasFirstEvent;
 
+    /** Use this object to set the sub stream ids if multiple output files per emu. */
+    static private AtomicInteger subStreamIdCount = new AtomicInteger(-1);
 
-
+    
     /**
      * Constructor DataChannelImplFifo creates a new DataChannelImplFifo instance.
      *
@@ -224,12 +227,22 @@ logger.info("      DataChannel File: dictionary file cannot be read");
                 boolean overWriteOK = true;
                 if (split > 0L) overWriteOK = false;
 
+                // Find the sub stream id if multiple output file channels
+                int subId = -1;
+                if (emu.getFileOutputCount() > 1) {
+                    subId = subStreamIdCount.incrementAndGet();
+                }
+
+logger.info("      DataChannel File: streamId = " + emu.getDataStreamId() + ", count = " +
+emu.getDataStreamCount() + ", subStreamId = " + subId + "< ****** filecount = " + emu.getFileOutputCount());
+
                 evioFileWriter = new EventWriterUnsync(fileName, directory, runType,
                                                        runNumber, split, 4194304, 10000, 0,
                                                        byteOrder,dictionaryXML, null, overWriteOK,
                                                        false, null,
                                                        emu.getDataStreamId(),
-                                                       emu.getDataStreamCount());
+                                                       emu.getDataStreamCount(),
+                                                       subId);
 
 logger.info("      DataChannel File: file = " + evioFileWriter.getCurrentFilePath());
 
