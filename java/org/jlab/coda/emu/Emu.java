@@ -201,26 +201,31 @@ public class Emu implements CODAComponent {
 
     /**
      * In the case that a configuration has more than 1 data stream -
-     * the number of ERs or final EBs - the components that write to a file
+     * the number of final EBs - the components that write to a file
      * (usually the ERs) need to know how many data streams there are in the
      * configuration. This is necessary because when choosing a file name, the
      * stream number will need to be appended at the end to distinguish between
      * data files from different streams. This integer provides that information
      * and defaults to one with the actual value coming from a payload item in the
      * configuration command from run control.<p>
-     *
-     * Currently this is unused.
      */
-    int dataStreamCount = 1;
+    private int dataStreamCount = 1;
 
     /**
      * If the current configuration has more than 1 data stream -
      * the number of ERs or final EBs - and this component is one that writes
      * to a file, this number identifies its stream uniquely.<p>
-     *
-     * Currently this is unused.
      */
-    int dataStreamId;
+    private int dataStreamId;
+
+    /**
+     * The number of file output channels in this emu. If a file-writing component writes
+     * more than 1 file and each are given the same filename in the config, they must be
+     * distinguished by the sub-streamId. That number is -1 if there is only 1 file channel,
+     * or 0, 1, 2, ... if multiple file channels. This will be used along with the
+     * dataStreamId as part of the filename - ensuring a unique name.
+     */
+    private int fileOutputCount;
 
     /** The number of (non-fifo) input channels coming into the first module. */
     private int firstModuleInputChannelCount;
@@ -777,6 +782,12 @@ System.out.println("Emu created, name = " + name + ", type = " + codaClass);
     public int getDataStreamCount() {
         return dataStreamCount;
     }
+
+    /**
+     * Get the number of file output channels in this emu.
+     * @return number of file output channels in this emu.
+     */
+    public int getFileOutputCount() {return fileOutputCount;}
 
 
 
@@ -2766,6 +2777,8 @@ if (debug) System.out.println("Emu " + name + " config: Got config type = " + my
                 int firstModuleIndex = 0;
                 firstModuleInputChannelCount = 0;
                 boolean foundFirstModule = false;
+                // Also track # of output files for this emu
+                fileOutputCount = 0;
 
                 // List of modules
                 NodeList childList = modulesConfig.getChildNodes();
@@ -2852,6 +2865,12 @@ if (debug) System.out.println("Emu " + name + " config: Got config type = " + my
                             }
                         }
                         else if (channelNode.getNodeName().equalsIgnoreCase("outchannel")) {
+                            // The easiest way to tell if it's a file is by the fileName attribute
+                            Node filenameNode = nnm.getNamedItem("fileName");
+                            if (filenameNode != null) {
+                                fileOutputCount++;
+                            }
+
                             outputChannelCount++;
 
                             if (channelTransName.equals("Fifo")) {
@@ -2956,6 +2975,7 @@ if (debug) System.out.println("Emu " + name + " config: Got config type = " + my
 
                         // Go through list of channels to pick out fifos
                         for (int i=0; i < childChannelList.getLength(); i++) {
+                            System.out.println("**************CONFIG: IN WHILE CHANNEL LOOP, ");
 
                             Node channelNode = childChannelList.item(i);
                             if (channelNode.getNodeType() != Node.ELEMENT_NODE) continue;
