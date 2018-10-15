@@ -213,7 +213,7 @@ public class DataChannelImplEmu extends DataChannelAdapter {
             }
             catch (NumberFormatException e) {}
         }
-        socketCount = 1;
+//        socketCount = 1;
         logger.info("      DataChannel Emu: TCP socket count = " + socketCount);
 
         // if INPUT channel
