@@ -95,7 +95,7 @@ public class DataChannelImplFile extends DataChannelAdapter {
 
     
     /**
-     * Constructor DataChannelImplFifo creates a new DataChannelImplFifo instance.
+     * Constructor DataChannelImplFile creates a new DataChannelImplFile instance.
      *
      * @param name          name of file channel
      * @param transport     DataTransport object that created this channel
@@ -295,6 +295,9 @@ System.out.println("      DataChannel File out: Cannot create file, " + e.getMes
         gotEndCmd = true;
         gotResetCmd = false;
 
+        // Reset the split count
+        subStreamIdCount.set(0);
+
         if (dataThread != null) dataThread.interrupt();
 
         channelState = CODAState.DOWNLOADED;
@@ -307,6 +310,8 @@ logger.info("      DataChannel File: reset " + name + " channel");
 
         gotEndCmd   = false;
         gotResetCmd = true;
+        // Reset the split count
+        subStreamIdCount.set(0);
 
         if (dataThread != null) dataThread.interrupt();
 
