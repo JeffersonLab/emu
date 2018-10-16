@@ -133,8 +133,12 @@ public class FastEventBuilder extends ModuleAdapter {
     /** Container for threads used to build events. */
     private ArrayList<BuildingThread> buildingThreadList = new ArrayList<>(6);
 
-    /** Maximum time in milliseconds to wait when commanded to END but no END event received. */
-    private long endingTimeLimit = 30000;
+    /** Threads (one for each input channel) for
+     *  releasing resources used to build events. */
+    private ReleaseRingResourceThread releaseThreads[];
+
+    private boolean useReleaseThread = false;
+    private boolean useGarbageFree = false;
 
     /** The number of the experimental run. */
     private int runNumber;
@@ -213,12 +217,12 @@ public class FastEventBuilder extends ModuleAdapter {
     private SequenceBarrier[] buildBarrierIn;
 
 
-//
-//    /** One post-build sequence for each input channel. */
-//    private Sequence[] postBuildSequence;
-//
-//    /** The post-build (garbage-releasing) thread has one barrier per input channel. */
-//    private SequenceBarrier[] postBuildBarrier;
+
+    /** One post-build sequence for each input channel. */
+    private Sequence[] postBuildSequence;
+
+    /** The post-build (garbage-releasing) thread has one barrier per input channel. */
+    private SequenceBarrier[] postBuildBarrier;
 
 
     //-------------------------------------------
@@ -261,6 +265,30 @@ logger.info("  EB mod: # of event building threads = " + buildingThreadCount);
                 str.equalsIgnoreCase("on")   ||
                 str.equalsIgnoreCase("yes"))   {
                 includeRunData = true;
+            }
+        }
+
+
+        // set "garbage free" option on
+        useGarbageFree = false;
+        str = attributeMap.get("garbageFree");
+        if (str != null) {
+            if (str.equalsIgnoreCase("true") ||
+                str.equalsIgnoreCase("on")   ||
+                str.equalsIgnoreCase("yes"))   {
+                useGarbageFree = true;
+            }
+        }
+
+
+        // set "garbage free" option on
+        useReleaseThread = false;
+        str = attributeMap.get("releaseThd");
+        if (str != null) {
+            if (str.equalsIgnoreCase("true") ||
+                str.equalsIgnoreCase("on")   ||
+                str.equalsIgnoreCase("yes"))   {
+                useReleaseThread = true;
             }
         }
 
@@ -738,13 +766,20 @@ System.out.println("  EB mod: try sending END event to output channel " + output
 
                         // The last event to be cleaned up for this input chan
                         if (buildingThreadCount > 1) {
-                            // For multiple build threads, each thread may be at a different sequence.
-                            // Pick the minimum.
-                            long seq;
-                            ev = Long.MAX_VALUE;
-                            for (int j=0; j < buildingThreadCount; j++) {
-                                seq = buildSequenceIn[j][i].get();
-                                ev = Math.min(seq, ev);
+                            if (useReleaseThread) {
+                                // For multiple build threads, there's an additional
+                                // cleanup or release thread which must process the last event.
+                                ev = releaseThreads[i].getLastSequence();
+                            }
+                            else {
+                                // For multiple build threads, each thread may be at a different sequence.
+                                // Pick the minimum.
+                                long seq;
+                                ev = Long.MAX_VALUE;
+                                for (int j = 0; j < buildingThreadCount; j++) {
+                                    seq = buildSequenceIn[j][i].get();
+                                    ev = Math.min(seq, ev);
+                                }
                             }
                         }
                         else {
@@ -757,11 +792,16 @@ System.out.println("  EB mod: try sending END event to output channel " + output
                             catch (InterruptedException e) {}
 
                             if (buildingThreadCount > 1) {
-                                long seq;
-                                ev = Long.MAX_VALUE;
-                                for (int j=0; j < buildingThreadCount; j++) {
-                                    seq = buildSequenceIn[j][i].get();
-                                    ev = Math.min(seq, ev);
+                                if (useReleaseThread) {
+                                    ev = releaseThreads[i].getLastSequence();
+                                }
+                                else {
+                                    long seq;
+                                    ev = Long.MAX_VALUE;
+                                    for (int j = 0; j < buildingThreadCount; j++) {
+                                        seq = buildSequenceIn[j][i].get();
+                                        ev = Math.min(seq, ev);
+                                    }
                                 }
                             }
                             else {
@@ -925,7 +965,18 @@ System.out.println("  EB mod: findEnd, chan " + ch + " got END from " + source +
             return endEventCount;
         }
 
+
         public void run() {
+            if (useGarbageFree) {
+                runNoBuilder();
+            }
+            else {
+                runWithBuilder();
+            }
+        }
+
+
+        private void runWithBuilder() {
 
             try {
                 // Create a reusable supply of ByteBuffer objects
@@ -1593,8 +1644,15 @@ System.out.println("  EB mod: bt#" + btIndex + " found END events on all input c
                     evIndex += btCount;
 
                     for (int i=0; i < inputChannelCount; i++) {
-                        // The ByteBufferSupply takes care of releasing buffers in proper order.
-                        buildingBanks[i].releaseByteBuffer();
+                        if (useReleaseThread) {
+                            if (btCount == 1) {
+                                buildingBanks[i].releaseByteBuffer();
+                            }
+                        }
+                        else {
+                            // The ByteBufferSupply takes care of releasing buffers in proper order.
+                            buildingBanks[i].releaseByteBuffer();
+                        }
                         // Each build thread must release the "slots" in the input channel
                         // ring buffers of the components it uses to build the physics event.
                         buildSequences[i].set(nextSequences[i]++);
@@ -1681,694 +1739,933 @@ if (debug) System.out.println("  EB mod: Building thread is ending");
         }
 
 
-//        // This version of run() does NOT work with sync bits and
-//        // multiple build threads / multiple streams
-//        public void runOrig() {
-//
-//            try {
-//                // Create a reusable supply of ByteBuffer objects
-//                // for writing built physics events into.
-//                //--------------------------------------------
-//                // Direct buffers give better performance ??
-//                //--------------------------------------------
-//                // If there's only one output channel, release should be sequential.
-//                // However, 2 output channels mean at least 2 threads - each of
-//                // which is releasing members of the BB supply.
-//                boolean releaseSequentially = false;
-////                boolean releaseSequentially = true;
-////                if (outputChannelCount > 1)  {
-////                    releaseSequentially = false;
-////                }
-//                ByteBufferSupply bbSupply = new ByteBufferSupply(ringItemCount, 2000, outputOrder,
-//                                                                 false, releaseSequentially);
-//System.out.println("  EB mod: bbSupply -> " + ringItemCount + " # of bufs, direct = " + false +
-//                   ", seq = " + releaseSequentially);
-//
-//                // Object for building physics events in a ByteBuffer
-//                CompactEventBuilder builder = null;
-//                try {
-//                    // Internal buffer of 8 bytes will be overwritten later
-//                    //builder = new CompactEventBuilder(8, outputOrder, true);
-//                    builder = new CompactEventBuilder(8, outputOrder, false);
-//                }
-//                catch (EvioException e) {/*never happen */}
-//
-//
-//                // Skipping events is necessary if there are multiple build threads.
-//                // This is the way of dividing up events among build threads without
-//                // contention and mutex locking.
-//                //
-//                // For example, with 3 build threads:
-//                // the 1st build thread gets item #1, the 2nd item #2, and the 3rd item #3.
-//                // In the next round,
-//                // the 1st thread gets item #4, the 2nd item #5, and the 3rd, item #6, etc.
-//                //
-//                // Remember that in the rings, each consumer (sequence) sees all items and must
-//                // therefore skip over those that the other build threads are working on.
-//                // One complication is the presence of user events. These must be skipped over
-//                // and completely ignored by all build threads.
-//                //
-//                // Only the first build thread needs to look for the prestart and go events.
-//                // The others can just skip over them.
-//                //
-//                // Easiest to implement this with one counter per input channel.
-//                int[] skipCounter = new int[inputChannelCount];
-//                Arrays.fill(skipCounter, btIndex + 1);
-//
-//                // Initialize
-//                int     endEventCount, totalNumberEvents=1, entangledEventCount=0;
-//                long    firstEventNumber=1, startTime=0L;
-//                boolean haveEnd, havePhysicsEvents;
-//                boolean isSync, nonFatalError;
-//                boolean gotBank, gotFirstBuildEvent;
-//                boolean isEventNumberInitiallySet = false;
-//                EventType eventType = null;
-//
-//                // Allocate arrays once here so building method does not have to
-//                // allocate once per built event. Limiting efficient running to
-//                // 1000 entangled events, else array gets allocated repeatedly.
-//                long[]  longData     = new long[200];
-//                short[] evData       = new short[200];
-//                int[]   segmentData  = new int[100];
-//                int[]   returnLen    = new int[1];
-//                long[]  longDataZero = new long[200];
-//
-//                if (outputChannelCount > 1) outputChannelIndex = -1;
-//
-//                PayloadBuffer[] buildingBanks = new PayloadBuffer[inputChannelCount];
-//
-//                minEventSize = Integer.MAX_VALUE;
-//
-//                if (timeStatsOn) {
-//                    statistics = new Statistics(1000000, 30);
-//                }
-//
-//                // Ring Buffer stuff - define array for convenience
-//                nextSequences = new long[inputChannelCount];
-//                availableSequences = new long[inputChannelCount];
-//                Arrays.fill(availableSequences, -2L);
-//                buildSequences = new Sequence[inputChannelCount];
-//                for (int i=0; i < inputChannelCount; i++) {
-//                    buildSequences[i] = buildSequenceIn[btIndex][i];
-//                    nextSequences[i]  = buildSequences[i].get() + 1L;
-//                }
-//
-//                // First thing we do is look for the PRESTART event(s) and pass it on
-//                try {
-//                    // Get prestart from each input channel
-//                    ControlType cType = getAllControlEvents(buildSequences, buildBarrierIn,
-//                                                            nextSequences, btIndex);
-//                    if (!cType.isPrestart()) {
-//                        throw new EmuException("Expecting prestart event, got " + cType);
-//                    }
-//
-//                    // 1st build thread writes prestart event on all output channels, ring 0.
-//                    // Other build threads ignore this.
-//                    if (btIndex == 0) {
-//                        controlToOutputAsync(true);
-//                    }
-//                }
-//                catch (Exception e) {
-//                    // If interrupted we must quit
-//                    if (debug) System.out.println("  EB mod: interrupted while waiting for prestart event");
-//                    emu.setErrorState("EB interrupted waiting for prestart event");
-//                    moduleState = CODAState.ERROR;
-//                    return;
-//                }
-//
-//                prestartCallback.endWait();
-//                haveAllPrestartEvents = true;
-//System.out.println("  EB mod: got all PRESTART events");
-//
-//                // Second thing we do is look for the GO or END event and pass it on
-//                try {
-//                    // Get go/end from each input channel
-//                    ControlType cType = getAllControlEvents(buildSequences, buildBarrierIn,
-//                                                            nextSequences, btIndex);
-//                    if (!cType.isGo()) {
-//                        if (cType.isEnd()) {
-//                            haveEndEvent = true;
-//                            if (btIndex == 0) {
-//                                handleEndEvent(null);
-//                            }
-//System.out.println("  EB mod: got all END events");
-//                            return;
-//                        }
-//                        else {
-//                            throw new EmuException("Expecting GO or END event, got " + cType);
-//                        }
-//                    }
-//
-//                    if (btIndex == 0) {
-//                        controlToOutputAsync(false);
-//                    }
-//                }
-//                catch (InterruptedException e) {
-//                    // If interrupted, then we must quit
-//if (debug) System.out.println("  EB mod: interrupted while waiting for go event");
-//                    emu.setErrorState("EB interrupted waiting for go event");
-//                    moduleState = CODAState.ERROR;
-//                    return;
-//                }
-//
-//System.out.println("  EB mod: got all GO events");
-//
-//                long endSequence = -1;
-//
-//                // Now do the event building
-//                while (moduleState == CODAState.ACTIVE || paused) {
-//
-//                    nonFatalError = false;
-//
-//                    // The input channels' rings (1 per channel)
-//                    // are filled by the PreProcessor threads.
-//
-//                    // Here we have what we need to build:
-//                    // ROC raw events from all ROCs (or partially built events from
-//                    // each contributing EB) each with sequential record IDs.
-//                    // However, there are also user and END events in the rings.
-//
-//                    // Put null into buildingBanks array elements
-//                    Arrays.fill(buildingBanks, null);
-//
-//                    // Set variables/flags
-//                    haveEnd = false;
-//                    gotFirstBuildEvent = false;
-//                    endEventCount = 0;
-//                    int endChannel = -1;
-//                    //int printCounter = 0;
-//
-//                    // Start the clock on how long it takes to build the next event
-//                    if (timeStatsOn) startTime = System.nanoTime();
-//
-//                    // Grab one buildable (non-user/control) bank from each channel.
-//                    top:
-//                    for (int i=0; i < inputChannelCount; i++) {
-//
-//                        // Loop until we get event which is NOT a user event
-//                        while (true) {
-//
-//                            gotBank = false;
-//
-//                            // Only wait if necessary ...
-//                            if (availableSequences[i] < nextSequences[i]) {
-//                                // Can BLOCK here waiting for item if none available, but can be interrupted
-//                                // Available sequence may be larger than what we asked for.
-////System.out.println("  EB mod: bt" + btIndex + " ch" + i + ", wait for event (seq [" + i + "] = " +
-////                           nextSequences[i] + ")");
-//                                availableSequences[i] = buildBarrierIn[i].waitFor(nextSequences[i]);
-////System.out.println("  EB mod: bt" + btIndex + " ch" + i + ", available seq[" + i + "]  = " + availableSequences[i]);
-//                            }
-//
-//                            // While we have new data to work with ...
-//                            while (nextSequences[i] <= availableSequences[i]) {
-//                                buildingBanks[i] = (PayloadBuffer) ringBuffersIn[i].get(nextSequences[i]);
-//
-////System.out.println("  EB mod: bt" + btIndex + " ch" + i + ", event order = " + buildingBanks[i].getByteOrder());
-//                                eventType = buildingBanks[i].getEventType();
-//
-//                                // Check the payload bank for correct format -
-//                                // physics, ROC raw, control, or user.
-//                                // All other buffers are ignored.
-//                                //if (!dumpData && btIndex == 0) {
-//                                if (btIndex == 0) {
-//                                    Evio.checkPayload(buildingBanks[i], inputChannels.get(i));
-//                                }
-//
-//                                // Deal with user event
-//                                if (eventType.isUser()) {
-//System.out.println("  EB mod: got user event");
-//
-//                                    // User events are placed in first output channel's first ring.
-//                                    // Only the first build thread will deal with them.
-//                                    if (btIndex == 0) {
-////System.out.println("  EB mod: bt" + btIndex + " ch" + i + ", skip user item " + nextSequences[i]);
-//                                        //System.out.println("  EB mod: got user event in pre-processing order = " + pBuf.getByteOrder());
-//
-//                                        // Swap headers, NOT DATA, if necessary
-//                                        if (outputOrder != buildingBanks[i].getByteOrder()) {
-//                                            try {
-//                                                //System.out.println("  EB mod: swap user event (not data)");
-//                                                ByteBuffer buffy = buildingBanks[i].getBuffer();
-//                                                EvioNode nody = buildingBanks[i].getNode();
-//                                                if (buffy != null) {
-//                                                    // Takes care of swapping of event in its own separate buffer,
-//                                                    // headers not data
-//                                                    ByteDataTransformer.swapEvent(buffy, buffy, 0, 0, false, null);
-//                                                }
-//                                                else if (nody != null) {
-//                                                    // This node may share a backing buffer with other, ROC Raw, events.
-//                                                    // Thus we cannot change the order of the entire backing buffer.
-//                                                    // For simplicity, let's copy it and swap it in its very
-//                                                    // own buffer.
-//
-//                                                    // Find the # of entangled events or "block level".
-//                                                    // This is the number of entangled events in one
-//                                                    // ROC raw record which is set by the trigger supervisor.
-//                                                    // This may change immediately after each sync event.
-//                                                    // It is important because if there are multiple BuildingThreads, then
-//                                                    // each thread must set its own blockLevel.
-//                                                    entangledEventCount = nody.getNum();
-//
-//                                                    // Copy
-//                                                    buffy = nody.getStructureBuffer(true);
-//                                                    // Swap headers but not data
-//                                                    ByteDataTransformer.swapEvent(buffy, null, 0, 0, false, null);
-//                                                    // Store in ringItem
-//                                                    buildingBanks[i].setBuffer(buffy);
-//                                                    buildingBanks[i].setNode(null);
-//                                                    // Release claim on backing buffer since we are now
-//                                                    // using a different buffer.
-//                                                    buildingBanks[i].releaseByteBuffer();
-//                                                }
-//                                            }
-//                                            catch (EvioException e) {/* should never happen */ }
-//                                        }
-//
-//                                        // If same byte order, then we may have buffer or node.
-//                                        // Node in the usual case.
-//
-//                                        // Send it on.
-//                                        // User events are thrown away if no output channels
-//                                        // since this event builder does nothing with them.
-//                                        // User events go into the first ring of the first channel.
-//                                        // Since all user events are dealt with here
-//                                        // and since they're now all in their own (non-ring) buffers,
-//                                        // the post-build threads can skip over them.
-//                                        eventToOutputChannel(buildingBanks[i], 0, 0);
-//                                        //System.out.println("  EB mod: sent user event to output channel");
-//                                    }
-//
-//                                    nextSequences[i]++;
-//                                }
-//                                // Skip over events being built by other build threads
-//                                else if (skipCounter[i] - 1 > 0)  {
-////System.out.println("  EB mod: bt" + btIndex + " ch" + i + ", skip item " + nextSequences[i]);
-//                                    nextSequences[i]++;
-//                                    skipCounter[i]--;
-//                                }
-//                                // Found a bank, so do something with it (skipCounter[i] - 1 == 0)
-//                                else {
-////System.out.println("  EB mod: bt" + btIndex + " ch" + i + ", accept item " + nextSequences[i]);
-//                                    gotBank = true;
-//                                    break;
-//                                }
-//                            }
-//
-//                            if (!gotBank) {
-//                                continue;
-//                            }
-//
-////                            if (dumpData) {
-////                                // The ByteBufferSupply takes care of releasing buffers in proper order.
-////                                buildingBanks[i].releaseByteBuffer();
-////                                // Each build thread must release the "slots" in the input channel
-////                                // ring buffers of the components it uses to build the physics event.
-////                                buildSequences[i].set(nextSequences[i]++);
-////
-////                                skipCounter[i] = btCount;
-////                                break;
-////                            }
-//
-//                            // If event needs to be built ...
-//                            if (!eventType.isControl()) {
-//                                // One-time init stuff for a group of
-//                                // records that will be built together.
-//                                if (!gotFirstBuildEvent) {
-//                                    // Set flag
-//                                    gotFirstBuildEvent = true;
-//
-//                                    // Find the total # of events
-//                                    totalNumberEvents = buildingBanks[i].getNode().getNum();
-//
-//                                    // The "block level" is the number of entangled events in one
-//                                    // ROC raw record which is set by the trigger supervisor.
-//                                    // Its value is in "totalNumberEvents" set in the line above.
-//                                    // This may change following each sync event.
-//                                    // It is important because if there are multiple BuildingThreads, then
-//                                    // each thread must set its expected event number according to the
-//                                    // blockLevel.
-//                                    if (!isEventNumberInitiallySet)  {
-//                                        firstEventNumber = 1L + (btIndex * totalNumberEvents);
-//                                        isEventNumberInitiallySet = true;
-//                                    }
-//                                    else {
-//                                        firstEventNumber += btCount*totalNumberEvents;
-//                                    }
-//                                }
-//
-//                                // Go to next input channel
-//                                skipCounter[i] = btCount;
-//                                break;
-//                            }
-//
-//                            // If we're here, we've got a CONTROL event
-//
-//                            // If not END, we got problems
-//                            if (!buildingBanks[i].getControlType().isEnd()) {
-//                                throw new EmuException(buildingBanks[i].getControlType() +
-//                                                               " control events not allowed");
-//                            }
-//
-//                            // At this point all controls are END events
-//                            haveEnd = true;
-//                            endEventCount++;
-//                            endSequence = nextSequences[i];
-//                            endChannel = i;
-//System.out.println("  EB mod: bt" + btIndex + ", found END event from " + buildingBanks[i].getSourceName() + " at seq " + endSequence);
-//
-//                            if (!gotFirstBuildEvent) {
-//                                // Don't do all the stuff for a
-//                                // regular build if first event is END.
-//                                gotFirstBuildEvent = true;
-//                            }
-//
-//                            // Go to next input channel
-//                            skipCounter[i] = btCount;
-//                            break;
-//                        }
-//
-//                        // repeat for loop endlessly
-////                        if (dumpData && (i == (inputChannelCount - 1))) i = -1;
-//                    }
-//
-//                    //--------------------------------------------------------
-//                    // At this point we have one event from each input channel
-//                    //--------------------------------------------------------
-//
-//                    // In general, at this point there will only be 1 build thread
-//                    // that makes it this far and has at least one END event from
-//                    // an input channel. The others will be stuck trying to get
-//                    // an END event from that channel from a slot past where it is
-//                    // in the ring buffer.
-//
-//                    // Do END event stuff here
-//                    if (haveEnd && endEventCount != inputChannelCount) {
-//                        // If we're here, not all channels got an END event.
-//                        // See if we can find them in the ring buffers which didn't
-//                        // have one. If we can, great. If not, major error.
-//                        // If all our channels have an END, we can end normally
-//                        // with a warning about the mismatch in number of events.
-//
-//                        // Put a delay in here because "findEnd" releases ring slots
-//                        // which get filled with new data being read by input channels -
-//                        // perhaps before the other build threads have a chance to finish
-//                        // building their last few events and so they may get corrupted.
-//                        // This delay gives the other build threads the chance to finish
-//                        // building what they can.
-//                        Thread.sleep(500);
-//
-//                        int finalEndEventCount = findEnd(endChannel, endSequence, endEventCount);
-//
-//                        // If we still can't find all ENDs, throw exception - major error
-//                        if (finalEndEventCount != inputChannelCount) {
-//                            emu.sendRcErrorMessage("Missing " +
-//                                                   (inputChannelCount - finalEndEventCount) +
-//                                                   " END events, ending anyway");
-//                            throw new EmuException("only " + finalEndEventCount + " ENDs for " +
-//                                                           inputChannelCount + " channels");
-//                        }
-//                        else {
-//                            emu.sendRcErrorMessage("All END events found, but out of order");
-//System.out.println("  EB mod: bt" + btIndex + " have all ENDs, but differing # of physics events in channels");
-//                        }
-//
-//                        // If we're here, we've found all ENDs, continue on with warning ...
-//                        nonFatalError = true;
-//                    }
-//
-//                    // If we have all END events ...
-//                    if (haveEnd) {
-//System.out.println("  EB mod: bt#" + btIndex + " found END events on all input channels");
-//                        haveEndEvent = true;
-//                        handleEndEvent(buildingBanks);
-//                        return;
-//                    }
-//
-//                    // At this point there are only physics or ROC raw events, which do we have?
-//                    havePhysicsEvents = buildingBanks[0].getEventType().isAnyPhysics();
-//
-//                    // Check for identical syncs, uniqueness of ROC ids,
-//                    // identical (physics or ROC raw) event types,
-//                    // and the same # of events in each bank
-//                    nonFatalError |= Evio.checkConsistency(buildingBanks, firstEventNumber);
-//                    isSync = buildingBanks[0].isSync();
-//                    if (isSync) {
-////System.out.println("  EB mod: sync bit set for ev #" + (firstEventNumber + entangledEventCount - 1) +
-////                   ", first ev# = " + firstEventNumber);
-//                        // NOT accurate for SEBs with multiple streams
-//                        eventNumberAtLastSync = firstEventNumber + totalNumberEvents;
-//                    }
-//
-//                    //--------------------------------------------------------------------
-//                    // Build trigger bank, number of ROCs given by number of buildingBanks
-//                    //--------------------------------------------------------------------
-//                    // The tag will be finally set when this trigger bank is fully created
-//
-//                    // Get an estimate on the buffer memory needed.
-//                    // Start with 1K and add roughly the amount of trigger bank data + data wrapper
-//                    int memSize = 1000 + inputChannelCount * totalNumberEvents * 40;
-////System.out.println("  EB mod: estimate trigger bank bytes <= " + memSize);
-//                    for (PayloadBuffer buildingBank : buildingBanks) {
-//                        //memSize += buildingBank.getBuffer().capacity();
-//                        memSize += buildingBank.getNode().getTotalBytes();
-////System.out.println("  EB mod: add data bytes from ev, " + buildingBank.getNode().getTotalBytes());
-//                    }
-//
-//                    // Grab a stored ByteBuffer
-//                    ByteBufferItem bufItem = bbSupply.get();
-//                    bufItem.ensureCapacity(memSize);
-////System.out.println("  EB mod: ensure buf has size " + memSize + "\n");
-//                    ByteBuffer evBuf = bufItem.getBuffer();
-//                    builder.setBuffer(evBuf);
-//
-//                    // Create a (top-level) physics event from payload banks
-//                    // and the combined trigger bank. First create the tag:
-//                    //   -if I'm a data concentrator or DC, the tag has 4 status bits and the ebId
-//                    //   -if I'm a primary event builder or PEB, the tag is 0xFF50
-//                    //   -if I'm a secondary event builder or SEB, the tag is 0xFF70
-//                    int tag;
-//                    CODAClass myClass = emu.getCodaClass();
-//                    switch (myClass) {
-//                        case SEB:
-//                            if (isSync) {
-//                                tag = CODATag.BUILT_BY_SEB_SYNC.getValue();
-//                            }
-//                            else {
-//                                tag = CODATag.BUILT_BY_SEB.getValue();
-//                            }
-//                            // output event type
-//                            eventType = EventType.PHYSICS;
-//                            break;
-//
-//                        case PEB:
-//                            if (isSync) {
-//                                tag = CODATag.BUILT_BY_PEB_SYNC.getValue();
-//                            }
-//                            else {
-//                                tag = CODATag.BUILT_BY_PEB.getValue();
-//                            }
-//                            eventType = EventType.PHYSICS;
-//                            break;
-//
-//                        //case DC:
-//                        default:
-//                            eventType = EventType.PARTIAL_PHYSICS;
-//                            // Check input banks for non-fatal errors
-//                            for (PayloadBuffer pBank : buildingBanks)  {
-//                                nonFatalError |= pBank.hasNonFatalBuildingError();
-//                            }
-//
-//                            tag = Evio.createCodaTag(isSync,
-//                                                     buildingBanks[0].hasError() || nonFatalError,
-//                                                     buildingBanks[0].getByteOrder() == ByteOrder.BIG_ENDIAN,
-//                                                     false, /* don't use single event mode */
-//                                                     id);
-////if (debug) System.out.println("  EB mod: tag = " + tag + ", is sync = " + isSync +
-////                   ", has error = " + (buildingBanks[0].hasError() || nonFatalError) +
-////                   ", is big endian = " + buildingBanks[0].getByteOrder() == ByteOrder.BIG_ENDIAN +
-////                   ", is single mode = " + buildingBanks[0].isSingleEventMode());
-//                    }
-//
-//                    // Start top level
-//                    builder.openBank(tag, totalNumberEvents, DataType.BANK);
-//
-////Utilities.printBuffer(builder.getBuffer(), 0, 20, "TOP LEVEL OPEN event");
-//                    // Reset this to see if creating trigger bank causes an error
-//                    nonFatalError = false;
-//
-//                    // If building with Physics events ...
-//                    if (havePhysicsEvents) {
-//                        //-----------------------------------------------------------------------------------
-//                        // The actual number of rocs will replace num in combinedTrigger definition above
-//                        //-----------------------------------------------------------------------------------
-//                        // Combine the trigger banks of input events into one (same if single event mode)
-////if (debug) System.out.println("  EB mod: create trig bank from built banks, sparsify = " + sparsify);
-//                        nonFatalError |= Evio.makeTriggerBankFromPhysics(buildingBanks, builder, id,
-//                                                           runNumber, runTypeId, includeRunData,
-//                                                           sparsify, checkTimestamps, timestampSlop);
-//                    }
-//                    // else if building with ROC raw records ...
-//                    else {
-//                        // Zero out array used for timestamps
-//                        System.arraycopy(longDataZero, 0, longData, 0, 200);
-//                        returnLen[0] = 0;
-//                        // Combine the trigger banks of input events into one
-////if (debug) System.out.println("  EB mod: create trigger bank from Rocs, sparsify = " + sparsify);
-//                        nonFatalError |= Evio.makeTriggerBankFromRocRaw(buildingBanks, builder,
-//                                                                        id, firstEventNumber,
-//                                                                        runNumber, runTypeId,
-//                                                                        includeRunData, sparsify,
-//                                                                        checkTimestamps,
-//                                                                        timestampSlop, btIndex,
-//                                                                        longData, evData,
-//                                                                        segmentData, returnLen);
-////                        nonFatalError |= makeTriggerBankFromRocRaw(firstEventNumber);
-//                    }
-//
-//                    // If the trigger bank has an error, go back and reset its tag
-//                    if (nonFatalError && emu.getCodaClass() == CODAClass.DC) {
-//                        tag = Evio.createCodaTag(isSync,true,
-//                                                 buildingBanks[0].getByteOrder() == ByteOrder.BIG_ENDIAN,
-//                                                 false, /* don't use single event mode */
-//                                                 id);
-//                        builder.setTopLevelTag((short)tag);
-//                    }
-//
-//                    if (havePhysicsEvents) {
-////if (debug) System.out.println("  EB mod: build physics event with physics banks");
-//                        Evio.buildPhysicsEventWithPhysics(buildingBanks, builder);
-//                    }
-//                    else {
-////if (debug) System.out.println("  EB mod: build physics event with ROC raw banks");
-//                        Evio.buildPhysicsEventWithRocRaw(buildingBanks, builder);
-//                    }
-//
-//                    // Done creating event
-//                    builder.closeAll();
-//
-//                    //-------------------------
-//                    // Stats
-//                    //-------------------------
-//
-//                    // Only have the first build thread keep time-to-build stats
-//                    // so we don't have to worry about multithreading issues.
-//                    if (timeStatsOn && btIndex == 0) {
-//                        // Total time in nanoseconds spent building this event.
-//                        // NOTE: nanoTime() is very expensive and will slow EB (by 50%)
-//                        // Work on creating a time histogram.
-//                        statistics.addValue((int) (System.nanoTime() - startTime));
-//                    }
-//
-//                    //-------------------------
-//
-//                    // Which output channel do we use?  Round-robin.
-//                    if (outputChannelCount > 1) {
-//                        outputChannelIndex = (int) (evIndex % outputChannelCount);
-//                    }
-//
-//                    // Put event in the correct output channel.
-//                    // Important to use builder.getBuffer() method instead of evBuf directly.
-//                    // That's because in the method, the limit and position are set
-//                    // properly for reading.
-////                    for (int k=0; k < btIndex; k++) {
-////                        System.out.print("  ");
-////                    }
-////System.out.println("  EB mod: bt#" + btIndex + " write event " + evIndex + " on ch" + outputChannelIndex + ", ring " + btIndex);
-//                    eventToOutputRing(btIndex, outputChannelIndex, builder.getBuffer(),
-//                                      eventType, bufItem, bbSupply);
-//
-//                    evIndex += btCount;
-//
-//                    for (int i=0; i < inputChannelCount; i++) {
-//                        // The ByteBufferSupply takes care of releasing buffers in proper order.
-//                        buildingBanks[i].releaseByteBuffer();
-//                        // Each build thread must release the "slots" in the input channel
-//                        // ring buffers of the components it uses to build the physics event.
-////System.out.println("bt " + btIndex + ", ch " + i + ", " + nextSequences[i]);
-//                        buildSequences[i].set(nextSequences[i]++);
-//                    }
-//
-//                    // Stats (need to be thread-safe)
-//                    eventCountTotal += totalNumberEvents;
-//                    wordCountTotal  += builder.getTotalBytes() / 4 + 1;
-//                    keepStats(builder.getTotalBytes());
-//                }
-//            }
-//            catch (InterruptedException e) {
-//System.out.println("  EB mod: INTERRUPTED build thread " + Thread.currentThread().getName());
-//                return;
-//            }
-//            catch (final TimeoutException e) {
-//System.out.println("  EB mod: timeout in ring buffer");
-//                emu.setErrorState("EB timeout in ring buffer");
-//                moduleState = CODAState.ERROR;
-//                return;
-//            }
-//            catch (final AlertException e) {
-//System.out.println("  EB mod: alert in ring buffer");
-//                emu.setErrorState("EB alert in ring buffer");
-//                moduleState = CODAState.ERROR;
-//                return;
-//            }
-//            catch (EmuException e) {
-//                // EmuException from Evio.checkPayload() if
-//                // Roc raw or physics banks are in the wrong format
-//                e.printStackTrace();
-//System.out.println("  EB mod: Roc raw or physics event in wrong format");
-//                emu.setErrorState("EB: Roc raw or physics event in wrong format");
-//                moduleState = CODAState.ERROR;
-//                return;
-//            }
-//            catch (Exception e) {
-//                e.printStackTrace();
-//System.out.println("  EB mod: MAJOR ERROR building event: " + e.getMessage());
-//                emu.setErrorState("EB MAJOR ERROR building event: " + e.getMessage());
-//                moduleState = CODAState.ERROR;
-//                return;
-//            }
-//            finally {
-//                PayloadBuffer buildingBank;
-//                long cursor, lastCursor;
-//
-//                // If we're exiting due to an error, make sure all the input channels
-//                // are drained. This makes ROC recovery much easier.
-//
-//                // Grab banks from each channel
-//                for (int i=0; i < inputChannelCount; i++) {
-//
-//                    cursor = buildBarrierIn[i].getCursor();
-//
-//                    while (true) {
-//                        try {
-//                            availableSequences[i] = buildBarrierIn[i].waitFor(cursor);
-//                        }
-//                        catch (Exception e) {}
-//
-//                        // While we have data to read ...
-//                        while (nextSequences[i] <= availableSequences[i]) {
-//                            buildingBank = (PayloadBuffer) ringBuffersIn[i].get(nextSequences[i]);
-////System.out.println("  EB mod: clean inputs, releasing seq " + nextSequences[i] + " from channel #" + i);
-//                            //if (btCount == 1) {
-//                                buildingBank.releaseByteBuffer();
-//                            //}
-//                            nextSequences[i]++;
-//                        }
-//                        buildSequences[i].set(availableSequences[i]);
-//
-//                        lastCursor = cursor;
-//                        cursor = buildBarrierIn[i].getCursor();
-//
-//                        if (cursor == lastCursor) {
-//                            break;
-//                        }
-//                    }
-//                }
-//            }
-//
-//if (debug) System.out.println("  EB mod: Building thread is ending");
-//        }
+        private void runNoBuilder() {
 
+             try {
+                 // Create a reusable supply of ByteBuffer objects
+                 // for writing built physics events into.
+                 //--------------------------------------------
+                 // Direct buffers give better performance ??
+                 //--------------------------------------------
+                 // If there's only one output channel, release should be sequential
+                 boolean releaseSequentially = true;
+                 if (outputChannelCount > 1)  {
+                     releaseSequentially = false;
+                 }
+                 boolean useDirectBB = false;
+                 ByteBufferSupply bbSupply = new ByteBufferSupply(ringItemCount, 2000, outputOrder,
+                                                                  useDirectBB, releaseSequentially);
+                 System.out.println("  EB mod: bbSupply -> " + ringItemCount + " # of bufs, direct = " + false +
+                                            ", seq = " + releaseSequentially);
+
+
+                 // Skipping events is necessary if there are multiple build threads.
+                 // This is the way of dividing up events among build threads without
+                 // contention and mutex locking.
+                 //
+                 // For example, with 3 build threads:
+                 // the 1st build thread gets item #1, the 2nd item #2, and the 3rd item #3.
+                 // In the next round,
+                 // the 1st thread gets item #4, the 2nd item #5, and the 3rd, item #6, etc.
+                 //
+                 // Remember that in the rings, each consumer (sequence) sees all items and must
+                 // therefore skip over those that the other build threads are working on.
+                 // One complication is the presence of user events. These must be skipped over
+                 // and completely ignored by all build threads.
+                 //
+                 // Only the first build thread needs to look for the prestart and go events.
+                 // The others can just skip over them.
+                 //
+                 // Easiest to implement this with one counter per input channel.
+                 int[] skipCounter = new int[inputChannelCount];
+                 Arrays.fill(skipCounter, btIndex + 1);
+
+                 // Initialize
+                 int     tag, endEventCount, entangledEventCount=0, entangledEventCountNew;
+                 long    firstEventNumber=1, startTime=0L;
+                 boolean haveEnd, havePhysicsEvents;
+                 boolean isSync, nonFatalError;
+                 boolean gotBank, gotFirstBuildEvent, recordIdError;
+                 boolean isEventNumberInitiallySet = false, generalInitDone = false;
+                 EventType eventType = null;
+                 EvioNode  inputNode = null;
+
+                 // Allocate arrays once here so building method does not have to
+                 // allocate once per built event. Size is set later when the # of
+                 // entangled events (block level) is known.
+                 long[]  longData   = null; // allocated later
+                 long[]  commonLong = null;
+                 long[]  firstInputCommonLong = null;
+                 long[]  timeStampMin = null;
+                 long[]  timeStampMax = null;
+                 short[] evData       = null;
+                 short[] eventTypes   = null;
+                 short[] eventTypesRoc1 = null;
+
+                 int[]   segmentData = new int[20];  // currently only use 3 ints
+                 int[]   returnLen   = new int[1];
+                 int[] backBufOffsets     = new int[inputChannelCount];
+                 ByteBuffer[] backingBufs = new ByteBuffer[inputChannelCount];
+                 EvioNode[] rocNodes      = new EvioNode[inputChannelCount];
+
+                 //TODO: only if SEB
+                 EvioNode[] trigNodes     = new EvioNode[inputChannelCount];
+
+                 // Some of the above arrays need to be cleared for each event being built.
+                 // Copy the contents (all 0's) of the following arrays for efficient clearing.
+                 long[]  longDataZero    = null;  // allocated later
+                 long[]  longDataMin     = null;  // allocated later
+                 short[] evDataZero      = null;  // allocated later
+                 int[]   segmentDataZero = new int[20];
+
+                 if (outputChannelCount > 1) outputChannelIndex = -1;
+
+                 PayloadBuffer[] buildingBanks = new PayloadBuffer[inputChannelCount];
+
+                 minEventSize = Integer.MAX_VALUE;
+
+                 if (timeStatsOn) {
+                     statistics = new Statistics(1000000, 30);
+                 }
+
+                 // Ring Buffer stuff - define array for convenience
+                 nextSequences = new long[inputChannelCount];
+                 availableSequences = new long[inputChannelCount];
+                 Arrays.fill(availableSequences, -2L);
+                 buildSequences = new Sequence[inputChannelCount];
+                 for (int i=0; i < inputChannelCount; i++) {
+                     buildSequences[i] = buildSequenceIn[btIndex][i];
+                     nextSequences[i]  = buildSequences[i].get() + 1L;
+                 }
+
+                 // First thing we do is look for the PRESTART event(s) and pass it on
+                 try {
+                     // Get prestart from each input channel
+ //TODO: can pass in buildingBanks and save some mem allocation/garbage
+                     ControlType cType = getAllControlEvents(buildSequences, buildBarrierIn,
+                                                             nextSequences, btIndex);
+                     if (!cType.isPrestart()) {
+                         throw new EmuException("Expecting prestart event, got " + cType);
+                     }
+
+                     // 1st build thread writes prestart event on all output channels, ring 0.
+                     // Other build threads ignore this.
+                     if (btIndex == 0) {
+                         controlToOutputAsync(true);
+                     }
+                 }
+                 catch (Exception e) {
+                     // If interrupted we must quit
+                     if (debug) System.out.println("  EB mod: interrupted while waiting for prestart event");
+                     emu.setErrorState("EB interrupted waiting for prestart event");
+                     moduleState = CODAState.ERROR;
+                     return;
+                 }
+
+                 prestartCallback.endWait();
+                 haveAllPrestartEvents = true;
+                 System.out.println("  EB mod: got all PRESTART events");
+
+                 // Second thing we do is look for the GO or END event and pass it on
+                 try {
+                     // Get go/end from each input channel
+                     ControlType cType = getAllControlEvents(buildSequences, buildBarrierIn,
+                                                             nextSequences, btIndex);
+                     if (!cType.isGo()) {
+                         if (cType.isEnd()) {
+                             haveEndEvent = true;
+                             if (btIndex == 0) {
+                                 handleEndEvent(null);
+                             }
+                             System.out.println("  EB mod: got all END events");
+                             return;
+                         }
+                         else {
+                             throw new EmuException("Expecting GO or END event, got " + cType);
+                         }
+                     }
+
+                     if (btIndex == 0) {
+                         controlToOutputAsync(false);
+                     }
+                 }
+                 catch (InterruptedException e) {
+                     // If interrupted, then we must quit
+                     if (debug) System.out.println("  EB mod: interrupted while waiting for go event");
+                     emu.setErrorState("EB interrupted waiting for go event");
+                     moduleState = CODAState.ERROR;
+                     return;
+                 }
+
+                 System.out.println("  EB mod: got all GO events");
+
+                 long endSequence = -1;
+
+                 // Now do the event building
+                 while (moduleState == CODAState.ACTIVE || paused) {
+
+                     nonFatalError = false;
+
+                     // The input channels' rings (1 per channel)
+                     // are filled by the PreProcessor threads.
+
+                     // Here we have what we need to build:
+                     // ROC raw events from all ROCs (or partially built events from
+                     // each contributing EB) each with sequential record IDs.
+                     // However, there are also user and END events in the rings.
+
+                     // Put null into buildingBanks array elements
+                     Arrays.fill(buildingBanks, null);
+
+                     // Set variables/flags
+                     haveEnd = false;
+                     gotFirstBuildEvent = false;
+                     endEventCount = 0;
+                     int endChannel = -1;
+                     //int printCounter = 0;
+
+                     // Start the clock on how long it takes to build the next event
+                     if (timeStatsOn) startTime = System.nanoTime();
+
+                     // Grab one buildable (non-user/control) bank from each channel.
+                     top:
+                     for (int i=0; i < inputChannelCount; i++) {
+
+                         // Loop until we get event which is NOT a user event
+                         while (true) {
+
+                             gotBank = false;
+
+                             // Only wait if necessary ...
+                             if (availableSequences[i] < nextSequences[i]) {
+                                 // Can BLOCK here waiting for item if none available, but can be interrupted
+                                 // Available sequence may be larger than what we asked for.
+ //System.out.println("  EB mod: bt" + btIndex + " ch" + i + ", wait for event (seq [" + i + "] = " +
+ //                           nextSequences[i] + ")");
+                                 availableSequences[i] = buildBarrierIn[i].waitFor(nextSequences[i]);
+ //System.out.println("  EB mod: bt" + btIndex + " ch" + i + ", available seq[" + i + "]  = " + availableSequences[i]);
+                             }
+
+                             // While we have new data to work with ...
+                             while (nextSequences[i] <= availableSequences[i]) {
+                                 buildingBanks[i] = (PayloadBuffer) ringBuffersIn[i].get(nextSequences[i]);
+                                 inputNode = buildingBanks[i].getNode();
+                                 eventType = buildingBanks[i].getEventType();
+                                 recordIdError = false;
+ //System.out.println("  EB mod: bt" + btIndex + " ch" + i + ", event order = " + buildingBanks[i].getByteOrder());
+
+                                 // Check payload buffer for event & evio structure types,
+                                 // and also record id mismatches (which is best done in a single
+                                 // thread as each buffer is compared to the last one).
+                                 //if (!dumpData && btIndex == 0) {
+                                 if (btIndex == 0) {
+                                     recordIdError = Evio.checkInputType(buildingBanks[i].getRecordId(),
+                                                                         inputChannels.get(i),
+                                                                         eventType, inputNode);
+                                 }
+
+                                 // Deal with user event
+                                 if (eventType.isUser()) {
+ //System.out.println("  EB mod: got user event");
+
+                                     // User events are placed in first output channel's first ring.
+                                     // Only the first build thread will deal with them.
+                                     if (btIndex == 0) {
+ //System.out.println("  EB mod: bt" + btIndex + " ch" + i + ", skip user item " + nextSequences[i]);
+                                         //System.out.println("  EB mod: got user event in pre-processing order = " + pBuf.getByteOrder());
+
+                                         // Check payload buffer for source id.
+                                         // Store sync and error info in payload buffer.
+                                         //if (!dumpData)
+                                         Evio.checkInput(buildingBanks[i], inputChannels.get(i),
+                                                         eventType, inputNode, recordIdError);
+
+                                         // Swap headers, NOT DATA, if necessary
+                                         if (outputOrder != buildingBanks[i].getByteOrder()) {
+                                             try {
+                                                 //System.out.println("  EB mod: swap user event (not data)");
+                                                 ByteBuffer buffy = buildingBanks[i].getBuffer();
+                                                 if (buffy != null) {
+                                                     // Takes care of swapping of event in its own separate buffer,
+                                                     // headers not data
+                                                     ByteDataTransformer.swapEvent(buffy, buffy, 0, 0, false, null);
+                                                 }
+                                                 else if (inputNode != null) {
+                                                     // This node may share a backing buffer with other, ROC Raw, events.
+                                                     // Thus we cannot change the order of the entire backing buffer.
+                                                     // For simplicity, let's copy it and swap it in its very
+                                                     // own buffer.
+
+                                                     // Copy
+                                                     buffy = inputNode.getStructureBuffer(true);
+                                                     // Swap headers but not data
+                                                     ByteDataTransformer.swapEvent(buffy, null, 0, 0, false, null);
+                                                     // Store in ringItem
+                                                     buildingBanks[i].setBuffer(buffy);
+                                                     buildingBanks[i].setNode(null);
+                                                     // Release claim on backing buffer since we are now
+                                                     // using a different buffer.
+                                                     buildingBanks[i].releaseByteBuffer();
+                                                 }
+                                             }
+                                             catch (EvioException e) {/* should never happen */ }
+                                         }
+
+                                         // If same byte order, then we may have buffer or node.
+                                         // Node in the usual case.
+
+                                         // Send it on.
+                                         // User events are thrown away if no output channels
+                                         // since this event builder does nothing with them.
+                                         // User events go into the first ring of the first channel.
+                                         // Since all user events are dealt with here
+                                         // and since they're now all in their own (non-ring) buffers,
+                                         // the post-build threads can skip over them.
+                                         eventToOutputChannel(buildingBanks[i], 0, 0);
+                                         //System.out.println("  EB mod: sent user event to output channel");
+                                     }
+
+                                     nextSequences[i]++;
+                                 }
+                                 // Skip over events being built by other build threads
+                                 else if (skipCounter[i] - 1 > 0)  {
+ //System.out.println("  EB mod: bt" + btIndex + " ch" + i + ", skip item " + nextSequences[i]);
+                                     nextSequences[i]++;
+                                     skipCounter[i]--;
+                                 }
+                                 // Found a bank, so do something with it (skipCounter[i] - 1 == 0)
+                                 else {
+ //System.out.println("  EB mod: bt" + btIndex + " ch" + i + ", accept item " + nextSequences[i]);
+                                     // Check payload buffer for source id.
+                                     // Store sync and error info in payload buffer.
+                                     //if (!dumpData)
+                                     Evio.checkInput(buildingBanks[i], inputChannels.get(i),
+                                                     eventType, inputNode, recordIdError);
+                                     gotBank = true;
+                                     break;
+                                 }
+                             }
+
+                             if (!gotBank) {
+                                 continue;
+                             }
+
+ //                            if (dumpData) {
+ //                                // The ByteBufferSupply takes care of releasing buffers in proper order.
+ //                                buildingBanks[i].releaseByteBuffer();
+ //                                // Each build thread must release the "slots" in the input channel
+ //                                // ring buffers of the components it uses to build the physics event.
+ //                                buildSequences[i].set(nextSequences[i]++);
+ //
+ //                                skipCounter[i] = btCount;
+ //                                break;
+ //                            }
+
+                             // If event needs to be built ...
+                             if (!eventType.isControl()) {
+                                 // Find the # of entangled events or "block level".
+                                 // This is the number of entangled events in one
+                                 // ROC raw record which is set by the trigger supervisor.
+                                 // This may change immediately after each sync event.
+                                 // It is important because if there are multiple BuildingThreads, then
+                                 // each thread must set its own blockLevel.
+                                 entangledEventCountNew = inputNode.getNum();
+
+                                 // If there are changes, adjust.
+                                 if (entangledEventCountNew != entangledEventCount) {
+
+                                     // If the block level really changed (instead of from its
+                                     // initial value of 0) and we have multiple build threads,
+                                     // throw an exception cause this will mess things up.
+                                     // We don't have any synchronization between build threads
+                                     // for this situation (yet).
+                                     if (entangledEventCount != 0 && btCount > 1) {
+                                         throw new EmuException("changing block level (" + entangledEventCount +
+                                                                " to " + entangledEventCountNew +
+                                                                ") not permitted with multiple build threads");
+                                     }
+
+                                     // Get convenience arrays ready for efficient trigger bank building
+                                     longData = new long[entangledEventCountNew + 2];
+                                     evData   = new short[entangledEventCountNew];
+
+                                     if (emu.getCodaClass() == CODAClass.SEB) {
+                                         eventTypes           = new short[entangledEventCountNew];
+                                         eventTypesRoc1       = new short[entangledEventCountNew];
+                                         timeStampMin         = new long[entangledEventCountNew];
+                                         timeStampMax         = new long[entangledEventCountNew];
+                                         commonLong           = new long[entangledEventCountNew + 2];
+                                         firstInputCommonLong = new long[entangledEventCountNew + 2];
+                                     }
+
+                                     longDataZero = new long[entangledEventCountNew + 2];
+                                     longDataMin  = new long[entangledEventCountNew];
+                                     Arrays.fill(longDataMin, Long.MAX_VALUE);
+                                     evDataZero   = new short[entangledEventCountNew];
+                                     // Store the # of entangled events
+ //                                    System.out.println("SWITCHING BLOCK LEVEL from " + entangledEventCount + " to " + entangledEventCountNew +
+ //                                                               ", gotFirstBuildEvent = " + gotFirstBuildEvent + ", firstEv# = " + firstEventNumber +
+ //                                                               ", bt# = " + btIndex);
+                                     entangledEventCount = entangledEventCountNew;
+                                 }
+
+                                 // One-time init stuff for a group of
+                                 // records that will be built together.
+                                 if (!gotFirstBuildEvent) {
+                                     // Set flag
+                                     gotFirstBuildEvent = true;
+ //long oldFirstEventNumber = firstEventNumber;
+                                     if (!isEventNumberInitiallySet)  {
+                                         firstEventNumber = 1L + (btIndex * entangledEventCount);
+                                         isEventNumberInitiallySet = true;
+                                     }
+                                     else {
+                                         firstEventNumber += btCount*entangledEventCount;
+                                     }
+
+                                     // Do this once per build thread on first buildable event
+                                     if (!generalInitDone) {
+                                         // Find out if the event's buffer has a backing byte array,
+                                         // if this object's ByteBufferSupply has buffers with backing byte arrays,
+                                         // and if the 2 buffers have same endianness.
+                                         // We do this so that when constructing the trigger bank, we can do
+                                         // efficient copying of data from ROC to trigger bank if possible.
+                                         try {
+                                             ByteBuffer backingBuf = buildingBanks[i].getNode().getBufferNode().getBuffer();
+                                             if (backingBuf.hasArray() && !useDirectBB &&
+                                                     backingBuf.order() == outputOrder) {
+                                                 fastCopyReady = true;
+                                                 System.out.println("\nEFFICIENT copying is possible!!!\n");
+                                             }
+                                             else {
+                                                 System.out.println("\nEFFICIENT copying is NOT possible:\n" +
+                                                                            "     backingBuf.hasArray = " + backingBuf.hasArray() +
+                                                                            "\n     supplyBuf is direct = " + useDirectBB +
+                                                                            "\n     backingBuf end = " + backingBuf.order() +
+                                                                            "\n     outputORder = " + outputOrder);
+                                             }
+                                         }
+                                         catch (Exception e) {
+                                             fastCopyReady = false;
+                                             System.out.println("\nEFFICIENT copying is NOT possible\n");
+                                         }
+                                         generalInitDone = true;
+                                     }
+                                 }
+
+                                 // Go to next input channel
+                                 skipCounter[i] = btCount;
+                                 break;
+                             }
+
+                             // If we're here, we've got a CONTROL event
+
+                             // If not END, we got problems
+                             if (!buildingBanks[i].getControlType().isEnd()) {
+                                 throw new EmuException(buildingBanks[i].getControlType() +
+                                                                " control events not allowed");
+                             }
+
+                             // At this point all controls are END events
+                             haveEnd = true;
+                             endEventCount++;
+                             endSequence = nextSequences[i];
+                             endChannel = i;
+                             System.out.println("  EB mod: bt" + btIndex + ", found END event from " + buildingBanks[i].getSourceName() + " at seq " + endSequence);
+
+                             if (!gotFirstBuildEvent) {
+                                 // Don't do all the stuff for a
+                                 // regular build if first event is END.
+                                 gotFirstBuildEvent = true;
+                             }
+
+                             // Go to next input channel
+                             skipCounter[i] = btCount;
+                             break;
+                         }
+
+                         // repeat for loop endlessly
+ //                        if (dumpData && (i == (inputChannelCount - 1))) i = -1;
+                     }
+
+                     //--------------------------------------------------------
+                     // At this point we have one event from each input channel
+                     //--------------------------------------------------------
+
+                     // In general, at this point there will only be 1 build thread
+                     // that makes it this far and has at least one END event from
+                     // an input channel. The others will be stuck trying to get
+                     // an END event from that channel from a slot past where it is
+                     // in the ring buffer.
+
+                     // Do END event stuff here
+                     if (haveEnd && endEventCount != inputChannelCount) {
+                         // If we're here, not all channels got an END event.
+                         // See if we can find them in the ring buffers which didn't
+                         // have one. If we can, great. If not, major error.
+                         // If all our channels have an END, we can end normally
+                         // with a warning about the mismatch in number of events.
+
+                         // Put a delay in here because "findEnd" releases ring slots
+                         // which get filled with new data being read by input channels -
+                         // perhaps before the other build threads have a chance to finish
+                         // building their last few events and so they may get corrupted.
+                         // This delay gives the other build threads the chance to finish
+                         // building what they can.
+                         Thread.sleep(500);
+
+                         int finalEndEventCount = findEnd(endChannel, endSequence, endEventCount);
+
+                         // If we still can't find all ENDs, throw exception - major error
+                         if (finalEndEventCount != inputChannelCount) {
+                             emu.sendRcErrorMessage("Missing " +
+                                                            (inputChannelCount - finalEndEventCount) +
+                                                            " END events, ending anyway");
+                             throw new EmuException("only " + finalEndEventCount + " ENDs for " +
+                                                            inputChannelCount + " channels");
+                         }
+                         else {
+                             emu.sendRcErrorMessage("All END events found, but out of order");
+                             System.out.println("  EB mod: bt" + btIndex + " have all ENDs, but differing # of physics events in channels");
+                         }
+
+                         // If we're here, we've found all ENDs, continue on with warning ...
+                         nonFatalError = true;
+                     }
+
+                     // If we have all END events ...
+                     if (haveEnd) {
+                         System.out.println("  EB mod: bt#" + btIndex + " found END events on all input channels");
+                         haveEndEvent = true;
+                         handleEndEvent(buildingBanks);
+                         return;
+                     }
+
+                     // At this point there are only physics or ROC raw events, which do we have?
+                     havePhysicsEvents = buildingBanks[0].getEventType().isAnyPhysics();
+
+                     // Check for identical syncs, uniqueness of ROC ids,
+                     // identical (physics or ROC raw) event types,
+                     // and the same # of events in each bank
+                     nonFatalError |= Evio.checkConsistency(buildingBanks, firstEventNumber);
+                     isSync = buildingBanks[0].isSync();
+                     if (isSync) {
+ System.out.println("  EB mod: sync bit set for ev #" + (firstEventNumber + entangledEventCount - 1));
+                     }
+
+                     //--------------------------------------------------------------------
+                     // Build trigger bank, number of ROCs given by number of buildingBanks
+                     //--------------------------------------------------------------------
+                     // The tag will be finally set when this trigger bank is fully created
+
+                     // Get an estimate on the buffer memory needed.
+                     // Start with 1K and add roughly the amount of trigger bank data + data wrapper
+                     int memSize = 1000 + inputChannelCount * entangledEventCount * 40;
+ //System.out.println("  EB mod: estimate trigger bank bytes <= " + memSize);
+                     for (int i=0; i < inputChannelCount; i++) {
+                         rocNodes[i] = buildingBanks[i].getNode();
+                         memSize += rocNodes[i].getTotalBytes();
+                         // Get the backing buffer
+                         backingBufs[i] = rocNodes[i].getBufferNode().getBuffer();
+                         // Offset into backing buffer to start of given input's event
+                         backBufOffsets[i] = rocNodes[i].getPosition();
+                     }
+
+                     // Grab a stored ByteBuffer
+                     ByteBufferItem bufItem = bbSupply.get();
+                     bufItem.ensureCapacity(memSize);
+ //System.out.println("  EB mod: ensure buf has size " + memSize + "\n");
+                     ByteBuffer evBuf = bufItem.getBuffer();
+                     int builtEventHeaderWord2;
+
+                     // Create a (top-level) physics event from payload banks
+                     // and the combined trigger bank. First create the tag:
+                     //   -if I'm a data concentrator or DC, the tag has 4 status bits and the ebId
+                     //   -if I'm a primary event builder or PEB, the tag is 0xFF50
+                     //   -if I'm a secondary event builder or SEB, the tag is 0xFF70
+                     CODAClass myClass = emu.getCodaClass();
+                     switch (myClass) {
+                         case SEB:
+                             if (isSync) {
+                                 tag = CODATag.BUILT_BY_SEB_SYNC.getValue();
+                             }
+                             else {
+                                 tag = CODATag.BUILT_BY_SEB.getValue();
+                             }
+                             // output event type
+                             eventType = EventType.PHYSICS;
+                             break;
+
+                         case PEB:
+                             if (isSync) {
+                                 tag = CODATag.BUILT_BY_PEB_SYNC.getValue();
+                             }
+                             else {
+                                 tag = CODATag.BUILT_BY_PEB.getValue();
+                             }
+                             eventType = EventType.PHYSICS;
+                             break;
+
+                         //case DC:
+                         default:
+                             eventType = EventType.PARTIAL_PHYSICS;
+                             // Check input banks for non-fatal errors
+                             for (PayloadBuffer pBank : buildingBanks)  {
+                                 nonFatalError |= pBank.hasNonFatalBuildingError();
+                             }
+
+                             tag = Evio.createCodaTag(isSync,
+                                                      buildingBanks[0].hasError() || nonFatalError,
+                                                      buildingBanks[0].getByteOrder() == ByteOrder.BIG_ENDIAN,
+                                                      false, /* don't use single event mode */
+                                                      id);
+ //if (debug) System.out.println("  EB mod: tag = " + tag + ", is sync = " + isSync +
+ //                   ", has error = " + (buildingBanks[0].hasError() || nonFatalError) +
+ //                   ", is big endian = " + buildingBanks[0].getByteOrder() == ByteOrder.BIG_ENDIAN +
+ //                   ", is single mode = " + buildingBanks[0].isSingleEventMode());
+                     }
+
+                     // 2nd word of top level header
+                     builtEventHeaderWord2 = (tag << 16) |
+                             ((DataType.BANK.getValue() & 0x3f) << 8) |
+                             (entangledEventCount & 0xff);
+
+                     // Start top level. Write the length later, now, just the 2nd header word of top bank
+                     evBuf.putInt(4, builtEventHeaderWord2);
+
+                     // Reset this to see if creating trigger bank causes an error
+                     nonFatalError = false;
+                     int writeIndex=0;
+
+                     // If building with Physics events ...
+                     if (havePhysicsEvents) {
+                         //-----------------------------------------------------------------------------------
+                         // The actual number of rocs will replace num in combinedTrigger definition above
+                         //-----------------------------------------------------------------------------------
+                         // Combine the trigger banks of input events into one
+
+                         System.arraycopy(longDataZero, 0, timeStampMax, 0, entangledEventCount);
+                         System.arraycopy(longDataMin,  0, timeStampMin, 0, entangledEventCount);
+                         for (int i=0; i < inputChannelCount; i++) {
+                             trigNodes[i] = buildingBanks[i].getNode().getChildAt(0);
+                         }
+
+                         nonFatalError |= Evio.makeTriggerBankFromPhysics(buildingBanks,
+                                                                          rocNodes, trigNodes,
+                                                                          backingBufs,
+                                                                          evBuf, id,
+                                                                          runNumber, runTypeId,
+                                                                          includeRunData,
+                                                                          sparsify,
+                                                                          checkTimestamps,
+                                                                          fastCopyReady,
+                                                                          timestampSlop,
+                                                                          returnLen,
+                                                                          longData,
+                                                                          commonLong,
+                                                                          firstInputCommonLong,
+                                                                          timeStampMin,
+                                                                          timeStampMax,
+                                                                          evData,
+                                                                          eventTypesRoc1);
+                         writeIndex = returnLen[0];
+
+ //                        if (emu.getCodaClass() != CODAClass.DC) {
+ //                            Utilities.printBufferBytes(evBuf, 0, writeIndex, "NEW Built TRIGGER BANK");
+ //                            System.out.println("PAUSE ..................................................");
+ //                            Thread.sleep(1000);
+ //                        }
+                     }
+                     // else if building with ROC raw records ...
+                     else {
+                         // Combine the trigger banks of input events into one
+                         System.arraycopy(longDataZero, 0, longData, 0, entangledEventCount + 2);
+
+                         nonFatalError |= Evio.makeTriggerBankFromRocRaw(buildingBanks, evBuf,
+                                                                         id, firstEventNumber,
+                                                                         runNumber, runTypeId,
+                                                                         includeRunData, sparsify,
+                                                                         checkTimestamps,
+                                                                         timestampSlop, btIndex,
+                                                                         longData, evData,
+                                                                         segmentData, returnLen,
+                                                                         backBufOffsets, backingBufs,
+                                                                         rocNodes, fastCopyReady);
+                         writeIndex = returnLen[0];
+                     }
+
+                     // If the trigger bank has an error, go back and reset built event's tag
+                     if (nonFatalError && emu.getCodaClass() == CODAClass.DC) {
+                         tag = Evio.createCodaTag(isSync,true,
+                                                  buildingBanks[0].getByteOrder() == ByteOrder.BIG_ENDIAN,
+                                                  false, /* don't use single event mode */
+                                                  id);
+
+                         // 2nd word of top level header
+                         builtEventHeaderWord2 = (tag << 16) |
+                                                 ((DataType.BANK.getValue() & 0x3f) << 8) |
+                                                 (entangledEventCount & 0xff);
+                         evBuf.putInt(4, builtEventHeaderWord2);
+                     }
+
+                     if (havePhysicsEvents) {
+ //if (debug) System.out.println("  EB mod: build physics event with physics banks");
+                         Evio.buildPhysicsEventWithPhysics(rocNodes,
+                                                           evBuf,
+                                                           inputChannelCount,
+                                                           writeIndex,
+                                                           fastCopyReady,
+                                                           returnLen,
+                                                           backingBufs);
+                         writeIndex = returnLen[0];
+                     }
+                     else {
+ //if (debug) System.out.println("  EB mod: build physics event with ROC raw banks");
+                         Evio.buildPhysicsEventWithRocRaw(rocNodes,
+                                                          fastCopyReady,
+                                                          inputChannelCount,
+                                                          writeIndex, evBuf, returnLen,
+                                                          backingBufs);
+                         writeIndex = returnLen[0];
+                     }
+
+                     // Write the length of top bank
+ //                    System.out.println("writeIndex = " + writeIndex + ", %4 = " + (writeIndex % 4));
+                     evBuf.putInt(0, writeIndex/4 - 1);
+                     evBuf.limit(writeIndex).position(0);
+
+ //                    if (emu.getCodaClass() != CODAClass.DC) {
+ //                        Utilities.printBufferBytes(evBuf, 0, writeIndex, "NEW Built Event Buf");
+ //                        System.out.println("PAUSE ..................................................");
+ //                        Thread.sleep(5000);
+ //                    }
+
+
+                     //-------------------------
+                     // Stats
+                     //-------------------------
+
+                     // Only have the first build thread keep time-to-build stats
+                     // so we don't have to worry about multithreading issues.
+                     if (timeStatsOn && btIndex == 0) {
+                         // Total time in nanoseconds spent building this event.
+                         // NOTE: nanoTime() is very expensive and will slow EB (by 50%)
+                         // Work on creating a time histogram.
+                         statistics.addValue((int) (System.nanoTime() - startTime));
+                     }
+
+                     //-------------------------
+
+                     // Which output channel do we use?  Round-robin.
+                     if (outputChannelCount > 1) {
+                         outputChannelIndex = (int) (evIndex % outputChannelCount);
+                     }
+
+                     // Put event in the correct output channel.
+                     // Important to use builder.getBuffer() method instead of evBuf directly.
+                     // That's because in the method, the limit and position are set
+                     // properly for reading.
+ //                    for (int k=0; k < btIndex; k++) {
+ //                        System.out.print("  ");
+ //                    }
+ //System.out.println("  EB mod: bt#" + btIndex + " write event " + evIndex + " on ch" + outputChannelIndex + ", ring " + btIndex);
+                     eventToOutputRing(btIndex, outputChannelIndex, evBuf,
+                                       eventType, bufItem, bbSupply);
+
+                     evIndex += btCount;
+
+                     for (int i=0; i < inputChannelCount; i++) {
+                         if (useReleaseThread) {
+                             if (btCount == 1) {
+                                 buildingBanks[i].releaseByteBuffer();
+                             }
+                         }
+                         else {
+                             // The ByteBufferSupply takes care of releasing buffers in proper order.
+                             buildingBanks[i].releaseByteBuffer();
+                         }
+                         // Each build thread must release the "slots" in the input channel
+                         // ring buffers of the components it uses to build the physics event.
+                         buildSequences[i].set(nextSequences[i]++);
+                     }
+
+                     // Stats (need to be thread-safe)
+                     eventCountTotal += entangledEventCount;
+                     wordCountTotal  += writeIndex / 4;
+                     keepStats(writeIndex);
+                 }
+             }
+             catch (InterruptedException e) {
+                 System.out.println("  EB mod: INTERRUPTED build thread " + Thread.currentThread().getName());
+                 return;
+             }
+             catch (final TimeoutException e) {
+                 System.out.println("  EB mod: timeout in ring buffer");
+                 emu.setErrorState("EB timeout in ring buffer");
+                 moduleState = CODAState.ERROR;
+                 return;
+             }
+             catch (final AlertException e) {
+                 System.out.println("  EB mod: alert in ring buffer");
+                 emu.setErrorState("EB alert in ring buffer");
+                 moduleState = CODAState.ERROR;
+                 return;
+             }
+             catch (EmuException e) {
+                 // EmuException from Evio.checkPayload() if
+                 // Roc raw or physics banks are in the wrong format
+                 System.out.println("  EB mod: Roc raw or physics event in wrong format");
+                 emu.setErrorState("EB: Roc raw or physics event in wrong format");
+                 moduleState = CODAState.ERROR;
+                 return;
+             }
+             catch (Exception e) {
+                 e.printStackTrace();
+                 System.out.println("  EB mod: MAJOR ERROR building event: " + e.getMessage());
+                 emu.setErrorState("EB MAJOR ERROR building event: " + e.getMessage());
+                 moduleState = CODAState.ERROR;
+                 return;
+             }
+             finally {
+                 PayloadBuffer buildingBank;
+                 long cursor, lastCursor;
+
+                 // If we're exiting due to an error, make sure all the input channels
+                 // are drained. This makes ROC recovery much easier.
+
+                 // Grab banks from each channel
+                 for (int i=0; i < inputChannelCount; i++) {
+
+                     cursor = buildBarrierIn[i].getCursor();
+
+                     while (true) {
+                         try {
+                             availableSequences[i] = buildBarrierIn[i].waitFor(cursor);
+                         }
+                         catch (Exception e) {}
+
+                         // While we have data to read ...
+                         while (nextSequences[i] <= availableSequences[i]) {
+                             buildingBank = (PayloadBuffer) ringBuffersIn[i].get(nextSequences[i]);
+ //System.out.println("  EB mod: clean inputs, releasing seq " + nextSequences[i] + " from channel #" + i);
+                             //if (btCount == 1) {
+                             buildingBank.releaseByteBuffer();
+                             //}
+                             nextSequences[i]++;
+                         }
+                         buildSequences[i].set(availableSequences[i]);
+
+                         lastCursor = cursor;
+                         cursor = buildBarrierIn[i].getCursor();
+
+                         if (cursor == lastCursor) {
+                             break;
+                         }
+                     }
+                 }
+             }
+
+             if (debug) System.out.println("  EB mod: Building thread is ending");
+         }
+
+
+
+    } // BuildingThread
+
+
+
+    /**
+     * This class is a garbage-freeing thread which takes the ByteBuffers and
+     * banks used to build an event and frees up their ring-based resources.
+     * It takes the burden of doing this off of the build threads and allows
+     * them to build without bothering to synchronize between themselves.
+     */
+    final class ReleaseRingResourceThread extends Thread {
+
+        /** Time to quit thread. */
+        private volatile boolean quit;
+
+        /** Which input channel are we associated with? */
+        private final int order;
+
+
+        /**
+         * Constructor.
+         *
+         * @param group   thread group.
+         * @param name    thread name.
+         * @param order   input channel index (starting at 0).
+         */
+        ReleaseRingResourceThread(ThreadGroup group, String name, int order) {
+            super(group, name);
+            this.order = order;
+        }
+
+
+        /**
+         * Stop this freeing-resource thread.
+         */
+        void endThread() {
+            quit = true;
+            this.interrupt();
+        }
+
+
+        /**
+         * Get the last sequence to be freed.
+         * @return last sequence to be freed.
+         */
+        long getLastSequence() {
+            return postBuildSequence[order].get();
+        }
+
+
+        public void run() {
+
+            // Ring Buffer stuff
+            long nextSequence = 0L;
+            long availableSequence;
+            RingItem ri;
+            Sequence sequence =  postBuildSequence[order];
+            SequenceBarrier barrier = postBuildBarrier[order];
+            RingBuffer<RingItem> ringBufferIn = ringBuffersIn[order];
+
+
+            try {
+                while (true) {
+                    // Available sequence may be larger than what we desired
+                    availableSequence = barrier.waitFor(nextSequence);
+
+                    // While we have new data to work with ...
+                    while (nextSequence <= availableSequence) {
+                        ri = ringBufferIn.get(nextSequence);
+                        nextSequence++;
+
+                        // Skip over non-built events since control
+                        // events do not use a supply buffer for their data.
+                        // User events may use the input channel supply
+                        // buffers, but they're released by the output channel.
+                        if (!ri.getEventType().isBuildable()) {
+                            continue;
+                        }
+
+                        // Free claim on ByteBuffer
+                        ri.releaseByteBuffer();
+                    }
+
+                    // Free RingItem(s) in input channel's ring for more input data
+                    sequence.set(availableSequence);
+
+                    if (quit) return;
+                }
+            }
+            catch (AlertException e)       { /* won't happen */ }
+            catch (InterruptedException e) {}
+            catch (TimeoutException e)     { /* won't happen */ }
+            catch (Exception e) {
+                e.printStackTrace();
+            }
+        }
     }
 
 
@@ -2398,6 +2695,15 @@ System.out.println("  EB mod: endBuildThreads: will end building/filling threads
             // when writing to output channel ring if no available space
             thd.interrupt();
         }
+
+        if (useReleaseThread) {
+            // Interrupt release threads too
+            if (buildingThreadCount > 1 && releaseThreads != null) {
+                for (ReleaseRingResourceThread rt : releaseThreads) {
+                    rt.endThread();
+                }
+            }
+        }
     }
 
     /**
@@ -2418,6 +2724,19 @@ System.out.println("  EB mod: endBuildThreads: will end building/filling threads
                 thd.join(1000);
             }
             catch (InterruptedException e) {}
+        }
+
+        if (useReleaseThread) {
+            // Join release threads
+            if (buildingThreadCount > 1 && releaseThreads != null) {
+                for (ReleaseRingResourceThread rt : releaseThreads) {
+                    try {
+                        rt.join(1000);
+                    }
+                    catch (InterruptedException e) {
+                    }
+                }
+            }
         }
     }
 
@@ -2448,6 +2767,18 @@ System.out.println("  EB mod: endBuildThreads: will end building/filling threads
                 buildingThreadList.add(thd1);
                 thd1.start();
             }
+
+            if (useReleaseThread) {
+                if (buildingThreadCount > 1) {
+                    releaseThreads = new ReleaseRingResourceThread[inChanCount];
+                    for (int j = 0; j < inChanCount; j++) {
+                        releaseThreads[j] = new ReleaseRingResourceThread(emu.getThreadGroup(),
+                                                                          name + ":release" + j, j);
+                        releaseThreads[j].start();
+                    }
+                }
+            }
+
 //        }
     }
 
@@ -2551,6 +2882,12 @@ System.out.println("  EB mod: prestart, input channels have duplicate rocIDs");
         // For each input channel, all build threads share one barrier
         buildBarrierIn = new SequenceBarrier[inputChannelCount];
 
+        // One post-build sequence and barrier for each input channel
+        if (useReleaseThread) {
+            postBuildSequence = new Sequence[inputChannelCount];
+            postBuildBarrier = new SequenceBarrier[inputChannelCount];
+        }
+
         // Place to put ring level stats
         inputChanLevels  = new int[inputChannelCount];
         outputChanLevels = new int[outputChannelCount];
@@ -2577,12 +2914,49 @@ System.out.println("  EB mod: prestart, input channels have duplicate rocIDs");
             ringBuffersIn[i]  = rb;
             ringBufferSize[i] = rb.getBufferSize();
 
-            // For each build thread ...
-            for (int j = 0; j < buildingThreadCount; j++) {
-                // We have 1 sequence for each build thread & input channel combination
-                buildSequenceIn[j][i] = new Sequence(Sequencer.INITIAL_CURSOR_VALUE);
-                // This sequence may be the last consumer before producer comes along
-                rb.addGatingSequences(buildSequenceIn[j][i]);
+            if (useReleaseThread) {
+                // Repackage the build thread sequences to use as barrier for post build thread.
+                // Each input channel ring buffer needs the sequences from each build thread for
+                // that channel.
+                Sequence[] buildThdSequencesForChannel = new Sequence[buildingThreadCount];
+
+                // For each build thread ...
+                for (int j = 0; j < buildingThreadCount; j++) {
+                    // We have 1 sequence for each build thread & input channel combination
+                    buildSequenceIn[j][i] = new Sequence(Sequencer.INITIAL_CURSOR_VALUE);
+
+                    if (buildingThreadCount > 1) {
+                        // Store for later use in creating post-processing barrier
+                        buildThdSequencesForChannel[j] = buildSequenceIn[j][i];
+                    }
+                    else {
+                        // This sequence may be the last consumer before producer comes along
+                        rb.addGatingSequences(buildSequenceIn[j][i]);
+                    }
+                }
+
+                if (buildingThreadCount > 1) {
+                    // Last barrier is for releasing resources used in the building
+                    // and it depends on each build thread sequence associated with
+                    // a single channel.
+                    postBuildBarrier[i] = rb.newBarrier(buildThdSequencesForChannel);
+
+                    // Last sequence is for thread releasing resources used in the building
+                    postBuildSequence[i] = new Sequence(Sequencer.INITIAL_CURSOR_VALUE);
+
+                    // This post-processing sequence is the last consumer before producer comes along
+                    rb.addGatingSequences(postBuildSequence[i]);
+                }
+            }
+            else {
+                // For each build thread ...
+                for (int j = 0; j < buildingThreadCount; j++) {
+                    // We have 1 sequence for each build thread & input channel combination
+                    buildSequenceIn[j][i] = new Sequence(Sequencer.INITIAL_CURSOR_VALUE);
+                    // This sequence may be the last consumer before producer comes along
+                    rb.addGatingSequences(buildSequenceIn[j][i]);
+                }
+
             }
 
             // We have 1 barrier for each channel (shared by building threads)
