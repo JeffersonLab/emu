@@ -66,6 +66,8 @@ public class DataChannelImplEmu extends DataChannelAdapter {
      */
     private boolean dumpData;
 
+    private boolean useGarbageFree = false;
+
     // OUTPUT
 
     /** Thread used to output data. */
@@ -125,6 +127,15 @@ public class DataChannelImplEmu extends DataChannelAdapter {
 
     /** TCP receive buffer size in bytes. */
     private int tcpRecvBuf;
+
+    /**
+     * Node pools is used to get top-level EvioNode objects.
+     * First index is socketCount, second is number of buffers
+     * (64 total) in ByteBufferSupplys.
+     */
+    private EvioNodePool[][] nodePools;
+
+    private boolean usingPools;
 
     // INPUT & OUTPUT
 
@@ -201,6 +212,17 @@ public class DataChannelImplEmu extends DataChannelAdapter {
             }
         }
 
+        // set "garbage free" option on
+        useGarbageFree = false;
+        attribString = attributeMap.get("garbageFree");
+        if (attribString != null) {
+            if (attribString.equalsIgnoreCase("true") ||
+                    attribString.equalsIgnoreCase("on") ||
+                    attribString.equalsIgnoreCase("yes")) {
+                useGarbageFree = true;
+            }
+        }
+
         // How many sockets to use underneath
         socketCount = 1;
         attribString = attributeMap.get("sockets");
@@ -215,6 +237,9 @@ public class DataChannelImplEmu extends DataChannelAdapter {
         }
 //        socketCount = 1;
         logger.info("      DataChannel Emu: TCP socket count = " + socketCount);
+        if (socketCount > 1) {
+            logger.info("      DataChannel Emu: ************** FAT PIPE ***************");
+        }
 
         // if INPUT channel
         if (input) {
@@ -362,6 +387,33 @@ logger.info("      DataChannel Emu: set sendBuf to " + tcpSendBuf);
      */
     final void attachToInput(SocketChannel channel, int sourceId, int maxBufferSize,
                        int socketCount, int socketPosition) throws IOException {
+
+        // Create a ring buffer full of empty ByteBuffer objects
+        // in which to copy incoming data from client.
+        // Using direct buffers works but performance is poor and fluctuates
+        // quite a bit in speed.
+        //
+        // A DC with 13 inputs can quickly consume too much memory if we're not careful.
+        // Put a limit on the total amount of memory used for all emu socket input channels.
+        // Total limit is 1GB. This is probably the easiest way to figure out how many buffers to use.
+        // Number of bufs must be a power of 2 with a minimum of 16 and max of 128.
+        int channelCount = emu.getInputChannelCount();
+        int numBufs = 1024000000 / (maxBufferSize * channelCount);
+        numBufs = numBufs <  16 ?  16 : numBufs;
+        numBufs = numBufs > 128 ? 128 : numBufs;
+        // Reducing numBufs to 32 increases barrier.waitfor() time from .02% to .4% of EB time
+        numBufs = 64;
+
+        // Make power of 2, round up
+        numBufs = EmuUtilities.powerOfTwo(numBufs, true);
+logger.info("      DataChannel Emu in: " + numBufs + " buffers in input supply, socketCount = " +
+                    socketCount);
+
+        boolean sequentialRelease = true;
+        if (module.getEventProducingThreadCount() > 1) {
+            sequentialRelease = false;
+        }
+
         // Initialize things once
         if (socketChannel == null) {
             in = new DataInputStream[socketCount];
@@ -370,6 +422,9 @@ logger.info("      DataChannel Emu: set sendBuf to " + tcpSendBuf);
             socketChannel = new SocketChannel[socketCount];
             dataInputThread = new DataInputHelper[socketCount];
             parserMergerThread = new ParserMerger();
+            if (usingPools) {
+                nodePools = new EvioNodePool[socketCount][numBufs];
+            }
         }
         // If establishing multiple sockets for this single emu channel,
         // make sure their settings are compatible.
@@ -403,34 +458,7 @@ logger.info("      DataChannel Emu: set sendBuf to " + tcpSendBuf);
         // Use buffered streams for efficiency
         socketChannel[index] = channel;
         in[index] = new DataInputStream(new BufferedInputStream(sock.getInputStream()));
-
-        // Create a ring buffer full of empty ByteBuffer objects
-        // in which to copy incoming data from client.
-        // Using direct buffers works but performance is poor and fluctuates
-        // quite a bit in speed.
-        //
-        // A DC with 13 inputs can quickly consume too much memory if we're not careful.
-        // Put a limit on the total amount of memory used for all emu socket input channels.
-        // Total limit is 1GB. This is probably the easiest way to figure out how many buffers to use.
-        // Number of bufs must be a power of 2 with a minimum of 16 and max of 128.
-        int channelCount = emu.getInputChannelCount();
-        int numBufs = 1024000000 / (maxBufferSize * channelCount);
-        numBufs = numBufs <  16 ?  16 : numBufs;
-        numBufs = numBufs > 128 ? 128 : numBufs;
-        // Reducing numBufs to 32 increases barrier.waitfor() time from .02% to .4% of EB time
-        numBufs = 64;
         
-        // Make power of 2, round up
-        numBufs = EmuUtilities.powerOfTwo(numBufs, true);
-logger.info("      DataChannel Emu in: " + numBufs + " buffers in input supply");
-
-        boolean sequentialRelease = true;
-        // EBs release events sequentially if there's only 1 build thread,
-        // else the release is NOT sequential.
-        if (module.getEventProducingThreadCount() > 1) {
-            sequentialRelease = false;
-        }
-
         // If ER
         if (isER) {
             List<DataChannel> outChannels = emu.getOutChannels();
@@ -461,6 +489,16 @@ logger.info("      DataChannel Emu in: " + numBufs + " buffers in input supply")
         bbInSupply[index] = new ByteBufferSupply(numBufs, maxBufferSize,
                                                  ByteOrder.BIG_ENDIAN, direct,
                                                  sequentialRelease);
+
+        if (usingPools) {
+            // Create the EvioNode pools - each socket gets numBuf number of pools -
+            // each of which contain 400 EvioNodes to begin with. These are used for
+            // the top node of each event.
+            for (int i = 0; i < numBufs; i++) {
+                nodePools[index][i] = new EvioNodePool(400);
+            }
+        }
+
 logger.info("      DataChannel Emu in: seq release = " + sequentialRelease);
 
 logger.info("      DataChannel Emu in: connection made from " + name);
