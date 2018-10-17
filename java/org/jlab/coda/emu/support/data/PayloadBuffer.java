@@ -11,7 +11,6 @@
 
 package org.jlab.coda.emu.support.data;
 
-import org.jlab.coda.jevio.BufferNode;
 import org.jlab.coda.jevio.EvioNode;
 
 import java.nio.ByteBuffer;
