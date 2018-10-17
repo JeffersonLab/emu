@@ -234,9 +234,9 @@ logger.info("      DataChannel File: dictionary file cannot be read");
                                                        emu.getDataStreamId(),
                                                        subStreamIdCount.getAndIncrement(), // starting splitNumber
                                                        emu.getFileOutputCount(),  // splitIncrement
-                                                       emu.getFileOutputCount()); // stream count
+                                                       emu.getDataStreamCount()); // stream count
 
-logger.info("      DataChannel File: streamId = " + emu.getDataStreamId() + ", count = " +
+logger.info("      DataChannel File: streamId = " + emu.getDataStreamId() + ", stream count = " +
             emu.getDataStreamCount() + ", filecount = " + emu.getFileOutputCount());
 
 logger.info("      DataChannel File: file = " + evioFileWriter.getCurrentFilePath());
