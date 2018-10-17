@@ -779,9 +779,7 @@ System.out.println("Emu created, name = " + name + ", type = " + codaClass);
      * Get the total number of data streams in the configuration which contains this emu.
      * @return total number of data streams in this configuration.
      */
-    public int getDataStreamCount() {
-        return dataStreamCount;
-    }
+    public int getDataStreamCount() {return dataStreamCount;}
 
     /**
      * Get the number of file output channels in this emu.
