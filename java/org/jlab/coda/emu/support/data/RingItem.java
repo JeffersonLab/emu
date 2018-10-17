@@ -14,6 +14,7 @@ package org.jlab.coda.emu.support.data;
 
 import org.jlab.coda.jevio.EvioEvent;
 import org.jlab.coda.jevio.EvioNode;
+import org.jlab.coda.jevio.EvioNodeSource;
 
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
@@ -75,6 +76,15 @@ public interface RingItem extends Cloneable, Attached {
      *         referenced by this ring item, if any (null if none).
      */
     public EvioNode getNode();
+
+    /**
+     * Get the EvioNodeSource object which gets the pool of EvioNode objects associated
+     * with this item if any. Used in parsing incoming evio buffers without generating
+     * garbage.
+     * @return EvioNodeSource object which is used in parsing incoming evio buffers
+     *         without generating garbage (null if none).
+     */
+    public EvioNodeSource getNodeSource();
 
     /**
      * Set the EvioNode object which selects a particular event in the ByteBuffer
