@@ -2884,21 +2884,31 @@ if (debug) System.out.println("Emu " + name + " config: Got config type = " + my
                                                  splitSize = Long.parseLong(splitStr);
                                                  foundSplitSize = true;
                                              }
-                                             catch (NumberFormatException e) {
-                                                 e.printStackTrace();
-                                             }
+                                             catch (NumberFormatException e) {}
                                          }
                                     }
                                 }
                                 else {
-                                    // Set "split" attribute node from map
+                                    // Get "split" attribute node from map
+                                    long newSplitSize = 0L;
                                     Node splitNode = nnm.getNamedItem("split");
                                     if (splitNode != null) {
-                                        splitNode.setNodeValue("" + splitSize);
-                                        sendRcWarningMessage("setting split to " + splitSize +
-                                                " for file channel " + channelNameNode.getNodeValue());
-System.out.println("Emu " + name + " config: setting split to " + splitSize +
+                                        String splitStr = splitNode.getNodeValue();
+                                        if (splitStr != null) {
+                                            try {
+                                                newSplitSize = Long.parseLong(splitStr);
+                                            }
+                                            catch (NumberFormatException e) {}
+                                        }
+
+                                        if ((newSplitSize != 0L) && (newSplitSize != splitSize)) {
+                                            // Set "split" attribute node in map to first one found
+                                            splitNode.setNodeValue("" + splitSize);
+                                            sendRcWarningMessage("setting split from " + newSplitSize + " to " + splitSize +
+                                                                 " for file channel " + channelNameNode.getNodeValue());
+System.out.println("Emu " + name + " config: setting split from " + newSplitSize + " to " + splitSize +
                    " for file channel " + channelNameNode.getNodeValue());
+                                        }
                                     }
                                 }
                             }
