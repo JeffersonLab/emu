@@ -2822,6 +2822,9 @@ if (debug) System.out.println("Emu " + name + " config: Got config type = " + my
                     String channelTransName = null, channelName = null,
                             inputFifoName = null, outputFifoName = null;
 
+                    long splitSize = 0L;
+                    boolean foundSplitSize = false;
+
                     // First count channels & look for fifos
                     for (int i = 0; i < childChannelList.getLength(); i++) {
                         Node channelNode = childChannelList.item(i);
@@ -2866,7 +2869,38 @@ if (debug) System.out.println("Emu " + name + " config: Got config type = " + my
                             // The easiest way to tell if it's a file is by the fileName attribute
                             Node filenameNode = nnm.getNamedItem("fileName");
                             if (filenameNode != null) {
+                                // Keep track of file output channels
                                 fileOutputCount++;
+
+                                // Try enforcing all output files from one module to have the same split size
+                                if (!foundSplitSize) {
+                                    // Get "split" attribute node from map
+                                    Node splitNode = nnm.getNamedItem("split");
+                                    if (splitNode != null) {
+                                        // Get value of split if possible
+                                        String splitStr = splitNode.getNodeValue();
+                                         if (splitStr != null) {
+                                             try {
+                                                 splitSize = Long.parseLong(splitStr);
+                                                 foundSplitSize = true;
+                                             }
+                                             catch (NumberFormatException e) {
+                                                 e.printStackTrace();
+                                             }
+                                         }
+                                    }
+                                }
+                                else {
+                                    // Set "split" attribute node from map
+                                    Node splitNode = nnm.getNamedItem("split");
+                                    if (splitNode != null) {
+                                        splitNode.setNodeValue("" + splitSize);
+                                        sendRcWarningMessage("setting split to " + splitSize +
+                                                " for file channel " + channelNameNode.getNodeValue());
+System.out.println("Emu " + name + " config: setting split to " + splitSize +
+                   " for file channel " + channelNameNode.getNodeValue());
+                                    }
+                                }
                             }
 
                             outputChannelCount++;
@@ -2973,7 +3007,6 @@ if (debug) System.out.println("Emu " + name + " config: Got config type = " + my
 
                         // Go through list of channels to pick out fifos
                         for (int i=0; i < childChannelList.getLength(); i++) {
-                            System.out.println("**************CONFIG: IN WHILE CHANNEL LOOP, ");
 
                             Node channelNode = childChannelList.item(i);
                             if (channelNode.getNodeType() != Node.ELEMENT_NODE) continue;
