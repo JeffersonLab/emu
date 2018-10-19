@@ -598,7 +598,7 @@ System.out.println("  Roc mod: start With (id=" + myId + "):\n    record id = " 
             }
 
             // Now create our own buffer supply to match
-            bbSupply = new ByteBufferSupply(bufSupplySize, 4*eventWordSize, ByteOrder.BIG_ENDIAN, false);
+            bbSupply = new ByteBufferSupply(bufSupplySize, 4*eventWordSize, ByteOrder.BIG_ENDIAN, true);
 
             try {
                 t1 = System.currentTimeMillis();
@@ -754,6 +754,7 @@ System.out.println("  Roc mod: start With (id=" + myId + "):\n    record id = " 
                 // End or Reset most likely
             }
             catch (Exception e) {
+                e.printStackTrace();
                 // If we haven't yet set the cause of error, do so now & inform run control
                 errorMsg.compareAndSet(null, e.getMessage());
                 moduleState = CODAState.ERROR;
