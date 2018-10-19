@@ -190,6 +190,7 @@ public class RCConstants {
     public static final String    numberOfLongs        = "dataCount";
     public static final String    liveTime             = "liveTime";
     public static final String    filename             = "fileName";
+    public static final String    destinationNames     = "destinationNames";
     public static final String    objectType           = "objectType";
     public static final String    runStartTime         = "runStartTime";
     public static final String    runEndTime           = "runEndTime";
