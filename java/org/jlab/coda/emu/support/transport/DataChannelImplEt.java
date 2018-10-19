@@ -389,7 +389,7 @@ logger.info("      DataChannel Et: chunk = " + chunk);
         // if OUTPUT channel
         else {
             // Tell emu what that output name is for stat reporting
-            emu.setOutputDestination(transport.getOpenConfig().getEtName());
+            emu.addOutputDestination(transport.getOpenConfig().getEtName());
 
             if (stationName == null) {
                 stationName = "GRAND_CENTRAL";

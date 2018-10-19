@@ -187,7 +187,7 @@ logger.info("      DataChannel File: dictionary file cannot be read");
             // Get the name from the file writer object so that the
             // final filename is used with all string substitutions made.
             // This must be done each time the file is split.
-            emu.setOutputDestination(evioFileWriter.getCurrentFilePath());
+            emu.addOutputDestination(evioFileWriter.getCurrentFilePath());
         }
         catch (EvioException e) {
             e.printStackTrace();

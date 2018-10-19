@@ -31,6 +31,7 @@ import org.jlab.coda.emu.support.ui.DebugFrame;
 import static org.jlab.coda.emu.support.codaComponent.CODACommand.*;
 import static org.jlab.coda.emu.support.codaComponent.CODAState.*;
 
+import org.jlab.coda.et.system.SystemCreate;
 import org.w3c.dom.Document;
 import org.w3c.dom.NamedNodeMap;
 import org.w3c.dom.Node;
@@ -154,7 +155,7 @@ public class Emu implements CODAComponent {
     //-----------------------------------------------------
 
     /** Destination of this emu's output (cMsg, ET name, or file name). */
-    private String outputDestination;
+    private String[] outputDestinations = new String[1];
 
     /** Thread which reports the EMU status to Run Control. */
     private StatusReportingThread statusReportingThread;
@@ -875,14 +876,17 @@ System.out.println("\n\n");
         cmsgPortal.rcGuiErrorMessage(error);
     }
 
-// TODO: strictly speaking the EMU may have many output destinations, so which is right?
     /**
-     * Set the output destination name, like a file or et system name, or
-     * a string like "cMsg".
-     * @param outputDestination name of this emu's output data destination
+     * Add a single output destination name, like a file or et system name, or
+     * a string like "cMsg", to the array of destinations names.
+     * @param outputDestination name of an output data destination of this emu
      */
-    public void setOutputDestination(String outputDestination) {
-        this.outputDestination = outputDestination;
+    synchronized public void addOutputDestination(String outputDestination) {
+        int destCount = outputDestinations.length;
+        String[] temp = new String[destCount + 1];
+        System.arraycopy(outputDestinations, 0, temp, 0, destCount);
+        temp[destCount] = outputDestination;
+        outputDestinations = temp;
     }
 
     /** Allow the "out-of-band" sending of a status message to run control. */
@@ -1064,11 +1068,13 @@ System.out.println("\n\n");
                         reportMsg.removePayloadItem(RCConstants.timeToBuild);
                     }
 
-                    if (outputDestination != null) {
-                        reportMsg.addPayloadItem(new cMsgPayloadItem(RCConstants.filename, outputDestination));
+                    if (outputDestinations[0] != null) {
+                        reportMsg.addPayloadItem(new cMsgPayloadItem(RCConstants.filename, outputDestinations[0]));
+                        reportMsg.addPayloadItem(new cMsgPayloadItem(RCConstants.destinationNames, outputDestinations));
                     }
                     else {
                         reportMsg.removePayloadItem(RCConstants.filename);
+                        reportMsg.removePayloadItem(RCConstants.destinationNames);
                     }
 
 //                        System.out.println("Emu " + name + ": try sending STATUS REPORTING Msg:");
@@ -1682,7 +1688,7 @@ System.out.println("Emu " + name + ": do not execute cmd = " + cmd.name() + ", r
      */
     private void end() {
 boolean debugOrig = debug;
-debug = true;
+//debug = true;
 
 logger.info("Emu " + name + " end: change state to ENDING");
         setState(ENDING);
@@ -2486,7 +2492,7 @@ logger.info("Emu " + name + " config: change state to CONFIGURING");
         boolean newConfigLoaded = false;
 
         // Clear out old data
-        outputDestination = null;
+        outputDestinations = new String[1];
 
         try {
             // A msg from RC or a press of a debug GUI button can

@@ -248,7 +248,7 @@ logger.info("      DataChannel cmsg: " + e.getMessage());
         }
         else {
             // Tell emu what that output name is for stat reporting
-            emu.setOutputDestination("cMsg");
+            emu.addOutputDestination("cMsg");
 
             // How may cMsg message buffer filling threads the data output thread?
             // Default to a value of 2. Two threads is 15x faster than 1 !?!
