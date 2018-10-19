@@ -24,6 +24,7 @@ import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
+import java.util.HashMap;
 import java.util.Iterator;
 
 /**
@@ -188,7 +189,7 @@ public class EmuDomainTcpServer extends Thread {
 
                                 // Check for server / client compatibility for cMsg version
                                 version = buffer.getInt();
-//System.out.println("Got version = " + version);
+//System.out.println("    Emu TCP Server: Got version = " + version);
                                 if (version != cMsgConstants.version) {
                                     if (debug >= cMsgConstants.debugInfo) {
                                         System.out.println("    Emu TCP Server: version mismatch, got " +
@@ -201,7 +202,7 @@ public class EmuDomainTcpServer extends Thread {
 
                                 // CODA id of sender
                                 codaId = buffer.getInt();
-//System.out.println("Got coda id = " + codaId);
+//System.out.println("    Emu TCP Server: Got coda id = " + codaId);
                                 if (codaId < 0) {
                                     if (debug >= cMsgConstants.debugInfo) {
                                         System.out.println("    Emu TCP Server: bad coda id of sender (" +
@@ -214,7 +215,7 @@ public class EmuDomainTcpServer extends Thread {
 
                                 // Max size buffers to hold incoming data in bytes
                                 bufferSizeDesired = buffer.getInt();
-//System.out.println("Got buffer size = " + bufferSizeDesired);
+//System.out.println("    Emu TCP Server: Got buffer size = " + bufferSizeDesired);
                                 if (bufferSizeDesired < 4*10) {
                                     // 40 bytes is smallest possible evio file format size
                                     if (debug >= cMsgConstants.debugInfo) {
@@ -228,7 +229,7 @@ public class EmuDomainTcpServer extends Thread {
 
                                 // Number of sockets expected to be made by client
                                 socketCount = buffer.getInt();
-//System.out.println("Got socket count = " + socketCount);
+//System.out.println("    Emu TCP Server: Got socket count = " + socketCount);
                                 if (socketCount < 1) {
                                     if (debug >= cMsgConstants.debugInfo) {
                                         System.out.println("    Emu TCP Server: bad socket count of sender (" +
@@ -241,7 +242,7 @@ public class EmuDomainTcpServer extends Thread {
 
                                 // Position of this socket compared to others: 1, 2, ...
                                 socketPosition = buffer.getInt();
-//System.out.println("Got socket position = " + socketPosition);
+//System.out.println("    Emu TCP Server: Got socket position = " + socketPosition);
                                 if (socketCount < 1) {
                                     if (debug >= cMsgConstants.debugInfo) {
                                         System.out.println("    Emu TCP Server: bad socket position of sender (" +
@@ -282,6 +283,7 @@ public class EmuDomainTcpServer extends Thread {
                         // The emu (not socket) channel will start a
                         // thread to handle all further communication.
                         try {
+//System.out.println("    Emu TCP Server: domain server, call attachToInput");
                             emuChannel.attachToInput(channel, codaId, bufferSizeDesired,
                                                      socketCount, socketPosition);
                         }
@@ -294,7 +296,7 @@ public class EmuDomainTcpServer extends Thread {
                             continue;
                         }
 
-//System.out.println("    Transport Emu: domain server, new connection");
+//System.out.println("    Emu TCP Server: domain server, new connection");
                     }
 
                     // remove key from selected set since it's been handled
