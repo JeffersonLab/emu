@@ -255,6 +255,9 @@ public class FastEventBuilder extends ModuleAdapter {
             buildingThreadCount = eventProducingThreads = 2;
         }
 
+        outputOrder = ByteOrder.LITTLE_ENDIAN;
+logger.info("  EB mod: output byte order = little endian");
+
 logger.info("  EB mod: # of event building threads = " + buildingThreadCount);
 
         // default is NOT to include run number & type in built trigger bank
@@ -2512,6 +2515,7 @@ if (debug) System.out.println("  EB mod: Building thread is ending");
              catch (EmuException e) {
                  // EmuException from Evio.checkPayload() if
                  // Roc raw or physics banks are in the wrong format
+                 e.printStackTrace();
                  System.out.println("  EB mod: Roc raw or physics event in wrong format");
                  emu.setErrorState("EB: Roc raw or physics event in wrong format");
                  moduleState = CODAState.ERROR;
