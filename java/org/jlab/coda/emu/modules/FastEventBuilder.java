@@ -273,7 +273,7 @@ logger.info("  EB mod: # of event building threads = " + buildingThreadCount);
 
 
         // set "garbage free" option on
-        useGarbageFree = true;
+        useGarbageFree = false;
         str = attributeMap.get("garbageFree");
         if (str != null) {
             if (str.equalsIgnoreCase("true") ||
