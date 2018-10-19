@@ -255,7 +255,7 @@ public class FastEventBuilder extends ModuleAdapter {
             buildingThreadCount = eventProducingThreads = 2;
         }
 
-        outputOrder = ByteOrder.LITTLE_ENDIAN;
+        //outputOrder = ByteOrder.LITTLE_ENDIAN;
 logger.info("  EB mod: output byte order = little endian");
 
 logger.info("  EB mod: # of event building threads = " + buildingThreadCount);
