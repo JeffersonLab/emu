@@ -138,7 +138,7 @@ public class FastEventBuilder extends ModuleAdapter {
     private ReleaseRingResourceThread releaseThreads[];
 
     private boolean useReleaseThread = false;
-    private boolean useGarbageFree = false;
+    private boolean useGarbageFree;
 
     /** The number of the experimental run. */
     private int runNumber;
@@ -270,7 +270,7 @@ logger.info("  EB mod: # of event building threads = " + buildingThreadCount);
 
 
         // set "garbage free" option on
-        useGarbageFree = false;
+        useGarbageFree = true;
         str = attributeMap.get("garbageFree");
         if (str != null) {
             if (str.equalsIgnoreCase("true") ||
@@ -1799,7 +1799,6 @@ if (debug) System.out.println("  EB mod: Building thread is ending");
                  long[]  timeStampMin = null;
                  long[]  timeStampMax = null;
                  short[] evData       = null;
-                 short[] eventTypes   = null;
                  short[] eventTypesRoc1 = null;
 
                  int[]   segmentData = new int[20];  // currently only use 3 ints
@@ -2090,7 +2089,6 @@ if (debug) System.out.println("  EB mod: Building thread is ending");
                                      evData   = new short[entangledEventCountNew];
 
                                      if (emu.getCodaClass() == CODAClass.SEB) {
-                                         eventTypes           = new short[entangledEventCountNew];
                                          eventTypesRoc1       = new short[entangledEventCountNew];
                                          timeStampMin         = new long[entangledEventCountNew];
                                          timeStampMax         = new long[entangledEventCountNew];
