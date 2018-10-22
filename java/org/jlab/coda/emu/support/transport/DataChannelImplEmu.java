@@ -211,7 +211,7 @@ public class DataChannelImplEmu extends DataChannelAdapter {
         }
 
         // set "garbage free" option on
-        useGarbageFree = false;
+        useGarbageFree = true;
         attribString = attributeMap.get("garbageFree");
         if (attribString != null) {
             if (attribString.equalsIgnoreCase("true") ||
