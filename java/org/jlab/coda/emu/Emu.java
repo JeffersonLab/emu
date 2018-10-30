@@ -155,7 +155,7 @@ public class Emu implements CODAComponent {
     //-----------------------------------------------------
 
     /** Destination of this emu's output (cMsg, ET name, or file name). */
-    private String[] outputDestinations = new String[1];
+    private String[] outputDestinations = null;
 
     /** Thread which reports the EMU status to Run Control. */
     private StatusReportingThread statusReportingThread;
@@ -882,11 +882,19 @@ System.out.println("\n\n");
      * @param outputDestination name of an output data destination of this emu
      */
     synchronized public void addOutputDestination(String outputDestination) {
-        int destCount = outputDestinations.length;
-        String[] temp = new String[destCount + 1];
-        System.arraycopy(outputDestinations, 0, temp, 0, destCount);
-        temp[destCount] = outputDestination;
-        outputDestinations = temp;
+        System.out.println("\n\n^^^^^^^^^^^^^^^^^^^^^^^^^^  addOutputDestination = " + outputDestination +
+                                "^^^^^^^^^^^^^^^^^^^^^^^^^\n");
+        if (outputDestinations == null) {
+            outputDestinations = new String[1];
+            outputDestinations[0] = outputDestination;
+        }
+        else {
+            int destCount = outputDestinations.length;
+            String[] temp = new String[destCount + 1];
+            System.arraycopy(outputDestinations, 0, temp, 0, destCount);
+            temp[destCount] = outputDestination;
+            outputDestinations = temp;
+        }
     }
 
     /** Allow the "out-of-band" sending of a status message to run control. */
@@ -1068,7 +1076,7 @@ System.out.println("\n\n");
                         reportMsg.removePayloadItem(RCConstants.timeToBuild);
                     }
 
-                    if (outputDestinations[0] != null) {
+                    if (outputDestinations != null) {
                         reportMsg.addPayloadItem(new cMsgPayloadItem(RCConstants.filename, outputDestinations[0]));
                         reportMsg.addPayloadItem(new cMsgPayloadItem(RCConstants.destinationNames, outputDestinations));
                     }
@@ -2492,7 +2500,7 @@ logger.info("Emu " + name + " config: change state to CONFIGURING");
         boolean newConfigLoaded = false;
 
         // Clear out old data
-        outputDestinations = new String[1];
+        outputDestinations = null;
 
         try {
             // A msg from RC or a press of a debug GUI button can
