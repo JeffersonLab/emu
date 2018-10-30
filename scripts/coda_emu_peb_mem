@@ -16,7 +16,7 @@ endif
 
 if ($#argv > 1) then
 $JAVA_HOME/bin/java -cp $CODA/common/jar/\* \
-    -Xmx60G \
+    -Xmx100G -Xms30G\
     -XX:+PerfDisableSharedMem \
     -Xmx$2 \
     -Xms$2 \
@@ -27,7 +27,7 @@ $JAVA_HOME/bin/java -cp $CODA/common/jar/\* \
     -Dtype=PEB org.jlab.coda.emu.EmuFactory
 else
 $JAVA_HOME/bin/java -cp $CODA/common/jar/\* \
-    -Xmx60G \
+    -Xmx100G -Xms30G\
     -XX:+PerfDisableSharedMem \
     -Djava.net.preferIPv4Stack=true \
     -Djava.library.path=$CODA/$MACHINE/lib \
