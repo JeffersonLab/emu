@@ -211,7 +211,7 @@ public class DataChannelImplEmu extends DataChannelAdapter {
         }
 
         // set "garbage free" option on
-        useGarbageFree = true;
+        useGarbageFree = false;
         attribString = attributeMap.get("garbageFree");
         if (attribString != null) {
             if (attribString.equalsIgnoreCase("true") ||
@@ -400,12 +400,12 @@ logger.info("      DataChannel Emu: set sendBuf to " + tcpSendBuf);
         numBufs = numBufs <  16 ?  16 : numBufs;
         numBufs = numBufs > 128 ? 128 : numBufs;
         // Reducing numBufs to 32 increases barrier.waitfor() time from .02% to .4% of EB time
-        numBufs = 64;
+        numBufs = 32;
 
         // Make power of 2, round up
         numBufs = EmuUtilities.powerOfTwo(numBufs, true);
-logger.info("      DataChannel Emu in: " + numBufs + " buffers in input supply, socketCount = " +
-                    socketCount);
+logger.info("\n\n      DataChannel Emu in: " + numBufs + " buffers in input supply, socketCount = " +
+                    socketCount + "\n\n");
 
         boolean sequentialRelease = true;
         if (module.getEventProducingThreadCount() > 1) {
