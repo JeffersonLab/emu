@@ -2712,6 +2712,8 @@ System.out.println("Timestamp NOT consistent: ev #" + (firstEventNumber + j) + "
                          dataWordsFromEachSeg = segWords;
                      }
                      else if (segWords != dataWordsFromEachSeg) {
+                         Utilities.printBufferBytes(backingBuf, bufOffset, 100, "Roc " + i);
+                         Utilities.printBufferBytes(backingBuf, srcPos, 20, "Roc " + i + ", bad seg " + j);
  // TODO: Bombs here for Dave A., but not me
                          throw new EmuException("Trigger segments contain different amounts of data");
                      }
