@@ -64,6 +64,9 @@ public class DataChannelImplFile extends DataChannelAdapter {
     /** Evio file writer. */
     private EventWriterUnsync evioFileWriter;
 
+    /** Remember which element of the output destinations array belongs to this file. */
+    private int outputNameIndex = 0;
+
     //----------------------------------------
     // Input file parameters
     //----------------------------------------
@@ -245,7 +248,7 @@ logger.info("      DataChannel File: file = " + evioFileWriter.getCurrentFilePat
                 // Get the name from the file writer object so that the
                 // final filename is used with all string substitutions made.
                 // This must be done each time the file is split.
-                emu.addOutputDestination(evioFileWriter.getCurrentFilePath());
+                outputNameIndex = emu.addOutputDestination(evioFileWriter.getCurrentFilePath());
 
                 // Keep track of how many files we create
                 if (split > 0L) splitCount = evioFileWriter.getSplitCount();
@@ -742,7 +745,7 @@ logger.info("      DataChannel File out " + outputIndex + ": got ev " + nextEven
                     // If splitting the output, the file name may change.
                     // Inform the authorities about this.
                     if (split > 0L && evioFileWriter.getSplitCount() > splitCount) {
-                        emu.addOutputDestination(evioFileWriter.getCurrentFilename());
+                        emu.setOutputDestination(outputNameIndex, evioFileWriter.getCurrentFilename());
                         splitCount = evioFileWriter.getSplitCount();
                         // HallD wants a warning if splitCount > 3 digits (ie 999).
                         // But send it only once (hence the upper limit).

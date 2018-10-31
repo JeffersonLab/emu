@@ -879,22 +879,49 @@ System.out.println("\n\n");
     /**
      * Add a single output destination name, like a file or et system name, or
      * a string like "cMsg", to the array of destinations names.
+     * Call this when setting a destination for the first time. Do NOT call
+     * this if resetting an exiting output destination file name to the next
+     * split file name.
      * @param outputDestination name of an output data destination of this emu
      */
-    synchronized public void addOutputDestination(String outputDestination) {
-        System.out.println("\n\n^^^^^^^^^^^^^^^^^^^^^^^^^^  addOutputDestination = " + outputDestination +
-                                "^^^^^^^^^^^^^^^^^^^^^^^^^\n");
+    synchronized public int addOutputDestination(String outputDestination) {
+//        System.out.println("\n\n^^^^^^^^^^^^^^^^^^^^^^^^^^  addOutputDestination = " + outputDestination +
+//                                "^^^^^^^^^^^^^^^^^^^^^^^^^\n");
+        int destCount = 0;
         if (outputDestinations == null) {
             outputDestinations = new String[1];
             outputDestinations[0] = outputDestination;
         }
         else {
-            int destCount = outputDestinations.length;
+            destCount = outputDestinations.length;
             String[] temp = new String[destCount + 1];
             System.arraycopy(outputDestinations, 0, temp, 0, destCount);
             temp[destCount] = outputDestination;
             outputDestinations = temp;
         }
+        return destCount;
+    }
+
+    /**
+     * Change an existing single output destination name in the array of names.
+     * Call this if resetting an exiting output destination file name to the next
+     * split file name.
+     * @param index index in array of name to be changed.
+     * @param outputDestination name of an output destination.
+     */
+    synchronized public void setOutputDestination(int index, String outputDestination) {
+        if ((outputDestinations == null) || (outputDestinations.length < index + 1)) {
+            return;
+        }
+//        System.out.println("\n\n^^^^^^^^^^^^^^^^^^^^^^^^^^  setOutputDestination = " + outputDestination +
+//                                "^^^^^^^^^^^^^^^^^^^^^^^^^\n");
+
+        outputDestinations[index] = outputDestination;
+    }
+
+    /** Clear output destination names. */
+    synchronized public void clearOutputDestinations() {
+        outputDestinations = null;
     }
 
     /** Allow the "out-of-band" sending of a status message to run control. */
@@ -1077,10 +1104,15 @@ System.out.println("\n\n");
                     }
 
                     if (outputDestinations != null) {
+                        System.out.println("OUTPUT DESTINATIONS:");
+                        for (String s : outputDestinations) {
+                            System.out.println("  " + s);
+                        }
                         reportMsg.addPayloadItem(new cMsgPayloadItem(RCConstants.filename, outputDestinations[0]));
                         reportMsg.addPayloadItem(new cMsgPayloadItem(RCConstants.destinationNames, outputDestinations));
                     }
                     else {
+                        System.out.println("\n\n******************* OUTPUT DESTINATIONS ********************\n");
                         reportMsg.removePayloadItem(RCConstants.filename);
                         reportMsg.removePayloadItem(RCConstants.destinationNames);
                     }
@@ -1163,6 +1195,7 @@ logger.info("Emu " + name + " resetting");
         resetting = true;
 
         state = RESETTING;
+        clearOutputDestinations();
 
         // Stop the thread currently executing transition commands
         // just in case it's hung up on a transition. This may leave
@@ -1700,6 +1733,7 @@ boolean debugOrig = debug;
 
 logger.info("Emu " + name + " end: change state to ENDING");
         setState(ENDING);
+        clearOutputDestinations();
 
         // How long do we wait for the END event (milliseconds)?
         long timeout = endingTimeLimit;
