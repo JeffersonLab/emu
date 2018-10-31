@@ -400,12 +400,12 @@ logger.info("      DataChannel Emu: set sendBuf to " + tcpSendBuf);
         numBufs = numBufs <  16 ?  16 : numBufs;
         numBufs = numBufs > 128 ? 128 : numBufs;
         // Reducing numBufs to 32 increases barrier.waitfor() time from .02% to .4% of EB time
-        numBufs = 32;
+        numBufs = 64;
 
         // Make power of 2, round up
         numBufs = EmuUtilities.powerOfTwo(numBufs, true);
-logger.info("\n\n      DataChannel Emu in: " + numBufs + " buffers in input supply, socketCount = " +
-                    socketCount + "\n\n");
+//logger.info("\n\n      DataChannel Emu in: " + numBufs + " buffers in input supply, socketCount = " +
+//                    socketCount + "\n\n");
 
         boolean sequentialRelease = true;
         if (module.getEventProducingThreadCount() > 1) {
@@ -497,7 +497,7 @@ logger.info("\n\n      DataChannel Emu in: " + numBufs + " buffers in input supp
             }
         }
 
-logger.info("      DataChannel Emu in: seq release = " + sequentialRelease);
+//logger.info("      DataChannel Emu in: seq release = " + sequentialRelease);
 
 logger.info("      DataChannel Emu in: connection made from " + name);
 
@@ -511,7 +511,7 @@ logger.info("      DataChannel Emu in: connection made from " + name);
             for (int i=0; i < socketCount; i++) {
                 dataInputThread[i].waitUntilStarted();
             }
-logger.info("      DataChannel Emu in: last connection made, parser thd started, input threads running");
+//logger.info("      DataChannel Emu in: last connection made, parser thd started, input threads running");
         }
     }
 
@@ -655,7 +655,7 @@ logger.info("      DataChannel Emu out: will directly connect to server w/ UDL =
 
     private final void closeInputSockets() {
         if (!input) return;
-        logger.info("      DataChannel Emu in: close input sockets from " + name);
+//        logger.info("      DataChannel Emu in: close input sockets from " + name);
 
         try {
             for (int i=0; i < socketCount; i++) {
@@ -738,7 +738,7 @@ logger.info("      DataChannel Emu out: will directly connect to server w/ UDL =
             // The parser merger thread needs to be interrupted first,
             // otherwise the parseToRing method may get stuck waiting
             // on further data in a loop around parkNanos().
-logger.debug("      DataChannel Emu: end/reset(), interrupt parser/merger thread");
+//logger.debug("      DataChannel Emu: end/reset(), interrupt parser/merger thread");
             parserMergerThread.interrupt();
             try {Thread.sleep(10);}
             catch (InterruptedException e) {}
@@ -747,17 +747,17 @@ logger.debug("      DataChannel Emu: end/reset(), interrupt parser/merger thread
                 if (dataInputThread[i] == null) {
                     continue;
                 }
-logger.debug("      DataChannel Emu: end/reset(), interrupt input thread " + i);
+//logger.debug("      DataChannel Emu: end/reset(), interrupt input thread " + i);
                 dataInputThread[i].interrupt();
             }
         }
 
         if (dataOutputThread != null) {
-logger.debug("      DataChannel Emu: end/reset(), interrupt main output thread ");
+//logger.debug("      DataChannel Emu: end/reset(), interrupt main output thread ");
             dataOutputThread.interrupt();
 
             for (int i=0; i < socketCount; i++) {
-logger.debug("      DataChannel Emu: end/reset(), interrupt output thread " + i);
+//logger.debug("      DataChannel Emu: end/reset(), interrupt output thread " + i);
                 dataOutputThread.sender[i].endThread();
             }
         }
@@ -772,7 +772,7 @@ logger.debug("      DataChannel Emu: end/reset(), interrupt output thread " + i)
             try {parserMergerThread.join(1000);}
             catch (InterruptedException e) {}
 
-logger.debug("      DataChannel Emu: end/reset(), joined parser/merger thread");
+//logger.debug("      DataChannel Emu: end/reset(), joined parser/merger thread");
 
             for (int i=0; i < socketCount; i++) {
                 if (dataInputThread[i] == null) {
@@ -782,7 +782,7 @@ logger.debug("      DataChannel Emu: end/reset(), joined parser/merger thread");
                 try {dataInputThread[i].join(1000);}
                 catch (InterruptedException e) {}
 
-logger.debug("      DataChannel Emu: end/reset(), joined input thread " + i);
+//logger.debug("      DataChannel Emu: end/reset(), joined input thread " + i);
             }
         }
 
@@ -791,12 +791,12 @@ logger.debug("      DataChannel Emu: end/reset(), joined input thread " + i);
             try {dataOutputThread.join(1000);}
             catch (InterruptedException e) {}
 
-logger.debug("      DataChannel Emu: end/reset(), joined main output thread ");
+//logger.debug("      DataChannel Emu: end/reset(), joined main output thread ");
 
             for (int i=0; i < socketCount; i++) {
                 try {dataOutputThread.sender[i].join(1000);}
                 catch (InterruptedException e) {}
-logger.debug("      DataChannel Emu: end/reset(), joined output thread " + i);
+//logger.debug("      DataChannel Emu: end/reset(), joined output thread " + i);
             }
         }
     }
@@ -1120,8 +1120,8 @@ System.out.println("      DataChannel Emu in: " + name +
                 }
             }
             catch (InterruptedException e) {
-                logger.warn("      DataChannel Emu in: " + name +
-                            " parserMerger thread interrupted, quitting ####################################");
+//                logger.warn("      DataChannel Emu in: " + name +
+//                            " parserMerger thread interrupted, quitting ####################################");
             }
             catch (EvioException e) {
                 // Bad data format or unknown control event.
