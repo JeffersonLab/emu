@@ -2234,7 +2234,6 @@ System.out.println("Timestamp NOT consistent: ev #" + (firstEventNumber + j) + "
         return nonFatalError;
     }
 
-
     /**
      * Combine the trigger banks of all input payload banks of ROC raw format into a single
      * trigger bank which will be used in the final built event. Any error
@@ -2682,7 +2681,6 @@ System.out.println("Timestamp NOT consistent: ev #" + (firstEventNumber + j) + "
 
          if (!sparsify) {
              // Add one segment for each ROC with ROC-specific data in it
-             int[] oldData;
              int totalSegDataWords, segWords, dataWordsFromEachSeg=0;
              int len, destHeaderPos, srcPos;
 
@@ -2714,6 +2712,7 @@ System.out.println("Timestamp NOT consistent: ev #" + (firstEventNumber + j) + "
                          dataWordsFromEachSeg = segWords;
                      }
                      else if (segWords != dataWordsFromEachSeg) {
+ // TODO: Bombs here for Dave A., but not me
                          throw new EmuException("Trigger segments contain different amounts of data");
                      }
 
@@ -2765,6 +2764,7 @@ System.out.println("Timestamp NOT consistent: ev #" + (firstEventNumber + j) + "
      }
 
 
+    // TODO: uses node.getIntData(), producing garbage
     /**
      * Combine the trigger banks of all input payload banks of ROC raw format into a single
      * trigger bank which will be used in the final built event. Any error
@@ -3591,6 +3591,7 @@ System.out.println("makeTriggerBankFromRocRaw: event # differs (in Bt# " + build
     }
 
 
+    // TODO: uses node.getIntData(), producing garbage
     /**
      * Combine the trigger banks of all input payload banks of ROC raw format into a single
      * trigger bank which will be used in the final built event. Any error
