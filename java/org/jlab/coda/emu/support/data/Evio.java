@@ -2320,7 +2320,7 @@ System.out.println("Timestamp NOT consistent: ev #" + (firstEventNumber + j) + "
             checkTimestamps = false;
         }
 
-        long t1=0L, t2=0L, deltaT1=0L, deltaT2=0L, deltaT3=0L;
+//        long t1=0L, t2=0L, deltaT1=0L, deltaT2=0L, deltaT3=0L;
 
 //        boolean measureTimes = false;
 //         if (statCounter++ == 500000) {
@@ -2337,16 +2337,6 @@ System.out.println("Timestamp NOT consistent: ev #" + (firstEventNumber + j) + "
              if (trigBank == null) {
                  fatalError = true;
                  continue;
-             }
-
-             if (i==0) {
-                 // How much data for each event's trigger segment
-                 triggerSegment = trigBank.getChildAt(0);
-                 if (triggerSegment == null) {
-                     fatalError = true;
-                     continue;
-                 }
-                 segTotalBytes = triggerSegment.getTotalBytes();
              }
 
              // For hardware bug work-around, mask off
@@ -2693,11 +2683,14 @@ System.out.println("Timestamp NOT consistent: ev #" + (firstEventNumber + j) + "
                  destHeaderPos = writeIndex;
                  writeIndex += 4;
 
+                 segTotalBytes = 0;
                  totalSegDataWords = 0;
 
                  // Write data first while we find its length
                  for (int j=0; j < numEvents; j++) {
-                     // Position of seg header in src (roc trigger bank)
+                     // Position of seg header in src (roc trigger bank).
+                     // First time thru loop, setTotalBytes is unknown but that's OK
+                     // since j=0.
                      srcPos = bufOffset + j*segTotalBytes + 16;
 
                      // Len in words of seg
@@ -2710,7 +2703,8 @@ System.out.println("Timestamp NOT consistent: ev #" + (firstEventNumber + j) + "
                      // Make sure each seg in roc's trigger bank has same amount of dta
                      if (j == 0) {
                          dataWordsFromEachSeg = segWords;
-Utilities.printBufferBytes(backingBuf, bufOffset, 140, "Roc " + i + ", segWords = " + segWords);
+                         segTotalBytes = 4*(segWords + 1);
+//Utilities.printBufferBytes(backingBuf, bufOffset, 140, "Roc " + i + ", segWords = " + segWords);
                      }
                      else if (segWords != dataWordsFromEachSeg) {
 System.out.println("makeTriggerBankFromRocRaw: failure for ROC " + i + ", event " + j);
