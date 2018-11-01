@@ -2305,7 +2305,7 @@ System.out.println("Timestamp NOT consistent: ev #" + (firstEventNumber + j) + "
         // Number of rocs
         int numROCs = inputPayloadBanks.length;
         // Number of rocs with timestamp info
-        int numRocsWithTSs, segTotalBytes=0;
+        int numRocsWithTSs;
         int numEvents = inputPayloadBanks[0].getNode().getNum();
 
         EvioNode rocNode, trigBank;
@@ -2671,7 +2671,7 @@ System.out.println("Timestamp NOT consistent: ev #" + (firstEventNumber + j) + "
 
          if (!sparsify) {
              // Add one segment for each ROC with ROC-specific data in it
-             int totalSegDataWords, segWords, dataWordsFromEachSeg=0;
+             int totalSegDataWords, segWords, dataWordsFromEachSeg=0, segTotalBytes;
              int len, destHeaderPos, srcPos;
 
              // For each ROC ...
