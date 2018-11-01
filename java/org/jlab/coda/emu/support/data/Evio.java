@@ -2712,7 +2712,8 @@ System.out.println("Timestamp NOT consistent: ev #" + (firstEventNumber + j) + "
                          dataWordsFromEachSeg = segWords;
                      }
                      else if (segWords != dataWordsFromEachSeg) {
-System.out.println("makeTriggerBankFromRocRaw: segTotalBytes = " + segTotalBytes);
+System.out.println("makeTriggerBankFromRocRaw: failure for ROC " + i + ", event " + j);
+System.out.println("                         : segTotalBytes = " + segTotalBytes);
 System.out.println("                         : bufOffset = " + bufOffset);
 System.out.println("                         : srcPos = " + srcPos);
 System.out.println("                         : segWords = " + segWords);
