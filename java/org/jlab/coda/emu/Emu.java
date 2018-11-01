@@ -1112,7 +1112,7 @@ System.out.println("\n\n");
                         reportMsg.addPayloadItem(new cMsgPayloadItem(RCConstants.destinationNames, outputDestinations));
                     }
                     else {
-//System.out.println("\n\n******************* OUTPUT DESTINATIONS ********************\n");
+//System.out.println("******************* NULL OUTPUT DESTINATIONS ********************");
                         reportMsg.removePayloadItem(RCConstants.filename);
                         reportMsg.removePayloadItem(RCConstants.destinationNames);
                     }
