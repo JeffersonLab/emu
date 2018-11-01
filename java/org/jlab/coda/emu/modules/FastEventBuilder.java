@@ -2270,6 +2270,7 @@ if (debug) System.out.println("  EB mod: Building thread is ending");
                          backingBufs[i] = rocNodes[i].getBufferNode().getBuffer();
                          // Offset into backing buffer to start of given input's event
                          backBufOffsets[i] = rocNodes[i].getPosition();
+System.out.println("  EB mod: in chan " + i + ", bufOffset = " + backBufOffsets[i]);
                      }
 
                      // Grab a stored ByteBuffer
