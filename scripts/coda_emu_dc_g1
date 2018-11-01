@@ -20,6 +20,7 @@ endif
 
 if ($#argv > 1) then
 $JAVA_HOME/bin/java -cp $CODA/common/jar/\* \
+    -XX:+UnlockCommercialFeatures -XX:+FlightRecorder \
     -XX:+UseG1GC \
     -Xms30G \
     -DrcAddr=$2 \
@@ -30,6 +31,7 @@ $JAVA_HOME/bin/java -cp $CODA/common/jar/\* \
     -Dtype=DC org.jlab.coda.emu.EmuFactory
 else
 $JAVA_HOME/bin/java -cp $CODA/common/jar/\* \
+    -XX:+UnlockCommercialFeatures -XX:+FlightRecorder \
     -XX:+UseG1GC \
     -Xms30G \
     -Djava.net.preferIPv4Stack=true \
