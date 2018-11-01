@@ -2710,6 +2710,7 @@ System.out.println("Timestamp NOT consistent: ev #" + (firstEventNumber + j) + "
                      // Make sure each seg in roc's trigger bank has same amount of dta
                      if (j == 0) {
                          dataWordsFromEachSeg = segWords;
+Utilities.printBufferBytes(backingBuf, bufOffset, 140, "Roc " + i + ", segWords = " + segWords);
                      }
                      else if (segWords != dataWordsFromEachSeg) {
 System.out.println("makeTriggerBankFromRocRaw: failure for ROC " + i + ", event " + j);
@@ -2719,7 +2720,7 @@ System.out.println("                         : srcPos = " + srcPos);
 System.out.println("                         : segWords = " + segWords);
 System.out.println("                         : segWords from event 0 = " + dataWordsFromEachSeg);
 
-                         Utilities.printBufferBytes(backingBuf, bufOffset, 100, "Roc " + i);
+                         Utilities.printBufferBytes(backingBuf, bufOffset, 140, "Roc " + i);
                          Utilities.printBufferBytes(backingBuf, srcPos, 20, "Roc " + i + ", bad seg " + j);
  // TODO: Bombs here for Dave A., but not me
                          throw new EmuException("Trigger segments contain different amounts of data");
