@@ -66,6 +66,8 @@ public class DataChannelImplEt extends DataChannelAdapter {
     /** Got END or RESET command from Run Control and must stop thread getting events. */
     private volatile boolean stopGetterThread;
 
+    private boolean useGarbageFree;
+
     // OUTPUT
 
     /** Thread used to output data. */
@@ -226,6 +228,17 @@ logger.info("      DataChannel Et: creating output channel " + name);
                 }
             }
             catch (NumberFormatException e) {}
+        }
+
+        // set "garbage free" option on
+        useGarbageFree = true;
+        attribString = attributeMap.get("garbageFree");
+        if (attribString != null) {
+            if (attribString.equalsIgnoreCase("true") ||
+                    attribString.equalsIgnoreCase("on") ||
+                    attribString.equalsIgnoreCase("yes")) {
+                useGarbageFree = true;
+            }
         }
 
         // size of TCP receive buffer (0 means use operating system default)
@@ -693,13 +706,15 @@ logger.info("      DataChannel Et: eventSize = " + etEventSize);
             }
 logger.info("      DataChannel Et: # copy-ET-buffers in input supply -> " + numEtBufs);
 
-            // One pool for each supply buffer.
-            nodePools = new EvioNodePool[numEtBufs];
-            // Create the EvioNode pools -
-            // each of which contain 400 EvioNodes to begin with. These are used for
-            // the top node of each event.
-            for (int i=0; i < numEtBufs; i++) {
-                nodePools[i] = new EvioNodePool(400);
+            if (useGarbageFree) {
+                // One pool for each supply buffer.
+                nodePools = new EvioNodePool[numEtBufs];
+                // Create the EvioNode pools -
+                // each of which contain 400 EvioNodes to begin with. These are used for
+                // the top node of each event.
+                for (int i = 0; i < numEtBufs; i++) {
+                    nodePools[i] = new EvioNodePool(400);
+                }
             }
 
             // If ER
@@ -1565,16 +1580,26 @@ System.out.println("      DataChannel Et in: GETTER is Quitting");
                         buf = bbItem.getBuffer();
                         copyBuffer(events[j].getDataBuffer(), buf, events[j].getLength());
 
-                        nodePool = nodePools[bbItem.getMyId()];
-                        nodePool.reset();
-
                         try {
-                            // These calls do not change buf position
-                            if (compactReader == null) {
-                                compactReader = new EvioCompactReaderUnsync(buf, nodePool);
+                            if (useGarbageFree) {
+                                nodePool = nodePools[bbItem.getMyId()];
+                                nodePool.reset();
+                                
+                                // These calls do not change buf position
+                                if (compactReader == null) {
+                                    compactReader = new EvioCompactReaderUnsync(buf, nodePool);
+                                }
+                                else {
+                                    compactReader.setBuffer(buf, nodePool);
+                                }
                             }
                             else {
-                                compactReader.setBuffer(buf, nodePool);
+                                if (compactReader == null) {
+                                    compactReader = new EvioCompactReaderUnsync(buf);
+                                }
+                                else {
+                                    compactReader.setBuffer(buf);
+                                }
                             }
                         }
                         catch (EvioException e) {
