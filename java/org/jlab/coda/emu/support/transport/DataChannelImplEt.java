@@ -92,6 +92,10 @@ public class DataChannelImplEt extends DataChannelAdapter {
     /** Thread used to input data. */
     private DataInputHelper dataInputThread;
 
+    /** Node pools to use to get top-level EvioNode object.
+     * Index is number of buffer in ByteBufferSupplys. */
+    private EvioNodePool[] nodePools;
+
     //-------------------------------------------
     // ET Stuff
     //-------------------------------------------
@@ -688,6 +692,15 @@ logger.info("      DataChannel Et: eventSize = " + etEventSize);
                 }
             }
 logger.info("      DataChannel Et: # copy-ET-buffers in input supply -> " + numEtBufs);
+
+            // One pool for each supply buffer.
+            nodePools = new EvioNodePool[numEtBufs];
+            // Create the EvioNode pools -
+            // each of which contain 400 EvioNodes to begin with. These are used for
+            // the top node of each event.
+            for (int i=0; i < numEtBufs; i++) {
+                nodePools[i] = new EvioNodePool(400);
+            }
 
             // If ER
             if (isER) {
@@ -1457,6 +1470,7 @@ System.out.println("      DataChannel Et in: GETTER is Quitting");
                 boolean useDirectEt = (etSysLocal != null);
                 boolean etAlive = true;
                 boolean hasFirstEvent, isUser=false;
+                EvioNodeSource nodePool;
 
                 EtContainer etContainer = null;
                 long nextSequence = etConsumeSequence.get() + 1L;
@@ -1551,13 +1565,16 @@ System.out.println("      DataChannel Et in: GETTER is Quitting");
                         buf = bbItem.getBuffer();
                         copyBuffer(events[j].getDataBuffer(), buf, events[j].getLength());
 
+                        nodePool = nodePools[bbItem.getMyId()];
+                        nodePool.reset();
+
                         try {
                             // These calls do not change buf position
                             if (compactReader == null) {
-                                compactReader = new EvioCompactReaderUnsync(buf);
+                                compactReader = new EvioCompactReaderUnsync(buf, nodePool);
                             }
                             else {
-                                compactReader.setBuffer(buf);
+                                compactReader.setBuffer(buf, nodePool);
                             }
                         }
                         catch (EvioException e) {
