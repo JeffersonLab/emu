@@ -745,7 +745,7 @@ logger.info("      DataChannel File out " + outputIndex + ": got ev " + nextEven
                     // If splitting the output, the file name may change.
                     // Inform the authorities about this.
                     if (split > 0L && evioFileWriter.getSplitCount() > splitCount) {
-                        emu.setOutputDestination(outputNameIndex, evioFileWriter.getCurrentFilename());
+                        emu.setOutputDestination(outputNameIndex, evioFileWriter.getCurrentFilePath());
                         splitCount = evioFileWriter.getSplitCount();
                         // HallD wants a warning if splitCount > 3 digits (ie 999).
                         // But send it only once (hence the upper limit).
