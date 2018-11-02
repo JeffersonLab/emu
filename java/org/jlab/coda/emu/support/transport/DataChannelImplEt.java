@@ -1316,7 +1316,7 @@ logger.debug("      DataChannel Et: reset " + name + " channel");
 
             // Ring will have 2 slots. Each is an EtContainer object containing
             // "chunk" number of ET events.
-            int ringSize = 2;
+            int ringSize = 4;
 
             // Create ring buffer used by 2 threads -
             //   1 to get events from ET system and place into ring (producer of ring items)
@@ -1336,7 +1336,7 @@ logger.debug("      DataChannel Et: reset " + name + " channel");
             rb.addGatingSequences(etConsumeSequence);
 
             // Start producer thread for getting new ET events
-            getter = new EvGetter();
+            getter = new EvGetter(group, name + "_Getter");
             getter.start();
         }
 
@@ -1364,6 +1364,11 @@ logger.debug("      DataChannel Et: reset " + name + " channel");
          * with evio data and the thread that puts them back.
          */
         final private class EvGetter extends Thread {
+
+            /** Constructor. */
+            EvGetter (ThreadGroup group, String name) {
+                super(group, name);
+            }
 
             /**
              * {@inheritDoc}<p>
