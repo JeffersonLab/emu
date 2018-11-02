@@ -1104,10 +1104,10 @@ System.out.println("\n\n");
                     }
 
                     if (outputDestinations != null) {
-//                        System.out.println("OUTPUT DESTINATIONS:");
-//                        for (String s : outputDestinations) {
-//                            System.out.println("  " + s);
-//                        }
+                        System.out.println("OUTPUT DESTINATIONS:");
+                        for (String s : outputDestinations) {
+                            System.out.println("  " + s);
+                        }
                         reportMsg.addPayloadItem(new cMsgPayloadItem(RCConstants.filename, outputDestinations[0]));
                         reportMsg.addPayloadItem(new cMsgPayloadItem(RCConstants.destinationNames, outputDestinations));
                     }
