@@ -1316,7 +1316,7 @@ logger.debug("      DataChannel Et: reset " + name + " channel");
 
             // Ring will have 2 slots. Each is an EtContainer object containing
             // "chunk" number of ET events.
-            int ringSize = 4;
+            int ringSize = 2;
 
             // Create ring buffer used by 2 threads -
             //   1 to get events from ET system and place into ring (producer of ring items)
