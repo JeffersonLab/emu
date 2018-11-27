@@ -75,6 +75,12 @@ public class ByteBufferItem {
      *  Gets reset to false each time supply.get() is called. */
     private boolean userBoolean;
 
+    /** Auxiliary object storage. Used to store EvioNodePool. */
+    private Object myObject;
+
+    /** Auxiliary integer storage. Used to store pool ID. */
+    public int myIndex;
+
     // For testing purposes
 
     /** Unique id for each object of this class. */
@@ -83,10 +89,113 @@ public class ByteBufferItem {
 
 
     /**
+     * Constructor.
+     *
+     * @param bufferSize size in bytes of ByteBuffer to construct.
+     * @param order byte order of ByteBuffer to construct.
+     * @param direct is the buffer direct (in memory not managed by JVM) or not.
+     * @param orderedRelease if true, release ByteBufferItems in same order as acquired.
+     * @param myId unique id of this object.
+     */
+    ByteBufferItem(int bufferSize, ByteOrder order,
+                          boolean direct, boolean orderedRelease, int myId) {
+        this(bufferSize, order, direct, orderedRelease, myId, null, 0);
+    }
+
+
+    /**
+     * Constructor.
+     *
+     * @param bufferSize size in bytes of ByteBuffer to construct.
+     * @param order byte order of ByteBuffer to construct.
+     * @param direct is the buffer direct (in memory not managed by JVM) or not.
+     * @param orderedRelease if true, release ByteBufferItems in same order as acquired.
+     * @param auxObject unique id of this object.
+     * @param auxIndex  unique id of this object.
+     */
+    ByteBufferItem(int bufferSize, ByteOrder order,
+                   boolean direct, boolean orderedRelease, int myId,
+                   Object auxObject, int auxIndex) {
+
+        this.myId = myId;
+        this.order = order;
+        this.direct = direct;
+        this.myIndex = auxIndex;
+        this.myObject = auxObject;
+        this.bufferSize = bufferSize;
+        this.orderedRelease = orderedRelease;
+
+        if (direct) {
+            buffer = ByteBuffer.allocateDirect(bufferSize).order(order);
+        }
+        else {
+            buffer = ByteBuffer.allocate(bufferSize).order(order);
+        }
+    }
+
+
+    /**
+     * Constructor used to initially fill each ByteBufferItem of a ByteBufferSupply
+     * with a copy of a template buffer.
+     *
+     * @param templateBuf    this item's buffer is a copy this of template ByteBuffer.
+     * @param orderedRelease if true, release ByteBufferItems in same order as acquired.
+     * @param myId unique id of this object.
+     */
+    ByteBufferItem(ByteBuffer templateBuf, boolean orderedRelease, int myId) {
+
+        this.myId = myId;
+        this.order = templateBuf.order();
+        this.direct = templateBuf.isDirect();
+        this.bufferSize = templateBuf.capacity();
+        this.orderedRelease = orderedRelease;
+
+        if (direct) {
+            buffer = ByteBuffer.allocateDirect(bufferSize).order(order);
+            for (int i=0; i < bufferSize; i++) {
+                buffer.put(i, templateBuf.get(i));
+            }
+        }
+        else {
+            buffer = ByteBuffer.allocate(bufferSize).order(order);
+            System.arraycopy(templateBuf.array(), 0, buffer.array(), 0, bufferSize);
+        }
+        buffer.position(templateBuf.position());
+        buffer.limit(templateBuf.limit());
+    }
+
+
+    /**
+     * Method to reset this item each time it is retrieved from the supply.
+     */
+    public void reset() {
+        buffer.clear();
+        userInt = 0;
+        force = false;
+        userBoolean = false;
+        multipleUsers = false;
+        fromConsumerGet = false;
+        producerSequence = consumerSequence = 0L;
+    }
+
+
+    /**
      * Get the unique id of this object.
      * @return unique id of this object.
      */
     public int getMyId() {return myId;}
+
+    /**
+     * Get the auxiliary object.
+     * @return auxiliary object.
+     */
+    public Object getMyObject() {return myObject;}
+
+    /**
+     * Set the auxiliary object.
+     * @param obj auxiliary object.
+     */
+    public void setMyObject(Object obj) {myObject = obj;}
 
     /**
      * Is this a direct buffer or not?
@@ -154,78 +263,6 @@ public class ByteBufferItem {
     public void setUserBoolean(boolean bool) {userBoolean = bool;}
 
     //--------------------------------
-
-
-    /**
-     * Constructor.
-     *
-     * @param bufferSize size in bytes of ByteBuffer to construct.
-     * @param order byte order of ByteBuffer to construct.
-     * @param direct is the buffer direct (in memory not managed by JVM) or not.
-     * @param orderedRelease if true, release ByteBufferItems in same order as acquired.
-     * @param myId unique id of this object.
-     */
-    ByteBufferItem(int bufferSize, ByteOrder order,
-                          boolean direct, boolean orderedRelease, int myId) {
-        this.order = order;
-        this.direct = direct;
-        this.bufferSize = bufferSize;
-        this.orderedRelease = orderedRelease;
-
-        if (direct) {
-            buffer = ByteBuffer.allocateDirect(bufferSize).order(order);
-        }
-        else {
-            buffer = ByteBuffer.allocate(bufferSize).order(order);
-        }
-
-        this.myId = myId;
-    }
-
-
-    /**
-     * Constructor used to initially fill each ByteBufferItem of a ByteBufferSupply
-     * with a copy of a template buffer.
-     *
-     * @param templateBuf    this item's buffer is a copy this of template ByteBuffer.
-     * @param orderedRelease if true, release ByteBufferItems in same order as acquired.
-     * @param myId unique id of this object.
-     */
-    ByteBufferItem(ByteBuffer templateBuf, boolean orderedRelease, int myId) {
-
-        this.order = templateBuf.order();
-        this.direct = templateBuf.isDirect();
-        this.bufferSize = templateBuf.capacity();
-        this.orderedRelease = orderedRelease;
-
-        if (direct) {
-            buffer = ByteBuffer.allocateDirect(bufferSize).order(order);
-            for (int i=0; i < bufferSize; i++) {
-                buffer.put(i, templateBuf.get(i));
-            }
-        }
-        else {
-            buffer = ByteBuffer.allocate(bufferSize).order(order);
-            System.arraycopy(templateBuf.array(), 0, buffer.array(), 0, bufferSize);
-        }
-        buffer.position(templateBuf.position());
-        buffer.limit(templateBuf.limit());
-
-        this.myId = myId;
-    }
-
-
-    /**
-     * Method to reset this item each time it is retrieved from the supply.
-     */
-    public void reset() {
-        buffer.clear();
-        userInt = 0;
-        userBoolean = false;
-        multipleUsers = false;
-        producerSequence = consumerSequence = 0L;
-    }
-
 
     /**
      * Get the sequence of this item for producer.
