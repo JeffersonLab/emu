@@ -233,7 +233,6 @@ public class DataChannelImplEmu extends DataChannelAdapter {
             }
             catch (NumberFormatException e) {}
         }
-//        socketCount = 1;
         logger.info("      DataChannel Emu: TCP socket count = " + socketCount);
         if (socketCount > 1) {
             logger.info("      DataChannel Emu: ************** FAT PIPE ***************");
@@ -242,8 +241,7 @@ public class DataChannelImplEmu extends DataChannelAdapter {
         // if INPUT channel
         if (input) {
             isER = (emu.getCodaClass() == CODAClass.ER);
-// minimize parsing
-//isER  = true;
+
             // size of TCP receive buffer (0 means use operating system default)
             //tcpRecvBuf = 3000000;     // THIS VALUE DOES NOT WORK FOR 1G Ethernet!!!
             tcpRecvBuf = 0;
@@ -400,17 +398,12 @@ logger.info("      DataChannel Emu: set sendBuf to " + tcpSendBuf);
         numBufs = numBufs <  16 ?  16 : numBufs;
         numBufs = numBufs > 128 ? 128 : numBufs;
         // Reducing numBufs to 32 increases barrier.waitfor() time from .02% to .4% of EB time
-        numBufs = 64;
+        numBufs = 32;
 
         // Make power of 2, round up
         numBufs = EmuUtilities.powerOfTwo(numBufs, true);
 //logger.info("\n\n      DataChannel Emu in: " + numBufs + " buffers in input supply, socketCount = " +
 //                    socketCount + "\n\n");
-
-        boolean sequentialRelease = true;
-        if (module.getEventProducingThreadCount() > 1) {
-            sequentialRelease = false;
-        }
 
         // Initialize things once
         if (socketChannel == null) {
@@ -422,6 +415,7 @@ logger.info("      DataChannel Emu: set sendBuf to " + tcpSendBuf);
             parserMergerThread = new ParserMerger();
             if (useGarbageFree) {
                 nodePools = new EvioNodePool[socketCount][numBufs];
+logger.info("      DataChannel Emu in: allocated " + (socketCount * numBufs) + " node pools in array");
             }
         }
         // If establishing multiple sockets for this single emu channel,
@@ -456,7 +450,14 @@ logger.info("      DataChannel Emu: set sendBuf to " + tcpSendBuf);
         // Use buffered streams for efficiency
         socketChannel[index] = channel;
         in[index] = new DataInputStream(new BufferedInputStream(sock.getInputStream()));
-        
+
+        // EBs release events sequentially if there's only 1 build thread,
+        // else the release is NOT sequential.
+        boolean sequentialRelease = true;
+        if (module.getEventProducingThreadCount() > 1) {
+            sequentialRelease = false;
+        }
+
         // If ER
         if (isER) {
             List<DataChannel> outChannels = emu.getOutChannels();
@@ -469,32 +470,34 @@ logger.info("      DataChannel Emu: set sendBuf to " + tcpSendBuf);
                 // and since the file output channel also processes all events in order,
                 // the byte buffer supply does not have to be synchronized as byte buffers are
                 // released in order. Will make things faster.
-                //sequentialRelease = true;
+                sequentialRelease = true;
             }
             else {
                 // If ER has more than one output, buffers may not be released sequentially
                 sequentialRelease = false;
             }
         }
-//        else {
-//            // EBs release events sequentially if there's only 1 build thread,
-//            // else the release is NOT sequential.
-//            if (module.getEventProducingThreadCount() > 1) {
-//                sequentialRelease = false;
-//            }
-//        }
 
-        bbInSupply[index] = new ByteBufferSupply(numBufs, maxBufferSize,
-                                                 ByteOrder.BIG_ENDIAN, direct,
-                                                 sequentialRelease);
+logger.info("      DataChannel Emu in: seq release of buffers = " + sequentialRelease);
+
 
         if (useGarbageFree) {
             // Create the EvioNode pools - each socket gets numBuf number of pools -
-            // each of which contain 400 EvioNodes to begin with. These are used for
-            // the top node of each event.
+            // each of which contain 3500 EvioNodes to begin with. These are used for
+            // the nodes of each event.
             for (int i = 0; i < numBufs; i++) {
-                nodePools[index][i] = new EvioNodePool(400);
+                nodePools[index][i] = new EvioNodePool(3500);
             }
+logger.info("      DataChannel Emu in: created " + (numBufs) + " node pools for socket " + index + ", " + name());
+
+            bbInSupply[index] = new ByteBufferSupply(numBufs, maxBufferSize,
+                                                     ByteOrder.BIG_ENDIAN, direct,
+                                                     sequentialRelease, nodePools[index]);
+        }
+        else {
+            bbInSupply[index] = new ByteBufferSupply(numBufs, maxBufferSize,
+                                                     ByteOrder.BIG_ENDIAN, direct,
+                                                     sequentialRelease);
         }
 
 //logger.info("      DataChannel Emu in: seq release = " + sequentialRelease);
@@ -980,7 +983,10 @@ logger.debug("      DataChannel Emu: end(), close output channel " + name);
                         continue;
                     }
 
+
+                    // Sets the producer sequence
                     item = bbSupply.get();
+//System.out.println("    GOT pool " + item.myIndex);
 
                     // First read the command & size with one read, into a long.
                     // These 2, 32-bit ints are sent in network byte order, cmd first.
@@ -1076,9 +1082,10 @@ System.out.println("      DataChannel Emu in: " + name +
                 if (socketCount == 1) {
                     ByteBufferSupply bbSupply = bbInSupply[0];
                     while (true) {
+                        // Sets the consumer sequence
                         ByteBufferItem item = bbSupply.consumerGet();
                         if (useGarbageFree) {
-                            if (parseToRingNew(item, bbSupply, 0)) {
+                            if (parseToRingNew(item, bbSupply)) {
                                 logger.info("      DataChannel Emu in: 1 quit parser/merger thread for END event from " + name);
                                 break;
                             }
@@ -1100,7 +1107,7 @@ System.out.println("      DataChannel Emu in: " + name +
                             // Alternate by getting one buffer from each supply in order
                             ByteBufferItem item = bbSupply.consumerGet();
                             if (useGarbageFree) {
-                                if (parseToRingNew(item, bbSupply, sockIndex)) {
+                                if (parseToRingNew(item, bbSupply)) {
                                     logger.info("      DataChannel Emu in: 2 quit parser/merger thread for END event from " + name);
                                     break toploop;
                                 }
@@ -1136,31 +1143,26 @@ System.out.println("      DataChannel Emu in: " + name +
          *
          * @param item        ByteBufferSupply item containing buffer to be parsed.
          * @param bbSupply    ByteBufferSupply item.
-         * @param socketIndex index indicating which socket of the fat pipe we're using.
-         *                    Use this to select the node pool being used.
          * @return is the last evio event parsed the END event?
          * @throws EvioException
          * @throws InterruptedException
          */
-        private final boolean parseToRingNew(ByteBufferItem item, ByteBufferSupply bbSupply,
-                                             int socketIndex)
+        private final boolean parseToRingNew(ByteBufferItem item, ByteBufferSupply bbSupply)
                 throws EvioException, InterruptedException {
 
              RingItem ri;
              EvioNode node;
-             EvioNodeSource nodePool;
              boolean hasFirstEvent, isUser=false;
              ControlType controlType = null;
              EvioNodePool pool;
 
+             // Get buffer from an item from ByteBufferSupply - one per channel
              ByteBuffer buf = item.getBuffer();
-//System.out.println("p1, buf lim = " + buf.limit() + ", cap = " + buf.capacity());
-//Utilities.printBuffer(buf, 0, 100, "Buf");
+
              try {
-//System.out.println("      DataChannel Emu in: try parsing buf");
-                 // Select the pool of EvioNodes to use with this buffer.
-                 // Each buffer in the supply is numbered uniquely in sequence starting from 0.
-                 pool = nodePools[socketIndex][item.getMyId()];
+                 // Pool of EvioNodes associated with this buffer
+                 pool = (EvioNodePool)item.getMyObject();
+                 // Each pool must be reset only once!
                  pool.reset();
 
                  if (reader == null) {
@@ -1197,6 +1199,7 @@ System.out.println("      DataChannel Emu in: data NOT evio v4 format 1");
              // Keep track by counting users (# events parsed from same buffer).
              int eventCount = reader.getEventCount();
              item.setUsers(eventCount);
+
 //    System.out.println("      DataChannel Emu in: block header, event type " + eventType +
 //                       ", recd id = " + recordId + ", event cnt = " + eventCount);
 
@@ -1209,10 +1212,8 @@ System.out.println("      DataChannel Emu in: data NOT evio v4 format 1");
                      node = reader.getEvent(i);
                  }
                  else {
-                     nodePool = ri.getNodeSource();
-                     nodePool.reset();
                      // getScannedEvent will clear child and allNodes lists
-                     node = reader.getScannedEvent(i, nodePool);
+                     node = reader.getScannedEvent(i, pool);
                  }
 
                  // This should NEVER happen
@@ -1274,9 +1275,6 @@ logger.info("      DataChannel Emu in: got " + controlType + " event from " + na
 
                      // Send control events on to module so we can prestart, go and take data
                      if (!eventType.isBuildable()) {
-//                         nextRingItem = ringBufferIn.next();
-//                         ri = ringBufferIn.get(nextRingItem);
-
                          ri.setAll(null, null, node, eventType, controlType,
                                    isUser, hasFirstEvent, id, recordId, sourceId,
                                    1, name, item, bbSupply);
@@ -1286,9 +1284,6 @@ logger.info("      DataChannel Emu in: got " + controlType + " event from " + na
 
                      continue;
                  }
-
-//                 nextRingItem = ringBufferIn.next();
-//                 ri = ringBufferIn.get(nextRingItem);
 
                  // Set & reset all parameters of the ringItem
                  if (eventType.isBuildable()) {
