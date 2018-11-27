@@ -709,36 +709,68 @@ logger.info("      DataChannel Et: # copy-ET-buffers in input supply -> " + numE
             if (useGarbageFree) {
                 // One pool for each supply buffer.
                 nodePools = new EvioNodePool[numEtBufs];
-                // Create the EvioNode pools -
-                // each of which contain 400 EvioNodes to begin with. These are used for
-                // the top node of each event.
+                // Create the EvioNode pools
                 for (int i = 0; i < numEtBufs; i++) {
-                    nodePools[i] = new EvioNodePool(400);
+                    nodePools[i] = new EvioNodePool(3500);
                 }
-            }
 
-            // If ER
-            if (isER) {
-                List<DataChannel> outChannels = emu.getOutChannels();
-                // if (0 output channels or 1 file output channel) ...
-                if (((outChannels.size() < 1) ||
-                        (outChannels.size() == 1 &&
-                                (outChannels.get(0).getTransportType() == TransportType.FILE)))) {
+                // If ER
+                if (isER) {
+                    List<DataChannel> outChannels = emu.getOutChannels();
+                    // if (0 output channels or 1 file output channel) ...
+                    if (((outChannels.size() < 1) ||
+                            (outChannels.size() == 1 &&
+                                    (outChannels.get(0).getTransportType() == TransportType.FILE)))) {
 
-                    // Since ER has only 1 recording thread and every event is processed in order,
-                    // and since the file output channel also processes all events in order,
-                    // the byte buffer supply does not have to be synchronized as byte buffers are
-                    // released in order. Will make things faster.
-                    bbSupply = new ByteBufferSupply(numEtBufs, etEventSize, module.getOutputOrder(), false, true);
+                        // Since ER has only 1 recording thread and every event is processed in order,
+                        // and since the file output channel also processes all events in order,
+                        // the byte buffer supply does not have to be synchronized as byte buffers are
+                        // released in order. Will make things faster.
+                        bbSupply = new ByteBufferSupply(numEtBufs, etEventSize,
+                                                        module.getOutputOrder(),
+                                                        false, true, nodePools);
+                    }
+                    else {
+                        // If ER has more than one output, buffers may not be released sequentially
+                        bbSupply = new ByteBufferSupply(numEtBufs, etEventSize,
+                                                        module.getOutputOrder(),
+                                                        false, false, nodePools);
+                    }
                 }
                 else {
-                    // If ER has more than one output, buffers may not be released sequentially
-                    bbSupply = new ByteBufferSupply(numEtBufs, etEventSize, module.getOutputOrder(), false);
+                    // EBs all release these ByteBuffers in order in the ReleaseRingResourceThread thread
+                    bbSupply = new ByteBufferSupply(numEtBufs, etEventSize,
+                                                    module.getOutputOrder(),
+                                                    false, true, nodePools);
                 }
             }
             else {
-                // EBs all release these ByteBuffers in order in the ReleaseRingResourceThread thread
-                bbSupply = new ByteBufferSupply(numEtBufs, etEventSize, module.getOutputOrder(), false, true);
+                // If ER
+                if (isER) {
+                    List<DataChannel> outChannels = emu.getOutChannels();
+                    // if (0 output channels or 1 file output channel) ...
+                    if (((outChannels.size() < 1) ||
+                            (outChannels.size() == 1 &&
+                                    (outChannels.get(0).getTransportType() == TransportType.FILE)))) {
+
+                        // Since ER has only 1 recording thread and every event is processed in order,
+                        // and since the file output channel also processes all events in order,
+                        // the byte buffer supply does not have to be synchronized as byte buffers are
+                        // released in order. Will make things faster.
+                        bbSupply = new ByteBufferSupply(numEtBufs, etEventSize,
+                                                        module.getOutputOrder(), false, true);
+                    }
+                    else {
+                        // If ER has more than one output, buffers may not be released sequentially
+                        bbSupply = new ByteBufferSupply(numEtBufs, etEventSize,
+                                                        module.getOutputOrder(), false);
+                    }
+                }
+                else {
+                    // EBs all release these ByteBuffers in order in the ReleaseRingResourceThread thread
+                    bbSupply = new ByteBufferSupply(numEtBufs, etEventSize,
+                                                    module.getOutputOrder(), false, true);
+                }
             }
         }
 
@@ -1490,7 +1522,7 @@ System.out.println("      DataChannel Et in: GETTER is Quitting");
                 boolean useDirectEt = (etSysLocal != null);
                 boolean etAlive = true;
                 boolean hasFirstEvent, isUser=false;
-                EvioNodeSource nodePool;
+                EvioNodeSource nodePool = null;
 
                 EtContainer etContainer = null;
                 long nextSequence = etConsumeSequence.get() + 1L;
@@ -1587,7 +1619,7 @@ System.out.println("      DataChannel Et in: GETTER is Quitting");
 
                         try {
                             if (useGarbageFree) {
-                                nodePool = nodePools[bbItem.getMyId()];
+                                nodePool = (EvioNodePool)bbItem.getMyObject();
                                 nodePool.reset();
                                 
                                 // These calls do not change buf position
@@ -1662,7 +1694,12 @@ System.out.println("      DataChannel Et in: GETTER is Quitting");
                                 node = compactReader.getEvent(i);
                             }
                             else {
-                                node = compactReader.getScannedEvent(i);
+                                if (useGarbageFree) {
+                                    node = compactReader.getScannedEvent(i, nodePool);
+                                }
+                                else {
+                                    node = compactReader.getScannedEvent(i);
+                                }
                             }
 
                             // Complication: from the ROC, we'll be receiving USER events
@@ -1688,12 +1725,12 @@ System.out.println("      DataChannel Et in: GETTER is Quitting");
                             }
                             else if (eventType == EventType.USER) {
                                 isUser = true;
-                                //                                if (hasFirstEvent) {
-                                //logger.info("      DataChannel Et in: " + name + " got FIRST event");
-                                //                                }
-                                //                                else {
-                                //logger.info("      DataChannel Et in: " + name + " got USER event");
-                                //                                }
+                                if (hasFirstEvent) {
+                                    logger.info("      DataChannel Et in: " + name + " got FIRST event");
+                                }
+                                else {
+                                    logger.info("      DataChannel Et in: " + name + " got USER event");
+                                }
                             }
 
                             // Don't need to set controlType = null for each loop since each
