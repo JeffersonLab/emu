@@ -610,6 +610,42 @@ System.out.println("checkPayload: buf source id = " + pBuf.getSourceId() +
      }
 
 
+    /**
+     * Check the data coming over a channel for sequential record ids.
+     *
+     * @param recordId  id associated with an incoming evio event
+     *                  (each of which may contain several physics events)
+     * @param eventType type of input event
+     * @param channel   input channel data is from
+     * @return true if there is a non-fatal error with mismatched record ids, else false
+     * @throws EvioException if record id is out of sequence.
+     *
+     */
+    public static void checkRecordIdSequence(int recordId, EventType eventType,
+                                             DataChannel channel) throws EvioException {
+
+        if (eventType.isBuildable()) {
+            // The recordId associated with each bank is taken from the first
+            // evio block header in a single ET/emu-socket/cMsg-msg data buffer.
+            // For a physics or ROC raw type, it should start at zero and increase
+            // by one in the first evio block header of the next ET/cMsg-msg data buffer.
+            // NOTE: There may be multiple banks from the same buffer and
+            // they will all have the same recordId.
+            int chanRecordId = channel.getRecordId();
+
+            if (recordId != chanRecordId &&
+                recordId != chanRecordId + 1) {
+                throw new EvioException("checkPayload: record ID out of sequence, got " + recordId +
+                                        ", expecting " + chanRecordId + " or " +
+                                        (chanRecordId+1) + ", type = " + eventType +
+                                        ", name = " + channel.name());
+            }
+            // Store the current value here as a convenience for the next comparison
+            channel.setRecordId(recordId);
+        }
+    }
+
+
      /**
       * Check the given payload buffer for event type
       * (physics, ROC raw, control, or user) as well as evio structure type.
