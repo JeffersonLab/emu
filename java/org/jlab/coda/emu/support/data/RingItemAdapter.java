@@ -107,21 +107,17 @@ abstract class RingItemAdapter implements RingItem {
     /** This refers to the wrapper object of buffer in reusable ByteBufferSupply (if any). */
     protected ByteBufferItem byteBufferItem;
 
-    /** Pool of EvioNode objects used for parsing Evio data in EBs. */
-    protected EvioNodePool nodePool;
 
 
     /** Constructor. */
-    public RingItemAdapter() {nodePool = new EvioNodePool(100);}
+    public RingItemAdapter() {}
 
 
     /**
      * Constructor.
      * @param nodeArraySize  number of EvioNode objects to create in pool.
      */
-    public RingItemAdapter(int nodeArraySize) {
-        nodePool = new EvioNodePool(nodeArraySize);
-    }
+    public RingItemAdapter(int nodeArraySize) {}
 
 
     /**
@@ -130,7 +126,6 @@ abstract class RingItemAdapter implements RingItem {
      */
     public RingItemAdapter(RingItem ringItem) {
         copy(ringItem);
-        nodePool = new EvioNodePool(100);
     }
 
 
@@ -215,9 +210,6 @@ abstract class RingItemAdapter implements RingItem {
 
     /** {@inheritDoc} */
     public void setNode(EvioNode node) { this.node = node; }
-
-    /** {@inheritDoc} */
-    public EvioNodeSource getNodeSource() {return nodePool;}
 
     /** {@inheritDoc} */
     public void releaseByteBuffer() {
