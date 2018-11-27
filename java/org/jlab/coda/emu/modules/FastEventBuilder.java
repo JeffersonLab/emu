@@ -1423,16 +1423,6 @@ System.out.println("  EB mod: got all GO events");
                                 recordIdError = false;
 //System.out.println("  EB mod: bt" + btIndex + " ch" + i + ", event order = " + buildingBanks[i].getByteOrder());
 
-//                                // Check payload buffer for event & evio structure types,
-//                                // and also record id mismatches (which is best done in a single
-//                                // thread as each buffer is compared to the last one).
-//                                //if (!dumpData && btIndex == 0) {
-//                                if (btIndex == 0) {
-//                                    recordIdError = Evio.checkInputType(buildingBanks[i].getRecordId(),
-//                                                                        inputChannels.get(i),
-//                                                                        eventType, inputNode);
-//                                }
-
                                 // Deal with user event
                                 if (eventType.isUser()) {
 System.out.println("  EB mod: got user event");
@@ -2031,17 +2021,6 @@ if (debug) System.out.println("  EB mod: Building thread is ending");
                      nextSequences[i]  = buildSequences[i].get() + 1L;
                  }
 
-//                 // i = input channel;
-//
-//                 // For each build thread ...
-//                 for (int j = 0; j < buildingThreadCount; j++) {
-//                     // We have 1 sequence for each build thread & input channel combination
-//                     buildSequenceIn[j][i] = new Sequence(Sequencer.INITIAL_CURSOR_VALUE);
-//                     // This sequence may be the last consumer before producer comes along
-//                     rb[i].addGatingSequences(buildSequenceIn[j][i]);
-//                 }
-
-
                  // First thing we do is look for the PRESTART event(s) and pass it on
                  try {
                       // 1st build thread writes prestart event on all output channels, ring 0.
@@ -2178,16 +2157,6 @@ if (debug) System.out.println("  EB mod: Building thread is ending");
                                  eventType = buildingBanks[i].getEventType();
                                  recordIdError = false;
  //System.out.println("  EB mod: bt" + btIndex + " ch" + i + ", event order = " + buildingBanks[i].getByteOrder());
-
-//                                 // Check payload buffer for event & evio structure types,
-//                                 // and also record id mismatches (which is best done in a single
-//                                 // thread as each buffer is compared to the last one).
-//                                 //if (!dumpData && btIndex == 0) {
-//                                 if (btIndex == 0) {
-//                                     recordIdError = Evio.checkInputType(buildingBanks[i].getRecordId(),
-//                                                                         inputChannels.get(i),
-//                                                                         eventType, inputNode);
-//                                 }
 
                                  // Deal with user event
                                  if (eventType.isUser()) {
@@ -2572,7 +2541,6 @@ if (debug) System.out.println("  EB mod: Building thread is ending");
                                                                          backBufOffsets, backingBufs,
                                                                          rocNodes, fastCopyReady);
                          writeIndex = returnLen[0];
-EmuUtilities.sleepNanos(700000);
                      }
 
                      // If the trigger bank has an error, go back and reset built event's tag
@@ -2590,7 +2558,6 @@ EmuUtilities.sleepNanos(700000);
                      }
 
                      if (havePhysicsEvents) {
- //if (debug) System.out.println("  EB mod: build physics event with physics banks");
                          Evio.buildPhysicsEventWithPhysics(rocNodes,
                                                            evBuf,
                                                            inputChannelCount,
@@ -2601,7 +2568,6 @@ EmuUtilities.sleepNanos(700000);
                          writeIndex = returnLen[0];
                      }
                      else {
- //if (debug) System.out.println("  EB mod: build physics event with ROC raw banks");
                          Evio.buildPhysicsEventWithRocRaw(rocNodes,
                                                           fastCopyReady,
                                                           inputChannelCount,
@@ -2643,9 +2609,6 @@ EmuUtilities.sleepNanos(700000);
                      }
 
                      // Put event in the correct output channel.
- //                    for (int k=0; k < btIndex; k++) {
- //                        System.out.print("  ");
- //                    }
  //System.out.println("  EB mod: bt#" + btIndex + " write event " + evIndex + " on ch" + outputChannelIndex + ", ring " + btIndex);
                      eventToOutputRing(btIndex, outputChannelIndex, evBuf,
                                        eventType, bufItem, bbSupply);
