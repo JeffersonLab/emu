@@ -188,6 +188,9 @@ public class RocSimulation extends ModuleAdapter {
 
         super(name, attributeMap, emu);
 
+
+        outputOrder = ByteOrder.LITTLE_ENDIAN;
+
         // Set the sync bit every 5000th record
         syncBitCount = 5003;
 
@@ -598,7 +601,7 @@ System.out.println("  Roc mod: start With (id=" + myId + "):\n    record id = " 
             }
 
             // Now create our own buffer supply to match
-            bbSupply = new ByteBufferSupply(bufSupplySize, 4*eventWordSize, ByteOrder.BIG_ENDIAN, true);
+            bbSupply = new ByteBufferSupply(bufSupplySize, 4*eventWordSize, ByteOrder.BIG_ENDIAN, false);
 
             try {
                 t1 = System.currentTimeMillis();
@@ -906,32 +909,39 @@ System.out.println("  Roc mod: reset()");
                                                                   emu.name()+":generator");
         }
 
-        boolean sendUser = true;
-
+//        boolean sendUser = true;
+//
 //        // Send user events right before prestart
 //        if (sendUser && emu.name().equals("Roc1")) {
-//            // Put in User events
-//            System.out.println("  Roc mod: write USER event for Roc1");
-//            PayloadBuffer pBuf = createUserBuffer(outputOrder, false, 1);
-//            eventToOutputChannel(pBuf, 0, 0);
-//
-//            System.out.println("  Roc mod: write FIRST event for Roc1");
-//            pBuf = createUserBuffer(outputOrder, true, 2);
-//            eventToOutputChannel(pBuf, 0, 0);
-//
-//            System.out.println("  Roc mod: write USER event for Roc1");
-//            pBuf = createUserBuffer(outputOrder, false, 3);
-//            eventToOutputChannel(pBuf, 0, 0);
-
-//            for (int i=0; i < 8200; i++) {
-//                System.out.println("  Roc mod: write FIRST event for Roc1");
-//                PayloadBuffer pBuf = createUserBuffer(outputOrder, true, i);
+//            try {
+//                // Put in User events
+//                System.out.println("  Roc mod: write USER event for Roc1");
+//                PayloadBuffer pBuf = createUserBuffer(outputOrder, false, 1);
 //                eventToOutputChannel(pBuf, 0, 0);
 //
+//                System.out.println("  Roc mod: write FIRST event for Roc1");
+//                pBuf = createUserBuffer(outputOrder, true, 2);
+//                eventToOutputChannel(pBuf, 0, 0);
+//
+//                System.out.println("  Roc mod: write USER event for Roc1");
+//                pBuf = createUserBuffer(outputOrder, false, 3);
+//                eventToOutputChannel(pBuf, 0, 0);
+//
+////                for (int i=0; i < 8200; i++) {
+////                    System.out.println("  Roc mod: write FIRST event for Roc1");
+////                    pBuf = createUserBuffer(outputOrder, true, i);
+////                    eventToOutputChannel(pBuf, 0, 0);
+////
+////                }
 //            }
-
-//            eventCountTotal += 8200 + 0;
-//            wordCountTotal  += (8200 + 0)*7;
+//            catch (InterruptedException e) {
+//                e.printStackTrace();
+//            }
+//
+//            eventCountTotal += 3;
+//            wordCountTotal  += 3*7;
+////            eventCountTotal += 8200 + 0;
+////            wordCountTotal  += (8200 + 0)*7;
 //        }
 
 
@@ -954,18 +964,23 @@ System.out.println("  Roc mod: reset()");
 
 //        // Send more user events right after prestart
 //        if (sendUser && emu.name().equals("Roc1")) {
-//            // Put in User events
-//            System.out.println("  Roc mod: write USER event after prestart for Roc1");
-//            PayloadBuffer pBuf = createUserBuffer(outputOrder, false, 5);
-//            eventToOutputChannel(pBuf, 0, 0);
+//            try {
+//                // Put in User events
+//                System.out.println("  Roc mod: write USER event after prestart for Roc1");
+//                pBuf = createUserBuffer(outputOrder, false, 5);
+//                eventToOutputChannel(pBuf, 0, 0);
 //
-//            System.out.println("  Roc mod: write FIRST event after prestart for Roc1");
-//            pBuf = createUserBuffer(outputOrder, true, 6);
-//            eventToOutputChannel(pBuf, 0, 0);
+//                System.out.println("  Roc mod: write FIRST event after prestart for Roc1");
+//                pBuf = createUserBuffer(outputOrder, true, 6);
+//                eventToOutputChannel(pBuf, 0, 0);
 //
-//            System.out.println("  Roc mod: write USER event after prestart for Roc1");
-//            pBuf = createUserBuffer(outputOrder, false, 7);
-//            eventToOutputChannel(pBuf, 0, 0);
+//                System.out.println("  Roc mod: write USER event after prestart for Roc1");
+//                pBuf = createUserBuffer(outputOrder, false, 7);
+//                eventToOutputChannel(pBuf, 0, 0);
+//            }
+//            catch (InterruptedException e) {
+//                e.printStackTrace();
+//            }
 //
 //            eventCountTotal += 3;
 //            wordCountTotal  += 21;
