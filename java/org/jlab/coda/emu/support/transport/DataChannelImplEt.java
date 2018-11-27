@@ -1654,11 +1654,15 @@ System.out.println("      DataChannel Et in: GETTER is Quitting");
                             throw new EvioException("Evio data needs to be written in version 4+ format");
                         }
 
-                        hasFirstEvent = header4.hasFirstEvent();
-                        eventType     = EventType.getEventType(header4.getEventType());
                         controlType   = null;
+                        hasFirstEvent = header4.hasFirstEvent();
+
+                        eventType = EventType.getEventType(header4.getEventType());
+                        if (eventType == null || !eventType.isEbFriendly()) {
+                            throw new EvioException("bad evio format or improper event type");
+                        }
                         // this only works from ROC !!!
-                        sourceId      = header4.getReserved1();
+                        sourceId = header4.getReserved1();
                         if (eventType == EventType.PARTIAL_PHYSICS) {
                             sourceId = events[j].getControl()[0];
                         }
@@ -1667,6 +1671,9 @@ System.out.println("      DataChannel Et in: GETTER is Quitting");
                         // 1 block per 2.2MB or 10K events. Thus we can get away with only
                         // looking at the very first block #.
                         recordId = header4.getNumber();
+
+                        // Check record for sequential record id
+                        Evio.checkRecordIdSequence(recordId, eventType, DataChannelImplEt.this);
 
                         // Number of evio event associated with this buffer.
                         int eventCount = compactReader.getEventCount();
@@ -1707,9 +1714,22 @@ System.out.println("      DataChannel Et in: GETTER is Quitting");
                             // and fix it.
                             if (eventType == EventType.ROC_RAW) {
                                 if (Evio.isUserEvent(node)) {
-                                    logger.info("      DataChannel Et in: " + name + " got USER event from ROC");
-                                    eventType = EventType.USER;
                                     isUser = true;
+                                    eventType = EventType.USER;
+                                    if (hasFirstEvent) {
+                                        logger.info("      DataChannel Et in: " + name + " got First event from ROC");
+                                    }
+                                    else {
+                                        logger.info("      DataChannel Et in: " + name + " got USER event from ROC");
+                                    }
+                                }
+                                else {
+                                    // Pick this raw data event apart a little
+                                    if (!node.getDataTypeObj().isBank()) {
+                                        DataType eventDataType = node.getDataTypeObj();
+                                        throw new EvioException("ROC raw record contains " + eventDataType +
+                                                                " instead of banks (data corruption?)");
+                                    }
                                 }
                             }
                             else if (eventType == EventType.CONTROL) {
@@ -1730,6 +1750,14 @@ System.out.println("      DataChannel Et in: GETTER is Quitting");
                                 }
                                 else {
                                     logger.info("      DataChannel Et in: " + name + " got USER event");
+                                }
+                            }
+                            else {
+                                // Physics or partial physics event must have BANK as data type
+                                if (!node.getDataTypeObj().isBank()) {
+                                    DataType eventDataType = node.getDataTypeObj();
+                                    throw new EvioException("physics record contains " + eventDataType +
+                                                            " instead of banks (data corruption?)");
                                 }
                             }
 

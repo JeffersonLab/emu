@@ -1150,50 +1150,55 @@ System.out.println("      DataChannel Emu in: " + name +
         private final boolean parseToRingNew(ByteBufferItem item, ByteBufferSupply bbSupply)
                 throws EvioException, InterruptedException {
 
-             RingItem ri;
-             EvioNode node;
-             boolean hasFirstEvent, isUser=false;
-             ControlType controlType = null;
-             EvioNodePool pool;
+            RingItem ri;
+            EvioNode node;
+            boolean hasFirstEvent, isUser=false;
+            ControlType controlType = null;
+            EvioNodePool pool;
 
-             // Get buffer from an item from ByteBufferSupply - one per channel
-             ByteBuffer buf = item.getBuffer();
+            // Get buffer from an item from ByteBufferSupply - one per channel
+            ByteBuffer buf = item.getBuffer();
 
-             try {
-                 // Pool of EvioNodes associated with this buffer
-                 pool = (EvioNodePool)item.getMyObject();
-                 // Each pool must be reset only once!
-                 pool.reset();
+            try {
+                // Pool of EvioNodes associated with this buffer
+                pool = (EvioNodePool)item.getMyObject();
+                // Each pool must be reset only once!
+                pool.reset();
 
-                 if (reader == null) {
-                     reader = new EvioCompactReaderUnsync(buf, pool);
-                 }
-                 else {
-                     reader.setBuffer(buf, pool);
-                 }
-             }
-             catch (EvioException e) {
-System.out.println("      DataChannel Emu in: data NOT evio v4 format 1");
-                 e.printStackTrace();
-                 Utilities.printBufferBytes(buf, 0, 80, "BAD BUFFER TO PARSE");
-                 throw e;
-             }
+                if (reader == null) {
+                    reader = new EvioCompactReaderUnsync(buf, pool);
+                }
+                else {
+                    reader.setBuffer(buf, pool);
+                }
+            }
+            catch (EvioException e) {
+                System.out.println("      DataChannel Emu in: data NOT evio v4 format 1");
+                e.printStackTrace();
+                Utilities.printBufferBytes(buf, 0, 80, "BAD BUFFER TO PARSE");
+                throw e;
+            }
 
-             // First block header in buffer
-             BlockHeaderV4 blockHeader = reader.getFirstBlockHeader();
-             if (blockHeader.getVersion() < 4) {
-                 throw new EvioException("Data not in evio v4 but in version " +
-                                                 blockHeader.getVersion());
-             }
+            // First block header in buffer
+            BlockHeaderV4 blockHeader = reader.getFirstBlockHeader();
+            if (blockHeader.getVersion() < 4) {
+                throw new EvioException("Data not in evio v4 but in version " +
+                                                blockHeader.getVersion());
+            }
 
-             hasFirstEvent = blockHeader.hasFirstEvent();
-             EventType eventType = EventType.getEventType(blockHeader.getEventType());
-             if (eventType == null) {
-                 throw new EvioException("bad format evio block header");
-             }
-             int recordId = blockHeader.getNumber();
+            hasFirstEvent = blockHeader.hasFirstEvent();
 
-             // Each PayloadBuffer contains a reference to the buffer it was
+            EventType eventType = EventType.getEventType(blockHeader.getEventType());
+            if (eventType == null || !eventType.isEbFriendly()) {
+                throw new EvioException("bad evio format or improper event type");
+            }
+
+            int recordId = blockHeader.getNumber();
+
+            // Check record for sequential record id
+            Evio.checkRecordIdSequence(recordId, eventType, DataChannelImplEmu.this);
+
+            // Each PayloadBuffer contains a reference to the buffer it was
              // parsed from (buf).
              // This cannot be released until the module is done with it.
              // Keep track by counting users (# events parsed from same buffer).
@@ -1237,6 +1242,14 @@ System.out.println("      DataChannel Emu in: WARNING, event count = " + eventCo
                              System.out.println("      DataChannel Emu in: USER event from ROC RAW");
                          }
                      }
+                     else {
+                         // Pick this raw data event apart a little
+                         if (!node.getDataTypeObj().isBank()) {
+                             DataType eventDataType = node.getDataTypeObj();
+                             throw new EvioException("ROC raw record contains " + eventDataType +
+                                                     " instead of banks (data corruption?)");
+                         }
+                     }
                  }
                  else if (eventType == EventType.CONTROL) {
                      // Find out exactly what type of control event it is
@@ -1255,6 +1268,14 @@ logger.info("      DataChannel Emu in: got " + controlType + " event from " + na
                      }
                      else {
                          logger.info("      DataChannel Emu in: got USER event");
+                     }
+                 }
+                 else {
+                     // Physics or partial physics event must have BANK as data type
+                     if (!node.getDataTypeObj().isBank()) {
+                         DataType eventDataType = node.getDataTypeObj();
+                         throw new EvioException("physics record contains " + eventDataType +
+                                                 " instead of banks (data corruption?)");
                      }
                  }
 
