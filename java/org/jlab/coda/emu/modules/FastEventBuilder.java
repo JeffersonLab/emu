@@ -1757,7 +1757,6 @@ System.out.println("  EB mod: bt#" + btIndex + " found END events on all input c
                                                                         timestampSlop, btIndex,
                                                                         longData, evData,
                                                                         segmentData, returnLen);
-                        EmuUtilities.sleepNanos(10000);
                     }
 
                     // If the trigger bank has an error, go back and reset its tag
