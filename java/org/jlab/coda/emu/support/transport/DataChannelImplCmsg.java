@@ -30,6 +30,8 @@ import java.util.Map;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 
+// TODO: make this garbage-free
+
 /**
  * This class implement a data channel which gets data from
  * or sends data to a cMsg server.
