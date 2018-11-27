@@ -78,15 +78,6 @@ public interface RingItem extends Cloneable, Attached {
     public EvioNode getNode();
 
     /**
-     * Get the EvioNodeSource object which gets the pool of EvioNode objects associated
-     * with this item if any. Used in parsing incoming evio buffers without generating
-     * garbage.
-     * @return EvioNodeSource object which is used in parsing incoming evio buffers
-     *         without generating garbage (null if none).
-     */
-    public EvioNodeSource getNodeSource();
-
-    /**
      * Set the EvioNode object which selects a particular event in the ByteBuffer
      * referenced by this ring item, if any.
      * Used in conjunction with {{@link #setBuffer(java.nio.ByteBuffer)}}.
