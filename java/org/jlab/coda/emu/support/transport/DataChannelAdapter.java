@@ -249,7 +249,7 @@ public abstract class DataChannelAdapter extends CODAStateMachineAdapter impleme
             // Set the number of items for the input ring buffers.
             // These contain evio events parsed from ET, cMsg,
             // or Emu domain buffers. They should not take up much mem.
-            inputRingItemCount = 2*4096;
+            inputRingItemCount = 4096;
 
             attribString = attributeMap.get("ringSize");
             if (attribString != null) {
