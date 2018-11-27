@@ -415,7 +415,7 @@ logger.info("      DataChannel Emu: set sendBuf to " + tcpSendBuf);
             parserMergerThread = new ParserMerger();
             if (useGarbageFree) {
                 nodePools = new EvioNodePool[socketCount][numBufs];
-logger.info("      DataChannel Emu in: allocated " + (socketCount * numBufs) + " node pools in array");
+//logger.info("      DataChannel Emu in: allocated " + (socketCount * numBufs) + " node pools in array");
             }
         }
         // If establishing multiple sockets for this single emu channel,
@@ -478,7 +478,7 @@ logger.info("      DataChannel Emu in: allocated " + (socketCount * numBufs) + "
             }
         }
 
-logger.info("      DataChannel Emu in: seq release of buffers = " + sequentialRelease);
+//logger.info("      DataChannel Emu in: seq release of buffers = " + sequentialRelease);
 
 
         if (useGarbageFree) {
@@ -488,7 +488,7 @@ logger.info("      DataChannel Emu in: seq release of buffers = " + sequentialRe
             for (int i = 0; i < numBufs; i++) {
                 nodePools[index][i] = new EvioNodePool(3500);
             }
-logger.info("      DataChannel Emu in: created " + (numBufs) + " node pools for socket " + index + ", " + name());
+//logger.info("      DataChannel Emu in: created " + (numBufs) + " node pools for socket " + index + ", " + name());
 
             bbInSupply[index] = new ByteBufferSupply(numBufs, maxBufferSize,
                                                      ByteOrder.BIG_ENDIAN, direct,

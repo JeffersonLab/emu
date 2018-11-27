@@ -633,7 +633,6 @@ logger.info("  EB mod: internal ring buf count -> " + ringItemCount);
             // that may have been used for control event.
             // Should only be done once - by first build thread
             if (threadIndex == 0) {
-System.out.println("  EB mod: getAllControlEvents, release BB for chan #" + i);
                 buildingBanks[i].releaseByteBuffer();
             }
         }
