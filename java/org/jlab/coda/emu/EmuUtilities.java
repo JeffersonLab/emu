@@ -51,6 +51,14 @@ public class EmuUtilities {
         } while (timeLeft > 0);
     }
 
+    
+    /** This method prints out the current stack trace. */
+    final static public void printStackTrace() {
+        for (StackTraceElement ste : Thread.currentThread().getStackTrace()) {
+            System.out.println(ste);
+        }
+    }
+
 
     /**
      * Method to deep copy a ByteBuffer object.
