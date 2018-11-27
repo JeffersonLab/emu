@@ -2713,7 +2713,6 @@ EmuUtilities.sleepNanos(700000);
                  // are drained. This makes ROC recovery much easier.
 
                  // Grab banks from each channel
-System.out.println("  EB mod: clean inputs AFTER ERROR");
                  for (int i=0; i < inputChannelCount; i++) {
 
                      cursor = buildBarrierIn[i].getCursor();
