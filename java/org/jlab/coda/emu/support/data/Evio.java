@@ -656,9 +656,10 @@ System.out.println("checkPayload: buf source id = " + pBuf.getSourceId() +
              channel.setRecordId(recordId);
 
              // Pick this event apart a little
-             if (inputNode.getDataTypeObj() != DataType.BANK &&
-                 inputNode.getDataTypeObj() != DataType.ALSOBANK) {
-                 throw new EmuException("ROC raw / physics record not in proper format");
+             if (!inputNode.getDataTypeObj().isBank()) {
+                 DataType eventDataType = inputNode.getDataTypeObj();
+                 throw new EmuException("ROC raw / physics record contains " + eventDataType +
+                                                " instead of banks (data corruption?)");
              }
          }
 
@@ -2582,7 +2583,7 @@ System.out.println("Timestamp NOT consistent: ev #" + (firstEventNumber + j) + "
                      // Print out beginning of all rocs' buffers
                      for (PayloadBuffer inputPayloadBank : inputPayloadBanks) {
                          Utilities.printBuffer(inputPayloadBank.getBuffer(), 0, 10,
-                                               "Data from roc " + inputPayloadBanks[i].getSourceName());
+                                               "Data from roc " + inputPayloadBank.getSourceName());
                      }
                  }
              }
