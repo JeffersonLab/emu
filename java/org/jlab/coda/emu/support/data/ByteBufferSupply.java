@@ -445,7 +445,8 @@ public class ByteBufferSupply {
         return item;
     }
 
-//    boolean delta2 = false;
+//    private boolean delta2 = false;
+//    private boolean delta3 = false;
 
     /**
      * Consumer releases claim on the given ring buffer item so it becomes available for reuse.
@@ -496,6 +497,7 @@ public class ByteBufferSupply {
                 }
 
 //                delta2 = seq == (lastSequenceReleased + 2);
+//                delta3 = seq == (lastSequenceReleased + 3);
 
                 // If we now have everything between last & max, release it all.
                 // This way higher sequences are never released before lower.
@@ -504,15 +506,18 @@ public class ByteBufferSupply {
                     sequence.set(maxSequence);
                     lastSequenceReleased = maxSequence;
                     between = 0;
-//                    delta2 = false;
+//                    delta2 = delta3 = false;
                 }
 //                // If we have next one up from the last released, we can release it
 //                else if (seq == lastSequenceReleased + 1) {
-////                    if (delta2) seq++;
+//                    if (delta2) {
+//                        seq++;
+//                        if (delta3) seq++;
+//                    }
 //                    sequence.set(seq);
 //                    between--;
 //                    lastSequenceReleased = seq;
-////                    delta2 = false;
+//                    delta2 = false;
 //                }
             }
         }
