@@ -2055,7 +2055,9 @@ if (debug) System.out.println("  EB mod: Building thread is ending");
 
                  prestartCallback.endWait();
                  haveAllPrestartEvents = true;
-                 System.out.println("  EB mod: got all PRESTART events");
+                 if (btIndex == 0) {
+                     System.out.println("  EB mod: got all PRESTART events");
+                 }
 
                  // Second thing we do is look for the GO or END event and pass it on
                  try {
@@ -2079,8 +2081,8 @@ if (debug) System.out.println("  EB mod: Building thread is ending");
                              haveEndEvent = true;
                              if (btIndex == 0) {
                                  handleEndEvent(null);
+                                 System.out.println("  EB mod: got all END events");
                              }
-                             System.out.println("  EB mod: got all END events");
                              return;
                          }
                          else {
@@ -2100,7 +2102,9 @@ if (debug) System.out.println("  EB mod: Building thread is ending");
                      return;
                  }
 
-                 System.out.println("  EB mod: got all GO events");
+                 if (btIndex == 0) {
+                     System.out.println("  EB mod: got all GO events");
+                 }
 
                  long endSequence = -1;
 
@@ -2159,10 +2163,10 @@ if (debug) System.out.println("  EB mod: Building thread is ending");
 
                                  // Deal with user event
                                  if (eventType.isUser()) {
- System.out.println("  EB mod: got user event");
                                      // User events are placed in first output channel's first ring.
                                      // Only the first build thread will deal with them.
                                      if (btIndex == 0) {
+System.out.println("  EB mod: got user event");
  //System.out.println("  EB mod: bt" + btIndex + " ch" + i + ", skip user item " + nextSequences[i]);
  //System.out.println("  EB mod: user event order = " + pBuf.getByteOrder());
                                          handleUserEvent(buildingBanks[i], inputChannels.get(i),
