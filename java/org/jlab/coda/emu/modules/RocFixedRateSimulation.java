@@ -876,7 +876,7 @@ System.out.println("  Roc mod: PRESTART");
         gotGoCommand = gotEndCommand = gotResetCommand = false;
         eventRate = wordRate = 0F;
         eventCountTotal = wordCountTotal = 0L;
-        rocRecordId = 0;
+        rocRecordId = 1;
 
         initLatch = new CountDownLatch(1);
         // Subscribe to cMsg server for ROC initialization purposes
@@ -898,11 +898,6 @@ System.out.println("  Roc mod: PRESTART");
         // create threads objects (but don't start them yet)
         RateCalculator = new Thread(emu.getThreadGroup(), new RateCalculatorThread(), emu.name()+":watcher");
 
-        for (int i=0; i < eventProducingThreads; i++) {
-            eventGeneratingThreads[i] = new EventGeneratingThread(i, emu.getThreadGroup(),
-                                                                  emu.name()+":generator");
-        }
-
         boolean sendUser = true;
 
 //        // Send user events right before prestart
@@ -911,19 +906,23 @@ System.out.println("  Roc mod: PRESTART");
 //            System.out.println("  Roc mod: write USER event for Roc1");
 //            PayloadBuffer pBuf = createUserBuffer(outputOrder, false, 1);
 //            eventToOutputChannel(pBuf, 0, 0);
+//            rocRecordId++;
 //
 //            System.out.println("  Roc mod: write FIRST event for Roc1");
 //            pBuf = createUserBuffer(outputOrder, true, 2);
 //            eventToOutputChannel(pBuf, 0, 0);
+//            rocRecordId++;
 //
 //            System.out.println("  Roc mod: write USER event for Roc1");
 //            pBuf = createUserBuffer(outputOrder, false, 3);
 //            eventToOutputChannel(pBuf, 0, 0);
+//            rocRecordId++;
 
 //            for (int i=0; i < 8200; i++) {
 //                System.out.println("  Roc mod: write FIRST event for Roc1");
 //                PayloadBuffer pBuf = createUserBuffer(outputOrder, true, i);
 //                eventToOutputChannel(pBuf, 0, 0);
+//                rocRecordId++;
 //
 //            }
 
@@ -950,20 +949,25 @@ System.out.println("  Roc mod: PRESTART");
             System.out.println("  Roc mod: inserted PRESTART event to channel " + i);
         }
 
+        rocRecordId++;
+
 //        // Send more user events right after prestart
 //        if (sendUser && emu.name().equals("Roc1")) {
 //            // Put in User events
 //            System.out.println("  Roc mod: write USER event after prestart for Roc1");
 //            PayloadBuffer pBuf = createUserBuffer(outputOrder, false, 5);
 //            eventToOutputChannel(pBuf, 0, 0);
+//            rocRecordId++;
 //
 //            System.out.println("  Roc mod: write FIRST event after prestart for Roc1");
 //            pBuf = createUserBuffer(outputOrder, true, 6);
 //            eventToOutputChannel(pBuf, 0, 0);
+//            rocRecordId++;
 //
 //            System.out.println("  Roc mod: write USER event after prestart for Roc1");
 //            pBuf = createUserBuffer(outputOrder, false, 7);
 //            eventToOutputChannel(pBuf, 0, 0);
+//            rocRecordId++;
 //
 //            eventCountTotal += 3;
 //            wordCountTotal  += 21;
@@ -1034,6 +1038,8 @@ System.out.println("  Roc mod: PRESTART");
 
 System.out.println("  Roc mod: inserted GO event to channel " + i);
         }
+        
+        rocRecordId++;
 
 //        try {
 //            Thread.sleep(500);
