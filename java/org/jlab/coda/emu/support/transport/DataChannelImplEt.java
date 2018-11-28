@@ -1340,6 +1340,8 @@ logger.debug("      DataChannel Et: reset " + name + " channel");
         /** Used by first consumer to get ring buffer items. */
         private SequenceBarrier etConsumeBarrier;
 
+        /** Keep track of record ids coming in to make sure they're sequential. */
+        private int expectedRecordId = 0;
 
 
         /** Constructor. */
@@ -1599,6 +1601,7 @@ System.out.println("      DataChannel Et in: GETTER is Quitting");
 
                         // Get a local, reusable ByteBuffer
                         bbItem = bbSupply.get();
+                        expectedRecordId++;
 
                         // Copy ET data into this buffer.
                         // The reason we do this is because if we're connected to a local
@@ -1673,7 +1676,8 @@ System.out.println("      DataChannel Et in: GETTER is Quitting");
                         recordId = header4.getNumber();
 
                         // Check record for sequential record id
-                        Evio.checkRecordIdSequence(recordId, eventType, DataChannelImplEt.this);
+                        expectedRecordId = Evio.checkRecordIdSequence(recordId, expectedRecordId,
+                                                                      eventType, DataChannelImplEt.this);
 
                         // Number of evio event associated with this buffer.
                         int eventCount = compactReader.getEventCount();
@@ -1981,15 +1985,6 @@ logger.info("      DataChannel Et in: wake up GETTER's getEvents() call so it ca
         }
 
 
-        /** Kill all this object's threads from an external thread. */
-        private void killFromOutside() {
-            // Kill all threads
-            getter.stop();
-            putter.stop();
-            this.stop();
-        }
-
-
         /**
          * Wait for all this object's threads to end, for the given time.
          * @param milliseconds
@@ -2078,7 +2073,7 @@ logger.info("      DataChannel Et in: wake up GETTER's getEvents() call so it ca
                 int validEvents;
                 int itemCount;
                 BitSet bitInfo = new BitSet(24);
-                recordId = 0;
+                recordId = 1;
 
                 top:
                 while (true) {
@@ -2090,7 +2085,6 @@ logger.info("      DataChannel Et in: wake up GETTER's getEvents() call so it ca
 
                     // Init variables
                     event = null;
-                    myRecordId = 1;
 
                     // Get events
                     try {
@@ -2304,14 +2298,16 @@ logger.info("      DataChannel Et in: wake up GETTER's getEvents() call so it ca
                                 EmuUtilities.setEventType(bitInfo, pBankType);
 
                                 // Set recordId depending on what type this bank is
+                                myRecordId = -1;
                                 if (!isUserOrControl) {
-                                    myRecordId = recordId++;
+                                    myRecordId = recordId;
                                 }
                                 // If user event which is to be the first event,
                                 // mark it in the block header's bit info word.
                                 else if (ringItem.isFirstEvent()) {
                                     EmuUtilities.setFirstEvent(bitInfo);
                                 }
+                                recordId++;
 
                                 // Prepare ET event's data buffer
                                 etBuffer = event.getDataBuffer();

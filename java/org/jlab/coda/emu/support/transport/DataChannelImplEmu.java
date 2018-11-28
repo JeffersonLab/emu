@@ -144,7 +144,7 @@ public class DataChannelImplEmu extends DataChannelAdapter {
     private int maxBufferSize;
 
     /** Use the evio block header's block number as a record id. */
-    private int recordId;
+    private int recordId = 1;
 
     /** Use direct ByteBuffer? */
     private boolean direct;
@@ -1069,12 +1069,18 @@ System.out.println("      DataChannel Emu in: " + name +
      */
     private final class ParserMerger extends Thread {
 
+        /** Keep track of record ids coming in to make sure they're sequential. */
+        private int expectedRecordId = 0;
+
+        /** Object used to read/parse incoming evio data. */
         private EvioCompactReaderUnsync reader;
+
 
         /** Constructor. */
         ParserMerger() {
             super(emu.getThreadGroup(), name() + "_parser_merger");
         }
+        
 
         public void run() {
             try {
@@ -1158,6 +1164,7 @@ System.out.println("      DataChannel Emu in: " + name +
 
             // Get buffer from an item from ByteBufferSupply - one per channel
             ByteBuffer buf = item.getBuffer();
+            expectedRecordId++;
 
             try {
                 // Pool of EvioNodes associated with this buffer
@@ -1193,10 +1200,11 @@ System.out.println("      DataChannel Emu in: " + name +
                 throw new EvioException("bad evio format or improper event type");
             }
 
-            int recordId = blockHeader.getNumber();
+            recordId = blockHeader.getNumber();
 
             // Check record for sequential record id
-            Evio.checkRecordIdSequence(recordId, eventType, DataChannelImplEmu.this);
+            expectedRecordId = Evio.checkRecordIdSequence(recordId, expectedRecordId,
+                                                          eventType, DataChannelImplEmu.this);
 
             // Each PayloadBuffer contains a reference to the buffer it was
              // parsed from (buf).
@@ -1839,11 +1847,13 @@ System.out.println("SocketSender thread interruped");
                 }
 
                 if (isBuildable) {
-                    blockNum = recordId++;
+                    blockNum = recordId;
                 }
                 else {
                     blockNum = -1;
                 }
+
+                recordId++;
 
                 // If we're here, we're writing the first event into the buffer.
                 // Make sure there's enough room for that one event.
