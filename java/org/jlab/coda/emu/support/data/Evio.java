@@ -612,17 +612,18 @@ System.out.println("checkPayload: buf source id = " + pBuf.getSourceId() +
 
     /**
      * Check the data coming over a channel for sequential record ids.
+     * Send warning as printout.
      *
      * @param recordId  id associated with an incoming evio event
      *                  (each of which may contain several physics events)
+     * @param expectedRecordId  expected record id
      * @param eventType type of input event
      * @param channel   input channel data is from
-     * @return true if there is a non-fatal error with mismatched record ids, else false
-     * @throws EvioException if record id is out of sequence.
+     * @return expected record id
      *
      */
-    public static void checkRecordIdSequence(int recordId, EventType eventType,
-                                             DataChannel channel) throws EvioException {
+    public static int checkRecordIdSequence(int recordId, int expectedRecordId,
+                                            EventType eventType, DataChannel channel) {
 
         if (eventType.isBuildable()) {
             // The recordId associated with each bank is taken from the first
@@ -631,18 +632,16 @@ System.out.println("checkPayload: buf source id = " + pBuf.getSourceId() +
             // by one in the first evio block header of the next ET/cMsg-msg data buffer.
             // NOTE: There may be multiple banks from the same buffer and
             // they will all have the same recordId.
-            int chanRecordId = channel.getRecordId();
 
-            if (recordId != chanRecordId &&
-                recordId != chanRecordId + 1) {
-                throw new EvioException("checkPayload: record ID out of sequence, got " + recordId +
-                                        ", expecting " + chanRecordId + " or " +
-                                        (chanRecordId+1) + ", type = " + eventType +
-                                        ", name = " + channel.name());
+            if (recordId != expectedRecordId) {
+                System.out.println("checkPayload: record ID out of sequence, got " + recordId +
+                                   ", expecting " + expectedRecordId + ", type = " + eventType +
+                                   ", name = " + channel.name());
+                // Reset the expected id so we don't get a shower of printout
+                return recordId;
             }
-            // Store the current value here as a convenience for the next comparison
-            channel.setRecordId(recordId);
         }
+        return expectedRecordId;
     }
 
 
