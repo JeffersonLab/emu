@@ -320,7 +320,7 @@ public class FastEventBuilder extends ModuleAdapter {
         if (!epThreadsSetInConfig) {
             buildingThreadCount = eventProducingThreads = 2;
         }
-        buildingThreadCount = eventProducingThreads = 3;
+        //buildingThreadCount = eventProducingThreads = 3;
 
         //outputOrder = ByteOrder.LITTLE_ENDIAN;
 logger.info("  EB mod: output byte order = little endian");
@@ -780,7 +780,7 @@ logger.info("  EB mod: internal ring buf count -> " + ringItemCount);
                                  boolean recordIdError)
             throws InterruptedException {
 
-//System.out.println("  EB mod: handleUserEvent IN");
+System.out.println("  EB mod: handleUserEvent: IN");
 
         ByteBuffer buffy    = buildingBank.getBuffer();
         EvioNode inputNode  = buildingBank.getNode();
@@ -794,6 +794,7 @@ logger.info("  EB mod: internal ring buf count -> " + ringItemCount);
 
         // Swap headers, NOT DATA, if necessary
         if (outputOrder != buildingBank.getByteOrder()) {
+System.out.println("  EB mod: handleUserEvent: need to swap user event");
             try {
                 // Check to see if user event is already in its own buffer
                 if (buffy != null) {
@@ -822,6 +823,7 @@ logger.info("  EB mod: internal ring buf count -> " + ringItemCount);
             catch (EvioException e) {/* should never happen */ }
         }
         else if (buffy == null) {
+System.out.println("  EB mod: handleUserEvent: convert same endian user event from node to buffer");
             // We could let things "slide" and pass on an EvioNode to the output channel.
             // HOWEVER, since we are now reusing EvioNode objects, this is a bad strategy.
             // We must copy it into a new buffer and pass that along, allowing us to free
@@ -847,7 +849,7 @@ logger.info("  EB mod: internal ring buf count -> " + ringItemCount);
         // and since they're now all in their own (non-ring) buffers,
         // the post-build threads can skip over them.
         eventToOutputChannel(buildingBank, 0, 0);
-        //System.out.println("  EB mod: sent user event to output channel");
+System.out.println("  EB mod: sent user event to output channel");
     }
 
 
@@ -2166,7 +2168,7 @@ if (debug) System.out.println("  EB mod: Building thread is ending");
                                      // User events are placed in first output channel's first ring.
                                      // Only the first build thread will deal with them.
                                      if (btIndex == 0) {
-System.out.println("  EB mod: got user event");
+System.out.println("  EB mod: got user event from channel " + inputChannels.get(i).name());
  //System.out.println("  EB mod: bt" + btIndex + " ch" + i + ", skip user item " + nextSequences[i]);
  //System.out.println("  EB mod: user event order = " + pBuf.getByteOrder());
                                          handleUserEvent(buildingBanks[i], inputChannels.get(i),
