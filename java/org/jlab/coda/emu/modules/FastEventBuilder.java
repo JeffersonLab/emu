@@ -780,7 +780,6 @@ logger.info("  EB mod: internal ring buf count -> " + ringItemCount);
                                  boolean recordIdError)
             throws InterruptedException {
 
-System.out.println("  EB mod: handleUserEvent: IN");
 
         ByteBuffer buffy    = buildingBank.getBuffer();
         EvioNode inputNode  = buildingBank.getNode();
@@ -794,7 +793,6 @@ System.out.println("  EB mod: handleUserEvent: IN");
 
         // Swap headers, NOT DATA, if necessary
         if (outputOrder != buildingBank.getByteOrder()) {
-System.out.println("  EB mod: handleUserEvent: need to swap user event");
             try {
                 // Check to see if user event is already in its own buffer
                 if (buffy != null) {
@@ -823,7 +821,6 @@ System.out.println("  EB mod: handleUserEvent: need to swap user event");
             catch (EvioException e) {/* should never happen */ }
         }
         else if (buffy == null) {
-System.out.println("  EB mod: handleUserEvent: convert same endian user event from node to buffer");
             // We could let things "slide" and pass on an EvioNode to the output channel.
             // HOWEVER, since we are now reusing EvioNode objects, this is a bad strategy.
             // We must copy it into a new buffer and pass that along, allowing us to free
@@ -849,7 +846,6 @@ System.out.println("  EB mod: handleUserEvent: convert same endian user event fr
         // and since they're now all in their own (non-ring) buffers,
         // the post-build threads can skip over them.
         eventToOutputChannel(buildingBank, 0, 0);
-System.out.println("  EB mod: sent user event to output channel");
     }
 
 
