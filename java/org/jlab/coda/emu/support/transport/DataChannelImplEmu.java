@@ -978,7 +978,7 @@ logger.debug("      DataChannel Emu: end(), close output channel " + name);
 
                     if (pause) {
                         if (pauseCounter++ % 400 == 0)
-                            logger.warn("      DataChannel Emu in helper: " + name + " - PAUSED");
+                            logger.warn("      DataChannel Emu in: " + name + " - PAUSED");
                         Thread.sleep(5);
                         continue;
                     }
@@ -986,7 +986,7 @@ logger.debug("      DataChannel Emu: end(), close output channel " + name);
 
                     // Sets the producer sequence
                     item = bbSupply.get();
-//System.out.println("    GOT pool " + item.myIndex);
+//System.out.println("      DataChannel Emu in: GOT pool " + item.myIndex);
 
                     // First read the command & size with one read, into a long.
                     // These 2, 32-bit ints are sent in network byte order, cmd first.
@@ -1024,7 +1024,7 @@ logger.debug("      DataChannel Emu: end(), close output channel " + name);
 
                     // We just received the END event
                     if (cmd == cMsgConstants.emuEvioEndEvent) {
-System.out.println("      DataChannel Emu in: received END event on sock " + socketPosition + ", exit reading thd");
+System.out.println("      DataChannel Emu in: " + name + ", got END event on sock " + socketPosition + ", exit reading thd");
                         return;
                     }
                 }
@@ -1244,10 +1244,10 @@ System.out.println("      DataChannel Emu in: WARNING, event count = " + eventCo
                          isUser = true;
                          eventType = EventType.USER;
                          if (hasFirstEvent) {
-                             System.out.println("      DataChannel Emu in: FIRST event from ROC RAW");
+                             System.out.println("      DataChannel Emu in: " + name + "  FIRST event from ROC RAW");
                          }
                          else {
-                             System.out.println("      DataChannel Emu in: USER event from ROC RAW");
+                             System.out.println("      DataChannel Emu in: " + name + " USER event from ROC RAW");
                          }
                      }
                      else {
@@ -1272,10 +1272,10 @@ logger.info("      DataChannel Emu in: got " + controlType + " event from " + na
                  else if (eventType == EventType.USER) {
                      isUser = true;
                      if (hasFirstEvent) {
-                         logger.info("      DataChannel Emu in: got FIRST event");
+                         logger.info("      DataChannel Emu in: " + name + " got FIRST event");
                      }
                      else {
-                         logger.info("      DataChannel Emu in: got USER event");
+                         logger.info("      DataChannel Emu in: " + name + " got USER event");
                      }
                  }
                  else {
@@ -1677,7 +1677,7 @@ logger.info("      DataChannel Emu in: got " + controlType + " event from " + na
                         supply.release(item);
                     }
                     catch (InterruptedException e) {
-System.out.println("SocketSender thread interruped");
+System.out.println("SocketSender thread interrupted");
                         return;
                     }
                     catch (Exception e) {
@@ -1835,7 +1835,7 @@ System.out.println("SocketSender thread interruped");
             // If we're sending out 1 event by itself ...
             if (singleEventOut || !isBuildable) {
                 currentEventCount = 0;
-                
+
                 // If we already have something stored-up to write, send it out first
                 if (eventsWritten > 0 && !writer.isClosed()) {
                     if (previousEventType.isBuildable()) {
@@ -1875,13 +1875,13 @@ System.out.println("SocketSender thread interruped");
                 ByteBuffer buf = rItem.getBuffer();
                 if (buf != null) {
                     try {
-//System.out.println("      DataChannel Emu write: single ev buf, pos = " + buf.position() +
+//System.out.println("      DataChannel Emu out: single ev buf, pos = " + buf.position() +
 //", lim = " + buf.limit() + ", cap = " + buf.capacity());
                         writer.writeEvent(buf);
 //                        Utilities.printBufferBytes(buf, 0, 20, "control?");
                     }
                     catch (Exception e) {
-System.out.println("      DataChannel Emu write: single ev buf, pos = " + buf.position() +
+System.out.println("      DataChannel Emu out: single ev buf, pos = " + buf.position() +
                    ", lim = " + buf.limit() + ", cap = " + buf.capacity());
                         Utilities.printBufferBytes(buf, 0, 20, "bad END?");
                         throw e;
@@ -1903,6 +1903,11 @@ System.out.println("      DataChannel Emu write: single ev buf, pos = " + buf.po
                     if (rItem.getControlType() == ControlType.END) {
                         flushEvents(true, true, false);
                     }
+                    else {
+                        flushEvents(true, false, false);
+                    }
+                }
+                else if (eType.isUser()) {
                     flushEvents(true, false, false);
                 }
                 else {
@@ -1917,13 +1922,13 @@ System.out.println("      DataChannel Emu write: single ev buf, pos = " + buf.po
                 if ((eventsWritten > 0 && !writer.isClosed())) {
                     // If previous type not data ...
                     if (previousEventType != eType) {
-//System.out.println("      DataChannel Emu write: switch types, call flush at current event count = " + currentEventCount);
+//System.out.println("      DataChannel Emu out: switch types, call flush at current event count = " + currentEventCount);
                         flushEvents(false, false, false);
                     }
                     // Else if there's no more room or have exceeded event count limit ...
                     else if (!writer.hasRoom(rItem.getTotalBytes()) ||
                             (regulateBufferRate && (currentEventCount >= eventsPerBuffer))) {
-//System.out.println("      DataChannel Emu write: call flush at current event count = " + currentEventCount);
+//System.out.println("      DataChannel Emu out: call flush at current event count = " + currentEventCount);
                         flushEvents(false, false, true);
                     }
                     // Flush closes the writer so that the next "if" is true
@@ -2034,7 +2039,7 @@ logger.info("      DataChannel Emu out " + outputIndex + ": send " + pBankContro
                     }
                     // If user event ...
                     else if (pBankType == EventType.USER) {
-//logger.debug("      DataChannel Emu out " + outputIndex + ": writing user event");
+logger.debug("      DataChannel Emu out " + outputIndex + ": send user event");
                         // Write user event
                         writeEvioData(ringItem);
                     }
@@ -2117,7 +2122,7 @@ logger.info("      DataChannel Emu out: " + name + " got RESET cmd, quitting");
 //System.out.println("time = " + emu.getTime() + ", lastSendTime = " + lastSendTime);
                     if (!regulateBufferRate && (emu.getTime() - lastSendTime > timeout)) {
 //System.out.println("TIME FLUSH ******************");
-                        flushEvents(false, false, pBankType.isBuildable());
+//                        flushEvents(false, false, pBankType.isBuildable());
                     }
                 }
 
