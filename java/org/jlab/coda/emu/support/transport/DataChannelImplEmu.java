@@ -1749,7 +1749,9 @@ System.out.println("SocketSender thread interrupted");
          * @param isData   if true, current item is data (not control or user event).
          * @throws InterruptedException
          */
-        private final void flushEvents(boolean force, boolean userBool, boolean isData) throws InterruptedException{
+        private final void flushEvents(boolean force, boolean userBool, boolean isData)
+                throws InterruptedException {
+            
             // Position the buffer
             writer.close();
 
@@ -1815,8 +1817,33 @@ System.out.println("SocketSender thread interrupted");
 
 
         /**
+         * Flush already written events over sockets.
+         * This is only called when data rate is slow and data must
+         * be forced over the network.
+         * @throws InterruptedException
+         */
+        private final void flushExistingEvioData() throws InterruptedException {
+            // Don't write nothin'
+            if (currentEventCount == 0) {
+//System.out.println("      DataChannel Emu out: flushExistingData: nothing to flush ......");
+                return;
+            }
+
+            if (previousEventType.isBuildable()) {
+//System.out.println("      DataChannel Emu out: flushExistingData: flush data");
+                flushEvents(true, false, true);
+            }
+            else {
+//System.out.println("      DataChannel Emu out: flushExistingData: flush control/user event");
+                flushEvents(true, false, false);
+            }
+        }
+
+
+        /**
          * Write events into internal buffer and, if need be, flush
-         * them over socket.
+         * them over socket. Force all non-buildable events, like control
+         * and user events, to be sent immediately.
          *
          * @param rItem event to write
          * @throws IOException if error writing evio data to buf
@@ -1842,7 +1869,7 @@ System.out.println("SocketSender thread interrupted");
                         flushEvents(false, false, true);
                     }
                     else {
-                        flushEvents(false, false, false);
+                        flushEvents(true, false, false);
                     }
                 }
 
@@ -1898,20 +1925,34 @@ System.out.println("      DataChannel Emu out: single ev buf, pos = " + buf.posi
                 }
                 rItem.releaseByteBuffer();
 
-                // Force over socket if control event
-                if (eType.isControl()) {
+                // Force over socket if control/user event
+//                if (eType.isControl()) {
+//                    if (rItem.getControlType() == ControlType.END) {
+//                        flushEvents(true, true, false);
+//                    }
+//                    else {
+//                        flushEvents(true, false, false);
+//                    }
+//                }
+//                else if (eType.isUser()) {
+//                    flushEvents(true, false, false);
+//                }
+//                else {
+//                    flushEvents(false, false, true);
+//                }
+
+                if (isBuildable) {
+//System.out.println("      DataChannel Emu out: writeEvioData: flush " + eType + " type event, don't force ");
+                    flushEvents(false, false, true);
+                }
+                else {
+//System.out.println("      DataChannel Emu out: writeEvioData: flush " + eType + " type event, FORCE");
                     if (rItem.getControlType() == ControlType.END) {
                         flushEvents(true, true, false);
                     }
                     else {
                         flushEvents(true, false, false);
                     }
-                }
-                else if (eType.isUser()) {
-                    flushEvents(true, false, false);
-                }
-                else {
-                    flushEvents(false, false, false);
                 }
             }
             // If we're marshalling events into a single buffer before sending ...
@@ -2122,7 +2163,7 @@ logger.info("      DataChannel Emu out: " + name + " got RESET cmd, quitting");
 //System.out.println("time = " + emu.getTime() + ", lastSendTime = " + lastSendTime);
                     if (!regulateBufferRate && (emu.getTime() - lastSendTime > timeout)) {
 //System.out.println("TIME FLUSH ******************");
-//                        flushEvents(false, false, pBankType.isBuildable());
+                        flushExistingEvioData();
                     }
                 }
 
