@@ -142,6 +142,7 @@ public class RocSimulation extends ModuleAdapter {
      * @param order byte order in which to write event into buffer
      * @param isFirstEvent true if event is to be a "first event",
      *                     that is, written as the first event in each file split
+     * @param val first int value in array of 3 int values
      * @return created PayloadBuffer object containing User event in byte buffer
      */
     static private PayloadBuffer createUserBuffer(ByteOrder order, boolean isFirstEvent, int val) {
@@ -151,9 +152,9 @@ public class RocSimulation extends ModuleAdapter {
             // Create a single array of integers which is the bank data
             // The user event looks like a Roc Raw event but with num = 0.
             // tag=rocID, num=0 (indicates user event), type=bank
-            //builder.openBank(1, 0, DataType.BANK);
-            builder.openBank(2, 0, DataType.INT32);
-            builder.addIntData(new int[]{val});
+            builder.openBank(1, 0, DataType.BANK);
+                builder.openBank(2, 0, DataType.INT32);
+                builder.addIntData(new int[]{val, 2, 3});
             builder.closeAll();
             ByteBuffer bb = builder.getBuffer();
 
@@ -161,6 +162,10 @@ public class RocSimulation extends ModuleAdapter {
             // User events from the ROC come as type ROC RAW but with num = 0
 //            if (isFirstEvent) {
                 pBuf.setEventType(EventType.USER);
+                // TODO: CANNOT make this a ROC RAW event!
+                // This confuses the emu output channel which packs it in with other roc data,
+                // which in turn confuses the emu input channel which is expecting user events
+                // in their own buffers!
 //            }
 //            else {
 //                pBuf.setEventType(EventType.ROC_RAW);
@@ -584,7 +589,9 @@ System.out.println("  Roc mod: start With (id=" + myId + "):\n    record id = " 
         public void run() {
 
             int  i,j,k=0;
-            int  skip=3,  userEventLoop = syncCount, syncBitLoop = syncBitCount;
+            int  skip=3, syncBitLoop = syncBitCount;
+            //int   userEventLoop = syncCount;
+            int   userEventLoop = 5;
             long oldVal=0L, totalT=0L, totalCount=0L, bufCounter=0L;
             long t1, deltaT, t2;
             ByteBuffer buf = null;
@@ -612,20 +619,22 @@ System.out.println("  Roc mod: start With (id=" + myId + "):\n    record id = " 
                 boolean noBuildableEvents = false;
 
                 // Send user event right after prestart and go events
-//                if (sendUser && emu.name().equals("Roc1")) {
+//                if (emu.name().equals("Roc1")) {
 //System.out.println("  Roc mod: write FIRST event after go for Roc1");
 //
 //                    // Put in User event
 //                    PayloadBuffer pBuf = createUserBuffer(outputOrder, true, 8);
 //                    eventToOutputChannel(pBuf, 0, 0);
-//
-//System.out.println("  Roc mod: write USER event after go for Roc1");
-//                    pBuf = createUserBuffer(outputOrder, false, 9);
-//                    eventToOutputChannel(pBuf, 0, 0);
-//
+
+System.out.println("\n\n  Roc mod: write USER event after go for Roc1 ***************\n");
+                    PayloadBuffer pBuf2 = createUserBuffer(outputOrder, false, 9);
+                    eventToOutputChannel(pBuf2, 0, 0);
+
+                    eventCountTotal++;
+                    wordCountTotal  += 7;
 //                    eventCountTotal += 2;
 //                    wordCountTotal  += 2*7;
-//                    //myRocRecordId += 2;
+                    //myRocRecordId += 2;
 //                }
 
                 System.out.println("SETTING loops to " + loops);
@@ -637,7 +646,41 @@ System.out.println("  Roc mod: start With (id=" + myId + "):\n    record id = " 
                     }
 
                     if (noBuildableEvents) {
-                        Thread.sleep(250);
+                        if (killThd) return;
+
+                        Thread.sleep(500);
+
+                        // Do the requisite number of iterations before syncing up
+                        if (synced && --userEventLoop < 1) {
+                            // Did we receive the END command yet? ("moduleState" is volatile)
+                            if (moduleState == CODAState.DOWNLOADED) {
+                                // END command has arrived
+//System.out.println("  Roc mod: end has arrived");
+                                gotEndCommand = true;
+                            }
+
+                            // Send message to synchronizer that we're waiting
+                            // whether or not we got the END command. Only
+                            // want 1 msg sent, so have the first thread do it.
+                            if (myId == 0) {
+                                sendMsgToSynchronizer(gotEndCommand);
+                            }
+
+                            // Wait for synchronizer's response before continuing
+//System.out.println("  Roc mod: phaser await advance, ev count = " + eventCountTotal);
+                            phaser.arriveAndAwaitAdvance();
+//System.out.println("  Roc mod: phaser PAST advance, ev count = " + eventCountTotal);
+
+                            // Every ROC has received the END command and completed the
+                            // same number of iterations, therefore it's time to quit.
+                            if (timeToEnd) {
+//System.out.println("  Roc mod: arrive, SYNC told me to quit");
+                                endPhaser.arriveAndDeregister();
+                                return;
+                            }
+
+                            userEventLoop = 5;
+                        }
                     }
                     else {
                         if (killThd) return;
@@ -684,7 +727,7 @@ System.out.println("  Roc mod: start With (id=" + myId + "):\n    record id = " 
 //                            }
 //                        }
 
-//                        Thread.sleep(10);
+                        Thread.sleep(5000);
 
                         eventCountTotal += eventBlockSize;
                         wordCountTotal  += eventWordSize;
@@ -918,16 +961,16 @@ System.out.println("  Roc mod: reset()");
 //                eventToOutputChannel(pBuf, 0, 0);
 //                rocRecordId++;
 //
-//                System.out.println("  Roc mod: write FIRST event for Roc1");
-//                pBuf = createUserBuffer(outputOrder, true, 2);
-//                eventToOutputChannel(pBuf, 0, 0);
-//                rocRecordId++;
-//
-//                System.out.println("  Roc mod: write USER event for Roc1");
-//                pBuf = createUserBuffer(outputOrder, false, 3);
-//                eventToOutputChannel(pBuf, 0, 0);
-//                rocRecordId++;
-//
+////                System.out.println("  Roc mod: write FIRST event for Roc1");
+////                pBuf = createUserBuffer(outputOrder, true, 2);
+////                eventToOutputChannel(pBuf, 0, 0);
+////                rocRecordId++;
+////
+////                System.out.println("  Roc mod: write USER event for Roc1");
+////                pBuf = createUserBuffer(outputOrder, false, 3);
+////                eventToOutputChannel(pBuf, 0, 0);
+////                rocRecordId++;
+////
 ////                for (int i=0; i < 8200; i++) {
 ////                    System.out.println("  Roc mod: write FIRST event for Roc1");
 ////                    pBuf = createUserBuffer(outputOrder, true, i);
@@ -940,8 +983,10 @@ System.out.println("  Roc mod: reset()");
 //                e.printStackTrace();
 //            }
 //
-//            eventCountTotal += 3;
-//            wordCountTotal  += 3*7;
+//            eventCountTotal++;
+//            wordCountTotal  += 7;
+////            eventCountTotal += 3;
+////            wordCountTotal  += 3*7;
 ////            eventCountTotal += 8200 + 0;
 ////            wordCountTotal  += (8200 + 0)*7;
 //        }
@@ -975,22 +1020,24 @@ System.out.println("  Roc mod: reset()");
 //                eventToOutputChannel(pBuf, 0, 0);
 //                rocRecordId++;
 //
-//                System.out.println("  Roc mod: write FIRST event after prestart for Roc1");
-//                pBuf = createUserBuffer(outputOrder, true, 6);
-//                eventToOutputChannel(pBuf, 0, 0);
-//                rocRecordId++;
-//
-//                System.out.println("  Roc mod: write USER event after prestart for Roc1");
-//                pBuf = createUserBuffer(outputOrder, false, 7);
-//                eventToOutputChannel(pBuf, 0, 0);
-//                rocRecordId++;
+////                System.out.println("  Roc mod: write FIRST event after prestart for Roc1");
+////                pBuf = createUserBuffer(outputOrder, true, 6);
+////                eventToOutputChannel(pBuf, 0, 0);
+////                rocRecordId++;
+////
+////                System.out.println("  Roc mod: write USER event after prestart for Roc1");
+////                pBuf = createUserBuffer(outputOrder, false, 7);
+////                eventToOutputChannel(pBuf, 0, 0);
+////                rocRecordId++;
 //            }
 //            catch (InterruptedException e) {
 //                e.printStackTrace();
 //            }
 //
-//            eventCountTotal += 3;
-//            wordCountTotal  += 21;
+//            eventCountTotal++;
+//            wordCountTotal  += 7;
+////            eventCountTotal += 3;
+////            wordCountTotal  += 21;
 //        }
 
 
