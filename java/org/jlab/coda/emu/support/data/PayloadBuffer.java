@@ -126,7 +126,7 @@ public class PayloadBuffer extends RingItemAdapter {
             return buffer.order();
         }
         else if (node != null) {
-            return node.getBufferNode().getBuffer().order();
+            return node.getBuffer().order();
         }
         return null;
     }
