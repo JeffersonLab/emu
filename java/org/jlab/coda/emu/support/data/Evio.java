@@ -2750,8 +2750,8 @@ System.out.println("                         : srcPos = " + srcPos);
 System.out.println("                         : segWords = " + segWords);
 System.out.println("                         : segWords from event 0 = " + dataWordsFromEachSeg);
 
-                         Utilities.printBufferBytes(backingBuf, bufOffset, 140, "Roc " + i);
-                         Utilities.printBufferBytes(backingBuf, srcPos, 20, "Roc " + i + ", bad seg " + j);
+                         Utilities.printBytes(backingBuf, bufOffset, 140, "Roc " + i);
+                         Utilities.printBytes(backingBuf, srcPos, 20, "Roc " + i + ", bad seg " + j);
  // TODO: Bombs here for Dave A., but not me
                          throw new EmuException("Trigger segments contain different amounts of data");
                      }
