@@ -1120,7 +1120,7 @@ System.out.println("      DataChannel Emu in: get emuEnd cmd");
             }
 
             // First block header in buffer
-            BlockHeaderV4 blockHeader = compactReader.getFirstBlockHeader();
+            IBlockHeader blockHeader = compactReader.getFirstBlockHeader();
             if (blockHeader.getVersion() < 4) {
                 throw new EvioException("Evio data needs to be written in version 4+ format");
             }
