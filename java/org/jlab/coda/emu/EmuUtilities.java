@@ -131,6 +131,9 @@ public class EmuUtilities {
     /**
      * Encode the event type into the bit info word
      * which will be in each evio block header.
+     * Put event type into bits 3-6 (starting at 0).
+     * Since version is in the first 8 bits, it's really
+     * bits 11-14 of the whole header word.
      *
      * @param bSet bit set which will become part of the bit info word
      * @param eType event type to be encoded
@@ -142,12 +145,13 @@ public class EmuUtilities {
         if (type < 0) type = 0;
         else if (type > 15) type = 15;
 
-        if (bSet == null || bSet.size() < 6) {
+        if (bSet == null || bSet.size() < 7) {
             return;
         }
         // do the encoding
-        for (int i=2; i < 6; i++) {
-            bSet.set(i, ((type >>> i - 2) & 0x1) > 0);
+        int startingBit = 3;
+        for (int i=startingBit; i < 7; i++) {
+            bSet.set(i, ((type >>> i - startingBit) & 0x1) > 0);
         }
     }
 
@@ -155,34 +159,33 @@ public class EmuUtilities {
     /**
      * Encode the "is first event" into the bit info word
      * which will be in evio block header.
+     * 2nd bit of bitinfo, but 9th bit of header word.
      *
      * @param bSet bit set which will become part of the bit info word
      */
     static final public void setFirstEvent(BitSet bSet) {
         // check arg
-        if (bSet == null || bSet.size() < 7) {
+        if (bSet == null || bSet.size() < 2) {
             return;
         }
 
-        // Encoding bit #15 (#6 since first is bit #9)
-        bSet.set(6, true);
+        // Encoding bit #9 (#1 since first is bit #8)
+        bSet.set(1, true);
     }
 
 
     /**
      * Encode the "is NOT first event" into the bit info word
      * which will be in evio block header.
+     * 2nd bit of bitinfo, but 9th bit of header word.
      *
      * @param bSet bit set which will become part of the bit info word
      */
     static final public void unsetFirstEvent(BitSet bSet) {
-        // check arg
-        if (bSet == null || bSet.size() < 7) {
+        if (bSet == null || bSet.size() < 2) {
             return;
         }
-
-        // Encoding bit #15 (#6 since first is bit #9)
-        bSet.set(6, false);
+        bSet.set(1, false);
     }
 
 
