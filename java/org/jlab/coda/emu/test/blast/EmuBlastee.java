@@ -516,7 +516,7 @@ System.out.println("Start handling client " + me + ", bufferSize = " + bufferSiz
                 }
 
                 // First block header in buffer
-                BlockHeaderV4 blockHeader = compactReader.getFirstBlockHeader();
+                IBlockHeader blockHeader = compactReader.getFirstBlockHeader();
                 if (blockHeader.getVersion() < 4) {
     System.out.println("EmuBlastee: data NOT evio v4 format");
                     throw new EvioException("Data not in evio v4 format");

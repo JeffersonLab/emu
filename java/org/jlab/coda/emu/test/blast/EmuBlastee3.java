@@ -2,10 +2,7 @@ package org.jlab.coda.emu.test.blast;
 
 import com.lmax.disruptor.*;
 import org.jlab.coda.emu.support.data.*;
-import org.jlab.coda.jevio.BlockHeaderV4;
-import org.jlab.coda.jevio.EvioCompactReaderUnsync;
-import org.jlab.coda.jevio.EvioException;
-import org.jlab.coda.jevio.EvioNode;
+import org.jlab.coda.jevio.*;
 
 import java.io.BufferedInputStream;
 import java.io.DataInputStream;
@@ -519,7 +516,7 @@ System.out.println("Client " + me + ", bufferSize = " + bufferSize);
         }
 
         // First block header in buffer
-        BlockHeaderV4 blockHeader = compactReader.getFirstBlockHeader();
+        IBlockHeader blockHeader = compactReader.getFirstBlockHeader();
         if (blockHeader.getVersion() < 4) {
 System.out.println("EmuBlastee: data NOT evio v4 format");
             throw new EvioException("Data not in evio v4 format");
