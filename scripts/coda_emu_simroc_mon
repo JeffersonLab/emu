@@ -1,10 +1,10 @@
 #!/bin/csh -f
 
-# Script to start up a CODA EMU Event Recorder
+# Script to start up a CODA EMU Simulated ROC.
 # First argument is the name of the component
 
 if ($#argv < 1) then
-  echo "Usage: coda_emu_er <name> <rc address(optional)>"
+  echo "Usage: coda_emu_simroc <name> <rc address(optional)>"
   echo "(Note valid addresses: ipv4 dot decimal)"
   exit
 endif
@@ -25,13 +25,13 @@ $JAVA_HOME/bin/java -cp $CODA/common/jar/\* \
     -XX:+CMSScavengeBeforeRemark \
     -XX:+UseCMSInitiatingOccupancyOnly \
     -XX:CMSInitiatingOccupancyFraction=70 \
-    -Xms10G \
+    -Xmx500M \
     -DrcAddr=$2 \
     -Djava.net.preferIPv4Stack=true \
     -Djava.library.path=$CODA/$MACHINE/lib \
     -DcmsgUDL="rc://multicast/"$EXPID \
     -Dname=$1 \
-    -Dtype=ER org.jlab.coda.emu.EmuFactory
+    -Dtype=ROC org.jlab.coda.emu.EmuFactory
 else
 $JAVA_HOME/bin/java -cp $CODA/common/jar/\* \
     -XX:+UnlockCommercialFeatures -XX:+FlightRecorder \
@@ -41,10 +41,10 @@ $JAVA_HOME/bin/java -cp $CODA/common/jar/\* \
     -XX:+CMSScavengeBeforeRemark \
     -XX:+UseCMSInitiatingOccupancyOnly \
     -XX:CMSInitiatingOccupancyFraction=70 \
-    -Xms10G \
+    -Xmx500M \
     -Djava.net.preferIPv4Stack=true \
     -Djava.library.path=$CODA/$MACHINE/lib \
     -DcmsgUDL="rc://multicast/"$EXPID \
     -Dname=$1 \
-    -Dtype=ER org.jlab.coda.emu.EmuFactory
+    -Dtype=ROC org.jlab.coda.emu.EmuFactory
 endif
