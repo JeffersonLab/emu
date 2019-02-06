@@ -17,6 +17,9 @@ endif
 if ($#argv > 1) then
 $JAVA_HOME/bin/java -cp $CODA/common/jar/\* \
     -Xms10G \
+    -XX:+AssumeMP \
+    -XX:PerMethodRecompilationCutoff=40 \
+    -XX:NmethodSweepActivity=1 \
     -XX:+UseConcMarkSweepGC \
     -XX:+CMSParallelRemarkEnabled \
     -XX:+ScavengeBeforeFullGC \
@@ -32,6 +35,9 @@ $JAVA_HOME/bin/java -cp $CODA/common/jar/\* \
 else
 $JAVA_HOME/bin/java -cp $CODA/common/jar/\* \
     -Xms10G \
+    -XX:+AssumeMP \
+    -XX:PerMethodRecompilationCutoff=40 \
+    -XX:NmethodSweepActivity=1 \
     -XX:+UseConcMarkSweepGC \
     -XX:+CMSParallelRemarkEnabled \
     -XX:+ScavengeBeforeFullGC \
