@@ -230,8 +230,18 @@ logger.info("      DataChannel File: dictionary file cannot be read");
                 boolean overWriteOK = true;
                 if (split > 0L) overWriteOK = false;
 
+                // Biggest int there is
+                //int internalBufferSizeBytes = Integer.MAX_VALUE; // 2.1G
+                //int internalBufferSizeBytes = 1073741824; // 1G
+                int internalBufferSizeBytes = 536870912;  // 512MB
+                //int internalBufferSizeBytes = 134217728;  // 128MB
+                //int internalBufferSizeBytes = 67108864;   // 64MB
+                //int internalBufferSizeBytes = 33554432;   // 32MB
+                //int internalBufferSizeBytes = 16777216;   // 16MB
+
                 evioFileWriter = new EventWriterUnsync(fileName, directory, runType,
-                                                       runNumber, split, 4194304, 10000, 0,
+                                                       runNumber, split, 4*4194304,
+                                                       10000, internalBufferSizeBytes,
                                                        byteOrder,dictionaryXML, null, overWriteOK,
                                                        false, null,
                                                        emu.getDataStreamId(),
@@ -259,6 +269,7 @@ logger.info("      DataChannel File: file = " + evioFileWriter.getCurrentFilePat
             }
         }
         catch (Exception e) {
+            e.printStackTrace();
             channelState = CODAState.ERROR;
             if (input) {
 System.out.println("      DataChannel File in: Cannot open file, " + e.getMessage());
