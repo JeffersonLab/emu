@@ -1967,11 +1967,11 @@ logger.info("      DataChannel Et in: wake up GETTER's getEvents() call so it ca
             rb.addGatingSequences(etPutSequence);
 
             // Start consumer thread to put ET events back into ET system
-            putter = new EvPutter(etPutSequence, etPutBarrier);
+            putter = new EvPutter(group, name+"_EvPutter", etPutSequence, etPutBarrier);
             putter.start();
 
             // Start producer thread for getting new ET events
-            getter = new EvGetter();
+            getter = new EvGetter(group, name+"_EvGetter");
             getter.start();
         }
 
@@ -2479,10 +2479,15 @@ logger.warn("      DataChannel Et out: exit thd w/ error = " + e.getMessage());
 
             /**
              * Constructor.
-             * @param sequence  ring buffer sequence to use
-             * @param barrier   ring buffer barrier to use
+             * @param group     thread group to be a part of.
+             * @param name      name of thread.
+             * @param sequence  ring buffer sequence to use.
+             * @param barrier   ring buffer barrier to use.
              */
-            EvPutter(Sequence sequence, SequenceBarrier barrier) {
+            EvPutter(ThreadGroup group, String name,
+                     Sequence sequence, SequenceBarrier barrier) {
+
+                super(group, name);
                 this.barrier = barrier;
                 this.sequence = sequence;
             }
@@ -2613,6 +2618,15 @@ System.out.println("      DataChannel Et out: " + name + " Et connection closed"
          * with evio data and the thread that puts them back.
          */
         final private class EvGetter extends Thread {
+
+            /**
+             * Constructor.
+             * @param group     thread group to be a part of.
+             * @param name      name of thread.
+             */
+            EvGetter(ThreadGroup group, String name) {
+                super(group, name);
+            }
 
             /**
              * {@inheritDoc}<p>
