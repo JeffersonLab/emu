@@ -66,8 +66,6 @@ public class DataChannelImplEt extends DataChannelAdapter {
     /** Got END or RESET command from Run Control and must stop thread getting events. */
     private volatile boolean stopGetterThread;
 
-    private boolean useGarbageFree;
-
     // OUTPUT
 
     /** Thread used to output data. */
@@ -232,17 +230,6 @@ logger.info("      DataChannel Et: creating output channel " + name);
                 }
             }
             catch (NumberFormatException e) {}
-        }
-
-        // set "garbage free" option on
-        useGarbageFree = true;
-        attribString = attributeMap.get("garbageFree");
-        if (attribString != null) {
-            if (attribString.equalsIgnoreCase("true") ||
-                    attribString.equalsIgnoreCase("on") ||
-                    attribString.equalsIgnoreCase("yes")) {
-                useGarbageFree = true;
-            }
         }
 
         // size of TCP receive buffer (0 means use operating system default)
@@ -731,71 +718,41 @@ logger.info("      DataChannel Et: eventSize = " + etEventSize);
             }
 logger.info("      DataChannel Et: # copy-ET-buffers in input supply -> " + numEtBufs);
 
-            if (useGarbageFree) {
-                // One pool for each supply buffer.
-                nodePools = new EvioNodePool[numEtBufs];
-                // Create the EvioNode pools
-                for (int i = 0; i < numEtBufs; i++) {
-                    nodePools[i] = new EvioNodePool(3500);
-                }
+            // One pool for each supply buffer.
+            nodePools = new EvioNodePool[numEtBufs];
+            // Create the EvioNode pools
+            for (int i = 0; i < numEtBufs; i++) {
+                nodePools[i] = new EvioNodePool(3500);
+            }
 
-                // If ER
-                if (isER) {
-                    List<DataChannel> outChannels = emu.getOutChannels();
-                    // if (0 output channels or 1 file output channel) ...
-                    if (((outChannels.size() < 1) ||
-                            (outChannels.size() == 1 &&
-                                    (outChannels.get(0).getTransportType() == TransportType.FILE)))) {
+            // If ER
+            if (isER) {
+                List<DataChannel> outChannels = emu.getOutChannels();
+                // if (0 output channels or 1 file output channel) ...
+                if (((outChannels.size() < 1) ||
+                        (outChannels.size() == 1 &&
+                                (outChannels.get(0).getTransportType() == TransportType.FILE)))) {
 
-                        // Since ER has only 1 recording thread and every event is processed in order,
-                        // and since the file output channel also processes all events in order,
-                        // the byte buffer supply does not have to be synchronized as byte buffers are
-                        // released in order. Will make things faster.
-                        bbSupply = new ByteBufferSupply(numEtBufs, etEventSize,
-                                                        module.getOutputOrder(),
-                                                        false, true, nodePools);
-                    }
-                    else {
-                        // If ER has more than one output, buffers may not be released sequentially
-                        bbSupply = new ByteBufferSupply(numEtBufs, etEventSize,
-                                                        module.getOutputOrder(),
-                                                        false, false, nodePools);
-                    }
-                }
-                else {
-                    // EBs all release these ByteBuffers in order in the ReleaseRingResourceThread thread
+                    // Since ER has only 1 recording thread and every event is processed in order,
+                    // and since the file output channel also processes all events in order,
+                    // the byte buffer supply does not have to be synchronized as byte buffers are
+                    // released in order. Will make things faster.
                     bbSupply = new ByteBufferSupply(numEtBufs, etEventSize,
                                                     module.getOutputOrder(),
                                                     false, true, nodePools);
                 }
+                else {
+                    // If ER has more than one output, buffers may not be released sequentially
+                    bbSupply = new ByteBufferSupply(numEtBufs, etEventSize,
+                                                    module.getOutputOrder(),
+                                                    false, false, nodePools);
+                }
             }
             else {
-                // If ER
-                if (isER) {
-                    List<DataChannel> outChannels = emu.getOutChannels();
-                    // if (0 output channels or 1 file output channel) ...
-                    if (((outChannels.size() < 1) ||
-                            (outChannels.size() == 1 &&
-                                    (outChannels.get(0).getTransportType() == TransportType.FILE)))) {
-
-                        // Since ER has only 1 recording thread and every event is processed in order,
-                        // and since the file output channel also processes all events in order,
-                        // the byte buffer supply does not have to be synchronized as byte buffers are
-                        // released in order. Will make things faster.
-                        bbSupply = new ByteBufferSupply(numEtBufs, etEventSize,
-                                                        module.getOutputOrder(), false, true);
-                    }
-                    else {
-                        // If ER has more than one output, buffers may not be released sequentially
-                        bbSupply = new ByteBufferSupply(numEtBufs, etEventSize,
-                                                        module.getOutputOrder(), false);
-                    }
-                }
-                else {
-                    // EBs all release these ByteBuffers in order in the ReleaseRingResourceThread thread
-                    bbSupply = new ByteBufferSupply(numEtBufs, etEventSize,
-                                                    module.getOutputOrder(), false, true);
-                }
+                // EBs all release these ByteBuffers in order in the ReleaseRingResourceThread thread
+                bbSupply = new ByteBufferSupply(numEtBufs, etEventSize,
+                                                module.getOutputOrder(),
+                                                false, true, nodePools);
             }
         }
 
@@ -1341,9 +1298,6 @@ logger.debug("      DataChannel Et: reset " + name + " channel");
         /** Array of ET events to be gotten from ET system. */
         private EtEvent[] events;
 
-        /** Array of ET events to be gotten from ET system. */
-        private EtEventImpl[] eventsDirect;
-
         /** Variable to print messages when paused. */
         private int pauseCounter = 0;
 
@@ -1436,9 +1390,9 @@ logger.debug("      DataChannel Et: reset " + name + " channel");
             public void run() {
 
                 long sequence;
-                boolean gotError = false;
-                String errorString = null;
-                EtContainer etContainer = null;
+                boolean gotError;
+                String errorString;
+                EtContainer etContainer;
                 boolean useDirectEt = (etSysLocal != null);
 
                 // Tell the world I've started
@@ -1549,9 +1503,9 @@ System.out.println("      DataChannel Et in: GETTER is Quitting");
                 boolean useDirectEt = (etSysLocal != null);
                 boolean etAlive = true;
                 boolean hasFirstEvent, isUser=false;
-                EvioNodeSource nodePool = null;
+                EvioNodeSource nodePool;
 
-                EtContainer etContainer = null;
+                EtContainer etContainer;
                 long nextSequence = etConsumeSequence.get() + 1L;
                 long availableSequence = -1L;
                 int validEvents;
@@ -1589,7 +1543,7 @@ System.out.println("      DataChannel Et in: GETTER is Quitting");
                         etContainer = rb.get(nextSequence);
 
                         if (useDirectEt) {
-                            events = eventsDirect = etContainer.getEventArrayLocal();
+                            events = etContainer.getEventArrayLocal();
                             validEvents = events.length;
                         }
                         else {
@@ -1646,25 +1600,15 @@ System.out.println("      DataChannel Et in: GETTER is Quitting");
                         copyBuffer(events[j].getDataBuffer(), buf, events[j].getLength());
 
                         try {
-                            if (useGarbageFree) {
-                                nodePool = (EvioNodePool)bbItem.getMyObject();
-                                nodePool.reset();
-                                
-                                // These calls do not change buf position
-                                if (compactReader == null) {
-                                    compactReader = new EvioCompactReaderUnsync(buf, nodePool);
-                                }
-                                else {
-                                    compactReader.setBuffer(buf, nodePool);
-                                }
+                            nodePool = (EvioNodePool)bbItem.getMyObject();
+                            nodePool.reset();
+
+                            // These calls do not change buf position
+                            if (compactReader == null) {
+                                compactReader = new EvioCompactReaderUnsync(buf, nodePool);
                             }
                             else {
-                                if (compactReader == null) {
-                                    compactReader = new EvioCompactReaderUnsync(buf);
-                                }
-                                else {
-                                    compactReader.setBuffer(buf);
-                                }
+                                compactReader.setBuffer(buf, nodePool);
                             }
                         }
                         catch (EvioException e) {
@@ -1730,12 +1674,7 @@ System.out.println("      DataChannel Et in: GETTER is Quitting");
                                 node = compactReader.getEvent(i);
                             }
                             else {
-                                if (useGarbageFree) {
-                                    node = compactReader.getScannedEvent(i, nodePool);
-                                }
-                                else {
-                                    node = compactReader.getScannedEvent(i);
-                                }
+                                node = compactReader.getScannedEvent(i, nodePool);
                             }
 
                             // Complication: from the ROC, we'll be receiving USER events
