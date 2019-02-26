@@ -105,8 +105,12 @@ public class DataChannelImplEt extends DataChannelAdapter {
     /** Number of events to ask for in an array. */
     private int chunk;
 
-    /** Number of group from which new ET events are taken. */
+    /** Number of groups from which new ET events are taken. */
     private int group;
+
+    /** If true, there will be a deadlock at prestart since putEvents is blocked
+     * due to newEvents not returning in sleep mode due to too few events. */
+    private boolean deadLockAtPrestart;
 
     /** Control words of each ET event written to output. */
     private int[] control;
@@ -466,6 +470,18 @@ logger.info("      DataChannel Et: chunk = " + chunk);
 
 
     /**
+     * Get the number of the ET system's events.
+     * @return number of the ET system's events.
+     */
+    private int getEtEventCount() {
+        if (etSysLocal != null) {
+            return etSysLocal.getConfig().getNumEvents();
+        }
+        return etSystem.getNumEvents();
+    }
+
+
+    /**
      * Get the ET system object.                                                                         , e
      * @return the ET system object.
      */
@@ -672,7 +688,16 @@ System.out.println("      DataChannel Et: can't create/attach to station " +
 
         pause = false;
 
-        if (input) {
+        if (!input) {
+            // Find out how many total events in ET system.
+            // Useful for avoiding bad situation in output channel in which
+            // putEvents() blocks due to newEvents() stuck in sleep mode.
+            if (getEtEventCount() < 4*chunk) {
+                deadLockAtPrestart = true;
+logger.info("      DataChannel Et: newEvents() using timed mode to avoid deadlock");
+            }
+        }
+        else {
             // At this point, all in & output channels have been created. All output channels
             // and modules have had their prestart() methods called. Input channels are prestarted
             // right after modules.
@@ -2546,7 +2571,6 @@ logger.warn("      DataChannel Et out: exit thd w/ error = " + e.getMessage());
                         // Put all events with valid data back in ET system.
                         etContainer.putEvents(attachment, 0, eventsToPut);
                         etSystem.putEvents(etContainer);
-//System.out.println("      DataChannel Et out (" + name + "): PUTTER success putting " + eventsToPut + " events");
 
                         if (eventsToDump > 0) {
                             // Dump all events with NO valid data. END is last valid event.
@@ -2555,7 +2579,6 @@ logger.warn("      DataChannel Et out: exit thd w/ error = " + e.getMessage());
 //System.out.println("      DataChannel Et out (" + name + "): PUTTER callED dumpEvents()");
                         }
 
-//System.out.println("      DataChannel Et out (" + name + "): try releasing seq " + nextSequence);
                         sequence.set(nextSequence++);
 
                         // Checks the last event we're putting to see if it's the END event
@@ -2618,8 +2641,8 @@ System.out.println("      DataChannel Et out: " + name + " Et connection closed"
 
             /**
              * Constructor.
-             * @param group     thread group to be a part of.
-             * @param name      name of thread.
+             * @param group  thread group to be a part of.
+             * @param name   name of thread.
              */
             EvGetter(ThreadGroup group, String name) {
                 super(group, name);
@@ -2632,46 +2655,65 @@ System.out.println("      DataChannel Et out: " + name + " Et connection closed"
             public void run() {
 
                 long sequence;
-                boolean gotError = false;
-                String errorString = null;
-                EtContainer etContainer = null;
+                boolean gotError;
+                String errorString;
+                EtContainer etContainer;
                 int eventSize = (int)getEtEventSize();
 
                 // Tell the world I've started
                 startLatch.countDown();
 
                 try {
-                    while (true) {
-                        if (stopGetterThread) {
-                            return;
-                        }
-
-                        // Will block here if no available slots in ring.
-                        // It will unblock when ET events are put back by the other thread.
-                        sequence = rb.next(); // This just spins on parkNanos
-                        etContainer = rb.get(sequence);
-
-                        // Now that we have a free container, get new events & store them in container.
-                        // The reason this is timed and not in sleep mode is that if there are 6 or less
-                        // events in the ET system. This thread will block here and not in rb.next();
-                        // If we completely block here, then we tie up the mutex which the evPutter
-                        // threads needs to use to put events back. Thus we block all event flow.
-                        etContainer.newEvents(attachment, Mode.TIMED, 100000, chunk,
-                                              eventSize, group);
+                    // If there are too few events to avoid a deadlock while newEvents is
+                    // called in sleep mode, use a timed mode ...
+                    if (deadLockAtPrestart) {
                         while (true) {
-                            try {
-//System.out.println("      DataChannel Et out (" + name + "): GETTER try getting new events");
-                                etSystem.newEvents(etContainer);
-//System.out.println("      DataChannel Et out (" + name + "): GETTER got new events");
-                                break;
+                            if (stopGetterThread) {
+                                return;
                             }
-                            catch (EtTimeoutException e) {
-                                continue;
-                            }
-                        }
 
-                        // Make container available for parsing/putting thread
-                        rb.publish(sequence++);
+                            // Will block here if no available slots in ring.
+                            // It will unblock when ET events are put back by the other thread.
+                            sequence = rb.next(); // This just spins on parkNanos
+                            etContainer = rb.get(sequence);
+
+                            // Now that we have a free container, get new events & store them in container.
+                            // The reason this is timed and not in sleep mode is that if there are 6 or less
+                            // events in the ET system. This thread will block here and not in rb.next();
+                            // If we completely block here, then we tie up the mutex which the evPutter
+                            // threads needs to use to put events back. Thus we block all event flow.
+                            etContainer.newEvents(attachment, Mode.TIMED, 100000, chunk,
+                                                  eventSize, group);
+                            while (true) {
+                                try {
+//System.out.println("      DataChannel Et out (" + name + "): GETTER try getting new events");
+                                    etSystem.newEvents(etContainer);
+//System.out.println("      DataChannel Et out (" + name + "): GETTER got new events");
+                                    break;
+                                }
+                                catch (EtTimeoutException e) {
+                                    continue;
+                                }
+                            }
+
+                            // Make container available for parsing/putting thread
+                            rb.publish(sequence++);
+                        }
+                    }
+                    else {
+                        while (true) {
+                            if (stopGetterThread) {
+                                return;
+                            }
+
+                            sequence = rb.next();
+                            etContainer = rb.get(sequence);
+
+                            etContainer.newEvents(attachment, Mode.SLEEP, 0, chunk, eventSize, group);
+                            etSystem.newEvents(etContainer);
+
+                            rb.publish(sequence++);
+                        }
                     }
                 }
                 catch (EtWakeUpException e) {
