@@ -13,6 +13,7 @@ package org.jlab.coda.emu.support.data;
 
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.util.Arrays;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
@@ -178,6 +179,9 @@ public class ByteBufferItem {
         producerSequence = consumerSequence = 0L;
     }
 
+    public boolean equals(ByteBuffer buf) {
+        return buffer == buf;
+    }
 
     /**
      * Get the unique id of this object.
@@ -299,6 +303,17 @@ public class ByteBufferItem {
     public int getBufferSize() {return bufferSize;}
 
 
+    /**
+     * Set the contained ByteBuffer.
+     * This method is dangerous -- definitely not thread safe!
+     * @param buf contained ByteBuffer.
+     */
+    public void setBuffer(ByteBuffer buf) {
+        bufferSize = buf.capacity();
+        buffer = buf;
+    }
+
+    
     /**
      * Get the contained ByteBuffer.
      * Position is set to 0.
