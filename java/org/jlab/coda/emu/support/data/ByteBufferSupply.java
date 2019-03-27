@@ -379,7 +379,6 @@ public class ByteBufferSupply {
 
         // Get item ready for use
         bufItem.reset();
-        bufItem.setFromConsumerGet(false);
 
         // Store sequence for later releasing of the buffer
         bufItem.setProducerSequence(getSequence);
