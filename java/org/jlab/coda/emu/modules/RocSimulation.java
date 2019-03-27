@@ -626,9 +626,9 @@ System.out.println("  Roc mod: start With (id=" + myId + "):\n    record id = " 
 //                    PayloadBuffer pBuf = createUserBuffer(outputOrder, true, 8);
 //                    eventToOutputChannel(pBuf, 0, 0);
 
-System.out.println("\n\n  Roc mod: write USER event after go for Roc1 ***************\n");
-                    PayloadBuffer pBuf2 = createUserBuffer(outputOrder, false, 9);
-                    eventToOutputChannel(pBuf2, 0, 0);
+//System.out.println("\n\n  Roc mod: write USER event after go for Roc1 ***************\n");
+//                    PayloadBuffer pBuf2 = createUserBuffer(outputOrder, false, 9);
+//                    eventToOutputChannel(pBuf2, 0, 0);
 
                     eventCountTotal++;
                     wordCountTotal  += 7;
@@ -726,8 +726,6 @@ System.out.println("\n\n  Roc mod: write USER event after go for Roc1 **********
 //                                k = k % 3;
 //                            }
 //                        }
-
-                        Thread.sleep(5000);
 
                         eventCountTotal += eventBlockSize;
                         wordCountTotal  += eventWordSize;
