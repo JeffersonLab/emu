@@ -634,9 +634,9 @@ System.out.println("checkPayload: buf source id = " + pBuf.getSourceId() +
             // they will all have the same recordId.
 
             if (recordId != expectedRecordId) {
-                System.out.println("checkPayload: record ID out of sequence, got " + recordId +
-                                   ", expecting " + expectedRecordId + ", type = " + eventType +
-                                   ", name = " + channel.name());
+//                System.out.println("checkPayload: record ID out of sequence, got " + recordId +
+//                                   ", expecting " + expectedRecordId + ", type = " + eventType +
+//                                   ", name = " + channel.name());
                 // Reset the expected id so we don't get a shower of printout
                 return recordId;
             }
@@ -2615,10 +2615,25 @@ System.out.println("Timestamp NOT consistent: ev #" + (firstEventNumber + j) + "
                      System.out.println("Timestamp NOT consistent: ev #" + (firstEvNum + i) + ", diff = " +
                                                 (timestampsMax - timestampsMin) + ", allowed = " + timestampSlop);
 
-                     // Print out beginning of all rocs' buffers
-                     for (PayloadBuffer inputPayloadBank : inputPayloadBanks) {
-                         Utilities.printBuffer(inputPayloadBank.getBuffer(), 0, 10,
-                                               "Data from roc " + inputPayloadBank.getSourceName());
+                     // Go back, fish out the timestamp values, and print them
+                     for (int j = 0; j < numROCs; j++) {
+                         trigBank = rocNodes[j].getChildAt(0);
+                         if (trigBank == null) {
+                             continue;
+                         }
+
+                         triggerSegment = trigBank.getChildAt(i);
+                         if (triggerSegment == null) {
+                             continue;
+                         }
+
+                         triggerData = triggerSegment.getIntData(segmentData, returnLen);
+
+                         if (returnLen[0] > 2) {
+                             ts = (((0xffffL & (long) triggerData[2]) << 32) |
+                                     (0xffffffffL & (long) triggerData[1]));
+                             System.out.println("TS = " + ts + " for " + inputPayloadBanks[j].getSourceName());
+                         }
                      }
                  }
              }
