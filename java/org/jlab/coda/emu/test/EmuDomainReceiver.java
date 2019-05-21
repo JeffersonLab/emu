@@ -1001,7 +1001,7 @@ System.out.println("attachToInput: socketsConnected = " + socketsConnected +
         private CountDownLatch latch = new CountDownLatch(1);
 
         /** Read into ByteBuffers. */
-        private EvioCompactReaderUnsync compactReader;
+        private EvioCompactReader compactReader;
 
         /** Index corresponding to position are we relative to the other socket(s). */
         private final int socketIndex;
@@ -1108,7 +1108,7 @@ System.out.println("      DataChannel Emu in: get emuEnd cmd");
 
             try {
                 if (compactReader == null) {
-                    compactReader = new EvioCompactReaderUnsync(buf);
+                    compactReader = new EvioCompactReader(buf, false);
                 }
                 else {
                     compactReader.setBuffer(buf);

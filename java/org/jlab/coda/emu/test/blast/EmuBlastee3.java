@@ -495,7 +495,7 @@ System.out.println("Client " + me + ", bufferSize = " + bufferSize);
         EvioNode node;
         boolean hasFirstEvent, isUser=false, dumpData=false, haveInputEndEvent=false;
         ControlType controlType = null;
-        EvioCompactReaderUnsync compactReader = null;
+        EvioCompactReader compactReader = null;
         int id = 0, sourceId = 0;
         long nextRingItem;
 
@@ -504,7 +504,7 @@ System.out.println("Client " + me + ", bufferSize = " + bufferSize);
 //Utilities.printBuffer(buf, 0, 100, "Buf");
         try {
             if (compactReader == null) {
-                compactReader = new EvioCompactReaderUnsync(buf);
+                compactReader = new EvioCompactReader(buf, false);
             }
             else {
                 compactReader.setBuffer(buf);
