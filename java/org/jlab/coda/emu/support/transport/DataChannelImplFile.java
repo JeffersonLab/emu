@@ -67,6 +67,18 @@ public class DataChannelImplFile extends DataChannelAdapter {
     /** Remember which element of the output destinations array belongs to this file. */
     private int outputNameIndex = 0;
 
+    /** Type of compression in output file.
+     * <ol start="0">
+     *     <li>none</li>
+     *     <li>lz4/li>
+     *     <li>lz4 best</li>
+     *     <li>gzip</li>
+     * </ol> */
+    private int compression;
+
+    /** Number of threads with which to compress data when writing to a file. */
+    private int compressionThreads;
+
     //----------------------------------------
     // Input file parameters
     //----------------------------------------
@@ -203,19 +215,19 @@ logger.info("      DataChannel File: dictionary file cannot be read");
             if (input) {
                 isER = (emu.getCodaClass() == CODAClass.ER);
 
-                // This will throw an exception if evio version < 4
+                // This will throw an exception if evio version > 4
                 compactFileReader = new EvioCompactReader(fileName);
 
                 // Get the first block header
                 // First evio block header read from a version 4 file
-                BlockHeaderV4 firstBlockHeader = compactFileReader.getFirstBlockHeader();
+                IBlockHeader firstBlockHeader = compactFileReader.getFirstBlockHeader();
                 hasFirstEvent = firstBlockHeader.hasFirstEvent();
 
                 // Get the # of events in file
                 eventCount = compactFileReader.getEventCount();
 
                 eventType = EventType.getEventType(firstBlockHeader.getEventType());
-                sourceId  = firstBlockHeader.getReserved1();
+                sourceId  = firstBlockHeader.getSourceId();
                 recordId  = firstBlockHeader.getNumber();
 
                 DataInputHelper helper = new DataInputHelper();
@@ -230,14 +242,50 @@ logger.info("      DataChannel File: dictionary file cannot be read");
                 boolean overWriteOK = true;
                 if (split > 0L) overWriteOK = false;
 
+                // Type of compression in file
+                try {
+                    String comp = attributeMap.get("compression");
+                    if (comp != null) {
+                        try {
+                            compression = Integer.parseInt(comp);
+                            // Ignore negative values
+                            if (compression < 0) compression = 0;
+                        }
+                        catch (NumberFormatException e) {
+                            compression = 0;
+                        }
+                    }
+logger.info("      DataChannel File: compression = " + compression);
+                }
+                catch (Exception e) {}
+
+                // Number of compression thread
+                try {
+                    compressionThreads = 1;
+                    String comp = attributeMap.get("compressionThreads");
+                    if (comp != null) {
+                        try {
+                            compressionThreads = Integer.parseInt(comp);
+                            // Ignore negative values
+                            if (compressionThreads < 1) compressionThreads = 1;
+                        }
+                        catch (NumberFormatException e) {
+                            compression = 1;
+                        }
+                    }
+logger.info("      DataChannel File: compressionThreads = " + compressionThreads);
+                }
+                catch (Exception e) {}
+
                 evioFileWriter = new EventWriterUnsync(fileName, directory, runType,
-                                                       runNumber, split, 4194304, 10000, 0,
-                                                       byteOrder,dictionaryXML, null, overWriteOK,
+                                                       runNumber, split, 4*16777216, 10000,
+                                                       byteOrder, dictionaryXML, overWriteOK,
                                                        false, null,
                                                        emu.getDataStreamId(),
                                                        subStreamIdCount.getAndIncrement(), // starting splitNumber
                                                        emu.getFileOutputCount(),  // splitIncrement
-                                                       emu.getDataStreamCount()); // stream count
+                                                       emu.getDataStreamCount(),  // stream count
+                                                       compression, compressionThreads, 0);
 
 logger.info("      DataChannel File: streamId = " + emu.getDataStreamId() + ", stream count = " +
             emu.getDataStreamCount() + ", filecount = " + emu.getFileOutputCount());
@@ -260,6 +308,7 @@ logger.info("      DataChannel File: file = " + evioFileWriter.getCurrentFilePat
         }
         catch (Exception e) {
             channelState = CODAState.ERROR;
+            e.printStackTrace();
             if (input) {
 System.out.println("      DataChannel File in: Cannot open file, " + e.getMessage());
                 emu.setErrorState("DataChannel File in: Cannot open file, " + e.getMessage());
@@ -576,9 +625,9 @@ logger.info("      DataChannel File: reset " + name + " - done");
                             }
                             gotPrestart = true;
                             // Force prestart to hard disk
-//System.out.println("      DataChannel File out " + outputIndex + ": try writing prestart event");
+System.out.println("      DataChannel File out " + outputIndex + ": try writing prestart event");
                             writeEvioData(ringItem, true);
-//System.out.println("      DataChannel File out " + outputIndex + ": wrote prestart event");
+System.out.println("      DataChannel File out " + outputIndex + ": wrote prestart event");
                         }
                         else {
                             if (!gotPrestart) {
@@ -623,7 +672,7 @@ logger.info("      DataChannel File: reset " + name + " - done");
                                     // Probably here due to bad evio format
                                     emu.sendRcWarningMessage(e.getMessage());
 System.out.println("      DataChannel File out " + outputIndex + ": failed writing \"first\" user event -> " + e.getMessage());
-Utilities.printBufferBytes(ringItem.getNode().getStructureBuffer(true), 0, 80, "Bad user event bytes:");
+Utilities.printBytes(ringItem.getNode().getStructureBuffer(true), 0, 80, "Bad user event bytes:");
 System.out.println("\n      DataChannel File out " + outputIndex + ": IGNORING USER EVENT, go to next event");
                                 }
                             }
@@ -641,7 +690,7 @@ System.out.println("\n      DataChannel File out " + outputIndex + ": IGNORING U
                                 // Probably here due to bad evio format
                                 emu.sendRcWarningMessage(e.getMessage());
 System.out.println("      DataChannel File out " + outputIndex + ": failed writing user event -> " + e.getMessage());
-Utilities.printBufferBytes(ringItem.getNode().getStructureBuffer(true), 0, 80, "Bad user event bytes:");
+Utilities.printBytes(ringItem.getNode().getStructureBuffer(true), 0, 80, "Bad user event bytes:");
 System.out.println("\n      DataChannel File out " + outputIndex + ": IGNORING USER EVENT, go to next event");
                             }
                         }
