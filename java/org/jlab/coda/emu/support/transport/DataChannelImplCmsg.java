@@ -101,11 +101,10 @@ public class DataChannelImplCmsg extends DataChannelAdapter {
             }
 
             ByteBuffer buf = ByteBuffer.wrap(data);
-//        Utilities.printBuffer(buf, 0, data.length/4, "buf, control?");
 
-            EvioCompactReaderUnsync compactReader = new EvioCompactReaderUnsync(buf);
+            EvioCompactReader compactReader = new EvioCompactReader(buf, false);
 
-            BlockHeaderV4 blockHeader = compactReader.getFirstBlockHeader();
+            IBlockHeader blockHeader = compactReader.getFirstBlockHeader();
             if (blockHeader.getVersion() < 4) {
                 channelState = CODAState.ERROR;
                 emu.setErrorState("DataChannel cmsg in: data NOT evio v4 format");
@@ -116,7 +115,7 @@ public class DataChannelImplCmsg extends DataChannelAdapter {
             boolean hasFirstEvent = blockHeader.hasFirstEvent();
             EventType eventType = EventType.getEventType(blockHeader.getEventType());
             int recordId = blockHeader.getNumber();
-            int sourceId = blockHeader.getReserved1();
+            int sourceId = blockHeader.getSourceId();
             int eventCount = compactReader.getEventCount();
 //logger.info("      DataChannel cmsg in: " + name + " block header, event type " + eventType +
 //            ", src id = " + sourceId + ", recd id = " + recordId + ", event cnt = " + eventCount);
@@ -946,17 +945,11 @@ logger.warn("      DataChannel cmsg out: " + name + " exit thd: " + e.getMessage
                 this.msg = msg;
                 this.bankList = bankList;
 
-                // Need to account for block headers + a little extra just in case
-
-//System.out.println("      DataChannel cmsg out: " + name + " create buf of size " + bankByteSize);
                 // Grab a stored ByteBuffer
                 bufItem = bbSupply.get();
                 bufItem.ensureCapacity(bankByteSize);
                 buffer = bufItem.getBuffer();
                 buffer.order(byteOrder);
-
-//                buffer = ByteBuffer.allocate(bankByteSize);
-//                buffer.order(byteOrder);
 
                 // Encode the event type into bits
                 BitSet bitInfo = new BitSet(24);
@@ -968,8 +961,28 @@ logger.warn("      DataChannel cmsg out: " + name + " exit thd: " + e.getMessage
                 try {
                     // Create object to write evio banks into message buffer
                     if (evWriter == null) {
-                        evWriter = new EventWriterUnsync(buffer, 550000, 200, null, bitInfo,
-                                                         emu.getCodaid(), myRecordId);
+//                        evWriter = new EventWriterUnsync(buffer, 550000, 200, null,
+//                                                         bitInfo,
+//                                                         emu.getCodaid(), myRecordId);
+//                        //                public EventWriterUnsync(ByteBuffer buf, int blockSizeMax, int blockCountMax,
+//                        //                                             String xmlDictionary, BitSet bitInfo, int reserved1,
+//                        //                                             int blockNumber) throws EvioException {
+//                        //                emu.getCodaid() == sourceId
+//
+//                        //                public EventWriterUnsync(ByteBuffer buf, int maxRecordSize, int maxEventCount,
+//                        //                                String xmlDictionary, int recordNumber,
+//                        //                                EvioBank firstEvent, int compressionType)
+
+                        if (bankList.get(0).isFirstEvent()) {
+                            evWriter = new EventWriterUnsync(buffer, 4*550000, 200, null,
+                                                             myRecordId, bankList.get(0).getEvent(), 0);
+                        }
+                        else {
+                            evWriter = new EventWriterUnsync(buffer, 4*550000, 200, null,
+                                                             myRecordId, null, 0);
+                        }
+                        evWriter.setSourceId(emu.getCodaid());
+                        evWriter.setEventType(bankList.get(0).getEventType().getValue());
                     }
                     else {
                         evWriter.setBuffer(buffer, bitInfo, myRecordId);
@@ -1004,7 +1017,7 @@ logger.warn("      DataChannel cmsg out: " + name + " exit thd: " + e.getMessage
                             evWriter.writeEvent(buf);
                         }
                         else if (node != null) {
-                            buf = ri.getNode().getBufferNode().getBuffer();
+                            buf = ri.getNode().getBuffer();
 //System.out.println("      DataChannel cmsg out: " + name + " buf cap = " + buf.capacity() +
 //                            ", lim = " + buf.limit() + ", pos = " + buf.position());
 //System.out.println("      DataChannel cmsg out: " + name + " node.len = " + node.getTotalBytes() +
