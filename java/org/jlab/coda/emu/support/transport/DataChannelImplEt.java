@@ -66,8 +66,6 @@ public class DataChannelImplEt extends DataChannelAdapter {
     /** Got END or RESET command from Run Control and must stop thread getting events. */
     private volatile boolean stopGetterThread;
 
-    private boolean useGarbageFree;
-
     // OUTPUT
 
     /** Thread used to output data. */
@@ -105,8 +103,12 @@ public class DataChannelImplEt extends DataChannelAdapter {
     /** Number of events to ask for in an array. */
     private int chunk;
 
-    /** Number of group from which new ET events are taken. */
+    /** Number of groups from which new ET events are taken. */
     private int group;
+
+    /** If true, there will be a deadlock at prestart since putEvents is blocked
+     * due to newEvents not returning in sleep mode due to too few events. */
+    private boolean deadLockAtPrestart;
 
     /** Control words of each ET event written to output. */
     private int[] control;
@@ -228,17 +230,6 @@ logger.info("      DataChannel Et: creating output channel " + name);
                 }
             }
             catch (NumberFormatException e) {}
-        }
-
-        // set "garbage free" option on
-        useGarbageFree = true;
-        attribString = attributeMap.get("garbageFree");
-        if (attribString != null) {
-            if (attribString.equalsIgnoreCase("true") ||
-                    attribString.equalsIgnoreCase("on") ||
-                    attribString.equalsIgnoreCase("yes")) {
-                useGarbageFree = true;
-            }
         }
 
         // size of TCP receive buffer (0 means use operating system default)
@@ -466,6 +457,18 @@ logger.info("      DataChannel Et: chunk = " + chunk);
 
 
     /**
+     * Get the number of the ET system's events.
+     * @return number of the ET system's events.
+     */
+    private int getEtEventCount() {
+        if (etSysLocal != null) {
+            return etSysLocal.getConfig().getNumEvents();
+        }
+        return etSystem.getNumEvents();
+    }
+
+
+    /**
      * Get the ET system object.                                                                         , e
      * @return the ET system object.
      */
@@ -672,7 +675,16 @@ System.out.println("      DataChannel Et: can't create/attach to station " +
 
         pause = false;
 
-        if (input) {
+        if (!input) {
+            // Find out how many total events in ET system.
+            // Useful for avoiding bad situation in output channel in which
+            // putEvents() blocks due to newEvents() stuck in sleep mode.
+            if (getEtEventCount() < 4*chunk) {
+                deadLockAtPrestart = true;
+logger.info("      DataChannel Et: newEvents() using timed mode to avoid deadlock");
+            }
+        }
+        else {
             // At this point, all in & output channels have been created. All output channels
             // and modules have had their prestart() methods called. Input channels are prestarted
             // right after modules.
@@ -706,71 +718,41 @@ logger.info("      DataChannel Et: eventSize = " + etEventSize);
             }
 logger.info("      DataChannel Et: # copy-ET-buffers in input supply -> " + numEtBufs);
 
-            if (useGarbageFree) {
-                // One pool for each supply buffer.
-                nodePools = new EvioNodePool[numEtBufs];
-                // Create the EvioNode pools
-                for (int i = 0; i < numEtBufs; i++) {
-                    nodePools[i] = new EvioNodePool(3500);
-                }
+            // One pool for each supply buffer.
+            nodePools = new EvioNodePool[numEtBufs];
+            // Create the EvioNode pools
+            for (int i = 0; i < numEtBufs; i++) {
+                nodePools[i] = new EvioNodePool(3500);
+            }
 
-                // If ER
-                if (isER) {
-                    List<DataChannel> outChannels = emu.getOutChannels();
-                    // if (0 output channels or 1 file output channel) ...
-                    if (((outChannels.size() < 1) ||
-                            (outChannels.size() == 1 &&
-                                    (outChannels.get(0).getTransportType() == TransportType.FILE)))) {
+            // If ER
+            if (isER) {
+                List<DataChannel> outChannels = emu.getOutChannels();
+                // if (0 output channels or 1 file output channel) ...
+                if (((outChannels.size() < 1) ||
+                        (outChannels.size() == 1 &&
+                                (outChannels.get(0).getTransportType() == TransportType.FILE)))) {
 
-                        // Since ER has only 1 recording thread and every event is processed in order,
-                        // and since the file output channel also processes all events in order,
-                        // the byte buffer supply does not have to be synchronized as byte buffers are
-                        // released in order. Will make things faster.
-                        bbSupply = new ByteBufferSupply(numEtBufs, etEventSize,
-                                                        module.getOutputOrder(),
-                                                        false, true, nodePools);
-                    }
-                    else {
-                        // If ER has more than one output, buffers may not be released sequentially
-                        bbSupply = new ByteBufferSupply(numEtBufs, etEventSize,
-                                                        module.getOutputOrder(),
-                                                        false, false, nodePools);
-                    }
-                }
-                else {
-                    // EBs all release these ByteBuffers in order in the ReleaseRingResourceThread thread
+                    // Since ER has only 1 recording thread and every event is processed in order,
+                    // and since the file output channel also processes all events in order,
+                    // the byte buffer supply does not have to be synchronized as byte buffers are
+                    // released in order. Will make things faster.
                     bbSupply = new ByteBufferSupply(numEtBufs, etEventSize,
                                                     module.getOutputOrder(),
                                                     false, true, nodePools);
                 }
+                else {
+                    // If ER has more than one output, buffers may not be released sequentially
+                    bbSupply = new ByteBufferSupply(numEtBufs, etEventSize,
+                                                    module.getOutputOrder(),
+                                                    false, false, nodePools);
+                }
             }
             else {
-                // If ER
-                if (isER) {
-                    List<DataChannel> outChannels = emu.getOutChannels();
-                    // if (0 output channels or 1 file output channel) ...
-                    if (((outChannels.size() < 1) ||
-                            (outChannels.size() == 1 &&
-                                    (outChannels.get(0).getTransportType() == TransportType.FILE)))) {
-
-                        // Since ER has only 1 recording thread and every event is processed in order,
-                        // and since the file output channel also processes all events in order,
-                        // the byte buffer supply does not have to be synchronized as byte buffers are
-                        // released in order. Will make things faster.
-                        bbSupply = new ByteBufferSupply(numEtBufs, etEventSize,
-                                                        module.getOutputOrder(), false, true);
-                    }
-                    else {
-                        // If ER has more than one output, buffers may not be released sequentially
-                        bbSupply = new ByteBufferSupply(numEtBufs, etEventSize,
-                                                        module.getOutputOrder(), false);
-                    }
-                }
-                else {
-                    // EBs all release these ByteBuffers in order in the ReleaseRingResourceThread thread
-                    bbSupply = new ByteBufferSupply(numEtBufs, etEventSize,
-                                                    module.getOutputOrder(), false, true);
-                }
+                // EBs all release these ByteBuffers in order in the ReleaseRingResourceThread thread
+                bbSupply = new ByteBufferSupply(numEtBufs, etEventSize,
+                                                module.getOutputOrder(),
+                                                false, true, nodePools);
             }
         }
 
@@ -1316,9 +1298,6 @@ logger.debug("      DataChannel Et: reset " + name + " channel");
         /** Array of ET events to be gotten from ET system. */
         private EtEvent[] events;
 
-        /** Array of ET events to be gotten from ET system. */
-        private EtEventImpl[] eventsDirect;
-
         /** Variable to print messages when paused. */
         private int pauseCounter = 0;
 
@@ -1411,9 +1390,9 @@ logger.debug("      DataChannel Et: reset " + name + " channel");
             public void run() {
 
                 long sequence;
-                boolean gotError = false;
-                String errorString = null;
-                EtContainer etContainer = null;
+                boolean gotError;
+                String errorString;
+                EtContainer etContainer ;
                 boolean useDirectEt = (etSysLocal != null);
 
                 // Tell the world I've started
@@ -1512,21 +1491,21 @@ System.out.println("      DataChannel Et in: GETTER is Quitting");
 
             try {
                 int sourceId, recordId;
-                BlockHeaderV4 header4;
+                IBlockHeader header;
                 EventType eventType;
                 ControlType controlType;
                 ByteBufferItem bbItem;
                 ByteBuffer buf;
-                EvioCompactReaderUnsync compactReader = null;
+                EvioCompactReader compactReader = null;
                 RingItem ri;
                 long t1, t2;
                 boolean delay = false;
                 boolean useDirectEt = (etSysLocal != null);
                 boolean etAlive = true;
                 boolean hasFirstEvent, isUser=false;
-                EvioNodeSource nodePool = null;
+                EvioNodeSource nodePool;
 
-                EtContainer etContainer = null;
+                EtContainer etContainer;
                 long nextSequence = etConsumeSequence.get() + 1L;
                 long availableSequence = -1L;
                 int validEvents;
@@ -1564,7 +1543,7 @@ System.out.println("      DataChannel Et in: GETTER is Quitting");
                         etContainer = rb.get(nextSequence);
 
                         if (useDirectEt) {
-                            events = eventsDirect = etContainer.getEventArrayLocal();
+                            events = etContainer.getEventArrayLocal();
                             validEvents = events.length;
                         }
                         else {
@@ -1621,25 +1600,15 @@ System.out.println("      DataChannel Et in: GETTER is Quitting");
                         copyBuffer(events[j].getDataBuffer(), buf, events[j].getLength());
 
                         try {
-                            if (useGarbageFree) {
-                                nodePool = (EvioNodePool)bbItem.getMyObject();
-                                nodePool.reset();
-                                
-                                // These calls do not change buf position
-                                if (compactReader == null) {
-                                    compactReader = new EvioCompactReaderUnsync(buf, nodePool);
-                                }
-                                else {
-                                    compactReader.setBuffer(buf, nodePool);
-                                }
+                            nodePool = (EvioNodePool)bbItem.getMyObject();
+                            nodePool.reset();
+
+                            // These calls do not change buf position
+                            if (compactReader == null) {
+                                compactReader = new EvioCompactReader(buf, nodePool, false);
                             }
                             else {
-                                if (compactReader == null) {
-                                    compactReader = new EvioCompactReaderUnsync(buf);
-                                }
-                                else {
-                                    compactReader.setBuffer(buf);
-                                }
+                                compactReader.setBuffer(buf, nodePool);
                             }
                         }
                         catch (EvioException e) {
@@ -1650,22 +1619,22 @@ System.out.println("      DataChannel Et in: GETTER is Quitting");
                         }
 
                         // First block header in ET buffer
-                        header4 = compactReader.getFirstBlockHeader();
+                        header = compactReader.getFirstBlockHeader();
                         //System.out.println("      DataChannel Et in: blk header, order = " + header4.getByteOrder());
-                        if (header4.getVersion() < 4) {
+                        if (header.getVersion() < 4) {
                             errorString = "DataChannel Et in: ET data NOT evio v4 format";
                             throw new EvioException("Evio data needs to be written in version 4+ format");
                         }
 
                         controlType   = null;
-                        hasFirstEvent = header4.hasFirstEvent();
+                        hasFirstEvent = header.hasFirstEvent();
 
-                        eventType = EventType.getEventType(header4.getEventType());
+                        eventType = EventType.getEventType(header.getEventType());
                         if (eventType == null || !eventType.isEbFriendly()) {
                             throw new EvioException("bad evio format or improper event type");
                         }
                         // this only works from ROC !!!
-                        sourceId = header4.getReserved1();
+                        sourceId = header.getSourceId();
                         if (eventType == EventType.PARTIAL_PHYSICS) {
                             sourceId = events[j].getControl()[0];
                         }
@@ -1673,7 +1642,7 @@ System.out.println("      DataChannel Et in: GETTER is Quitting");
                         // once per non-user, non-control ET buffer. Each writer will only use
                         // 1 block per 2.2MB or 10K events. Thus we can get away with only
                         // looking at the very first block #.
-                        recordId = header4.getNumber();
+                        recordId = header.getNumber();
 
                         // Check record for sequential record id
                         expectedRecordId = Evio.checkRecordIdSequence(recordId, expectedRecordId,
@@ -1705,13 +1674,8 @@ System.out.println("      DataChannel Et in: GETTER is Quitting");
                                 node = compactReader.getEvent(i);
                             }
                             else {
-                                if (useGarbageFree) {
-                                    node = compactReader.getScannedEvent(i, nodePool);
-                                }
-                                else {
-                                    node = compactReader.getScannedEvent(i);
-                                }
-                            }
+                                node = compactReader.getScannedEvent(i, nodePool);
+                             }
 
                             // Complication: from the ROC, we'll be receiving USER events
                             // mixed in with and labeled as ROC Raw events. Check for that
@@ -1967,11 +1931,11 @@ logger.info("      DataChannel Et in: wake up GETTER's getEvents() call so it ca
             rb.addGatingSequences(etPutSequence);
 
             // Start consumer thread to put ET events back into ET system
-            putter = new EvPutter(etPutSequence, etPutBarrier);
+            putter = new EvPutter(group, name+"_EvPutter", etPutSequence, etPutBarrier);
             putter.start();
 
             // Start producer thread for getting new ET events
-            getter = new EvGetter();
+            getter = new EvGetter(group, name+"_EvGetter");
             getter.start();
         }
 
@@ -2054,8 +2018,17 @@ logger.info("      DataChannel Et in: wake up GETTER's getEvents() call so it ca
                 // but we'll allow 10000 such banks per block header.
                 ByteBuffer etBuffer = ByteBuffer.allocate(128);
                 etBuffer.order(byteOrder);
-                EventWriterUnsync writer = new EventWriterUnsync(etBuffer, 1100000, maxEvioItemsPerEtBuf,
-                                                                 null, null, emu.getCodaid(), 0);
+
+//                public EventWriterUnsync(ByteBuffer buf, int maxRecordSize, int maxEventCount,
+//                                String xmlDictionary, int recordNumber,
+//                                EvioBank firstEvent, int compressionType)
+                EventWriterUnsync writer = new EventWriterUnsync(etBuffer, 4*1100000, maxEvioItemsPerEtBuf,
+                                                                 null, 0, null, 0);
+                writer.setSourceId(emu.getCodaid());
+//                public EventWriterUnsync(ByteBuffer buf, int blockSizeMax, int blockCountMax,
+//                                             String xmlDictionary, BitSet bitInfo, int reserved1,
+//                                             int blockNumber) throws EvioException {
+//                emu.getCodaid() == sourceId
                 writer.close();
 
                 int bytesToEtBuf, ringItemSize=0, banksInEtBuf, myRecordId;
@@ -2479,10 +2452,15 @@ logger.warn("      DataChannel Et out: exit thd w/ error = " + e.getMessage());
 
             /**
              * Constructor.
-             * @param sequence  ring buffer sequence to use
-             * @param barrier   ring buffer barrier to use
+             * @param group     thread group to be a part of.
+             * @param name      name of thread.
+             * @param sequence  ring buffer sequence to use.
+             * @param barrier   ring buffer barrier to use.
              */
-            EvPutter(Sequence sequence, SequenceBarrier barrier) {
+            EvPutter(ThreadGroup group, String name,
+                     Sequence sequence, SequenceBarrier barrier) {
+
+                super(group, name);
                 this.barrier = barrier;
                 this.sequence = sequence;
             }
@@ -2494,17 +2472,14 @@ logger.warn("      DataChannel Et out: exit thd w/ error = " + e.getMessage());
                 // Tell the world I've started
                 startLatch.countDown();
 
-                EtEvent[] events;
-                EtContainer etContainer = null;
+                EtContainer etContainer;
 
                 int  lastIndex=0, validEvents, eventsToPut, eventsToDump;
                 long availableSequence = -1L;
                 long nextSequence = sequence.get() + 1L;
-                boolean hasEnd = false;
+                boolean hasEnd;
 
                 try {
-                    // This object is needed to use the new, garbage-free, sync-free ET interface
-                    etContainer = new EtContainer(chunk, (int)getEtEventSize());
 
                     while (true) {
                         if (gotResetCmd) {
@@ -2518,7 +2493,6 @@ logger.warn("      DataChannel Et out: exit thd w/ error = " + e.getMessage());
                             availableSequence = barrier.waitFor(nextSequence);
                         }
                         etContainer = rb.get(nextSequence);
-                        events = etContainer.getEventArray();
 
                         // Total # of events obtained by newEvents()
                         validEvents = etContainer.getEventCount();
@@ -2528,7 +2502,6 @@ logger.warn("      DataChannel Et out: exit thd w/ error = " + e.getMessage());
 
                         // Look for the END event
                         hasEnd = etContainer.hasEndEvent();
-
 
                         if (lastIndex + 1 < validEvents) {
                             eventsToPut = lastIndex + 1;
@@ -2541,7 +2514,7 @@ logger.warn("      DataChannel Et out: exit thd w/ error = " + e.getMessage());
 
 //System.out.println("      DataChannel Et out (" + name + "): PUTTER got seq " + nextSequence +
 //                   ", " + validEvents + " valid, hasEnd = " + hasEnd + ", lastIndex = " + lastIndex +
-//                   ", toPut = " + eventsToPut + ", toDump = " + eventsToDump + ", container id = " + etContainer.getId());
+//                   ", toPut = " + eventsToPut + ", toDump = " + eventsToDump);
 
                         // Put all events with valid data back in ET system.
                         etContainer.putEvents(attachment, 0, eventsToPut);
@@ -2615,38 +2588,80 @@ System.out.println("      DataChannel Et out: " + name + " Et connection closed"
         final private class EvGetter extends Thread {
 
             /**
+             * Constructor.
+             * @param group  thread group to be a part of.
+             * @param name   name of thread.
+             */
+            EvGetter(ThreadGroup group, String name) {
+                super(group, name);
+            }
+
+            /**
              * {@inheritDoc}<p>
              * Get the new ET events.
              */
             public void run() {
 
                 long sequence;
-                boolean gotError = false;
-                String errorString = null;
-                EtContainer etContainer = null;
+                boolean gotError;
+                String errorString;
+                EtContainer etContainer;
                 int eventSize = (int)getEtEventSize();
 
                 // Tell the world I've started
                 startLatch.countDown();
 
                 try {
-                    while (true) {
-                        if (stopGetterThread) {
-                            return;
+                    // If there are too few events to avoid a deadlock while newEvents is
+                    // called in sleep mode, use a timed mode ...
+                    if (deadLockAtPrestart) {
+                        while (true) {
+                            if (stopGetterThread) {
+                                return;
+                            }
+
+                            // Will block here if no available slots in ring.
+                            // It will unblock when ET events are put back by the other thread.
+                            sequence = rb.next(); // This just spins on parkNanos
+                            etContainer = rb.get(sequence);
+
+                            // Now that we have a free container, get new events & store them in container.
+                            // The reason this is timed and not in sleep mode is that if there are 6 or less
+                            // events in the ET system. This thread will block here and not in rb.next();
+                            // If we completely block here, then we tie up the mutex which the evPutter
+                            // threads needs to use to put events back. Thus we block all event flow.
+                            etContainer.newEvents(attachment, Mode.TIMED, 100000, chunk,
+                                                  eventSize, group);
+                            while (true) {
+                                try {
+//System.out.println("      DataChannel Et out (" + name + "): GETTER try getting new events");
+                                    etSystem.newEvents(etContainer);
+//System.out.println("      DataChannel Et out (" + name + "): GETTER got new events");
+                                    break;
+                                }
+                                catch (EtTimeoutException e) {
+                                    continue;
+                                }
+                            }
+
+                            // Make container available for parsing/putting thread
+                            rb.publish(sequence++);
                         }
+                    }
+                    else {
+                        while (true) {
+                            if (stopGetterThread) {
+                                return;
+                            }
 
-                        // Will block here if no available slots in ring.
-                        // It will unblock when ET events are put back by the other thread.
-                        sequence = rb.next(); // This just spins on parkNanos
-                        etContainer = rb.get(sequence);
+                            sequence = rb.next();
+                            etContainer = rb.get(sequence);
 
-                        // Now that we have a free container, get new events & store them in container
-                        etContainer.newEvents(attachment, Mode.SLEEP, 0, chunk,
-                                              eventSize, group);
-                        etSystem.newEvents(etContainer);
+                            etContainer.newEvents(attachment, Mode.SLEEP, 0, chunk, eventSize, group);
+                            etSystem.newEvents(etContainer);
 
-                        // Make container available for parsing/putting thread
-                        rb.publish(sequence++);
+                            rb.publish(sequence++);
+                        }
                     }
                 }
                 catch (EtWakeUpException e) {
