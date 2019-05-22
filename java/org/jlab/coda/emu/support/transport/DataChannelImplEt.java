@@ -1392,7 +1392,7 @@ logger.debug("      DataChannel Et: reset " + name + " channel");
                 long sequence;
                 boolean gotError;
                 String errorString;
-                EtContainer etContainer ;
+                EtContainer etContainer;
                 boolean useDirectEt = (etSysLocal != null);
 
                 // Tell the world I've started

@@ -1530,7 +1530,7 @@ System.out.println("  EB mod: got user event");
                                         // We do this so that when constructing the trigger bank, we can do
                                         // efficient copying of data from ROC to trigger bank if possible.
                                         try {
-                                            ByteBuffer backingBuf = buildingBanks[i].getNode().getBuffer();
+                                            ByteBuffer backingBuf = buildingBanks[i].getNode().getBufferNode().getBuffer();
                                             if (backingBuf.hasArray() && !useDirectBB &&
                                                 backingBuf.order() == outputOrder) {
                                                 fastCopyReady = true;
@@ -2280,7 +2280,7 @@ System.out.println("  EB mod: got user event from channel " + inputChannels.get(
                                          // We do this so that when constructing the trigger bank, we can do
                                          // efficient copying of data from ROC to trigger bank if possible.
                                          try {
-                                             ByteBuffer backingBuf = buildingBanks[i].getNode().getBuffer();
+                                             ByteBuffer backingBuf = buildingBanks[i].getNode().getBufferNode().getBuffer();
                                              if (backingBuf.hasArray() && !useDirectBB &&
                                                      backingBuf.order() == outputOrder) {
                                                  fastCopyReady = true;
@@ -2416,7 +2416,7 @@ System.out.println("  EB mod: got user event from channel " + inputChannels.get(
                          rocNodes[i] = buildingBanks[i].getNode();
                          memSize += rocNodes[i].getTotalBytes();
                          // Get the backing buffer
-                         backingBufs[i] = rocNodes[i].getBuffer();
+                         backingBufs[i] = rocNodes[i].getBufferNode().getBuffer();
                          // Offset into backing buffer to start of given input's event
                          backBufOffsets[i] = rocNodes[i].getPosition();
                      }

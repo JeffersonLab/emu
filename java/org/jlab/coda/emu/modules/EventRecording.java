@@ -522,8 +522,9 @@ if (debug) System.out.println("  ER mod: recording thread ending");
     /**
      * This thread is started by the GO transition and runs while the state of the module is ACTIVE.
      * When the state is ACTIVE and the list of output DataChannels is not empty, this thread
-     * pulls one bank off the input DataChannel. The bank is copied and placed in each output
-     * channel. The count of outgoing banks and the count of data words are incremented.
+     * pulls one bank off the input DataChannel. The bank is copied and alternatingly placed in
+     * one of the output channels.
+     * The count of outgoing banks and the count of data words are incremented.
      *
      * This class is written so that there must only be one RecordingThread.
      * It also takes any events arriving prior to prestart and throws them away unless it's

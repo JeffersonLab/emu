@@ -307,6 +307,7 @@ logger.info("      DataChannel File: file = " + evioFileWriter.getCurrentFilePat
             }
         }
         catch (Exception e) {
+            e.printStackTrace();
             channelState = CODAState.ERROR;
             e.printStackTrace();
             if (input) {

@@ -247,7 +247,7 @@ System.out.println("All ROCs reporting event sizes, largest ev size = " + larges
         super(name, attributeMap, emu);
 
         // Desired total data rate to ER.
-        desiredTotalDataRate = 1222000000;  // 1.222 GB/s
+        desiredTotalDataRate = 2600000000L;  // 2.6 GB/s
 
         try { desiredTotalDataRate = Long.parseLong(attributeMap.get("dataRate")); }
         catch (NumberFormatException e) {}
