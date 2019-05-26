@@ -53,7 +53,7 @@ public class EmuUtilities {
 
     
     /** This method prints out the current stack trace. */
-    final static public void printStackTrace() {
+    static public void printStackTrace() {
         for (StackTraceElement ste : Thread.currentThread().getStackTrace()) {
             System.out.println(ste);
         }
@@ -66,7 +66,7 @@ public class EmuUtilities {
      * @param source  source ByteBuffer.
      * @return a copy of the source ByteBuffer.
      */
-    static final public ByteBuffer deepCopy(ByteBuffer source) {
+    static public ByteBuffer deepCopy(ByteBuffer source) {
 
         if (source == null) return null;
         
@@ -91,7 +91,7 @@ public class EmuUtilities {
      * @param places number of decimal places
      * @return string representation of the double
      */
-    static final public String doubleToString(double d, int places) {
+    static public String doubleToString(double d, int places) {
         if (places < 0) places = 0;
 
         double factor = Math.pow(10,places);
@@ -114,7 +114,7 @@ public class EmuUtilities {
      * @param s prompt string to print
      * @return string typed in keyboard
      */
-    static final public String inputStr(String s) {
+    static public String inputStr(String s) {
         String aLine = "";
         BufferedReader input = new BufferedReader(new InputStreamReader(System.in));
         System.out.print(s);
@@ -138,7 +138,7 @@ public class EmuUtilities {
      * @param bSet bit set which will become part of the bit info word
      * @param eType event type to be encoded
      */
-    static final public void setEventType(BitSet bSet, EventType eType) {
+    static public void setEventType(BitSet bSet, EventType eType) {
         int type = eType.getValue();
 
         // check args
@@ -163,7 +163,7 @@ public class EmuUtilities {
      *
      * @param bSet bit set which will become part of the bit info word
      */
-    static final public void setFirstEvent(BitSet bSet) {
+    static public void setFirstEvent(BitSet bSet) {
         // check arg
         if (bSet == null || bSet.size() < 2) {
             return;
@@ -181,7 +181,7 @@ public class EmuUtilities {
      *
      * @param bSet bit set which will become part of the bit info word
      */
-    static final public void unsetFirstEvent(BitSet bSet) {
+    static public void unsetFirstEvent(BitSet bSet) {
         if (bSet == null || bSet.size() < 2) {
             return;
         }
@@ -196,7 +196,7 @@ public class EmuUtilities {
      * @param roundUp if true, round up, else down
      * @return -1 if x is negative or the closest power of 2 to value
      */
-    static final public int powerOfTwo(int x, boolean roundUp) {
+    static public int powerOfTwo(int x, boolean roundUp) {
         if (x < 0) return -1;
 
         // The following algorithms are found in
