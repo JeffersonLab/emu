@@ -12,6 +12,7 @@
 package org.jlab.coda.emu.modules;
 
 import com.lmax.disruptor.RingBuffer;
+import com.sun.scenario.effect.impl.sw.java.JSWBlend_SRC_OUTPeer;
 import org.jlab.coda.cMsg.*;
 import org.jlab.coda.emu.Emu;
 import org.jlab.coda.emu.support.codaComponent.CODAClass;
@@ -22,11 +23,15 @@ import org.jlab.coda.emu.support.configurer.DataNotFoundException;
 import org.jlab.coda.emu.support.control.CmdExecException;
 import org.jlab.coda.emu.support.data.*;
 import org.jlab.coda.emu.support.transport.DataChannel;
-import org.jlab.coda.jevio.CompactEventBuilder;
-import org.jlab.coda.jevio.DataType;
+import org.jlab.coda.jevio.*;
 
+import java.io.File;
+import java.io.IOException;
+import java.io.RandomAccessFile;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.nio.MappedByteBuffer;
+import java.nio.channels.FileChannel;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.Map;
@@ -71,6 +76,32 @@ public class RocSimulation extends ModuleAdapter {
     /** Number of ByteBuffers in each EventGeneratingThread. */
     private int bufSupplySize = 4096;
 
+    /** Flag saying we got the END command. */
+    private volatile boolean gotEndCommand;
+
+    /** Flag saying we got the END command. */
+    private volatile boolean gotResetCommand;
+
+    /** Flag saying we got the GO command. */
+    private volatile boolean gotGoCommand;
+
+    //-------------------------------------------
+    // For using real data
+    //-------------------------------------------
+
+    /** If true, use real data taken from HallD data file.
+     * Useful when running file compression tests. */
+    private boolean useRealData;
+
+    /** Amount of real data bytes in hallDdata array. */
+    static private int arrayBytes;
+
+    /** Put extracted real data in here. */
+    static private byte[] hallDdata;
+
+    /** Current position in hallDdata array to start copying from. */
+    private int hallDdataPosition;
+
     //----------------------------------------------------
     // Members used to synchronize all fake Rocs to each other which allows run to
     // end properly. I.e., they all produce the same number of buildable events.
@@ -99,15 +130,6 @@ public class RocSimulation extends ModuleAdapter {
 
     /** Flag used to stop event production. */
     private volatile boolean timeToEnd;
-
-    /** Flag saying we got the END command. */
-    private volatile boolean gotEndCommand;
-
-    /** Flag saying we got the END command. */
-    private volatile boolean gotResetCommand;
-
-    /** Flag saying we got the GO command. */
-    private volatile boolean gotGoCommand;
 
 
     /** Callback to be run when a message from synchronizer
@@ -181,6 +203,118 @@ public class RocSimulation extends ModuleAdapter {
         return null;
     }
 
+
+    /**
+     * Method to get real data from either:
+     * 1) an existing file of data previously extracted from a Hall D data file, or
+     * 2) a Hall D data file.
+     * Use this to fill this Roc's data bank.
+     *
+     * @return true if hall D data found and available, else false.
+     */
+    static private boolean getRealData() {
+
+        // First check to see if we already have some data in a file
+        String destFileName = System.getenv("CODA");
+        if (destFileName != null) {
+            destFileName += "/common/bin/hallDdata.bin";
+        }
+        else {
+            destFileName = "/Users/timmer/coda/coda3/common/bin/hallDdata.bin";
+        }
+
+        try {
+            RandomAccessFile file = new RandomAccessFile(destFileName, "rw");
+            arrayBytes = (int) file.length();
+            hallDdata = new byte[arrayBytes];
+            file.read(hallDdata, 0, arrayBytes);
+            file.close();
+            return true;
+        }
+        catch (Exception e) {
+            // No file to be read, so try creating our own
+        }
+
+        // Save Hall D data to a single file
+        int bytesWritten = 0;
+
+        // Amount of real data bytes in hallDdata array.
+        arrayBytes = 16000000; // 16M
+
+        // Put extracted real data in here
+        hallDdata = new byte[arrayBytes];
+
+        // Skip first 3 events, go up to event #2415
+        // Get enough data by event #96
+        String fileName  = "/Volumes/USB30FD/hd_rawdata_042560_000.evio";
+
+        File fileIn = new File(fileName);
+        System.out.println("read ev file: " + fileName + " size: " + fileIn.length());
+
+        try {
+            // Read sequentially
+            EvioReader fileReader = new EvioReader(fileName, false, true);
+            EvioEvent event;
+            boolean finishedFillingArray = false;
+
+            // In our file, these are our valid data events
+            // since in this case file was abnormally truncated as it was put on thumb drive.
+            for (int j=4; j < 2415; j++) {
+
+                // Top level bank or event is bank of banks.
+                // Under each data event, skip first bank which is trigger bank.
+                // The next banks are data banks each of which also contain banks.
+                // In most cases, the first sub banks is very small.
+                // Second sub bank contains lots of data. Grab this data and fill our container
+                // with it.
+
+                event = fileReader.parseEvent(j);
+                int eventKidCount = event.getChildCount();
+
+                // Start at one to skip trigger bank
+                for (int i = 1; i < eventKidCount; i++) {
+
+                    BaseStructure bs = (BaseStructure) event.getChildAt(i);
+                    int subEvKidCount = bs.getChildCount();
+
+                    // Grab second bank under general data bank
+                    if (subEvKidCount > 1) {
+
+                        EvioBank bank = (EvioBank) (bs.getChildAt(1));
+                        byte[] data = bank.getRawBytes();
+                        int dataBytes = 4*(bank.getHeader().getLength() - 1);
+
+                        // Make sure we quit when array is full
+                        int bytesToWrite = dataBytes;
+                        if (bytesWritten + dataBytes > arrayBytes) {
+                            bytesToWrite = arrayBytes - bytesWritten;
+                            finishedFillingArray = true;
+                        }
+
+                        // Copy Hall D data into our array
+                        System.arraycopy(data, 0, hallDdata, bytesWritten, bytesToWrite);
+                        bytesWritten += bytesToWrite;
+
+                        if (finishedFillingArray) break;
+                    }
+                }
+
+                if (finishedFillingArray) break;
+            }
+
+            System.out.println("Gathered " + bytesWritten + " data bytes from file");
+            System.out.println("Now write it to a separate file " + destFileName);
+
+            RandomAccessFile file = new RandomAccessFile(destFileName, "rw");
+            file.write(hallDdata, 0, bytesWritten);
+            file.close();
+        }
+        catch (Exception e) {
+            return false;
+        }
+
+        return true;
+    }
 
 
     /**
@@ -261,6 +395,15 @@ public class RocSimulation extends ModuleAdapter {
 
         // the module sets the type of CODA class it is.
         emu.setCodaClass(CODAClass.ROC);
+
+        // Make this ROC use real data for file compression testing
+        useRealData = true;
+        if (useRealData) {
+            // If this fails, returns false, we don't use real data.
+            useRealData = getRealData();
+        }
+
+System.out.println("  Roc mod: using real Hall D data = " + useRealData);
     }
 
 
@@ -453,9 +596,22 @@ public class RocSimulation extends ModuleAdapter {
 
         // First put in starting event # (32 bits)
         buf.putInt(writeIndex, (int)eventNumber); writeIndex += 4;
-        for (int i=0; i < generatedDataWords; i++) {
-            // Write a bunch of 1s
-            buf.putInt(writeIndex, 1); writeIndex += 4;
+        if (useRealData) {
+            // buf has a backing array, so fill it with data the quick way
+            int bytes = 4*generatedDataWords;
+            if (bytes > arrayBytes) {
+System.out.println("  Roc mod: NEED TO GENERATE MORE REAL DATA, have " + arrayBytes +
+        " but need " + bytes);
+            }
+            System.arraycopy(hallDdata, hallDdataPosition, buf.array(), 0, bytes);
+            hallDdataPosition += bytes;
+        }
+        else {
+            for (int i = 0; i < generatedDataWords; i++) {
+                    // Write a bunch of 1s
+                    buf.putInt(writeIndex, 1);
+                    writeIndex += 4;
+            }
         }
 
         // buf is ready to read
@@ -465,7 +621,8 @@ public class RocSimulation extends ModuleAdapter {
     //TODO: 1st
     void writeEventBuffer(ByteBuffer buf, ByteBuffer templateBuf,
                           long eventNumber, long timestamp,
-                          boolean syncBit, boolean copy) {
+                          boolean syncBit, boolean copy,
+                          int generatedDataBytes) {
 
         // Since we're using recirculating buffers, we do NOT need to copy everything
         // into the buffer each time. Once each of the buffers in the BufferSupply object
@@ -516,6 +673,27 @@ public class RocSimulation extends ModuleAdapter {
 
         // Write event number into data bank
         buf.putInt(writeIndex, (int) eventNumber);
+
+        // Move to data input position
+        writeIndex += 4;
+
+        // For testing compression, need to have real data that changes,
+        // endianness does not matter.
+        if (useRealData) {
+            // Have we run out of data? If so, start over from beginning ...
+            if (arrayBytes - hallDdataPosition < generatedDataBytes) {
+                hallDdataPosition = 0;
+            }
+
+            if (buf.hasArray()) {
+                System.arraycopy(hallDdata, hallDdataPosition, buf.array(), writeIndex, generatedDataBytes);
+            }
+            else {
+                buf.put(hallDdata, hallDdataPosition, generatedDataBytes);
+            }
+
+            hallDdataPosition += generatedDataBytes;
+        }
     }
 
 
@@ -539,8 +717,8 @@ public class RocSimulation extends ModuleAdapter {
         private ByteBufferSupply bbSupply;
         // Number of data words in each event
         private int generatedDataWords;
+        private int generatedDataBytes;
         private ByteBuffer templateBuffer;
-        private int templateBufferLimit;
 
         /** Boolean used to kill this thread. */
         private volatile boolean killThd;
@@ -560,6 +738,7 @@ public class RocSimulation extends ModuleAdapter {
 
             // Need to coordinate amount of data words
             generatedDataWords = eventBlockSize * eventSize;
+            generatedDataBytes = 4*generatedDataWords;
 System.out.println("  Roc mod: generatedDataWords = " + generatedDataWords);
 
 
@@ -567,7 +746,6 @@ System.out.println("  Roc mod: generatedDataWords = " + generatedDataWords);
 System.out.println("  Roc mod: eventWordSize = " + eventWordSize);
 
             templateBuffer = createSingleEventBuffer(generatedDataWords, myEventNumber, timestamp);
-            templateBufferLimit = templateBuffer.limit();
 
 
 System.out.println("  Roc mod: start With (id=" + myId + "):\n    record id = " + myRocRecordId +
@@ -580,7 +758,6 @@ System.out.println("  Roc mod: start With (id=" + myId + "):\n    record id = " 
          * Kill this thread which is sending messages/data to other end of emu socket.
          */
         final void endThread() {
-//System.out.println("SocketSender: killThread, set flag, interrupt");
             killThd = true;
             this.interrupt();
         }
@@ -706,11 +883,13 @@ System.out.println("  Roc mod: start With (id=" + myId + "):\n    record id = " 
                             syncBitLoop = syncBitCount;
                             // Set the sync bit
                             writeEventBuffer(buf, templateBuffer, myEventNumber,
-                                             timestamp, true, copyWholeBuf);
+                                             timestamp, true, copyWholeBuf,
+                                             generatedDataBytes);
                         }
                         else {
                             writeEventBuffer(buf, templateBuffer, myEventNumber,
-                                             timestamp, false, copyWholeBuf);
+                                             timestamp, false, copyWholeBuf,
+                                             generatedDataBytes);
                         }
 //                        writeEventBuffer(buf, templateBuffer, myEventNumber,
 //                                         timestamp, copyWholeBuf);
@@ -805,7 +984,6 @@ System.out.println("  Roc mod: start With (id=" + myId + "):\n    record id = " 
                 errorMsg.compareAndSet(null, e.getMessage());
                 moduleState = CODAState.ERROR;
                 emu.sendStatusMessage();
-                return;
             }
         }
 
