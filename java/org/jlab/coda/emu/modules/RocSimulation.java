@@ -603,7 +603,7 @@ System.out.println("  Roc mod: using real Hall D data = " + useRealData);
 System.out.println("  Roc mod: NEED TO GENERATE MORE REAL DATA, have " + arrayBytes +
         " but need " + bytes);
             }
-            System.arraycopy(hallDdata, hallDdataPosition, buf.array(), 0, bytes);
+            System.arraycopy(hallDdata, hallDdataPosition, buf.array(), writeIndex, bytes);
             hallDdataPosition += bytes;
         }
         else {
