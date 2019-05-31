@@ -679,7 +679,14 @@ System.out.println("  Roc mod: NEED TO GENERATE MORE REAL DATA, have " + arrayBy
 
         // For testing compression, need to have real data that changes,
         // endianness does not matter.
-        if (useRealData) {
+        // Only copy data into each of the "bufSupplySize" number of events once.
+        // Doing this for each event produced slows things down too much.
+        // Each event has eventBlockSize * eventSize (40*75 = 3000) data bytes.
+        // 3k bytes * 4096 events = 12.3MB. This works out nicely since we have
+        // retrieved 16MB from a single Hall D data file.
+        // However, each Roc has the same data which will lend itself to more compression.
+        // So the best thing is for each ROC to have different data.
+        if (copy && useRealData) {
             // Have we run out of data? If so, start over from beginning ...
             if (arrayBytes - hallDdataPosition < generatedDataBytes) {
                 hallDdataPosition = 0;
