@@ -12,7 +12,6 @@
 package org.jlab.coda.emu.modules;
 
 import com.lmax.disruptor.RingBuffer;
-import com.sun.scenario.effect.impl.sw.java.JSWBlend_SRC_OUTPeer;
 import org.jlab.coda.cMsg.*;
 import org.jlab.coda.emu.Emu;
 import org.jlab.coda.emu.support.codaComponent.CODAClass;
@@ -26,12 +25,10 @@ import org.jlab.coda.emu.support.transport.DataChannel;
 import org.jlab.coda.jevio.*;
 
 import java.io.File;
-import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
-import java.nio.MappedByteBuffer;
-import java.nio.channels.FileChannel;
+
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.Map;
@@ -209,10 +206,18 @@ public class RocSimulation extends ModuleAdapter {
      * 1) an existing file of data previously extracted from a Hall D data file, or
      * 2) a Hall D data file.
      * Use this to fill this Roc's data bank.
+     * Since each ROC is run in its own JVM, doesn't matter if loading real data is
+     * done in static or non-static code.
+     * The system is that there are 9 files, each containing 16 MB of unique real Hall D data.
+     * The exact file loaded is determined by parsing the Rocs's name.
+     * Since Rocs are generally called Roc1, Roc2, Roc34, etc. The last number is obtained
+     * thru the parsing and the least significant digit determines which file to load.
+     * Thus Roc1 loads data file 1, Roc34 loads data file 4. etc. There may be Rocs loading
+     * the identical file, but not usually since I seldom run simulations with more than 9 rocs.
      *
      * @return true if hall D data found and available, else false.
      */
-    static private boolean getRealData() {
+    private boolean getRealData() {
 
         // First check to see if we already have some data in a file
         String destFileName = System.getenv("CODA");
@@ -317,6 +322,125 @@ public class RocSimulation extends ModuleAdapter {
     }
 
 
+
+    /**
+     * Method to get real data from a Hall D data file and save it into
+     * 9 files of 16 MB each.
+     */
+    static private void getRealDataFromDataFile() {
+
+        // Number of files to create
+        int fileCount = 9;
+
+        // Amount of real data bytes to end up in each created file.
+        arrayBytes = 16000000; // 16M
+
+        // Put extracted real data for a single file in here
+        hallDdata = new byte[arrayBytes];
+
+        // File to read
+        String fileName  = "/Volumes/USB30FD/hd_rawdata_042560_000.evio";
+        File fileIn = new File(fileName);
+        System.out.println("read ev file: " + fileName + " size: " + fileIn.length());
+
+        try {
+            // Read sequentially
+            EvioReader fileReader = new EvioReader(fileName, false, true);
+            EvioEvent event;
+
+            // In this file, skip first 3 events, only go up to event #2415
+            // since file was abnormally truncated as it was put on thumb drive.
+            int j = 4;
+
+            // Want 9 files, each with 16 MB of data, starting count = 1
+            for (int k=1; k <= fileCount; k++) {
+
+                // Reset for each file to write
+                int bytesWritten = 0;
+                boolean finishedFillingArray = false;
+
+                // Output file name
+                String destFileName = "/Users/timmer/coda/emu.GIT/hallDdata" + k + ".bin";
+
+                for (; j < 2415; j++) {
+
+                    // Top level bank or event is bank of banks.
+                    // Under each data event, skip first bank which is trigger bank.
+                    // The next banks are data banks each of which also contain banks.
+                    // In most cases, the first sub banks is very small.
+                    // Second sub bank contains lots of data. Grab this data and fill our container
+                    // with it.
+
+                    event = fileReader.parseEvent(j);
+                    int eventKidCount = event.getChildCount();
+
+                    // Start at one to skip trigger bank
+                    for (int i = 1; i < eventKidCount; i++) {
+
+                        BaseStructure bs = (BaseStructure) event.getChildAt(i);
+                        int subEvKidCount = bs.getChildCount();
+
+                        // Grab second bank under general data bank
+                        if (subEvKidCount > 1) {
+
+                            EvioBank bank = (EvioBank) (bs.getChildAt(1));
+                            byte[] data = bank.getRawBytes();
+                            int dataBytes = 4 * (bank.getHeader().getLength() - 1);
+
+                            // Make sure we quit when array is full
+                            int bytesToWrite = dataBytes;
+                            if (bytesWritten + dataBytes > arrayBytes) {
+                                bytesToWrite = arrayBytes - bytesWritten;
+                                finishedFillingArray = true;
+                            }
+
+                            // Copy Hall D data into our array
+                            System.arraycopy(data, 0, hallDdata, bytesWritten, bytesToWrite);
+                            bytesWritten += bytesToWrite;
+
+                            if (finishedFillingArray) break;
+                        }
+                    }
+
+                    if (finishedFillingArray) break;
+                }
+
+                System.out.println("Write " + bytesWritten + " bytes to file: " + destFileName);
+
+                RandomAccessFile file = new RandomAccessFile(destFileName, "rw");
+                file.write(hallDdata, 0, bytesWritten);
+                file.close();
+            }
+
+        }
+        catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+
+    /**
+     * Run as a stand-alone application to file real data files.
+     */
+    public static void main(String[] args) {
+        try {
+            RocSimulation.getRealDataFromDataFile();
+        }
+        catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+
+    /**
+     * Constructor only used to generate data files holding real data.
+     * See {@link #main(String[])}.
+     */
+    private RocSimulation() {
+        super("name", null);
+    }
+
+
     /**
      * Constructor RocSimulation creates a simulated ROC instance.
      *
@@ -331,7 +455,7 @@ public class RocSimulation extends ModuleAdapter {
         outputOrder = ByteOrder.LITTLE_ENDIAN;
 
         // Set the sync bit every 5000th record
-        syncBitCount = 5003;
+        syncBitCount = 5000;
 
         // Fill out message to send to synchronizer
         message = new cMsgMessage();
@@ -400,7 +524,8 @@ public class RocSimulation extends ModuleAdapter {
         useRealData = true;
         if (useRealData) {
             // If this fails, returns false, we don't use real data.
-            useRealData = getRealData();
+            getRealDataFromDataFile();
+            //useRealData = getRealData();
         }
 
 System.out.println("  Roc mod: using real Hall D data = " + useRealData);
