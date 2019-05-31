@@ -11,11 +11,8 @@ endif
 
 #setenv PATH $CODA/$MACHINE/bin
 #setenv LD_LIBRARY_PATH $CODA/$MACHINE/lib
-setenv EXPID carltest
 
 #setenv MALLOC_ARENA_MAX 2
-#$JAVA_HOME/bin/java -cp $CODA/common/jar/cMsg-6.0.jar:$CODA/common/jar/emu-3.3.jar:$CODA/common/jar/jevio-6.0.jar:$CODA/common/jar/disruptor-3.3.jar:$CODA/common/jar/lz4-java-1.4.0.jar \
-
 
 if ($#argv > 1) then
 $JAVA_HOME/bin/java -cp $CODA/common/jar/\* \
@@ -31,7 +28,7 @@ $JAVA_HOME/bin/java -cp $CODA/common/jar/\* \
     -Xmx500M \
     -DrcAddr=$2 \
     -Djava.net.preferIPv4Stack=true \
-#    -Djava.library.path=$CODA/$MACHINE/lib \
+    -Djava.library.path=$CODA/$MACHINE/lib \
     -DcmsgUDL="rc://multicast/"$EXPID \
     -Dname=$1 \
     -Dtype=ROC org.jlab.coda.emu.EmuFactory
@@ -48,7 +45,7 @@ $JAVA_HOME/bin/java -cp $CODA/common/jar/\* \
     -XX:CMSInitiatingOccupancyFraction=70 \
     -Xmx500M \
     -Djava.net.preferIPv4Stack=true \
-#    -Djava.library.path=$CODA/$MACHINE/lib \
+    -Djava.library.path=$CODA/$MACHINE/lib \
     -DcmsgUDL="rc://multicast/"$EXPID \
     -Dname=$1 \
     -Dtype=ROC org.jlab.coda.emu.EmuFactory
