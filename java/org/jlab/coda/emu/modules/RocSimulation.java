@@ -33,6 +33,8 @@ import java.util.ArrayList;
 import java.util.Date;
 import java.util.Map;
 import java.util.concurrent.Phaser;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * This class simulates a Roc. It is a module which can use multiple threads
@@ -202,122 +204,66 @@ public class RocSimulation extends ModuleAdapter {
 
 
     /**
-     * Method to get real data from either:
-     * 1) an existing file of data previously extracted from a Hall D data file, or
-     * 2) a Hall D data file.
-     * Use this to fill this Roc's data bank.
-     * Since each ROC is run in its own JVM, doesn't matter if loading real data is
-     * done in static or non-static code.
+     * Method to get real data from an existing file of data previously extracted from
+     * a Hall D data file.
+     *
      * The system is that there are 9 files, each containing 16 MB of unique real Hall D data.
      * The exact file loaded is determined by parsing the Rocs's name.
-     * Since Rocs are generally called Roc1, Roc2, Roc34, etc. The last number is obtained
+     * Since Rocs are generally called Roc1, Roc2, Roc34, etc. The number in the name is obtained
      * thru the parsing and the least significant digit determines which file to load.
      * Thus Roc1 loads data file 1, Roc34 loads data file 4. etc. There may be Rocs loading
-     * the identical file, but not usually since I seldom run simulations with more than 9 rocs.
+     * the identical file, but not usually since we seldom run simulations with more than 9 rocs.
      *
      * @return true if hall D data found and available, else false.
      */
     private boolean getRealData() {
 
-        // First check to see if we already have some data in a file
-        String destFileName = System.getenv("CODA");
-        if (destFileName != null) {
-            destFileName += "/common/bin/hallDdata.bin";
+        // Parse roc name
+        Pattern pattern = Pattern.compile("^.+([0-9]{1})$", Pattern.CASE_INSENSITIVE);
+        Matcher matcher = pattern.matcher(name);
+
+        // Try to get the last digit at end of name if any
+        int num;
+        String numStr = null;
+        if (matcher.matches()) {
+            numStr = matcher.group(1);
         }
         else {
-            destFileName = "/Users/timmer/coda/coda3/common/bin/hallDdata.bin";
+            System.out.println("getRealData: cannot find a single digit at end of ROC's name (" + name + ")");
+            return false;
         }
 
         try {
-            RandomAccessFile file = new RandomAccessFile(destFileName, "rw");
+            num = Integer.parseInt(numStr);
+        }
+        catch (NumberFormatException e) {
+            System.out.println("getRealData: cannot find a single digit at end of ROC's name (" + name + ")");
+            return false;
+        }
+
+        // First check to see if we already have some data in a file
+        String filename = System.getenv("CODA");
+        if (filename != null) {
+            filename += "/common/bin/hallDdata" + num + ".bin";
+        }
+        else {
+            filename = "/Users/timmer/coda/coda3/common/bin/hallDdata" + num + ".bin";
+        }
+
+        try {
+            RandomAccessFile file = new RandomAccessFile(filename, "rw");
             arrayBytes = (int) file.length();
             hallDdata = new byte[arrayBytes];
             file.read(hallDdata, 0, arrayBytes);
             file.close();
-            return true;
         }
         catch (Exception e) {
             // No file to be read, so try creating our own
-        }
-
-        // Save Hall D data to a single file
-        int bytesWritten = 0;
-
-        // Amount of real data bytes in hallDdata array.
-        arrayBytes = 16000000; // 16M
-
-        // Put extracted real data in here
-        hallDdata = new byte[arrayBytes];
-
-        // Skip first 3 events, go up to event #2415
-        // Get enough data by event #96
-        String fileName  = "/Volumes/USB30FD/hd_rawdata_042560_000.evio";
-
-        File fileIn = new File(fileName);
-        System.out.println("read ev file: " + fileName + " size: " + fileIn.length());
-
-        try {
-            // Read sequentially
-            EvioReader fileReader = new EvioReader(fileName, false, true);
-            EvioEvent event;
-            boolean finishedFillingArray = false;
-
-            // In our file, these are our valid data events
-            // since in this case file was abnormally truncated as it was put on thumb drive.
-            for (int j=4; j < 2415; j++) {
-
-                // Top level bank or event is bank of banks.
-                // Under each data event, skip first bank which is trigger bank.
-                // The next banks are data banks each of which also contain banks.
-                // In most cases, the first sub banks is very small.
-                // Second sub bank contains lots of data. Grab this data and fill our container
-                // with it.
-
-                event = fileReader.parseEvent(j);
-                int eventKidCount = event.getChildCount();
-
-                // Start at one to skip trigger bank
-                for (int i = 1; i < eventKidCount; i++) {
-
-                    BaseStructure bs = (BaseStructure) event.getChildAt(i);
-                    int subEvKidCount = bs.getChildCount();
-
-                    // Grab second bank under general data bank
-                    if (subEvKidCount > 1) {
-
-                        EvioBank bank = (EvioBank) (bs.getChildAt(1));
-                        byte[] data = bank.getRawBytes();
-                        int dataBytes = 4*(bank.getHeader().getLength() - 1);
-
-                        // Make sure we quit when array is full
-                        int bytesToWrite = dataBytes;
-                        if (bytesWritten + dataBytes > arrayBytes) {
-                            bytesToWrite = arrayBytes - bytesWritten;
-                            finishedFillingArray = true;
-                        }
-
-                        // Copy Hall D data into our array
-                        System.arraycopy(data, 0, hallDdata, bytesWritten, bytesToWrite);
-                        bytesWritten += bytesToWrite;
-
-                        if (finishedFillingArray) break;
-                    }
-                }
-
-                if (finishedFillingArray) break;
-            }
-
-            System.out.println("Gathered " + bytesWritten + " data bytes from file");
-            System.out.println("Now write it to a separate file " + destFileName);
-
-            RandomAccessFile file = new RandomAccessFile(destFileName, "rw");
-            file.write(hallDdata, 0, bytesWritten);
-            file.close();
-        }
-        catch (Exception e) {
+            System.out.println("getRealData: cannot open data file " + filename);
             return false;
         }
 
+        System.out.println("getRealData: successfully read in file " + filename);
         return true;
     }
 
@@ -325,7 +271,8 @@ public class RocSimulation extends ModuleAdapter {
 
     /**
      * Method to get real data from a Hall D data file and save it into
-     * 9 files of 16 MB each.
+     * 9 files of 16 MB each. This method is here for info only.
+     * It can be run from evio repository, ExtractHallDdata.java
      */
     static private void getRealDataFromDataFile() {
 
@@ -524,8 +471,7 @@ public class RocSimulation extends ModuleAdapter {
         useRealData = true;
         if (useRealData) {
             // If this fails, returns false, we don't use real data.
-            getRealDataFromDataFile();
-            //useRealData = getRealData();
+            useRealData = getRealData();
         }
 
 System.out.println("  Roc mod: using real Hall D data = " + useRealData);
