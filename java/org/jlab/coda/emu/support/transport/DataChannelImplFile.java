@@ -255,7 +255,7 @@ logger.info("      DataChannel File: dictionary file cannot be read");
                             compression = 0;
                         }
                     }
-                    compression = 0;
+                    compression = 1;
 logger.info("      DataChannel File: compression = " + compression);
                 }
                 catch (Exception e) {}
@@ -274,7 +274,7 @@ logger.info("      DataChannel File: compression = " + compression);
                             compression = 1;
                         }
                     }
-                    compressionThreads = 1;
+                    compressionThreads = 3;
 logger.info("      DataChannel File: compressionThreads = " + compressionThreads);
                 }
                 catch (Exception e) {}
