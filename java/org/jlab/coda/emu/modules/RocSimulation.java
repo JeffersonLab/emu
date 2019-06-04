@@ -220,7 +220,7 @@ public class RocSimulation extends ModuleAdapter {
 
         // Parse roc name
         Pattern pattern = Pattern.compile("^.+([0-9]{1})$", Pattern.CASE_INSENSITIVE);
-        Matcher matcher = pattern.matcher(name);
+        Matcher matcher = pattern.matcher(emu.name());
 
         // Try to get the last digit at end of name if any
         int num;
@@ -229,7 +229,7 @@ public class RocSimulation extends ModuleAdapter {
             numStr = matcher.group(1);
         }
         else {
-            System.out.println("getRealData: cannot find a single digit at end of ROC's name (" + name + ")");
+            System.out.println("getRealData: cannot find a single digit at end of ROC's name (" + emu.name() + ")");
             return false;
         }
 
@@ -237,7 +237,7 @@ public class RocSimulation extends ModuleAdapter {
             num = Integer.parseInt(numStr);
         }
         catch (NumberFormatException e) {
-            System.out.println("getRealData: cannot find a single digit at end of ROC's name (" + name + ")");
+            System.out.println("getRealData: cannot find a single digit at end of ROC's name (" + emu.name() + ")");
             return false;
         }
 
@@ -263,7 +263,7 @@ public class RocSimulation extends ModuleAdapter {
             return false;
         }
 
-        System.out.println("getRealData: successfully read in file " + filename);
+System.out.println("getRealData: successfully read in file " + filename);
         return true;
     }
 
@@ -400,6 +400,7 @@ public class RocSimulation extends ModuleAdapter {
 
 
         outputOrder = ByteOrder.LITTLE_ENDIAN;
+        //outputOrder = ByteOrder.BIG_ENDIAN;
 
         // Set the sync bit every 5000th record
         syncBitCount = 5000;
@@ -473,6 +474,7 @@ public class RocSimulation extends ModuleAdapter {
             // If this fails, returns false, we don't use real data.
             useRealData = getRealData();
         }
+        useRealData = true;
 
 System.out.println("  Roc mod: using real Hall D data = " + useRealData);
     }
@@ -754,6 +756,7 @@ System.out.println("  Roc mod: NEED TO GENERATE MORE REAL DATA, have " + arrayBy
         // retrieved 16MB from a single Hall D data file.
         // However, each Roc has the same data which will lend itself to more compression.
         // So the best thing is for each ROC to have different data.
+        //if (false) {
         if (copy && useRealData) {
             // Move to data input position
             writeIndex += 4;
@@ -771,6 +774,7 @@ System.out.println("  Roc mod: NEED TO GENERATE MORE REAL DATA, have " + arrayBy
                 buf.put(hallDdata, hallDdataPosition, generatedDataBytes);
                 // Get buf ready to read for output channel
                 buf.position(0).limit(templateBuf.limit());
+
             }
 
             hallDdataPosition += generatedDataBytes;
