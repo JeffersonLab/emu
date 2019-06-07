@@ -202,8 +202,6 @@ public class DataChannelImplEmu extends DataChannelAdapter {
                 direct = false;
             }
         }
-        //direct = true;
-        direct = false;
 
         // How many sockets to use underneath
         socketCount = 1;
@@ -1837,23 +1835,27 @@ System.out.println("\nFirst current buf -> rec # = " + currentBuffer.getInt(4) +
                 // Write the new event ..
                 ByteBuffer buf = rItem.getBuffer();
                 if (buf != null) {
-                    //System.out.print(".");
+                    //System.out.print("b");
                     writer.writeEvent(buf);
 //System.out.println(" " + writer.getEventsWritten());
                 }
                 else {
                     EvioNode node = rItem.getNode();
                     if (node != null) {
-                        // IMPORTANT NOTE: Since this is an emu-socket output channel,
+                        // Since this is an emu-socket output channel,
                         // it is getting events from either the building thread of an event builder
                         // or the event generating thread of a simulated ROC. In both cases,
-                        // the node passed into the following function has a backing buffer only
+                        // any node passed into the following function has a backing buffer only
                         // used by that single node. (This is NOT like an input channel when an
                         // incoming buffer has several nodes all parsed from that one buffer).
                         // In this case, we do NOT need to "duplicate" the buffer to avoid interfering
                         // with other threads using the backing buffer's limit & position because there
                         // are no such threads. Thus, we set the duplicate arg to false which should
                         // generate fewer objects and save computing power/time.
+                        //
+                        // In reality, however, all data coming from EB or ROC will be in buffers and
+                        // not in node form, so this method will never be called. This is just here
+                        // for completeness.
                         writer.writeEvent(node, false, false);
                     }
                     else {
