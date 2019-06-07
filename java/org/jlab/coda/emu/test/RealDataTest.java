@@ -151,7 +151,8 @@ public class RealDataTest {
         long timestamp = myId*4*eventBlockSize;
 
         eventWordSize  = getSingleEventBufferWords(generatedDataWords);
-        System.out.println("eventWordSize = " + eventWordSize);
+        //System.out.println("eventWordSize = " + eventWordSize);
+        System.out.println("using real data = " + useRealData);
 
         templateBuffer = createSingleEventBuffer(generatedDataWords, myEventNumber, timestamp);
 
