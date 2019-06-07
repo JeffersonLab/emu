@@ -202,7 +202,8 @@ public class DataChannelImplEmu extends DataChannelAdapter {
                 direct = false;
             }
         }
-        direct = true;
+        //direct = true;
+        direct = false;
 
         // How many sockets to use underneath
         socketCount = 1;
@@ -1843,7 +1844,17 @@ System.out.println("\nFirst current buf -> rec # = " + currentBuffer.getInt(4) +
                 else {
                     EvioNode node = rItem.getNode();
                     if (node != null) {
-                        writer.writeEvent(node, false);
+                        // IMPORTANT NOTE: Since this is an emu-socket output channel,
+                        // it is getting events from either the building thread of an event builder
+                        // or the event generating thread of a simulated ROC. In both cases,
+                        // the node passed into the following function has a backing buffer only
+                        // used by that single node. (This is NOT like an input channel when an
+                        // incoming buffer has several nodes all parsed from that one buffer).
+                        // In this case, we do NOT need to "duplicate" the buffer to avoid interfering
+                        // with other threads using the backing buffer's limit & position because there
+                        // are no such threads. Thus, we set the duplicate arg to false which should
+                        // generate fewer objects and save computing power/time.
+                        writer.writeEvent(node, false, false);
                     }
                     else {
                         throw new EmuException("no data to write");
