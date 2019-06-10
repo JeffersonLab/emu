@@ -45,7 +45,7 @@ public class RealDataTest {
     private int generatedDataWords = eventBlockSize * eventSize;
     private int generatedDataBytes = 4*generatedDataWords;
 
-    private boolean useRealData = false;
+    private boolean useRealData = true;
 
     private int hallDdataPosition = 0;
 
@@ -212,7 +212,7 @@ public class RealDataTest {
 
                 if (counter++ % 10000000 == 0) {
 
-                    t2 = System.currentTimeMillis(); //emu.getTime();
+                    t2 = System.currentTimeMillis();
                     deltaT = t2 - t1;
 
                     if (skip-- < 1) {
@@ -460,7 +460,7 @@ public class RealDataTest {
 
             }
 
-            System.out.print(".");
+            //System.out.print(".");
 
             hallDdataPosition += generatedDataBytes;
         }
