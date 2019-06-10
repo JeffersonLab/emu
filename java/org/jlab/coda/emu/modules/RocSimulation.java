@@ -399,8 +399,8 @@ System.out.println("getRealData: successfully read in file " + filename);
         super(name, attributeMap, emu);
 
 
-        outputOrder = ByteOrder.LITTLE_ENDIAN;
-        //outputOrder = ByteOrder.BIG_ENDIAN;
+        //outputOrder = ByteOrder.LITTLE_ENDIAN;
+        outputOrder = ByteOrder.BIG_ENDIAN;
 
         // Set the sync bit every 5000th record
         syncBitCount = 5000;
@@ -464,6 +464,7 @@ System.out.println("getRealData: successfully read in file " + filename);
                 synced = false;
             }
         }
+System.out.println("  Roc mod: sync = " + synced);
 
         // the module sets the type of CODA class it is.
         emu.setCodaClass(CODAClass.ROC);
@@ -692,7 +693,7 @@ System.out.println("  Roc mod: NEED TO GENERATE MORE REAL DATA, have " + arrayBy
     }
 
     //TODO: 1st
-    void writeEventBuffer(ByteBuffer buf, ByteBuffer templateBuf,
+    void  writeEventBuffer(ByteBuffer buf, ByteBuffer templateBuf,
                           long eventNumber, long timestamp,
                           boolean syncBit, boolean copy,
                           int generatedDataBytes) {
@@ -756,7 +757,6 @@ System.out.println("  Roc mod: NEED TO GENERATE MORE REAL DATA, have " + arrayBy
         // retrieved 16MB from a single Hall D data file.
         // However, each Roc has the same data which will lend itself to more compression.
         // So the best thing is for each ROC to have different data.
-        //if (false) {
         if (copy && useRealData) {
             // Move to data input position
             writeIndex += 4;
