@@ -1,0 +1,7 @@
+Manifest-Version: 1.0
+Ant-Version: Apache Ant 1.6.5
+Created-By: "Dave Heddle"
+Specification-Title: jevio
+Sealed: true
+Main-Class: org.jlab.coda.jevio.test.Demo
+
