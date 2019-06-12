@@ -1263,32 +1263,32 @@ logger.info("      DataChannel Emu in: got " + controlType + " event from " + na
                      }
                  }
 
-                 if (dumpData) {
-                     bbSupply.release(item);
-
-                     // Handle end event ...
-                     if (controlType == ControlType.END) {
-//TODO: what to do about having got the next ringItem
-                         // There should be no more events coming down the pike so
-                         // go ahead write out existing events and then shut this
-                         // thread down.
-                         haveInputEndEvent = true;
-                         // Run callback saying we got end event
-                         if (endCallback != null) endCallback.endWait();
-                         break;
-                     }
-
-                     // Send control events on to module so we can prestart, go and take data
-                     if (!eventType.isBuildable()) {
-                         ri.setAll(null, null, node, eventType, controlType,
-                                   isUser, hasFirstEvent, id, recordId, sourceId,
-                                   1, name, item, bbSupply);
-
-                         ringBufferIn.publish(nextRingItem);
-                     }
-
-                     continue;
-                 }
+//                 if (dumpData) {
+//                     bbSupply.release(item);
+//
+//                     // Handle end event ...
+//                     if (controlType == ControlType.END) {
+////TODO: what to do about having got the next ringItem
+//                         // There should be no more events coming down the pike so
+//                         // go ahead write out existing events and then shut this
+//                         // thread down.
+//                         haveInputEndEvent = true;
+//                         // Run callback saying we got end event
+//                         if (endCallback != null) endCallback.endWait();
+//                         break;
+//                     }
+//
+//                     // Send control events on to module so we can prestart, go and take data
+//                     if (!eventType.isBuildable()) {
+//                         ri.setAll(null, null, node, eventType, controlType,
+//                                   isUser, hasFirstEvent, id, recordId, sourceId,
+//                                   1, name, item, bbSupply);
+//
+//                         ringBufferIn.publish(nextRingItem);
+//                     }
+//
+//                     continue;
+//                 }
 
                  // Set & reset all parameters of the ringItem
                  if (eventType.isBuildable()) {
@@ -1805,10 +1805,10 @@ System.out.println("\nFirst current buf -> rec # = " + currentBuffer.getInt(4) +
 //System.out.println("      DataChannel Emu out: writeEvioData *** no room so call flush at current event count = " + currentEventCount);
                         flushEvents(false, false, true);
                     }
-                    else {
+//                    else {
 //System.out.println("      DataChannel Emu out: writeEvioData *** PLENTY OF ROOM, has room = " +
-                           writer.hasRoom(rItem.getTotalBytes());
-                    }
+//                           writer.hasRoom(rItem.getTotalBytes()));
+//                    }
                     // Flush closes the writer so that the next "if" is true
                 }
 
