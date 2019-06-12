@@ -13,11 +13,16 @@ package org.jlab.coda.emu.test;
 
 
 import org.jlab.coda.emu.support.data.*;
-import org.jlab.coda.jevio.DataType;
+import org.jlab.coda.jevio.*;
 
-import java.io.RandomAccessFile;
+import java.io.*;
+import java.net.InetAddress;
+import java.net.InetSocketAddress;
+import java.net.ServerSocket;
+import java.net.Socket;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.nio.IntBuffer;
 
 /**
  * This class is designed to find the bottleneck in using
@@ -28,6 +33,8 @@ import java.nio.ByteOrder;
  * (Jun 5, 2019)
  */
 public class RealDataTest {
+
+    static int serverPort = 49555;
 
     private boolean debug;
 
@@ -45,7 +52,7 @@ public class RealDataTest {
     private int generatedDataWords = eventBlockSize * eventSize;
     private int generatedDataBytes = 4*generatedDataWords;
 
-    private boolean useRealData = true;
+    private boolean useRealData = false;
 
     private int hallDdataPosition = 0;
 
@@ -162,7 +169,7 @@ public class RealDataTest {
 
     public void writeToBuffer() {
 
-        int skip = 3;
+        int skip = 5;
         long oldVal=0L, totalT=0L, totalCount=0L, bufCounter=0L;
         long t1, deltaT, t2;
         ByteBuffer buf;
@@ -173,12 +180,38 @@ public class RealDataTest {
 
         int counter = 0;
 
-
         // Now create a buffer supply
         bbSupply = new ByteBufferSupply(bufSupplySize, 4*eventWordSize, ByteOrder.BIG_ENDIAN, false);
+        boolean added = false;
 
         try {
+            
+            // 1MB internal buffer in writer
+            int containerBufSize = 16000000;
+//            ByteBuffer containerBufZero = ByteBuffer.allocate(containerBufSize);
+            ByteBuffer containerBuf = ByteBuffer.allocate(containerBufSize);
+            EventWriterUnsync writer = new EventWriterUnsync(containerBuf, 0, 0, null, 1, null, 0);
             t1 = System.currentTimeMillis();
+
+            // Start up receiving thread
+            TestServer server = new TestServer();
+            server.start();
+
+            Thread.sleep(2000);
+
+            Socket tcpSocket = new Socket();
+            tcpSocket.setTcpNoDelay(true);
+            //tcpSocket.setSendBufferSize(2000000);
+            //tcpSocket.setPerformancePreferences(0,0,1);
+
+System.out.println("      Emu connect: try making TCP connection to host = " +
+                            InetAddress.getLocalHost().getHostName() +
+                            "; port = " + serverPort);
+            // Don't waste too much time if a connection can't be made, timeout = 5 sec
+            tcpSocket.connect(new InetSocketAddress(InetAddress.getLocalHost().getHostName(), serverPort), 5000);
+            DataOutputStream out = new DataOutputStream(new BufferedOutputStream(tcpSocket.getOutputStream()));
+
+System.out.println("      Emu connect: connection made!");
 
             while (true) {
 
@@ -198,9 +231,33 @@ public class RealDataTest {
                     }
                 }
 
+                // Make sure buf has latest timestamp and event # placed in it
                 writeEventBuffer(buf, templateBuffer, myEventNumber,
                                  timestamp, false, copyWholeBuf,
                                  generatedDataBytes);
+
+                // Add buf to containBuf
+                added = writer.writeEvent(buf, false);
+                if (!added) {
+                    // Wasn't added since containerBuf is full, so reset
+                    writer.close();
+
+                    // Type of message is in 1st int, 0 in this test.
+                    // Total length of data (not including this int) is in 2nd int
+                    out.writeLong((long) (writer.getBytesWrittenToBuffer()));
+
+                    // Write data
+                    out.write(containerBuf.array(), 0, writer.getBytesWrittenToBuffer());
+
+                    containerBuf.clear();
+                    // Zero out all the data to see if this contributes
+                    //System.arraycopy(containerBufZero.array(), 0, containerBuf.array(), 0, containerBufSize);
+                    writer.setBuffer(containerBuf);
+                    //System.out.println(" " + counter);
+                    //counter = 0;
+
+                }
+                //counter++;
 
                 bbSupply.release(bufItem);
 
@@ -211,8 +268,7 @@ public class RealDataTest {
                 timestamp += 4 * eventBlockSize;
 
 
-                if (counter++ % 10000000 == 0) {
-
+                if (counter++ % 500000 == 0) {
                     t2 = System.currentTimeMillis();
                     deltaT = t2 - t1;
 
@@ -472,3 +528,141 @@ public class RealDataTest {
 
 
 }
+
+
+class TestServer extends Thread {
+
+    static int serverPort = 49555;
+    static int receiveBufferSize = 1000000;
+
+    /**
+     * Method to allow connections from Blasters and read their data.
+     * Not protected against port scanning.
+     *
+     * @throws cMsgException if there are problems parsing the UDL or
+     *                       communication problems with the server
+     */
+    public void run()  {
+
+        try {
+            // Create server socket at given port
+            ServerSocket listeningSocket = new ServerSocket();
+
+            try {
+                listeningSocket.setReuseAddress(true);
+                // set recv buffer size (must be done BEFORE bind)
+                listeningSocket.setReceiveBufferSize(receiveBufferSize);
+                // prefer high bandwidth instead of flow latency or short connection times
+                listeningSocket.setPerformancePreferences(0, 0, 1);
+                listeningSocket.bind(new InetSocketAddress(serverPort));
+            }
+            catch (IOException ex) {
+            }
+
+            while (true) {
+                // accept the connection from the client
+                Socket socket = listeningSocket.accept();
+                socket.setPerformancePreferences(0, 0, 1);
+
+                // Set tcpNoDelay so no packets are delayed
+                socket.setTcpNoDelay(true);
+
+                // spawn thread to handle client
+                new ClientHandler(socket);
+            }
+        }
+        catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+}
+
+
+/** Class to handle a socket connection to the client. */
+class ClientHandler extends Thread {
+
+    /** Socket to client. */
+    Socket socket;
+
+    /** Buffered input communication streams for efficiency. */
+    BufferedInputStream in;
+
+    /**
+     * Constructor.
+     * @param channel socket channel to client
+     */
+    ClientHandler(Socket socket) {
+        this.socket = socket;
+        this.start();
+    }
+
+
+    /** This method handles all communication with sender. */
+    public void run() {
+
+        System.out.println("Start handling client");
+
+        int numRead;
+        int bufSize = 16000000;
+        long byteCount=0L, messageCount=0L;
+        boolean blasteeStop = false;
+        ByteBuffer inputBuf = ByteBuffer.allocate(bufSize);
+
+        EvioNode node;
+
+        ControlType controlType = null;
+        EvioNodePool pool = new EvioNodePool(1200);
+        EvioCompactReader reader = null;
+
+        long word;
+        int cmd, size;
+
+        // Buffered communication streams for efficiency
+        DataInputStream in = null;
+        try {
+            in = new DataInputStream(new BufferedInputStream(socket.getInputStream()));
+        }
+        catch (IOException ex) {
+            System.out.println("Sender just quit");
+            return;
+        }
+
+        try {
+
+            while (true) {
+                if (blasteeStop) {
+                    break;
+                }
+
+                word = in.readLong();
+                cmd  = (int) ((word >>> 32) & 0xffL);
+                size = (int)   word;   // just truncate for lowest 32 bytes
+
+//                System.out.println(" cmd = " + cmd);
+//                System.out.println(" size = " + size);
+
+                inputBuf.limit(size);
+                in.readFully(inputBuf.array(), 0, size);
+                //byteCount += size;
+                //messageCount++;
+
+                pool.reset();
+                if (reader == null) {
+                    reader = new EvioCompactReader(inputBuf, pool, false);
+                }
+                else {
+                    reader.setBuffer(inputBuf, pool);
+                }
+            }
+
+            // done talking to sender
+            socket.close();
+        }
+        catch (Exception e) {
+            e.printStackTrace();
+        }
+
+        System.out.println("Sender just quit");
+    }
+}
+
