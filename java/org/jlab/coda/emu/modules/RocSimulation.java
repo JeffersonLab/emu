@@ -614,8 +614,7 @@ System.out.println("  Roc mod: using real Hall D data = " + useRealData);
     }
 
 
-    private ByteBuffer createSingleEventBuffer(int generatedDataWords, long eventNumber,
-                                              long timestamp ) {
+    private ByteBuffer createSingleEventBuffer(int generatedDataWords, long eventNumber, long timestamp) {
         int writeIndex=0;
         int dataLen = 1 + generatedDataWords;
 
@@ -714,7 +713,7 @@ System.out.println("  Roc mod: NEED TO GENERATE MORE REAL DATA, have " + arrayBy
         }
 
         // Get buf ready to read for output channel
-        buf.position(0).limit(templateBuf.limit());
+        buf.limit(templateBuf.limit()).position(0);
 
         // Set sync bit in event bank header
         // sync, error, isBigEndian, singleEventMode
@@ -773,8 +772,7 @@ System.out.println("  Roc mod: NEED TO GENERATE MORE REAL DATA, have " + arrayBy
                 buf.position(writeIndex);
                 buf.put(hallDdata, hallDdataPosition, generatedDataBytes);
                 // Get buf ready to read for output channel
-                buf.position(0).limit(templateBuf.limit());
-
+                buf.limit(templateBuf.limit()).position(0);
             }
 
             hallDdataPosition += generatedDataBytes;
