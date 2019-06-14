@@ -12,6 +12,9 @@
 package org.jlab.coda.emu.test;
 
 
+import com.lmax.disruptor.*;
+import org.jlab.coda.emu.EmuException;
+import org.jlab.coda.emu.support.codaComponent.CODAState;
 import org.jlab.coda.emu.support.data.*;
 import org.jlab.coda.jevio.*;
 
@@ -24,10 +27,12 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.IntBuffer;
 
+import static com.lmax.disruptor.RingBuffer.createSingleProducer;
+
 /**
  * This class is designed to find the bottleneck in using
  * real Hall D data in simulated ROC. It's a hacked-up
- * version of RocSimulation.
+ * version of RocSimulation and DataChannelImplEmu.
  *
  * @author timmer
  * (Jun 5, 2019)
@@ -35,6 +40,7 @@ import java.nio.IntBuffer;
 public class RealDataTest {
 
     static int serverPort = 49555;
+    static int bufSupplySize = 4096;
 
     private boolean debug;
 
@@ -74,6 +80,21 @@ public class RealDataTest {
 
     /** Sum of the sizes, in 32-bit words, of all evio events written to the outputs. */
     private long wordCountTotal;
+
+    private EventWriterUnsync writer;
+    private DataOutputStream out;
+
+    //--------------------------------------------------------------
+    // These represent the internal ring of the output channel
+    //--------------------------------------------------------------
+    private long nextSequence;
+    private long availableSequence ;
+    private int outputRingItemCount;
+
+    private RingBuffer<RingItem> ringBufferOut;
+    private SequenceBarrier sequenceBarrier;
+    private Sequence sequence;
+
 
 
 
@@ -175,7 +196,6 @@ public class RealDataTest {
         ByteBuffer buf;
         ByteBufferItem bufItem;
         boolean copyWholeBuf = true;
-        int bufSupplySize = 4096;
         long myEventNumber=1, timestamp=0;
 
         int counter = 0;
@@ -184,6 +204,9 @@ public class RealDataTest {
         bbSupply = new ByteBufferSupply(bufSupplySize, 4*eventWordSize, outputOrder, false);
         boolean added = false;
 
+        // Simulates the output channel ring
+        setupOutputRingBuffer();
+
         try {
             
             // internal buffer size in writer
@@ -191,13 +214,19 @@ public class RealDataTest {
 //            ByteBuffer containerBufZero = ByteBuffer.allocate(containerBufSize);
             ByteBuffer containerBuf = ByteBuffer.allocate(containerBufSize);
             containerBuf.order(outputOrder);
-            EventWriterUnsync writer = new EventWriterUnsync(containerBuf, 0, 0,
-                    null, 1, null, 0);
+            writer = new EventWriterUnsync(containerBuf, 0, 0, null, 1, null, 0);
             t1 = System.currentTimeMillis();
 
             // Start up receiving thread
             TestServer server = new TestServer();
             server.start();
+
+
+            // Start up sending thread
+            OutChannel outThread = new OutChannel();
+            outThread.start();
+
+
 
             Thread.sleep(1000);
 
@@ -213,7 +242,7 @@ System.out.println("      Emu connect: try making TCP connection to host = " +
         "127.0.0.1" + "; port = " + serverPort);
             // Don't waste too much time if a connection can't be made, timeout = 5 sec
             tcpSocket.connect(new InetSocketAddress("127.0.0.1", serverPort), 5000);
-            DataOutputStream out = new DataOutputStream(new BufferedOutputStream(tcpSocket.getOutputStream()));
+            out = new DataOutputStream(new BufferedOutputStream(tcpSocket.getOutputStream()));
 
 System.out.println("      Emu connect: connection made!");
 
@@ -240,30 +269,8 @@ System.out.println("      Emu connect: connection made!");
                                  timestamp, false, copyWholeBuf,
                                  generatedDataBytes);
 
-                // Add buf to containBuf
-                added = writer.writeEvent(buf, false);
-                if (!added) {
-                    // Wasn't added since containerBuf is full, so reset
-                    writer.close();
-
-                    // Type of message is in 1st int, 0 in this test.
-                    // Total length of data (not including this int) is in 2nd int
-                    out.writeLong((long) (writer.getBytesWrittenToBuffer()));
-
-                    // Write data
-                    out.write(containerBuf.array(), 0, writer.getBytesWrittenToBuffer());
-
-                    containerBuf.clear();
-                    // Zero out all the data to see if this contributes
-                    //System.arraycopy(containerBufZero.array(), 0, containerBuf.array(), 0, containerBufSize);
-                    writer.setBuffer(containerBuf);
-                    //System.out.println(" " + counter);
-                    //counter = 0;
-
-                }
-                //counter++;
-
-                bbSupply.release(bufItem);
+                // Pretend is going to output channel
+                eventToOutputRing(buf, bufItem, bbSupply);
 
                 eventCountTotal += eventBlockSize;
                 wordCountTotal += eventWordSize;
@@ -314,6 +321,102 @@ System.out.println("      Emu connect: connection made!");
 
         return ( status | (id & 0x0fff) );
     }
+
+
+    /** Setup the output channel ring buffer. */
+    void setupOutputRingBuffer() {
+
+        nextSequence = 0L;
+        availableSequence = -1L;
+        outputRingItemCount = bufSupplySize;
+
+        ringBufferOut =
+                createSingleProducer(new RingItemFactory(),
+                                     outputRingItemCount,
+                                     new SpinCountBackoffWaitStrategy(30000, new LiteBlockingWaitStrategy()));
+        //new LiteBlockingWaitStrategy());
+        //new YieldingWaitStrategy());
+
+        // One barrier for the ring
+        sequenceBarrier = ringBufferOut.newBarrier();
+        sequenceBarrier.clearAlert();
+
+        // One sequence for the ring
+        sequence = new Sequence(Sequencer.INITIAL_CURSOR_VALUE);
+        ringBufferOut.addGatingSequences(sequence);
+        nextSequence = sequence.get() + 1L;
+    }
+
+
+    /**
+     * This method places many ROC Raw events with simulated data
+     * onto the ring buffer of an output channel.
+     *
+     * @param buf     the event to place on output channel ring buffer
+     * @param item    item corresponding to the buffer allowing buffer to be reused
+     */
+    void eventToOutputRing(ByteBuffer buf, ByteBufferItem item, ByteBufferSupply bbSupply) {
+
+        long nextRingItem = ringBufferOut.next();
+        RingItem ri = (RingItem) ringBufferOut.get(nextRingItem);
+        ri.setBuffer(buf);
+        ri.setEventType(EventType.ROC_RAW);
+        ri.setControlType(null);
+        ri.setSourceName(null);
+        ri.setReusableByteBuffer(bbSupply, item);
+        ringBufferOut.publish(nextRingItem);
+    }
+
+
+    class OutChannel extends Thread {
+
+        public void run() {
+
+            while (true) {
+
+                RingItem item;
+
+                try  {
+                    // Only wait if necessary ...
+                    if (availableSequence < nextSequence) {
+                        availableSequence = sequenceBarrier.waitFor(nextSequence);
+                    }
+
+                    item = ringBufferOut.get(nextSequence);
+                    // Get buffer with entangled events in it
+                    ByteBuffer buf = item.getBuffer();
+
+                    // Add event to writer's internal buffer
+                    boolean added = writer.writeEvent(buf, false);
+
+                    if (!added) {
+                        // Event wasn't added since writer's internal buf is full, so reset
+                        writer.close();
+
+                        // Type of message over socket is in 1st int, 0 in this test.
+                        // Total length of data (not including this int) is in 2nd int
+                        out.writeLong((long) (writer.getBytesWrittenToBuffer()));
+
+                        // Write data
+                        ByteBuffer containerBuf = writer.getByteBuffer();
+                        out.write(containerBuf.array(), 0, writer.getBytesWrittenToBuffer());
+
+                        // Start over
+                        containerBuf.clear();
+                        writer.setBuffer(containerBuf);
+                    }
+
+                    bbSupply.release(item.getByteBufferItem());
+
+                    sequence.set(nextSequence++);
+                }
+                catch (final Exception ex) {
+                    ex.printStackTrace();
+                }
+            }
+        }
+    }
+
 
 
     /**
@@ -602,7 +705,7 @@ class ClientHandler extends Thread {
         int bufSize = 16000000;
         long byteCount=0L, messageCount=0L;
         boolean blasteeStop = false;
-        ByteBuffer inputBuf = ByteBuffer.allocate(bufSize);
+        //ByteBuffer inputBuf = ByteBuffer.allocate(bufSize);
 
         EvioNode node;
 
@@ -623,12 +726,29 @@ class ClientHandler extends Thread {
             return;
         }
 
+        // the nodes of each event.
+        int numBufs = 32;
+        EvioNodePool[] nodePools = new EvioNodePool[numBufs];
+        for (int i = 0; i < numBufs; i++) {
+            nodePools[i] = new EvioNodePool(3500);
+        }
+
+        // Supply of buffer to read data into
+        boolean direct = false;
+        boolean sequentialRelease = true;
+        ByteBufferSupply bbInSupply = new ByteBufferSupply(numBufs, 32,
+                                                 ByteOrder.BIG_ENDIAN, direct,
+                                                 sequentialRelease, nodePools);
+
         try {
 
             while (true) {
                 if (blasteeStop) {
                     break;
                 }
+
+                // Get buffer from supply in which to read data
+                ByteBufferItem item = bbInSupply.get();
 
                 word = in.readLong();
                 cmd  = (int) ((word >>> 32) & 0xffL);
@@ -637,18 +757,22 @@ class ClientHandler extends Thread {
 //                System.out.println(" cmd = " + cmd);
 //                System.out.println(" size = " + size);
 
-                inputBuf.limit(size);
-                in.readFully(inputBuf.array(), 0, size);
+                item.ensureCapacity(size);
+                ByteBuffer buf = item.getBuffer();
+                buf.limit(size);
+
+                in.readFully(buf.array(), 0, size);
                 //byteCount += size;
                 //messageCount++;
 
                 pool.reset();
                 if (reader == null) {
-                    reader = new EvioCompactReader(inputBuf, pool, false);
+                    reader = new EvioCompactReader(buf, pool, false);
                 }
                 else {
                     //reader.setBuffer(inputBuf, pool);
-                    inputBuf = reader.setCompressedBuffer(inputBuf, pool);
+                    ByteBuffer biggerBuf = reader.setCompressedBuffer(buf, pool);
+                    item.setBuffer(biggerBuf);
                 }
 
 
@@ -693,6 +817,8 @@ class ClientHandler extends Thread {
                         }
                     }
                 }
+
+                bbInSupply.release(item);
             }
 
             // done talking to sender
