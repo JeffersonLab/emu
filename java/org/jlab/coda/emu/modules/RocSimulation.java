@@ -11,7 +11,7 @@
 
 package org.jlab.coda.emu.modules;
 
-import com.lmax.disruptor.RingBuffer;
+import com.lmax.disruptor.*;
 import org.jlab.coda.cMsg.*;
 import org.jlab.coda.emu.Emu;
 import org.jlab.coda.emu.support.codaComponent.CODAClass;
@@ -30,11 +30,14 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Date;
 import java.util.Map;
 import java.util.concurrent.Phaser;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+
+import static com.lmax.disruptor.RingBuffer.createSingleProducer;
 
 /**
  * This class simulates a Roc. It is a module which can use multiple threads
@@ -756,7 +759,7 @@ System.out.println("  Roc mod: NEED TO GENERATE MORE REAL DATA, have " + arrayBy
         // retrieved 16MB from a single Hall D data file.
         // However, each Roc has the same data which will lend itself to more compression.
         // So the best thing is for each ROC to have different data.
-        if (copy && useRealData) {
+        if (copy && useRealData ) {
             // Move to data input position
             writeIndex += 4;
 
@@ -767,15 +770,20 @@ System.out.println("  Roc mod: NEED TO GENERATE MORE REAL DATA, have " + arrayBy
 
             if (buf.hasArray()) {
                 System.arraycopy(hallDdata, hallDdataPosition, buf.array(), writeIndex, generatedDataBytes);
+                System.out.print(" RA_" + buf.limit() + "/" + buf.position());
             }
             else {
                 buf.position(writeIndex);
                 buf.put(hallDdata, hallDdataPosition, generatedDataBytes);
                 // Get buf ready to read for output channel
                 buf.limit(templateBuf.limit()).position(0);
+                System.out.print(" RD_" + buf.limit() + "/" + buf.position());
             }
 
             hallDdataPosition += generatedDataBytes;
+        }
+        else if (copy) {
+            System.out.print(" F_" + buf.limit() + "/" + buf.position());
         }
     }
 
