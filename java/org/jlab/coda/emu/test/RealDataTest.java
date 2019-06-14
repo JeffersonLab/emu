@@ -52,7 +52,7 @@ public class RealDataTest {
     private int generatedDataWords = eventBlockSize * eventSize;
     private int generatedDataBytes = 4*generatedDataWords;
 
-    private boolean useRealData = false;
+    private boolean useRealData = true;
 
     private int hallDdataPosition = 0;
 
@@ -63,7 +63,7 @@ public class RealDataTest {
     /** ID number of this module obtained from config file. */
     private int id = 3;
 
-    private ByteOrder outputOrder = ByteOrder.BIG_ENDIAN;
+    private ByteOrder outputOrder = ByteOrder.LITTLE_ENDIAN;
 
     // Value for trigger type from trigger supervisor
     private int triggerType = 15;
@@ -181,34 +181,38 @@ public class RealDataTest {
         int counter = 0;
 
         // Now create a buffer supply
-        bbSupply = new ByteBufferSupply(bufSupplySize, 4*eventWordSize, ByteOrder.BIG_ENDIAN, false);
+        bbSupply = new ByteBufferSupply(bufSupplySize, 4*eventWordSize, outputOrder, false);
         boolean added = false;
 
         try {
             
-            // 1MB internal buffer in writer
+            // internal buffer size in writer
             int containerBufSize = 16000000;
 //            ByteBuffer containerBufZero = ByteBuffer.allocate(containerBufSize);
             ByteBuffer containerBuf = ByteBuffer.allocate(containerBufSize);
-            EventWriterUnsync writer = new EventWriterUnsync(containerBuf, 0, 0, null, 1, null, 0);
+            containerBuf.order(outputOrder);
+            EventWriterUnsync writer = new EventWriterUnsync(containerBuf, 0, 0,
+                    null, 1, null, 0);
             t1 = System.currentTimeMillis();
 
             // Start up receiving thread
             TestServer server = new TestServer();
             server.start();
 
-            Thread.sleep(2000);
+            Thread.sleep(1000);
 
             Socket tcpSocket = new Socket();
             tcpSocket.setTcpNoDelay(true);
             //tcpSocket.setSendBufferSize(2000000);
             //tcpSocket.setPerformancePreferences(0,0,1);
 
+            String dotDecimalAddr = InetAddress.getLocalHost().getHostAddress();
+            String hostname = InetAddress.getLocalHost().getHostName();
+
 System.out.println("      Emu connect: try making TCP connection to host = " +
-                            InetAddress.getLocalHost().getHostName() +
-                            "; port = " + serverPort);
+        "127.0.0.1" + "; port = " + serverPort);
             // Don't waste too much time if a connection can't be made, timeout = 5 sec
-            tcpSocket.connect(new InetSocketAddress(InetAddress.getLocalHost().getHostName(), serverPort), 5000);
+            tcpSocket.connect(new InetSocketAddress("127.0.0.1", serverPort), 5000);
             DataOutputStream out = new DataOutputStream(new BufferedOutputStream(tcpSocket.getOutputStream()));
 
 System.out.println("      Emu connect: connection made!");
@@ -535,13 +539,6 @@ class TestServer extends Thread {
     static int serverPort = 49555;
     static int receiveBufferSize = 1000000;
 
-    /**
-     * Method to allow connections from Blasters and read their data.
-     * Not protected against port scanning.
-     *
-     * @throws cMsgException if there are problems parsing the UDL or
-     *                       communication problems with the server
-     */
     public void run()  {
 
         try {
@@ -589,7 +586,7 @@ class ClientHandler extends Thread {
 
     /**
      * Constructor.
-     * @param channel socket channel to client
+     * @param socket socket to client
      */
     ClientHandler(Socket socket) {
         this.socket = socket;
@@ -602,7 +599,6 @@ class ClientHandler extends Thread {
 
         System.out.println("Start handling client");
 
-        int numRead;
         int bufSize = 16000000;
         long byteCount=0L, messageCount=0L;
         boolean blasteeStop = false;
@@ -651,7 +647,51 @@ class ClientHandler extends Thread {
                     reader = new EvioCompactReader(inputBuf, pool, false);
                 }
                 else {
-                    reader.setBuffer(inputBuf, pool);
+                    //reader.setBuffer(inputBuf, pool);
+                    inputBuf = reader.setCompressedBuffer(inputBuf, pool);
+                }
+
+
+                int eventCount = reader.getEventCount();
+                IBlockHeader blockHeader = reader.getFirstBlockHeader();
+                EventType eventType = EventType.getEventType(blockHeader.getEventType());
+
+                for (int i = 1; i < eventCount + 1; i++) {
+
+                    //node = reader.getEvent(i);
+                    // getScannedEvent will clear child and allNodes lists
+                    node = reader.getScannedEvent(i, pool);
+
+                    // Complication: from the ROC, we'll be receiving USER events
+                    // mixed in with and labeled as ROC Raw events. Check for that
+                    // and fix it.
+                    if (eventType == EventType.ROC_RAW) {
+                        if (Evio.isUserEvent(node)) {
+                            eventType = EventType.USER;
+                            System.out.println("USER event from ROC RAW");
+                        } else {
+                            // Pick this raw data event apart a little
+                            if (!node.getDataTypeObj().isBank()) {
+                                DataType eventDataType = node.getDataTypeObj();
+                                System.out.println("ROC raw record contains " + eventDataType +
+                                        " instead of banks (data corruption?)");
+                            }
+                        }
+                    } else if (eventType == EventType.CONTROL) {
+                        // Find out exactly what type of control event it is
+                        // (May be null if there is an error).
+                        controlType = ControlType.getControlType(node.getTag());
+                        System.out.println("got " + controlType + " event");
+                    } else if (eventType == EventType.USER) {
+                        System.out.println("USER event");
+                    } else {
+                        // Physics or partial physics event must have BANK as data type
+                        if (!node.getDataTypeObj().isBank()) {
+                            DataType eventDataType = node.getDataTypeObj();
+                            System.out.println("physics record contains " + eventDataType +
+                                    " instead of banks (data corruption?)");
+                        }
+                    }
                 }
             }
 
