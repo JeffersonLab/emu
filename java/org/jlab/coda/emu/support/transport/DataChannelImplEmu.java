@@ -1542,7 +1542,7 @@ System.out.println("\nFirst current buf -> rec # = " + currentBuffer.getInt(4) +
 
 //                writer = new EventWriterUnsync(currentBuffer);
                 writer = new  EventWriterUnsync(currentBuffer, 0, 0,
-                                         null, 1, null, 1);
+                                         null, 1, null, 0);
 
 // TODO: This writes a trailer into currentBuffer
                 writer.close();
@@ -1622,6 +1622,7 @@ System.out.println("\nFirst current buf -> rec # = " + currentBuffer.getInt(4) +
             // write it.
             currentBuffer.flip();
             currentBuffer.limit(writer.getBytesWrittenToBuffer());
+
 //System.out.println("flushEvents: setting current buf lim = " + currentBuffer.limit());
 
             bbOutSupply[currentSenderIndex].publish(currentBBitem);
@@ -1837,7 +1838,6 @@ System.out.println("\nFirst current buf -> rec # = " + currentBuffer.getInt(4) +
                 if (buf != null) {
                     //System.out.print("b");
                     writer.writeEvent(buf);
-//System.out.println(" " + writer.getEventsWritten());
                 }
                 else {
                     EvioNode node = rItem.getNode();
