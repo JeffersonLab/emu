@@ -274,7 +274,7 @@ logger.info("      DataChannel File: compression = " + compression);
                             compression = 1;
                         }
                     }
-                    compressionThreads = 3;
+                    compressionThreads = 5;
 logger.info("      DataChannel File: compressionThreads = " + compressionThreads);
                 }
                 catch (Exception e) {}
