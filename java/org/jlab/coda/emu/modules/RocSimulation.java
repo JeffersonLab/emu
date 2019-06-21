@@ -478,7 +478,7 @@ System.out.println("  Roc mod: sync = " + synced);
             // If this fails, returns false, we don't use real data.
             useRealData = getRealData();
         }
-        useRealData = false;
+        useRealData = true;
 
 System.out.println("  Roc mod: using real Hall D data = " + useRealData);
     }
