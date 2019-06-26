@@ -243,41 +243,33 @@ logger.info("      DataChannel File: dictionary file cannot be read");
                 if (split > 0L) overWriteOK = false;
 
                 // Type of compression in file
-                try {
-                    String comp = attributeMap.get("compression");
-                    if (comp != null) {
-                        try {
-                            compression = Integer.parseInt(comp);
-                            // Ignore negative values
-                            if (compression < 0) compression = 0;
-                        }
-                        catch (NumberFormatException e) {
-                            compression = 0;
-                        }
+                String comp = attributeMap.get("compression");
+                if (comp != null) {
+                    try {
+                        compression = Integer.parseInt(comp);
+                        // Ignore negative values
+                        if (compression < 0) compression = 0;
                     }
-                    compression = 1;
-logger.info("      DataChannel File: compression = " + compression);
+                    catch (NumberFormatException e) {
+                        compression = 0;
+                    }
                 }
-                catch (Exception e) {}
+                compression = 1;
+logger.info("      DataChannel File: compression = " + compression);
 
                 // Number of compression thread
-                try {
-                    compressionThreads = 1;
-                    String comp = attributeMap.get("compressionThreads");
-                    if (comp != null) {
-                        try {
-                            compressionThreads = Integer.parseInt(comp);
-                            // Ignore negative values
-                            if (compressionThreads < 1) compressionThreads = 1;
-                        }
-                        catch (NumberFormatException e) {
-                            compression = 1;
-                        }
+                compressionThreads = 1;
+                comp = attributeMap.get("compressionThreads");
+                if (comp != null) {
+                    try {
+                        compressionThreads = Integer.parseInt(comp);
+                        // Ignore negative values
+                        if (compressionThreads < 1) compressionThreads = 1;
                     }
-                    compressionThreads = 5;
-logger.info("      DataChannel File: compressionThreads = " + compressionThreads);
+                    catch (NumberFormatException e) {}
                 }
-                catch (Exception e) {}
+                compressionThreads = 4;
+logger.info("      DataChannel File: compressionThreads = " + compressionThreads);
 
                 evioFileWriter = new EventWriterUnsync(fileName, directory, runType,
                                                        runNumber, split, 4*16777216, 10000,
