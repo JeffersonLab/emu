@@ -22,9 +22,10 @@ import org.jlab.coda.emu.support.configurer.DataNotFoundException;
 import org.jlab.coda.emu.support.control.CmdExecException;
 import org.jlab.coda.emu.support.data.*;
 import org.jlab.coda.emu.support.transport.DataChannel;
-import org.jlab.coda.jevio.CompactEventBuilder;
-import org.jlab.coda.jevio.DataType;
+import org.jlab.coda.jevio.*;
 
+import java.io.File;
+import java.io.RandomAccessFile;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.ArrayList;
@@ -32,6 +33,8 @@ import java.util.Date;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Phaser;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * This class simulates a Roc. It is a module which can use multiple threads
@@ -71,42 +74,7 @@ public class RocFixedRateSimulation extends ModuleAdapter {
     private int loops;
 
     /** Number of ByteBuffers in each EventGeneratingThread. */
-    private int bufSupplySize;
-
-    private int eventsPerBuffer;
-    private int generatedDataWords;
-    private double bufsPerSec;
-
-    //----------------------------------------------------
-    // Members used to synchronize all fake Rocs to each other which allows run to
-    // end properly. I.e., they all produce the same number of buildable events.
-    //----------------------------------------------------
-    /** Is this ROC to be synced with others? */
-    private boolean synced;
-
-    /** Connection to platform's cMsg name server. */
-    private cMsg cMsgServer;
-
-    /** Message to send TS saying that we finished our loops. */
-    private cMsgMessage syncMessage;
-
-    /** Message to send TS with our event size in bytes. */
-    private cMsgMessage initMessage;
-
-    /** Object to handle callback subscription. */
-    private cMsgSubscriptionHandle cmsgSubHandle;
-
-    /** Synchronization primitive for initializing run. */
-    private CountDownLatch initLatch;
-
-    /** Synchronization primitive for producing events. */
-    private Phaser syncPhaser;
-
-    /** Synchronization primitive for END cmd. */
-    private Phaser endPhaser;
-
-    /** Flag used to stop event production. */
-    private volatile boolean timeToEnd;
+    private int bufSupplySize = 4096;
 
     /** Flag saying we got the END command. */
     private volatile boolean gotEndCommand;
@@ -117,6 +85,73 @@ public class RocFixedRateSimulation extends ModuleAdapter {
     /** Flag saying we got the GO command. */
     private volatile boolean gotGoCommand;
 
+    //-------------------------------------------
+    // For using real data
+    //-------------------------------------------
+
+    /** If true, use real data taken from HallD data file.
+     * Useful when running file compression tests. */
+    private boolean useRealData;
+
+    /** Amount of real data bytes in hallDdata array. */
+    static private int arrayBytes;
+
+    /** Put extracted real data in here. */
+    static private byte[] hallDdata;
+
+    /** Current position in hallDdata array to start copying from. */
+    private int hallDdataPosition;
+
+    //----------------------------------------------------
+    // Members used to synchronize all fake Rocs to each other which allows run to
+    // end properly. I.e., they all produce the same number of buildable events.
+    //----------------------------------------------------
+    /** Is this ROC to be synced with others? */
+    private boolean synced;
+
+    /** Set this ROC's sync bit set every syncBitCount events.
+     *  Value of 0 means no sync bit. */
+    private int syncBitCount;
+
+    /** Connection to platform's cMsg name server. */
+    private cMsg cMsgServer;
+
+    /** Message to send synchronizer saying that we finished our loops. */
+    private cMsgMessage message;
+
+    /** Object to handle callback subscription. */
+    private cMsgSubscriptionHandle cmsgSubHandle;
+
+    /** Synchronization primitive for producing events. */
+    private Phaser phaser;
+
+    /** Synchronization primitive for END cmd. */
+    private Phaser endPhaser;
+
+    /** Flag used to stop event production. */
+    private volatile boolean timeToEnd;
+
+
+    // NEWWWWW
+    private int eventsPerBuffer;
+    private double bufsPerSec;
+    private int generatedDataWords;
+
+
+    /** Message to send TS saying that we finished our loops. */
+    private cMsgMessage syncMessage;
+
+    /** Message to send TS with our event size in bytes. */
+    private cMsgMessage initMessage;
+
+
+    /** Synchronization primitive for initializing run. */
+    private CountDownLatch initLatch;
+
+    /** Synchronization primitive for producing events. */
+    private Phaser syncPhaser;
+
+
 
     /**
      * Callback to be run when a message from fake TS
@@ -125,12 +160,10 @@ public class RocFixedRateSimulation extends ModuleAdapter {
      */
     private class SyncCallback extends cMsgCallbackAdapter {
         public void callback(cMsgMessage msg, Object userObject) {
-System.out.println("callback: got msg from fake TS");
             int endIt = msg.getUserInt();
             if (endIt > 0) {
                 // Signal to finish end() method and it will
                 // also quit event-producing thread.
-//System.out.println("callback: ARRIVE -> END IT");
                 timeToEnd = true;
                 endPhaser.arriveAndDeregister();
             }
@@ -203,6 +236,10 @@ System.out.println("callback: got init return msg from TS, events/buf = " + even
             // User events from the ROC come as type ROC RAW but with num = 0
 //            if (isFirstEvent) {
                 pBuf.setEventType(EventType.USER);
+                // TODO: CANNOT make this a ROC RAW event!
+                // This confuses the emu output channel which packs it in with other roc data,
+                // which in turn confuses the emu input channel which is expecting user events
+                // in their own buffers!
 //            }
 //            else {
 //                pBuf.setEventType(EventType.ROC_RAW);
@@ -219,6 +256,180 @@ System.out.println("callback: got init return msg from TS, events/buf = " + even
     }
 
 
+    /**
+     * Method to get real data from an existing file of data previously extracted from
+     * a Hall D data file.
+     *
+     * The system is that there are 9 files, each containing 16 MB of unique real Hall D data.
+     * The exact file loaded is determined by parsing the Rocs's name.
+     * Since Rocs are generally called Roc1, Roc2, Roc34, etc. The number in the name is obtained
+     * thru the parsing and the least significant digit determines which file to load.
+     * Thus Roc1 loads data file 1, Roc34 loads data file 4. etc. There may be Rocs loading
+     * the identical file, but not usually since we seldom run simulations with more than 9 rocs.
+     *
+     * @return true if hall D data found and available, else false.
+     */
+    private boolean getRealData() {
+
+        // Parse roc name
+        Pattern pattern = Pattern.compile("^.+([0-9]{1})$", Pattern.CASE_INSENSITIVE);
+        Matcher matcher = pattern.matcher(emu.name());
+
+        // Try to get the last digit at end of name if any
+        int num;
+        String numStr = null;
+        if (matcher.matches()) {
+            numStr = matcher.group(1);
+        }
+        else {
+            System.out.println("getRealData: cannot find a single digit at end of ROC's name (" + emu.name() + ")");
+            return false;
+        }
+
+        try {
+            num = Integer.parseInt(numStr);
+        }
+        catch (NumberFormatException e) {
+            System.out.println("getRealData: cannot find a single digit at end of ROC's name (" + emu.name() + ")");
+            return false;
+        }
+
+        // First check to see if we already have some data in a file
+        String filename = System.getenv("CODA");
+        if (filename != null) {
+            filename += "/common/bin/hallDdata" + num + ".bin";
+        }
+        else {
+            filename = "/Users/timmer/coda/coda3/common/bin/hallDdata" + num + ".bin";
+        }
+
+        try {
+            RandomAccessFile file = new RandomAccessFile(filename, "rw");
+            arrayBytes = (int) file.length();
+            hallDdata = new byte[arrayBytes];
+            file.read(hallDdata, 0, arrayBytes);
+            file.close();
+        }
+        catch (Exception e) {
+            // No file to be read, so try creating our own
+            System.out.println("getRealData: cannot open data file " + filename);
+            return false;
+        }
+
+System.out.println("getRealData: successfully read in file " + filename);
+        return true;
+    }
+
+
+    /**
+     * Method to get real data from a Hall D data file and save it into
+     * 9 files of 16 MB each. This method is here for info only.
+     * It can be run from evio repository, ExtractHallDdata.java
+     */
+    static private void getRealDataFromDataFile() {
+
+        // Number of files to create
+        int fileCount = 9;
+
+        // Amount of real data bytes to end up in each created file.
+        arrayBytes = 16000000; // 16M
+
+        // Put extracted real data for a single file in here
+        hallDdata = new byte[arrayBytes];
+
+        // File to read
+        String fileName  = "/Volumes/USB30FD/hd_rawdata_042560_000.evio";
+        File fileIn = new File(fileName);
+        System.out.println("read ev file: " + fileName + " size: " + fileIn.length());
+
+        try {
+            // Read sequentially
+            EvioReader fileReader = new EvioReader(fileName, false, true);
+            EvioEvent event;
+
+            // In this file, skip first 3 events, only go up to event #2415
+            // since file was abnormally truncated as it was put on thumb drive.
+            int j = 4;
+
+            // Want 9 files, each with 16 MB of data, starting count = 1
+            for (int k=1; k <= fileCount; k++) {
+
+                // Reset for each file to write
+                int bytesWritten = 0;
+                boolean finishedFillingArray = false;
+
+                // Output file name
+                String destFileName = "/Users/timmer/coda/emu.GIT/hallDdata" + k + ".bin";
+
+                for (; j < 2415; j++) {
+
+                    // Top level bank or event is bank of banks.
+                    // Under each data event, skip first bank which is trigger bank.
+                    // The next banks are data banks each of which also contain banks.
+                    // In most cases, the first sub banks is very small.
+                    // Second sub bank contains lots of data. Grab this data and fill our container
+                    // with it.
+
+                    event = fileReader.parseEvent(j);
+                    int eventKidCount = event.getChildCount();
+
+                    // Start at one to skip trigger bank
+                    for (int i = 1; i < eventKidCount; i++) {
+
+                        BaseStructure bs = (BaseStructure) event.getChildAt(i);
+                        int subEvKidCount = bs.getChildCount();
+
+                        // Grab second bank under general data bank
+                        if (subEvKidCount > 1) {
+
+                            EvioBank bank = (EvioBank) (bs.getChildAt(1));
+                            byte[] data = bank.getRawBytes();
+                            int dataBytes = 4 * (bank.getHeader().getLength() - 1);
+
+                            // Make sure we quit when array is full
+                            int bytesToWrite = dataBytes;
+                            if (bytesWritten + dataBytes > arrayBytes) {
+                                bytesToWrite = arrayBytes - bytesWritten;
+                                finishedFillingArray = true;
+                            }
+
+                            // Copy Hall D data into our array
+                            System.arraycopy(data, 0, hallDdata, bytesWritten, bytesToWrite);
+                            bytesWritten += bytesToWrite;
+
+                            if (finishedFillingArray) break;
+                        }
+                    }
+
+                    if (finishedFillingArray) break;
+                }
+
+                System.out.println("Write " + bytesWritten + " bytes to file: " + destFileName);
+
+                RandomAccessFile file = new RandomAccessFile(destFileName, "rw");
+                file.write(hallDdata, 0, bytesWritten);
+                file.close();
+            }
+
+        }
+        catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+
+    /**
+     * Run as a stand-alone application to file real data files.
+     */
+    public static void main(String[] args) {
+        try {
+            getRealDataFromDataFile();
+        }
+        catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
 
     /**
      * Constructor RocSimulation creates a simulated ROC instance.
@@ -229,6 +440,12 @@ System.out.println("callback: got init return msg from TS, events/buf = " + even
     public RocFixedRateSimulation(String name, Map<String, String> attributeMap, Emu emu) {
 
         super(name, attributeMap, emu);
+
+        //outputOrder = ByteOrder.LITTLE_ENDIAN;
+        outputOrder = ByteOrder.BIG_ENDIAN;
+
+        // Set the sync bit every 5000th record
+        syncBitCount = 5000;
 
         // Fill out message to send to fake TS
         syncMessage = new cMsgMessage();
@@ -273,7 +490,7 @@ System.out.println("callback: got init return msg from TS, events/buf = " + even
 
         // How many iterations (writes of an entangled block of evio events)
         // before syncing fake ROCs together?
-        syncCount = 1000000;
+        syncCount = 20000;
         try { syncCount = Integer.parseInt(attributeMap.get("syncCount")); }
         catch (NumberFormatException e) { /* defaults to 100k */ }
         if (syncCount < 10) syncCount = 10;
@@ -291,6 +508,7 @@ System.out.println("callback: got init return msg from TS, events/buf = " + even
                 synced = false;
             }
         }
+System.out.println("  Roc mod: sync = " + synced);
 
         // Need to coordinate amount of data words
         generatedDataWords = eventBlockSize * eventSize;
@@ -309,6 +527,14 @@ System.out.println("  Roc mod: eventWordSize = " + eventWordSize);
 
         // the module sets the type of CODA class it is.
         emu.setCodaClass(CODAClass.ROC);
+
+        // Make this ROC use real data for file compression testing
+        useRealData = true;
+        if (useRealData) {
+            // If this fails, returns false, we don't use real data.
+            useRealData = getRealData();
+        }
+        useRealData = true;
     }
 
 
@@ -501,18 +727,33 @@ System.out.println("  Roc mod: eventWordSize = " + eventWordSize);
 
         // First put in starting event # (32 bits)
         buf.putInt(writeIndex, (int)eventNumber); writeIndex += 4;
-        for (int i=0; i < generatedDataWords; i++) {
-            // Write a bunch of 1s
-            buf.putInt(writeIndex, 1); writeIndex += 4;
+        if (useRealData) {
+            // buf has a backing array, so fill it with data the quick way
+            int bytes = 4*generatedDataWords;
+            if (bytes > arrayBytes) {
+System.out.println("  Roc mod: NEED TO GENERATE MORE REAL DATA, have " + arrayBytes +
+        " but need " + bytes);
+            }
+            System.arraycopy(hallDdata, hallDdataPosition, buf.array(), writeIndex, bytes);
+            hallDdataPosition += bytes;
+        }
+        else {
+            for (int i = 0; i < generatedDataWords; i++) {
+                    buf.putInt(writeIndex, 1);
+                    writeIndex += 4;
+            }
         }
 
         // buf is ready to read
         return buf;
     }
 
+
     //TODO: 1st
-    void writeEventBuffer(ByteBuffer buf, ByteBuffer templateBuf,
-                                   long eventNumber, long timestamp, boolean copy) {
+    void  writeEventBuffer(ByteBuffer buf, ByteBuffer templateBuf,
+                          long eventNumber, long timestamp,
+                          boolean syncBit, boolean copy,
+                          int generatedDataBytes) {
 
         // Since we're using recirculating buffers, we do NOT need to copy everything
         // into the buffer each time. Once each of the buffers in the BufferSupply object
@@ -530,7 +771,18 @@ System.out.println("  Roc mod: eventWordSize = " + eventWordSize);
         }
 
         // Get buf ready to read for output channel
-        buf.position(0).limit(templateBuf.limit());
+        buf.limit(templateBuf.limit()).position(0);
+
+        // Set sync bit in event bank header
+        // sync, error, isBigEndian, singleEventMode
+        int rocTag = Evio.createCodaTag(syncBit, false, true, false, id);
+
+        // 2nd bank header word = tag << 16 | ((padding & 0x3) << 14) | ((type & 0x3f) << 8) | num
+        int secondWord = rocTag << 16 |
+                         (DataType.BANK.getValue() << 8) |
+                         (eventBlockSize & 0xff);
+
+        buf.putInt(4, secondWord);
 
         // Skip over 2 bank headers
         int writeIndex = 16;
@@ -552,6 +804,37 @@ System.out.println("  Roc mod: eventWordSize = " + eventWordSize);
 
         // Write event number into data bank
         buf.putInt(writeIndex, (int) eventNumber);
+
+        // For testing compression, need to have real data that changes,
+        // endianness does not matter.
+        // Only copy data into each of the "bufSupplySize" number of events once.
+        // Doing this for each event produced every time slows things down too much.
+        // Each event has eventBlockSize * eventSize (40*75 = 3000) data bytes.
+        // 3k bytes * 4096 events = 12.3MB. This works out nicely since we have
+        // retrieved 16MB from a single Hall D data file.
+        // However, each Roc has the same data which will lend itself to more compression.
+        // So the best thing is for each ROC to have different data.
+        if (copy && useRealData) {
+            // Move to data input position
+            writeIndex += 4;
+
+            // Have we run out of data? If so, start over from beginning ...
+            if (arrayBytes - hallDdataPosition < generatedDataBytes) {
+                hallDdataPosition = 0;
+            }
+
+            if (buf.hasArray()) {
+                System.arraycopy(hallDdata, hallDdataPosition, buf.array(), writeIndex, generatedDataBytes);
+            }
+            else {
+                buf.position(writeIndex);
+                buf.put(hallDdata, hallDdataPosition, generatedDataBytes);
+                // Get buf ready to read for output channel
+                buf.limit(templateBuf.limit()).position(0);
+            }
+
+            hallDdataPosition += generatedDataBytes;
+        }
     }
 
 
@@ -573,8 +856,13 @@ System.out.println("  Roc mod: eventWordSize = " + eventWordSize);
         private long myEventNumber, timestamp;
         /** Ring buffer containing ByteBuffers - used to hold events for writing. */
         private ByteBufferSupply bbSupply;
+        // Number of data words in each event
+        private int generatedDataBytes;
         private ByteBuffer templateBuffer;
 
+        /** Boolean used to kill this thread. */
+        private volatile boolean killThd;
+        
 
         EventGeneratingThread(int id, ThreadGroup group, String name) {
             super(group, name);
@@ -586,9 +874,16 @@ System.out.println("  Roc mod: eventWordSize = " + eventWordSize);
             timestamp = myId*4*eventBlockSize;
 
             // Need to coordinate amount of data words
-            // generatedDataWords & eventWordSize are calculated in constructor
+            //generatedDataWords = eventBlockSize * eventSize;
+            generatedDataBytes = 4*generatedDataWords;
+//System.out.println("  Roc mod: generatedDataWords = " + generatedDataWords);
+
+
+            //eventWordSize  = getSingleEventBufferWords(generatedDataWords);
+//System.out.println("  Roc mod: eventWordSize = " + eventWordSize);
 
             templateBuffer = createSingleEventBuffer(generatedDataWords, myEventNumber, timestamp);
+
 
 System.out.println("  Roc mod: start With (id=" + myId + "):\n    record id = " + myRocRecordId +
                            ", ev # = " +myEventNumber + ", ts = " + timestamp +
@@ -596,17 +891,26 @@ System.out.println("  Roc mod: start With (id=" + myId + "):\n    record id = " 
         }
 
 
+        /**
+         * Kill this thread which is sending messages/data to other end of emu socket.
+         */
+        final void endThread() {
+            killThd = true;
+            this.interrupt();
+        }
+
+
         public void run() {
 
             int  i,j,k=0;
-            int  skip=3,  userEventLoop = syncCount;
+            int  skip=3, syncBitLoop = syncBitCount;
+            int   userEventLoop = syncCount;
+            //int   userEventLoop = 5;
             long oldVal=0L, totalT=0L, totalCount=0L, bufCounter=0L;
             long t1, deltaT, t2;
-            ByteBuffer buf;
-            ByteBufferItem bufItem;
+            ByteBuffer buf = null;
+            ByteBufferItem bufItem = null;
             boolean copyWholeBuf = true;
-
-//            long switchCounterPt = 4200;
 
             // We need for the # of buffers in our bbSupply object to be >=
             // the # of ring buffer slots in the output channel or we can get
@@ -621,7 +925,6 @@ System.out.println("  Roc mod: start With (id=" + myId + "):\n    record id = " 
 
             // Now create our own buffer supply to match
             bbSupply = new ByteBufferSupply(bufSupplySize, 4*eventWordSize, ByteOrder.BIG_ENDIAN, false);
-            System.out.println("  Roc mod: " + bufSupplySize + " buffers of byte size = " + (4*eventWordSize));
 
             try {
                 t1 = System.currentTimeMillis();
@@ -638,9 +941,45 @@ System.out.println("  Roc mod: start With (id=" + myId + "):\n    record id = " 
                     }
 
                     if (noBuildableEvents) {
-                        Thread.sleep(250);
+                        if (killThd) return;
+
+                        Thread.sleep(500);
+
+                        // Do the requisite number of iterations before syncing up
+                        if (synced && --userEventLoop < 1) {
+                            // Did we receive the END command yet? ("moduleState" is volatile)
+                            if (moduleState == CODAState.DOWNLOADED) {
+                                // END command has arrived
+//System.out.println("  Roc mod: end has arrived");
+                                gotEndCommand = true;
+                            }
+
+                            // Send message to synchronizer that we're waiting
+                            // whether or not we got the END command. Only
+                            // want 1 msg sent, so have the first thread do it.
+                            if (myId == 0) {
+                                sendMsgToSynchronizer(gotEndCommand);
+                            }
+
+                            // Wait for synchronizer's response before continuing
+//System.out.println("  Roc mod: phaser await advance, ev count = " + eventCountTotal);
+                            phaser.arriveAndAwaitAdvance();
+//System.out.println("  Roc mod: phaser PAST advance, ev count = " + eventCountTotal);
+
+                            // Every ROC has received the END command and completed the
+                            // same number of iterations, therefore it's time to quit.
+                            if (timeToEnd) {
+//System.out.println("  Roc mod: arrive, SYNC told me to quit");
+                                endPhaser.arriveAndDeregister();
+                                return;
+                            }
+
+                            userEventLoop = 5;
+                        }
                     }
                     else {
+                        if (killThd) return;
+
                         // Add ROC Raw Records as PayloadBuffer objects
                         // Get buffer from recirculating supply
                         bufItem = bbSupply.get();
@@ -658,9 +997,23 @@ System.out.println("  Roc mod: start With (id=" + myId + "):\n    record id = " 
                         }
 //System.out.println("  Roc mod: write event");
 
-                        writeEventBuffer(buf, templateBuffer, myEventNumber,
-                                         timestamp, copyWholeBuf);
+                        if (--syncBitLoop == 0) {
+                            syncBitLoop = syncBitCount;
+                            // Set the sync bit
+                            writeEventBuffer(buf, templateBuffer, myEventNumber,
+                                             timestamp, true, copyWholeBuf,
+                                             generatedDataBytes);
+                        }
+                        else {
+                            writeEventBuffer(buf, templateBuffer, myEventNumber,
+                                             timestamp, false, copyWholeBuf,
+                                             generatedDataBytes);
+                        }
+//                        writeEventBuffer(buf, templateBuffer, myEventNumber,
+//                                         timestamp, copyWholeBuf);
 
+
+                        if (killThd) return;
 
                         // Put generated events into output channel
                         eventToOutputRing(myId, buf, bufItem, bbSupply);
@@ -672,16 +1025,12 @@ System.out.println("  Roc mod: start With (id=" + myId + "):\n    record id = " 
 //                            }
 //                        }
 
-//                        if (switchCounterPt-- < 0) {
-//                            Thread.sleep(1000);
-//                        }
-
                         eventCountTotal += eventBlockSize;
                         wordCountTotal  += eventWordSize;
 
                         myEventNumber += eventProducingThreads*eventBlockSize;
                         timestamp     += 4*eventProducingThreads*eventBlockSize;
-                        myRocRecordId += eventProducingThreads;
+//                        myRocRecordId += eventProducingThreads;
 //System.out.println("  Roc mod: next (id=" + myId + "):\n           record id = " + myRocRecordId +
 //                           ", ev # = " +myEventNumber + ", ts = " + timestamp);
 
@@ -749,11 +1098,11 @@ System.out.println("  Roc mod: start With (id=" + myId + "):\n    record id = " 
                 // End or Reset most likely
             }
             catch (Exception e) {
+                e.printStackTrace();
                 // If we haven't yet set the cause of error, do so now & inform run control
                 errorMsg.compareAndSet(null, e.getMessage());
                 moduleState = CODAState.ERROR;
                 emu.sendStatusMessage();
-                return;
             }
         }
 
@@ -777,8 +1126,17 @@ System.out.println("  Roc mod: reset()");
         eventCountTotal = wordCountTotal = 0L;
 
         // rb.next() can block in endThreads() when doing a RESET.
-        // So just kill threads by force instead of being nice about it.
         killThreads();
+
+        if (synced) {
+            // Unsubscribe
+            try {
+                if (cmsgSubHandle != null) {
+                    cMsgServer.unsubscribe(cmsgSubHandle);
+                    cmsgSubHandle = null;
+                }
+            } catch (cMsgException e) {}
+        }
 
         paused = false;
 
@@ -858,7 +1216,6 @@ System.out.println("  Roc mod: reset()");
                 eventToOutputChannel(pBuf, i, 0);
             }
             catch (InterruptedException e) {
-                System.out.println("  Roc mod: end() interrupted");
                 return;
             }
             System.out.println("  Roc mod: inserted END event to channel " + i);
@@ -869,7 +1226,7 @@ System.out.println("  Roc mod: reset()");
     /** {@inheritDoc} */
     public void prestart() {
 
-System.out.println("  Roc mod: PRESTART");
+//System.out.println("  Roc mod: PRESTART");
         moduleState = CODAState.PAUSED;
 
         // Reset some variables
@@ -943,7 +1300,6 @@ System.out.println("  Roc mod: PRESTART");
                 eventToOutputChannel(pBuf2, i, 0);
             }
             catch (InterruptedException e) {
-                System.out.println("  Roc mod:  prestart() interrupted");
                 return;
             }
             System.out.println("  Roc mod: inserted PRESTART event to channel " + i);
@@ -1032,7 +1388,6 @@ System.out.println("  Roc mod: PRESTART");
                 eventToOutputChannel(pBuf2, i, 0);
             }
             catch (InterruptedException e) {
-                System.out.println("  Roc mod:  go() interrupted");
                 return;
             }
 
@@ -1040,6 +1395,7 @@ System.out.println("  Roc mod: inserted GO event to channel " + i);
         }
         
         rocRecordId++;
+        System.out.println("AFTER GO sent: rocRecordId = " + rocRecordId);
 
 //        try {
 //            Thread.sleep(500);
