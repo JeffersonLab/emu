@@ -191,7 +191,7 @@ System.out.println("  TS mod: got roc = " + msg.getType() + ", event size = " + 
                 }
 
                 avgEntangledEventByteSize = totalEventSize / expectedRocs.size();
-
+// TODO: Assumes 4MB buffers!!!
                 // How many events can be fit in a 4MB buffer?
                 // Take block header and footer into account.
                 int eventsPerBuffer = (4000000 - 64) / largestEntangledEventByteSize;
@@ -247,7 +247,7 @@ System.out.println("All ROCs reporting event sizes, largest ev size = " + larges
         super(name, attributeMap, emu);
 
         // Desired total data rate to ER.
-        desiredTotalDataRate = 2600000000L;  // 2.6 GB/s
+        desiredTotalDataRate = 2400000000L;  // 2.1 GB/s
 
         try { desiredTotalDataRate = Long.parseLong(attributeMap.get("dataRate")); }
         catch (NumberFormatException e) {}
