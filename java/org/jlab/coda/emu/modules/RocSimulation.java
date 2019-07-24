@@ -374,20 +374,11 @@ System.out.println("getRealData: successfully read in file " + filename);
      */
     public static void main(String[] args) {
         try {
-            RocSimulation.getRealDataFromDataFile();
+            getRealDataFromDataFile();
         }
         catch (Exception e) {
             e.printStackTrace();
         }
-    }
-
-
-    /**
-     * Constructor only used to generate data files holding real data.
-     * See {@link #main(String[])}.
-     */
-    private RocSimulation() {
-        super("name", null);
     }
 
 
@@ -400,7 +391,6 @@ System.out.println("getRealData: successfully read in file " + filename);
     public RocSimulation(String name, Map<String, String> attributeMap, Emu emu) {
 
         super(name, attributeMap, emu);
-
 
         //outputOrder = ByteOrder.LITTLE_ENDIAN;
         outputOrder = ByteOrder.BIG_ENDIAN;
@@ -436,7 +426,7 @@ System.out.println("getRealData: successfully read in file " + filename);
         else if (eventBlockSize > 255) eventBlockSize = 255;
 
         // How many bytes in a single event?
-        eventSize = 75;
+        eventSize = 75;  // 300 bytes
         try { eventSize = Integer.parseInt(attributeMap.get("eventSize")); }
         catch (NumberFormatException e) { /* defaults to 40 */ }
         if (eventSize < 1) eventSize = 1;
@@ -813,11 +803,8 @@ System.out.println("  Roc mod: NEED TO GENERATE MORE REAL DATA, have " + arrayBy
             super(group, name);
             this.myId = id;
 
-
             // Set & initialize values
             myRocRecordId = rocRecordId + myId;
-            System.out.println("  Roc mod: EventGeneratingThd constructor: rocRecordId = " + rocRecordId);
-            System.out.println("  Roc mod: EventGeneratingThd constructor: myRecordId = " + myRocRecordId);
             myEventNumber = 1L + myId*eventBlockSize;
             timestamp = myId*4*eventBlockSize;
 
@@ -892,8 +879,8 @@ System.out.println("  Roc mod: start With (id=" + myId + "):\n    record id = " 
 //                    PayloadBuffer pBuf2 = createUserBuffer(outputOrder, false, 9);
 //                    eventToOutputChannel(pBuf2, 0, 0);
 
-                    eventCountTotal++;
-                    wordCountTotal  += 7;
+//                    eventCountTotal++;
+//                    wordCountTotal  += 7;
 //                    eventCountTotal += 2;
 //                    wordCountTotal  += 2*7;
                     //myRocRecordId += 2;
@@ -981,6 +968,7 @@ System.out.println("  Roc mod: start With (id=" + myId + "):\n    record id = " 
 
 
                         if (killThd) return;
+
                         // Put generated events into output channel
                         eventToOutputRing(myId, buf, bufItem, bbSupply);
 
@@ -1192,6 +1180,7 @@ System.out.println("  Roc mod: reset()");
     /** {@inheritDoc} */
     public void prestart() {
 
+//System.out.println("  Roc mod: PRESTART");
         moduleState = CODAState.PAUSED;
 
         // Reset some variables
@@ -1317,10 +1306,7 @@ System.out.println("  Roc mod: reset()");
             }
             catch (cMsgException e) {/* never happen */}
         }
-
-
         System.out.println("AFTER PRESTART: rocRecordId = " + rocRecordId);
-
     }
 
 
