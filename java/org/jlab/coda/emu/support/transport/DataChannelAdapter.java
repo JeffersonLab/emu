@@ -75,6 +75,13 @@ public abstract class DataChannelAdapter extends CODAStateMachineAdapter impleme
     /** Channel name */
     protected final String name;
 
+    /** Any error readin/parsing data can be ignored if true.
+     * Currently only implemented for ET input channel (for ER). */
+    protected boolean ignoreDataErrors;
+
+    /** Is this channel an input or output fifo channel? Convenience variable. */
+    protected final boolean isFifo;
+
     /** Is this channel an input (true) or output (false) channel? */
     protected final boolean input;
 
@@ -244,6 +251,103 @@ public abstract class DataChannelAdapter extends CODAStateMachineAdapter impleme
             catch (NumberFormatException e) {}
         }
 
+        // can we ignore data reading/parsing errors?
+        ignoreDataErrors = false;
+        attribString = attributeMap.get("ignoreErrors");
+        if (attribString != null) {
+            if (attribString.equalsIgnoreCase("true") ||
+                attribString.equalsIgnoreCase("on")   ||
+                attribString.equalsIgnoreCase("yes"))   {
+                ignoreDataErrors = true;
+            }
+        }
+logger.info("      DataChannel Adapter: ignore data errors = " + ignoreDataErrors);
+
+        // Fifos are treated a little differently than other channels since 1 fifo is both
+        // an in & out channel. The output fifo is created first (emu config forces this).
+        // It then creates and defines the channel. The input channel uses what is created
+        // its output counterpart.
+        isFifo = this instanceof DataChannelImplFifo;
+        if (isFifo) {
+System.out.println("      DataChannel Adapter: channel " + name + " is a fifo");
+            
+            if (!input) {
+                // Set the number of items for the output chan ring buffers.
+                // We don't need any more slots than we have internal buffers.
+                // The number returned by getInternalRingCount is for a single build thread
+                // times the number of build threads. Since a channel has one ring for each
+                // build thread, the # of items in any one ring is
+                // getInternalRingCount / buildThreadCount. Should be a power of 2 already
+                // but will enforce that.
+
+                outputRingItemCount = module.getInternalRingCount()/module.getEventProducingThreadCount();
+                // If the module is not setting this, then it has no internal
+                // ring of buffers, so set this to some reasonable value.
+                if (outputRingItemCount < 1) {
+                    outputRingItemCount = 128;
+                }
+
+                // Event recorder has no internal byte buffer supply, so we can make this big
+                if (emu.getCodaClass().isEventRecorder()) {
+                    outputRingItemCount = 4096;
+                }
+
+                outputRingItemCount = EmuUtilities.powerOfTwo(outputRingItemCount, false);
+logger.info("      DataChannel Adapter: output ring item count -> " + outputRingItemCount);
+
+                prescale = 1;
+                attribString = attributeMap.get("prescale");
+                if (attribString != null) {
+                    try {
+                        int val = Integer.parseInt(attribString);
+                        if (val < 1) {
+                            val = 1;
+                        }
+                        prescale = val;
+                    }
+                    catch (NumberFormatException e) {}
+logger.info("      DataChannel Adapter: output prescale -> " + prescale);
+                }
+
+                // Do we send out single events or do we
+                // marshall them into one output buffer?
+                singleEventOut = false;
+                attribString = attributeMap.get("single");
+                if (attribString != null) {
+                    if (attribString.equalsIgnoreCase("true") ||
+                            attribString.equalsIgnoreCase("on")   ||
+                            attribString.equalsIgnoreCase("yes"))   {
+                        singleEventOut = true;
+                    }
+                }
+
+                // Set endianness of output data, must be same as its module
+                byteOrder = module.getOutputOrder();
+logger.info("      DataChannel Adapter: byte order = " + byteOrder);
+
+                // Set number of data output ring buffers (1 for each build thread)
+                outputRingCount = module.getEventProducingThreadCount();
+logger.info("      DataChannel Adapter: output ring buffer count (1/buildthread) = " + outputRingCount);
+
+                // Create RingBuffers
+                ringBuffersOut = new RingBuffer[outputRingCount];
+                setupOutputRingBuffers();
+
+                // Total capacity of all ring buffers
+                totalRingCapacity = outputRingCount * outputRingItemCount;
+
+                // Init arrays
+                lastSequencesReleased = new long[outputRingCount];
+                maxSequences = new long[outputRingCount];
+                betweens = new int[outputRingCount];
+                Arrays.fill(lastSequencesReleased, -1L);
+                Arrays.fill(maxSequences, -1L);
+                Arrays.fill(betweens, 0);
+            }
+
+            return;
+        }
+
 
         if (input) {
             // Set the number of items for the input ring buffers.
@@ -387,6 +491,11 @@ logger.info("      DataChannel Adapter: output ring buffer count (1/buildthread)
         //new LiteBlockingWaitStrategy());
         //new BlockingWaitStrategy());
         //new YieldingWaitStrategy());
+    }
+
+    /** Setup the input channel for fifo. In this case, both are same channel */
+    void setupInputRingBuffersFifo() {
+        System.out.println("HEY, creating input fifo ");
     }
 
 
