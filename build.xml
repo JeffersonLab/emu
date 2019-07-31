@@ -20,6 +20,7 @@
     <property name="doc.dir"       value="doc/javadoc" />
     <property name="scripts.dir"   value="scripts" />
 
+    <property name="allScriptNames" value="coda_emu*" />
     <property name="jarName"       value="emu-${emu.version}.jar" />
     <property name="allJarNames"   value="emu-*.jar" />
     <property name="jarPath"       value="${build.lib}/${jarName}" />
@@ -249,6 +250,9 @@
     <!-- Install in scripts in prefix -->
     <target name="installScriptsInPrefix" if="prefixDefined">
         <echo>Install scripts into ${prefix}/bin</echo>
+        <delete>
+            <fileset dir="${prefix}/bin" includes="${allScriptNames}" />
+        </delete>
         <exec executable="bash">
             <arg line="-c 'mkdir ${prefix}/bin; cp -pr ${scripts.dir}/* ${prefix}/bin'" />
         </exec>
@@ -258,6 +262,9 @@
     <target name="installScriptsInCODA" unless="prefixDefined" if="codaDefined">
         <echo>Install scripts into ${env.CODA}/common/bin</echo>
         <!-- Using "exec", bash and cp preserves file permissions, but "copy" does not -->
+        <delete>
+            <fileset dir="${env.CODA}/common/bin" includes="${allScriptNames}" />
+        </delete>
         <exec executable="bash">
             <arg line="-c 'mkdir ${env.CODA}/common/bin; cp -pr ${scripts.dir}/* ${env.CODA}/common/bin'" />
         </exec>
