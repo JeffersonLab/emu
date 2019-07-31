@@ -1489,30 +1489,32 @@ System.out.println("      DataChannel Et in: GETTER is Quitting");
             latch.countDown();
             String errorString = null;
 
+            int sourceId, recordId;
+            IBlockHeader header;
+            EventType eventType;
+            ControlType controlType;
+            ByteBufferItem bbItem;
+            ByteBuffer buf;
+            EvioCompactReader compactReader = null;
+            RingItem ri;
+            long t1, t2;
+            boolean delay = false;
+            boolean useDirectEt = (etSysLocal != null);
+            boolean etAlive = true;
+            boolean hasFirstEvent, isUser=false;
+            EvioNodeSource nodePool;
+
+            EtContainer etContainer = null;
+            long nextSequence = etConsumeSequence.get() + 1L;
+            long availableSequence = -1L;
+            int validEvents = 0;
+
+            if (!useDirectEt) {
+                etAlive = etSystem.alive();
+            }
+
+
             try {
-                int sourceId, recordId;
-                IBlockHeader header;
-                EventType eventType;
-                ControlType controlType;
-                ByteBufferItem bbItem;
-                ByteBuffer buf;
-                EvioCompactReader compactReader = null;
-                RingItem ri;
-                long t1, t2;
-                boolean delay = false;
-                boolean useDirectEt = (etSysLocal != null);
-                boolean etAlive = true;
-                boolean hasFirstEvent, isUser=false;
-                EvioNodeSource nodePool;
-
-                EtContainer etContainer;
-                long nextSequence = etConsumeSequence.get() + 1L;
-                long availableSequence = -1L;
-                int validEvents;
-
-                if (!useDirectEt) {
-                    etAlive = etSystem.alive();
-                }
 
                 t1 = System.currentTimeMillis();
 
@@ -1551,6 +1553,7 @@ System.out.println("      DataChannel Et in: GETTER is Quitting");
                             validEvents = etContainer.getEventCount();
                         }
                     }
+                    catch (AlertException e) {/* never happen */}
                     catch (InterruptedException e) {
                         // Told to wake up because we're ending or resetting
                         if (haveInputEndEvent) {
@@ -1612,18 +1615,28 @@ System.out.println("      DataChannel Et in: GETTER is Quitting");
                             }
                         }
                         catch (EvioException e) {
-                            Utilities.printBuffer(buf, 0, 21, "BAD EVENT ");
-                            e.printStackTrace();
-                            errorString = "DataChannel Et in: ET data NOT evio v4 format";
-                            throw e;
+                            if (ignoreDataErrors) {
+                                continue;
+                            }
+                            else {
+                                Utilities.printBuffer(buf, 0, 21, "BAD EVENT ");
+                                e.printStackTrace();
+                                errorString = "DataChannel Et in: ET data NOT evio v4 format";
+                                throw e;
+                            }
                         }
 
                         // First block header in ET buffer
                         header = compactReader.getFirstBlockHeader();
-                        //System.out.println("      DataChannel Et in: blk header, order = " + header4.getByteOrder());
+//System.out.println("      DataChannel Et in: blk header, order = " + header4.getByteOrder());
                         if (header.getVersion() < 4) {
-                            errorString = "DataChannel Et in: ET data NOT evio v4 format";
-                            throw new EvioException("Evio data needs to be written in version 4+ format");
+                            if (ignoreDataErrors) {
+                                continue;
+                            }
+                            else {
+                                errorString = "DataChannel Et in: ET data NOT evio 4+ format";
+                                throw new EvioException("Evio data not in evio 4+ format");
+                            }
                         }
 
                         controlType   = null;
@@ -1631,7 +1644,12 @@ System.out.println("      DataChannel Et in: GETTER is Quitting");
 
                         eventType = EventType.getEventType(header.getEventType());
                         if (eventType == null || !eventType.isEbFriendly()) {
-                            throw new EvioException("bad evio format or improper event type");
+                            if (ignoreDataErrors) {
+                                 continue;
+                             }
+                             else {
+                                throw new EvioException("bad evio format or improper event type");
+                            }
                         }
                         // this only works from ROC !!!
                         sourceId = header.getSourceId();
@@ -1694,9 +1712,14 @@ System.out.println("      DataChannel Et in: GETTER is Quitting");
                                 else {
                                     // Pick this raw data event apart a little
                                     if (!node.getDataTypeObj().isBank()) {
-                                        DataType eventDataType = node.getDataTypeObj();
-                                        throw new EvioException("ROC raw record contains " + eventDataType +
-                                                                " instead of banks (data corruption?)");
+                                        if (ignoreDataErrors) {
+                                             continue;
+                                         }
+                                         else {
+                                            DataType eventDataType = node.getDataTypeObj();
+                                            throw new EvioException("ROC raw record contains " + eventDataType +
+                                                                            " instead of banks (data corruption?)");
+                                        }
                                     }
                                 }
                             }
@@ -1707,8 +1730,13 @@ System.out.println("      DataChannel Et in: GETTER is Quitting");
                                 controlType = ControlType.getControlType(node.getTag());
                                 logger.info("      DataChannel Et in: " + name + " got CONTROL event, " + controlType);
                                 if (controlType == null) {
-                                    errorString = "DataChannel Et in:  found unidentified control event, tag = 0x" + Integer.toHexString(node.getTag());
-                                    throw new EvioException("Found unidentified control event, tag = 0x" + Integer.toHexString(node.getTag()));
+                                    if (ignoreDataErrors) {
+                                         continue;
+                                     }
+                                     else {
+                                        errorString = "DataChannel Et in:  unidentified control event, tag = 0x" + Integer.toHexString(node.getTag());
+                                        throw new EvioException("unidentified control event, tag = 0x" + Integer.toHexString(node.getTag()));
+                                    }
                                 }
                             }
                             else if (eventType == EventType.USER) {
@@ -1723,9 +1751,14 @@ System.out.println("      DataChannel Et in: GETTER is Quitting");
                             else {
                                 // Physics or partial physics event must have BANK as data type
                                 if (!node.getDataTypeObj().isBank()) {
-                                    DataType eventDataType = node.getDataTypeObj();
-                                    throw new EvioException("physics record contains " + eventDataType +
-                                                            " instead of banks (data corruption?)");
+                                    if (ignoreDataErrors) {
+                                         continue;
+                                     }
+                                     else {
+                                        DataType eventDataType = node.getDataTypeObj();
+                                        throw new EvioException("physics record contains " + eventDataType +
+                                                                        " instead of banks (data corruption?)");
+                                    }
                                 }
                             }
 
@@ -1788,20 +1821,40 @@ System.out.println("      DataChannel Et in: GETTER is Quitting");
                         etConsumeSequence.set(nextSequence++);
                     }
                     catch (IOException e) {
-                        errorString = "DataChannel Et in: network communication error with Et";
-                        throw e;
+                        if (ignoreDataErrors) {
+                             continue;
+                         }
+                         else {
+                            errorString = "DataChannel Et in: network communication error with Et";
+                            throw e;
+                        }
                     }
                     catch (EtException e) {
-                        errorString = "DataChannel Et in: internal error handling Et";
-                        throw e;
+                        if (ignoreDataErrors) {
+                             continue;
+                         }
+                         else {
+                            errorString = "DataChannel Et in: internal error handling Et";
+                            throw e;
+                        }
                     }
                     catch (EtDeadException e) {
-                        errorString = "DataChannel Et in: Et system dead";
-                        throw e;
+                        if (ignoreDataErrors) {
+                             continue;
+                         }
+                         else {
+                            errorString = "DataChannel Et in: Et system dead";
+                            throw e;
+                        }
                     }
                     catch (EtClosedException e) {
-                        errorString = "DataChannel Et in: Et connection closed";
-                        throw e;
+                        if (ignoreDataErrors) {
+                             continue;
+                         }
+                         else {
+                            errorString = "DataChannel Et in: Et connection closed";
+                            throw e;
+                        }
                     }
 
                     if (haveInputEndEvent) {
@@ -1833,9 +1886,11 @@ logger.info("      DataChannel Et in: wake up GETTER's getEvents() call so it ca
                     }
                 }
 
-            } catch (InterruptedException e) {
+            }
+            catch (InterruptedException e) {
                 logger.warn("      DataChannel Et in: " + name + "  interrupted thd, exiting");
-            } catch (Exception e) {
+            }
+            catch (Exception e) {
                 channelState = CODAState.ERROR;
                 // If we haven't yet set the cause of error, do so now & inform run control
                 if (errorString == null) errorString = e.getMessage();
