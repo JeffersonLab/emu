@@ -1674,7 +1674,7 @@ System.out.println("\nFirst current buf -> rec # = " + currentBuffer.getInt(4) +
          * @param rItem event to write
          * @throws IOException if error writing evio data to buf
          * @throws EvioException if error writing evio data to buf (bad format)
-         * @throws EmuException if no data to write
+         * @throws EmuException if no data to write or buffer is too small to hold 1 event.
          * @throws InterruptedException
          */
         private final void writeEvioData(RingItem rItem)
@@ -1734,7 +1734,11 @@ System.out.println("\nFirst current buf -> rec # = " + currentBuffer.getInt(4) +
                     try {
 //System.out.println("      DataChannel Emu out: single ev buf, pos = " + buf.position() +
 //", lim = " + buf.limit() + ", cap = " + buf.capacity());
-                        writer.writeEvent(buf);
+                        boolean fit = writer.writeEvent(buf);
+                        if (!fit) {
+                            // Our buffer is too small to fit even 1 event!
+                            throw new EmuException("emu socket's buffer size must be increased in jcedit");
+                        }
 //                        Utilities.printBufferBytes(buf, 0, 20, "control?");
                     }
                     catch (Exception e) {
@@ -1747,7 +1751,11 @@ System.out.println("\nFirst current buf -> rec # = " + currentBuffer.getInt(4) +
                 else {
                     EvioNode node = rItem.getNode();
                     if (node != null) {
-                        writer.writeEvent(node, false);
+                        boolean fit = writer.writeEvent(node, false);
+                        if (!fit) {
+                            // Our buffer is too small to fit even 1 event!
+                            throw new EmuException("emu socket's buffer size must be increased in jcedit");
+                        }
                     }
                     else {
                         throw new EmuException("no data to write");
@@ -1837,7 +1845,11 @@ System.out.println("\nFirst current buf -> rec # = " + currentBuffer.getInt(4) +
                 ByteBuffer buf = rItem.getBuffer();
                 if (buf != null) {
                     //System.out.print("b");
-                    writer.writeEvent(buf);
+                    boolean fit = writer.writeEvent(buf);
+                    if (!fit) {
+                        // Our buffer is too small to fit even 1 event!
+                        throw new EmuException("emu socket's buffer size must be increased in jcedit");
+                    }
                 }
                 else {
                     EvioNode node = rItem.getNode();
@@ -1856,7 +1868,11 @@ System.out.println("\nFirst current buf -> rec # = " + currentBuffer.getInt(4) +
                         // In reality, however, all data coming from EB or ROC will be in buffers and
                         // not in node form, so this method will never be called. This is just here
                         // for completeness.
-                        writer.writeEvent(node, false, false);
+                        boolean fit = writer.writeEvent(node, false, false);
+                        if (!fit) {
+                            // Our buffer is too small to fit even 1 event!
+                            throw new EmuException("emu socket's buffer size must be increased in jcedit");
+                        }
                     }
                     else {
                         throw new EmuException("no data to write");
