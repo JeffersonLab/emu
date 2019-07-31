@@ -75,6 +75,10 @@ public abstract class DataChannelAdapter extends CODAStateMachineAdapter impleme
     /** Channel name */
     protected final String name;
 
+    /** Any error readin/parsing data can be ignored if true.
+     * Currently only implemented for ET input channel (for ER). */
+    protected boolean ignoreDataErrors;
+
     /** Is this channel an input (true) or output (false) channel? */
     protected final boolean input;
 
@@ -244,6 +248,17 @@ public abstract class DataChannelAdapter extends CODAStateMachineAdapter impleme
             catch (NumberFormatException e) {}
         }
 
+        // can we ignore data reading/parsing errors?
+        ignoreDataErrors = true;
+        attribString = attributeMap.get("ignoreErrors");
+        if (attribString != null) {
+            if (attribString.equalsIgnoreCase("true") ||
+                attribString.equalsIgnoreCase("on")   ||
+                attribString.equalsIgnoreCase("yes"))   {
+                ignoreDataErrors = true;
+            }
+        }
+logger.info("      DataChannel Adapter: ignore data errors = " + ignoreDataErrors);
 
         if (input) {
             // Set the number of items for the input ring buffers.
