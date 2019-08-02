@@ -590,7 +590,7 @@ System.out.println("checkPayload: buf source id = " + pBuf.getSourceId() +
              int tag = inputNode.getTag();
 
              if (sourceId != getTagCodaId(tag)) {
-                 System.out.println("checkPayload: buf source Id (" + sourceId +
+                 System.out.println("checkInput: buf source Id (" + sourceId +
                                             ") != buf's id from tag (" + getTagCodaId(tag) + ')');
                  nonFatalError = true;
              }
@@ -601,7 +601,7 @@ System.out.println("checkPayload: buf source id = " + pBuf.getSourceId() +
 
          // Check source ID of bank to see if it matches channel id
          if (!pBuf.matchesId()) {
- System.out.println("checkPayload: buf source id = " + sourceId +
+ System.out.println("checkInput: buf source id = " + sourceId +
                             " != input channel id = " + channel.getID());
              nonFatalError = true;
          }
@@ -634,7 +634,7 @@ System.out.println("checkPayload: buf source id = " + pBuf.getSourceId() +
             // they will all have the same recordId.
 
             if (recordId != expectedRecordId) {
-                System.out.println("checkPayload: record ID out of sequence, got " + recordId +
+                System.out.println("checkRecordIdSequence: record ID out of sequence, got " + recordId +
                                    ", expecting " + expectedRecordId + ", type = " + eventType +
                                    ", name = " + channel.name());
                 // Reset the expected id so we don't get a shower of printout
@@ -681,7 +681,7 @@ System.out.println("checkPayload: buf source id = " + pBuf.getSourceId() +
 
              if (recordId != chanRecordId &&
                  recordId != chanRecordId + 1) {
-                 System.out.println("checkPayload: record ID out of sequence, got " + recordId +
+                 System.out.println("checkInputType: record ID out of sequence, got " + recordId +
                                             ", expecting " + chanRecordId + " or " +
                                             (chanRecordId+1) + ", type = " + eventType +
                                             ", name = " + channel.name());
