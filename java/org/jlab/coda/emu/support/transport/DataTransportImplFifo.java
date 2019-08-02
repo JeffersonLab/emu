@@ -95,7 +95,7 @@ public class DataTransportImplFifo extends DataTransportAdapter {
             // setup for that. Similarly for the other way around.
             if (isInput) {
                 System.out.println("    DataTransport Fifo : will setup channel " + c.name() + " as input");
-                c.setupInputRingBuffersFifo();
+                c.setupInputRingBuffers();
             }
             else {
                 System.out.println("    DataTransport Fifo : will setup channel " + c.name() + " as output");

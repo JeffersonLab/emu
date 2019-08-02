@@ -264,90 +264,17 @@ public abstract class DataChannelAdapter extends CODAStateMachineAdapter impleme
 logger.info("      DataChannel Adapter: ignore data errors = " + ignoreDataErrors);
 
         // Fifos are treated a little differently than other channels since 1 fifo is both
-        // an in & out channel. The output fifo is created first (emu config forces this).
+        // an in & out channel. THE OUTPUT FIFO IS CREATED FIRST (emu config forces this).
         // It then creates and defines the channel. The input channel uses what is created
-        // its output counterpart.
+        // by its output counterpart.
+        //
+        // As part of the fifo, there is one input ring buffer for each of the module's
+        // event-producing threads, which are used to get events into the fifo.
+        // And there is an additional output ring buffer for the input fifo channel to read from.
+        // The procedure is to get events from the input rings and transfer them to the
+        // output ring.
         isFifo = this instanceof DataChannelImplFifo;
-        if (isFifo) {
 System.out.println("      DataChannel Adapter: channel " + name + " is a fifo");
-            
-            if (!input) {
-                // Set the number of items for the output chan ring buffers.
-                // We don't need any more slots than we have internal buffers.
-                // The number returned by getInternalRingCount is for a single build thread
-                // times the number of build threads. Since a channel has one ring for each
-                // build thread, the # of items in any one ring is
-                // getInternalRingCount / buildThreadCount. Should be a power of 2 already
-                // but will enforce that.
-
-                outputRingItemCount = module.getInternalRingCount()/module.getEventProducingThreadCount();
-                // If the module is not setting this, then it has no internal
-                // ring of buffers, so set this to some reasonable value.
-                if (outputRingItemCount < 1) {
-                    outputRingItemCount = 128;
-                }
-
-                // Event recorder has no internal byte buffer supply, so we can make this big
-                if (emu.getCodaClass().isEventRecorder()) {
-                    outputRingItemCount = 4096;
-                }
-
-                outputRingItemCount = EmuUtilities.powerOfTwo(outputRingItemCount, false);
-logger.info("      DataChannel Adapter: output ring item count -> " + outputRingItemCount);
-
-                prescale = 1;
-                attribString = attributeMap.get("prescale");
-                if (attribString != null) {
-                    try {
-                        int val = Integer.parseInt(attribString);
-                        if (val < 1) {
-                            val = 1;
-                        }
-                        prescale = val;
-                    }
-                    catch (NumberFormatException e) {}
-logger.info("      DataChannel Adapter: output prescale -> " + prescale);
-                }
-
-                // Do we send out single events or do we
-                // marshall them into one output buffer?
-                singleEventOut = false;
-                attribString = attributeMap.get("single");
-                if (attribString != null) {
-                    if (attribString.equalsIgnoreCase("true") ||
-                            attribString.equalsIgnoreCase("on")   ||
-                            attribString.equalsIgnoreCase("yes"))   {
-                        singleEventOut = true;
-                    }
-                }
-
-                // Set endianness of output data, must be same as its module
-                byteOrder = module.getOutputOrder();
-logger.info("      DataChannel Adapter: byte order = " + byteOrder);
-
-                // Set number of data output ring buffers (1 for each build thread)
-                outputRingCount = module.getEventProducingThreadCount();
-logger.info("      DataChannel Adapter: output ring buffer count (1/buildthread) = " + outputRingCount);
-
-                // Create RingBuffers
-                ringBuffersOut = new RingBuffer[outputRingCount];
-                setupOutputRingBuffers();
-
-                // Total capacity of all ring buffers
-                totalRingCapacity = outputRingCount * outputRingItemCount;
-
-                // Init arrays
-                lastSequencesReleased = new long[outputRingCount];
-                maxSequences = new long[outputRingCount];
-                betweens = new int[outputRingCount];
-                Arrays.fill(lastSequencesReleased, -1L);
-                Arrays.fill(maxSequences, -1L);
-                Arrays.fill(betweens, 0);
-            }
-
-            return;
-        }
-
 
         if (input) {
             // Set the number of items for the input ring buffers.
@@ -368,6 +295,10 @@ logger.info("      DataChannel Adapter: output ring buffer count (1/buildthread)
                 catch (NumberFormatException e) {}
             }
 logger.info("      DataChannel Adapter: input ring item count -> " + inputRingItemCount);
+
+            if (isFifo) {
+                inputRingItemCount = outputRingItemCount;
+            }
 
             // Create RingBuffers
             setupInputRingBuffers();
@@ -461,8 +392,8 @@ logger.info("      DataChannel Adapter: output ring buffer count (1/buildthread)
             ringBuffersOut[i] =
                 createSingleProducer(new RingItemFactory(),
                                      outputRingItemCount,
-          //new PhasedBackoffWaitStrategy(500L, 1000L, TimeUnit.NANOSECONDS, new LiteBlockingWaitStrategy()));
           new SpinCountBackoffWaitStrategy(30000, new LiteBlockingWaitStrategy()));
+          //new PhasedBackoffWaitStrategy(500L, 1000L, TimeUnit.NANOSECONDS, new LiteBlockingWaitStrategy()));
           //new LiteBlockingWaitStrategy());
           //new SleepingWaitStrategy(1000, 200000));   // 200 usec
           //new YieldingWaitStrategy());
@@ -491,11 +422,6 @@ logger.info("      DataChannel Adapter: output ring buffer count (1/buildthread)
         //new LiteBlockingWaitStrategy());
         //new BlockingWaitStrategy());
         //new YieldingWaitStrategy());
-    }
-
-    /** Setup the input channel for fifo. In this case, both are same channel */
-    void setupInputRingBuffersFifo() {
-        System.out.println("HEY, creating input fifo ");
     }
 
 
