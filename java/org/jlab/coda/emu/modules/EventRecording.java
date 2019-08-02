@@ -827,11 +827,9 @@ logger.info("  ER mod: found END event");
                     // use a different buffer item from that supply.
                     if (mainItem) {
                         sequencesIn[mainIndex].set(mainNextSequence++);
-System.out.println("  ER mod: main seq -> " + mainNextSequence);
                     }
                     else {
                         sequencesIn[etIndex].set(etNextSequence++);
-System.out.println("  ER mod: et seq -> " + etNextSequence);
                     }
 
                 }
