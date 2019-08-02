@@ -249,7 +249,7 @@ public abstract class DataChannelAdapter extends CODAStateMachineAdapter impleme
         }
 
         // can we ignore data reading/parsing errors?
-        ignoreDataErrors = true;
+        ignoreDataErrors = false;
         attribString = attributeMap.get("ignoreErrors");
         if (attribString != null) {
             if (attribString.equalsIgnoreCase("true") ||
