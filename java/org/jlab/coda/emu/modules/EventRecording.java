@@ -570,9 +570,9 @@ if (debug) System.out.println("  ER mod: recording thread ending");
 
                     if (mainAvailableSequence < mainNextSequence) {
                         // Check to make sure events are available to avoid blocking
-                        //if (singleInput || ringBuffersIn[mainIndex].getCursor() >= mainNextSequence) {
+                        if (singleInput || ringBuffersIn[mainIndex].getCursor() >= mainNextSequence) {
                             mainAvailableSequence = barriersIn[mainIndex].waitFor(mainNextSequence);
-                        //}
+                        }
                     }
 
                     // Non-blockingly check the (secondary) ET system
