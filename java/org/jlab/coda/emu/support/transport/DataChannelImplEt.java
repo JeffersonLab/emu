@@ -1669,10 +1669,6 @@ System.out.println("      DataChannel Et in: GETTER is Quitting");
                         // looking at the very first block #.
                         recordId = header4.getNumber();
 
-                        // Check record for sequential record id
-                        expectedRecordId = Evio.checkRecordIdSequence(recordId, expectedRecordId,
-                                                                      eventType, DataChannelImplEt.this);
-
                         // Number of evio event associated with this buffer.
                         int eventCount = compactReader.getEventCount();
 
@@ -1717,6 +1713,10 @@ System.out.println("      DataChannel Et in: GETTER is Quitting");
                                     }
                                 }
                                 else {
+                                    // Check record for sequential record id
+                                    expectedRecordId = Evio.checkRecordIdSequence(recordId, expectedRecordId,
+                                                                                  eventType, DataChannelImplEt.this);
+
                                     // Pick this raw data event apart a little
                                     if (!node.getDataTypeObj().isBank()) {
                                         bbSupply.release(bbItem);
@@ -1761,6 +1761,10 @@ System.out.println("      DataChannel Et in: GETTER is Quitting");
                                 }
                             }
                             else {
+                                // Check record for sequential record id
+                                expectedRecordId = Evio.checkRecordIdSequence(recordId, expectedRecordId,
+                                                                              eventType, DataChannelImplEt.this);
+
                                 // Physics or partial physics event must have BANK as data type
                                 if (!node.getDataTypeObj().isBank()) {
                                     bbSupply.release(bbItem);
