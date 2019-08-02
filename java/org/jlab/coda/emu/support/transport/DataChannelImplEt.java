@@ -1584,7 +1584,6 @@ System.out.println("      DataChannel Et in: GETTER is Quitting");
                         // Get a local, reusable ByteBuffer
 //System.out.println("ET wait for supply buf");
                         bbItem = bbSupply.get();
-//System.out.println("     Got supply buf");
                         expectedRecordId++;
 
                         // Copy ET data into this buffer.
@@ -1602,6 +1601,7 @@ System.out.println("      DataChannel Et in: GETTER is Quitting");
                         // first ensure there's enough memory to do the copy.
                         bbItem.ensureCapacity(events[j].getLength());
                         buf = bbItem.getBuffer();
+System.out.println("Got supply buf, endian = " + buf.order());
                         copyBuffer(events[j].getDataBuffer(), buf, events[j].getLength());
 
                         try {
@@ -1629,6 +1629,7 @@ System.out.println("      DataChannel Et in: GETTER is Quitting");
                                 throw e;
                             }
                         }
+System.out.println("After parse, endian = " + buf.order());
 
                         // First block header in ET buffer
                         header4 = compactReader.getFirstBlockHeader();
