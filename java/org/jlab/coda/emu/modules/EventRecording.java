@@ -568,17 +568,17 @@ if (debug) System.out.println("  ER mod: recording thread ending");
                 try {
                     gotBank = false;
 
-                    // Will BLOCK here waiting for item if none available
                     if (mainAvailableSequence < mainNextSequence) {
-                        mainAvailableSequence = barriersIn[mainIndex].waitFor(mainNextSequence);
-//System.out.println("  ER mod: available seq " + mainAvailableSequence);
+                        // Check to make sure events are available to avoid blocking
+                        if (singleInput || ringBuffersIn[mainIndex].getCursor() >= mainNextSequence) {
+                            mainAvailableSequence = barriersIn[mainIndex].waitFor(mainNextSequence);
+                        }
                     }
 
                     // Non-blockingly check the (secondary) ET system
                     if (!singleInput && (etAvailableSequence < etNextSequence)) {
-                        // Before we wait, check to see if there's anything to wait for ...
+                        // Check to make sure events are available to avoid blocking
                         if (ringBuffersIn[etIndex].getCursor() >= etNextSequence) {
-//System.out.println("Get event from ET ...");
                             etAvailableSequence = barriersIn[etIndex].waitFor(etNextSequence);
                         }
                     }
@@ -597,10 +597,8 @@ if (debug) System.out.println("  ER mod: recording thread ending");
                         t1 = t2;
                     }
 
-//                    while (mainNextSequence <= mainAvailableSequence) {
-
                     while (mainNextSequence <= mainAvailableSequence ||
-                             etNextSequence <=   etAvailableSequence ) {
+                             etNextSequence <=   etAvailableSequence)  {
 
                         // Get item from input channel.
                         // Deal with all secondary ET (user) events first since they
@@ -766,7 +764,7 @@ System.out.println("  ER mod: sending first event to chan " + outputChannels.get
                         }
                         // Non-BOR user event here
                         else if (isUser) {
-//System.out.println("  ER mod: writing user (seq " + mainNextSequence + '/' + etNextSequence + ')');
+//System.out.println("  ER mod: writing user (seq main" + mainNextSequence + "/ et" + etNextSequence + ')');
                             // Put user events into 1 channel
                             
                             // By default make it the first file channel.
@@ -784,12 +782,14 @@ System.out.println("  ER mod: sending first event to chan " + outputChannels.get
                             if (etOutChannelCount > 0 && (physicsEventCounter++ % prescale == 0)) {
                                 // Copy item
                                 PayloadBuffer bb = new PayloadBuffer((PayloadBuffer) ringItem);
-                                ByteBufferItem item = bb.getByteBufferItem();
+                                //ByteBufferItem item = bb.getByteBufferItem();
                                 // Write to ET system
                                 eventToOutputChannel(bb, etOutputChannel, 0);
                             }
-//System.out.println("  ER mod: writing ev (seq " + emuNextSequence +
-//                   ") to file channel " + fileOutputChannels[fileIndex].name());
+//System.out.println("  ER mod: writing physics ev (seq et" + etNextSequence +
+//                   "/ main" + mainNextSequence +  ") to file channel " +
+//                           fileOutputChannels[fileIndex].name());
+
                             // Split physics events round-robin between file channels
                             eventToOutputChannel(ringItem, fileOutputChannels[fileIndex], 0);
 
@@ -827,9 +827,11 @@ logger.info("  ER mod: found END event");
                     // use a different buffer item from that supply.
                     if (mainItem) {
                         sequencesIn[mainIndex].set(mainNextSequence++);
+System.out.println("  ER mod: main seq -> " + mainNextSequence);
                     }
                     else {
                         sequencesIn[etIndex].set(etNextSequence++);
+System.out.println("  ER mod: et seq -> " + etNextSequence);
                     }
 
                 }
