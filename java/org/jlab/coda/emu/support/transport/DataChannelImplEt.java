@@ -1762,7 +1762,7 @@ System.out.println("      DataChannel Et in: GETTER is Quitting");
                                 }
                                 else {
                                     logger.info("      DataChannel Et in: " + name + " got USER event");
-                                    Utilities.printBuffer(buf, 0, 30, "USER EVENT ");
+                                    //Utilities.printBuffer(buf, 0, 30, "USER EVENT ");
                                 }
                             }
                             else {
