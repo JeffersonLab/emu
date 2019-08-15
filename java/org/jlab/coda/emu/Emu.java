@@ -2095,6 +2095,7 @@ if (debug) System.out.println("Emu " + name + " prestart: PRESTART cmd to " + tr
 
                     int outputChannelCount = 0;
 
+//System.out.println("\nEmu " + name + " prestart: looking at module = " + moduleNode.getNodeName());
                     // For each channel in (children of) the module ...
                     NodeList childList = moduleNode.getChildNodes();
                     for (int i = 0; i < childList.getLength(); i++) {
@@ -2577,10 +2578,6 @@ logger.info("Emu " + name + " config: change state to CONFIGURING");
                         }
                     }
 
-
-
-
-
                     // If this is a Ts/RocSimulation emu, this is how we
                     // get the xml configuration string.
                     pItem = cmd.getArg(RCConstants.configPayloadFileContentRoc);
@@ -2826,6 +2823,13 @@ if (debug) System.out.println("Emu " + name + " config: Got config type = " + my
                 // Also track # of output files for this emu
                 fileOutputCount = 0;
 
+                // Originally the idea was that modules can be listed in any order,
+                // but to keep things simple later, any modules connected by the same fifo
+                // must have the module w/ the output fifo listed first and the module
+                // with the input fifo listed after. To ensure that, keep track of the
+                // output fifos.  Timmer 7/30/2019
+                HashSet<String> outFifoNames = new HashSet<>(5);
+
                 // List of modules
                 NodeList childList = modulesConfig.getChildNodes();
 
@@ -2838,6 +2842,7 @@ if (debug) System.out.println("Emu " + name + " config: Got config type = " + my
 
                     // Name of module is its node name
                     String moduleName = moduleNode.getNodeName();
+//System.out.println("emu: add module, count = " + moduleCount + ", name = " + moduleName);
 
                     // Get attributes of module & look for codaID
                     int codaID = -1;
@@ -2901,11 +2906,19 @@ if (debug) System.out.println("Emu " + name + " config: Got config type = " + my
                         if (channelNode.getNodeName().equalsIgnoreCase("inchannel")) {
                             // Count input channels
                             inputChannelCount++;
+//System.out.println("     input count = " + inputChannelCount);
 
                             // Count Fifo type input channels
                             if (channelTransName.equals("Fifo")) {
+                                if (!outFifoNames.contains(channelName)) {
+System.out.println("Emu " + name + " config: put modules in correct order, define out fifo before in");
+                                    setErrorState("Emu " + name + " config: put modules in correct order, define out fifo before in");
+                                    return;
+                                }
+
                                 inputFifoCount++;
                                 inputFifoName = channelName;
+//System.out.println("     input chan is fifo, in-fifo-count = " + inputFifoCount + ", name = " + channelName);
                             }
                             else if (j == firstModuleIndex) {
                                 firstModuleInputChannelCount++;
@@ -2966,6 +2979,8 @@ System.out.println("Emu " + name + " config: setting split from " + newSplitSize
                             if (channelTransName.equals("Fifo")) {
                                 outputFifoCount++;
                                 outputFifoName = channelName;
+                                outFifoNames.add(channelName);
+//System.out.println("     output chan is fifo, out-fifo-count = " + outputFifoCount + ", name = " + channelName);
                             }
 
                             // Get attributes of channel & look for id which must match codaID
@@ -3012,6 +3027,7 @@ System.out.println("Emu " + name + " config: setting split from " + newSplitSize
                         // (module with non-fifo input channel)
                         dataPath = new EmuDataPath(moduleName, null, outputFifoName);
                         usedModules++;
+//System.out.println("Used modules = " + usedModules + ", " + moduleName + " has no or non-fifo in channels ");
                     }
 
                     // If there is more than one data path, reject the configuration.
@@ -3086,11 +3102,13 @@ System.out.println("Emu " + name + " config: setting split from " + newSplitSize
                             if (channelNode.getNodeName().equalsIgnoreCase("inchannel")) {
                                 // Remember Fifo type input channels
                                 if (channelTransName.equals("Fifo")) {
+//System.out.println("found fifo input chan: name = " + channelName);
                                     inputFifoName = channelName;
                                 }
                             }
                             else if (channelNode.getNodeName().equalsIgnoreCase("outchannel")) {
                                 if (channelTransName.equals("Fifo")) {
+//System.out.println("found fifo input chan: name = " + channelName);
                                     outputFifoName = channelName;
                                 }
                             }
@@ -3099,6 +3117,7 @@ System.out.println("Emu " + name + " config: setting split from " + newSplitSize
                         // If successfully added, go through list of modules again
                         // and try to add another.
                         if (dataPath.addModuleName(moduleName, inputFifoName, outputFifoName)) {
+//System.out.println("Used modules = " + usedModules + ", " + moduleName + " has no or non-fifo in channels ");
                             usedModules++;
                             continue again;
                         }
