@@ -988,7 +988,7 @@ System.out.println("  Roc mod: start With (id=" + myId + "):\n    record id = " 
 //System.out.println("  Roc mod: next (id=" + myId + "):\n           record id = " + myRocRecordId +
 //                           ", ev # = " +myEventNumber + ", ts = " + timestamp);
 
-//                        Thread.sleep(1);
+//                        Thread.sleep(20000);
 
 //                        if (userEventLoop == userEventLoopMax - 10) {
 //System.out.println("  Roc mod: INSERT USER EVENT");
