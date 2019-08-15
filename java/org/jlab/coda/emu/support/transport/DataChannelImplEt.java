@@ -706,7 +706,10 @@ logger.info("      DataChannel Et: eventSize = " + etEventSize);
             // Number of bufs must be a power of 2.
             // This will give 64, 2.1MB buffers.
             int numEtBufs = 140000000 / etEventSize;
+            // Have at least 8 buffer
             numEtBufs = numEtBufs < 8 ? 8 : numEtBufs;
+            // Have no more than 2048 buffers
+            numEtBufs = numEtBufs > 2048 ? 2048 : numEtBufs;
             // Make power of 2
             if (Integer.bitCount(numEtBufs) != 1) {
                 int newVal = numEtBufs / 2;
@@ -718,11 +721,15 @@ logger.info("      DataChannel Et: eventSize = " + etEventSize);
             }
 logger.info("      DataChannel Et: # copy-ET-buffers in input supply -> " + numEtBufs);
 
-            // One pool for each supply buffer.
+            // One pool for each supply buffer. However,
+            // the smaller the ET buffer, the smaller the number of nodes each can use.
+            // Smallest pool size = 200 (when ET size = 0).
+            // This linearly increases to 3500 at ET size = 4MB (y = mx + b).
+            int poolSize = (3500 - 200)*etEventSize/4000000 + 200;
             nodePools = new EvioNodePool[numEtBufs];
             // Create the EvioNode pools
             for (int i = 0; i < numEtBufs; i++) {
-                nodePools[i] = new EvioNodePool(3500);
+                nodePools[i] = new EvioNodePool(poolSize);
             }
 
             // If ER
