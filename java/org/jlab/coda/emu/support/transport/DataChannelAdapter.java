@@ -75,8 +75,9 @@ public abstract class DataChannelAdapter extends CODAStateMachineAdapter impleme
     /** Channel name */
     protected final String name;
 
-    /** Any error readin/parsing data can be ignored if true.
-     * Currently only implemented for ET input channel (for ER). */
+    /** Any error reading/parsing data can be ignored if true.
+     * Currently this is only implemented for ER's ET input channel if the main data
+     * is coming over another input (presumably emu socket) channel. */
     protected boolean ignoreDataErrors;
 
     /** Is this channel an input or output fifo channel? Convenience variable. */
@@ -274,7 +275,7 @@ logger.info("      DataChannel Adapter: ignore data errors = " + ignoreDataError
         // The procedure is to get events from the input rings and transfer them to the
         // output ring.
         isFifo = this instanceof DataChannelImplFifo;
-System.out.println("      DataChannel Adapter: channel " + name + " is a fifo");
+logger.info("      DataChannel Adapter: channel " + name + " is a fifo = " + isFifo);
 
         if (input) {
             // Set the number of items for the input ring buffers.
