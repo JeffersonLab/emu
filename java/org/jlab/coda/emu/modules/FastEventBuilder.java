@@ -320,7 +320,7 @@ public class FastEventBuilder extends ModuleAdapter {
         if (!epThreadsSetInConfig) {
             buildingThreadCount = eventProducingThreads = 2;
         }
-        buildingThreadCount = eventProducingThreads = 1;
+        //buildingThreadCount = eventProducingThreads = 3;
 
         //outputOrder = ByteOrder.LITTLE_ENDIAN;
 logger.info("  EB mod: output byte order = little endian");
