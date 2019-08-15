@@ -12,6 +12,8 @@
 package org.jlab.coda.emu.support.transport;
 
 
+import com.lmax.disruptor.LiteTimeoutBlockingWaitStrategy;
+import com.lmax.disruptor.SpinCountBackoffWaitStrategy;
 import org.jlab.coda.cMsg.*;
 import org.jlab.coda.cMsg.common.cMsgMessageFull;
 import org.jlab.coda.emu.Emu;
@@ -40,6 +42,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+
+import static com.lmax.disruptor.RingBuffer.createSingleProducer;
 
 /**
  * This class implement a data channel which
@@ -223,6 +227,22 @@ public class DataChannelImplEmu extends DataChannelAdapter {
         // if INPUT channel
         if (input) {
             isER = (emu.getCodaClass() == CODAClass.ER);
+
+            if (isER) {
+                // In the special case of an ER, override the default to provide a ring
+                // which has a timeout of 10 seconds on the main data channel (emu socket).
+                // (Nornally there is none.)
+                // This makes a significant difference only if there are 2 input channels
+                // (1 ET and 1 emu socket) since the ER must switch between looking at both.
+                // Otherwise, if there was no data flowing, then the secondary (ET) channel
+                // would never be looked at.
+                ringBufferIn = createSingleProducer (
+                                  new RingItemFactory(),
+                                  inputRingItemCount,
+                                  new SpinCountBackoffWaitStrategy(
+                                              30000,
+                                              new LiteTimeoutBlockingWaitStrategy(10L, TimeUnit.SECONDS)));
+            }
 
             // size of TCP receive buffer (0 means use operating system default)
             //tcpRecvBuf = 3000000;     // THIS VALUE DOES NOT WORK FOR 1G Ethernet!!!
