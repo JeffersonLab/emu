@@ -83,17 +83,27 @@ public class EventRecording extends ModuleAdapter {
     /** Thread used to record events. */
     private Thread recordingThread;
 
+    /** Main data input channel. */
     private DataChannel mainInputChannel;
-    private DataChannel   etInputChannel;
-    private DataChannel   etOutputChannel;
+    /** Secondary ET input channel for user events. */
+    private DataChannel etInputChannel;
+    /** Et system output channel containing a prescaled number of data events. */
+    private DataChannel etOutputChannel;
+
+    /** Main data output channels (not necessarily files). */
     private DataChannel[] fileOutputChannels;
-    private RingItem[]    outputEvents;
+    /** When sending BOR or control events, then need to be copied first
+     * then sent to all output channels. Temp storage here. */
+    private RingItem[] outputEvents;
 
+    /** Number of main data output channels. */
     private int fileOutChannelCount;
+    /** Number of secondary ET data output channels. */
     private int etOutChannelCount;
-    private int mainIndex, etIndex, etOutIndex;
-
-    private boolean singleInput, singleOutput;
+    /** Indexes to track channels. */
+    private int mainIndex, etIndex;
+    /** Do we have a single input, single output channel? */
+    private boolean singleInput;
 
    /** END event detected by one of the recording threads. */
     private volatile boolean haveEndEvent;
@@ -170,12 +180,12 @@ public class EventRecording extends ModuleAdapter {
             RateCalculator.start();
         }
 
-//        if (singleInput && singleOutput) {
-//            recordingThread = new RecordingThreadOneToOne(emu.getThreadGroup(), name+":recorder");
-//        }
-//        else {
+        if (singleInput) {
+            recordingThread = new RecordingThreadOneToMany(emu.getThreadGroup(), name+":recorder");
+        }
+        else {
             recordingThread = new RecordingThreadTwoToMany(emu.getThreadGroup(), name + ":recorder");
-//        }
+        }
         recordingThread.start();
     }
 
@@ -228,295 +238,297 @@ System.out.println("  ER mod: will end thread but no END event!");
 
 
     /**
-     * This thread is started by the GO transition and runs while the state of the module is ACTIVE.
-     * When the state is ACTIVE and the list of output DataChannels is not empty, this thread
-     * pulls one bank off the input DataChannel. The bank is copied and placed in each output
-     * channel. The count of outgoing banks and the count of data words are incremented.
-     *
-     * This class is written so that there must only be one RecordingThread.
-     * It also takes any events arriving prior to prestart and throws them away unless it's
-     * a "first event" (user type) in which case the very last "first event" gets passed on
-     * to the output channel(s).
-     */
-    private class RecordingThreadOneToOne extends Thread {
+      * This thread is started by the GO transition and runs while the state of the module is ACTIVE.
+      * When the state is ACTIVE and the list of output DataChannels is not empty, this thread
+      * pulls one bank off of one of the input DataChannels. The bank is copied and alternatingly placed in
+      * one of the output channels.   <p>
+      *
+      * What makes this different than RecordingThreadTwoToMany is that this may take input from only 1 channel.<p>
+      *
+      * This class is written so that there must only be one RecordingThread.
+      * It also takes any events arriving prior to prestart and throws them away unless it's
+      * a "first event" (user type) in which case the very last "first event" gets passed on
+      * to the output channel(s).
+      */
+     private class RecordingThreadOneToMany extends Thread {
 
-        RecordingThreadOneToOne(ThreadGroup group, String name) {
-            super(group, name);
-        }
-
-
-        @Override
-        public void run() {
-
-            RingItem    ringItem    = null;
-            ControlType controlType = null;
-            long t1, t2, counter = 0L;
-            final long timeBetweenSamples = 500; // sample every 1/2 sec
-            int totalNumberEvents=1, wordCount=0, firstEventsWords=0;
-            ArrayList<RingItem> firstEvents = new ArrayList<>(4);
-            boolean gotBank, gotPrestart=false, isPrestart=false;
-
-            // Ring Buffer stuff
-            // Available sequence (largest index of items desired)
-            long availableSequence = -2L;
-            // Next sequence (index of next item desired)
-            long nextSequence = sequencesIn[0].get() + 1L;
-
-            // Beginning time for sampling control
-            t1 = System.currentTimeMillis();
-
-//            int printCounter=0;
-
-            while (moduleState == CODAState.ACTIVE || paused) {
-
-                try {
-                    gotBank = false;
-
-                    // Will BLOCK here waiting for item if none available
-                    // Only wait or read-volatile-memory if necessary ...
-                    if (availableSequence < nextSequence) {
-                        // Available sequence may be larger than what we desired
-//System.out.println("  ER mod: wait for seq " + nextSequence);
-                        availableSequence = barriersIn[0].waitFor(nextSequence);
-                    }
-
-                    // scale from 0% to 100% of ring buffer size
-                    t2 = emu.getTime();
-                    if (t2-t1 > timeBetweenSamples) {
-                        //inputChanLevels[0] = ((int)(availableSequence - nextSequence) + 1)*100/ringBufferSize;
-                        //inputChanLevels[0] = ((int)(ringBufferIn.getCursor() - nextSequence) + 1)*100/ringBufferSize;
-
-                        inputChanLevels[0] = ((int)(ringBuffersIn[0].getCursor() -
-                                                    ringBuffersIn[0].getMinimumGatingSequence()) + 1)*100/ ringBufferSizes[0];
-                        if (inputChanLevels[0] > 100) {
-                            System.out.println("INPUT CHANNEL LEVEL IS TOO HIGH = " + inputChanLevels[0]);
-                        }
-                        //if (printCounter++ % 100000 == 0) {
-                        //    System.out.println("in level = " + inputChanLevels[0]);
-                        //}
-                        t1 = t2;
-                    }
-
-                    while (nextSequence <= availableSequence) {
-
-                        // Get item from input channel
-                        ringItem = ringBuffersIn[0].get(nextSequence);
-                        wordCount = ringItem.getNode().getLength() + 1;
-                        controlType = ringItem.getControlType();
-                        totalNumberEvents = ringItem.getEventCount();
-
-//                        // Code for testing changing input/output channel fill levels.
-//                        // TODO: Comment out when finished testing!!!
-//                        if (counter++ % 1000 == 0) {
-//                            Thread.sleep(1);
-//                        }
-
-                        // Look at control events ...
-                        if (controlType != null) {
-//System.out.println("  ER mod: got control event, " + controlType);
-                            // Looking for prestart
-                            if (controlType.isPrestart()) {
-                                prestartCallback.endWait();
-                                if (gotPrestart) {
-                                    throw new EmuException("got 2 prestart events");
-                                }
-                                isPrestart = gotPrestart = true;
-                                wordCount = 5 + firstEventsWords;
-                                totalNumberEvents = 1 + firstEvents.size();
-                            }
-                            else if (!gotPrestart) {
-                                throw new EmuException("prestart, not " + controlType +
-                                                       ", must be first control event");
-                            }
-                            else if (controlType != ControlType.GO && controlType != ControlType.END) {
-                                throw new EmuException("second control event must be go or end");
-                            }
-                        }
-
-                        // If we haven't gotten the prestart event ...
-                        if (!gotPrestart) {
-                            // Throw away all events except any "first events"
-                            if (!ringItem.isFirstEvent()) {
-System.out.println("  ER mod: THROWING AWAY event of type " + ringItem.getEventType() + " which arrived before PRESTART event");
-                                // Release ByteBuffer used by item since it will NOT
-                                // be sent to output channel where this is normally done.
-                                ringItem.releaseByteBuffer();
-                            }
-                            else {
-                                // Store first events until prestart is received, then write.
-                                //
-                                // We do NOT, however, want to leave them in the byte buffers
-                                // provided in the ET input channel which are obtained from a
-                                // ByteBufferSupply and are thus part of a ring buffer.
-                                // There are a limited number of these and if not released immediately
-                                // here, these buffers may all get used up - bringing things to a
-                                // grinding halt in the ET input channel.
-                                //
-                                // We also do not want to increase "nextSequence" since if we keep
-                                // over 4096, the same ringItems will be reused when rb.get() is
-                                // called.
-                                //
-                                // Solution is to copy the ringItem right now and release the
-                                // original ringItem and the buffer from the supply.
+         RecordingThreadOneToMany(ThreadGroup group, String name) {
+             super(group, name);
+         }
 
 
-                                // Cloning the ringItem makes a copy of the ByteBuffer it contains
-                                RingItem newRingItem = (PayloadBuffer)((PayloadBuffer)ringItem).clone();
+         @Override
+         public void run() {
 
-                                // If however, the data was NOT contained in a ByteBuffer but in
-                                // an EvioNode instead, copy that data ...
-                                if (ringItem.getBuffer() == null) {
-                                    // Get a copy of the node data into the buffer
-                                    newRingItem.setBuffer(ringItem.getNode().getStructureBuffer(true));
-                                    newRingItem.setNode(null);
-                                }
+             RingItem    ringItem    = null;
+             ControlType controlType = null;
+             long t1, t2, counter = 0L;
+             final long timeBetweenSamples = 500; // sample every 1/2 sec
+             int totalNumberEvents=1, wordCount=0, firstEventsWords=0;
+             RingItem firstEvent = null;
+             boolean gotBank, gotPrestart=false, isPrestart=false;
+             boolean isUser=false, isControl=false, isFirst=false;
+             EventType pBankType = null;
+             int fileIndex=0;
+             long physicsEventCounter=0;
 
-                                // Release old stuff
-                                ringItem.setNode(null);
-                                ringItem.setBuffer(null);
-                                ringItem.releaseByteBuffer();
+             // Only one input channel
+             mainIndex = 0;
 
-System.out.println("  ER mod: STORE \"first event\" of type " + ringItem.getEventType() + " which arrived before PRESTART event");
-                                // Copy new stuff into list
-                                firstEvents.add(newRingItem);
-                                firstEventsWords += wordCount;
-                            }
+             // Ring Buffer stuff
+             long mainAvailableSequence = -2L;
+             long mainNextSequence = sequencesIn[mainIndex].get() + 1L;
 
-                            // Release the ring buffer slot of input channel for re-use.
-                            // This is fine since we copied the ringItem and released the
-                            // original data.
+             // Beginning time for sampling control
+             t1 = System.currentTimeMillis();
 
-                            sequencesIn[0].set(nextSequence++);
+             while (moduleState == CODAState.ACTIVE || paused) {
 
-                            continue;
-                        }
+                 try {
+                     gotBank = false;
 
-//System.out.println("  ER mod: accept item " + nextSequence + ", type " + ringItem.getEventType());
-                        gotBank = true;
-                        break;
-                    }
+                     if (mainAvailableSequence < mainNextSequence)  {
+                         try {
+                             // Times out after 10 sec if no events are available
+                             mainAvailableSequence = barriersIn[mainIndex].waitFor(mainNextSequence);
+                         }
+                         catch (TimeoutException e) {
+                             continue;
+                         }
+                     }
 
-                    if (!gotBank) {
-                        continue;
-                    }
+                     // Statistics
+                     t2 = emu.getTime();
+                     if (t2-t1 > timeBetweenSamples) {
+                         // Scale from 0% to 100% of ring buffer size
+                         inputChanLevels[mainIndex] = ((int)(ringBuffersIn[mainIndex].getCursor() -
+                                                     ringBuffersIn[mainIndex].getMinimumGatingSequence()) + 1)*100 /
+                                                     ringBufferSizes[mainIndex];
+                         t1 = t2;
+                     }
 
-                    if (outputChannelCount > 0) {
-                        // If multiple output channels, we must copy the ringItem.
-                        // Make sure the buffer being used is not prematurely released
-                        // for reuse. Do this by increasing the # of buffer users.
-                        if (outputChannelCount > 1) {
-                            ringItem.getByteBufferItem().addUsers(outputChannelCount - 1);
-                        }
+                     while (mainNextSequence <= mainAvailableSequence) {
 
-                        // Prestart event is a special case as there may be "first events"
-                        // which preceded it but now must come after.
-                        if (isPrestart) {
-//System.out.println("  ER mod: sending PRESTART to out chan");
-                            // Place prestart event on first output channel
-                            eventToOutputChannel(ringItem, 0, 0);
+                         // Get item from input channel
+                         ringItem = ringBuffersIn[mainIndex].get(mainNextSequence);
 
-                            // Now place "first events" on the first channel
-                            for (RingItem ri : firstEvents) {
-System.out.println("  ER mod: sending \"first event\" to out chan");
-                                eventToOutputChannel(ri, 0, 0);
-                            }
+                         wordCount = ringItem.getNode().getLength() + 1;
+                         controlType = ringItem.getControlType();
+                         totalNumberEvents = ringItem.getEventCount();
+                         pBankType = ringItem.getEventType();
+                         isControl = pBankType.isControl();
+                         isUser    = pBankType.isUser();
+                         isFirst   = ringItem.isFirstEvent();
 
-                            // Copy each event and place one on each additional output channel
-                            for (int j=1; j < outputChannelCount; j++) {
-                                PayloadBuffer bb = new PayloadBuffer((PayloadBuffer)ringItem);
-                                eventToOutputChannel(bb, j, 0);
+                         // Look at control events ...
+                         if (isControl) {
 
-                                for (RingItem ri : firstEvents) {
-                                    bb = new PayloadBuffer((PayloadBuffer)ri);
-                                    eventToOutputChannel(bb, j, 0);
-                                }
-                            }
-                            isPrestart = false;
-                        }
-                        else {
-                            // Place event on first output channel
-//System.out.println("  ER mod: call eventToOutputChannel()");
-                            eventToOutputChannel(ringItem, 0, 0);
+ System.out.println("  ER mod: got control event, " + controlType);
+                             // Looking for prestart
+                             if (controlType.isPrestart()) {
+                                 prestartCallback.endWait();
+                                 if (gotPrestart) {
+                                     throw new EmuException("got 2 prestart events");
+                                 }
+                                 isPrestart = gotPrestart = true;
+                                 wordCount = 5 + firstEventsWords;
+                                 totalNumberEvents = 1;
+                                 if (firstEvent != null) totalNumberEvents++;
+                             }
+                             else if (!gotPrestart) {
+                                 throw new EmuException("prestart, not " + controlType +
+                                                        ", must be first control event");
+                             }
+                             else if (controlType != ControlType.GO && controlType != ControlType.END) {
+                                 throw new EmuException("second control event must be go or end");
+                             }
+                         }
 
-                            // Copy event and place one on each additional output channel
-                            for (int j = 1; j < outputChannelCount; j++) {
-                                // This copy shares the underlying buffer / buffer item / buffer supply
-                                PayloadBuffer bb = new PayloadBuffer((PayloadBuffer) ringItem);
-                                ByteBufferItem item = bb.getByteBufferItem();
-                                // Already done above, right???
-                                //if (item != null) item.addUsers(1);
-                                eventToOutputChannel(bb, j, 0);
-                            }
-                        }
-                    }
+                         // If we haven't gotten the prestart event ...
+                         if (!gotPrestart) {
+                             // Throw away all events except any "first events"
+                             if (ringItem.isFirstEvent()) {
+                                 // Store the latest first event until prestart is received, then write.
+                                 //
+                                 // We do NOT, however, want to leave it in the byte buffer
+                                 // provided in the ET input channel which are obtained from a
+                                 // ByteBufferSupply and are thus part of a ring buffer.
+                                 // There are a limited number of these and should be released immediately.
+                                 // Solution is to copy the ringItem right now and release the
+                                 // original ringItem and the buffer from the supply.
 
-                    eventCountTotal += totalNumberEvents;
-                    wordCountTotal += wordCount;
+                                 // Cloning the ringItem makes a copy of the ByteBuffer it contains
+                                 firstEvent = (PayloadBuffer)((PayloadBuffer)ringItem).clone();
+                                 firstEventsWords = wordCount;
 
-                    // If END event, interrupt other record threads then quit this one.
-                    if (controlType == ControlType.END) {
-logger.info("  ER mod: found END event");
-                        haveEndEvent = true;
-                        if (endCallback != null) endCallback.endWait();
-                        return;
-                    }
+                                 // If however, the data was NOT contained in a ByteBuffer but in
+                                 // an EvioNode instead, copy that data ...
+                                 if (firstEvent.getBuffer() == null) {
+                                     // Get a copy of the node data into the buffer
+                                     firstEvent.setBuffer(ringItem.getNode().getStructureBuffer(true));
+                                     firstEvent.setNode(null);
+                                 }
+ System.out.println("  ER mod: SET \"first event\" of type " + ringItem.getEventType() + " which arrived before PRESTART event");
+                             }
+                             else {
+ System.out.println("  ER mod: THROWING AWAY event of type " + ringItem.getEventType() + " which arrived before PRESTART event");
+                             }
 
-                    // Do NOT release the reusable ByteBuffer back to its supply.
-                    // It was passed on to the ring buffer of the output channel.
-                    // It's that channel that will release the buffer when it's done
-                    // writing it to file or wherever.
-                    // But if NO output, it needs to be freed now.
-                    if (outputChannelCount < 1) {
-                        // We want to release "first event" buffers before prestart - each in the order
-                        // obtained from the channel. That's because, for the ER with one file output
-                        // channel, the buffer supply is not synchronized and relies on the ER to
-                        // release all buffers from the ring sequentially. This is designed to keep
-                        // things fast.
-                        if (isPrestart) {
-                            for (RingItem ri : firstEvents) {
-                                ri.releaseByteBuffer();
-                            }
-                            isPrestart = false;
-                            firstEvents.clear();
-                        }
-                        ringItem.releaseByteBuffer();
-                    }
+                             // Release ByteBuffer used by item since it will NOT
+                             // be sent to output channel where this is normally done.
+                             // Will either be thrown away (not first event) or copied.
+                             ringItem.releaseByteBuffer();
 
-                    // Release the ring buffer slot of input channel for re-use,
-                    // which is fine even if we haven't released the data (in the input channel
-                    // byte buffer supply item). That's because when the slot is reused, it will
-                    // use a different buffer item from that supply.
-                    sequencesIn[0].set(nextSequence++);
+                             // Release the ring buffer slot of input channel for re-use.
+                             // This is fine since we copied the ringItem and released the
+                             // original data.
+                             sequencesIn[mainIndex].set(mainNextSequence++);
 
-                }
-                catch (InterruptedException e) {
-System.out.println("  ER mod: INTERRUPTED recording thread " + Thread.currentThread().getName());
-                    return;
-                }
-                catch (AlertException e) {
-System.out.println("  ER mod: ring buf alert");
-                    // If we haven't yet set the cause of error, do so now & inform run control
-                    moduleState = CODAState.ERROR;
-                    emu.setErrorState("ER ring buf alert");
-                    return;
-                }
-                catch (TimeoutException e) {
-System.out.println("  ER mod: ring buf timeout");
-                    moduleState = CODAState.ERROR;
-                    emu.setErrorState("ER ring buf timeout");
-                    return;
-                }
-                catch (Exception e) {
-System.out.println("  ER mod: MAJOR ERROR recording event: " + e.getMessage());
-                    moduleState = CODAState.ERROR;
-                    emu.setErrorState("ER MAJOR ERROR recording event: " + e.getMessage());
-                    return;
-                }
-            }
-if (debug) System.out.println("  ER mod: recording thread ending");
-        }
+                             continue;
+                         }
 
-    }
+ //System.out.println("  ER mod: accept item " + mainNextSequence + ", type " + ringItem.getEventType());
+                         gotBank = true;
+                         break;
+                     }
+
+                     if (!gotBank) {
+                         continue;
+                     }
+
+                     if (outputChannelCount > 0) {
+
+                         if (isControl || isFirst) {
+                             // Since control events & BOR event(s) need to be duplicated and sent
+                             // over all output channels, and since they are contained in an
+                             // EvioNode object, it's easiest to completely copy them into a
+                             // new ByteBuffer. Thus, we don't need to mess with increasing
+                             // the number of users of the buffer from the original supply.
+
+                             // Avoid writing an event in an output channel while simultaneously
+                             // copying it here for putting into another channel. You'll end up
+                             // copying a buffer possibly while its position and limit are being changed.
+                             // NOT A GOOD IDEA! So do all copying first.
+                             outputEvents[0] = ringItem;
+                             for (int i=1; i < outputChannelCount; i++) {
+                                 outputEvents[i] = new PayloadBuffer((PayloadBuffer)ringItem);
+                             }
+
+                             // Now place one on each output channel
+                             for (int j=0; j < outputChannelCount; j++) {
+ System.out.println("  ER mod: writing control/first (seq " + mainNextSequence +
+                    ") to channel " + fileOutputChannels[j].name());
+                                 eventToOutputChannel(outputEvents[j], j, 0);
+                             }
+
+                             // Prestart event is a special case as there may be a "first" event
+                             // which preceded it but now must come after ... for each channel.
+                             // This "first" or Beginning-of-run (BOR) event will be sent over
+                             // all channels as opposed to the normal user events.
+                             if (isPrestart) {
+                                 if (firstEvent != null) {
+                                     // Copy first event
+                                     outputEvents[0] = firstEvent;
+                                     for (int i = 1; i < outputChannelCount; i++) {
+                                         outputEvents[i] = new PayloadBuffer((PayloadBuffer) firstEvent);
+                                     }
+
+                                     // Place one on each output channel
+                                     for (int j = 0; j < outputChannelCount; j++) {
+ System.out.println("  ER mod: sending first event to chan " + outputChannels.get(j).name());
+                                         eventToOutputChannel(outputEvents[j], j, 0);
+                                     }
+                                 }
+                                 isPrestart = false;
+                             }
+                         }
+                         // Non-BOR user event here
+                         else if (isUser) {
+ //System.out.println("  ER mod: writing user (seq " + mainNextSequence + ')');
+                             // Put user events into 1 channel
+
+                             // By default make it the first file channel.
+                             // If none, then the ET channel.
+                             if (fileOutChannelCount > 0) {
+                                 eventToOutputChannel(ringItem, fileOutputChannels[0], 0);
+                             }
+                             else if (etOutChannelCount > 0) {
+                                 eventToOutputChannel(ringItem, etOutputChannel, 0);
+                             }
+                         }
+                         // Physics event here
+                         else {
+                             // Any ET channel will receive a prescaled # of events.
+                             if (etOutChannelCount > 0 && (physicsEventCounter++ % prescale == 0)) {
+                                 // Copy item
+                                 PayloadBuffer bb = new PayloadBuffer((PayloadBuffer) ringItem);
+                                 ByteBufferItem item = bb.getByteBufferItem();
+                                 // Write to ET system
+                                 eventToOutputChannel(bb, etOutputChannel, 0);
+                             }
+ //System.out.println("  ER mod: writing ev (seq " + mainNextSequence +
+ //                   ") to file channel " + fileOutputChannels[fileIndex].name());
+                             // Split physics events round-robin between file channels
+                             eventToOutputChannel(ringItem, fileOutputChannels[fileIndex], 0);
+
+                             // Index to next file channel
+                             fileIndex = (fileIndex + 1) % fileOutChannelCount;
+                         }
+                     }
+
+                     eventCountTotal += totalNumberEvents;
+                     wordCountTotal += wordCount;
+
+                     // If END event, interrupt other record threads then quit this one.
+                     if (controlType == ControlType.END) {
+ logger.info("  ER mod: found END event");
+                         haveEndEvent = true;
+                         if (endCallback != null) endCallback.endWait();
+                         return;
+                     }
+
+                     // Do NOT release the reusable ByteBuffer back to its supply.
+                     // It was passed on to the ring buffer of the output channel.
+                     // It's that channel that will release the buffer when it's done
+                     // writing it to file or wherever.
+                     // But if NO output, it needs to be freed now.
+                     // The first event was already copied and freed.
+                     if (outputChannelCount < 1) {
+                         isPrestart = false;
+                         firstEvent = null;
+                         ringItem.releaseByteBuffer();
+                     }
+
+                     // Release the ring buffer slot of input channel for re-use,
+                     // which is fine even if we haven't released the data (in the input channel
+                     // byte buffer supply item). That's because when the slot is reused, it will
+                     // use a different buffer item from that supply.
+                     sequencesIn[mainIndex].set(mainNextSequence++);
+                 }
+                 catch (InterruptedException e) {
+ System.out.println("  ER mod: INTERRUPTED recording thread " + Thread.currentThread().getName());
+                     return;
+                 }
+                 catch (AlertException e) {
+ System.out.println("  ER mod: ring buf alert");
+                     // If we haven't yet set the cause of error, do so now & inform run control
+                     moduleState = CODAState.ERROR;
+                     emu.setErrorState("ER ring buf alert");
+                     return;
+                 }
+                 catch (Exception e) {
+                     e.printStackTrace();
+ System.out.println("  ER mod: MAJOR ERROR recording event: " + e.getMessage());
+                     moduleState = CODAState.ERROR;
+                     emu.setErrorState("ER MAJOR ERROR recording event: " + e.getMessage());
+                     return;
+                 }
+             }
+ if (debug) System.out.println("  ER mod: recording thread ending");
+         }
+
+     }
+
 
 
     /**
@@ -568,18 +580,25 @@ if (debug) System.out.println("  ER mod: recording thread ending");
                 try {
                     gotBank = false;
 
-                    if (mainAvailableSequence < mainNextSequence) {
+                    if ((mainAvailableSequence < mainNextSequence) &&
+                          (etAvailableSequence < etNextSequence))  {
                         // Check to make sure events are available to avoid blocking
+                        // TODO: The part commented out kills performance
                         //if (singleInput || ringBuffersIn[mainIndex].getCursor() >= mainNextSequence) {
+                        // This now throws a timeout in ER and if emu socket
+                        try {
                             mainAvailableSequence = barriersIn[mainIndex].waitFor(mainNextSequence);
+                        }
+                        catch (TimeoutException e) {
+System.out.println("TIMEOUT in ER waiting for data");
+                        }
                         //}
-                    }
 
-                    // Non-blockingly check the (secondary) ET system
-                    if (!singleInput && (etAvailableSequence < etNextSequence)) {
-                        // Check to make sure events are available to avoid blocking
-                        if (ringBuffersIn[etIndex].getCursor() >= etNextSequence) {
+                        // Non-blockingly check the (secondary) ET system
+                        // to make sure events are available to avoid blocking.
+                        if (!singleInput && (ringBuffersIn[etIndex].getCursor() >= etNextSequence)) {
                             etAvailableSequence = barriersIn[etIndex].waitFor(etNextSequence);
+System.out.println("GOT ET events");
                         }
                     }
 
@@ -947,7 +966,6 @@ if (debug) System.out.println("  ER mod: recording thread ending");
 
         // Help to direct logic in recording thread
         if (inputChannels.size()  == 1) singleInput  = true;
-        if (outputChannels.size() == 1) singleOutput = true;
 
         // Place to put ring level stats
         inputChanLevels  = new int[inputChannelCount];
@@ -957,7 +975,7 @@ if (debug) System.out.println("  ER mod: recording thread ending");
 
         // Initialize variables
         int indx = 0;
-        mainIndex = etIndex = etOutIndex = 0;
+        mainIndex = etIndex = 0;
         mainInputChannel = etInputChannel = null;
         fileOutChannelCount = etOutChannelCount = 0;
 
@@ -1025,7 +1043,6 @@ if (debug) System.out.println("  ER mod: recording thread ending");
                 if (ch.getTransportType() == TransportType.ET) {
                     etOutputChannel = ch;
                     etOutChannelCount++;
-                    etOutIndex = indx;
                     prescale = ch.getPrescale();
                 }
                 else if (ch.getTransportType() == TransportType.FILE) {
