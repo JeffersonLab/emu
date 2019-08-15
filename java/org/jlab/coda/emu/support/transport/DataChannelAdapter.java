@@ -75,8 +75,9 @@ public abstract class DataChannelAdapter extends CODAStateMachineAdapter impleme
     /** Channel name */
     protected final String name;
 
-    /** Any error readin/parsing data can be ignored if true.
-     * Currently only implemented for ET input channel (for ER). */
+    /** Any error reading/parsing data can be ignored if true.
+     * Currently this is only implemented for ER's ET input channel if the main data
+     * is coming over another input (presumably emu socket) channel. */
     protected boolean ignoreDataErrors;
 
     /** Is this channel an input (true) or output (false) channel? */
