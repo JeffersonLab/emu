@@ -254,7 +254,7 @@ logger.info("      DataChannel File: dictionary file cannot be read");
                         compression = 0;
                     }
                 }
-                compression = 1;
+                compression = 0;
 logger.info("      DataChannel File: compression = " + compression);
 
                 // Number of compression thread
@@ -268,7 +268,7 @@ logger.info("      DataChannel File: compression = " + compression);
                     }
                     catch (NumberFormatException e) {}
                 }
-                compressionThreads = 4;
+                compressionThreads = 2;
 logger.info("      DataChannel File: compressionThreads = " + compressionThreads);
 
                 evioFileWriter = new EventWriterUnsync(fileName, directory, runType,
