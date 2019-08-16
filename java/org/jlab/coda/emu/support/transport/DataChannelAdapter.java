@@ -262,6 +262,8 @@ public abstract class DataChannelAdapter extends CODAStateMachineAdapter impleme
                 ignoreDataErrors = true;
             }
         }
+        ignoreDataErrors = true;
+        
 logger.info("      DataChannel Adapter: ignore data errors = " + ignoreDataErrors);
 
         // Fifos are treated a little differently than other channels since 1 fifo is both
