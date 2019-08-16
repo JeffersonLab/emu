@@ -21,7 +21,11 @@ import org.jlab.coda.emu.support.control.CmdExecException;
 import org.jlab.coda.emu.support.data.*;
 import org.jlab.coda.emu.support.transport.DataChannel;
 import org.jlab.coda.emu.support.transport.TransportType;
+import org.jlab.coda.jevio.ByteDataTransformer;
+import org.jlab.coda.jevio.EvioException;
+import org.jlab.coda.jevio.EvioNode;
 
+import java.nio.ByteBuffer;
 import java.util.*;
 
 /**
@@ -238,6 +242,60 @@ System.out.println("  ER mod: will end thread but no END event!");
 
 
     /**
+     * Modify a USER event. If the buildingBank arg contains data in EvioNode form
+     * (data backed by a buffer which may contain other events), copy data into its own buffer.
+     * If not in the output endian of this ER, swapped in place. Only evio headers
+     * are swapped, NOT data.
+     *
+     * @param buildingBank  object holding USER event.
+     */
+    private void copyAndSwapUserEvent(PayloadBuffer buildingBank) {
+
+        ByteBuffer buffy    = buildingBank.getBuffer();
+        EvioNode inputNode  = buildingBank.getNode();
+
+        // Swap headers, NOT DATA, if necessary
+        if (outputOrder != buildingBank.getByteOrder()) {
+            try {
+                // Check to see if user event is already in its own buffer
+                if (buffy != null) {
+                    // Takes care of swapping of event in its own separate buffer,
+                    // headers not data. This doesn't ever happen.
+                    ByteDataTransformer.swapEvent(buffy, buffy, 0, 0, false, null);
+                }
+                else if (inputNode != null) {
+                    // This node may share a backing buffer with other, ROC Raw, events.
+                    // Thus we cannot change the order of the entire backing buffer.
+                    // So copy it and swap it in its own buffer.
+
+                    // Copy
+                    buffy = inputNode.getStructureBuffer(true);
+                    // Swap headers but not data
+                    ByteDataTransformer.swapEvent(buffy, null, 0, 0, false, null);
+                    // Store in ringItem
+                    buildingBank.setBuffer(buffy);
+                    buildingBank.setNode(null);
+                    // Release claim on backing buffer since we are now
+                    // using a different buffer.
+                    buildingBank.releaseByteBuffer();
+                }
+            }
+            catch (EvioException e) {/* should never happen */ }
+        }
+        else if (buffy == null) {
+            // Copy, no swap needed
+            buffy = inputNode.getStructureBuffer(true);
+            // Store in ringItem
+            buildingBank.setBuffer(buffy);
+            buildingBank.setNode(null);
+            // Release claim on backing buffer since we are now
+            // using a different buffer.
+            buildingBank.releaseByteBuffer();
+        }
+    }
+
+
+    /**
      * This thread is started by the GO transition and runs while the state of the module is ACTIVE.
      * When the state is ACTIVE and the list of output DataChannels is not empty, this thread
      * pulls one bank off of one of the input DataChannels. The bank is copied and alternatingly placed in
@@ -265,7 +323,7 @@ System.out.println("  ER mod: will end thread but no END event!");
             long t1, t2, counter = 0L;
             final long timeBetweenSamples = 500; // sample every 1/2 sec
             int totalNumberEvents=1, wordCount=0, firstEventsWords=0;
-            RingItem firstEvent = null;
+            PayloadBuffer firstEvent = null;
             boolean gotBank, gotPrestart=false, isPrestart=false;
             boolean isUser=false, isControl=false, isFirst=false;
             EventType pBankType = null;
@@ -404,17 +462,29 @@ System.out.println("  ER mod: THROWING AWAY event of type " + ringItem.getEventT
                             // EvioNode object, it's easiest to completely copy them into a
                             // new ByteBuffer. Thus, we don't need to mess with increasing
                             // the number of users of the buffer from the original supply.
+                            //
+                            // If the first event is the wrong endianness, switch the headers
+                            // but not the data. Control events should already be the correct endian.
 
                             // Avoid writing an event in an output channel while simultaneously
                             // copying it here for putting into another channel. You'll end up
-                            // copying a buffer possibly while its position and limit are being changed.
-                            // NOT A GOOD IDEA! So do all copying first.
+                            // copying a buffer possibly while its position and limit are being
+                            // simultaneously changed. NOT A GOOD IDEA! So do all copying first.
+
+                            if (isFirst) {
+                                // Internally, in ringItem, the buffer holding data is copied (if it's a node)
+                                // and swapped if necessary. If it's a node, and therefore backed by a
+                                // byte buffer supply, it's freed from the supply.
+                                copyAndSwapUserEvent((PayloadBuffer) ringItem);
+                            }
+
+                            // Make copies
                             outputEvents[0] = ringItem;
                             for (int i=1; i < outputChannelCount; i++) {
                                 outputEvents[i] = new PayloadBuffer((PayloadBuffer)ringItem);
                             }
 
-                            // Now place one on each output channel
+                            // Now place one copy on each output channel
                             for (int j=0; j < outputChannelCount; j++) {
 System.out.println("  ER mod: writing control/first (seq " + mainNextSequence +
                    ") to channel " + fileOutputChannels[j].name());
@@ -427,10 +497,12 @@ System.out.println("  ER mod: writing control/first (seq " + mainNextSequence +
                             // all channels as opposed to the normal user events.
                             if (isPrestart) {
                                 if (firstEvent != null) {
-                                    // Copy first event
+                                    // Copy/swap first event in place
+                                    copyAndSwapUserEvent(firstEvent);
+                                    // Make more copies
                                     outputEvents[0] = firstEvent;
                                     for (int i = 1; i < outputChannelCount; i++) {
-                                        outputEvents[i] = new PayloadBuffer((PayloadBuffer) firstEvent);
+                                        outputEvents[i] = new PayloadBuffer(firstEvent);
                                     }
 
                                     // Place one on each output channel
@@ -445,6 +517,8 @@ System.out.println("  ER mod: sending first event to chan " + outputChannels.get
                         // Non-BOR user event here
                         else if (isUser) {
 //System.out.println("  ER mod: writing user (seq " + mainNextSequence + ')');
+                            copyAndSwapUserEvent((PayloadBuffer) ringItem);
+                            
                             // Put user events into 1 channel
 
                             // By default make it the first file channel.
@@ -562,7 +636,7 @@ if (debug) System.out.println("  ER mod: recording thread ending");
             long t1, t2, counter = 0L;
             final long timeBetweenSamples = 500; // sample every 1/2 sec
             int totalNumberEvents=1, wordCount=0, firstEventsWords=0;
-            RingItem firstEvent = null;
+            PayloadBuffer firstEvent = null;
             boolean gotBank, gotPrestart=false, isPrestart=false, mainItem=true;
             boolean isUser=false, isControl=false, isFirst=false;
             EventType pBankType = null;
@@ -744,17 +818,29 @@ System.out.println("  ER mod: THROWING AWAY event of type " + ringItem.getEventT
                             // EvioNode object, it's easiest to completely copy them into a
                             // new ByteBuffer. Thus, we don't need to mess with increasing
                             // the number of users of the buffer from the original supply.
+                            //
+                            // If the first event is the wrong endianness, switch the headers
+                            // but not the data. Control events should already be the correct endian.
 
                             // Avoid writing an event in an output channel while simultaneously
                             // copying it here for putting into another channel. You'll end up
-                            // copying a buffer possibly while its position and limit are being changed.
-                            // NOT A GOOD IDEA! So do all copying first.
+                            // copying a buffer possibly while its position and limit are being
+                            // simultaneously changed. NOT A GOOD IDEA! So do all copying first.
+
+                            if (isFirst) {
+                                // Internally, in ringItem, the buffer holding data is copied (if it's a node)
+                                // and swapped if necessary. If it's a node, and therefore backed by a
+                                // byte buffer supply, it's freed from the supply.
+                                copyAndSwapUserEvent((PayloadBuffer) ringItem);
+                            }
+
+                            // Make copies
                             outputEvents[0] = ringItem;
                             for (int i=1; i < outputChannelCount; i++) {
                                 outputEvents[i] = new PayloadBuffer((PayloadBuffer)ringItem);
                             }
 
-                            // Now place one on each output channel
+                            // Now place one copy on each output channel
                             for (int j=0; j < outputChannelCount; j++) {
 System.out.println("  ER mod: writing control/first (seq " + mainNextSequence +
                    '/' + etNextSequence + ") to channel " + fileOutputChannels[j].name());
@@ -767,10 +853,12 @@ System.out.println("  ER mod: writing control/first (seq " + mainNextSequence +
                             // all channels as opposed to the normal user events.
                             if (isPrestart) {
                                 if (firstEvent != null) {
+                                    // Copy/swap first event in place
+                                    copyAndSwapUserEvent(firstEvent);
                                     // Copy first event
                                     outputEvents[0] = firstEvent;
                                     for (int i = 1; i < outputChannelCount; i++) {
-                                        outputEvents[i] = new PayloadBuffer((PayloadBuffer) firstEvent);
+                                        outputEvents[i] = new PayloadBuffer(firstEvent);
                                     }
 
                                     // Place one on each output channel
@@ -785,6 +873,8 @@ System.out.println("  ER mod: sending first event to chan " + outputChannels.get
                         // Non-BOR user event here
                         else if (isUser) {
 //System.out.println("  ER mod: writing user (seq " + mainNextSequence + '/' + etNextSequence + ')');
+                            copyAndSwapUserEvent((PayloadBuffer) ringItem);
+
                             // Put user events into 1 channel
                             
                             // By default make it the first file channel.
