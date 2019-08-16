@@ -558,7 +558,7 @@ System.out.println("  ER mod: will end thread but no END event!");
             long t1, t2, counter = 0L;
             final long timeBetweenSamples = 500; // sample every 1/2 sec
             int totalNumberEvents=1, wordCount=0, firstEventsWords=0;
-            RingItem firstEvent = null;
+            PayloadBuffer firstEvent = null;
             boolean gotBank, gotPrestart=false, isPrestart=false, mainItem=true;
             boolean isUser=false, isControl=false, isFirst=false;
             EventType pBankType = null;
@@ -769,7 +769,7 @@ System.out.println("  ER mod: writing control/first (seq " + mainNextSequence +
                                     // Copy first event
                                     outputEvents[0] = firstEvent;
                                     for (int i = 1; i < outputChannelCount; i++) {
-                                        outputEvents[i] = new PayloadBuffer((PayloadBuffer) firstEvent);
+                                        outputEvents[i] = new PayloadBuffer(firstEvent);
                                     }
 
                                     // Place one on each output channel
