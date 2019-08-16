@@ -259,6 +259,8 @@ public abstract class DataChannelAdapter extends CODAStateMachineAdapter impleme
                 ignoreDataErrors = true;
             }
         }
+        ignoreDataErrors = true;
+
 logger.info("      DataChannel Adapter: ignore data errors = " + ignoreDataErrors);
 
         if (input) {
