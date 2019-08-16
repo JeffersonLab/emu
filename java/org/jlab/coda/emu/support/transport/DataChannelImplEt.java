@@ -746,7 +746,7 @@ logger.info("      DataChannel Et: # copy-ET-buffers in input supply -> " + numE
                     // released in order. Will make things faster.
                     bbSupply = new ByteBufferSupply(numEtBufs, etEventSize,
                                                     module.getOutputOrder(),
-                                                    false, true, nodePools);
+                                                    false, false, nodePools);
                 }
                 else {
                     // If ER has more than one output, buffers may not be released sequentially
