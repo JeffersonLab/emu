@@ -725,7 +725,7 @@ logger.info("      DataChannel Et: # copy-ET-buffers in input supply -> " + numE
             // the smaller the ET buffer, the smaller the number of nodes each can use.
             // Smallest pool size = 200 (when ET size = 0).
             // This linearly increases to 3500 at ET size = 4MB (y = mx + b).
-            int poolSize = (3500 - 200)*etEventSize/4000000 + 200;
+            int poolSize = (3500 - 200)*(etEventSize/4000000) + 200;
             nodePools = new EvioNodePool[numEtBufs];
             // Create the EvioNode pools
             for (int i = 0; i < numEtBufs; i++) {
