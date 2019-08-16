@@ -39,10 +39,10 @@ abstract class RingItemAdapter implements RingItem {
 
     // If contains buffer
 
-    /** ByteBuffer to wrap. If defined, event is null. */
+    /** ByteBuffer to wrap. If defined, event & node are null. */
     protected ByteBuffer buffer;
 
-    /** Object containing info about specific evio event in the buffer. */
+    /** Object containing info about specific evio event in a buffer. */
     protected EvioNode node;
 
    //---------------------
