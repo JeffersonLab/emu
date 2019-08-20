@@ -320,7 +320,7 @@ public class FastEventBuilder extends ModuleAdapter {
         if (!epThreadsSetInConfig) {
             buildingThreadCount = eventProducingThreads = 2;
         }
-        //buildingThreadCount = eventProducingThreads = 3;
+        buildingThreadCount = eventProducingThreads = 1;
 
         //outputOrder = ByteOrder.LITTLE_ENDIAN;
 logger.info("  EB mod: output byte order = little endian");
@@ -754,6 +754,7 @@ logger.info("  EB mod: internal ring buf count -> " + ringItemCount);
 
         // Write event to output channels
         for (int i=0; i < outputChannelCount; i++) {
+System.out.println("WRITE CONTROL EVENT to chan #" + i + ", ring 0");
             eventToOutputChannel(controlBufs[i], i, 0);
         }
 
