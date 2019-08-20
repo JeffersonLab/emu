@@ -108,6 +108,8 @@ public class EventRecording extends ModuleAdapter {
     private int mainIndex, etIndex;
     /** Do we have a single input, single output channel? */
     private boolean singleInput;
+    /** Is the single input channel a fifo? */
+    private boolean inputIsFifo;
 
    /** END event detected by one of the recording threads. */
     private volatile boolean haveEndEvent;
@@ -206,9 +208,9 @@ public class EventRecording extends ModuleAdapter {
         // at each channel or module.
         // Check again if END event has arrived.
         if (end && !haveEndEvent) {
-System.out.println("  ER mod: will end thread but no END event!");
+System.out.println("  ER mod: will end thread but no END event received!");
             moduleState = CODAState.ERROR;
-            emu.setErrorState("ER will end thread but no END event");
+            emu.setErrorState("ER will end thread but no END event received");
         }
 
         if (RateCalculator != null) {
@@ -326,6 +328,7 @@ System.out.println("  ER mod: will end thread but no END event!");
             PayloadBuffer firstEvent = null;
             boolean gotBank, gotPrestart=false, isPrestart=false;
             boolean isUser=false, isControl=false, isFirst=false;
+            boolean channelIsFifo = false;
             EventType pBankType = null;
             int fileIndex=0;
             long physicsEventCounter=0;
@@ -370,7 +373,10 @@ System.out.println("  ER mod: will end thread but no END event!");
                         // Get item from input channel
                         ringItem = ringBuffersIn[mainIndex].get(mainNextSequence);
 
-                        wordCount = ringItem.getNode().getLength() + 1;
+                        // If the input channel is a fifo, then ring items are events coming
+                        // from the EB. In this case, the ringItem stores the event in a buffer,
+                        // not in a node.
+                        wordCount = ringItem.getTotalBytes()/4;
                         controlType = ringItem.getControlType();
                         totalNumberEvents = ringItem.getEventCount();
                         pBankType = ringItem.getEventType();
@@ -1048,7 +1054,7 @@ if (debug) System.out.println("  ER mod: recording thread ending");
         }
 
         // Help to direct logic in recording thread
-        if (inputChannels.size()  == 1) singleInput  = true;
+        if (inputChannels.size() == 1) singleInput = true;
 
         // Place to put ring level stats
         inputChanLevels  = new int[inputChannelCount];
@@ -1075,6 +1081,12 @@ if (debug) System.out.println("  ER mod: recording thread ending");
         try {
 
             for (DataChannel ch : inputChannels) {
+
+                // Check to see if input channel is a fifo
+                // (there should only be 1 in this case).
+                if (ch.getTransportType() == TransportType.FIFO) {
+                    inputIsFifo = true;
+                }
 
                 if (ch.getTransportType() == TransportType.ET) {
                     // If there is a single input, ET is the main one
