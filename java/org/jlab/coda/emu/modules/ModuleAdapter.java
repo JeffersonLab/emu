@@ -264,10 +264,11 @@ logger.info("  Module Adapter: output byte order = " + outputOrder);
 
         // Have any output channels?
         if (outputChannelCount < 1) {
-//            logger.info("  Module Adapter: no output channel so release event w/o publishing");
+            logger.info("  Module Adapter: no output channel so release event w/o publishing");
             itemOut.releaseByteBuffer();
             return;
         }
+logger.info("  Module Adapter: publishing events in out chan ring");
 
         RingBuffer rb = outputChannels.get(channelNum).getRingBuffersOut()[ringNum];
         long nextRingItem = rb.nextIntr(1);
