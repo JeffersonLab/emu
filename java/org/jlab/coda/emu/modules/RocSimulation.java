@@ -576,6 +576,7 @@ System.out.println("  Roc mod: using real Hall D data = " + useRealData);
         ri.setSourceName(null);
         ri.setReusableByteBuffer(bbSupply, item);
 
+System.out.print(".");
 //System.out.println("  Roc mod: published ring item #" + nextRingItem + " to ring " + ringNum);
         rb.publish(nextRingItem);
     }
@@ -988,7 +989,7 @@ System.out.println("  Roc mod: start With (id=" + myId + "):\n    record id = " 
 //System.out.println("  Roc mod: next (id=" + myId + "):\n           record id = " + myRocRecordId +
 //                           ", ev # = " +myEventNumber + ", ts = " + timestamp);
 
-//                        Thread.sleep(20000);
+ //                       Thread.sleep(10000);
 
 //                        if (userEventLoop == userEventLoopMax - 10) {
 //System.out.println("  Roc mod: INSERT USER EVENT");
