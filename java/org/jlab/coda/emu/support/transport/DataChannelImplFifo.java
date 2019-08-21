@@ -169,8 +169,8 @@ public class DataChannelImplFifo extends DataChannelAdapter {
                     pBankType = ringItem.getEventType();
                     pBankControlType = ringItem.getControlType();
 
-logger.debug("      DataChannel Fifo: " + name + " got ring Item from index 0, type = " + pBankType +
-        ", control type = " + pBankControlType);
+//logger.debug("      DataChannel Fifo: " + name + " got ring Item from index 0, type = " + pBankType +
+//        ", control type = " + pBankControlType);
 
                     // If control event ...
                     if (pBankType == EventType.CONTROL) {
@@ -254,11 +254,11 @@ logger.info("      DataChannel Fifo: " + name + " got RESET cmd, quitting");
                 }
 
             } catch (InterruptedException e) {
-                logger.warn("      DataChannel Fifo: " + name + "  interrupted thd, exiting");
+logger.warn("      DataChannel Fifo: " + name + "  interrupted thd, exiting");
             } catch (Exception e) {
                 channelState = CODAState.ERROR;
                 emu.setErrorState("DataChannel fifo in: " + e.getMessage());
-                logger.warn("      DataChannel Fifo: exit thd: " + e.getMessage());
+logger.warn("      DataChannel Fifo: exit thd: " + e.getMessage());
             }
         }
 
