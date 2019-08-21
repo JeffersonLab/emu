@@ -1062,6 +1062,10 @@ System.out.println("  Roc mod: inserted GO event to channel " + i);
                 eventGeneratingThreads[i] = new EventGeneratingThread(i, emu.getThreadGroup(),
                                                                       emu.name()+":generator");
             }
+            else if (!eventGeneratingThreads[i].isAlive()) {
+                eventGeneratingThreads[i] = new EventGeneratingThread(i, emu.getThreadGroup(),
+                                                                      emu.name()+":generator");
+            }
 
 //System.out.println("  Roc mod: event generating thread " + eventGeneratingThreads[i].getName() + " isAlive = " +
 //                           eventGeneratingThreads[i].isAlive());
