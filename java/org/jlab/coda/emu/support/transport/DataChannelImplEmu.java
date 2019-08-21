@@ -1557,12 +1557,11 @@ System.out.println("DataOutputHelper constr: making BB supply of 8 bufs @ bytes 
                 currentSenderIndex = 0;
                 currentBBitem = bbOutSupply[currentSenderIndex].get();
                 currentBuffer = currentBBitem.getBuffer();
-System.out.println("\nFirst current buf -> rec # = " + currentBuffer.getInt(4) +
-                           ", " + System.identityHashCode(currentBuffer));
+//System.out.println("\nFirst current buf -> rec # = " + currentBuffer.getInt(4) +
+//                           ", " + System.identityHashCode(currentBuffer));
 
-//                writer = new EventWriterUnsync(currentBuffer);
-                writer = new  EventWriterUnsync(currentBuffer, 0, 0,
-                                         null, 1, null, 0);
+                writer = new EventWriterUnsync(currentBuffer);
+                //writer = new EventWriterUnsync(currentBuffer, 0, 0, null, 1, null, 0);
 
 // TODO: This writes a trailer into currentBuffer
                 writer.close();
