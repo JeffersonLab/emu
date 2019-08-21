@@ -2992,12 +2992,15 @@ System.out.println("Emu " + name + " config: setting split from " + newSplitSize
 
                     // Illegal configurations, look for:
                     // 1) more than 1 fifo in/out channel, and
-                    // 2) 1 fifo together with a non-fifo channel - either in or out
-                    if ( inputFifoCount > 1 || ( inputFifoCount == 1 &&  inputChannelCount > 1) ||
-                            outputFifoCount > 1 || (outputFifoCount == 1 && outputChannelCount > 1))   {
+                    // 2) 1 out fifo together with an out non-fifo channel
+                    // 3) 1  in fifo together with 2 or more non-fifo input channels
+                    //   (1 non-fifo input is allowed since the ER part of a combined EB-ER
+                    //    may need an addition ET system channel to provided user events to the ER part).
+                    if ( inputFifoCount > 1  || ( inputFifoCount == 1 &&  inputChannelCount > 2) ||
+                         outputFifoCount > 1 || (outputFifoCount == 1 && outputChannelCount > 1))   {
                         throw new DataNotFoundException("only 1 input/output channel allowed with fifo in/out");
                     }
-                    // 3) input and output fifos must be different
+                    // 4) input and output fifos must be different
                     else if ((inputFifoCount == 1 && outputFifoCount == 1) &&
                             inputFifoName.equals(outputFifoName)) {
                         throw new DataNotFoundException("input & output fifos for " +
