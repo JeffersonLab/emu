@@ -880,7 +880,7 @@ System.out.println("\n\n");
      * Add a single output destination name, like a file or et system name, or
      * a string like "cMsg", to the array of destinations names.
      * Call this when setting a destination for the first time. Do NOT call
-     * this if resetting an exiting output destination file name to the next
+     * this if resetting an existing output destination file name to the next
      * split file name.
      * @param outputDestination name of an output data destination of this emu
      */
@@ -904,7 +904,7 @@ System.out.println("\n\n");
 
     /**
      * Change an existing single output destination name in the array of names.
-     * Call this if resetting an exiting output destination file name to the next
+     * Call this if resetting an existing output destination file name to the next
      * split file name.
      * @param index index in array of name to be changed.
      * @param outputDestination name of an output destination.
