@@ -576,7 +576,6 @@ System.out.println("  Roc mod: using real Hall D data = " + useRealData);
         ri.setSourceName(null);
         ri.setReusableByteBuffer(bbSupply, item);
 
-System.out.print(".");
 //System.out.println("  Roc mod: published ring item #" + nextRingItem + " to ring " + ringNum);
         rb.publish(nextRingItem);
     }
@@ -1307,7 +1306,7 @@ System.out.println("  Roc mod: reset()");
             }
             catch (cMsgException e) {/* never happen */}
         }
-        System.out.println("AFTER PRESTART: rocRecordId = " + rocRecordId);
+//        System.out.println("  Roc mod: after PRESTART, rocRecordId = " + rocRecordId);
     }
 
 
@@ -1337,7 +1336,7 @@ System.out.println("  Roc mod: reset()");
         }
 
         rocRecordId++;
-        System.out.println("AFTER GO sent: rocRecordId = " + rocRecordId);
+//        System.out.println("  Roc mod: after GO sent, rocRecordId = " + rocRecordId);
 
 //        try {
 //            Thread.sleep(500);
@@ -1357,6 +1356,12 @@ System.out.println("  Roc mod: reset()");
 
         for (int i=0; i < eventProducingThreads; i++) {
             if (eventGeneratingThreads[i] == null) {
+//System.out.println("  Roc mod: create new event generating thread ");
+                eventGeneratingThreads[i] = new EventGeneratingThread(i, emu.getThreadGroup(),
+                                                                      emu.name()+":generator");
+            }
+            else if (!eventGeneratingThreads[i].isAlive()) {
+//System.out.println("  Roc mod: create new event generating thread, since old one is DEAD");
                 eventGeneratingThreads[i] = new EventGeneratingThread(i, emu.getThreadGroup(),
                                                                       emu.name()+":generator");
             }
