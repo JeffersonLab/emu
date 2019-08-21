@@ -727,7 +727,7 @@ System.out.println("\n\n  Roc mod: write USER event after go for Roc1 **********
 //                            }
 //                        }
 
-//                        Thread.sleep(5000);
+                        Thread.sleep(5000);
 
                         eventCountTotal += eventBlockSize;
                         wordCountTotal  += eventWordSize;
@@ -1109,6 +1109,10 @@ System.out.println("  Roc mod: reset()");
 
         for (int i=0; i < eventProducingThreads; i++) {
             if (eventGeneratingThreads[i] == null) {
+                eventGeneratingThreads[i] = new EventGeneratingThread(i, emu.getThreadGroup(),
+                                                                      emu.name()+":generator");
+            }
+            else if (!eventGeneratingThreads[i].isAlive()) {
                 eventGeneratingThreads[i] = new EventGeneratingThread(i, emu.getThreadGroup(),
                                                                       emu.name()+":generator");
             }
