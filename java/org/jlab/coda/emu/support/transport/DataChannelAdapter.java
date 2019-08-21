@@ -80,6 +80,9 @@ public abstract class DataChannelAdapter extends CODAStateMachineAdapter impleme
      * is coming over another input (presumably emu socket) channel. */
     protected boolean ignoreDataErrors;
 
+    /** Is this channel an input or output fifo channel? Convenience variable. */
+    protected final boolean isFifo;
+
     /** Is this channel an input (true) or output (false) channel? */
     protected final boolean input;
 
@@ -263,6 +266,19 @@ public abstract class DataChannelAdapter extends CODAStateMachineAdapter impleme
 
 logger.info("      DataChannel Adapter: ignore data errors = " + ignoreDataErrors);
 
+        // Fifos are treated a little differently than other channels since 1 fifo is both
+        // an in & out channel. THE OUTPUT FIFO IS CREATED FIRST (emu config forces this).
+        // It then creates and defines the channel. The input channel uses what is created
+        // by its output counterpart.
+        //
+        // As part of the fifo, there is one input ring buffer for each of the module's
+        // event-producing threads, which are used to get events into the fifo.
+        // And there is an additional output ring buffer for the input fifo channel to read from.
+        // The procedure is to get events from the input rings and transfer them to the
+        // output ring.
+        isFifo = this instanceof DataChannelImplFifo;
+logger.info("      DataChannel Adapter: channel " + name + " is a fifo = " + isFifo);
+
         if (input) {
             // Set the number of items for the input ring buffers.
             // These contain evio events parsed from ET, cMsg,
@@ -281,6 +297,12 @@ logger.info("      DataChannel Adapter: ignore data errors = " + ignoreDataError
                 }
                 catch (NumberFormatException e) {}
             }
+
+            if (isFifo) {
+                inputRingItemCount = outputRingItemCount;
+logger.info("      DataChannel Adapter: specifically setting input ring item count to  output ring item count = " + outputRingItemCount);
+            }
+
 logger.info("      DataChannel Adapter: input ring item count -> " + inputRingItemCount);
 
             // Create RingBuffers
@@ -396,6 +418,12 @@ logger.info("      DataChannel Adapter: output ring buffer count (1/buildthread)
 
     /** Setup the input channel ring buffers. */
     void setupInputRingBuffers() {
+        if (isFifo) {
+            // If this is a fifo, the output channel creates the channel,
+            inputRingItemCount = outputRingItemCount;
+logger.info("      DataChannel Adapter: setupInputRingBuffers, setting input ring item count to  output ring item count = " + outputRingItemCount);
+        }
+
         ringBufferIn = createSingleProducer(new RingItemFactory(),
                                             inputRingItemCount,
         new SpinCountBackoffWaitStrategy(30000, new LiteBlockingWaitStrategy()));
