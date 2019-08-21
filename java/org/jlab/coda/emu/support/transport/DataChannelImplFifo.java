@@ -176,10 +176,9 @@ public class DataChannelImplFifo extends DataChannelAdapter {
                             if (gotPrestart) {
                                 throw new EmuException("got 2 prestart events");
                             }
-                            logger.debug("      DataChannel Fifo " + outputIndex + ": send prestart event");
+logger.debug("      DataChannel Fifo: " + name + " send prestart event");
                             gotPrestart = true;
                             writeEvioData(ringItem);
-                            releaseCurrentAndGoToNextOutputRingItem(0);
                         }
                         else {
                             if (!gotPrestart) {
@@ -192,7 +191,7 @@ public class DataChannelImplFifo extends DataChannelAdapter {
                                 throw new EmuException("second control event must be go or end");
                             }
 
-                            logger.debug("      DataChannel Fifo " + outputIndex + ": send " + pBankControlType + " event");
+logger.debug("      DataChannel Fifo: " + name + " send " + pBankControlType + " event");
                             writeEvioData(ringItem);
 
                             // Go to the next event
@@ -206,7 +205,6 @@ public class DataChannelImplFifo extends DataChannelAdapter {
                     else if (pBankType == EventType.USER) {
                         // Write user event
                         writeEvioData(ringItem);
-                        releaseCurrentAndGoToNextOutputRingItem(0);
                     }
                     // Only user and control events should come first, so error
                     else {
@@ -214,7 +212,6 @@ public class DataChannelImplFifo extends DataChannelAdapter {
                     }
 
                     // Keep reading events till we hit go/end
-                    gotoNextRingItem(0);
                     releaseCurrentAndGoToNextOutputRingItem(0);
                 }
 
@@ -225,46 +222,41 @@ System.out.println("      DataChannel Fifo: " + name + " I got END event, quitti
                 }
 
 
-                while ( channelState == CODAState.PAUSED || channelState == CODAState.ACTIVE ) {
+                while (true) {
 
-                    if (pause) {
-                        if (pauseCounter++ % 400 == 0) {
-                            try {Thread.sleep(5);}
-                            catch (InterruptedException e1) {}
-                        }
-                        continue;
-                    }
-
-//logger.debug("      DataChannel Fifo helper: get next buffer from ring " + rbIndex);
-                    ringItem = getNextOutputRingItem(rbIndex);
+                    ringItem = getNextOutputRingItem(ringIndex);
+                    pBankType = ringItem.getEventType();
                     pBankControlType = ringItem.getControlType();
                     writeEvioData(ringItem);
+                    releaseCurrentAndGoToNextOutputRingItem(ringIndex);
 
-//logger.debug("      DataChannel Fifo helper: sent event");
-
-//logger.debug("      DataChannel Fifo helper: release ring item");
-                    releaseCurrentAndGoToNextOutputRingItem(rbIndex);
-
-                    rbIndex = ++rbIndex % outputRingCount;
-//System.out.println("      DataChannel Fifo helper: switch ring to "+ rbIndex);
+                    // Do not go to the next ring if we got a control or user event.
+                    // All prestart, go, & users go to the first ring. Just keep reading
+                    // until we get to a built event. Then start keeping count so
+                    // we know when to switch to the next ring.
+                    if (outputRingCount > 1 && pBankControlType == null && !pBankType.isUser()) {
+                        setNextEventAndRing();
+//logger.info("      DataChannel Fifo helper, " + name + ": for seq " + nextSequences[ringIndex] + " SWITCH TO ring = " + ringIndex);
+                    }
 
                     if (pBankControlType == ControlType.END) {
-System.out.println("      DataChannel Fifo helper: " + name + " I got END event, quitting");
+logger.info("      DataChannel Fifo: " + name + " got END event, quitting 2");
                         return;
                     }
 
                     // If I've been told to RESET ...
                     if (gotResetCmd) {
+logger.info("      DataChannel Fifo: " + name + " got RESET cmd, quitting");
                         return;
                     }
                 }
 
             } catch (InterruptedException e) {
-                logger.warn("      DataChannel Fifo helper: " + name + "  interrupted thd, exiting");
+logger.warn("      DataChannel Fifo: " + name + "  interrupted thd, exiting");
             } catch (Exception e) {
                 channelState = CODAState.ERROR;
                 emu.setErrorState("DataChannel fifo in: " + e.getMessage());
-logger.warn("      DataChannel Fifo helper : exit thd: " + e.getMessage());
+logger.warn("      DataChannel Fifo: exit thd: " + e.getMessage());
             }
         }
 
