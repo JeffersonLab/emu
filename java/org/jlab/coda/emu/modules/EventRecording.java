@@ -370,7 +370,7 @@ System.out.println("  ER mod: will end thread but no END event!");
                          // Get item from input channel
                          ringItem = ringBuffersIn[mainIndex].get(mainNextSequence);
 
-                         wordCount = ringItem.getNode().getLength() + 1;
+                         wordCount = ringItem.getTotalBytes()/4;
                          controlType = ringItem.getControlType();
                          totalNumberEvents = ringItem.getEventCount();
                          pBankType = ringItem.getEventType();
@@ -654,24 +654,19 @@ System.out.println("  ER mod: will end thread but no END event!");
                     gotBank = false;
 
                     if ((mainAvailableSequence < mainNextSequence) &&
-                          (etAvailableSequence < etNextSequence))  {
-                        // Check to make sure events are available to avoid blocking
-                        // TODO: The part commented out kills performance
-                        //if (singleInput || ringBuffersIn[mainIndex].getCursor() >= mainNextSequence) {
-                        // This now throws a timeout in ER and if emu socket
+                            (etAvailableSequence < etNextSequence))  {
                         try {
+                            // Times out after 10 sec if no events are available
                             mainAvailableSequence = barriersIn[mainIndex].waitFor(mainNextSequence);
                         }
                         catch (TimeoutException e) {
-System.out.println("TIMEOUT in ER waiting for data");
+ System.out.println("TIMEOUT in ER waiting for data");
                         }
-                        //}
 
                         // Non-blockingly check the (secondary) ET system
                         // to make sure events are available to avoid blocking.
                         if (!singleInput && (ringBuffersIn[etIndex].getCursor() >= etNextSequence)) {
                             etAvailableSequence = barriersIn[etIndex].waitFor(etNextSequence);
-System.out.println("GOT ET events");
                         }
                     }
 
@@ -696,6 +691,7 @@ System.out.println("GOT ET events");
                         // Deal with all secondary ET (user) events first since they
                         // may come before prestart.
                         if (etNextSequence <= etAvailableSequence) {
+System.out.println("   Got ET item");
                             ringItem = ringBuffersIn[etIndex].get(etNextSequence);
                             mainItem = false;
                         }
@@ -704,7 +700,7 @@ System.out.println("GOT ET events");
                             mainItem = true;
                         }
 
-                        wordCount = ringItem.getNode().getLength() + 1;
+                        wordCount = ringItem.getTotalBytes()/4;
                         controlType = ringItem.getControlType();
                         totalNumberEvents = ringItem.getEventCount();
                         pBankType = ringItem.getEventType();
@@ -950,12 +946,6 @@ System.out.println("  ER mod: ring buf alert");
                     // If we haven't yet set the cause of error, do so now & inform run control
                     moduleState = CODAState.ERROR;
                     emu.setErrorState("ER ring buf alert");
-                    return;
-                }
-                catch (TimeoutException e) {
-System.out.println("  ER mod: ring buf timeout");
-                    moduleState = CODAState.ERROR;
-                    emu.setErrorState("ER ring buf timeout");
                     return;
                 }
                 catch (Exception e) {
