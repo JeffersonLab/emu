@@ -241,10 +241,6 @@ System.out.println("      DataChannel Fifo: " + name + " I got END event, quitti
 //logger.info("      DataChannel Fifo helper, " + name + ": for seq " + nextSequences[ringIndex] + " SWITCH TO ring = " + ringIndex);
                     }
 
-                    if (pBankType.isBuildable()) {
-System.out.print(".");
-                    }
-
                     if (pBankControlType == ControlType.END) {
 logger.info("      DataChannel Fifo: " + name + " got END event, quitting 2");
                         return;
