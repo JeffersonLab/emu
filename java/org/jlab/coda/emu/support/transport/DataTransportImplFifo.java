@@ -72,17 +72,20 @@ public class DataTransportImplFifo extends DataTransportAdapter {
         // In the EMU, in prestart, each fifo is "created" twice, once as input and
         // the other as output. So we can check for this (in)compatibility.
 
+        // Configure ensures that the output fifo gets created first
+
         // If not created yet, create it
         if (c == null) {
+//            if (isInput) {
+//                System.out.println("    DataTransport Fifo : will create channel " + channelName + " as input");
+//            }
+//            else {
+//                System.out.println("    DataTransport Fifo : will create channel " + channelName + " as output");
+//            }
+
             c = new DataChannelImplFifo(channelName, this, attributeMap, isInput,
                                         emu, module);
             allChannels.put(channelName, c);
-if (isInput) {
-    System.out.println("    DataTransport Fifo : create channel " + c.name() + " as input");
-}
-else {
-    System.out.println("    DataTransport Fifo : create channel " + c.name() + " as output");
-}
         }
         // If we're trying to "create" it again, make sure things are compatible.
         else {
@@ -91,12 +94,12 @@ else {
             // Fifo is "created" here as an output channel, it must be properly
             // setup for that. Similarly for the other way around.
             if (isInput) {
+//System.out.println("    DataTransport Fifo : setup channel " + c.name() + " as input");
                 c.setupInputRingBuffers();
-System.out.println("    DataTransport Fifo : setup channel " + c.name() + " as input");
             }
             else {
+//System.out.println("    DataTransport Fifo : setup channel " + c.name() + " as output");
                 c.setupOutputRingBuffers();
-System.out.println("    DataTransport Fifo : setup channel " + c.name() + " as output");
             }
 
         }
