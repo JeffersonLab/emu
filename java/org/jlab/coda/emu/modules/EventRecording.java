@@ -678,7 +678,6 @@ System.out.println("TIMEOUT in ER waiting for data");
                         // to make sure events are available to avoid blocking.
                         if (!singleInput && (ringBuffersIn[etIndex].getCursor() >= etNextSequence)) {
                             etAvailableSequence = barriersIn[etIndex].waitFor(etNextSequence);
-System.out.println("GOT ET events");
                         }
                     }
 
@@ -712,7 +711,7 @@ System.out.println("   Got ET item");
                             mainItem = true;
                         }
 
-                        wordCount = ringItem.getNode().getLength() + 1;
+                        wordCount = ringItem.getTotalBytes()/4;
                         controlType = ringItem.getControlType();
                         totalNumberEvents = ringItem.getEventCount();
                         pBankType = ringItem.getEventType();
