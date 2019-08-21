@@ -76,12 +76,12 @@ public class DataTransportImplFifo extends DataTransportAdapter {
 
         // If not created yet, create it
         if (c == null) {
-            if (isInput) {
-                System.out.println("    DataTransport Fifo : will create channel " + channelName + " as input");
-            }
-            else {
-                System.out.println("    DataTransport Fifo : will create channel " + channelName + " as output");
-            }
+//            if (isInput) {
+//                System.out.println("    DataTransport Fifo : will create channel " + channelName + " as input");
+//            }
+//            else {
+//                System.out.println("    DataTransport Fifo : will create channel " + channelName + " as output");
+//            }
 
             c = new DataChannelImplFifo(channelName, this, attributeMap, isInput,
                                         emu, module);
@@ -94,11 +94,11 @@ public class DataTransportImplFifo extends DataTransportAdapter {
             // Fifo is "created" here as an output channel, it must be properly
             // setup for that. Similarly for the other way around.
             if (isInput) {
-                System.out.println("    DataTransport Fifo : will setup channel " + c.name() + " as input");
+//System.out.println("    DataTransport Fifo : will setup channel " + c.name() + " as input");
                 c.setupInputRingBuffers();
             }
             else {
-                System.out.println("    DataTransport Fifo : will setup channel " + c.name() + " as output");
+//System.out.println("    DataTransport Fifo : will setup channel " + c.name() + " as output");
                 c.setupOutputRingBuffers();
             }
 
