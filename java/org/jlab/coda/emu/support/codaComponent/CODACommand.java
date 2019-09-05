@@ -86,6 +86,10 @@ public enum CODACommand {
     GET_RUN_TYPE("Get run type", getRunType, false, -1, null, null),
     /** Command to get config id. */
     GET_CONFIG_ID("Get config id", getConfigId, false, -1, null, null),
+    /** Command to tell emu, END button was pushed. */
+    SET_PRE_END("END is coming", setPreEnd, false, -1, null, null),
+    
+    // There is a /session/control/preGo type as well, but emu doesn't use it
     ;
 
 
