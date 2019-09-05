@@ -1146,6 +1146,7 @@ System.out.println("  Roc mod: reset()");
             Configurer.setValue(emu.parameters(), "status/run_end_time", (new Date()).toString());
         }
         catch (DataNotFoundException e) {}
+//System.out.println("  Roc mod: end(), kill threads");
 
         killThreads();
 
