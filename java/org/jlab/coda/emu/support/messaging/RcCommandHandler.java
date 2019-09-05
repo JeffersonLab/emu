@@ -50,24 +50,16 @@ class RcCommandHandler extends GenericCallback implements cMsgCallbackInterface 
      */
     public void callback(cMsgMessage msg, Object o) {
 //System.out.println("callback: got " + msg.getType() + " message");
+
         try {
-            String type = msg.getType();
 
-            // The string cmdS may not be an allowed enum value, in which case an
-            // IllegalArgumentException will be thrown.
-            CODACommand codaCmd;
-            try {
-                codaCmd = CODACommand.get(type);
-//System.out.println("callback: codaCmd = " + codaCmd + ", isTransition = " + codaCmd.isTransition());
-            } catch (IllegalArgumentException e) {
-//System.out.println("callback: 1 received an invalid command of type " + type);
-                return;
-            }
-
+            CODACommand codaCmd = CODACommand.get(msg.getType());
             if (codaCmd == null) {
-//System.out.println("callback: 2 received an invalid command of type " + type);
+                // Don't know about this command and don't care
                 return;
             }
+
+//System.out.println("callback: codaCmd = " + codaCmd + ", isTransition = " + codaCmd.isTransition());
 
             // RESET commands have no accompanying metadata and are of
             // the highest priority. We don't want them stuck in a Q
