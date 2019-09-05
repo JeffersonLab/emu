@@ -82,6 +82,9 @@ public class RCConstants {
     /** String used as type in message for the get-run-number command. */
     public static final String getRunNumber   = sessionCommand + "getRunNumber";
 
+    /** String used as type in message for the preEnd command. */
+    public static final String setPreEnd      = sessionCommand + "preEnd";
+
     // Types in messages received in run/transition/* callback.
 
     /** String used as type in message for the configure command. */

@@ -109,6 +109,12 @@ public class Emu implements CODAComponent {
     /** If true, stop executing commands coming from run control. Used while resetting. */
     private volatile boolean resetting;
 
+    /** If true, someone hit the END button, but the END event has not necessarily
+     * come through yet and the END command may not have been received yet.
+     * This allows the file channel (in ER) to cleanup if disk is full and
+     * END button was pushed. */
+    private volatile boolean theEndIsNigh;
+
     /** A CMSGPortal object encapsulates all cMsg communication with Run Control. */
     private final CMSGPortal cmsgPortal;
 
@@ -788,6 +794,16 @@ System.out.println("Emu created, name = " + name + ", type = " + codaClass);
      */
     public int getFileOutputCount() {return fileOutputCount;}
 
+    /**
+     * Get whether END button has been pushed.
+     * If true, someone hit the END button, but the END event has not necessarily
+     * come through yet and the END command may not have been received yet.
+     * This allows the file channel (in ER) to cleanup if disk is full and
+     * END button was pushed.<p>
+     * Only to be used internally to the emu.
+     * @return true if someone hit the END button (until END transition finished).
+     */
+    public boolean theEndIsNigh() {return theEndIsNigh;}
 
 
     //------------------------------------------------
@@ -1503,6 +1519,12 @@ System.out.println("Emu " + name + ": do not execute cmd = " + cmd.name() + ", r
                 return;
             }
 
+            // Run Control tells us that the END command is coming soon
+            else if (codaCommand == SET_PRE_END) {
+                theEndIsNigh = true;
+                return;
+            }
+
             // Run Control tells us our session
             else if (codaCommand == SET_SESSION) {
                 // Get the new session and store it
@@ -1904,6 +1926,9 @@ System.out.println("Emu " + name + " end: " + e.getMessage());
 debug = debugOrig;
         if (state == ERROR) return;
 System.out.println("Emu " + name + " end: try setting state to DOWNLOADED");
+
+        theEndIsNigh = false;
+
         setState(DOWNLOADED);
     }
 
@@ -2577,10 +2602,6 @@ logger.info("Emu " + name + " config: change state to CONFIGURING");
                         }
                     }
 
-
-
-
-
                     // If this is a Ts/RocSimulation emu, this is how we
                     // get the xml configuration string.
                     pItem = cmd.getArg(RCConstants.configPayloadFileContentRoc);
@@ -2826,6 +2847,13 @@ if (debug) System.out.println("Emu " + name + " config: Got config type = " + my
                 // Also track # of output files for this emu
                 fileOutputCount = 0;
 
+                // Originally the idea was that modules can be listed in any order,
+                // but to keep things simple later, any modules connected by the same fifo
+                // must have the module w/ the output fifo listed first and the module
+                // with the input fifo listed after. To ensure that, keep track of the
+                // output fifos.  Timmer 7/30/2019
+                HashSet<String> outFifoNames = new HashSet<>(5);
+
                 // List of modules
                 NodeList childList = modulesConfig.getChildNodes();
 
@@ -2904,6 +2932,12 @@ if (debug) System.out.println("Emu " + name + " config: Got config type = " + my
 
                             // Count Fifo type input channels
                             if (channelTransName.equals("Fifo")) {
+                                if (!outFifoNames.contains(channelName)) {
+System.out.println("Emu " + name + " config: put modules in correct order, define out fifo before in");
+                                    setErrorState("Emu " + name + " config: put modules in correct order, define out fifo before in");
+                                    return;
+                                }
+
                                 inputFifoCount++;
                                 inputFifoName = channelName;
                             }
@@ -2966,6 +3000,7 @@ System.out.println("Emu " + name + " config: setting split from " + newSplitSize
                             if (channelTransName.equals("Fifo")) {
                                 outputFifoCount++;
                                 outputFifoName = channelName;
+                                outFifoNames.add(channelName);
                             }
 
                             // Get attributes of channel & look for id which must match codaID
