@@ -109,6 +109,12 @@ public class Emu implements CODAComponent {
     /** If true, stop executing commands coming from run control. Used while resetting. */
     private volatile boolean resetting;
 
+    /** If true, someone hit the END button, but the END event has not necessarily
+     * come through yet and the END command may not have been received yet.
+     * This allows the file channel (in ER) to cleanup if disk is full and
+     * END button was pushed. */
+    private volatile boolean theEndIsNigh;
+
     /** A CMSGPortal object encapsulates all cMsg communication with Run Control. */
     private final CMSGPortal cmsgPortal;
 
@@ -788,6 +794,16 @@ System.out.println("Emu created, name = " + name + ", type = " + codaClass);
      */
     public int getFileOutputCount() {return fileOutputCount;}
 
+    /**
+     * Get whether END button has been pushed.
+     * If true, someone hit the END button, but the END event has not necessarily
+     * come through yet and the END command may not have been received yet.
+     * This allows the file channel (in ER) to cleanup if disk is full and
+     * END button was pushed.<p>
+     * Only to be used internally to the emu.
+     * @return true if someone hit the END button (until END transition finished).
+     */
+    public boolean theEndIsNigh() {return theEndIsNigh;}
 
 
     //------------------------------------------------
@@ -821,6 +837,18 @@ System.out.println("Emu created, name = " + name + ", type = " + codaClass);
         }
 logger.info("Emu " + name + ": state set to " + state.name());
 System.out.println("\n\n");
+    }
+
+    /**
+     * This method gets the state of this Emu.
+     * @return  state of this Emu.
+     */
+    public CODAState getState() {
+        if (resetting) return RESETTING;
+        // Synchronize so the thread that calls this gets the current value
+        synchronized (this) {
+            return (CODAState) state;
+        }
     }
 
     /**
@@ -1503,6 +1531,12 @@ System.out.println("Emu " + name + ": do not execute cmd = " + cmd.name() + ", r
                 return;
             }
 
+            // Run Control tells us that the END command is coming soon
+            else if (codaCommand == SET_PRE_END) {
+                theEndIsNigh = true;
+                return;
+            }
+
             // Run Control tells us our session
             else if (codaCommand == SET_SESSION) {
                 // Get the new session and store it
@@ -1747,7 +1781,7 @@ logger.info("Emu " + name + " end: change state to ENDING");
                 modules.get(0).end();
 if (debug) System.out.println("Emu " + name + " end: END cmd to module " + modules.get(0).name());
                 setState(DOWNLOADED);
-debug = debugOrig;
+//debug = debugOrig;
                 return;
             }
 
@@ -1904,6 +1938,9 @@ System.out.println("Emu " + name + " end: " + e.getMessage());
 debug = debugOrig;
         if (state == ERROR) return;
 System.out.println("Emu " + name + " end: try setting state to DOWNLOADED");
+
+        theEndIsNigh = false;
+
         setState(DOWNLOADED);
     }
 
