@@ -298,11 +298,6 @@ logger.info("      DataChannel Adapter: channel " + name + " is a fifo = " + isF
                 catch (NumberFormatException e) {}
             }
 
-            if (isFifo) {
-                inputRingItemCount = outputRingItemCount;
-logger.info("      DataChannel Adapter: specifically setting input ring item count to  output ring item count = " + outputRingItemCount);
-            }
-
 logger.info("      DataChannel Adapter: input ring item count -> " + inputRingItemCount);
 
             // Create RingBuffers
@@ -419,9 +414,8 @@ logger.info("      DataChannel Adapter: output ring buffer count (1/buildthread)
     /** Setup the input channel ring buffers. */
     void setupInputRingBuffers() {
         if (isFifo) {
-            // If this is a fifo, the output channel creates the channel,
-            inputRingItemCount = outputRingItemCount;
-logger.info("      DataChannel Adapter: setupInputRingBuffers, setting input ring item count to  output ring item count = " + outputRingItemCount);
+            // If this is a fifo, the output channel creates the channel
+            inputRingItemCount = 4096;
         }
 
         ringBufferIn = createSingleProducer(new RingItemFactory(),
