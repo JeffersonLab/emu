@@ -31,6 +31,9 @@ public enum CODAClass {
     /** Data concentrator (first level) type of event builder. */
     DC("data concentrator", 800),
 
+    /** Event builder and Event recorder connected with fifo - to be used with DC's or ROCs. */
+    EBER("event builder", 750),
+
     /** Secondary (second level) type of event builder - to be used with DC's. */
     SEB("event builder", 700),
 
@@ -114,7 +117,7 @@ public enum CODAClass {
      *         else {@code false}.
      */
     public boolean isEventBuilder() {
-        return (this == DC || this == SEB || this == PEB);
+        return (this == DC || this == SEB || this == PEB || this == EBER);
     }
 
     /**
