@@ -503,6 +503,14 @@ logger.warn("Emu: exit due to rc/cMsg connect error: " + e.getMessage());
 
 
     /**
+     * Send an informational message that ends up on the run control gui.
+     * @param text text of message
+     */
+    synchronized public void rcGuiInfoMessage(String text) {
+        updateAndSendLoggingMessage(text, LoggingEvent.RC_GUI_CONSOLE, "INFO");
+    }
+
+    /**
      * Send a warning message that ends up on the run control gui.
      * @param text text of message
      */
