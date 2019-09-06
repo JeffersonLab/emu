@@ -140,6 +140,17 @@ public interface EmuModule extends StatedObject, CODAStateMachine {
     public Object[] getStatistics();
 
     /**
+      * Adjust the event count and word count reported by this module to run control
+      * by added the given numbers. This is necessary in the file output channel when
+      * the limit of the disk partition is reached and physics events must be thrown
+      * away after passing through the module.
+      *
+      * @param eventsAdded number of events to be added the event count
+      * @param wordsAdded number of words to be added the word count
+      */
+     void adjustStatistics(long eventsAdded, long wordsAdded);
+
+    /**
      * If an EMU has more than one module, which module's statistics represent the EMU
      * as a whole needs to be determined. This method returns true if this module's
      * statistics may represent the EMU as a whole. This may be specified in an EMU's

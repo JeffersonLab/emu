@@ -450,6 +450,12 @@ logger.info("  Module Adapter: publishing events in out chan ring");
     }
 
     /** {@inheritDoc} */
+    public void adjustStatistics(long eventsAdded, long wordsAdded) {
+        eventCountTotal += eventsAdded;
+        wordCountTotal  += wordsAdded;
+    }
+
+    /** {@inheritDoc} */
     public void addInputChannels(ArrayList<DataChannel> input_channels) {
         if (input_channels == null) return;
         this.inputChannels.addAll(input_channels);
