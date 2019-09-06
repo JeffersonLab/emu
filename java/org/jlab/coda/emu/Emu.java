@@ -878,10 +878,17 @@ System.out.println("\n\n");
      * Send run control a warning message which gets displayed in its GUI.
      * @param msg warning message
      */
+    public void sendRcInfoMessage(String msg) {
+        cmsgPortal.rcGuiInfoMessage(msg);
+    }
+
+    /**
+     * Send run control a warning message which gets displayed in its GUI.
+     * @param msg warning message
+     */
     public void sendRcWarningMessage(String msg) {
         cmsgPortal.rcGuiWarningMessage(msg);
     }
-
 
     /**
      * Send run control an error message which gets displayed in its GUI.
