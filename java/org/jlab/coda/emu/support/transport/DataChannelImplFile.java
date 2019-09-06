@@ -871,11 +871,14 @@ logger.info("      DataChannel File out " + outputIndex + ": wrote GO");
 logger.info("      DataChannel File out " + outputIndex + ": got ev " + nextEvent +
             ", ring " + ringIndex + " = END!");
 
-                        // Time to adjust statistics to account for any physics
-                        // events discarded due to full disk partition.
-                        module.adjustStatistics(-1*dumpedEvents, -1*dumpedWords);
+                        if (dumpedEvents > 0) {
+                            // Time to adjust statistics to account for any physics
+                            // events discarded due to full disk partition.
+                            module.adjustStatistics(-1 * dumpedEvents, -1 * dumpedWords);
+                            emu.sendRcWarningMessage(dumpedEvents + " physics events discarded");
 logger.info("      DataChannel File out " + outputIndex + ": discarded " + dumpedEvents +
-            " events and " + dumpedWords + " words due to full disk");
+            " events due to full disk");
+                        }
 
                         if (emu.isFileWritingOn()) {
                             try {
