@@ -65,7 +65,21 @@ public class DataChannelImplFile extends DataChannelAdapter {
     private EventWriterUnsync evioFileWriter;
 
     /** Remember which element of the output destinations array belongs to this file. */
-    private int outputNameIndex = 0;
+    private int outputNameIndex;
+
+    /**
+     * When END is hit and the event pipeline is backed up due to a full disk,
+     * then start dumping physics events in order for user and command events to
+     * get through. This is the count of how many physics events were discarded.
+     */
+    private long dumpedEvents;
+
+    /**
+     * When END is hit and the event pipeline is backed up due to a full disk,
+     * then start dumping physics events in order for user and command events to
+     * get through. This is the count of how much memory in words was discarded.
+     */
+    private long dumpedWords;
 
     //----------------------------------------
     // Input file parameters
@@ -595,6 +609,8 @@ logger.info("      DataChannel File out: disc is full, waiting ...");
 
                         // If physics, dump it
                         if (ri.getEventType().isBuildable()) {
+                            dumpedEvents++;
+                            dumpedWords += ri.getTotalBytes()/4;
                             break;
                         }
                         else {
@@ -622,6 +638,12 @@ logger.info("      DataChannel File out: disc is full, waiting ...");
                             written = evioFileWriter.writeEventToFile(ri.getNode(), forceToDisk, true);
                         }
                     }
+                }
+
+                // If msg was sent to RC saying disk if full AND we're here, then space got freed up
+                if (sentMsgToRC && !emu.theEndIsNigh()) {
+logger.info("      DataChannel File out: disc space is now available");
+                    emu.sendRcInfoMessage("disc space is now available");
                 }
             }
 
@@ -798,11 +820,6 @@ logger.info("      DataChannel File out " + outputIndex + ": wrote GO");
                     pBankType = ringItem.getEventType();
                     pBankControlType = ringItem.getControlType();
 
-                    if (pBankControlType == ControlType.END) {
-logger.info("      DataChannel File out " + outputIndex + ": got ev " + nextEvent +
-                     ", ring " + ringIndex + " = END!");
-                    }
-
                     try {
                         // If this a user and "first event", let the writer know
                         if (ringItem.isFirstEvent()) {
@@ -851,6 +868,15 @@ logger.info("      DataChannel File out " + outputIndex + ": got ev " + nextEven
                     }
 
                     if (pBankControlType == ControlType.END) {
+logger.info("      DataChannel File out " + outputIndex + ": got ev " + nextEvent +
+            ", ring " + ringIndex + " = END!");
+
+                        // Time to adjust statistics to account for any physics
+                        // events discarded due to full disk partition.
+                        module.adjustStatistics(-1*dumpedEvents, -1*dumpedWords);
+logger.info("      DataChannel File out " + outputIndex + ": discarded " + dumpedEvents +
+            " events and " + dumpedWords + " words due to full disk");
+
                         if (emu.isFileWritingOn()) {
                             try {
                                 evioFileWriter.close();
