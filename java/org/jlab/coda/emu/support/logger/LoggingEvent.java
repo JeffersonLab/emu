@@ -19,27 +19,31 @@ public class LoggingEvent {
     // 5-8   = warning
     // 9-12  = error
     // 13-14 = severe
-    // 15    = rc gui console msg, severity text is settable
+    // 15    = rc gui console info msg, severity text is settable (green)
+    // 16    = special warning known only to CODA (yellow)
     //
     // < 9 is ignored by rc gui
 
-    /** Field DEBUG */
+    /** DEBUG msg. Does not show up on RC gui. */
     public final static int DEBUG = 1;
 
-    /** Field INFO */
+    /** INFO msg. Does not show up on RC gui. */
     public final static int INFO = 2;
 
-    /** Field WARN, 5 - 8. */
+    /** WARNING msg, 5 - 8. Does not show up on RC gui. */
     public final static int WARN = 8;
 
-    /** Field ERROR, 9 - 12 */
+    /** ERROR msg, 9 - 12. Will show up on RC gui as red.*/
     public final static int ERROR = 9;
 
-    /** Field BUG */
+    /** BUG msg, 13. Will show up as severe error on RC gui. */
     public final static int BUG = 13;
 
-    /** Field RC GUI CONSOLE */
+    /** RC GUI CONSOLE msg, 15. Will show up on RC gui as green. */
     public final static int RC_GUI_CONSOLE = 15;
+
+    /** CODA_WARNING msg, 16. Will show up on RC gui as yellow. */
+    public final static int CODA_WARN = 16;
 
     /** Field level */
     private int level;
@@ -209,6 +213,11 @@ public class LoggingEvent {
                     return (String)data;
                 }
                 return "NO_LEVEL";
+            case CODA_WARN:
+                if (hasData) {
+                    return (String)data;
+                }
+                return "WARN";
             default:
                 return "UNKNOWN";
         }
