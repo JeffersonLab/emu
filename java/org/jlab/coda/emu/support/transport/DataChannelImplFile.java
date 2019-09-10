@@ -263,6 +263,9 @@ logger.info("      DataChannel File: dictionary file cannot be read");
                                                        emu.getFileOutputCount(),  // splitIncrement
                                                        emu.getDataStreamCount()); // stream count
 
+                if (evioFileWriter.isDiskFull()) {
+                    emu.sendRcWarningMessage("files cannot be written, disk almost full");
+                }
 logger.info("      DataChannel File: streamId = " + emu.getDataStreamId() + ", stream count = " +
             emu.getDataStreamCount() + ", filecount = " + emu.getFileOutputCount());
 
@@ -588,7 +591,7 @@ logger.info("      DataChannel File: reset " + name + " - done");
 
                 while (!written) {
 
-                    if (!sentMsgToRC && repeatLoops++ > 4) {
+                    if (!sentMsgToRC && repeatLoops++ > 1) {
 logger.info("      DataChannel File out: disc is full, waiting ...");
                         emu.sendRcWarningMessage("cannot write file, disc is full");
                         sentMsgToRC = true;
