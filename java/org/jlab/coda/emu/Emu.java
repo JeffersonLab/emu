@@ -887,30 +887,28 @@ System.out.println("\n\n");
     //-----------------------------------------------------
 
     /**
-     * Send run control a warning message which gets displayed in its GUI.
-     * @param msg warning message
+     * Send run control a informational message which gets displayed in its GUI.
+     * @param msg info message
      */
-    public void sendRcInfoMessage(String msg) {
-        cmsgPortal.rcGuiInfoMessage(msg);
-    }
+    public void sendRcInfoMessage(String msg) {cmsgPortal.rcGuiInfoMessage(msg);}
 
     /**
      * Send run control a warning message which gets displayed in its GUI.
      * @param msg warning message
      */
-    public void sendRcWarningMessage(String msg) {
-        cmsgPortal.rcGuiWarningMessage(msg);
-    }
-
+    public void sendRcWarningMessage(String msg) {cmsgPortal.rcGuiWarningMessage(msg);}
 
     /**
      * Send run control an error message which gets displayed in its GUI.
      * @param error error message
      */
-    public void sendRcErrorMessage(String error) {
-//System.out.println("Emu " + name + " sending special RC display error Msg:\n *** " + error + " ***");
-        cmsgPortal.rcGuiErrorMessage(error);
-    }
+    public void sendRcErrorMessage(String error) {cmsgPortal.rcGuiErrorMessage(error);}
+
+    /**
+     * Send run control a severe error message which gets displayed in its GUI.
+     * @param error severe  message
+     */
+    public void sendRcSevereMessage(String error) {cmsgPortal.rcGuiSevereMessage(error);}
 
     /**
      * Add a single output destination name, like a file or et system name, or
@@ -1984,7 +1982,7 @@ logger.info("Emu " + name + " go: change state to GOING");
                 // Look at the last module in config
                 EmuModule mod = modules.get(modules.size() - 1);
 System.out.println("Emu " + name + " go: waiting for PRESTART event in module " + mod.name());
-                sendRcWarningMessage("Emu " + name + " go: waiting for PRESTART event in module " + mod.name());
+                sendRcInfoMessage("Emu " + name + " go: waiting for PRESTART event in module " + mod.name());
                 mod.getPrestartCallback().waitForEvent();
 System.out.println("Emu " + name + " go: got PRESTART event in module " + mod.name());
             }

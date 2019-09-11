@@ -282,7 +282,7 @@ logger.info("      DataChannel File: compression = " + compression);
                     }
                     catch (NumberFormatException e) {}
                 }
-                compressionThreads = 2;
+                compressionThreads = 1;
 logger.info("      DataChannel File: compressionThreads = " + compressionThreads);
 
                 evioFileWriter = new EventWriterUnsync(fileName, directory, runType,
@@ -295,6 +295,9 @@ logger.info("      DataChannel File: compressionThreads = " + compressionThreads
                                                        emu.getDataStreamCount(),  // stream count
                                                        compression, compressionThreads, 0, 0);
 
+                if (evioFileWriter.isDiskFull()) {
+                    emu.sendRcWarningMessage("files cannot be written, disk almost full");
+                }
 logger.info("      DataChannel File: streamId = " + emu.getDataStreamId() + ", stream count = " +
             emu.getDataStreamCount() + ", filecount = " + emu.getFileOutputCount());
 
@@ -624,7 +627,7 @@ logger.info("      DataChannel File: reset " + name + " - done");
 
                 while (!written) {
 
-                    if (!sentMsgToRC && repeatLoops++ > 4) {
+                    if (!sentMsgToRC && repeatLoops++ > 1) {
                         logger.info("      DataChannel File out: disc is full, waiting ...");
                         emu.sendRcWarningMessage("cannot write file, disc is full");
                         sentMsgToRC = true;
@@ -899,7 +902,7 @@ logger.info("      DataChannel File out " + outputIndex + ": wrote GO");
                         // HallD wants a warning if splitCount > 3 digits (ie 999).
                         // But send it only once (hence the upper limit).
                         if ( (splitCount > 999) && (split <= (999 + emu.getDataStreamCount())) ) {
-                            emu.sendRcErrorMessage("WARNING ONLY: split number over 999");
+                            emu.sendRcWarningMessage("split number over 999");
                         }
                     }
 

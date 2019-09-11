@@ -98,7 +98,7 @@ public class Logger {
     @SuppressWarnings({"ThrowableInstanceNeverThrown"})
     private StackTraceElement getLocation(int level) {
 
-        if (java13 || (level < LoggingEvent.BUG)) {
+        if (java13 || (level < LoggingEvent.SEVERE)) {
             return null;
         }
         try {

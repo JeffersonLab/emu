@@ -17,28 +17,39 @@ public class LoggingEvent {
     // 0     = reserved
     // 1-4   = info
     // 5-8   = warning
-    // 9-12  = error
-    // 13-14 = severe
-    // 15    = rc gui console msg, severity text is settable
+    // 9-12  = error, 9 & 10 mean state unchanged; 11 & 12 mean reset needed
+    // 13-14 = severe, component needs to be killed and restarted
+    // 15    = rc gui console info msg, severity text is settable (green)
     //
     // < 9 is ignored by rc gui
 
-    /** Field DEBUG */
+    /** DEBUG msg. Does not show up on RC gui. */
     public final static int DEBUG = 1;
 
-    /** Field INFO */
+    /** INFO msg. Does not show up on RC gui. */
     public final static int INFO = 2;
 
-    /** Field WARN, 5 - 8. */
+    /** WARNING msg, 5 - 8. Does not show up on RC gui. */
     public final static int WARN = 8;
 
-    /** Field ERROR, 9 - 12 */
-    public final static int ERROR = 9;
+    /** ERROR msg, 9 - 12. Will show up on RC gui as red.
+     * Used when component needs a reset to fix.*/
+    public final static int ERROR = 11;
 
-    /** Field BUG */
-    public final static int BUG = 13;
+    /**
+     * CODA_WARNING msg, 9. Will show up on RC gui as orange.
+     * Technically it's an error, but used as a warning
+     * when component state does not need to be changed, but
+     * error condition exists.
+     */
+    public final static int CODA_WARN = 9;
 
-    /** Field RC GUI CONSOLE */
+    /** SEVERE msg, 13 - 14. Will show up as severe error on RC gui.
+     * To be used to indicate error needed the component to be killed
+     * and restarted. */
+    public final static int SEVERE = 13;
+
+    /** RC GUI CONSOLE msg, 15. Will show up on RC gui as green. */
     public final static int RC_GUI_CONSOLE = 15;
 
     /** Field level */
@@ -194,8 +205,8 @@ public class LoggingEvent {
      */
     public String getFormatedLevel() {
         switch (level) {
-            case BUG:
-                return "BUG";
+            case SEVERE:
+                return "SEVERE";
             case ERROR:
                 return "ERROR";
             case WARN:
@@ -209,6 +220,11 @@ public class LoggingEvent {
                     return (String)data;
                 }
                 return "NO_LEVEL";
+            case CODA_WARN:
+                if (hasData) {
+                    return (String)data;
+                }
+                return "ERROR_LITE";
             default:
                 return "UNKNOWN";
         }

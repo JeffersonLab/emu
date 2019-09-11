@@ -449,12 +449,13 @@ logger.warn("Emu: exit due to rc/cMsg connect error: " + e.getMessage());
             // 5-8   = warning
             // 9-12  = error
             // 13-14 = severe
-            // 15    = rc gui console msg, severity text is settable
+            // 15    = rc gui console info msg, severity text is settable (green)
+            // 16    = special warning known only to CODA (yellow)
             //
             // < 9 is ignored by rc gui
 
             // Default to info message
-            if (errorLevel < 1 || errorLevel > 15) {
+            if (errorLevel < 1 || errorLevel > 16) {
                 errorLevel = LoggingEvent.INFO;
             }
 
@@ -494,7 +495,7 @@ logger.warn("Emu: exit due to rc/cMsg connect error: " + e.getMessage());
         // Some events have a String data object
         String severity = null;
         Object obj = event.getData();
-        if ((obj != null) && (obj instanceof String)) {
+        if (obj instanceof String) {
             severity = (String) obj;
         }
 
@@ -512,20 +513,33 @@ logger.warn("Emu: exit due to rc/cMsg connect error: " + e.getMessage());
 
     /**
      * Send a warning message that ends up on the run control gui.
+     * Is the lightest of errors. Component's state does not change.
+     * Shows in orange.
      * @param text text of message
      */
     synchronized public void rcGuiWarningMessage(String text) {
-        updateAndSendLoggingMessage(text, LoggingEvent.RC_GUI_CONSOLE, "WARNING");
+        updateAndSendLoggingMessage(text, LoggingEvent.CODA_WARN, "WARNING");
     }
 
     /**
      * Send an error message that ends up on the run control gui.
+     * Is a medium error. Component must be reset.
+     * Shows in red.
      * @param text text of message
      */
     synchronized public void rcGuiErrorMessage(String text) {
-        updateAndSendLoggingMessage(text, LoggingEvent.ERROR, null);
+        updateAndSendLoggingMessage(text, LoggingEvent.ERROR, "ERROR");
     }
 
+    /**
+     * Send an error message that ends up on the run control gui.
+     * Worst error. Component must be killed and restarted in order to function.
+     * Shows in purple.
+     * @param text text of message
+     */
+    synchronized public void rcGuiSevereMessage(String text) {
+        updateAndSendLoggingMessage(text, LoggingEvent.SEVERE, "SEVERE ERROR");
+    }
 
 }
 

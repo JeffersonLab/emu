@@ -1661,7 +1661,7 @@ System.out.println("  EB mod: got user event from channel " + inputChannels.get(
                                                             inputChannelCount + " channels");
                          }
                          else {
-                             emu.sendRcErrorMessage("All END events found, but out of order");
+                             emu.sendRcWarningMessage("All END events found, but out of order");
                              System.out.println("  EB mod: bt" + btIndex + " have all ENDs, but differing # of physics events in channels");
                          }
 
