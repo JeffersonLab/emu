@@ -17,10 +17,9 @@ public class LoggingEvent {
     // 0     = reserved
     // 1-4   = info
     // 5-8   = warning
-    // 9-12  = error
-    // 13-14 = severe
+    // 9-12  = error, 9 & 10 mean state unchanged; 11 & 12 mean reset needed
+    // 13-14 = severe, component needs to be killed and restarted
     // 15    = rc gui console info msg, severity text is settable (green)
-    // 16    = special warning known only to CODA (yellow)
     //
     // < 9 is ignored by rc gui
 
@@ -33,17 +32,25 @@ public class LoggingEvent {
     /** WARNING msg, 5 - 8. Does not show up on RC gui. */
     public final static int WARN = 8;
 
-    /** ERROR msg, 9 - 12. Will show up on RC gui as red.*/
-    public final static int ERROR = 9;
+    /** ERROR msg, 9 - 12. Will show up on RC gui as red.
+     * Used when component needs a reset to fix.*/
+    public final static int ERROR = 11;
 
-    /** BUG msg, 13. Will show up as severe error on RC gui. */
-    public final static int BUG = 13;
+    /**
+     * CODA_WARNING msg, 9. Will show up on RC gui as orange.
+     * Technically it's an error, but used as a warning
+     * when component state does not need to be changed, but
+     * error condition exists.
+     */
+    public final static int CODA_WARN = 9;
+
+    /** SEVERE msg, 13 - 14. Will show up as severe error on RC gui.
+     * To be used to indicate error needed the component to be killed
+     * and restarted. */
+    public final static int SEVERE = 13;
 
     /** RC GUI CONSOLE msg, 15. Will show up on RC gui as green. */
     public final static int RC_GUI_CONSOLE = 15;
-
-    /** CODA_WARNING msg, 16. Will show up on RC gui as yellow. */
-    public final static int CODA_WARN = 16;
 
     /** Field level */
     private int level;
@@ -198,8 +205,8 @@ public class LoggingEvent {
      */
     public String getFormatedLevel() {
         switch (level) {
-            case BUG:
-                return "BUG";
+            case SEVERE:
+                return "SEVERE";
             case ERROR:
                 return "ERROR";
             case WARN:
@@ -217,7 +224,7 @@ public class LoggingEvent {
                 if (hasData) {
                     return (String)data;
                 }
-                return "WARN";
+                return "ERROR_LITE";
             default:
                 return "UNKNOWN";
         }

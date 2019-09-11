@@ -513,6 +513,8 @@ logger.warn("Emu: exit due to rc/cMsg connect error: " + e.getMessage());
 
     /**
      * Send a warning message that ends up on the run control gui.
+     * Is the lightest of errors. Component's state does not change.
+     * Shows in orange.
      * @param text text of message
      */
     synchronized public void rcGuiWarningMessage(String text) {
@@ -521,12 +523,23 @@ logger.warn("Emu: exit due to rc/cMsg connect error: " + e.getMessage());
 
     /**
      * Send an error message that ends up on the run control gui.
+     * Is a medium error. Component must be reset.
+     * Shows in red.
      * @param text text of message
      */
     synchronized public void rcGuiErrorMessage(String text) {
-        updateAndSendLoggingMessage(text, LoggingEvent.ERROR, null);
+        updateAndSendLoggingMessage(text, LoggingEvent.ERROR, "ERROR");
     }
 
+    /**
+     * Send an error message that ends up on the run control gui.
+     * Worst error. Component must be killed and restarted in order to function.
+     * Shows in purple.
+     * @param text text of message
+     */
+    synchronized public void rcGuiSevereMessage(String text) {
+        updateAndSendLoggingMessage(text, LoggingEvent.SEVERE, "SEVERE ERROR");
+    }
 
 }
 
