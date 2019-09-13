@@ -453,7 +453,7 @@ logger.info("      DataChannel File: reset " + name + " - done");
                         isUser = true;
                     }
 
-                    nextRingItem = ringBufferIn.next();
+                    nextRingItem = ringBufferIn.nextIntr(1);
                     ringItem = ringBufferIn.get(nextRingItem);
 
                     if (bankType.isBuildable()) {
@@ -476,7 +476,7 @@ logger.info("      DataChannel File: reset " + name + " - done");
                 }
 
                 // Put in END event
-                nextRingItem = ringBufferIn.next();
+                nextRingItem = ringBufferIn.nextIntr(1);
                 ringItem = ringBufferIn.get(nextRingItem);
 
                 ringItem.setAll(Evio.createControlEvent(ControlType.END, 0, 0, counter, 0, false),
@@ -487,6 +487,9 @@ logger.info("      DataChannel File: reset " + name + " - done");
 
                 if (endCallback != null) endCallback.endWait();
 
+            }
+            catch (InterruptedException e) {
+logger.warn("      DataChannel File in: (" + name + ") thd interrupted");
             }
             catch (Exception e) {
 //logger.warn("      DataChannel File in: (" + name + ") close file");
