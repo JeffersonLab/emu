@@ -65,7 +65,6 @@ public class DataChannelImplEmu extends DataChannelAdapter {
      */
     private boolean dumpData;
 
-    private boolean useGarbageFree;
 
     // OUTPUT
 
@@ -207,17 +206,6 @@ public class DataChannelImplEmu extends DataChannelAdapter {
                     attribString.equalsIgnoreCase("off") ||
                     attribString.equalsIgnoreCase("no")) {
                 direct = false;
-            }
-        }
-
-        // set "garbage free" option on
-        useGarbageFree = true;
-        attribString = attributeMap.get("garbageFree");
-        if (attribString != null) {
-            if (attribString.equalsIgnoreCase("true") ||
-                    attribString.equalsIgnoreCase("on") ||
-                    attribString.equalsIgnoreCase("yes")) {
-                useGarbageFree = true;
             }
         }
 
@@ -413,10 +401,8 @@ logger.info("      DataChannel Emu: set sendBuf to " + tcpSendBuf);
             socketChannel = new SocketChannel[socketCount];
             dataInputThread = new DataInputHelper[socketCount];
             parserMergerThread = new ParserMerger();
-            if (useGarbageFree) {
-                nodePools = new EvioNodePool[socketCount][numBufs];
+            nodePools = new EvioNodePool[socketCount][numBufs];
 //logger.info("      DataChannel Emu in: allocated " + (socketCount * numBufs) + " node pools in array");
-            }
         }
         // If establishing multiple sockets for this single emu channel,
         // make sure their settings are compatible.
@@ -481,24 +467,17 @@ logger.info("      DataChannel Emu: set sendBuf to " + tcpSendBuf);
 //logger.info("      DataChannel Emu in: seq release of buffers = " + sequentialRelease);
 
 
-        if (useGarbageFree) {
-            // Create the EvioNode pools - each socket gets numBuf number of pools -
-            // each of which contain 3500 EvioNodes to begin with. These are used for
-            // the nodes of each event.
-            for (int i = 0; i < numBufs; i++) {
-                nodePools[index][i] = new EvioNodePool(3500);
-            }
+        // Create the EvioNode pools - each socket gets numBuf number of pools -
+        // each of which contain 3500 EvioNodes to begin with. These are used for
+        // the nodes of each event.
+        for (int i = 0; i < numBufs; i++) {
+            nodePools[index][i] = new EvioNodePool(3500);
+        }
 //logger.info("      DataChannel Emu in: created " + (numBufs) + " node pools for socket " + index + ", " + name());
 
-            bbInSupply[index] = new ByteBufferSupply(numBufs, maxBufferSize,
-                                                     ByteOrder.BIG_ENDIAN, direct,
-                                                     sequentialRelease, nodePools[index]);
-        }
-        else {
-            bbInSupply[index] = new ByteBufferSupply(numBufs, maxBufferSize,
-                                                     ByteOrder.BIG_ENDIAN, direct,
-                                                     sequentialRelease);
-        }
+        bbInSupply[index] = new ByteBufferSupply(numBufs, maxBufferSize,
+                                                 ByteOrder.BIG_ENDIAN, direct,
+                                                 sequentialRelease, nodePools[index]);
 
 //logger.info("      DataChannel Emu in: seq release = " + sequentialRelease);
 
@@ -1090,17 +1069,9 @@ System.out.println("      DataChannel Emu in: " + name +
                     while (true) {
                         // Sets the consumer sequence
                         ByteBufferItem item = bbSupply.consumerGet();
-                        if (useGarbageFree) {
-                            if (parseToRingNew(item, bbSupply)) {
-                                logger.info("      DataChannel Emu in: 1 quit parser/merger thread for END event from " + name);
-                                break;
-                            }
-                        }
-                        else {
-                            if (parseToRing(item, bbSupply)) {
-                                logger.info("      DataChannel Emu in: 1 quit parser/merger thread for END event from " + name);
-                                break;
-                            }
+                        if (parseToRing(item, bbSupply)) {
+                            logger.info("      DataChannel Emu in: 1 quit parser/merger thread for END event from " + name);
+                            break;
                         }
                     }
                 }
@@ -1112,20 +1083,11 @@ System.out.println("      DataChannel Emu in: " + name +
                         for (ByteBufferSupply bbSupply : bbInSupply) {
                             // Alternate by getting one buffer from each supply in order
                             ByteBufferItem item = bbSupply.consumerGet();
-                            if (useGarbageFree) {
-                                if (parseToRingNew(item, bbSupply)) {
-                                    logger.info("      DataChannel Emu in: 2 quit parser/merger thread for END event from " + name);
-                                    break toploop;
-                                }
+                            if (parseToRing(item, bbSupply)) {
+                                logger.info("      DataChannel Emu in: 2 quit parser/merger thread for END event from " + name);
+                                break toploop;
                             }
-                            else {
-                                // Parse the buffer and place on ring.
-                                // Returns true if END event encountered as very last event
-                                if (parseToRing(item, bbSupply)) {
-                                    logger.info("      DataChannel Emu in: 2 quit parser/merger thread for END event from " + name);
-                                    break toploop;
-                                }
-                            }
+
                             sockIndex = (sockIndex + 1) % 2;
                             // This buffer will be released when EB/ER is done with it
                         }
@@ -1153,7 +1115,7 @@ System.out.println("      DataChannel Emu in: " + name +
          * @throws EvioException
          * @throws InterruptedException
          */
-        private final boolean parseToRingNew(ByteBufferItem item, ByteBufferSupply bbSupply)
+        private final boolean parseToRing(ByteBufferItem item, ByteBufferSupply bbSupply)
                 throws EvioException, InterruptedException {
 
             RingItem ri;
@@ -1313,180 +1275,6 @@ logger.info("      DataChannel Emu in: got " + controlType + " event from " + na
 
                      continue;
                  }
-
-                 // Set & reset all parameters of the ringItem
-                 if (eventType.isBuildable()) {
-                     ri.setAll(null, null, node, eventType, controlType,
-                               isUser, hasFirstEvent, id, recordId, sourceId,
-                               node.getNum(), name, item, bbSupply);
-                 }
-                 else {
-                     ri.setAll(null, null, node, eventType, controlType,
-                               isUser, hasFirstEvent, id, recordId, sourceId,
-                               1, name, item, bbSupply);
-                 }
-
-                 // Only the first event of first block can be "first event"
-                 isUser = hasFirstEvent = false;
-
-                 ringBufferIn.publish(nextRingItem);
-
-                 // Handle end event ...
-                 if (controlType == ControlType.END) {
-                     // There should be no more events coming down the pike so
-                     // go ahead write out existing events and then shut this
-                     // thread down.
-                     haveInputEndEvent = true;
-                     // Run callback saying we got end event
-                     if (endCallback != null) endCallback.endWait();
-                     break;
-                 }
-             }
-
-             return haveInputEndEvent;
-         }
-
-
-        /**
-         * Parse the buffer into evio bits that get put on this channel's ring.
-         *
-         * @param item     ByteBufferSupply item containing buffer to be parsed.
-         * @param bbSupply ByteBufferSupply item.
-         * @return is the last evio event parsed the END event?
-         * @throws EvioException
-         * @throws InterruptedException
-         */
-        private final boolean parseToRing(ByteBufferItem item, ByteBufferSupply bbSupply)
-                throws EvioException, InterruptedException {
-
-             RingItem ri;
-             EvioNode node;
-             boolean hasFirstEvent, isUser=false;
-             ControlType controlType = null;
-
-             ByteBuffer buf = item.getBuffer();
-//System.out.println("p1, buf lim = " + buf.limit() + ", cap = " + buf.capacity());
-//Utilities.printBuffer(buf, 0, 100, "Buf");
-             try {
-//System.out.println("      DataChannel Emu in: try parsing buf");
-                 if (reader == null) {
-                     reader = new EvioCompactReaderUnsync(buf);
-                 }
-                 else {
-                     reader.setBuffer(buf);
-                 }
-             }
-             catch (EvioException e) {
-System.out.println("      DataChannel Emu in: data NOT evio v4 format 1");
-                 e.printStackTrace();
-                 throw e;
-             }
-
-             // First block header in buffer
-             BlockHeaderV4 blockHeader = reader.getFirstBlockHeader();
-             if (blockHeader.getVersion() < 4) {
-                 throw new EvioException("Data not in evio v4 but in version " +
-                                                 blockHeader.getVersion());
-             }
-
-             hasFirstEvent = blockHeader.hasFirstEvent();
-             EventType eventType = EventType.getEventType(blockHeader.getEventType());
-             if (eventType == null) {
-                 throw new EvioException("bad format evio block header");
-             }
-             int recordId = blockHeader.getNumber();
-
-             // Each PayloadBuffer contains a reference to the buffer it was
-             // parsed from (buf).
-             // This cannot be released until the module is done with it.
-             // Keep track by counting users (# events parsed from same buffer).
-             int eventCount = reader.getEventCount();
-             item.setUsers(eventCount);
-//    System.out.println("      DataChannel Emu in: block header, event type " + eventType +
-//                       ", recd id = " + recordId + ", event cnt = " + eventCount);
-
-             for (int i = 1; i < eventCount + 1; i++) {
-                 if (isER) {
-                     // Don't need to parse all bank headers, just top level.
-                     node = reader.getEvent(i);
-                 }
-                 else {
-                     node = reader.getScannedEvent(i);
-                 }
-                 
-                 // This should NEVER happen
-                 if (node == null) {
-System.out.println("      DataChannel Emu in: WARNING, event count = " + eventCount +
-                   " but get(Scanned)Event(" + i + ") is null - evio parsing bug");
-                     continue;
-                 }
-
-                 // Complication: from the ROC, we'll be receiving USER events
-                 // mixed in with and labeled as ROC Raw events. Check for that
-                 // and fix it.
-                 if (eventType == EventType.ROC_RAW) {
-                     if (Evio.isUserEvent(node)) {
-                         isUser = true;
-                         eventType = EventType.USER;
-                         if (hasFirstEvent) {
-                             System.out.println("      DataChannel Emu in: FIRST event from ROC RAW");
-                         }
-                         else {
-                             System.out.println("      DataChannel Emu in: USER event from ROC RAW");
-                         }
-                     }
-                 }
-                 else if (eventType == EventType.CONTROL) {
-                     // Find out exactly what type of control event it is
-                     // (May be null if there is an error).
-                     controlType = ControlType.getControlType(node.getTag());
-logger.info("      DataChannel Emu in: got " + controlType + " event from " + name);
-                     if (controlType == null) {
-                         logger.info("      DataChannel Emu in: found unidentified control event");
-                         throw new EvioException("Found unidentified control event");
-                     }
-                 }
-                 else if (eventType == EventType.USER) {
-                     isUser = true;
-                     if (hasFirstEvent) {
-                         logger.info("      DataChannel Emu in: got FIRST event");
-                     }
-                     else {
-                         logger.info("      DataChannel Emu in: got USER event");
-                     }
-                 }
-
-                 if (dumpData) {
-                     bbSupply.release(item);
-
-                     // Handle end event ...
-                     if (controlType == ControlType.END) {
-                         // There should be no more events coming down the pike so
-                         // go ahead write out existing events and then shut this
-                         // thread down.
-                         haveInputEndEvent = true;
-                         // Run callback saying we got end event
-                         if (endCallback != null) endCallback.endWait();
-                         break;
-                     }
-
-                     // Send control events on to module so we can prestart, go and take data
-                     if (!eventType.isBuildable()) {
-                         nextRingItem = ringBufferIn.next();
-                         ri = ringBufferIn.get(nextRingItem);
-
-                         ri.setAll(null, null, node, eventType, controlType,
-                                   isUser, hasFirstEvent, id, recordId, sourceId,
-                                   1, name, item, bbSupply);
-
-                         ringBufferIn.publish(nextRingItem);
-                     }
-
-                     continue;
-                 }
-
-                 nextRingItem = ringBufferIn.nextIntr(1);
-                 ri = ringBufferIn.get(nextRingItem);
 
                  // Set & reset all parameters of the ringItem
                  if (eventType.isBuildable()) {
