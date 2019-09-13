@@ -1410,12 +1410,13 @@ logger.debug("      DataChannel Et: reset " + name + " channel");
 
                     while (true) {
                         if (stopGetterThread) {
+//logger.info("      DataChannel Et in: " + name + ", Getter thd stopped 1");
                             return;
                         }
 
                         // Will block here if no available slots in ring.
                         // It will unblock when ET events are put back by the other thread.
-                        sequence = rb.next(); // This just spins on parkNanos
+                        sequence = rb.nextIntr(1); // This in interruptible
                         etContainer = rb.get(sequence);
 
                         if (useDirectEt) {
@@ -1427,6 +1428,7 @@ logger.debug("      DataChannel Et: reset " + name + " channel");
                                 }
                                 catch (EtTimeoutException e) {}
                                 if (stopGetterThread) {
+//logger.info("      DataChannel Et in: " + name + ", Getter thd stopped 2");
                                    return;
                                 }
                             }
@@ -1784,7 +1786,7 @@ System.out.println("      DataChannel Et in: GETTER is Quitting");
                             // ET event contains only one event type (CONTROL, PHYSICS, etc).
 
                             //System.out.println("      DataChannel Et in: wait for next ring buf for writing");
-                            nextRingItem = ringBufferIn.next();
+                            nextRingItem = ringBufferIn.nextIntr(1);
                             //System.out.println("      DataChannel Et in: Got sequence " + nextRingItem);\
 
                             ri = ringBufferIn.get(nextRingItem);
@@ -2695,7 +2697,7 @@ System.out.println("      DataChannel Et out: " + name + " Et connection closed"
 
                             // Will block here if no available slots in ring.
                             // It will unblock when ET events are put back by the other thread.
-                            sequence = rb.next(); // This just spins on parkNanos
+                            sequence = rb.nextIntr(1); // This just spins on parkNanos
                             etContainer = rb.get(sequence);
 
                             // Now that we have a free container, get new events & store them in container.
@@ -2727,7 +2729,7 @@ System.out.println("      DataChannel Et out: " + name + " Et connection closed"
                                 return;
                             }
 
-                            sequence = rb.next();
+                            sequence = rb.nextIntr(1);
                             etContainer = rb.get(sequence);
 
                             etContainer.newEvents(attachment, Mode.SLEEP, 0, chunk, eventSize, group);
