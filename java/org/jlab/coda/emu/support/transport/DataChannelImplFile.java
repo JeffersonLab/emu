@@ -282,7 +282,7 @@ logger.info("      DataChannel File: compression = " + compression);
                     }
                     catch (NumberFormatException e) {}
                 }
-                compressionThreads = 1;
+                compressionThreads = 2;
 logger.info("      DataChannel File: compressionThreads = " + compressionThreads);
 
                 evioFileWriter = new EventWriterUnsync(fileName, directory, runType,
@@ -397,13 +397,15 @@ logger.info("      DataChannel File: reset " + name + " channel");
                                                                     emu.getRunTypeId(), (int) eventsWritten,
                                                                     0, byteOrder, true);
                     if (emu.isFileWritingOn()) {
-                        evioFileWriter.writeEvent(endBuf.getBuffer());
+                        evioFileWriter.writeEventToFile(null, endBuf.getBuffer(), true);
                     }
                 }
 
                 // Then close to save everything to disk.
                 if (emu.isFileWritingOn()) {
+logger.info("      DataChannel File: reset " + name + " - CALL writer close()");
                     evioFileWriter.close();
+logger.info("      DataChannel File: reset " + name + " - DONE writer close()");
                 }
             }
         } catch (Exception e) {}
@@ -571,35 +573,6 @@ logger.info("      DataChannel File: reset " + name + " - done");
          * @param forceToDisk if true, force event to hard disk
          * @throws IOException
          * @throws EvioException
-         */
-        private final void writeEvioDataOrig(RingItem ri, boolean forceToDisk)
-                throws IOException, EvioException {
-
-            if (emu.isFileWritingOn()) {
-                if (ri.getBuffer() != null) {
-//logger.info("      DataChannel File out: write buffer with order = " + ri.getBuffer().order());
-                    evioFileWriter.writeEvent(ri.getBuffer(), forceToDisk);
-                }
-                else {
-//logger.info("      DataChannel File out: write buffer with order = " + ri.getNode().getBufferNode().getBuffer().order());
-                    // Last boolean arg means do (not) duplicate node's buffer when writing.
-                    // Setting this to false led to problems since the input channel is using
-                    // the buffer at the same time.
-                    evioFileWriter.writeEvent(ri.getNode(), forceToDisk, true);
-                }
-            }
-
-            ri.releaseByteBuffer();
-        }
-
-
-        /**
-         * Write event to file.
-         *
-         * @param ri          item to write to disk
-         * @param forceToDisk if true, force event to hard disk
-         * @throws IOException
-         * @throws EvioException
          * @throws InterruptedException
          */
         private final void writeEvioData(RingItem ri, boolean forceToDisk)
@@ -628,7 +601,7 @@ logger.info("      DataChannel File: reset " + name + " - done");
                 while (!written) {
 
                     if (!sentMsgToRC && repeatLoops++ > 1) {
-                        logger.info("      DataChannel File out: disc is full, waiting ...");
+logger.info("      DataChannel File out: disc is full, waiting ...");
                         emu.sendRcWarningMessage("cannot write file, disc is full");
                         sentMsgToRC = true;
                     }
@@ -666,10 +639,9 @@ logger.info("      DataChannel File: reset " + name + " - done");
                         }
                     }
                     else {
-//System.out.println("      DataChannel File out: sleep 1 sec .....");
+//System.out.println("      DataChannel File out: sleep 1 sec, try write again .....");
                         // Wait 1 sec
                         Thread.sleep(1000);
-//System.out.println("      DataChannel File out: try again to write event to disk .....");
 
                         // Try writing again
                         if (ri.getBuffer() != null) {
@@ -750,8 +722,13 @@ System.out.println("      DataChannel File out " + outputIndex + ": wrote presta
                                 throw new EmuException("second control event must be GO or END");
                             }
 
-                            // Do NOT force to hard disk as it may be go and will slow things down
-                            writeEvioData(ringItem, false);
+                            if (pBankControlType == ControlType.GO) {
+                                // Do NOT force GO to hard disk as it will slow things down
+                                writeEvioData(ringItem, false);
+                            }
+                            else {
+                                writeEvioData(ringItem, true);
+                            }
 
                             // Go to the next event
                             gotoNextRingItem(0);
@@ -869,9 +846,13 @@ logger.info("      DataChannel File out " + outputIndex + ": wrote GO");
                             // go to the next event now.
                             ringItem.releaseByteBuffer();
                         }
-                        else {
+                        // If not END event, don't force to disk
+                        else if (pBankType != EventType.CONTROL) {
 //System.out.println("      DataChannel File out " + outputIndex + ": write!");
                             writeEvioData(ringItem, false);
+                        }
+                        else {
+                            writeEvioData(ringItem, true);
                         }
                     }
                     catch (Exception e) {
