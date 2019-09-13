@@ -1919,6 +1919,12 @@ if (debug) System.out.println("Emu " + name + " end: END cmd to transport " + tr
             }
             fifoTransport.end();
 
+            //------------------------------------------------
+            // Free memory. Good for file channel which sets
+            // high mem objects to null in close() for this
+            // purpose.
+            //------------------------------------------------
+            System.gc();
         }
         catch (InterruptedException e) {
 System.out.println("Emu " + name + " end: interrupted, returning");
