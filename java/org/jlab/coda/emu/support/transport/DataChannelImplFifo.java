@@ -132,9 +132,8 @@ public class DataChannelImplFifo extends DataChannelAdapter {
         }
 
 
-        private final void writeEvioData(RingItem ri) throws IOException, EvioException {
-
-            long nextRingItem = ringBufferIn.next();
+        private final void writeEvioData(RingItem ri) throws InterruptedException {
+            long nextRingItem = ringBufferIn.nextIntr(1);
             RingItem riOutput = ringBufferIn.get(nextRingItem);
             riOutput.copy(ri);
             ringBufferIn.publish(nextRingItem);
