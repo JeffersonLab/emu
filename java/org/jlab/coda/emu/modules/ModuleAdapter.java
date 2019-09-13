@@ -264,11 +264,11 @@ logger.info("  Module Adapter: output byte order = " + outputOrder);
 
         // Have any output channels?
         if (outputChannelCount < 1) {
-            logger.info("  Module Adapter: no output channel so release event w/o publishing");
+//logger.info("  Module Adapter: no output channel so release event w/o publishing");
             itemOut.releaseByteBuffer();
             return;
         }
-logger.info("  Module Adapter: publishing events in out chan ring");
+//logger.info("  Module Adapter: publishing events in out chan ring");
 
         RingBuffer rb = outputChannels.get(channelNum).getRingBuffersOut()[ringNum];
         long nextRingItem = rb.nextIntr(1);
@@ -285,8 +285,10 @@ logger.info("  Module Adapter: publishing events in out chan ring");
      * @param itemOut    the event to place on output channel
      * @param channel    which output channel to place item on
      * @param ringNum    index of output channel ring buffer to place item on
+     * @throws InterruptedException
      */
-    protected void eventToOutputChannel(RingItem itemOut, DataChannel channel, int ringNum) {
+    protected void eventToOutputChannel(RingItem itemOut, DataChannel channel, int ringNum)
+        throws InterruptedException{
 
         // Have any output channels?
         if (outputChannelCount < 1) {
@@ -296,7 +298,7 @@ logger.info("  Module Adapter: publishing events in out chan ring");
         }
 
         RingBuffer rb = channel.getRingBuffersOut()[ringNum];
-        long nextRingItem = rb.next();
+        long nextRingItem = rb.nextIntr(1);
 
         RingItem ri = (RingItem) rb.get(nextRingItem);
         ri.copy(itemOut);
@@ -458,14 +460,14 @@ logger.info("  Module Adapter: publishing events in out chan ring");
     /** {@inheritDoc} */
     public void addInputChannels(ArrayList<DataChannel> input_channels) {
         if (input_channels == null) return;
-        this.inputChannels.addAll(input_channels);
+        inputChannels.addAll(input_channels);
         inputChannelCount  = inputChannels.size();
     }
 
     /** {@inheritDoc} */
     public void addOutputChannels(ArrayList<DataChannel> output_channels) {
         if (output_channels == null) return;
-        this.outputChannels.addAll(output_channels);
+        outputChannels.addAll(output_channels);
         outputChannelCount = outputChannels.size();
     }
 
