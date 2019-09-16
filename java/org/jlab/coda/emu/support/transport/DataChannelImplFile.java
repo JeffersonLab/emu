@@ -286,7 +286,7 @@ logger.info("      DataChannel File: compression = " + compression);
 logger.info("      DataChannel File: compressionThreads = " + compressionThreads);
 
                 evioFileWriter = new EventWriterUnsync(fileName, directory, runType,
-                                                       runNumber, split, 4*16777216, 10000,
+                                                       runNumber, split, 0, 100000,
                                                        byteOrder, dictionaryXML, overWriteOK,
                                                        false, null,
                                                        emu.getDataStreamId(),
