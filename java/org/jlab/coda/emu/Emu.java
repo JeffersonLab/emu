@@ -1907,6 +1907,11 @@ if (debug) System.out.println("Emu " + name + " end: END cmd to transport " + tr
             }
             fifoTransport.end();
 
+            //------------------------------------------------
+            // Free memory
+            //------------------------------------------------
+            System.gc();
+
         }
         catch (InterruptedException e) {
 System.out.println("Emu " + name + " end: interrupted, returning");
@@ -2048,10 +2053,6 @@ logger.info("Emu " + name + " prestart: change state to PRESTARTING");
 //        System.out.println("CMD; " + cmd.getMessage().toString());
         setState(PRESTARTING);
 
-        // This is a great time to collect garbage since emu input channels
-        // (which will be created in this method) tend to eat up a lot of memory.
-        System.gc();
-
         // Run Control tells us our run number & runType.
         // Get and store them.
         cMsgMessage msg = cmd.getMessage();
@@ -2100,6 +2101,9 @@ if (debug) System.out.println("Emu " + name + " prestart: PRESTART cmd to " + tr
             //------------------------------------------------
             inChannels.clear();
             outChannels.clear();
+
+            // Great time to collect garbage as channels tend to eat memory
+            System.gc();
 
             // modulesConfig never null cause checked in download transition
             Node modulesConfig = Configurer.getNode(configuration(), "component/modules");
