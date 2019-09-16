@@ -2066,10 +2066,6 @@ logger.info("Emu " + name + " prestart: change state to PRESTARTING");
 //        System.out.println("CMD; " + cmd.getMessage().toString());
         setState(PRESTARTING);
 
-        // This is a great time to collect garbage since emu input channels
-        // (which will be created in this method) tend to eat up a lot of memory.
-        System.gc();
-
         // Run Control tells us our run number & runType.
         // Get and store them.
         cMsgMessage msg = cmd.getMessage();
@@ -2107,6 +2103,7 @@ if (debug) System.out.println("Emu " + name + " prestart: PRESTART cmd to module
 
             //------------------------------------------------
             // PRESTART to transport objects first
+            // (currently only cMsg transport has prestart method)
             //------------------------------------------------
             for (DataTransport transport : transports) {
 if (debug) System.out.println("Emu " + name + " prestart: PRESTART cmd to " + transport.name());
@@ -2118,6 +2115,9 @@ if (debug) System.out.println("Emu " + name + " prestart: PRESTART cmd to " + tr
             //------------------------------------------------
             inChannels.clear();
             outChannels.clear();
+
+            // Great time to collect garbage as channels tend to eat memory
+            System.gc();
 
             // modulesConfig never null cause checked in download transition
             Node modulesConfig = Configurer.getNode(configuration(), "component/modules");
