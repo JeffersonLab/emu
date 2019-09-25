@@ -660,7 +660,7 @@ System.out.println("  ER mod: will end thread but no END event!");
                             mainAvailableSequence = barriersIn[mainIndex].waitFor(mainNextSequence);
                         }
                         catch (TimeoutException e) {
- System.out.println("TIMEOUT in ER waiting for data");
+//System.out.println("TIMEOUT in ER waiting for data");
                         }
 
                         // Non-blockingly check the (secondary) ET system
@@ -691,7 +691,7 @@ System.out.println("  ER mod: will end thread but no END event!");
                         // Deal with all secondary ET (user) events first since they
                         // may come before prestart.
                         if (etNextSequence <= etAvailableSequence) {
-System.out.println("   Got ET item");
+//System.out.println("   Got ET item");
                             ringItem = ringBuffersIn[etIndex].get(etNextSequence);
                             mainItem = false;
                         }
