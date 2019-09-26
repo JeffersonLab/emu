@@ -195,6 +195,7 @@ public class RocSimulation extends ModuleAdapter {
 
 
         outputOrder = ByteOrder.LITTLE_ENDIAN;
+        logger.info("  ROC Simulation: output byte order = " + outputOrder);
 
         // Set the sync bit every 5000th record
         syncBitCount = 5003;
@@ -727,7 +728,7 @@ System.out.println("\n\n  Roc mod: write USER event after go for Roc1 **********
 //                            }
 //                        }
 
-//                        Thread.sleep(5000);
+                        Thread.sleep(500);
 
                         eventCountTotal += eventBlockSize;
                         wordCountTotal  += eventWordSize;
@@ -1013,12 +1014,12 @@ System.out.println("  Roc mod: reset()");
 
 //        // Send more user events right after prestart
 //        if (sendUser && emu.name().equals("Roc1")) {
-//            try {
-//                // Put in User events
-//                System.out.println("  Roc mod: write USER event after prestart for Roc1");
-//                pBuf = createUserBuffer(outputOrder, false, 5);
-//                eventToOutputChannel(pBuf, 0, 0);
-//                rocRecordId++;
+            try {
+                // Put in User events
+                System.out.println("  Roc mod: write USER event after prestart for Roc1");
+                pBuf = createUserBuffer(outputOrder, false, 5);
+                eventToOutputChannel(pBuf, 0, 0);
+                rocRecordId++;
 //
 ////                System.out.println("  Roc mod: write FIRST event after prestart for Roc1");
 ////                pBuf = createUserBuffer(outputOrder, true, 6);
@@ -1029,13 +1030,13 @@ System.out.println("  Roc mod: reset()");
 ////                pBuf = createUserBuffer(outputOrder, false, 7);
 ////                eventToOutputChannel(pBuf, 0, 0);
 ////                rocRecordId++;
-//            }
-//            catch (InterruptedException e) {
-//                e.printStackTrace();
-//            }
+            }
+            catch (InterruptedException e) {
+                e.printStackTrace();
+            }
 //
-//            eventCountTotal++;
-//            wordCountTotal  += 7;
+            eventCountTotal++;
+            wordCountTotal  += 7;
 ////            eventCountTotal += 3;
 ////            wordCountTotal  += 21;
 //        }

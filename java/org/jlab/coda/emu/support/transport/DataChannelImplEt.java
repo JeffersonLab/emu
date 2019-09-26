@@ -321,7 +321,9 @@ logger.info("      DataChannel Et: chunk = " + chunk);
                 // Rocs need feedback of minimum evio-events / et-buffer from
                 // the DCs and PEBs.
                 CODAClass emuClass = emu.getCodaClass();
-                isFirstEB = (emuClass == CODAClass.PEB || emuClass == CODAClass.DC);
+                isFirstEB = (emuClass == CODAClass.PEB ||
+                             emuClass == CODAClass.DC  ||
+                             emuClass == CODAClass.PEBER);
                 isER = (emuClass == CODAClass.ER);
 
 
@@ -430,10 +432,7 @@ logger.info("      DataChannel Et: chunk = " + chunk);
                 // Is this the last level event builder (not a DC)?
                 // In this case, we want the first control word to indicate
                 // what type of event is being sent.
-                //
-                // Control events will be received and dealt with by the FCS
-                // (Farm Control Supervisor).
-                isFinalEB = (emuClass == CODAClass.PEB || emuClass == CODAClass.SEB);
+                isFinalEB = emuClass.isFinalEventBuilder();
                 // The value of control[0] will be set in the DataOutputHelper
             }
 

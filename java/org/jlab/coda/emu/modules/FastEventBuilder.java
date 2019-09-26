@@ -1678,6 +1678,7 @@ System.out.println("  EB mod: bt#" + btIndex + " found END events on all input c
                     CODAClass myClass = emu.getCodaClass();
                     switch (myClass) {
                         case SEB:
+                        case SEBER:
                             if (isSync) {
                                 tag = CODATag.BUILT_BY_SEB_SYNC.getValue();
                             }
@@ -1689,6 +1690,7 @@ System.out.println("  EB mod: bt#" + btIndex + " found END events on all input c
                             break;
 
                         case PEB:
+                        case PEBER:
                             if (isSync) {
                                 tag = CODATag.BUILT_BY_PEB_SYNC.getValue();
                             }
@@ -2235,7 +2237,8 @@ System.out.println("  EB mod: got user event from channel " + inputChannels.get(
                                      longData = new long[entangledEventCountNew + 2];
                                      evData   = new short[entangledEventCountNew];
 
-                                     if (emu.getCodaClass() == CODAClass.SEB) {
+                                     if (emu.getCodaClass() == CODAClass.SEB ||
+                                         emu.getCodaClass() == CODAClass.SEBER) {
                                          eventTypesRoc1       = new short[entangledEventCountNew];
                                          timeStampMin         = new long[entangledEventCountNew];
                                          timeStampMax         = new long[entangledEventCountNew];
@@ -2436,6 +2439,7 @@ System.out.println("  EB mod: got user event from channel " + inputChannels.get(
                      CODAClass myClass = emu.getCodaClass();
                      switch (myClass) {
                          case SEB:
+                         case SEBER:
                              if (isSync) {
                                  tag = CODATag.BUILT_BY_SEB_SYNC.getValue();
                              }
@@ -2447,6 +2451,7 @@ System.out.println("  EB mod: got user event from channel " + inputChannels.get(
                              break;
 
                          case PEB:
+                         case PEBER:
                              if (isSync) {
                                  tag = CODATag.BUILT_BY_PEB_SYNC.getValue();
                              }

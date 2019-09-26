@@ -34,7 +34,7 @@ $JAVA_HOME/bin/java -cp $CODA/common/jar/\* \
     -Djava.library.path=$CODA/$MACHINE/lib \
     -DcmsgUDL="rc://multicast/"$EXPID \
     -Dname=$1 \
-    -Dtype=SEBER org.jlab.coda.emu.EmuFactory
+    -Dtype=PEBER org.jlab.coda.emu.EmuFactory
 else
 $JAVA_HOME/bin/java -cp $CODA/common/jar/\* \
     -XX:+UnlockCommercialFeatures -XX:+FlightRecorder \
@@ -52,5 +52,5 @@ $JAVA_HOME/bin/java -cp $CODA/common/jar/\* \
     -Djava.library.path=$CODA/$MACHINE/lib \
     -DcmsgUDL="rc://multicast/"$EXPID \
     -Dname=$1 \
-    -Dtype=SEBER org.jlab.coda.emu.EmuFactory
+    -Dtype=PEBER org.jlab.coda.emu.EmuFactory
 endif

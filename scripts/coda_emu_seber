@@ -31,7 +31,7 @@ $JAVA_HOME/bin/java -cp $CODA/common/jar/\* \
     -Djava.library.path=$CODA/$MACHINE/lib \
     -DcmsgUDL="rc://multicast/"$EXPID \
     -Dname=$1 \
-    -Dtype=EBER org.jlab.coda.emu.EmuFactory
+    -Dtype=SEBER org.jlab.coda.emu.EmuFactory
 else
 $JAVA_HOME/bin/java -cp $CODA/common/jar/\* \
     -XX:+AssumeMP \
@@ -48,5 +48,5 @@ $JAVA_HOME/bin/java -cp $CODA/common/jar/\* \
     -Djava.library.path=$CODA/$MACHINE/lib \
     -DcmsgUDL="rc://multicast/"$EXPID \
     -Dname=$1 \
-    -Dtype=EBER org.jlab.coda.emu.EmuFactory
+    -Dtype=SEBER org.jlab.coda.emu.EmuFactory
 endif
