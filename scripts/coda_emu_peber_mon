@@ -1,0 +1,56 @@
+#!/bin/csh -f
+
+# Script to start up a CODA EMU Combination Event-Builder & Event-Recorder
+# First argument is the name of the component
+
+if ($#argv < 1) then
+  echo "Usage: coda_emu_eber <name> <rc address(optional)>"
+  echo "(Note valid addresses: ipv4 dot decimal)"
+  exit
+endif
+
+#setenv PATH $CODA/$MACHINE/bin
+#setenv LD_LIBRARY_PATH $CODA/$MACHINE/lib
+
+#setenv MALLOC_ARENA_MAX 2
+#    -XX:FlightRecorderOptions=defaultrecording=true \
+#    -Djavax.xml.parsers.SAXParserFactory=com.sun.org.apache.xerces.internal.jaxp.SAXParserFactoryImp \
+
+if ($#argv > 1) then
+$JAVA_HOME/bin/java -cp $CODA/common/jar/\* \
+    -XX:+UnlockCommercialFeatures -XX:+FlightRecorder \
+    -XX:+AssumeMP \
+    -XX:PerMethodRecompilationCutoff=40 \
+    -XX:NmethodSweepActivity=1 \
+    -XX:+UseConcMarkSweepGC \
+    -XX:+CMSParallelRemarkEnabled \
+    -XX:+ScavengeBeforeFullGC \
+    -XX:+CMSScavengeBeforeRemark \
+    -XX:+UseCMSInitiatingOccupancyOnly \
+    -XX:CMSInitiatingOccupancyFraction=70 \
+    -Xms10G \
+    -DrcAddr=$2 \
+    -Djava.net.preferIPv4Stack=true \
+    -Djava.library.path=$CODA/$MACHINE/lib \
+    -DcmsgUDL="rc://multicast/"$EXPID \
+    -Dname=$1 \
+    -Dtype=PEBER org.jlab.coda.emu.EmuFactory
+else
+$JAVA_HOME/bin/java -cp $CODA/common/jar/\* \
+    -XX:+UnlockCommercialFeatures -XX:+FlightRecorder \
+    -XX:+AssumeMP \
+    -XX:PerMethodRecompilationCutoff=40 \
+    -XX:NmethodSweepActivity=1 \
+    -XX:+UseConcMarkSweepGC \
+    -XX:+CMSParallelRemarkEnabled \
+    -XX:+ScavengeBeforeFullGC \
+    -XX:+CMSScavengeBeforeRemark \
+    -XX:+UseCMSInitiatingOccupancyOnly \
+    -XX:CMSInitiatingOccupancyFraction=70 \
+    -Xms10G \
+    -Djava.net.preferIPv4Stack=true \
+    -Djava.library.path=$CODA/$MACHINE/lib \
+    -DcmsgUDL="rc://multicast/"$EXPID \
+    -Dname=$1 \
+    -Dtype=PEBER org.jlab.coda.emu.EmuFactory
+endif

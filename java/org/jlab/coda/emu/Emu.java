@@ -1090,7 +1090,12 @@ System.out.println("\n\n");
                 try {
                     // Over write any previously defined payload items
                     reportMsg.addPayloadItem(new cMsgPayloadItem(RCConstants.state, state().name().toLowerCase()));
-                    reportMsg.addPayloadItem(new cMsgPayloadItem(RCConstants.codaClass, codaClass.name()));
+                    if (codaClass == codaClass.PEBER || codaClass == codaClass.SEBER) {
+                        reportMsg.addPayloadItem(new cMsgPayloadItem(RCConstants.codaClass, codaClass.EBER.name()));
+                    }
+                    else {
+                        reportMsg.addPayloadItem(new cMsgPayloadItem(RCConstants.codaClass, codaClass.name()));
+                    }
                     reportMsg.addPayloadItem(new cMsgPayloadItem(RCConstants.objectType, "coda3"));
 
                     reportMsg.addPayloadItem(new cMsgPayloadItem(RCConstants.eventCount, (int)eventCount));
@@ -1981,8 +1986,9 @@ logger.info("Emu " + name + " go: change state to GOING");
         // The only thing we have to worry about is that the EB module checks to
         // see if all PRESTART events have arrived before it allows any building.
         // Also nice if ER gets it so it can be written to file before GO.
-        if (codaClass == CODAClass.DC  || codaClass == CODAClass.ER  ||
-            codaClass == CODAClass.SEB || codaClass == CODAClass.PEB)  {
+        if (codaClass == CODAClass.DC    || codaClass == CODAClass.ER  ||
+            codaClass == CODAClass.SEB   || codaClass == CODAClass.PEB ||
+            codaClass == CODAClass.PEBER || codaClass == CODAClass.SEBER)  {
 
             try {
                 // Look at the last module in config
