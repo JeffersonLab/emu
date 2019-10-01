@@ -184,6 +184,9 @@ public abstract class DataChannelAdapter extends CODAStateMachineAdapter impleme
     /** Number of items in output ring buffers. */
     protected int outputRingItemCount;
 
+    /** Number of items in output channel's internal ByteBuffer supplies. */
+    protected int outputModuleInternalRingCount;
+
     /** One barrier for each output ring. */
     protected SequenceBarrier[] sequenceBarriers;
 
@@ -262,7 +265,6 @@ public abstract class DataChannelAdapter extends CODAStateMachineAdapter impleme
                 ignoreDataErrors = true;
             }
         }
-        ignoreDataErrors = true;
 
 logger.info("      DataChannel Adapter: ignore data errors = " + ignoreDataErrors);
 
@@ -280,9 +282,13 @@ logger.info("      DataChannel Adapter: ignore data errors = " + ignoreDataError
 logger.info("      DataChannel Adapter: channel " + name + " is a fifo = " + isFifo);
 
         if (input) {
+            // FIFO code does not make it here.
+            // Fifo input calls setupInputRingBuffers(), it does not construct this channel.
+
             // Set the number of items for the input ring buffers.
             // These contain evio events parsed from ET, cMsg,
             // or Emu domain buffers. They should not take up much mem.
+            // Or it can contain fully built events from fifo.
             inputRingItemCount = 4096;
 
             attribString = attributeMap.get("ringSize");
@@ -312,7 +318,8 @@ logger.info("      DataChannel Adapter: input ring item count -> " + inputRingIt
             // getInternalRingCount / buildThreadCount. Should be a power of 2 already
             // but will enforce that.
 
-            outputRingItemCount = module.getInternalRingCount()/module.getEventProducingThreadCount();
+            outputModuleInternalRingCount = module.getInternalRingCount();
+            outputRingItemCount = outputModuleInternalRingCount/module.getEventProducingThreadCount();
             // If the module is not setting this, then it has no internal
             // ring of buffers, so set this to some reasonable value.
             if (outputRingItemCount < 1) {
@@ -325,7 +332,12 @@ logger.info("      DataChannel Adapter: input ring item count -> " + inputRingIt
             }
 
             outputRingItemCount = EmuUtilities.powerOfTwo(outputRingItemCount, false);
+            if (isFifo) {
+logger.info("      DataChannel Adapter: fifo output ring item count -> " + outputRingItemCount);
+            }
+            else {
 logger.info("      DataChannel Adapter: output ring item count -> " + outputRingItemCount);
+            }
 
             prescale = 1;
             attribString = attributeMap.get("prescale");
@@ -359,7 +371,12 @@ logger.info("      DataChannel Adapter: byte order = " + byteOrder);
 
             // Set number of data output ring buffers (1 for each build thread)
             outputRingCount = module.getEventProducingThreadCount();
-logger.info("      DataChannel Adapter: output ring buffer count (1/buildthread) = " + outputRingCount);
+            if (isFifo) {
+logger.info("      DataChannel Adapter: fifo output ring count (1/buildthread) = " + outputRingCount);
+            }
+            else {
+logger.info("      DataChannel Adapter: output ring count (1/buildthread) = " + outputRingCount);
+            }
 
             // Create RingBuffers
             ringBuffersOut = new RingBuffer[outputRingCount];
@@ -414,8 +431,12 @@ logger.info("      DataChannel Adapter: output ring buffer count (1/buildthread)
     /** Setup the input channel ring buffers. */
     void setupInputRingBuffers() {
         if (isFifo) {
-            // If this is a fifo, the output channel creates the channel
-            inputRingItemCount = 4096;
+            // If this is a fifo, the output channel creates the channel.
+            // Don't need more than the # of internal byte buffers of the module on
+            // side filling the fifo (output).
+            inputRingItemCount = outputModuleInternalRingCount;
+            inputRingItemCount = EmuUtilities.powerOfTwo(inputRingItemCount, true);
+            logger.info("      DataChannel Adapter: setupInputRingBuffers, fifo, input ring item count = " + inputRingItemCount);
         }
 
         ringBufferIn = createSingleProducer(new RingItemFactory(),
@@ -465,7 +486,7 @@ logger.info("      DataChannel Adapter: output ring buffer count (1/buildthread)
 
         ringIndex = (int) (nextEvent % outputRingCount);
 //System.out.println("      DataChannel Adapter: set next ev (" + nextEvent + "), nextEv % bt -> (" +
-//                           nextEvent + " % " + outputRingCount + ")");
+//                           nextEvent + " % " + outputRingCount + ")\n");
         return ringIndex;
     }
 
