@@ -72,16 +72,19 @@ public class DataTransportImplFifo extends DataTransportAdapter {
         // In the EMU, in prestart, each fifo is "created" twice, once as input and
         // the other as output. So we can check for this (in)compatibility.
 
-        // Configure ensures that the output fifo gets created first
+        // Originally, the idea was that modules can be listed in any order,
+        // but to keep things simple later, any modules connected by the same fifo
+        // must have the module w/ the output fifo listed first and the module
+        // with the input fifo listed after. Thus first create fifo as an output channel.
 
         // If not created yet, create it
         if (c == null) {
-//            if (isInput) {
-//                System.out.println("    DataTransport Fifo : will create channel " + channelName + " as input");
-//            }
-//            else {
-//                System.out.println("    DataTransport Fifo : will create channel " + channelName + " as output");
-//            }
+            if (isInput) {
+                System.out.println("    DataTransport Fifo : will create channel " + channelName + " as input");
+            }
+            else {
+                System.out.println("    DataTransport Fifo : will create channel " + channelName + " as output");
+            }
 
             c = new DataChannelImplFifo(channelName, this, attributeMap, isInput,
                                         emu, module);
@@ -94,11 +97,11 @@ public class DataTransportImplFifo extends DataTransportAdapter {
             // Fifo is "created" here as an output channel, it must be properly
             // setup for that. Similarly for the other way around.
             if (isInput) {
-//System.out.println("    DataTransport Fifo : setup channel " + c.name() + " as input");
+System.out.println("    DataTransport Fifo : setup channel " + c.name() + " as input");
                 c.setupInputRingBuffers();
             }
             else {
-//System.out.println("    DataTransport Fifo : setup channel " + c.name() + " as output");
+System.out.println("    DataTransport Fifo : setup channel " + c.name() + " as output");
                 c.setupOutputRingBuffers();
             }
 
