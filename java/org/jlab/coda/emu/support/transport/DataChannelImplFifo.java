@@ -16,9 +16,7 @@ import org.jlab.coda.emu.EmuException;
 import org.jlab.coda.emu.EmuModule;
 import org.jlab.coda.emu.support.codaComponent.CODAState;
 import org.jlab.coda.emu.support.data.*;
-import org.jlab.coda.jevio.EvioException;
 
-import java.io.IOException;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 
@@ -140,7 +138,6 @@ public class DataChannelImplFifo extends DataChannelAdapter {
         }
 
 
-
         /** {@inheritDoc} */
         public void run() {
 
@@ -237,7 +234,7 @@ System.out.println("      DataChannel Fifo: " + name + " I got END event, quitti
                     // we know when to switch to the next ring.
                     if (outputRingCount > 1 && pBankControlType == null && !pBankType.isUser()) {
                         setNextEventAndRing();
-//logger.info("      DataChannel Fifo helper, " + name + ": for seq " + nextSequences[ringIndex] + " SWITCH TO ring = " + ringIndex);
+//logger.info("      DataChannel Fifo, " + name + ": for seq " + nextSequences[ringIndex] + " SWITCH TO ring = " + ringIndex);
                     }
 
                     if (pBankControlType == ControlType.END) {
