@@ -108,8 +108,6 @@ public class EventRecording extends ModuleAdapter {
     private int mainIndex, etIndex;
     /** Do we have a single input, single output channel? */
     private boolean singleInput;
-    /** Is the single input channel a fifo? */
-    private boolean inputIsFifo;
 
    /** END event detected by one of the recording threads. */
     private volatile boolean haveEndEvent;
@@ -542,7 +540,6 @@ System.out.println("  ER mod: sending first event to chan " + outputChannels.get
                             if (etOutChannelCount > 0 && (physicsEventCounter++ % prescale == 0)) {
                                 // Copy item
                                 PayloadBuffer bb = new PayloadBuffer((PayloadBuffer) ringItem);
-                                ByteBufferItem item = bb.getByteBufferItem();
                                 // Write to ET system
                                 eventToOutputChannel(bb, etOutputChannel, 0);
                             }
@@ -671,7 +668,7 @@ if (debug) System.out.println("  ER mod: recording thread ending");
                             mainAvailableSequence = barriersIn[mainIndex].waitFor(mainNextSequence);
                         }
                         catch (TimeoutException e) {
-System.out.println("TIMEOUT in ER waiting for data");
+//System.out.println("TIMEOUT in ER waiting for data");
                         }
 
                         // Non-blockingly check the (secondary) ET system
@@ -897,7 +894,7 @@ System.out.println("  ER mod: sending first event to chan " + outputChannels.get
                             if (etOutChannelCount > 0 && (physicsEventCounter++ % prescale == 0)) {
                                 // Copy item
                                 PayloadBuffer bb = new PayloadBuffer((PayloadBuffer) ringItem);
-                                ByteBufferItem item = bb.getByteBufferItem();
+                                //ByteBufferItem item = bb.getByteBufferItem();
                                 // Write to ET system
                                 eventToOutputChannel(bb, etOutputChannel, 0);
                             }
@@ -1080,12 +1077,6 @@ if (debug) System.out.println("  ER mod: recording thread ending");
         try {
 
             for (DataChannel ch : inputChannels) {
-
-                // Check to see if input channel is a fifo
-                // (there should only be 1 in this case).
-                if (ch.getTransportType() == TransportType.FIFO) {
-                    inputIsFifo = true;
-                }
 
                 if (ch.getTransportType() == TransportType.ET) {
                     // If there is a single input, ET is the main one
