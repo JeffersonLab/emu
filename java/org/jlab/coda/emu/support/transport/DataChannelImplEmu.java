@@ -272,7 +272,7 @@ logger.info("      DataChannel Emu: recvBuf = " + tcpRecvBuf);
             }
             
 //            dumpData = true;
-logger.info("      DataChannel Emu: dumpData = " + dumpData);
+//logger.info("      DataChannel Emu: dumpData = " + dumpData);
 
 
         }
