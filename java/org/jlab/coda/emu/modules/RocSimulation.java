@@ -728,7 +728,7 @@ System.out.println("\n\n  Roc mod: write USER event after go for Roc1 **********
 //                            }
 //                        }
 
-                        Thread.sleep(500);
+//                        Thread.sleep(500);
 
                         eventCountTotal += eventBlockSize;
                         wordCountTotal  += eventWordSize;
