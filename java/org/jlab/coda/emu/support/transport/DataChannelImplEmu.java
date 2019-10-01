@@ -12,6 +12,8 @@
 package org.jlab.coda.emu.support.transport;
 
 
+import com.lmax.disruptor.LiteTimeoutBlockingWaitStrategy;
+import com.lmax.disruptor.SpinCountBackoffWaitStrategy;
 import org.jlab.coda.cMsg.*;
 import org.jlab.coda.cMsg.common.cMsgMessageFull;
 import org.jlab.coda.emu.Emu;
@@ -41,6 +43,8 @@ import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
+import static com.lmax.disruptor.RingBuffer.createSingleProducer;
+
 /**
  * This class implement a data channel which
  * gets-data-from/sends-data-to an Emu domain client/server.
@@ -64,7 +68,6 @@ public class DataChannelImplEmu extends DataChannelAdapter {
      * the ring but does get parsed. Use this for testing incoming data rate.
      */
     private boolean dumpData;
-
 
     // OUTPUT
 
@@ -95,10 +98,6 @@ public class DataChannelImplEmu extends DataChannelAdapter {
 
     /** Connection to emu domain server. */
     private cMsg emuDomain;
-
-//    /** cMsg message into which out going data is placed in order to be written. */
-//    private final cMsgMessage outGoingMsg = new cMsgMessage();
-
 
     // INPUT
 
@@ -132,7 +131,6 @@ public class DataChannelImplEmu extends DataChannelAdapter {
      * (64 total) in ByteBufferSupplys.
      */
     private EvioNodePool[][] nodePools;
-
 
     // INPUT & OUTPUT
 
@@ -221,7 +219,7 @@ public class DataChannelImplEmu extends DataChannelAdapter {
             }
             catch (NumberFormatException e) {}
         }
-        logger.info("      DataChannel Emu: TCP socket count = " + socketCount);
+logger.info("      DataChannel Emu: TCP socket count = " + socketCount);
         if (socketCount > 1) {
             logger.info("      DataChannel Emu: ************** FAT PIPE ***************");
         }
@@ -229,6 +227,22 @@ public class DataChannelImplEmu extends DataChannelAdapter {
         // if INPUT channel
         if (input) {
             isER = (emu.getCodaClass() == CODAClass.ER);
+
+            if (isER) {
+                // In the special case of an ER, override the default to provide a ring
+                // which has a timeout of 10 seconds on the main data channel (emu socket).
+                // (Nornally there is none.)
+                // This makes a significant difference only if there are 2 input channels
+                // (1 ET and 1 emu socket) since the ER must switch between looking at both.
+                // Otherwise, if there was no data flowing, then the secondary (ET) channel
+                // would never be looked at.
+                ringBufferIn = createSingleProducer (
+                                  new RingItemFactory(),
+                                  inputRingItemCount,
+                                  new SpinCountBackoffWaitStrategy(
+                                              30000,
+                                              new LiteTimeoutBlockingWaitStrategy(10L, TimeUnit.SECONDS)));
+            }
 
             // size of TCP receive buffer (0 means use operating system default)
             //tcpRecvBuf = 3000000;     // THIS VALUE DOES NOT WORK FOR 1G Ethernet!!!
@@ -245,7 +259,7 @@ public class DataChannelImplEmu extends DataChannelAdapter {
                 catch (NumberFormatException e) {}
             }
 
-logger.info("      DataChannel Emu: recvBuf = " + tcpRecvBuf);
+//logger.info("      DataChannel Emu: recvBuf = " + tcpRecvBuf);
 
             // set "data dump" option on
             attribString = attributeMap.get("dump");
@@ -258,7 +272,7 @@ logger.info("      DataChannel Emu: recvBuf = " + tcpRecvBuf);
             }
             
 //            dumpData = true;
-logger.info("      DataChannel Emu: dumpData = " + dumpData);
+//logger.info("      DataChannel Emu: dumpData = " + dumpData);
 
 
         }
@@ -290,7 +304,7 @@ logger.info("      DataChannel Emu: noDelay = " + noDelay);
                 }
                 catch (NumberFormatException e) {}
             }
-logger.info("      DataChannel Emu: set sendBuf to " + tcpSendBuf);
+//logger.info("      DataChannel Emu: set sendBuf to " + tcpSendBuf);
 
             // Send port
             sendPort = cMsgNetworkConstants.emuTcpPort;
@@ -304,7 +318,7 @@ logger.info("      DataChannel Emu: set sendBuf to " + tcpSendBuf);
                 }
                 catch (NumberFormatException e) {}
             }
-            logger.info("      DataChannel Emu: sending on port " + sendPort);
+logger.info("      DataChannel Emu: sending on port " + sendPort);
 
 
             // Size of max buffer
@@ -319,7 +333,7 @@ logger.info("      DataChannel Emu: set sendBuf to " + tcpSendBuf);
                 }
                 catch (NumberFormatException e) {}
             }
-            logger.info("      DataChannel Emu: max buf size = " + maxBufferSize);
+logger.info("      DataChannel Emu: max buf size = " + maxBufferSize);
 
             // Emu domain connection timeout in sec
             connectTimeout = -1;
@@ -333,7 +347,7 @@ logger.info("      DataChannel Emu: set sendBuf to " + tcpSendBuf);
                 }
                 catch (NumberFormatException e) {}
             }
-            logger.info("      DataChannel Emu: timeout = " + connectTimeout);
+logger.info("      DataChannel Emu: timeout = " + connectTimeout);
 
             // Emu domain preferred subnet in dot-decimal format
             preferredSubnet = null;
@@ -344,7 +358,7 @@ logger.info("      DataChannel Emu: set sendBuf to " + tcpSendBuf);
             else {
                 preferredSubnet = attribString;
             }
-            logger.info("      DataChannel Emu: over subnet " + preferredSubnet);
+logger.info("      DataChannel Emu: over subnet " + preferredSubnet);
         }
 
         // State after prestart transition -
@@ -465,7 +479,6 @@ logger.info("      DataChannel Emu: set sendBuf to " + tcpSendBuf);
         }
 
 //logger.info("      DataChannel Emu in: seq release of buffers = " + sequentialRelease);
-
 
         // Create the EvioNode pools - each socket gets numBuf number of pools -
         // each of which contain 3500 EvioNodes to begin with. These are used for
