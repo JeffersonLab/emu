@@ -536,7 +536,6 @@ System.out.println("  ER mod: will end thread but no END event!");
                              if (etOutChannelCount > 0 && (physicsEventCounter++ % prescale == 0)) {
                                  // Copy item
                                  PayloadBuffer bb = new PayloadBuffer((PayloadBuffer) ringItem);
-                                 ByteBufferItem item = bb.getByteBufferItem();
                                  // Write to ET system
                                  eventToOutputChannel(bb, etOutputChannel, 0);
                              }
@@ -829,7 +828,7 @@ System.out.println("  ER mod: THROWING AWAY event of type " + ringItem.getEventT
                             }
 
                             // Make copies
-                             outputEvents[0] = ringItem;
+                            outputEvents[0] = ringItem;
                             for (int i=1; i < outputChannelCount; i++) {
                                 outputEvents[i] = new PayloadBuffer((PayloadBuffer)ringItem);
                             }
@@ -1044,7 +1043,7 @@ if (debug) System.out.println("  ER mod: recording thread ending");
         }
 
         // Help to direct logic in recording thread
-        if (inputChannels.size()  == 1) singleInput  = true;
+        if (inputChannels.size() == 1) singleInput = true;
 
         // Place to put ring level stats
         inputChanLevels  = new int[inputChannelCount];
