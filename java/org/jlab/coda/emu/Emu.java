@@ -31,7 +31,6 @@ import org.jlab.coda.emu.support.ui.DebugFrame;
 import static org.jlab.coda.emu.support.codaComponent.CODACommand.*;
 import static org.jlab.coda.emu.support.codaComponent.CODAState.*;
 
-import org.jlab.coda.et.system.SystemCreate;
 import org.w3c.dom.Document;
 import org.w3c.dom.NamedNodeMap;
 import org.w3c.dom.Node;
@@ -194,6 +193,9 @@ public class Emu implements CODAComponent {
 
     /** List of output channels. */
     private final CopyOnWriteArrayList<DataChannel> outChannels = new CopyOnWriteArrayList<>();
+
+    /** List of fifo channels. */
+    private final CopyOnWriteArrayList<DataChannel> fifoChannels = new CopyOnWriteArrayList<>();
 
     /** Vector containing all DataTransport objects. */
     private final CopyOnWriteArrayList<DataTransport> transports = new CopyOnWriteArrayList<>();
@@ -1253,7 +1255,7 @@ logger.info("Emu " + name + " resetting");
         // data is flowing. It's best to send RESET cmds to various components
         // in the same manner in which ENDs are sent.
 
-        // Reset channels first
+        // Reset INPUT channels first
         if (inChannels.size() > 0) {
             for (DataChannel chan : inChannels) {
 if (debug) System.out.println("Emu " + name + " reset: reset in chan " + chan.name());
@@ -1267,6 +1269,13 @@ if (debug) System.out.println("Emu " + name + " reset: try to reset module " + m
             module.reset();
         }
 
+        // Reset FIFO channels
+        for (DataChannel chan : fifoChannels) {
+System.out.println("Emu " + name + ": reset FIFO chan " + chan.name());
+            chan.reset();
+        }
+
+        // Reset OUTPUT channels
         if (outChannels.size() > 0) {
             for (DataChannel chan : outChannels) {
 if (debug) System.out.println("Emu " + name + ": reset out chan " + chan.name());
@@ -2012,9 +2021,7 @@ if (debug) System.out.println("Emu " + name + " go: GO cmd to module " + modules
                 return;
             }
 
-            LinkedList<EmuModule> mods = dataPath.getEmuModules();
-
-            if (mods.size() < 1) {
+            if (modules.size() < 1) {
                 throw new CmdExecException("no modules in data path");
             }
 
@@ -2027,21 +2034,29 @@ if (debug) System.out.println("Emu " + name + " go: GO cmd to transport " + tran
             // (2) GO to output channels (of LAST module)
             if (outChannels.size() > 0) {
                 for (DataChannel chan : outChannels) {
-if (debug) System.out.println("Emu " + name + " go: GO cmd to out chan " + chan.name());
+if (debug) System.out.println("Emu " + name + " go: GO cmd to OUT chan " + chan.name());
                     chan.go();
                 }
             }
 
+            // (2.5) GO to fifo channels
+            for (DataChannel chan : fifoChannels) {
+System.out.println("Emu " + name + " go: GO cmd to FIFO chan " + chan.name());
+                chan.prestart();
+            }
+
             // (3) GO to all modules in reverse order (starting with last)
-            for (int i=mods.size()-1; i >= 0; i--) {
-if (debug) System.out.println("Emu " + name + " go: GO cmd to module " + mods.get(i).name());
-                mods.get(i).go();
+            ListIterator<EmuModule> it = modules.listIterator(modules.size());
+            while (it.hasPrevious()) {
+                EmuModule mod = it.previous();
+if (debug) System.out.println("Emu " + name + " go: GO cmd to module " + mod.name());
+                mod.go();
             }
 
             // (4) GO to input channels (of FIRST module)
             if (inChannels.size() > 0) {
                 for (DataChannel chan : inChannels) {
-if (debug) System.out.println("Emu " + name + " go: GO cmd to in chan " + chan.name());
+if (debug) System.out.println("Emu " + name + " go: GO cmd to IN chan " + chan.name());
                     chan.go();
                 }
             }
@@ -2121,6 +2136,7 @@ if (debug) System.out.println("Emu " + name + " prestart: PRESTART cmd to " + tr
             //------------------------------------------------
             inChannels.clear();
             outChannels.clear();
+            fifoChannels.clear();
 
             // Great time to collect garbage as channels tend to eat memory
             System.gc();
@@ -2272,6 +2288,9 @@ if (debug) System.out.println("Emu " + name + " prestart: PRESTART cmd to " + tr
                     // Keep local track of all channels created
                     inChannels.addAll(in);
                     outChannels.addAll(out);
+                    // Fifos are shared between an output & an input so they
+                    // should only be added once.
+                    fifoChannels.addAll(outFifo);
                 }
             } while ((moduleNode = moduleNode.getNextSibling()) != null);  // while another module exists ...
 
@@ -2303,15 +2322,24 @@ if (debug) System.out.println("Emu " + name + " prestart: PRESTART cmd to OUT ch
                 chan.prestart();
             }
 
-            // Modules
-            for (EmuModule module : modules) {
+            for (DataChannel chan : fifoChannels) {
+System.out.println("Emu " + name + " prestart: PRESTART cmd to FIFO chan " + chan.name());
+                chan.prestart();
+            }
+
+            // Modules. Since prestart goes to ER first, then EB in the case of SEBER & PEBER,
+            // we do the list backwards.
+            ListIterator<EmuModule> it = modules.listIterator(modules.size());
+            while (it.hasPrevious()) {
+                EmuModule mod = it.previous();
                 // Since modules are created at download, the end and prestart
                 // callbacks are reused here and so must be reset.
-                module.getEndCallback().reset();
-                module.getPrestartCallback().reset();
+                mod.getEndCallback().reset();
+                mod.getPrestartCallback().reset();
 
-if (debug) System.out.println("Emu " + name + " prestart: PRESTART cmd to module " + module.name());
-                module.prestart();
+//if (debug) System.out.println("Emu " + name + " prestart: PRESTART cmd to module " + mod.name());
+System.out.println("Emu " + name + " prestart: PRESTART cmd to module " + mod.name());
+                mod.prestart();
             }
 
             // Input channels
