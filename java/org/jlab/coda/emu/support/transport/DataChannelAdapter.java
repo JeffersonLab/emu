@@ -439,15 +439,8 @@ logger.info("      DataChannel Adapter: output ring count (1/buildthread) = " + 
             logger.info("      DataChannel Adapter: setupInputRingBuffers, fifo, input ring item count = " + inputRingItemCount);
         }
 
-        ringBufferIn = createSingleProducer(new RingItemFactory(),
-                                            inputRingItemCount,
-        new SpinCountBackoffWaitStrategy(30000, new LiteBlockingWaitStrategy()));
-        //new PhasedBackoffWaitStrategy(500L, 1000L, TimeUnit.NANOSECONDS, new LiteBlockingWaitStrategy()));
-        //new BusySpinWaitStrategy());
-        //new SleepingWaitStrategy(1000, 200000));   // 200 usec
-        //new LiteBlockingWaitStrategy());
-        //new BlockingWaitStrategy());
-        //new YieldingWaitStrategy());
+        ringBufferIn = createSingleProducer(new RingItemFactory(), inputRingItemCount,
+                       new SpinCountBackoffWaitStrategy(30000, new LiteBlockingWaitStrategy()));
     }
 
 
