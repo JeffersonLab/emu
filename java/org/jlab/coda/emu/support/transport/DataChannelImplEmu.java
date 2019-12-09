@@ -1062,7 +1062,7 @@ System.out.println("      DataChannel Emu in: " + name +
     private final class ParserMerger extends Thread {
 
         /** Keep track of record ids coming in to make sure they're sequential. */
-        private int expectedRecordId = 0;
+        private int expectedRecordId = 1;
 
         /** Object used to read/parse incoming evio data. */
         private EvioCompactReaderUnsync reader;
@@ -1139,7 +1139,6 @@ System.out.println("      DataChannel Emu in: " + name +
 
             // Get buffer from an item from ByteBufferSupply - one per channel
             ByteBuffer buf = item.getBuffer();
-            expectedRecordId++;
 
             try {
                 // Pool of EvioNodes associated with this buffer
@@ -1178,7 +1177,7 @@ System.out.println("      DataChannel Emu in: " + name +
             recordId = blockHeader.getNumber();
 
             // Check record for sequential record id
-            expectedRecordId = Evio.checkRecordIdSequence(recordId, expectedRecordId,
+            expectedRecordId = Evio.checkRecordIdSequence(recordId, expectedRecordId, true,
                                                           eventType, DataChannelImplEmu.this);
 
             // Each PayloadBuffer contains a reference to the buffer it was
