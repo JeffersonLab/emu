@@ -365,7 +365,7 @@ logger.info("      DataChannel File: reset " + name + " channel");
                                                                     emu.getRunTypeId(), (int) eventsWritten,
                                                                     0, byteOrder, true);
                     if (emu.isFileWritingOn()) {
-                        evioFileWriter.writeEvent(endBuf.getBuffer());
+                        evioFileWriter.writeEventToFile(null, endBuf.getBuffer(), true);
                     }
                 }
 
@@ -830,7 +830,12 @@ logger.info("      DataChannel File out " + outputIndex + ": wrote GO");
                         // If this a user and "first event", let the writer know
                         if (ringItem.isFirstEvent()) {
                             if (emu.isFileWritingOn()) {
-                                evioFileWriter.setFirstEvent(ringItem.getNode());
+                                if (ringItem.getBuffer() != null) {
+                                    evioFileWriter.setFirstEvent(ringItem.getBuffer());
+                                }
+                                else {
+                                    evioFileWriter.setFirstEvent(ringItem.getNode());
+                                }
                             }
                             // The writer will handle the first event from here,
                             // go to the next event now.
