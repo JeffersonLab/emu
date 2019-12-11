@@ -470,7 +470,12 @@ logger.info("      DataChannel Emu: over subnet " + preferredSubnet);
                 // and since the file output channel also processes all events in order,
                 // the byte buffer supply does not have to be synchronized as byte buffers are
                 // released in order. Will make things faster.
-                sequentialRelease = true;
+
+                // UPDATE, user events coming over same channel as physics are COPIED and
+                // buffers from this supply are released. They are released while a previous
+                // physics buffer is still being used to write events to (ie nodes in
+                // the process of being written). So there is NO sequential release.
+                sequentialRelease = false;
             }
             else {
                 // If ER has more than one output, buffers may not be released sequentially
