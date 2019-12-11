@@ -95,7 +95,7 @@ public class PayloadBuffer extends RingItemAdapter {
             // is to copy the data directly into a buffer and ditch the node object.
 
             // Get a copy of the node data into a new buffer
-            buffer = buf.getNode().getStructureBuffer(true);
+            buffer = buf.node.getStructureBuffer(true);
             node = null;
             // No longer tied to buffer supply
             byteBufferItem = null;
