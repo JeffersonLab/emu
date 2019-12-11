@@ -470,7 +470,12 @@ logger.info("      DataChannel Emu: set sendBuf to " + tcpSendBuf);
                 // and since the file output channel also processes all events in order,
                 // the byte buffer supply does not have to be synchronized as byte buffers are
                 // released in order. Will make things faster.
-                sequentialRelease = true;
+
+                // UPDATE, user events coming over same channel as physics are COPIED and
+                // buffers from this supply are released. They are released while a previous
+                // physics buffer is still being used to write events to (ie nodes in
+                // the process of being written). So there is NO sequential release.
+                sequentialRelease = false;
             }
             else {
                 // If ER has more than one output, buffers may not be released sequentially
@@ -1062,7 +1067,7 @@ System.out.println("      DataChannel Emu in: " + name +
     private final class ParserMerger extends Thread {
 
         /** Keep track of record ids coming in to make sure they're sequential. */
-        private int expectedRecordId = 0;
+        private int expectedRecordId = 1;
 
         /** Object used to read/parse incoming evio data. */
         private EvioCompactReader reader;
@@ -1145,8 +1150,6 @@ System.out.println("      DataChannel Emu in: " + name +
 //            ByteBuffer newBuf = EvioCompactReaderUnsync.ensureUncompressedCapacity(buf);
 //            item.setBuffer(newBuf);
 
-            expectedRecordId++;
-
             try {
                 // Pool of EvioNodes associated with this buffer
                 pool = (EvioNodePool)item.getMyObject();
@@ -1197,7 +1200,7 @@ System.out.println("      DataChannel Emu in: " + name +
             recordId = blockHeader.getNumber();
 
             // Check record for sequential record id
-            expectedRecordId = Evio.checkRecordIdSequence(recordId, expectedRecordId,
+            expectedRecordId = Evio.checkRecordIdSequence(recordId, expectedRecordId, false,
                                                           eventType, DataChannelImplEmu.this);
 //System.out.println("      DataChannel Emu in: expected record id = " + expectedRecordId +
 //                   ", actual = " + recordId);

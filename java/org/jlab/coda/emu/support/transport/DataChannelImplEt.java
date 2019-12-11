@@ -747,9 +747,14 @@ logger.info("      DataChannel Et: done creating " + numEtBufs + " node pools, s
                     // and since the file output channel also processes all events in order,
                     // the byte buffer supply does not have to be synchronized as byte buffers are
                     // released in order. Will make things faster.
+
+                    // UPDATE, user events coming over same channel as physics are COPIED and
+                    // buffers from this supply are released. They are released while a previous
+                    // physics buffer is still being used to write events (ie nodes in
+                    // the process of being written). So there is NO sequential release.
                     bbSupply = new ByteBufferSupply(numEtBufs, etEventSize,
                                                     module.getOutputOrder(),
-                                                    false, true, nodePools);
+                                                    false, false, nodePools);
                 }
                 else {
                     // If ER has more than one output, buffers may not be released sequentially
@@ -1330,7 +1335,7 @@ logger.debug("      DataChannel Et: reset " + name + " channel");
         private SequenceBarrier etConsumeBarrier;
 
         /** Keep track of record ids coming in to make sure they're sequential. */
-        private int expectedRecordId = 0;
+        private int expectedRecordId = 1;
 
 
         /** Constructor. */
@@ -1342,15 +1347,17 @@ logger.debug("      DataChannel Et: reset " + name + " channel");
             int ringSize = 2;
 
             // Create ring buffer used by 2 threads -
-            //   1 to get events from ET system and place into ring (producer of ring items)
-            //   1 to get evio events and parse them into ET events and
-            //        put them back into ET system                  (consumer of ring items)
+            //   1 to get existing events from ET system and place into ring
+            //          (producer of ring items)
+            //   1 to take these ET events, parse them into evio events and
+            //   put them back into ET system
+            //          (consumer of ring items)
             rb = createSingleProducer(new ContainerFactory(), ringSize,
                                       new SpinCountBackoffWaitStrategy(10000, new LiteBlockingWaitStrategy()));
                                       //new YieldingWaitStrategy());
 
-            // Consumer barrier of ring buffer, which gets evio
-            // and parses it and puts it back into ET.
+            // Consumer barrier of ring buffer, used to get ET event
+            // and parse it and put it back into ET.
             etConsumeBarrier = rb.newBarrier();
             // Consumer sequence of ring buffer
             etConsumeSequence = new Sequence(Sequencer.INITIAL_CURSOR_VALUE);
@@ -1595,7 +1602,6 @@ System.out.println("      DataChannel Et in: GETTER is Quitting");
 
                         // Get a local, reusable ByteBuffer
                         bbItem = bbSupply.get();
-                        expectedRecordId++;
 
                         // Copy ET data into this buffer.
                         // The reason we do this is because if we're connected to a local
@@ -1610,9 +1616,11 @@ System.out.println("      DataChannel Et in: GETTER is Quitting");
                         // a larger amount of data. If this is the case, the ET event MAY
                         // contain more data than the space available in buf. So we must
                         // first ensure there's enough memory to do the copy.
-                        bbItem.ensureCapacity(events[j].getLength());
+                        EtEvent ev = events[j];
+                        int evSize = ev.getLength();
+                        bbItem.ensureCapacity(evSize);
                         buf = bbItem.getBuffer();
-                        copyBuffer(events[j].getDataBuffer(), buf, events[j].getLength());
+                        copyBuffer(ev.getDataBuffer(), buf, evSize);
 
                         try {
                             nodePool = (EvioNodePool)bbItem.getMyObject();
@@ -1672,7 +1680,7 @@ System.out.println("      DataChannel Et in: GETTER is Quitting");
                         // this only works from ROC !!!
                         sourceId = header.getSourceId();
                         if (eventType == EventType.PARTIAL_PHYSICS) {
-                            sourceId = events[j].getControl()[0];
+                            sourceId = ev.getControl()[0];
                         }
                         // Record id is set in the DataOutputHelper so that it is incremented
                         // once per non-user, non-control ET buffer. Each writer will only use
@@ -1680,8 +1688,8 @@ System.out.println("      DataChannel Et in: GETTER is Quitting");
                         // looking at the very first block #.
                         recordId = header.getNumber();
 
-                        // Check record for sequential record id
-                        expectedRecordId = Evio.checkRecordIdSequence(recordId, expectedRecordId,
+                        // Check record for sequential record id for buildable events only
+                        expectedRecordId = Evio.checkRecordIdSequence(recordId, expectedRecordId, false,
                                                                       eventType, DataChannelImplEt.this);
 
                         // Number of evio event associated with this buffer.
@@ -1987,8 +1995,8 @@ logger.info("      DataChannel Et in: wake up GETTER's getEvents() call so it ca
             int ringSize = 4;
 
             // Create ring buffer used by 2 threads -
-            //   1 to get events from ET system and place into ring (producer of ring items)
-            //   1 to get evio events and parse them into ET events and
+            //   1 to get new events from ET system and place into ring (producer of ring items)
+            //   1 to get evio events, parse them into these ET events and
             //        put them back into ET system                  (consumer of ring items)
             rb = createSingleProducer(new ContainerFactory(), ringSize,
                                       new SpinCountBackoffWaitStrategy(10000, new LiteBlockingWaitStrategy()));
