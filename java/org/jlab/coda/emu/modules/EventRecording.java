@@ -274,10 +274,6 @@ System.out.println("  ER mod: will end thread but no END event received!");
                     ByteDataTransformer.swapEvent(buffy, null, 0, 0, false, null);
                     // Store in ringItem
                     buildingBank.setBuffer(buffy);
-                    buildingBank.setNode(null);
-                    // Release claim on backing buffer since we are now
-                    // using a different buffer.
-                    buildingBank.releaseByteBuffer();
                 }
             }
             catch (EvioException e) {/* should never happen */ }
@@ -287,11 +283,12 @@ System.out.println("  ER mod: will end thread but no END event received!");
             buffy = inputNode.getStructureBuffer(true);
             // Store in ringItem
             buildingBank.setBuffer(buffy);
-            buildingBank.setNode(null);
-            // Release claim on backing buffer since we are now
-            // using a different buffer.
-            buildingBank.releaseByteBuffer();
         }
+        
+        // Data no longer held in node
+        buildingBank.setNode(null);
+        // Release claim on backing buffer since we are now using a different one.
+        buildingBank.releaseByteBuffer();
     }
 
 
@@ -348,7 +345,9 @@ System.out.println("  ER mod: will end thread but no END event received!");
 
                     if (mainAvailableSequence < mainNextSequence)  {
                         try {
-                            // Times out after 10 sec if no events are available
+                            // Times out after 10 sec if no events are available AND
+                            // the channel is an EMU socket. This is inconsequential here
+                            // but necessary for 2 input channel case.
                             mainAvailableSequence = barriersIn[mainIndex].waitFor(mainNextSequence);
                         }
                         catch (TimeoutException e) {
@@ -639,7 +638,7 @@ if (debug) System.out.println("  ER mod: recording thread ending");
             long t1, t2, counter = 0L;
             final long timeBetweenSamples = 500; // sample every 1/2 sec
             int totalNumberEvents=1, wordCount=0, firstEventsWords=0;
-            PayloadBuffer firstEvent = null;
+            PayloadBuffer prePrestartFirstEvent = null;
             boolean gotBank, gotPrestart=false, isPrestart=false, mainItem=true;
             boolean isUser=false, isControl=false, isFirst=false;
             EventType pBankType = null;
@@ -708,6 +707,7 @@ System.out.println("   Got ET item");
                             mainItem = true;
                         }
 
+                        // All ringItems from ET and Emu channels are EvioNode-based items
                         wordCount = ringItem.getTotalBytes()/4;
                         controlType = ringItem.getControlType();
                         totalNumberEvents = ringItem.getEventCount();
@@ -743,7 +743,7 @@ System.out.println("  ER mod: got control event, " + controlType);
                                 isPrestart = gotPrestart = true;
                                 wordCount = 5 + firstEventsWords;
                                 totalNumberEvents = 1;
-                                if (firstEvent != null) totalNumberEvents++;
+                                if (prePrestartFirstEvent != null) totalNumberEvents++;
                             }
                             else if (!gotPrestart) {
                                 throw new EmuException("prestart, not " + controlType +
@@ -757,7 +757,7 @@ System.out.println("  ER mod: got control event, " + controlType);
                         // If we haven't gotten the prestart event ...
                         if (!gotPrestart) {
                             // Throw away all events except any "first events"
-                            if (ringItem.isFirstEvent()) {
+                            if (isFirst) {
                                 // Store the latest first event until prestart is received, then write.
                                 //
                                 // We do NOT, however, want to leave it in the byte buffer
@@ -768,20 +768,20 @@ System.out.println("  ER mod: got control event, " + controlType);
                                 // original ringItem and the buffer from the supply.
 
                                 // Cloning the ringItem makes a copy of the ByteBuffer it contains
-                                firstEvent = (PayloadBuffer)((PayloadBuffer)ringItem).clone();
+                                prePrestartFirstEvent = (PayloadBuffer)((PayloadBuffer)ringItem).clone();
                                 firstEventsWords = wordCount;
 
                                 // If however, the data was NOT contained in a ByteBuffer but in
                                 // an EvioNode instead, copy that data ...
-                                if (firstEvent.getBuffer() == null) {
+                                if (prePrestartFirstEvent.getBuffer() == null) {
                                     // Get a copy of the node data into the buffer
-                                    firstEvent.setBuffer(ringItem.getNode().getStructureBuffer(true));
-                                    firstEvent.setNode(null);
+                                    prePrestartFirstEvent.setBuffer(ringItem.getNode().getStructureBuffer(true));
+                                    prePrestartFirstEvent.setNode(null);
                                 }
-System.out.println("  ER mod: SET \"first event\" of type " + ringItem.getEventType() + " which arrived before PRESTART event");
+System.out.println("  ER mod: SET \"first event\" of type " + pBankType + " which arrived before PRESTART event");
                             }
                             else {
-System.out.println("  ER mod: THROWING AWAY event of type " + ringItem.getEventType() + " which arrived before PRESTART event");
+System.out.println("  ER mod: THROWING AWAY event of type " + pBankType + " which arrived before PRESTART event");
                             }
 
                             // Release ByteBuffer used by item since it will NOT
@@ -803,7 +803,7 @@ System.out.println("  ER mod: THROWING AWAY event of type " + ringItem.getEventT
                         }
 
 //System.out.println("  ER mod: accept item " + mainNextSequence + '/' + etNextSequence +
-//                   ", type " + ringItem.getEventType());
+//                   ", type " + pBankType);
                         gotBank = true;
                         break;
                     }
@@ -854,13 +854,13 @@ System.out.println("  ER mod: writing control/first (seq " + mainNextSequence +
                             // This "first" or Beginning-of-run (BOR) event will be sent over
                             // all channels as opposed to the normal user events.
                             if (isPrestart) {
-                                if (firstEvent != null) {
+                                if (prePrestartFirstEvent != null) {
                                     // Copy/swap first event in place
-                                    copyAndSwapUserEvent(firstEvent);
+                                    copyAndSwapUserEvent(prePrestartFirstEvent);
                                     // Copy first event
-                                    outputEvents[0] = firstEvent;
+                                    outputEvents[0] = prePrestartFirstEvent;
                                     for (int i = 1; i < outputChannelCount; i++) {
-                                        outputEvents[i] = new PayloadBuffer(firstEvent);
+                                        outputEvents[i] = new PayloadBuffer(prePrestartFirstEvent);
                                     }
 
                                     // Place one on each output channel
@@ -927,7 +927,7 @@ logger.info("  ER mod: found END event");
                     // The first event was already copied and freed.
                     if (outputChannelCount < 1) {
                         isPrestart = false;
-                        firstEvent = null;
+                        prePrestartFirstEvent = null;
                         ringItem.releaseByteBuffer();
                     }
 
