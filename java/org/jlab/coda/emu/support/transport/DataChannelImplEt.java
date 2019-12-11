@@ -744,9 +744,9 @@ logger.info("      DataChannel Et: # copy-ET-buffers in input supply -> " + numE
                     // the byte buffer supply does not have to be synchronized as byte buffers are
                     // released in order. Will make things faster.
 
-                    // TODO: update, user events coming over same channel as physics are COPIED and
+                    // UPDATE, user events coming over same channel as physics are COPIED and
                     // buffers from this supply are released. They are released while a previous
-                    // physics buffer is still being used to write events to file (ie nodes in
+                    // physics buffer is still being used to write events (ie nodes in
                     // the process of being written). So there is NO sequential release.
                     bbSupply = new ByteBufferSupply(numEtBufs, etEventSize,
                                                     module.getOutputOrder(),
