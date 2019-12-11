@@ -617,12 +617,13 @@ System.out.println("checkPayload: buf source id = " + pBuf.getSourceId() +
      * @param recordId  id associated with an incoming evio event
      *                  (each of which may contain several physics events)
      * @param expectedRecordId  expected record id
+     * @param print if true, print out when record id is out-of-seq.
      * @param eventType type of input event
      * @param channel   input channel data is from
-     * @return expected record id
+     * @return next expected record id
      *
      */
-    public static int checkRecordIdSequence(int recordId, int expectedRecordId,
+    public static int checkRecordIdSequence(int recordId, int expectedRecordId, boolean print,
                                             EventType eventType, DataChannel channel) {
 
         if (eventType.isBuildable()) {
@@ -634,11 +635,16 @@ System.out.println("checkPayload: buf source id = " + pBuf.getSourceId() +
             // they will all have the same recordId.
 
             if (recordId != expectedRecordId) {
-//                System.out.println("checkPayload: record ID out of sequence, got " + recordId +
-//                                   ", expecting " + expectedRecordId + ", type = " + eventType +
-//                                   ", name = " + channel.name());
-                // Reset the expected id so we don't get a shower of printout
-                return recordId;
+                if (print) {
+                    System.out.println("checkRecordIdSequence: record ID out of sequence, got " + recordId +
+                                               ", expecting " + expectedRecordId + ", type = " + eventType +
+                                               ", name = " + channel.name());
+                }
+                // Reset the next expected id so we don't get a shower of printout
+                return recordId + 1;
+            }
+            else {
+                return expectedRecordId + 1;
             }
         }
         return expectedRecordId;
