@@ -737,7 +737,7 @@ System.out.println("Emu created, name = " + name + ", type = " + codaClass);
      */
     EmuModule getStatisticsModule() {
         synchronized(modules) {
-//            if (modules.size() < 1) return null;
+            if (modules.size() < 1) return null;
 //
 //            // Return first module that says its statistics represents EMU statistics
 //            for (EmuModule module : modules) {
@@ -750,7 +750,7 @@ System.out.println("Emu created, name = " + name + ", type = " + codaClass);
             // For now (2/2020), pick the last module, which will be the ER
 
             // If no modules claim to speak for EMU, choose last module in config file
-            return modules.get(modules.size()-1);
+            return modules.get(modules.size() - 1);
         }
     }
 
