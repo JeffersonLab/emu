@@ -737,7 +737,7 @@ System.out.println("Emu created, name = " + name + ", type = " + codaClass);
      */
     EmuModule getStatisticsModule() {
         synchronized(modules) {
-//            if (modules.size() < 1) return null;
+            if (modules.size() < 1) return null;
 //
 //            // Return first module that says its statistics represents EMU statistics
 //            for (EmuModule module : modules) {
