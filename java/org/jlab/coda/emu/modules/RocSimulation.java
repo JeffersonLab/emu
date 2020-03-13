@@ -108,6 +108,10 @@ public class RocSimulation extends ModuleAdapter {
     // Members used to synchronize all fake Rocs to each other which allows run to
     // end properly. I.e., they all produce the same number of buildable events.
     //----------------------------------------------------
+    /** If true, no physics events are produces.
+     *  This is equivalent to having no triggers. */
+    private boolean noPhysics;
+
     /** Is this ROC to be synced with others? */
     private boolean synced;
 
@@ -444,9 +448,6 @@ System.out.println("getRealData: successfully read in file " + filename);
         catch (NumberFormatException e) { /* defaults to 100k */ }
         if (syncCount < 10) syncCount = 10;
 
-        // Event generating threads
-        eventGeneratingThreads = new EventGeneratingThread[eventProducingThreads];
-
         // Is this ROC to be synced with others?
         synced = true;
         s = attributeMap.get("sync");
@@ -458,6 +459,24 @@ System.out.println("getRealData: successfully read in file " + filename);
             }
         }
 System.out.println("  Roc mod: sync = " + synced);
+
+        // Does this ROC produce physics events?
+        // Set this to true if you want to test a zero-trigger setup.
+        // Just for testing! No physics events are sent.
+        // Use this with synced = false, and don't run a TS.
+        noPhysics = false;
+        s = attributeMap.get("noPhysics");
+        if (s != null) {
+            if (s.equalsIgnoreCase("true") ||
+                s.equalsIgnoreCase("on")   ||
+                s.equalsIgnoreCase("yes"))   {
+                noPhysics = true;
+                eventProducingThreads = 1;
+            }
+        }
+
+        // Event generating threads
+        eventGeneratingThreads = new EventGeneratingThread[eventProducingThreads];
 
         // the module sets the type of CODA class it is.
         emu.setCodaClass(CODAClass.ROC);
@@ -1355,23 +1374,25 @@ System.out.println("  Roc mod: reset()");
             RateCalculator.start();
         }
 
-        for (int i=0; i < eventProducingThreads; i++) {
-            if (eventGeneratingThreads[i] == null) {
+        if (!noPhysics) {
+            for (int i = 0; i < eventProducingThreads; i++) {
+                if (eventGeneratingThreads[i] == null) {
 //System.out.println("  Roc mod: create new event generating thread ");
-                eventGeneratingThreads[i] = new EventGeneratingThread(i, emu.getThreadGroup(),
-                                                                      emu.name()+":generator");
-            }
-            else if (!eventGeneratingThreads[i].isAlive()) {
+                    eventGeneratingThreads[i] = new EventGeneratingThread(i, emu.getThreadGroup(),
+                                                                          emu.name() + ":generator");
+                }
+                else if (!eventGeneratingThreads[i].isAlive()) {
 //System.out.println("  Roc mod: create new event generating thread, since old one is DEAD");
-                eventGeneratingThreads[i] = new EventGeneratingThread(i, emu.getThreadGroup(),
-                                                                      emu.name()+":generator");
-            }
+                    eventGeneratingThreads[i] = new EventGeneratingThread(i, emu.getThreadGroup(),
+                                                                          emu.name() + ":generator");
+                }
 
 //System.out.println("  Roc mod: event generating thread " + eventGeneratingThreads[i].getName() + " isAlive = " +
 //                           eventGeneratingThreads[i].isAlive());
-            if (eventGeneratingThreads[i].getState() == Thread.State.NEW) {
+                if (eventGeneratingThreads[i].getState() == Thread.State.NEW) {
 //System.out.println("  Roc mod: starting event generating thread");
-                eventGeneratingThreads[i].start();
+                    eventGeneratingThreads[i].start();
+                }
             }
         }
 
