@@ -189,8 +189,7 @@ public class FastEventBuilder extends ModuleAdapter {
      *  releasing resources used to build events. */
     private ReleaseRingResourceThread releaseThreads[];
 
-    private boolean useReleaseThread = false;
-    private boolean useGarbageFree;
+    private boolean useReleaseThread;
 
     /** The number of the experimental run. */
     private int runNumber;
@@ -335,18 +334,6 @@ logger.info("  EB mod: # of event building threads = " + buildingThreadCount);
                 str.equalsIgnoreCase("on")   ||
                 str.equalsIgnoreCase("yes"))   {
                 includeRunData = true;
-            }
-        }
-
-
-        // set "garbage free" option on
-        useGarbageFree = true;
-        str = attributeMap.get("garbageFree");
-        if (str != null) {
-            if (str.equalsIgnoreCase("true") ||
-                str.equalsIgnoreCase("on")   ||
-                str.equalsIgnoreCase("yes"))   {
-                useGarbageFree = true;
             }
         }
 
@@ -503,12 +490,17 @@ logger.info("  EB mod: internal ring buf count -> " + ringItemCount);
      * This method is called by a build thread and is used to place
      * a bank onto the ring buffer of an output channel.
      *
-     * @param ringNum the id number of the output channel ring buffer
-     * @param buf     the event to place on output channel ring buffer
-     * @param item    item corresponding to the buffer allowing buffer to be reused
-     * @throws InterruptedException if put or wait interrupted
+     * @param ringNum    the id number of the output channel's ring buffer.
+     * @param channelNum the number of the output channel.
+     * @param eventCount number of evio events contained in this bank.
+     * @param buf        the event to place on output channel ring buffer.
+     * @param eventType  what type of data are we sending.
+     * @param item       item corresponding to the buffer allowing buffer to be reused.
+     * @param bbSupply   supply from which the item (and buf) came.
+     * @throws InterruptedException
      */
-    private void eventToOutputRing(int ringNum, int channelNum, ByteBuffer buf, EventType eventType,
+    private void eventToOutputRing(int ringNum, int channelNum, int eventCount,
+                                   ByteBuffer buf, EventType eventType,
                                    ByteBufferItem item, ByteBufferSupply bbSupply)
             throws InterruptedException {
 
@@ -529,6 +521,7 @@ logger.info("  EB mod: internal ring buf count -> " + ringItemCount);
         ri.setControlType(null);
         ri.setSourceName(null);
         ri.setReusableByteBuffer(bbSupply, item);
+        ri.setEventCount(eventCount);
 
 //System.out.println("  EB mod: will publish to ring " + ringNum);
         rb.publish(nextRingItem);
@@ -836,6 +829,9 @@ System.out.println("WRITE CONTROL EVENT to chan #" + i + ", ring 0");
             // using a different buffer.
             buildingBank.releaseByteBuffer();
         }
+
+        // Do this so we can use fifo as output & get accurate stats
+        buildingBank.setEventCount(1);
 
         // User event is stored in a buffer from here on
 
@@ -1900,8 +1896,8 @@ System.out.println("  EB mod: got user event from channel " + inputChannels.get(
 
                      // Put event in the correct output channel.
  //System.out.println("  EB mod: bt#" + btIndex + " write event " + evIndex + " on ch" + outputChannelIndex + ", ring " + btIndex);
-                     eventToOutputRing(btIndex, outputChannelIndex, evBuf,
-                                       eventType, bufItem, bbSupply);
+                     eventToOutputRing(btIndex, outputChannelIndex, entangledEventCount,
+                                       evBuf, eventType, bufItem, bbSupply);
 
                      evIndex += btCount;
 
