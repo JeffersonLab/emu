@@ -282,8 +282,12 @@ logger.info("      DataChannel Adapter: ignore data errors = " + ignoreDataError
 logger.info("      DataChannel Adapter: channel " + name + " is a fifo = " + isFifo);
 
         if (input) {
-            // FIFO code does not make it here.
-            // Fifo input calls setupInputRingBuffers(), it does not construct this channel.
+            // FIFO code never makes it here.
+            // Each FIFO must be listed in config file with output fifo coming first
+            // and its input counterpart coming second. Thus, when initially constructed,
+            // it is always as an output channel. To get the already-existing fifo as an
+            // input channel, a lookup is done.
+            // Input Fifo calls setupInputRingBuffers(), but does not construct this channel.
 
             // Set the number of items for the input ring buffers.
             // These contain evio events parsed from ET, cMsg,

@@ -1014,6 +1014,8 @@ if (debug) System.out.println("gotValidControlEvents: found control event of typ
             PayloadBuffer pBuf = new PayloadBuffer(builder.getBuffer());  // Ready to read buffer
             pBuf.setEventType(EventType.CONTROL);
             pBuf.setControlType(type);
+            // Do this so we can use fifo as output & get accurate stats
+            pBuf.setEventCount(1);
 
             return pBuf;
         }
