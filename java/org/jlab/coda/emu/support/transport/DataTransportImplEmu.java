@@ -125,6 +125,7 @@ logger.debug("    Transport Emu: start up emu server in " + emu.name() + " @ por
 
     /** {@inheritDoc}. Disconnect from cMsg server. */
     public void reset() {
+        inputChannelTable.clear();
         try {
             if (emuServer != null) {
                 logger.debug("    Transport Emu reset: stop emu server : " + name());
