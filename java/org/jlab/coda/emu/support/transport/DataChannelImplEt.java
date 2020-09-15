@@ -712,15 +712,8 @@ logger.info("      DataChannel Et: eventSize = " + etEventSize);
             numEtBufs = numEtBufs < 8 ? 8 : numEtBufs;
             // Have no more than 2048 buffers
             numEtBufs = numEtBufs > 2048 ? 2048 : numEtBufs;
-            // Make power of 2
-            if (Integer.bitCount(numEtBufs) != 1) {
-                int newVal = numEtBufs / 2;
-                numEtBufs = 1;
-                while (newVal > 0) {
-                    numEtBufs *= 2;
-                    newVal /= 2;
-                }
-            }
+            // Make power of 2, no round up
+            numEtBufs = EmuUtilities.powerOfTwo(numEtBufs, false);
 logger.info("      DataChannel Et: # copy-ET-buffers in input supply -> " + numEtBufs);
 
             // One pool for each supply buffer. However,
