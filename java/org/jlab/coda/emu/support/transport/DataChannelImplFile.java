@@ -17,6 +17,7 @@ import org.jlab.coda.emu.EmuModule;
 import org.jlab.coda.emu.support.codaComponent.CODAClass;
 import org.jlab.coda.emu.support.codaComponent.CODAState;
 import org.jlab.coda.emu.support.data.*;
+import org.jlab.coda.hipo.CompressionType;
 import org.jlab.coda.jevio.*;
 
 import java.io.DataInputStream;
@@ -269,7 +270,11 @@ logger.info("      DataChannel File: dictionary file cannot be read");
                     }
                 }
                 compression = 0;
-logger.info("      DataChannel File: compression = " + compression);
+                CompressionType compType = CompressionType.getCompressionType(compression);
+                if (compType == null) {
+                    compType = CompressionType.RECORD_UNCOMPRESSED;
+                }
+logger.info("      DataChannel File: compression = " + compType);
 
                 // Number of compression thread
                 compressionThreads = 1;
@@ -293,7 +298,7 @@ logger.info("      DataChannel File: compressionThreads = " + compressionThreads
                                                        subStreamIdCount.getAndIncrement(), // starting splitNumber
                                                        emu.getFileOutputCount(),  // splitIncrement
                                                        emu.getDataStreamCount(),  // stream count
-                                                       compression, compressionThreads,
+                                                       compType, compressionThreads,
                                                        0, 67108864);  // internal buffers of 64MB (0 -> 9MB)
 
                 if (evioFileWriter.isDiskFull()) {

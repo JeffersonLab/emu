@@ -19,6 +19,7 @@ import org.jlab.coda.emu.support.codaComponent.CODAState;
 import org.jlab.coda.emu.support.data.*;
 import org.jlab.coda.emu.Emu;
 import org.jlab.coda.cMsg.*;
+import org.jlab.coda.hipo.CompressionType;
 import org.jlab.coda.jevio.*;
 
 
@@ -975,11 +976,11 @@ logger.warn("      DataChannel cmsg out: " + name + " exit thd: " + e.getMessage
 
                         if (bankList.get(0).isFirstEvent()) {
                             evWriter = new EventWriterUnsync(buffer, 4*550000, 200, null,
-                                                             myRecordId, bankList.get(0).getEvent(), 0);
+                                                             myRecordId, bankList.get(0).getEvent(), CompressionType.RECORD_UNCOMPRESSED);
                         }
                         else {
                             evWriter = new EventWriterUnsync(buffer, 4*550000, 200, null,
-                                                             myRecordId, null, 0);
+                                                             myRecordId, null, CompressionType.RECORD_UNCOMPRESSED);
                         }
                         evWriter.setSourceId(emu.getCodaid());
                         evWriter.setEventType(bankList.get(0).getEventType().getValue());

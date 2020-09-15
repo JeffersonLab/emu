@@ -16,6 +16,7 @@ import com.lmax.disruptor.*;
 import org.jlab.coda.emu.EmuException;
 import org.jlab.coda.emu.support.codaComponent.CODAState;
 import org.jlab.coda.emu.support.data.*;
+import org.jlab.coda.hipo.CompressionType;
 import org.jlab.coda.jevio.*;
 
 import java.io.*;
@@ -214,7 +215,8 @@ public class RealDataTest {
 //            ByteBuffer containerBufZero = ByteBuffer.allocate(containerBufSize);
             ByteBuffer containerBuf = ByteBuffer.allocate(containerBufSize);
             containerBuf.order(outputOrder);
-            writer = new EventWriterUnsync(containerBuf, 0, 0, null, 1, null, 0);
+            writer = new EventWriterUnsync(containerBuf, 0, 0, null,
+                    1, null, CompressionType.RECORD_UNCOMPRESSED);
             t1 = System.currentTimeMillis();
 
             // Start up receiving thread
