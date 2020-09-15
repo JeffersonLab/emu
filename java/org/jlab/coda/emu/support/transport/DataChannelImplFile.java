@@ -244,14 +244,18 @@ logger.info("      DataChannel File: dictionary file cannot be read");
                 boolean overWriteOK = true;
                 if (split > 0L) overWriteOK = false;
 
-                // Biggest int there is
-                //int internalBufferSizeBytes = Integer.MAX_VALUE; // 2.1G
-                //int internalBufferSizeBytes = 1073741824; // 1G
-                int internalBufferSizeBytes = 536870912;  // 512MB
-                //int internalBufferSizeBytes = 134217728;  // 128MB
-                //int internalBufferSizeBytes = 67108864;   // 64MB
-                //int internalBufferSizeBytes = 33554432;   // 32MB
-                //int internalBufferSizeBytes = 16777216;   // 16MB
+                // Number of bytes specified for writer's internal buffer?
+                int internalBufferSizeBytes = 64000000;  // 64MB by default
+
+                String bufBytes = attributeMap.get("evioRamBuffer");
+                if (bufBytes != null) {
+                    try {
+                        internalBufferSizeBytes = Integer.parseInt(bufBytes);
+                        // Ignore small values
+                        if (internalBufferSizeBytes < 64000000) internalBufferSizeBytes = 64000000;
+                    }
+                    catch (NumberFormatException e) {}
+                }
 
                 evioFileWriter = new EventWriterUnsync(fileName, directory, runType,
                                                        runNumber, split, 4*4194304,
