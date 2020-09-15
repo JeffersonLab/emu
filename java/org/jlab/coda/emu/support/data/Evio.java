@@ -2760,7 +2760,7 @@ System.out.println("TS = " + ts + " for " + inputPayloadBanks[j].getSourceName()
                      int dataWords = segWords - 1;
                      totalSegDataWords += dataWords;
 
-                     // Make sure each seg in roc's trigger bank has same amount of dta
+                     // Make sure each seg in roc's trigger bank has same amount of data
                      if (j == 0) {
                          dataWordsFromEachSeg = segWords;
                          segTotalBytes = 4*(segWords + 1);
