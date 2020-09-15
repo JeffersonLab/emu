@@ -1931,6 +1931,7 @@ if (debug) System.out.println("Emu " + name + " end: END cmd to transport " + tr
         }
         catch (InterruptedException e) {
 System.out.println("Emu " + name + " end: interrupted, returning");
+            System.gc();
             return;
         }
         catch (OutOfMemoryError e) {
@@ -2126,9 +2127,6 @@ if (debug) System.out.println("Emu " + name + " prestart: PRESTART cmd to " + tr
             outChannels.clear();
             fifoChannels.clear();
 
-            // Great time to collect garbage as channels tend to eat memory
-            System.gc();
-
             // modulesConfig never null cause checked in download transition
             Node modulesConfig = Configurer.getNode(configuration(), "component/modules");
             Node moduleNode = modulesConfig.getFirstChild();
@@ -2146,6 +2144,9 @@ if (debug) System.out.println("Emu " + name + " prestart: PRESTART cmd to " + tr
 
                     // Clear out all channels created in previous PRESTART
                     module.clearChannels();
+
+                    // Great time to collect garbage as channels tend to eat memory
+                    System.gc();
 
                     ArrayList<DataChannel> in = new ArrayList<>(16);
                     ArrayList<DataChannel> out = new ArrayList<>(4);
