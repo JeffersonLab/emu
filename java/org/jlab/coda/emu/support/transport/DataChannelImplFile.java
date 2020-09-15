@@ -290,6 +290,19 @@ logger.info("      DataChannel File: compression = " + compType);
                 compressionThreads = 2;
 logger.info("      DataChannel File: compressionThreads = " + compressionThreads);
 
+                // Number of bytes specified for writer's internal buffer?
+                int internalBufferSizeBytes = 64000000;  // 64MB by default
+
+                String bufBytes = attributeMap.get("evioRamBuffer");
+                if (bufBytes != null) {
+                    try {
+                        internalBufferSizeBytes = Integer.parseInt(bufBytes);
+                        // Ignore small values
+                        if (internalBufferSizeBytes < 64000000) internalBufferSizeBytes = 64000000;
+                    }
+                    catch (NumberFormatException e) {}
+                }
+
                 evioFileWriter = new EventWriterUnsync(fileName, directory, runType,
                                                        runNumber, split, 0, 100000,
                                                        byteOrder, dictionaryXML, overWriteOK,
@@ -299,7 +312,7 @@ logger.info("      DataChannel File: compressionThreads = " + compressionThreads
                                                        emu.getFileOutputCount(),  // splitIncrement
                                                        emu.getDataStreamCount(),  // stream count
                                                        compType, compressionThreads,
-                                                       0, 67108864);  // internal buffers of 64MB (0 -> 9MB)
+                                                       0, internalBufferSizeBytes);  // internal buffers of 64MB (0 -> 9MB)
 
                 if (evioFileWriter.isDiskFull()) {
                     emu.sendRcWarningMessage("files cannot be written, disk almost full");
