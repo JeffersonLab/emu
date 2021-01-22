@@ -772,9 +772,17 @@ class ClientHandler extends Thread {
                     reader = new EvioCompactReader(buf, pool, false);
                 }
                 else {
-                    //reader.setBuffer(inputBuf, pool);
-                    ByteBuffer biggerBuf = reader.setCompressedBuffer(buf, pool);
-                    item.setBuffer(biggerBuf);
+                    reader.setBuffer(buf, pool);
+                }
+
+                // If buf contained compressed data
+                if (reader.isCompressed()) {
+                    // Data may have been uncompressed into a different, larger buffer.
+                    // If so, ditch the original and use the new one.
+                    ByteBuffer biggerBuf = reader.getByteBuffer();
+                    if (biggerBuf != buf) {
+                        item.setBuffer(biggerBuf);
+                    }
                 }
 
 

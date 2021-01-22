@@ -1139,7 +1139,7 @@ System.out.println("      DataChannel Emu in: " + name +
             EvioNode node;
             boolean hasFirstEvent, isUser=false;
             ControlType controlType = null;
-            EvioNodePool pool;
+            EvioNodeSource pool;
 
             // Get buffer from an item from ByteBufferSupply - one per channel
             ByteBuffer buf = item.getBuffer();
@@ -1158,22 +1158,20 @@ System.out.println("      DataChannel Emu in: " + name +
                 if (reader == null) {
 //System.out.println("      DataChannel Emu in: create reader, buf's pos/lim = " + buf.position() + "/" + buf.limit());
                     reader = new EvioCompactReader(buf, pool, false);
-
-                    // If buf contained compressed data
-                    if (reader.isCompressed()) {
-                        // Data may have been uncompressed into a different, larger buffer.
-                        // If so, ditch the original and use the new one.
-                        ByteBuffer biggerBuf = reader.getByteBuffer();
-                        if (biggerBuf != buf) {
-                            item.setBuffer(biggerBuf);
-                        }
-                    }
                 }
                 else {
 //System.out.println("      DataChannel Emu in: set buffer, expected id = " + expectedRecordId);
-                    //reader.setBuffer(buf, pool);
-                    ByteBuffer biggerBuf = reader.setCompressedBuffer(buf, pool);
-                    item.setBuffer(biggerBuf);
+                    reader.setBuffer(buf, pool);
+                }
+
+                // If buf contained compressed data
+                if (reader.isCompressed()) {
+                    // Data may have been uncompressed into a different, larger buffer.
+                    // If so, ditch the original and use the new one.
+                    ByteBuffer biggerBuf = reader.getByteBuffer();
+                    if (biggerBuf != buf) {
+                        item.setBuffer(biggerBuf);
+                    }
                 }
             }
             catch (EvioException e) {
