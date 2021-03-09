@@ -20,7 +20,6 @@ endif
 if ($#argv > 2) then
 $JAVA_HOME/bin/java -cp $CODA/common/jar/\* \
     -XX:+UnlockCommercialFeatures -XX:+FlightRecorder \
-    -XX:+AssumeMP \
     -XX:PerMethodRecompilationCutoff=40 \
     -XX:NmethodSweepActivity=1 \
     -XX:+UseConcMarkSweepGC \
@@ -39,7 +38,6 @@ $JAVA_HOME/bin/java -cp $CODA/common/jar/\* \
 else
 $JAVA_HOME/bin/java -cp $CODA/common/jar/\* \
     -XX:+UnlockCommercialFeatures -XX:+FlightRecorder \
-    -XX:+AssumeMP \
     -XX:PerMethodRecompilationCutoff=40 \
     -XX:NmethodSweepActivity=1 \
     -XX:+UseConcMarkSweepGC \
