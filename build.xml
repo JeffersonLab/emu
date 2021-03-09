@@ -27,7 +27,7 @@
     <property name="local.jars"    value="${src.dir}/jars" />
 
     <property name="allDisNames"   value="disruptor-*.jar" />
-    <property name="disJarName"    value="disruptor-3.4.jar" />
+    <property name="disJarName"    value="disruptor-3.4.2.jar" />
     <property name="disJarPath"    value="${local.jars}/${disJarName}" />
 
     <property name="slJarName"     value="swing-layout.jar" />
