@@ -19,7 +19,6 @@ if ($#argv > 2) then
 $JAVA_HOME/bin/java -cp $CODA/common/jar/\* \
     -XX:PerMethodRecompilationCutoff=40 \
     -XX:NmethodSweepActivity=1 \
-    -XX:+ScavengeBeforeFullGC \
     -Xms10G \
     -DrcAddr=$3 \
     -Djava.net.preferIPv4Stack=true \
@@ -31,7 +30,6 @@ else
 $JAVA_HOME/bin/java -cp $CODA/common/jar/\* \
     -XX:PerMethodRecompilationCutoff=40 \
     -XX:NmethodSweepActivity=1 \
-    -XX:+ScavengeBeforeFullGC \
     -Xms10G \
     -Djava.net.preferIPv4Stack=true \
     -Djava.library.path=$CODA/$MACHINE/lib \
