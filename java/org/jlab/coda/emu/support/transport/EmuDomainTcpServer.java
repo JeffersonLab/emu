@@ -38,7 +38,7 @@ public class EmuDomainTcpServer extends Thread {
 
 
     /** Level of debug output for this class. */
-    private int debug = cMsgConstants.debugInfo;
+    private int debug = cMsgConstants.debugError;
 
     private final int serverPort;
 
@@ -122,7 +122,7 @@ public class EmuDomainTcpServer extends Thread {
                     }
                     continue;
                 }
-System.out.println("    Emu TCP Server: someone trying to connect");
+//System.out.println("    Emu TCP Server: someone trying to connect");
 
                 // Get an iterator of selected keys (ready sockets)
                 Iterator it = selector.selectedKeys().iterator();
@@ -189,8 +189,7 @@ System.out.println("    Emu TCP Server: someone trying to connect");
 
                                 // Check for server / client compatibility for cMsg version
                                 version = buffer.getInt();
-System.out.println("    Emu TCP Server: Client cMsg version = " + version +
-        ", this server's cMsg version = " + cMsgConstants.version);
+//System.out.println("    Emu TCP Server: Got version = " + version);
                                 if (version != cMsgConstants.version) {
                                     if (debug >= cMsgConstants.debugInfo) {
                                         System.out.println("    Emu TCP Server: version mismatch, got " +
@@ -203,7 +202,7 @@ System.out.println("    Emu TCP Server: Client cMsg version = " + version +
 
                                 // CODA id of sender
                                 codaId = buffer.getInt();
-System.out.println("    Emu TCP Server: Got coda id = " + codaId);
+//System.out.println("    Emu TCP Server: Got coda id = " + codaId);
                                 if (codaId < 0) {
                                     if (debug >= cMsgConstants.debugInfo) {
                                         System.out.println("    Emu TCP Server: bad coda id of sender (" +
@@ -216,7 +215,7 @@ System.out.println("    Emu TCP Server: Got coda id = " + codaId);
 
                                 // Max size buffers to hold incoming data in bytes
                                 bufferSizeDesired = buffer.getInt();
-System.out.println("    Emu TCP Server: Got buffer size = " + bufferSizeDesired);
+//System.out.println("    Emu TCP Server: Got buffer size = " + bufferSizeDesired);
                                 if (bufferSizeDesired < 4*10) {
                                     // 40 bytes is smallest possible evio file format size
                                     if (debug >= cMsgConstants.debugInfo) {
@@ -230,7 +229,7 @@ System.out.println("    Emu TCP Server: Got buffer size = " + bufferSizeDesired)
 
                                 // Number of sockets expected to be made by client
                                 socketCount = buffer.getInt();
-System.out.println("    Emu TCP Server: Got socket count = " + socketCount);
+//System.out.println("    Emu TCP Server: Got socket count = " + socketCount);
                                 if (socketCount < 1) {
                                     if (debug >= cMsgConstants.debugInfo) {
                                         System.out.println("    Emu TCP Server: bad socket count of sender (" +
@@ -243,7 +242,7 @@ System.out.println("    Emu TCP Server: Got socket count = " + socketCount);
 
                                 // Position of this socket compared to others: 1, 2, ...
                                 socketPosition = buffer.getInt();
-System.out.println("    Emu TCP Server: Got socket position = " + socketPosition);
+//System.out.println("    Emu TCP Server: Got socket position = " + socketPosition);
                                 if (socketCount < 1) {
                                     if (debug >= cMsgConstants.debugInfo) {
                                         System.out.println("    Emu TCP Server: bad socket position of sender (" +
@@ -284,7 +283,7 @@ System.out.println("    Emu TCP Server: Got socket position = " + socketPosition
                         // The emu (not socket) channel will start a
                         // thread to handle all further communication.
                         try {
-System.out.println("    Emu TCP Server: domain server, call attachToInput");
+//System.out.println("    Emu TCP Server: domain server, call attachToInput");
                             emuChannel.attachToInput(channel, codaId, bufferSizeDesired,
                                                      socketCount, socketPosition);
                         }
@@ -297,7 +296,7 @@ System.out.println("    Emu TCP Server: domain server, call attachToInput");
                             continue;
                         }
 
-System.out.println("    Emu TCP Server: domain server, new connection");
+//System.out.println("    Emu TCP Server: domain server, new connection");
                     }
 
                     // remove key from selected set since it's been handled
