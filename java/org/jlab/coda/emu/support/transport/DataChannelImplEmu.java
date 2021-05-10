@@ -404,8 +404,8 @@ logger.info("      DataChannel Emu: over subnet " + preferredSubnet);
 
         // Make power of 2, round up
         numBufs = EmuUtilities.powerOfTwo(numBufs, true);
-//logger.info("\n\n      DataChannel Emu in: " + numBufs + " buffers in input supply, socketCount = " +
-//                    socketCount + "\n\n");
+logger.info("\n\n      DataChannel Emu in: " + numBufs + " buffers in input supply, socketCount = " +
+                    socketCount + "\n\n");
 
         // Initialize things once
         if (socketChannel == null) {
@@ -416,7 +416,7 @@ logger.info("      DataChannel Emu: over subnet " + preferredSubnet);
             dataInputThread = new DataInputHelper[socketCount];
             parserMergerThread = new ParserMerger();
             nodePools = new EvioNodePool[socketCount][numBufs];
-//logger.info("      DataChannel Emu in: allocated " + (socketCount * numBufs) + " node pools in array");
+logger.info("      DataChannel Emu in: allocated " + (socketCount * numBufs) + " node pools in array");
         }
         // If establishing multiple sockets for this single emu channel,
         // make sure their settings are compatible.
@@ -491,7 +491,7 @@ logger.info("      DataChannel Emu: over subnet " + preferredSubnet);
         for (int i = 0; i < numBufs; i++) {
             nodePools[index][i] = new EvioNodePool(3500);
         }
-//logger.info("      DataChannel Emu in: created " + (numBufs) + " node pools for socket " + index + ", " + name());
+logger.info("      DataChannel Emu in: created " + (numBufs) + " node pools for socket " + index + ", " + name());
 
         bbInSupply[index] = new ByteBufferSupply(numBufs, maxBufferSize,
                                                  ByteOrder.BIG_ENDIAN, direct,
@@ -511,7 +511,7 @@ logger.info("      DataChannel Emu in: connection made from " + name);
             for (int i=0; i < socketCount; i++) {
                 dataInputThread[i].waitUntilStarted();
             }
-//logger.info("      DataChannel Emu in: last connection made, parser thd started, input threads running");
+logger.info("      DataChannel Emu in: last connection made, parser thd started, input threads running");
         }
     }
 
@@ -688,11 +688,13 @@ logger.info("      DataChannel Emu out: will directly connect to server w/ UDL =
 
     /** {@inheritDoc} */
     public void prestart() throws CmdExecException {
+logger.debug("      DataChannel Emu: prestart(), IN");
         super.prestart();
         haveInputEndEvent = false;
 
         if (input) {
             channelState = CODAState.PAUSED;
+logger.debug("      DataChannel Emu: prestart(), set input channel to PAUSED");
             return;
         }
         try {

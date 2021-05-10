@@ -2074,6 +2074,7 @@ System.out.println("Emu " + name + " go: " + e.getMessage());
      */
     private void prestart(Command cmd) {
 logger.info("Emu " + name + " prestart: change state to PRESTARTING");
+boolean debug = true;
 //        System.out.println("CMD; " + cmd.getMessage().toString());
         setState(PRESTARTING);
 
@@ -2180,7 +2181,7 @@ if (debug) System.out.println("Emu " + name + " prestart: PRESTART cmd to " + tr
 //System.out.println("Emu " + name + " prestart: channel node of attribute \"name\" = " + channelNameNode.getNodeName());
                         // Get name of this channel
                         String channelName = channelNameNode.getNodeValue();
-//System.out.println("Emu " + name + " prestart: found channel of name " + channelName);
+if (debug) System.out.println("Emu " + name + " prestart: found channel of name " + channelName);
 
                         // Get "transp" attribute node from map
                         Node channelTranspNode = nnm.getNamedItem("transp");
@@ -2190,7 +2191,7 @@ if (debug) System.out.println("Emu " + name + " prestart: PRESTART cmd to " + tr
                         }
                         // Get name of transport
                         String channelTransName = channelTranspNode.getNodeValue();
-//System.out.println("Emu " + name + " prestart: module = " + module.name() + ", channel = " + channelName + ", transp = " + channelTransName);
+if (debug) System.out.println("Emu " + name + " prestart: module = " + module.name() + ", channel = " + channelName + ", transp = " + channelTransName);
                         // Look up transport object from name
                         DataTransport trans = findTransport(channelTransName);
 
@@ -2262,7 +2263,7 @@ if (debug) System.out.println("Emu " + name + " prestart: PRESTART cmd to " + tr
                             }
                         }
                         else {
-//System.out.println("Emu " + name + "u prestart: channel type \"" + channelNode.getNodeName() + "\" is unknown");
+System.out.println("Emu " + name + "u prestart: channel type \"" + channelNode.getNodeName() + "\" is unknown");
                         }
                     }
 
