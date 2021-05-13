@@ -985,7 +985,7 @@ logger.debug("      DataChannel Emu: end(), close output channel " + name);
 
                     // Sets the producer sequence
                     item = bbSupply.get();
-//System.out.println("      DataChannel Emu in: GOT pool " + item.myIndex);
+System.out.println("      DataChannel Emu in: GOT item #" + item.getMyId() + " from pool #" + item.myIndex);
 
                     // First read the command & size with one read, into a long.
                     // These 2, 32-bit ints are sent in network byte order, cmd first.
@@ -1017,9 +1017,11 @@ logger.debug("      DataChannel Emu: end(), close output channel " + name);
                         buf.limit(size);
 
                         inStream.readFully(item.getBuffer().array(), 0, size);
+System.out.println("      DataChannel Emu in: just read data buffer of " + size + " bytes, with cmd = " + cmd);
                     }
 
                     bbSupply.publish(item);
+System.out.println("      DataChannel Emu in: just published data buf to ByteBuffer supply");
 
                     // We just received the END event
                     if (cmd == cMsgConstants.emuEvioEndEvent) {
@@ -1041,6 +1043,8 @@ System.out.println("      DataChannel Emu in: " + name + ", got END event on soc
                                     socketPosition + ", exit reading thd");
             }
             catch (Exception e) {
+                e.printStackTrace();
+
                 if (haveInputEndEvent) {
 System.out.println("      DataChannel Emu in: " + name +
                    ", exception but aleady have END event, so exit reading thd");
@@ -1115,10 +1119,12 @@ System.out.println("      DataChannel Emu in: " + name +
                 }
             }
             catch (InterruptedException e) {
-//                logger.warn("      DataChannel Emu in: " + name +
-//                            " parserMerger thread interrupted, quitting ####################################");
+                e.printStackTrace();
+                logger.warn("      DataChannel Emu in: " + name +
+                            " parserMerger thread interrupted, quitting ####################################");
             }
             catch (EvioException e) {
+                e.printStackTrace();
                 // Bad data format or unknown control event.
                 channelState = CODAState.ERROR;
                 emu.setErrorState("DataChannel Emu in: " + e.getMessage());
@@ -1170,6 +1176,9 @@ System.out.println("      DataChannel Emu in: " + name +
             // First block header in buffer
             BlockHeaderV4 blockHeader = reader.getFirstBlockHeader();
             if (blockHeader.getVersion() < 4) {
+                System.out.println("      DataChannel Emu in: Data not in evio v4 but in version " +
+                        blockHeader.getVersion());
+
                 throw new EvioException("Data not in evio v4 but in version " +
                                                 blockHeader.getVersion());
             }
@@ -1178,6 +1187,8 @@ System.out.println("      DataChannel Emu in: " + name +
 
             EventType eventType = EventType.getEventType(blockHeader.getEventType());
             if (eventType == null || !eventType.isEbFriendly()) {
+                System.out.println("      DataChannel Emu in: bad evio format or improper event type, ev type (as int) given as " +
+                        blockHeader.getEventType());
                 throw new EvioException("bad evio format or improper event type");
             }
 
@@ -1194,25 +1205,26 @@ System.out.println("      DataChannel Emu in: " + name +
              int eventCount = reader.getEventCount();
              item.setUsers(eventCount);
 
-//    System.out.println("      DataChannel Emu in: block header, event type " + eventType +
-//                       ", recd id = " + recordId + ", event cnt = " + eventCount);
+    System.out.println("      DataChannel Emu in: block header, event type " + eventType +
+                       ", recd id = " + recordId + ", event cnt = " + eventCount);
 
              for (int i = 1; i < eventCount + 1; i++) {
                  nextRingItem = ringBufferIn.nextIntr(1);
                  ri = ringBufferIn.get(nextRingItem);
 
-                 try {
                      if (isER) {
                          // Don't need to parse all bank headers, just top level.
                          node = reader.getEvent(i);
                      }
                      else {
-                         // getScannedEvent will clear child and allNodes lists
-                         node = reader.getScannedEvent(i, pool);
+                         try {
+                             // getScannedEvent will clear child and allNodes lists
+                            node = reader.getScannedEvent(i, pool);
+                         } catch (Exception e) {
+                             e.printStackTrace();
+                             node = null;
+                         }
                      }
-                 } catch (Exception e) {
-                     e.printStackTrace();
-                 }
 
                  // This should NEVER happen
                  if (node == null) {
