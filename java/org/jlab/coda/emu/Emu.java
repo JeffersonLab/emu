@@ -1967,7 +1967,6 @@ System.out.println("Emu " + name + " end: try setting state to DOWNLOADED");
      */
     private void go() {
 logger.info("Emu " + name + " go: change state to GOING");
-boolean debug = true;
         setState(ACTIVATING);
 
         //--------------------------------------------------------
@@ -1998,9 +1997,7 @@ System.out.println("Emu " + name + " go: waiting for PRESTART event in module " 
                 mod.getPrestartCallback().waitForEvent();
 System.out.println("Emu " + name + " go: got PRESTART event in module " + mod.name());
             }
-            catch (InterruptedException e) {
-                e.printStackTrace();
-            }
+            catch (InterruptedException e) {}
         }
 
         // GO
@@ -2073,11 +2070,10 @@ System.out.println("Emu " + name + " go: " + e.getMessage());
 
     /**
      * Implement prestart command.
-     * @param cmd
+     * @param cmd command
      */
     private void prestart(Command cmd) {
 logger.info("Emu " + name + " prestart: change state to PRESTARTING");
-boolean debug = true;
 //        System.out.println("CMD; " + cmd.getMessage().toString());
         setState(PRESTARTING);
 
@@ -2142,8 +2138,6 @@ if (debug) System.out.println("Emu " + name + " prestart: PRESTART cmd to " + tr
                     // Find module object associated with this config node
                     EmuModule module = findModule(moduleNode.getNodeName());
                     if (module == null) {
-if (debug) System.out.println("Emu " + name + " prestart: module corresponding to " +
-        moduleNode.getNodeName() + " not found");
                         throw new DataNotFoundException("module corresponding to " +
                                                                 moduleNode.getNodeName() + " not found");
                     }
@@ -2186,7 +2180,7 @@ if (debug) System.out.println("Emu " + name + " prestart: module corresponding t
 //System.out.println("Emu " + name + " prestart: channel node of attribute \"name\" = " + channelNameNode.getNodeName());
                         // Get name of this channel
                         String channelName = channelNameNode.getNodeValue();
-if (debug) System.out.println("Emu " + name + " prestart: found channel of name " + channelName);
+//System.out.println("Emu " + name + " prestart: found channel of name " + channelName);
 
                         // Get "transp" attribute node from map
                         Node channelTranspNode = nnm.getNamedItem("transp");
@@ -2196,7 +2190,7 @@ if (debug) System.out.println("Emu " + name + " prestart: found channel of name 
                         }
                         // Get name of transport
                         String channelTransName = channelTranspNode.getNodeValue();
-if (debug) System.out.println("Emu " + name + " prestart: module = " + module.name() + ", channel = " + channelName + ", transp = " + channelTransName);
+//System.out.println("Emu " + name + " prestart: module = " + module.name() + ", channel = " + channelName + ", transp = " + channelTransName);
                         // Look up transport object from name
                         DataTransport trans = findTransport(channelTransName);
 
@@ -2268,7 +2262,7 @@ if (debug) System.out.println("Emu " + name + " prestart: module = " + module.na
                             }
                         }
                         else {
-System.out.println("Emu " + name + "u prestart: channel type \"" + channelNode.getNodeName() + "\" is unknown");
+//System.out.println("Emu " + name + "u prestart: channel type \"" + channelNode.getNodeName() + "\" is unknown");
                         }
                     }
 

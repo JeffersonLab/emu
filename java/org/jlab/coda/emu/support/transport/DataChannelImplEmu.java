@@ -404,8 +404,8 @@ logger.info("      DataChannel Emu: over subnet " + preferredSubnet);
 
         // Make power of 2, round up
         numBufs = EmuUtilities.powerOfTwo(numBufs, true);
-logger.info("\n\n      DataChannel Emu in: " + numBufs + " buffers in input supply, socketCount = " +
-                    socketCount + "\n\n");
+//logger.info("\n\n      DataChannel Emu in: " + numBufs + " buffers in input supply, socketCount = " +
+//                    socketCount + "\n\n");
 
         // Initialize things once
         if (socketChannel == null) {
@@ -416,7 +416,7 @@ logger.info("\n\n      DataChannel Emu in: " + numBufs + " buffers in input supp
             dataInputThread = new DataInputHelper[socketCount];
             parserMergerThread = new ParserMerger();
             nodePools = new EvioNodePool[socketCount][numBufs];
-logger.info("      DataChannel Emu in: allocated " + (socketCount * numBufs) + " node pools in array");
+//logger.info("      DataChannel Emu in: allocated " + (socketCount * numBufs) + " node pools in array");
         }
         // If establishing multiple sockets for this single emu channel,
         // make sure their settings are compatible.
@@ -491,7 +491,7 @@ logger.info("      DataChannel Emu in: allocated " + (socketCount * numBufs) + "
         for (int i = 0; i < numBufs; i++) {
             nodePools[index][i] = new EvioNodePool(3500);
         }
-logger.info("      DataChannel Emu in: created " + (numBufs) + " node pools for socket " + index + ", " + name());
+//logger.info("      DataChannel Emu in: created " + (numBufs) + " node pools for socket " + index + ", " + name());
 
         bbInSupply[index] = new ByteBufferSupply(numBufs, maxBufferSize,
                                                  ByteOrder.BIG_ENDIAN, direct,
@@ -511,7 +511,7 @@ logger.info("      DataChannel Emu in: connection made from " + name);
             for (int i=0; i < socketCount; i++) {
                 dataInputThread[i].waitUntilStarted();
             }
-logger.info("      DataChannel Emu in: last connection made, parser thd started, input threads running");
+//logger.info("      DataChannel Emu in: last connection made, parser thd started, input threads running");
         }
     }
 
@@ -688,13 +688,11 @@ logger.info("      DataChannel Emu out: will directly connect to server w/ UDL =
 
     /** {@inheritDoc} */
     public void prestart() throws CmdExecException {
-logger.debug("      DataChannel Emu: prestart(), IN");
         super.prestart();
         haveInputEndEvent = false;
 
         if (input) {
             channelState = CODAState.PAUSED;
-logger.debug("      DataChannel Emu: prestart(), set input channel to PAUSED");
             return;
         }
         try {
@@ -985,7 +983,7 @@ logger.debug("      DataChannel Emu: end(), close output channel " + name);
 
                     // Sets the producer sequence
                     item = bbSupply.get();
-System.out.println("      DataChannel Emu in: GOT item #" + item.getMyId() + " from pool #" + item.myIndex);
+//System.out.println("      DataChannel Emu in: GOT pool " + item.myIndex);
 
                     // First read the command & size with one read, into a long.
                     // These 2, 32-bit ints are sent in network byte order, cmd first.
@@ -1017,11 +1015,9 @@ System.out.println("      DataChannel Emu in: GOT item #" + item.getMyId() + " f
                         buf.limit(size);
 
                         inStream.readFully(item.getBuffer().array(), 0, size);
-System.out.println("      DataChannel Emu in: just read data buffer of " + size + " bytes, with cmd = " + cmd);
                     }
 
                     bbSupply.publish(item);
-System.out.println("      DataChannel Emu in: just published data buf to ByteBuffer supply");
 
                     // We just received the END event
                     if (cmd == cMsgConstants.emuEvioEndEvent) {
@@ -1043,8 +1039,6 @@ System.out.println("      DataChannel Emu in: " + name + ", got END event on soc
                                     socketPosition + ", exit reading thd");
             }
             catch (Exception e) {
-                e.printStackTrace();
-
                 if (haveInputEndEvent) {
 System.out.println("      DataChannel Emu in: " + name +
                    ", exception but aleady have END event, so exit reading thd");
@@ -1119,12 +1113,10 @@ System.out.println("      DataChannel Emu in: " + name +
                 }
             }
             catch (InterruptedException e) {
-                e.printStackTrace();
-                logger.warn("      DataChannel Emu in: " + name +
-                            " parserMerger thread interrupted, quitting ####################################");
+//                logger.warn("      DataChannel Emu in: " + name +
+//                            " parserMerger thread interrupted, quitting ####################################");
             }
             catch (EvioException e) {
-                e.printStackTrace();
                 // Bad data format or unknown control event.
                 channelState = CODAState.ERROR;
                 emu.setErrorState("DataChannel Emu in: " + e.getMessage());
@@ -1145,7 +1137,7 @@ System.out.println("      DataChannel Emu in: " + name +
                 throws EvioException, InterruptedException {
 
             RingItem ri;
-            EvioNode node = null;
+            EvioNode node;
             boolean hasFirstEvent, isUser=false;
             ControlType controlType = null;
             EvioNodePool pool;
@@ -1176,9 +1168,6 @@ System.out.println("      DataChannel Emu in: " + name +
             // First block header in buffer
             BlockHeaderV4 blockHeader = reader.getFirstBlockHeader();
             if (blockHeader.getVersion() < 4) {
-                System.out.println("      DataChannel Emu in: Data not in evio v4 but in version " +
-                        blockHeader.getVersion());
-
                 throw new EvioException("Data not in evio v4 but in version " +
                                                 blockHeader.getVersion());
             }
@@ -1187,8 +1176,6 @@ System.out.println("      DataChannel Emu in: " + name +
 
             EventType eventType = EventType.getEventType(blockHeader.getEventType());
             if (eventType == null || !eventType.isEbFriendly()) {
-                System.out.println("      DataChannel Emu in: bad evio format or improper event type, ev type (as int) given as " +
-                        blockHeader.getEventType());
                 throw new EvioException("bad evio format or improper event type");
             }
 
@@ -1205,26 +1192,21 @@ System.out.println("      DataChannel Emu in: " + name +
              int eventCount = reader.getEventCount();
              item.setUsers(eventCount);
 
-    System.out.println("      DataChannel Emu in: block header, event type " + eventType +
-                       ", recd id = " + recordId + ", event cnt = " + eventCount);
+//    System.out.println("      DataChannel Emu in: block header, event type " + eventType +
+//                       ", recd id = " + recordId + ", event cnt = " + eventCount);
 
              for (int i = 1; i < eventCount + 1; i++) {
                  nextRingItem = ringBufferIn.nextIntr(1);
                  ri = ringBufferIn.get(nextRingItem);
 
-                     if (isER) {
-                         // Don't need to parse all bank headers, just top level.
-                         node = reader.getEvent(i);
-                     }
-                     else {
-                         try {
-                             // getScannedEvent will clear child and allNodes lists
-                            node = reader.getScannedEvent(i, pool);
-                         } catch (Exception e) {
-                             e.printStackTrace();
-                             node = null;
-                         }
-                     }
+                 if (isER) {
+                     // Don't need to parse all bank headers, just top level.
+                     node = reader.getEvent(i);
+                 }
+                 else {
+                     // getScannedEvent will clear child and allNodes lists
+                     node = reader.getScannedEvent(i, pool);
+                 }
 
                  // This should NEVER happen
                  if (node == null) {
