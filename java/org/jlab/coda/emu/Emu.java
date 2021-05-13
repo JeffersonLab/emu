@@ -1967,6 +1967,7 @@ System.out.println("Emu " + name + " end: try setting state to DOWNLOADED");
      */
     private void go() {
 logger.info("Emu " + name + " go: change state to GOING");
+boolean debug = true;
         setState(ACTIVATING);
 
         //--------------------------------------------------------
@@ -1997,7 +1998,9 @@ System.out.println("Emu " + name + " go: waiting for PRESTART event in module " 
                 mod.getPrestartCallback().waitForEvent();
 System.out.println("Emu " + name + " go: got PRESTART event in module " + mod.name());
             }
-            catch (InterruptedException e) {}
+            catch (InterruptedException e) {
+                e.printStackTrace();
+            }
         }
 
         // GO
@@ -2139,6 +2142,8 @@ if (debug) System.out.println("Emu " + name + " prestart: PRESTART cmd to " + tr
                     // Find module object associated with this config node
                     EmuModule module = findModule(moduleNode.getNodeName());
                     if (module == null) {
+if (debug) System.out.println("Emu " + name + " prestart: module corresponding to " +
+        moduleNode.getNodeName() + " not found");
                         throw new DataNotFoundException("module corresponding to " +
                                                                 moduleNode.getNodeName() + " not found");
                     }

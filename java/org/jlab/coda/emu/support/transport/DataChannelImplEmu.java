@@ -1139,7 +1139,7 @@ System.out.println("      DataChannel Emu in: " + name +
                 throws EvioException, InterruptedException {
 
             RingItem ri;
-            EvioNode node;
+            EvioNode node = null;
             boolean hasFirstEvent, isUser=false;
             ControlType controlType = null;
             EvioNodePool pool;
@@ -1201,13 +1201,17 @@ System.out.println("      DataChannel Emu in: " + name +
                  nextRingItem = ringBufferIn.nextIntr(1);
                  ri = ringBufferIn.get(nextRingItem);
 
-                 if (isER) {
-                     // Don't need to parse all bank headers, just top level.
-                     node = reader.getEvent(i);
-                 }
-                 else {
-                     // getScannedEvent will clear child and allNodes lists
-                     node = reader.getScannedEvent(i, pool);
+                 try {
+                     if (isER) {
+                         // Don't need to parse all bank headers, just top level.
+                         node = reader.getEvent(i);
+                     }
+                     else {
+                         // getScannedEvent will clear child and allNodes lists
+                         node = reader.getScannedEvent(i, pool);
+                     }
+                 } catch (Exception e) {
+                     e.printStackTrace();
                  }
 
                  // This should NEVER happen
