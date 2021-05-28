@@ -976,11 +976,12 @@ logger.warn("      DataChannel cmsg out: " + name + " exit thd: " + e.getMessage
 
                         if (bankList.get(0).isFirstEvent()) {
                             evWriter = new EventWriterUnsync(buffer, 4*550000, 200, null,
-                                                             myRecordId, bankList.get(0).getEvent(), CompressionType.RECORD_UNCOMPRESSED);
+                                                             myRecordId, CompressionType.RECORD_UNCOMPRESSED);
+                            evWriter.setFirstEvent(bankList.get(0).getEvent());
                         }
                         else {
                             evWriter = new EventWriterUnsync(buffer, 4*550000, 200, null,
-                                                             myRecordId, null, CompressionType.RECORD_UNCOMPRESSED);
+                                                             myRecordId, CompressionType.RECORD_UNCOMPRESSED);
                         }
                         evWriter.setSourceId(emu.getCodaid());
                         evWriter.setEventType(bankList.get(0).getEventType().getValue());
@@ -990,6 +991,7 @@ logger.warn("      DataChannel cmsg out: " + name + " exit thd: " + e.getMessage
                     }
                 }
                 catch (EvioException e) {/* never happen */}
+                catch (IOException e) {/* never happen */}
             }
 
 

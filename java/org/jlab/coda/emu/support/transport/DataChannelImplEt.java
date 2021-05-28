@@ -2102,7 +2102,7 @@ logger.info("      DataChannel Et in: wake up GETTER's getEvents() call so it ca
 //                                String xmlDictionary, int recordNumber,
 //                                EvioBank firstEvent, int compressionType)
                 EventWriterUnsync writer = new EventWriterUnsync(etBuffer, 4*1100000, maxEvioItemsPerEtBuf,
-                                                                 null, 0, null, CompressionType.RECORD_UNCOMPRESSED);
+                                                                 null, 0, CompressionType.RECORD_UNCOMPRESSED);
                 writer.setSourceId(emu.getCodaid());
 //                public EventWriterUnsync(ByteBuffer buf, int blockSizeMax, int blockCountMax,
 //                                             String xmlDictionary, BitSet bitInfo, int reserved1,

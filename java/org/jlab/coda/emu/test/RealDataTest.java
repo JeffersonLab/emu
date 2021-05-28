@@ -216,7 +216,7 @@ public class RealDataTest {
             ByteBuffer containerBuf = ByteBuffer.allocate(containerBufSize);
             containerBuf.order(outputOrder);
             writer = new EventWriterUnsync(containerBuf, 0, 0, null,
-                    1, null, CompressionType.RECORD_UNCOMPRESSED);
+                    1, CompressionType.RECORD_UNCOMPRESSED);
             t1 = System.currentTimeMillis();
 
             // Start up receiving thread
