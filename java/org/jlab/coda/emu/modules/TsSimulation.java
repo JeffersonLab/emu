@@ -123,7 +123,12 @@ System.out.println("  TS mod: all ROCs got end cmd");
     // ---------------------------------------------------
 
 
-    /** Constructor. */
+    /**
+     * Constructor.
+     * @param name name of module
+     * @param attributeMap map containing attributes of module
+     * @param emu Emu this module belongs to.
+     */
     public TsSimulation(String name, Map<String, String> attributeMap, Emu emu) {
         super(name, attributeMap, emu);
 

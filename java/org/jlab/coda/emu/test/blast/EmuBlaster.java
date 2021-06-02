@@ -143,7 +143,10 @@ public class EmuBlaster {
     }
 
 
-    /** Run as a stand-alone application. */
+    /**
+     * Run as a stand-alone application.
+     * @param args args
+     */
     public static void main(String[] args) {
         try {
             EmuBlaster blaster = new EmuBlaster(args);

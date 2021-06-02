@@ -39,12 +39,12 @@ import java.util.concurrent.locks.ReentrantLock;
  *                        |
  *                      __|__
  *                     /  |  \
- *                    /1 _|_ 2\  <---- Build Threads 1-M
+ *                    /1 _|_ 2\  &lt;---- Build Threads 1-M
  *                   |__/   \__|        |
  *                   |6 |   | 3|        |
  *             ^     |__|___|__|        |
  *             |      \ 5 | 4 /         |
- *         Producer->  \__|__/          V
+ *         Producer-&gt;  \__|__/          V
  *                        |
  *                        |
  *                        | Barrier (at last sequence produced)
@@ -76,7 +76,7 @@ import java.util.concurrent.locks.ReentrantLock;
  *                           |        /         /       _
  *                           |      /        /       /
  *                           |    /        /        /
- *                           |  /       /         <   Crossbar of
+ *                           |  /       /         &lt;   Crossbar of
  *                           | /      /            \  Connections
  *                           |/    /                \
  *                           |  /                    \
@@ -85,7 +85,7 @@ import java.util.concurrent.locks.ReentrantLock;
  *  BuildingThreads:        BT1      BT2      BTM
  *  Grab 1 bank from         |        |        |
  *  each ring,               |        |        |
- *  build event, &           |        |        |
+ *  build event, and         |        |        |
  *  place in                 |        |        |
  *  output channel(s)        \        |       /
  *                            \       |      /
@@ -142,16 +142,16 @@ import java.util.concurrent.locks.ReentrantLock;
  *     represented by the above seqs,    |
  *     in building a single event.       |
  *
- * </code></pre><p>
+ * </code></pre>
  *
- *     Before an input channel can reuse a place on the ring (say 4, although at that
+ *     <p>Before an input channel can reuse a place on the ring (say 4, although at that
  *     point its number would be 10), all the gating sequences for that ring must reach that same value
- *     (4) or higher. This signals that all users (BT0 & BT1) are done using that ring item.<p>
+ *     (4) or higher. This signals that all users (BT0 and BT1) are done using that ring item.</p>
  *
- *     For example, let's say that on Chan0 BT0 is done with 4 so that [0][0] = 4, but BT1 is only done with
+ *     <p>For example, let's say that on Chan0 BT0 is done with 4 so that [0][0] = 4, but BT1 is only done with
  *     3 so that [1][0] = 3, then Ring0 cannot reuse slot 4. It's not until BT1 is done with 4 ([1][0] = 4)
  *     that slot 4 is released. Remember that in the above example BT0 will process even numbered events,
- *     and BT1 the odd which means BT1 will skip over 4 - at the same time setting [1][0] = 4.<p>
+ *     and BT1 the odd which means BT1 will skip over 4 - at the same time setting [1][0] = 4.</p>
  *     
  *  --------------------------------------------------------------------------------------------------
  *
@@ -161,16 +161,16 @@ import java.util.concurrent.locks.ReentrantLock;
  * (ROC Raw, Physics, Control, User). They throw an exception for any banks that are not in
  * the proper format and place any User events in the first output channel.
  *
- * After pre-processing, each BuildingThread - of which there may be any number - takes
+ * <p>After pre-processing, each BuildingThread - of which there may be any number - takes
  * one bank from each ring buffer (and therefore input channel), skipping every Mth,
  * and builds them into a single event. The built event is placed in a ring buffer of
  * an output channel. This is by round robin if more than one channel or on all output channels
  * if a control event. If this EB is a DC and has multiple SEBs as output channels,
  * then the output is more complex - sebChunk number of contiguous events go to one channel
  * before being switched to the next channel. Each output channel has the same number of ring buffers
- * as build threads. This avoids any contention & locking while writing. Each build thread
+ * as build threads. This avoids any contention and locking while writing. Each build thread
  * only writes to a fixed, single ring buffer of each output channel. It is the job of each
- * output channel to merge the contents of their rings into a single, ordered output stream.<p>
+ * output channel to merge the contents of their rings into a single, ordered output stream.</p>
  *
  * NOTE: When building, any Control events must appear on each channel in the same order.
  * If not, an exception may be thrown. If so, the Control event is passed along to all output channels.
@@ -848,16 +848,16 @@ System.out.println("WRITE CONTROL EVENT to chan #" + i + ", ring 0");
 
 
     /**
-     * This thread is started by the PRESTART transition.
+     * <p>This thread is started by the PRESTART transition.
      * An empty buffer is obtained from a supply.
      * One evio bank from each input channel are together built into a new event
      * in that buffer. If this module has outputs, the built events are placed on
      * an output channel.
-     * <p/>
-     * If there are multiple output channels, in default operation, this thread
+     * </p>
+     * <p>If there are multiple output channels, in default operation, this thread
      * selects an output by round-robin. If however, this is a DC with multiple
      * SEBs to send events to, then things are more complicated.
-     * <p/>
+     * </p>
      */
     class BuildingThread extends Thread {
 

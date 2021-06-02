@@ -35,7 +35,10 @@ public class ReceiverEt {
     private EtAttachment att;
 
 
-    /** Constructor. */
+    /**
+     * Constructor.
+     * @param args program args
+     */
     ReceiverEt(String[] args) {
         decodeCommandLine(args);
     }
@@ -93,6 +96,7 @@ public class ReceiverEt {
 
     /**
      * Run as a stand-alone application.
+     * @param args args
      */
     public static void main(String[] args) {
         try {

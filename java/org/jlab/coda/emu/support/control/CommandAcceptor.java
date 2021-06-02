@@ -24,7 +24,7 @@ public interface CommandAcceptor extends StatedObject {
      * component that is periodically checked by that component.
      *
      * @param cmd of type Command (eg. start transition, control run variables, control session)
-     * @throws InterruptedException
+     * @throws InterruptedException if thread interrupted while in method.
      */
     public void postCommand(Command cmd) throws InterruptedException;
 }

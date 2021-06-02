@@ -191,6 +191,7 @@ public class DebugFrame extends JFrame {
     /**
      * Method to add Panel to gui.
      * @param panel JPanel to add
+     * @param title title of frame
      */
     public void addPanel(JPanel panel, String title) {
         try {

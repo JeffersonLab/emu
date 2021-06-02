@@ -189,6 +189,7 @@ public class SmartToolbar extends JToolBar {
      *
      * @param target object that allows commands to be sent (eg Emu is a CodaComponent which is a CommandAcceptor)
      * @param tbb of type JButton
+     * @param textField text to be placed into a cMsg
      */
     void addButtonListener(final CommandAcceptor target, final JButton tbb, final JTextField textField) {
 

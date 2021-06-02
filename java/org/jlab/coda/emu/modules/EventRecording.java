@@ -38,9 +38,9 @@ import java.util.*;
  *                 /  |  \
  *         ^      /1 _|_ 2\
  *         |     |__/   \__|
- *     Producer->|6 |   | 3|
+ *     Producer-&gt;|6 |   | 3|
  *               |__|___|__|
- *                \ 5 | 4 / <-- Recording Thread
+ *                \ 5 | 4 / &lt;-- Recording Thread
  *                 \__|__/         |
  *                                 V
  *
@@ -55,7 +55,7 @@ import java.util.*;
  *                           |    |
  *                           V    V
  *  1 RecordingThread:         RT1
- *  Grab 1 event &              |
+ *  Grab 1 event and            |
  *  place in all module's       |
  *  output channels             |
  *                              |
@@ -64,14 +64,14 @@ import java.util.*;
  * (1 ring buffer for
  *  each channel)
  *
- * </code></pre><p>
+ * </code></pre>
  *
- * This class is the event recording module. It has one recording thread.
+ * <p>This class is the event recording module. It has one recording thread.
  * This thread exists to take buffers of Evio banks off of the input channels.
  * A copy of each user and control event is placed into all of the output channels.
  * The physics events, on the other hand, are split between the output channels
  * on a round-robin basis. If no output channels are defined in the config file,
- * this module discards all events.<p>
+ * this module discards all events.</p>
  *
  * Things get trickier with multiple input channels. There should never be more
  * than 2 input channels in which case one must be an emu socket and the other an
@@ -145,6 +145,7 @@ public class EventRecording extends ModuleAdapter {
      *
      * @param name name of module
      * @param attributeMap map containing attributes of module
+     * @param emu Emu this module belongs to.
      */
     public EventRecording(String name, Map<String, String> attributeMap, Emu emu) {
 

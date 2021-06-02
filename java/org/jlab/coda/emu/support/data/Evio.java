@@ -22,18 +22,18 @@ import java.nio.IntBuffer;
 import java.util.Arrays;
 
 /**
- * This class is used as a layer on top of evio to handle CODA3 specific details.
+ * <p>This class is used as a layer on top of evio to handle CODA3 specific details.
  * The EMU will received evio data in standard CODA3 output (same as file format)
  * which contains banks - in this case, ROC Raw Records and Physics Events all of
- * which are in formats given below.<p>
+ * which are in formats given below.</p>
  *
- * <code><pre>
+ * <pre><code>
  * ####################################
- * Network Transfer Evio Output Format:
+ * Network Transfer Evio 4 Output Format:
  * ####################################
  *
  * MSB(31)                          LSB(0)
- * <---  32 bits ------------------------>
+ * &lt;---  32 bits ------------------------&gt;
  * _______________________________________
  * |           Block Length              |
  * |_____________________________________|
@@ -74,7 +74,7 @@ import java.util.Arrays;
  * ############################
  *
  * MSB(31)                          LSB(0)
- * <---  32 bits ------------------------>
+ * &lt;---  32 bits ------------------------&gt;
  * _______________________________________
  * |           Event Length              |
  * |_____________________________________|
@@ -142,7 +142,7 @@ import java.util.Arrays;
  * ############################
  *
  * MSB(31)                          LSB(0)
- * <---  32 bits ------------------------>
+ * &lt;---  32 bits ------------------------&gt;
  * _______________________________________
  * |           Event Length              |
  * |_____________________________________|
@@ -186,7 +186,7 @@ import java.util.Arrays;
  * ####################################
  *
  * MSB(31)                          LSB(0)
- * <---  32 bits ------------------------>
+ * &lt;---  32 bits ------------------------&gt;
  * _______________________________________
  * |     Built Trigger Bank Length       |
  * |_____________________________________|
@@ -202,7 +202,7 @@ import java.util.Arrays;
  * |_____________________________________|    |
  * |__________ Avg Timestamp M __________|    |
  * |_____________________________________|    |
- * |______ Run Number & Run Type ________|    |
+ * |______ Run Number &amp; Run Type ________|    |
  * |_____________________________________|    |
  * | EB id  |  0x05   |       Len        |    |
  * |_____________________________________|    |
@@ -218,7 +218,7 @@ import java.util.Arrays;
  * |_____________________________________|    |
  * |           Misc. 1 for ev 1          |  ROC Data
  * |_____________________________________|  (missing if single event mode,
- * |                ...                  |   or sparsified & no timestamp
+ * |                ...                  |   or sparsified and no timestamp
  * |_____________________________________|   data available)
  * |             Timestamp M             |    |
  * |_____________________________________|    |
@@ -240,7 +240,7 @@ import java.util.Arrays;
  * ############################
  *
  * MSB(31)                          LSB(0)
- * <---  32 bits ------------------------>
+ * &lt;---  32 bits ------------------------&gt;
  * _______________________________________
  * |         Data Bank Length            |
  * |_____________________________________|
@@ -261,7 +261,7 @@ import java.util.Arrays;
  *
  *      M is the number of events.
  *
- * </pre></code>
+ * </code></pre>
  *
  *
  * @author timmer
@@ -709,7 +709,7 @@ System.out.println("checkPayload: buf source id = " + pBuf.getSourceId() +
 
 
     /**
-     * Check each payload bank - one from each input channel - for a number of issues:<p>
+     * <p>Check each payload bank - one from each input channel - for a number of issues:</p>
      * <ol>
      * <li>if there are any sync bits set, all must be sync banks
      * <li>the ROC ids of the banks must be unique
@@ -866,7 +866,7 @@ if (debug) System.out.println("gotValidControlEvents: found control event of typ
     /**
      * Create a Control event.
      *
-     * <code><pre>
+     * <pre><code>
      * Sync event:
      * _______________________________________
      * |          Event Length = 4           |
@@ -907,7 +907,7 @@ if (debug) System.out.println("gotValidControlEvents: found control event of typ
      * |_____________________________________|
      * |      number of events in run        |
      * |_____________________________________|
-     * </pre></code>
+     * </code></pre>
      *
      * @param type            control type, must be SYNC, PRESTART, GO, PAUSE, or END
      * @param runNumber       current run number for prestart event
@@ -2856,6 +2856,7 @@ System.out.println("                         : segWords from event 0 = " + dataW
      * @param timestampSlop maximum number of timestamp ticks that timestamps can differ
      *                      for a single event before the error bit is set in a bank's
      *                      status. Only used when checkTimestamps arg is <code>true</code>
+     * @param buildThreadOrder  build thread number for debug printout
      *
      * @return <code>true</code> if recoverable error occurred, else <code>false</code>
      * @throws EmuException for major error in event building which necessitates stopping the build
@@ -3273,10 +3274,11 @@ System.out.println("Timestamp NOT consistent: ev #" + (firstEvNum + i) + ", diff
      * @param timestampSlop     maximum number of timestamp ticks that timestamps can differ
      *                          for a single event before the error bit is set in a bank's
      *                          status. Only used when checkTimestamps arg is <code>true</code>
+     * @param buildThreadOrder  build thread number for debug printout
      * @param longData          long array, passed in to avoid unnecessary object creation.
      * @param evData            short array, passed in to avoid unnecessary object creation.
      * @param segmentData       int array, passed in to avoid unnecessary object creation.
-     * @param segmentData       int array of length 1 used to return # of valid elements in segmentData.
+     * @param returnLen         int array of length 1 used to return # of valid elements in segmentData.
      *
      * @return <code>true</code> if recoverable error occurred, else <code>false</code>
      * @throws EmuException for major error in event building which necessitates stopping the build
@@ -3683,6 +3685,7 @@ System.out.println("makeTriggerBankFromRocRaw: event # differs (in Bt# " + build
      * @param timestampSlop maximum number of timestamp ticks that timestamps can differ
      *                      for a single event before the error bit is set in a bank's
      *                      status. Only used when checkTimestamps arg is <code>true</code>
+     * @param buildThreadOrder  build thread number for debug printout
      *
      * @return <code>true</code> if non fatal error occurred, else <code>false</code>
      * @throws EmuException for major error in event building which necessitates stopping the build
@@ -4124,6 +4127,7 @@ System.out.println("makeTriggerBankFromRocRaw: event # differs (in Bt# " + build
      * @param timestampSlop maximum number of timestamp ticks that timestamps can differ
      *                      for a single event before the error bit is set in a bank's
      *                      status. Only used when checkTimestamps arg is <code>true</code>
+     * @param buildThreadOrder  build thread number for debug printout
      *
      * @return <code>true</code> if non fatal error occurred, else <code>false</code>
      * @throws EmuException for major error in event building which necessitates stopping the build
@@ -4485,6 +4489,7 @@ System.out.println("makeTriggerBankFromRocRaw: event # differs (in Bt# " + build
      * @param inputNodes     array containing EvioNode events that will be built together.
      * @param evBuf          ByteBuffer containing event being built.
      * @param inputCount     number of input channels.
+     * @param writeIndex     index in evBuf's backing array to start writing.
      * @param fastCopyReady  if <code>true</code>, roc data buffer backing byte arrays and
      *                       EB's ByteBufferSupply buffers both have the same endian value.
      * @param returnLen      int array used to return index into evBuf of where to write.
@@ -4495,7 +4500,7 @@ System.out.println("makeTriggerBankFromRocRaw: event # differs (in Bt# " + build
                                                     int inputCount,
                                                     int writeIndex,
                                                     boolean fastCopyReady,
-                                                    int returnLen[],
+                                                    int[] returnLen,
                                                     ByteBuffer[] rocRecord) {
 
         int childrenCount, byteLen, pos;
@@ -4793,9 +4798,10 @@ System.out.println("makeTriggerBankFromRocRaw: event # differs (in Bt# " + build
      * Generate a single data block bank of fake data.
      *
      * @param firstEvNum    starting event number
-     * @param words         amount of data in 32bit words besides event # & timestamp
+     * @param words         amount of data in 32bit words besides event # and timestamp
      * @param isSEM         in single event mode if <code>true</code>
      * @param timestamp     48-bit timestamp used only in single event mode
+     * @return array of ints containing generated data.
      */
     public static int[] generateData(int firstEvNum, int words,
                                       boolean isSEM, long timestamp) {
@@ -4840,8 +4846,7 @@ System.out.println("makeTriggerBankFromRocRaw: event # differs (in Bt# " + build
      * @param buf         ByteBuffer in which to write generated event
      * @param builder     used to build evio events in buffer acquired from bbSupply
      *
-     * @return created ROC Raw Record (EvioEvent object)
-     * @throws EvioException
+     * @throws EvioException if error in building evio event.
      */
     public static void createRocRawRecordFast(int rocID,       int triggerType,
                                               int detectorId,  int status,

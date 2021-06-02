@@ -63,6 +63,7 @@ public class EmuDomainUdpListener extends Thread {
      * @param port    udp port on which to receive transmissions from clients
      * @param expid   EXPID value to receive from clients
      * @param emuName this emu's name to receive from clients
+     * @throws cMsgException never thrown
      */
     public EmuDomainUdpListener(EmuDomainServer server, int port,
                                 String expid, String emuName) throws cMsgException {

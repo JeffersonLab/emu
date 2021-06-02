@@ -450,7 +450,7 @@ logger.info("Emu " + name + ": WARNING transition thread still alive even after 
 
     /**
      * Constructor.
-     * This class is not executable. To create and run an Emu, use the {@link EmuFactory} class.<p/>
+     * <p>This class is not executable. To create and run an Emu, use the {@link EmuFactory} class.</p>
      * A thread is started to monitor the state.
      * The emu loads local.xml which contains a specification of status parameters.
      * The emu starts up a connection to the cMsg server.
@@ -669,7 +669,7 @@ System.out.println("Emu created, name = " + name + ", type = " + codaClass);
 
     /**
      * Method to set the CODAClass member.
-     * @param codaClass
+     * @param codaClass type of CODA component such as ROC, EMU, or ER.
      */
     public void setCodaClass(CODAClass codaClass) {this.codaClass = codaClass;}
 
@@ -922,6 +922,7 @@ System.out.println("\n\n");
      * this if resetting an existing output destination file name to the next
      * split file name.
      * @param outputDestination name of an output data destination of this emu
+     * @return number of already existing output destinations.
      */
     synchronized public int addOutputDestination(String outputDestination) {
 //        System.out.println("\n\n^^^^^^^^^^^^^^^^^^^^^^^^^^  addOutputDestination = " + outputDestination +
@@ -981,7 +982,7 @@ System.out.println("\n\n");
      * Class defining thread which reports the EMU status to Run Control.<p>
      *
      * Java calls to get the time are notoriously slow -
-     * System.currentTimeMillis() & .nanoTime(). We implement a low resolution
+     * System.currentTimeMillis() and .nanoTime(). We implement a low resolution
      * clock here, for things like flushing output channels when there are
      * low rates, which allows other code to avoid calling these expensive methods
      * directly.

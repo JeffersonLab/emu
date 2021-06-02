@@ -68,7 +68,7 @@ public class EmuDataPath {
 
     /**
      * Add a module to the data path. This method does not add an EmuModule object,
-     * but only the module name and any input & output fifo names. Any associated
+     * but only the module name and any input and output fifo names. Any associated
      * EmuModule is attached later with a call to {@link #associateModule(EmuModule)}.
      *
      * @param name name of module to create and add

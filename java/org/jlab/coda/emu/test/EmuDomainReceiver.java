@@ -41,7 +41,10 @@ public class EmuDomainReceiver {
     private String expid;
     private String name = "Eb1";
 
-    /** Constructor. */
+    /**
+     * Constructor.
+     * @param args program args
+     */
     EmuDomainReceiver(String[] args) {
         decodeCommandLine(args);
     }
@@ -118,6 +121,7 @@ public class EmuDomainReceiver {
 
     /**
      * Run as a stand-alone application.
+     * @param args args
      */
     public static void main(String[] args) {
         try {
@@ -210,7 +214,7 @@ class LocalEmuDomainServer extends Thread {
 
         try {
             // Start TCP server thread
-            tcpServer = new LocalEmuDomainTcpServer(this, serverPort, expid);
+            tcpServer = new LocalEmuDomainTcpServer(this, serverPort);
             tcpServer.start();
 
             // Wait for indication thread is running before continuing on
@@ -245,8 +249,6 @@ class LocalEmuDomainServer extends Thread {
         catch (cMsgException e) {
             e.printStackTrace();
         }
-
-        return;
     }
 
 }
@@ -291,6 +293,9 @@ class LocalEmuDomainUdpListener extends Thread {
      * Constructor.
      * @param server emu server that created this object
      * @param port udp port on which to receive transmissions from emu clients
+     * @param expid EXPID of experiment
+     * @param emuName name of emu
+     * @throws cMsgException if multicast port is taken
      */
     public LocalEmuDomainUdpListener(LocalEmuDomainServer server, int port,
                                      String expid, String emuName) throws cMsgException {
@@ -587,7 +592,7 @@ class LocalEmuDomainTcpServer extends Thread {
      * @param server emu server that created this object
      * @param serverPort TCP port on which to receive transmissions from emu clients
      */
-    public LocalEmuDomainTcpServer(LocalEmuDomainServer server, int serverPort, String expid) throws cMsgException {
+    public LocalEmuDomainTcpServer(LocalEmuDomainServer server, int serverPort) {
         this.server = server;
         this.serverPort = serverPort;
     }

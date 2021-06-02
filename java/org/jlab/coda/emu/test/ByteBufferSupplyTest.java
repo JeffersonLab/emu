@@ -31,7 +31,10 @@ public class ByteBufferSupplyTest {
     ByteBufferSupply bbSupply;
     boolean simpleTest = true;
 
-    /** Constructor. */
+    /**
+     * Constructor.
+     * @param args program args
+     */
     ByteBufferSupplyTest(String[] args) {
         decodeCommandLine(args);
     }
@@ -98,6 +101,7 @@ public class ByteBufferSupplyTest {
 
     /**
      * Run as a stand-alone application.
+     * @param args args
      */
     public static void main(String[] args) {
             ByteBufferSupplyTest receiver = new ByteBufferSupplyTest(args);
@@ -171,7 +175,7 @@ public class ByteBufferSupplyTest {
 
 
     /**
-     * Thread to do consumer get & release on ring buffer items.
+     * Thread to do consumer get and release on ring buffer items.
      */
     class RingConsumerThread extends Thread {
 

@@ -18,7 +18,7 @@ import org.jlab.coda.cMsg.cMsgMessage;
 /**
  * This class receives messages from the ET input channels containing the
  * number of evio events in each ET event (or M). This callback selects
- * the lowest & highest M values from all reporting channels in order to send that
+ * the lowest and highest M values from all reporting channels in order to send that
  * number to the ROCs on the other end of the input channels. It also sends the
  * highest safe value of M for ROCs which currently is set at 2 x lowM. This feedback
  * msg to ROCs is only sent if the highest safe value changes.
@@ -65,15 +65,15 @@ class MvalReportingHandler extends GenericCallback implements cMsgCallbackInterf
 
 
     /**
-     * This method is a callback for subscriptions of subject = this emu's name.
-     * This callback can get 2 types of messages, containing:<p>
+     * <p>This method is a callback for subscriptions of subject = this emu's name.
+     * This callback can get 2 types of messages, containing:</p>
      * <ol>
-     * <li>For DC/PEB: M value from ET input channel,or<p>
-     * <li>For DC/PEB: command to reset M value<p>
+     * <li><p>For DC/PEB: M value from ET input channel,or</p>
+     * <li><p>For DC/PEB: command to reset M value</p>
      * </ol>
      *
      * @param msg cMsgMessage being received
-     * @param o   object given in subscription & passed in here (null in this case)
+     * @param o   object given in subscription and passed in here (null in this case)
      */
     public void callback(cMsgMessage msg, Object o) {
 

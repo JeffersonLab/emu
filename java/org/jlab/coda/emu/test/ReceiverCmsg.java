@@ -29,8 +29,11 @@ public class ReceiverCmsg {
     EventParser parser;
 
 
-    /** Constructor. */
-    ReceiverCmsg(String[] args) throws cMsgException {
+    /**
+     * Constructor.
+     * @param args program args
+     */
+    ReceiverCmsg(String[] args) {
         decodeCommandLine(args);
         parser = new EventParser();
     }
@@ -111,6 +114,7 @@ public class ReceiverCmsg {
 
     /**
      * Run as a stand-alone application.
+     * @param args args
      */
     public static void main(String[] args) {
         try {
@@ -165,6 +169,7 @@ public class ReceiverCmsg {
 
     /**
      * This method is executed as a thread.
+     * @throws cMsgException if cannot connect to cMsg server
      */
     public void run() throws cMsgException {
 

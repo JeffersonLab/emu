@@ -99,7 +99,10 @@ public class RealDataTest {
 
 
 
-    /** Constructor. */
+    /**
+     * Constructor.
+     * @param args program args
+     */
     private RealDataTest(String[] args) {
         decodeCommandLine(args);
     }
@@ -158,6 +161,7 @@ public class RealDataTest {
 
     /**
      * Run as a stand-alone application.
+     * @param args args
      */
     public static void main(String[] args) {
         try {
@@ -356,6 +360,7 @@ System.out.println("      Emu connect: connection made!");
      *
      * @param buf     the event to place on output channel ring buffer
      * @param item    item corresponding to the buffer allowing buffer to be reused
+     * @param bbSupply   ByteBuffer supplier.
      */
     void eventToOutputRing(ByteBuffer buf, ByteBufferItem item, ByteBufferSupply bbSupply) {
 

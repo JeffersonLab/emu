@@ -59,7 +59,10 @@ public class EMUCommander extends JFrame {
     private static String wideHeader = "%18s  %24s    %9s    %-30s  %-30s    %s";
 
 
-    /** Run as executable. */
+    /**
+     * Run as executable.
+     * @param args args
+     */
     public static void main(String[] args) {
         new EMUCommander();
     }

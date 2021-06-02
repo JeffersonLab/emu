@@ -87,15 +87,14 @@ public class EmuFactory {
      * Method to construct EMUs.
      * A thread is started to monitor the state field.
      * Java system properties are read and, if required, a debug GUI is started.
-     * <p/>
-     * The emu is named from the "name" property.
-     * <p/>
-     * The emu loads local.xml which contains a specification of status parameters.
-     * <p/>
-     * The emu starts up a connection to the cMsg server.
-     * <p/>
+     *
+     * <p>The emu is named from the "name" property.</p>
+     * <p>The emu loads local.xml which contains a specification of status parameters.</p>
+     * <p>The emu starts up a connection to the cMsg server.</p>
      * By the end of this method, several threads have been started and the static
      * method main will not exit while they are running.
+     *
+     * @throws EmuException   if created EMU's name is null, or cannot connect to rc server
      */
     public void createEmus() throws EmuException {
 

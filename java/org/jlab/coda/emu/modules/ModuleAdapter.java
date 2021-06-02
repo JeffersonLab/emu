@@ -161,13 +161,17 @@ public class ModuleAdapter implements EmuModule {
     /** Handle histogram of event build times. */
     protected Statistics statistics;
 
-    /** Thread to calculate event & data rates. */
+    /** Thread to calculate event and data rates. */
     protected Thread RateCalculator;
 
     // ---------------------------------------------------
 
 
-    /** Default constructor for fake TS. */
+    /**
+     * Default constructor for fake TS.
+     * @param name name of module.
+     * @param emu Emu this module belongs to.
+     */
     public ModuleAdapter(String name, Emu emu) {
         this.emu = emu;
         this.name = name;
@@ -182,6 +186,7 @@ public class ModuleAdapter implements EmuModule {
      *
      * @param name name of module
      * @param attributeMap map containing attributes of module
+     * @param emu Emu this module belongs to.
      */
     public ModuleAdapter(String name, Map<String, String> attributeMap, Emu emu) {
         this.emu = emu;
@@ -257,7 +262,7 @@ logger.info("  Module Adapter: output byte order = " + outputOrder);
      * @param itemOut    the event to place on output channel
      * @param channelNum index of output channel to place item on
      * @param ringNum    index of output channel ring buffer to place item on
-     * @throws InterruptedException
+     * @throws InterruptedException it thread interrupted.
      */
     protected void eventToOutputChannel(RingItem itemOut, int channelNum, int ringNum)
                         throws InterruptedException{
@@ -285,7 +290,7 @@ logger.info("  Module Adapter: output byte order = " + outputOrder);
      * @param itemOut    the event to place on output channel
      * @param channel    which output channel to place item on
      * @param ringNum    index of output channel ring buffer to place item on
-     * @throws InterruptedException
+     * @throws InterruptedException it thread interrupted.
      */
     protected void eventToOutputChannel(RingItem itemOut, DataChannel channel, int ringNum)
         throws InterruptedException{
@@ -507,7 +512,7 @@ logger.info("  Module Adapter: output byte order = " + outputOrder);
     final class RateCalculatorThread extends Thread {
         /**
          * Method run is the action loop of the thread.
-         * Suggested creation & start on PRESTART.
+         * Suggested creation and start on PRESTART.
          * Suggested exit on END or RESET.
          */
         @Override

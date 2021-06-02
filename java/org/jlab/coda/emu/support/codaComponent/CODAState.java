@@ -21,7 +21,7 @@ import java.util.HashMap;
  * of transitions that are allowed {@link CODATransition}.
  * This is the only class that implements the {@link CODAStateIF} interface.
  * 
- * <code><pre>
+ * <pre><code>
  *                 *****************
  *                 * State Machine *
  *                 *****************
@@ -31,35 +31,35 @@ import java.util.HashMap;
  * ________________|_________________|_________________
  *
  *                               (if reset from ERROR or BOOTED)
- *                  <- BOOTED <-----------------------------,
+ *                  &lt;- BOOTED &lt;-----------------------------,
  *                 |                                        |
  *   CONFIGURING   |                                        |
- *                 |               <------------------------|
- *                 '-> CONFIGURED ->----------------------->|
- *                  <-                                      ^
+ *                 |               &lt;------------------------|
+ *                 '-&gt; CONFIGURED -&gt;-----------------------&gt;|
+ *                  &lt;-                                      ^
  *                 |                                        |
  *   DOWNLOADING   |                                        |
  *                 |                                        |
- *                 '-> DOWNLOADED ->----------------------->|
- *                  <-            <-,<----------,           ^
+ *                 '-&gt; DOWNLOADED -&gt;-----------------------&gt;|
+ *                  &lt;-            &lt;-,&lt;----------,           ^
  *                 |                ^           ^           |
  *                 |                |           |           |
  *   PRESTARTING   |                | ENDING    | ENDING    | reset
  *                 |                |           |           |
- *                 '-> PAUSED -----> -----------|---------->|
- *                  <-                          |           ^
+ *                 '-&gt; PAUSED -----&gt; -----------|----------&gt;|
+ *                  &lt;-                          |           ^
  *                 |                            |           |
  *      GOING      |                            |           |
  *                 |                            |           |
- *                 '->  ACTIVE  --------------->'---------->'
+ *                 '-&gt;  ACTIVE  ---------------&gt;'----------&gt;'
  *
  * __________________________________________________________________
  *
  *  NOTE: DOWNLOADED can always do a download,
- *        CONFIGURED can always do a configure, &
+ *        CONFIGURED can always do a configure, and
  *        RESET goes from any state to CONFIGURED (to BOOTED if in ERROR or BOOTED state)
  *
- * </pre></code>
+ * </code></pre>
  *
  * @author heyes
  * @author timmer

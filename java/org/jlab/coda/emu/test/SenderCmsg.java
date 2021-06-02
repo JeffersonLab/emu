@@ -40,7 +40,10 @@ public class SenderCmsg {
     private cMsg coda;
 
 
-    /** Constructor. */
+    /**
+     * Constructor.
+     * @param args program args
+     */
     SenderCmsg(String[] args) {
         decodeCommandLine(args);
     }
@@ -88,8 +91,6 @@ public class SenderCmsg {
                 System.exit(-1);
             }
         }
-
-        return;
     }
 
 
@@ -109,6 +110,7 @@ public class SenderCmsg {
 
     /**
      * Run as a stand-alone application.
+     * @param args args
      */
     public static void main(String[] args) {
         try {
@@ -272,6 +274,7 @@ System.out.println("Send thread started");
 
     /**
      * This method is executed as a thread.
+     * @throws cMsgException if cannot connect to cMsg server.
      */
     public void run() throws cMsgException {
 

@@ -104,6 +104,7 @@ public enum CODAClass {
     /**
      * Get the description of this transition.
      * @see org.jlab.coda.emu.support.control.Command#description()
+     * @return description string.
      */
     public String description() {
         return description;
@@ -111,7 +112,7 @@ public enum CODAClass {
 
     /**
      * Get the default priority associated with this CODA class.
-     * @return
+     * @return priority.
      */
     public int getPriority() {
         return priority;

@@ -34,7 +34,10 @@ public class BuildThreadTest {
     private Phaser phaser;
 
 
-    /** Constructor. */
+    /**
+     * Constructor.
+     * @param args program args
+     */
     BuildThreadTest(String[] args) {
         decodeCommandLine(args);
     }
@@ -79,8 +82,6 @@ public class BuildThreadTest {
                 System.exit(-1);
             }
         }
-
-        return;
     }
 
 
@@ -96,6 +97,7 @@ public class BuildThreadTest {
 
     /**
      * Run as a stand-alone application.
+     * @param args args
      */
     public static void main(String[] args) {
         try {
