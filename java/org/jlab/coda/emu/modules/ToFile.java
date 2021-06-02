@@ -93,6 +93,8 @@ public class ToFile extends ModuleAdapter {
      *
      * @param name name of module
      * @param attributeMap map containing attributes of module
+     * @param emu Emu containing this module.
+     * @throws EvioException if cannot write file
      */
     public ToFile(String name, Map<String, String> attributeMap, Emu emu)
                         throws EvioException {

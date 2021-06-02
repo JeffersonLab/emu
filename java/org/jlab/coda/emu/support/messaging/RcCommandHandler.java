@@ -46,7 +46,7 @@ class RcCommandHandler extends GenericCallback implements cMsgCallbackInterface 
      * and coda/info/* .
      *
      * @param msg cMsgMessage being received
-     * @param o   object given in subscription & passed in here (null in this case)
+     * @param o   object given in subscription and passed in here (null in this case)
      */
     public void callback(cMsgMessage msg, Object o) {
 //System.out.println("callback: got " + msg.getType() + " message");

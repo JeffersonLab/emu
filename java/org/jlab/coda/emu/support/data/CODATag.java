@@ -207,8 +207,8 @@ public enum CODATag {
      }
 
     /**
-     * Does this tag indicate run number & type are present?
-     * @return <code>true</code> if this tag indicates run number & type exist,
+     * Does this tag indicate run number and type are present?
+     * @return <code>true</code> if this tag indicates run number and type exist,
      *          else <code>false</code>
      */
      public boolean hasRunData() {
@@ -217,9 +217,9 @@ public enum CODATag {
      }
 
     /**
-     * Does this tag indicate run number & type are present?
+     * Does this tag indicate run number and type are present?
      * @param value the tag value to check
-     * @return <code>true</code> if this tag indicates run number & type exist,
+     * @return <code>true</code> if this tag indicates run number and type exist,
      *          else <code>false</code>
      */
      public static boolean hasRunData(int value) {

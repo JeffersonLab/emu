@@ -110,8 +110,9 @@ public class ByteBufferItem {
      * @param order byte order of ByteBuffer to construct.
      * @param direct is the buffer direct (in memory not managed by JVM) or not.
      * @param orderedRelease if true, release ByteBufferItems in same order as acquired.
-     * @param auxObject unique id of this object.
-     * @param auxIndex  unique id of this object.
+     * @param myId      unique id of this object.
+     * @param auxObject auxiliary object to store.
+     * @param auxIndex  auxiliary integer to store.
      */
     ByteBufferItem(int bufferSize, ByteOrder order,
                    boolean direct, boolean orderedRelease, int myId,

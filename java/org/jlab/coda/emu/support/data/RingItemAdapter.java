@@ -25,16 +25,16 @@ import java.nio.ByteOrder;
  * This class is meant to be extended to handle a specific type of data
  * object to be placed in ring buffers for consumption by emu
  * modules and transport channels.
- * {@see PayloadBuffer}.
+ * @see PayloadBuffer
  *
- * @author: timmer
+ * @author timmer
  * Date: Feb 28, 2014
  */
 abstract class RingItemAdapter implements RingItem {
 
     // If contains event
 
-    /** Event to wrap. If defined, buffer & node are null. */
+    /** Event to wrap. If defined, buffer and node are null. */
     protected EvioEvent event;
 
     // If contains buffer

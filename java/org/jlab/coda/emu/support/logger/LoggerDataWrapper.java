@@ -12,7 +12,7 @@ package org.jlab.coda.emu.support.logger;
 
 /**
  * @author vlads
- *         <p/>
+ *
  *         Convinient method to format debug data
  */
 class LoggerDataWrapper {

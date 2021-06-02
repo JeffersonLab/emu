@@ -103,7 +103,10 @@ public class EmuBlastee {
      }
 
 
-     /** Run as a stand-alone application. */
+    /**
+     * Run as a stand-alone application.
+     * @param args args
+     */
      public static void main(String[] args) {
          try {
              EmuBlastee blastee = new EmuBlastee(args);
@@ -123,7 +126,10 @@ public class EmuBlastee {
 
 
 
-    /** Constructor. */
+    /**
+     * Constructor.
+     * @param args program args
+     */
     public EmuBlastee(String[] args) {
         decodeCommandLine(args);
     }

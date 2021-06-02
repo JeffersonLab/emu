@@ -471,7 +471,7 @@ logger.info("      DataChannel Adapter: output ring count (1/buildthread) = " + 
     /**
      * Set the index of the next buildable event to get from the module
      * and the ring it will appear on.<p>
-     * NOTE: only called IFF outputRingCount > 1.
+     * NOTE: only called IFF outputRingCount &gt; 1.
      *
      * @return index of ring that next event will be placed in
      */
@@ -592,6 +592,8 @@ logger.info("      DataChannel Adapter: output ring count (1/buildthread) = " + 
      *
      * @param ringIndex ring buffer to take item from
      * @return next ring buffer item
+     * @throws InterruptedException if thread interrupted.
+     * @throws EmuException problem with the ring buffer.
      */
     protected RingItem getNextOutputRingItem(int ringIndex)
             throws InterruptedException, EmuException {

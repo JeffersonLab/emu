@@ -121,11 +121,11 @@ public final class Statistics {
      * Method to get the histogram array of ints. It contains
      * metadata before the actual data:
      * <ol>
-     * <li>The 1st element contains the bin size.<p>
-     * <li>The 2nd element contains the first bin's starting value<p>
-     * <li>The 3rd element contains the data's mean value<p>
-     * <li>The 4rd element contains the data's minimum value<p>
-     * <li>The 5rd element contains the data's maximum value<p>
+     * <li><p>The 1st element contains the bin size.</p>
+     * <li><p>The 2nd element contains the first bin's starting value</p>
+     * <li><p>The 3rd element contains the data's mean value</p>
+     * <li><p>The 4rd element contains the data's minimum value</p>
+     * <li><p>The 5rd element contains the data's maximum value</p>
      * </ol>
      * The rest of the array contains the histogram itself.
      * @return histogram
@@ -173,7 +173,7 @@ public final class Statistics {
 
     /**
      * Fill the histogram integer array with data points.
-     * Only data points with a value < 5*mean are used.
+     * Only data points with a value &lt; 5*mean are used.
      *
      * @return histogram just filled
      */
@@ -217,7 +217,7 @@ public final class Statistics {
 
     /**
      * Print out a histogram of data points. Only data points
-     * of value < 5*mean are used.
+     * of value &lt; 5*mean are used.
      *
      * @param label  header string to print.
      * @param units  unit string to print.

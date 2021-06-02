@@ -38,9 +38,7 @@ import java.util.concurrent.CountDownLatch;
  */
 public class DataChannelImplFifo extends DataChannelAdapter {
 
-    private Thread movingThread;
-
-    private int rbIndex;
+    private final Thread movingThread;
 
 
     /**
@@ -48,10 +46,10 @@ public class DataChannelImplFifo extends DataChannelAdapter {
      *
      * @param name          of type String
      * @param transport     of type DataTransport
+     * @param attributeMap  the hashmap of config file attributes for this channel
      * @param input         true if this is an input
+     * @param emu           Emu owning this channel
      * @param module        module this channel belongs to
-     *
-     * @throws DataTransportException - unable to create fifo buffer.
      */
     DataChannelImplFifo(String name, DataTransportImplFifo transport,
                         Map<String, String> attributeMap, boolean input, Emu emu,

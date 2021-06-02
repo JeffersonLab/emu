@@ -241,8 +241,7 @@ public class VardanERSAP extends Thread {
          * Get the next available item from each crate ring buffer.
          * Do NOT call this multiple times in a row!
          * Be sure to call "put" before calling this again.
-         * @return next available item in ring buffer for getting data already written into.
-         * @throws InterruptedException
+         * @throws InterruptedException if thread interrupted.
          */
         public void get() throws InterruptedException {
 
@@ -280,7 +279,7 @@ public class VardanERSAP extends Thread {
          * This "consumer" is also a producer for the output ring.
          * So get items from the output ring and fill them with items claimed from the input rings.
          */
-        public void put() throws InterruptedException {
+        public void put() {
 
             // Tell output ring, we're done with all items we took from it.
             // Make them available to output ring's consumer.
@@ -340,7 +339,7 @@ public class VardanERSAP extends Thread {
          * Do NOT call this multiple times in a row!
          * Be sure to call "put" before calling this again.
          * @return next available item in ring buffer.
-         * @throws InterruptedException
+         * @throws InterruptedException if thread interrupted.
          */
         public ByteBuffer get() throws InterruptedException {
 
@@ -369,7 +368,7 @@ public class VardanERSAP extends Thread {
          * This "consumer" is also a producer for the output ring.
          * So get items from the output ring and fill them with items claimed from the input rings.
          */
-        public void put() throws InterruptedException {
+        public void put() {
 
             // Tell input (crate) ring that we're done with the item we're consuming
 //System.out.println("        OutputRingConsumer: put seq = " + outputNextSequence);

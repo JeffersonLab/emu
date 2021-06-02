@@ -49,8 +49,8 @@ public class DataTransportImplEmu extends DataTransportAdapter {
      * @param attrib transport's attribute map from config file
      * @param emu    emu object this transport belongs to
      *
-     * @throws  DataNotFoundException
-     *          when udl not given or cannot connect to cmsg server
+     * @throws DataNotFoundException when udl not given or cannot connect to cmsg server
+     * @throws cMsgException  cannot startup emu domain server
      */
     public DataTransportImplEmu(String pname, Map<String, String> attrib, Emu emu)
             throws DataNotFoundException, cMsgException {

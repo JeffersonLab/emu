@@ -115,18 +115,18 @@ public interface EmuModule extends StatedObject, CODAStateMachine {
     void clearChannels();
 
     /**
-     * Get the <b>output</b> statistics of this EmuModule object. The output statistics
-     * consists of an array of 2 Longs, 2 Floats, 4 Integers, and 1 int array:<p>
+     * <p>Get the <b>output</b> statistics of this EmuModule object. The output statistics
+     * consists of an array of 2 Longs, 2 Floats, 4 Integers, and 1 int array:</p>
      * <ol>
-     * <li>event count (Long)<p>
-     * <li>word count  (Long)<p>
-     * <li>event rate in Hz (Float<p>
-     * <li>data rate in kBytes/sec  (Float)<p>
-     * <li>max event size in bytes (Integer) if module is an EB<p>
-     * <li>min event size in bytes (Integer) if module is an EB<p>
-     * <li>avg event size in bytes (Integer) if module is an EB<p>
-     * <li>suggested value for chunk*EtBufSize (Integer) if have ET output channel<p>
-     * <li>if EB & switched on, histogram of time to build 1 event in nanoseconds (int array)<p>
+     * <li><p>event count (Long)</p>
+     * <li><p>word count  (Long)</p>
+     * <li><p>event rate in Hz (Float</p>
+     * <li><p>data rate in kBytes/sec  (Float)</p>
+     * <li><p>max event size in bytes (Integer) if module is an EB</p>
+     * <li><p>min event size in bytes (Integer) if module is an EB</p>
+     * <li><p>avg event size in bytes (Integer) if module is an EB</p>
+     * <li><p>suggested value for chunk*EtBufSize (Integer) if have ET output channel</p>
+     * <li><p>if EB and switched on, histogram of time to build 1 event in nanoseconds (int array)</p>
      * </ol>
      *
      * @return array of objects containing in order: 1) event count (Long),
@@ -167,7 +167,10 @@ public interface EmuModule extends StatedObject, CODAStateMachine {
      */
     int getEventProducingThreadCount();
 
-    /** Get the byte order of the module's output. Defaults to big endian. */
+    /**
+     * Get the byte order of the module's output. Defaults to big endian.
+     * @return byte order of the module's output.
+     */
     ByteOrder getOutputOrder();
 
 }

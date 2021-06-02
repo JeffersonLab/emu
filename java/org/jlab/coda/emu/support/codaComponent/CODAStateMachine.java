@@ -27,31 +27,31 @@ public interface CODAStateMachine {
 
     /**
      * This method implements the GO transition of the CODA run control state machine.
-     * @throws CmdExecException
+     * @throws CmdExecException if error during command execution.
      */
     public void go() throws CmdExecException;
 
     /**
      * This method implements the END transition of the CODA run control state machine.
-     * @throws CmdExecException
+     * @throws CmdExecException if error during command execution.
      */
     public void end() throws CmdExecException;
 
     /**
      * This method implements the PAUSE transition of the CODA run control state machine.
-     * @throws CmdExecException
+     * @throws CmdExecException if error during command execution.
      */
     public void pause()throws CmdExecException;
 
     /**
      * This method implements the PRESTART transition of the CODA run control state machine.
-     * @throws CmdExecException
+     * @throws CmdExecException if error during command execution.
      */
     public void prestart() throws CmdExecException;
 
     /**
      * This method implements the DOWNLOAD transition of the CODA run control state machine.
-     * @throws CmdExecException
+     * @throws CmdExecException if error during command execution.
      */
     public void download() throws CmdExecException;
 

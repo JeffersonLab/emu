@@ -59,7 +59,10 @@ public class RcProtocolTest {
 
 
 
-    /** Constructor. */
+    /**
+     * Constructor.
+     * @param args program args
+     */
     RcProtocolTest(String[] args) {
         decodeCommandLine(args);
     }
@@ -113,6 +116,7 @@ public class RcProtocolTest {
 
     /**
      * Run as a stand-alone application.
+     * @param args args
      */
     public static void main(String[] args) {
         try {

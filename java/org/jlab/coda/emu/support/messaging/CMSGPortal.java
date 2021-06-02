@@ -67,6 +67,7 @@ public class CMSGPortal implements LoggerAppender {
     /**
      * Constructor.
      * @param emu reference to EMU object
+     * @throws EmuException never thrown
      */
     public CMSGPortal(Emu emu) throws EmuException {
         this.emu = emu;
@@ -271,7 +272,7 @@ logger.warn("Emu: exit due to rc/cMsg connect error: " + e.getMessage());
     /**
      * Disconnect from the runcontrol platform.
      * Called from the EMU when quitting.
-     * @throws cMsgException
+     * @throws cMsgException  never thrown
      */
     synchronized public void shutdown() throws cMsgException {
 
@@ -369,7 +370,7 @@ logger.warn("Emu: exit due to rc/cMsg connect error: " + e.getMessage());
 
 
     /**
-     * Send a message to the connected rocs specifying the lowest & highest
+     * Send a message to the connected rocs specifying the lowest and highest
      * number of evio events per single ET buffer that was received by the
      * input channels to this emu. It also includes the value of the highest
      * safe number of evio events for each ROC to place in an ET buffer.

@@ -16,7 +16,7 @@ package org.jlab.coda.emu.support.codaComponent;
  * An enum which contains a list of possible transitions in CODA Emu state machine.
  * Each of these transitions can be enabled or disabled.
  *
- * <code><pre>
+ * <pre><code>
  *                 *****************
  *                 * State Machine *
  *                 *****************
@@ -26,35 +26,35 @@ package org.jlab.coda.emu.support.codaComponent;
  * ________________|_________________|______________________________
  *
  *                               (if reset from ERROR or BOOTED)
- *                  <- BOOTED <-----------------------------,
+ *                  &lt;- BOOTED &lt;-----------------------------,
  *                 |                                        |
  *     configure   |                                        |
- *                 |               <------------------------|
- *                 '-> CONFIGURED ->----------------------->|
- *                  <-                                      ^
+ *                 |               &lt;------------------------|
+ *                 '-&gt; CONFIGURED -&gt;-----------------------&gt;|
+ *                  &lt;-                                      ^
  *                 |                                        |
  *     download    |                                        |
  *                 |                                        |
- *                 '-> DOWNLOADED ->----------------------->|
- *                  <-            <-,<----------,           ^
+ *                 '-&gt; DOWNLOADED -&gt;-----------------------&gt;|
+ *                  &lt;-            &lt;-,&lt;----------,           ^
  *                 |                ^           ^           |
  *                 |                |           |           |
  *     prestart    |                | end       | end       | reset
  *                 |                |           |           |
- *                 '-> PAUSED -----> -----------|---------->|
- *                  <-                          |           ^
+ *                 '-&gt; PAUSED -----&gt; -----------|----------&gt;|
+ *                  &lt;-                          |           ^
  *                 |                            |           |
  *        go       |                            |           |
  *                 |                            |           |
- *                 '->  ACTIVE  --------------->'---------->'
+ *                 '-&gt;  ACTIVE  ---------------&gt;'----------&gt;'
  *
  * __________________________________________________________________
  *
  *  NOTE: DOWNLOADED can always do a download,
- *        CONFIGURED can always do a configure, &
+ *        CONFIGURED can always do a configure, and
  *        RESET goes from any state to CONFIGURED (to BOOTED if in ERROR or BOOTED state)
  *
- * </pre></code>
+ * </code></pre>
  * @author heyes
  * @author timmer
  */
@@ -98,6 +98,7 @@ public enum CODATransition {
 
     /**
      * Get the description of this transition.
+     * @return description string.
      */
     public String description() {
         return description;

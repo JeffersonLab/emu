@@ -53,8 +53,11 @@ public class RocSynchronizer {
     private ArrayList<Integer> respondingStates = new ArrayList<>(10);
 
 
-    /** Constructor. */
-    RocSynchronizer(String[] args) throws cMsgException {
+    /**
+     * Constructor.
+     * @param args program args
+     */
+    RocSynchronizer(String[] args) {
         decodeCommandLine(args);
     }
 
@@ -107,6 +110,7 @@ public class RocSynchronizer {
 
     /**
      * Run as a stand-alone application.
+     * @param args args
      */
     public static void main(String[] args) {
         try {
@@ -178,6 +182,7 @@ System.out.println("All ROCs got end cmd");
 
     /**
      * This method is executed as a thread.
+     * @throws cMsgException if cannot connect to cMsg server
      */
     public void run() throws cMsgException {
 

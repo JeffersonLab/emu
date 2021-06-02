@@ -192,6 +192,7 @@ public class RocSimulation extends ModuleAdapter {
      *
      * @param name name of module
      * @param attributeMap map containing attributes of module
+     * @param emu Emu this module belongs to.
      */
     public RocSimulation(String name, Map<String, String> attributeMap, Emu emu) {
 
@@ -364,6 +365,7 @@ public class RocSimulation extends ModuleAdapter {
      * @param ringNum the id number of the output channel ring buffer
      * @param buf     the event to place on output channel ring buffer
      * @param item    item corresponding to the buffer allowing buffer to be reused
+     * @param bbSupply supply of ByteBuffers.
      */
     void eventToOutputRing(int ringNum, ByteBuffer buf,
                                    ByteBufferItem item, ByteBufferSupply bbSupply) {
@@ -541,15 +543,15 @@ public class RocSimulation extends ModuleAdapter {
 
 
     /**
-     * This thread generates events with junk data in it (all zeros except first word which
+     * <p>This thread generates events with junk data in it (all zeros except first word which
      * is the event number).
      * It is started by the GO transition and runs while the state of the module is ACTIVE.
-     * <p/>
-     * When the state is ACTIVE and the list of output DataChannels is not empty, this thread
+     * </p>
+     * <p>When the state is ACTIVE and the list of output DataChannels is not empty, this thread
      * selects an output by taking the next one from a simple iterator. This thread then creates
      * data transport records with payload banks containing ROC raw records and places them on the
      * output DataChannel.
-     * <p/>
+     * </p>
      */
     class EventGeneratingThread extends Thread {
 

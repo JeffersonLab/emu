@@ -241,7 +241,12 @@ System.out.println("All ROCs reporting event sizes, largest ev size = " + larges
     // ---------------------------------------------------
 
 
-    /** Constructor. */
+    /**
+     * Constructor.
+     * @param name name of module
+     * @param attributeMap map containing attributes of module
+     * @param emu Emu this module belongs to.
+     */
     public TsFixedRateSimulation(String name, Map<String, String> attributeMap, Emu emu) {
 
         super(name, attributeMap, emu);

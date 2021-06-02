@@ -34,14 +34,14 @@ public interface DataTransport extends CODAStateMachine, StatedObject {
      *
      * @return the name of this DataTransport object.
      */
-    public String name();
+    String name();
 
     /**
      * This method sets the name of this DataTransport object.
      *
      * @param name the name of this DataTransport object.
      */
-    public void setName(String name);
+    void setName(String name);
 
     /**
      * This method sets an attribute.
@@ -49,7 +49,7 @@ public interface DataTransport extends CODAStateMachine, StatedObject {
      * @param name  name  of attribute (key)
      * @param value value of attribute (val)
      */
-    public void setAttr(String name, String value);
+    void setAttr(String name, String value);
 
     /**
      * This method gets an attribute as a String object.
@@ -58,7 +58,7 @@ public interface DataTransport extends CODAStateMachine, StatedObject {
      * @return value of attribute
      * @throws DataNotFoundException if cannot find named attribute
      */
-    public String getAttr(String name) throws DataNotFoundException;
+    String getAttr(String name) throws DataNotFoundException;
 
     /**
      * This method gets an attribute as an int.
@@ -67,7 +67,7 @@ public interface DataTransport extends CODAStateMachine, StatedObject {
      * @return value of attribute
      * @throws DataNotFoundException if couldn't find named attribute
      */
-    public int getIntAttr(String pname) throws DataNotFoundException;
+    int getIntAttr(String pname) throws DataNotFoundException;
 
     /**
      * This method creates a DataChannel object.
@@ -75,6 +75,7 @@ public interface DataTransport extends CODAStateMachine, StatedObject {
      * @param name          name of DataChannel
      * @param attributeMap  hashmap of attributes taken from XML config file
      * @param isInput       true if this channel puts data into the Emu, else false
+     * @param emu           Emu owning this channel
      * @param module        module creating this channel
      * @param outputIndex   order in which module's events will be sent to this
      *                      output channel (0 for first output channel, 1 for next, etc.).
@@ -82,7 +83,7 @@ public interface DataTransport extends CODAStateMachine, StatedObject {
      * @return DataChannel object
      * @throws DataTransportException if transport problem
      */
-    public DataChannel createChannel(String name, Map<String, String> attributeMap,
+    DataChannel createChannel(String name, Map<String, String> attributeMap,
                                      boolean isInput, Emu emu, EmuModule module,
                                      int outputIndex)
             throws DataTransportException;
@@ -92,7 +93,7 @@ public interface DataTransport extends CODAStateMachine, StatedObject {
      *
      * @return true if this object is connected, else false
      */
-    public boolean isConnected();
+    boolean isConnected();
 
     /**
      * This method returns true if this DataTransport object
@@ -101,11 +102,11 @@ public interface DataTransport extends CODAStateMachine, StatedObject {
      *
      * @return true if this DataTransport object sends data, else false
      */
-    public boolean isServer();
+    boolean isServer();
 
     /**
      * This method gets the name of the transport class implementing this interface.
      * @return the name of the transport class implementing this interface
      */
-    public String getTransportClass();
+    String getTransportClass();
 }

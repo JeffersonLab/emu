@@ -32,6 +32,8 @@ public class EmuUtilities {
      * Spin-yield loop based alternative to Thread.sleep
      * Based on the code of Andy Malakov
      * http://andy-malakov.blogspot.fr/2010/06/alternative-to-threadsleep.html
+     * @param nanoDuration nonoseconds to sleep.
+     * @throws InterruptedException if thread interrupted.
      */
     public static void sleepNanos(long nanoDuration) throws InterruptedException {
         final long end = System.nanoTime() + nanoDuration;

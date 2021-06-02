@@ -162,7 +162,7 @@ public class ByteBufferSupply {
      * Buffers are big endian and not direct.
      * @param ringSize    number of ByteBufferItem objects in ring buffer.
      * @param bufferSize  initial size (bytes) of ByteBuffer in each ByteBufferItem object.
-     * @throws IllegalArgumentException if args < 1 or ringSize not power of 2.
+     * @throws IllegalArgumentException if args &lt; 1 or ringSize not power of 2.
      */
     public ByteBufferSupply(int ringSize, int bufferSize)
             throws IllegalArgumentException {
@@ -176,7 +176,8 @@ public class ByteBufferSupply {
      * @param ringSize    number of ByteBufferItem objects in ring buffer.
      * @param bufferSize  initial size (bytes) of ByteBuffer in each ByteBufferItem object.
      * @param order       byte order of ByteBuffer in each ByteBufferItem object.
-     * @throws IllegalArgumentException if args < 1 or ringSize not power of 2.
+     * @param direct      if true, make ByteBuffers direct.
+     * @throws IllegalArgumentException if args &lt; 1 or ringSize not power of 2.
      */
     public ByteBufferSupply(int ringSize, int bufferSize, ByteOrder order, boolean direct)
             throws IllegalArgumentException {
@@ -200,7 +201,7 @@ public class ByteBufferSupply {
      * @param orderedRelease  if true, the user promises to release the ByteBufferItems
      *                        in the same order as acquired. This avoids using
      *                        synchronized code (no locks).
-     * @throws IllegalArgumentException if args < 1 or ringSize not power of 2.
+     * @throws IllegalArgumentException if args &lt; 1 or ringSize not power of 2.
      */
     public ByteBufferSupply(int ringSize, int bufferSize, ByteOrder order,
                             boolean direct, boolean orderedRelease)
@@ -258,7 +259,7 @@ public class ByteBufferSupply {
      *                        in the same order as acquired. This avoids using
      *                        synchronized code (no locks).
      * @param pools           one EvioNodePool for each ByteBuffer.
-     * @throws IllegalArgumentException if args < 1 or ringSize not power of 2,
+     * @throws IllegalArgumentException if args &lt; 1 or ringSize not power of 2,
      *                                  pools array must have not be null or have less than
      *                                  ringSize number of elements.
      */
@@ -368,7 +369,7 @@ public class ByteBufferSupply {
      * Not sure if this method is thread-safe.
      * 
      * @return next available item in ring buffer.
-     * @throws InterruptedException
+     * @throws InterruptedException if thread interrupted.
      */
     public ByteBufferItem get() throws InterruptedException {
         // Next available item claimed by data producer
@@ -397,7 +398,7 @@ public class ByteBufferSupply {
      * Not sure if this method is thread-safe.
      *
      * @return next available item in ring buffer.
-     * @throws InterruptedException
+     * @throws InterruptedException if thread interrupted.
      */
     public ByteBufferItem getAsIs() throws InterruptedException {
         // Next available item claimed by data producer
@@ -418,7 +419,7 @@ public class ByteBufferSupply {
      * Get the next available item in ring buffer for getting data already written into.
      * Not sure if this method is thread-safe.
      * @return next available item in ring buffer for getting data already written into.
-     * @throws InterruptedException
+     * @throws InterruptedException if thread interrupted.
      */
     public ByteBufferItem consumerGet() throws InterruptedException {
 

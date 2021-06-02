@@ -132,7 +132,7 @@ public enum EventType {
 
     /**
      * Is this a fully-built, disentangled physics event type?
-     * @return <code>true</code> if complete & disentangled physics event type, else <code>false</code>
+     * @return <code>true</code> if complete and disentangled physics event type, else <code>false</code>
      */
     public boolean isDisentangledPhysics() {
         return this == DISENTANGLED_PHYSICS;
