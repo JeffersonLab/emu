@@ -1219,6 +1219,7 @@ System.out.println("      DataChannel Emu in: WARNING, event count = " + eventCo
                  // mixed in with and labeled as ROC Raw events. Check for that
                  // and fix it.
                  if (eventType == EventType.ROC_RAW) {
+logger.info("      DataChannel Emu in: got ROC Raw event type from " + name);
                      if (Evio.isUserEvent(node)) {
                          isUser = true;
                          eventType = EventType.USER;
