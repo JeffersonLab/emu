@@ -56,7 +56,7 @@ import java.util.*;
  *                           V    V
  *  1 RecordingThread:         RT1
  *  Grab 1 event and            |
- *  place in all module's       |
+ *  place in module's           |
  *  output channels             |
  *                              |
  *                              V
@@ -67,17 +67,20 @@ import java.util.*;
  * </code></pre>
  *
  * <p>This class is the event recording module. It has one recording thread.
- * This thread exists to take buffers of Evio banks off of the input channels.
- * A copy of each user and control event is placed into all of the output channels.
- * The physics events, on the other hand, are split between the output channels
- * on a round-robin basis. If no output channels are defined in the config file,
- * this module discards all events.</p>
+ * This thread takes buffers of Evio banks off of the input channels.
+ * There are a number of special rules that apply to the Event Recorder’s handling of channels.
+ * There is no restriction on a single input channel. However, there should never be more than
+ * 2 input channels in which case one must be an emu socket and the other an ET channel.
+ * The emu socket is assumed to carry the main flow of physics events. Any ET input channel is
+ * assumed to carry user events and is given a lower priority.
+ * This means reading from it should never block.</p>
  *
- * Things get trickier with multiple input channels. There should never be more
- * than 2 input channels in which case one must be an emu socket and the other an
- * ET channel. The emu socket is assumed to carry the main flow of physics events.
- * Any et input channel is assumed to carry user events and is given a lower priority.
- * This means reading from it should never block.
+ * The only output channel types allowed are ET and file. A maximum of 1 ET output channel
+ * is permitted. All control and “first” events are sent over all channels. Any “first” event
+ * coming before the prestart event is placed after it instead. User events, however,
+ * are placed only into the first file channel. If no file channels exist,
+ * they’re placed into the ET channel. A prescaled number of output physics events are sent
+ * over the ET channel. Whereas physics events are sent round-robin to all file channels.
  *
  * @author timmer
  * (2012)
