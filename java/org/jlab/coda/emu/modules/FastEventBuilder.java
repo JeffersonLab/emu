@@ -1378,6 +1378,7 @@ System.out.println("  EB mod: findEnd, chan " + ch + " got END from " + source +
                      }
                  }
                  catch (InterruptedException e) {
+                     e.printStackTrace();
                      // If interrupted, then we must quit
                      if (debug) System.out.println("  EB mod: interrupted while waiting for go event");
                      emu.setErrorState("EB interrupted waiting for go event");
