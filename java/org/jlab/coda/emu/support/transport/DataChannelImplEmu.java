@@ -196,7 +196,8 @@ public class DataChannelImplEmu extends DataChannelAdapter {
             logger.info("      DataChannel Emu: creating output channel " + name);
         }
 
-        // Use direct ByteBuffers or not, faster & more stable with non-direct
+        // Use direct ByteBuffers or not, faster & more stable with non-direct.
+        // Turn this off since performance is better.
         direct = false;
         String attribString = attributeMap.get("direct");
         if (attribString != null) {
@@ -262,6 +263,7 @@ public class DataChannelImplEmu extends DataChannelAdapter {
 logger.info("      DataChannel Emu: recvBuf = " + tcpRecvBuf);
 
             // set "data dump" option on
+            // Currently unused.
             attribString = attributeMap.get("dump");
             if (attribString != null) {
                 if (attribString.equalsIgnoreCase("true") ||
