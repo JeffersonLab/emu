@@ -53,25 +53,17 @@ import java.util.concurrent.locks.ReentrantLock;
  * The producer is a single input channel which reads incoming data,
  * parses it and places it into the ring buffer.
  *
- * The leading consumer is the pre-processing thread - one for each input channel.
- * All build threads come after the pre-processing thread in no particular order
- * and consume slots that the pre-processing thread is finished with.
+ * The leading consumer of each ring is a build thread - one for each input channel.
+ * All build threads consume slots that the input channels fill.
  * There are a fixed number of build threads which can be set in the config file.
- * The post-build thread - one for each input channel - releases all ring-based
- * resources in proper order and will only take slots the build threads are finished with.
  * After initially consuming and filling all slots (once around ring),
- * the producer will only take additional slots that the post-build thread
+ * the producer (input channel) will only take additional slots that the post-build thread
  * is finished with.
  *
  * N Input Channels
- * (evio bank             RB1_      RB2_ ...  RBN_
- *  ring buffers)         |  |      |  |      |  |
- *                        |  |      |  |      |  |
- *                        V  |      V  |      V  |
- * Pre-Processing thds:  PP1 |     PP2 |     PPN |
- *  Check evio bank          |         |         |
- *  for good event type      |         |         |
- *  and format               |         |         |
+ * (evio bank               RB1_      RB2_ ...  RBN_
+ *  ring buffers)            |         |         |
+ *                           |         |         |
  *                           V         V         V
  *                           |        /         /       _
  *                           |      /        /       /
@@ -93,11 +85,7 @@ import java.util.concurrent.locks.ReentrantLock;
  * Output Channel(s):    OC1: RB1    RB2   RBM
  * (1 ring buffer for    OC2: RB1    RB2   RBM  ...
  *  each build thread
- *  in each channel)           |      |      |
- *                             |      |      |
- *  Post build threads         |      |      |
- *  release ring resources     V      V      V
- *  in proper order        PBT 1      2      N
+ *  in each channel)
  *
  *  M != N in general
  *  M  = 1 by default
@@ -145,29 +133,24 @@ import java.util.concurrent.locks.ReentrantLock;
  * </code></pre>
  *
  *     <p>Before an input channel can reuse a place on the ring (say 4, although at that
- *     point its number would be 10), all the gating sequences for that ring must reach that same value
+ *     point its number would be 6+4=10), all the gating sequences for that ring must reach that same value
  *     (4) or higher. This signals that all users (BT0 and BT1) are done using that ring item.</p>
  *
- *     <p>For example, let's say that on Chan0 BT0 is done with 4 so that [0][0] = 4, but BT1 is only done with
+ *     <p>For example, let's say that on Chan0, BT0 is done with 4 so that [0][0] = 4, but BT1 is only done with
  *     3 so that [1][0] = 3, then Ring0 cannot reuse slot 4. It's not until BT1 is done with 4 ([1][0] = 4)
  *     that slot 4 is released. Remember that in the above example BT0 will process even numbered events,
  *     and BT1 the odd which means BT1 will skip over 4 - at the same time setting [1][0] = 4.</p>
  *     
  *  --------------------------------------------------------------------------------------------------
  *
- * This class is the event building module. It is a multi-threaded module which has 1
- * Pre-Processing thread per input channel. Each of these threads exists for the sole purpose
- * of examining Evio banks from 1 input channel and seeing if they are in the proper format
- * (ROC Raw, Physics, Control, User). They throw an exception for any banks that are not in
- * the proper format and place any User events in the first output channel.
+ * This class is the event building module.
  *
- * <p>After pre-processing, each BuildingThread - of which there may be any number - takes
+ * <p>Each BuildingThread - of which there may be any number - takes
  * one bank from each ring buffer (and therefore input channel), skipping every Mth,
  * and builds them into a single event. The built event is placed in a ring buffer of
  * an output channel. This is by round robin if more than one channel or on all output channels
- * if a control event. If this EB is a DC and has multiple SEBs as output channels,
- * then the output is more complex - sebChunk number of contiguous events go to one channel
- * before being switched to the next channel. Each output channel has the same number of ring buffers
+ * if a control event, or the first output channel's first ring if user event.
+ * Each output channel has the same number of ring buffers
  * as build threads. This avoids any contention and locking while writing. Each build thread
  * only writes to a fixed, single ring buffer of each output channel. It is the job of each
  * output channel to merge the contents of their rings into a single, ordered output stream.</p>
@@ -186,9 +169,14 @@ public class FastEventBuilder extends ModuleAdapter {
     private ArrayList<BuildingThread> buildingThreadList = new ArrayList<>(6);
 
     /** Threads (one for each input channel) for
-     *  releasing resources used to build events. */
+     * releasing resources used to build events.
+     * This is <b>OBSOLETE</b> as its function is now handled by
+     * the ByteBufferSupply used in each input channel. */
     private ReleaseRingResourceThread releaseThreads[];
 
+    /** Use 1 thread per input channel to release ring buffer resources.
+     * This is <b>OBSOLETE</b> as its function is now handled by
+     * the ByteBufferSupply used in each input channel. */
     private boolean useReleaseThread;
 
     /** The number of the experimental run. */
@@ -1326,6 +1314,7 @@ System.out.println("  EB mod: findEnd, chan " + ch + " got END from " + source +
                      }
                  }
                  catch (Exception e) {
+                     e.printStackTrace();
                      // If interrupted we must quit
                      if (debug) System.out.println("  EB mod: interrupted while waiting for prestart event");
                      emu.setErrorState("EB interrupted waiting for prestart event");
@@ -1375,6 +1364,7 @@ System.out.println("  EB mod: findEnd, chan " + ch + " got END from " + source +
                      }
                  }
                  catch (InterruptedException e) {
+                     e.printStackTrace();
                      // If interrupted, then we must quit
                      if (debug) System.out.println("  EB mod: interrupted while waiting for go event");
                      emu.setErrorState("EB interrupted waiting for go event");
