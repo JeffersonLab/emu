@@ -287,7 +287,6 @@ logger.info("      DataChannel File: compression = " + compType);
                     }
                     catch (NumberFormatException e) {}
                 }
-                compressionThreads = 2;
 logger.info("      DataChannel File: compressionThreads = " + compressionThreads);
 
                 // Number of bytes specified for writer's internal buffer?
