@@ -64,7 +64,7 @@ public class RocFixedRateSimulation extends ModuleAdapter {
     /** Size of a single generated Roc raw event in 32-bit words (including header). */
     private int eventWordSize;
 
-    /** Size of a single generated event in bytes (including header). */
+    /** Size of a single generated event in WORDS (including header). */
     private int eventSize;
 
     /** Number of Roc raw events to produce before syncing with other Rocs. */
@@ -535,6 +535,7 @@ System.out.println("  Roc mod: sync = " + synced);
         generatedDataWords = eventBlockSize * eventSize;
 System.out.println("  Roc mod: generatedDataWords = " + generatedDataWords);
 
+        // Words/event
         eventWordSize  = getSingleEventBufferWords(generatedDataWords);
 System.out.println("  Roc mod: eventWordSize = " + eventWordSize);
 
