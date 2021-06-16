@@ -23,43 +23,43 @@ import java.util.HashMap;
 public enum CODAClass {
 
     /** Trigger supervisor. */
-    TS("trigger supervisor", 1000),
+    TS("trigger supervisor", 1210),
+
+    /** GT */
+    GT("gt", 1110),
 
     /** Read out controller. */
-    ROC("read out controller", 900),
+    ROC("read out controller", 1010),
 
     /** Data concentrator (first level) type of event builder. */
-    DC("data concentrator", 800),
+    DC("data concentrator", 910),
 
-    /** Temporary for backwards compatibility. */
-    EBER("event builder", 750),
+    /** Event builder and Event recorder connected with fifo - to be used with DC's or ROCs. */
+    EBER("event builder", 810),
 
     /** Event builder and Event recorder connected with fifo - to be used with ROCs. */
-    PEBER("event builder", 750),
+    PEBER("event builder", 810),
 
     /** Event builder and Event recorder connected with fifo - to be used with DCs. */
-    SEBER("event builder", 750),
+    SEBER("event builder", 810),
 
     /** Secondary (second level) type of event builder - to be used with DC's. */
-    SEB("event builder", 700),
+    SEB("event builder", 610),
 
     /** Primary event builder (one and only one event builder). */
-    PEB("event builder", 600),
-
-    /** Analysis application. */
-    ANA("analysis application", 500),
+    PEB("event builder", 510),
 
     /** Farm Controller. */
     FCS("farm controller", 410),
 
     /** Event Recorder. */
-    ER("event recorder", 400),
+    ER("event recorder", 310),
 
     /** Slow control component. */
-    SLC("slow control component", 200),
+    SLC("slow control component", 110),
 
     /** User component. */
-    USR("user component", 0),
+    USR("user component", 10),
 
     /** Event management unit. */
     EMU("event management unit", 0);
