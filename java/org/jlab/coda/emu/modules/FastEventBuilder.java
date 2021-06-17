@@ -28,7 +28,6 @@ import org.jlab.coda.jevio.*;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.*;
-import java.util.concurrent.locks.ReentrantLock;
 
 /**
  * <pre><code>
@@ -168,17 +167,6 @@ public class FastEventBuilder extends ModuleAdapter {
     /** Container for threads used to build events. */
     private ArrayList<BuildingThread> buildingThreadList = new ArrayList<>(6);
 
-    /** Threads (one for each input channel) for
-     * releasing resources used to build events.
-     * This is <b>OBSOLETE</b> as its function is now handled by
-     * the ByteBufferSupply used in each input channel. */
-    private ReleaseRingResourceThread releaseThreads[];
-
-    /** Use 1 thread per input channel to release ring buffer resources.
-     * This is <b>OBSOLETE</b> as its function is now handled by
-     * the ByteBufferSupply used in each input channel. */
-    private boolean useReleaseThread;
-
     /** The number of the experimental run. */
     private int runNumber;
 
@@ -274,9 +262,6 @@ public class FastEventBuilder extends ModuleAdapter {
      *  lastSeqReleased which have called release(), but not been released yet. */
     private int[] betweenReleased;
 
-    /** For multiple build thread, locks used when releasing ring items back to channels. */
-    private ReentrantLock[] releaseLock;
-
 
     //-------------------------------------------
     // Statistics
@@ -322,18 +307,6 @@ logger.info("  EB mod: # of event building threads = " + buildingThreadCount);
                 str.equalsIgnoreCase("on")   ||
                 str.equalsIgnoreCase("yes"))   {
                 includeRunData = true;
-            }
-        }
-
-
-        // set "garbage free" option on
-        useReleaseThread = false;
-        str = attributeMap.get("releaseThd");
-        if (str != null) {
-            if (str.equalsIgnoreCase("true") ||
-                str.equalsIgnoreCase("on")   ||
-                str.equalsIgnoreCase("yes"))   {
-                useReleaseThread = true;
             }
         }
 
@@ -988,20 +961,13 @@ System.out.println("  EB mod: try sending END event to output channel " + output
 
                         // The last event to be cleaned up for this input chan
                         if (buildingThreadCount > 1) {
-                            if (useReleaseThread) {
-                                // For multiple build threads, there's an additional
-                                // cleanup or release thread which must process the last event.
-                                ev = releaseThreads[i].getLastSequence();
-                            }
-                            else {
-                                // For multiple build threads, each thread may be at a different sequence.
-                                // Pick the minimum.
-                                long seq;
-                                ev = Long.MAX_VALUE;
-                                for (int j = 0; j < buildingThreadCount; j++) {
-                                    seq = buildSequenceIn[j][i].get();
-                                    ev = Math.min(seq, ev);
-                                }
+                            // For multiple build threads, each thread may be at a different sequence.
+                            // Pick the minimum.
+                            long seq;
+                            ev = Long.MAX_VALUE;
+                            for (int j = 0; j < buildingThreadCount; j++) {
+                                seq = buildSequenceIn[j][i].get();
+                                ev = Math.min(seq, ev);
                             }
                         }
                         else {
@@ -1014,16 +980,11 @@ System.out.println("  EB mod: try sending END event to output channel " + output
                             catch (InterruptedException e) {}
 
                             if (buildingThreadCount > 1) {
-                                if (useReleaseThread) {
-                                    ev = releaseThreads[i].getLastSequence();
-                                }
-                                else {
-                                    long seq;
-                                    ev = Long.MAX_VALUE;
-                                    for (int j = 0; j < buildingThreadCount; j++) {
-                                        seq = buildSequenceIn[j][i].get();
-                                        ev = Math.min(seq, ev);
-                                    }
+                                long seq;
+                                ev = Long.MAX_VALUE;
+                                for (int j = 0; j < buildingThreadCount; j++) {
+                                    seq = buildSequenceIn[j][i].get();
+                                    ev = Math.min(seq, ev);
                                 }
                             }
                             else {
@@ -1892,15 +1853,9 @@ System.out.println("  EB mod: got user event from channel " + inputChannels.get(
                      evIndex += btCount;
 
                      for (int i=0; i < inputChannelCount; i++) {
-                         if (useReleaseThread) {
-                             if (btCount == 1) {
-                                 buildingBanks[i].releaseByteBuffer();
-                             }
-                         }
-                         else {
-                             // The ByteBufferSupply takes care of releasing buffers in proper order.
-                             buildingBanks[i].releaseByteBuffer();
-                         }
+                         // The ByteBufferSupply takes care of releasing buffers in proper order.
+                         buildingBanks[i].releaseByteBuffer();
+
                          // Each build thread must release the "slots" in the input channel
                          // ring buffers of the components it uses to build the physics event.
                          buildSequences[i].set(nextSequences[i]++);
@@ -1986,104 +1941,7 @@ System.out.println("  EB mod: got user event from channel " + inputChannels.get(
              if (debug) System.out.println("  EB mod: Building thread is ending");
          }
 
-
-
     } // BuildingThread
-
-
-    /**
-     * This class is a garbage-freeing thread which takes the ByteBuffers and
-     * banks used to build an event and frees up their ring-based resources.
-     * It takes the burden of doing this off of the build threads and allows
-     * them to build without bothering to synchronize between themselves.
-     */
-    final class ReleaseRingResourceThread extends Thread {
-
-        /** Time to quit thread. */
-        private volatile boolean quit;
-
-        /** Which input channel are we associated with? */
-        private final int order;
-
-
-        /**
-         * Constructor.
-         *
-         * @param group   thread group.
-         * @param name    thread name.
-         * @param order   input channel index (starting at 0).
-         */
-        ReleaseRingResourceThread(ThreadGroup group, String name, int order) {
-            super(group, name);
-            this.order = order;
-        }
-
-
-        /**
-         * Stop this freeing-resource thread.
-         */
-        void endThread() {
-            quit = true;
-            this.interrupt();
-        }
-
-
-        /**
-         * Get the last sequence to be freed.
-         * @return last sequence to be freed.
-         */
-        long getLastSequence() {
-            return postBuildSequence[order].get();
-        }
-
-
-        public void run() {
-
-            // Ring Buffer stuff
-            long nextSequence = 0L;
-            long availableSequence;
-            RingItem ri;
-            Sequence sequence =  postBuildSequence[order];
-            SequenceBarrier barrier = postBuildBarrier[order];
-            RingBuffer<RingItem> ringBufferIn = ringBuffersIn[order];
-
-
-            try {
-                while (true) {
-                    // Available sequence may be larger than what we desired
-                    availableSequence = barrier.waitFor(nextSequence);
-
-                    // While we have new data to work with ...
-                    while (nextSequence <= availableSequence) {
-                        ri = ringBufferIn.get(nextSequence);
-                        nextSequence++;
-
-                        // Skip over non-built events since control
-                        // events do not use a supply buffer for their data.
-                        // User events may use the input channel supply
-                        // buffers, but they're released by the output channel.
-                        if (!ri.getEventType().isBuildable()) {
-                            continue;
-                        }
-
-                        // Free claim on ByteBuffer
-                        ri.releaseByteBuffer();
-                    }
-
-                    // Free RingItem(s) in input channel's ring for more input data
-                    sequence.set(availableSequence);
-
-                    if (quit) return;
-                }
-            }
-            catch (AlertException e)       { /* won't happen */ }
-            catch (InterruptedException e) {}
-            catch (TimeoutException e)     { /* won't happen */ }
-            catch (Exception e) {
-                e.printStackTrace();
-            }
-        }
-    }
 
 
     /**
@@ -2112,15 +1970,6 @@ System.out.println("  EB mod: endBuildThreads: will end building/filling threads
             // when writing to output channel ring if no available space
             thd.interrupt();
         }
-
-        if (useReleaseThread) {
-            // Interrupt release threads too
-            if (buildingThreadCount > 1 && releaseThreads != null) {
-                for (ReleaseRingResourceThread rt : releaseThreads) {
-                    rt.endThread();
-                }
-            }
-        }
     }
 
     /**
@@ -2141,19 +1990,6 @@ System.out.println("  EB mod: endBuildThreads: will end building/filling threads
                 thd.join(1000);
             }
             catch (InterruptedException e) {}
-        }
-
-        if (useReleaseThread) {
-            // Join release threads
-            if (buildingThreadCount > 1 && releaseThreads != null) {
-                for (ReleaseRingResourceThread rt : releaseThreads) {
-                    try {
-                        rt.join(1000);
-                    }
-                    catch (InterruptedException e) {
-                    }
-                }
-            }
         }
     }
 
@@ -2184,18 +2020,6 @@ System.out.println("  EB mod: endBuildThreads: will end building/filling threads
                 buildingThreadList.add(thd1);
                 thd1.start();
             }
-
-            if (useReleaseThread) {
-                if (buildingThreadCount > 1) {
-                    releaseThreads = new ReleaseRingResourceThread[inChanCount];
-                    for (int j = 0; j < inChanCount; j++) {
-                        releaseThreads[j] = new ReleaseRingResourceThread(emu.getThreadGroup(),
-                                                                          name + ":release" + j, j);
-                        releaseThreads[j].start();
-                    }
-                }
-            }
-
 //        }
     }
 
@@ -2294,7 +2118,6 @@ System.out.println("  EB mod: prestart, input channels have duplicate rocIDs");
         lastSeqReleased = new long[inputChannelCount];
         maxSeqReleased  = new long[inputChannelCount];
         betweenReleased = new int[inputChannelCount];
-        releaseLock = new ReentrantLock[inputChannelCount];
 
         for (int i=0; i < buildingThreadCount; i++) {
             Arrays.fill(lastSeq[i], -1);
@@ -2311,12 +2134,6 @@ System.out.println("  EB mod: prestart, input channels have duplicate rocIDs");
 
         // For each input channel, all build threads share one barrier
         buildBarrierIn = new SequenceBarrier[inputChannelCount];
-
-        // One post-build sequence and barrier for each input channel
-        if (useReleaseThread) {
-            postBuildSequence = new Sequence[inputChannelCount];
-            postBuildBarrier = new SequenceBarrier[inputChannelCount];
-        }
 
         // Place to put ring level stats
         inputChanLevels  = new int[inputChannelCount];
@@ -2339,56 +2156,18 @@ System.out.println("  EB mod: prestart, input channels have duplicate rocIDs");
 
         // For each channel ...
         for (int i=0; i < inputChannelCount; i++) {
-            releaseLock[i] = new ReentrantLock();
 
             // Get channel's ring buffer
             RingBuffer<RingItem> rb = inputChannels.get(i).getRingBufferIn();
             ringBuffersIn[i]  = rb;
             ringBufferSize[i] = rb.getBufferSize();
 
-            if (useReleaseThread) {
-                // Repackage the build thread sequences to use as barrier for post build thread.
-                // Each input channel ring buffer needs the sequences from each build thread for
-                // that channel.
-                Sequence[] buildThdSequencesForChannel = new Sequence[buildingThreadCount];
-
-                // For each build thread ...
-                for (int j = 0; j < buildingThreadCount; j++) {
-                    // We have 1 sequence for each build thread & input channel combination
-                    buildSequenceIn[j][i] = new Sequence(Sequencer.INITIAL_CURSOR_VALUE);
-
-                    if (buildingThreadCount > 1) {
-                        // Store for later use in creating post-processing barrier
-                        buildThdSequencesForChannel[j] = buildSequenceIn[j][i];
-                    }
-                    else {
-                        // This sequence may be the last consumer before producer comes along
-                        rb.addGatingSequences(buildSequenceIn[j][i]);
-                    }
-                }
-
-                if (buildingThreadCount > 1) {
-                    // Last barrier is for releasing resources used in the building
-                    // and it depends on each build thread sequence associated with
-                    // a single channel.
-                    postBuildBarrier[i] = rb.newBarrier(buildThdSequencesForChannel);
-
-                    // Last sequence is for thread releasing resources used in the building
-                    postBuildSequence[i] = new Sequence(Sequencer.INITIAL_CURSOR_VALUE);
-
-                    // This post-processing sequence is the last consumer before producer comes along
-                    rb.addGatingSequences(postBuildSequence[i]);
-                }
-            }
-            else {
-                // For each build thread ...
-                for (int j = 0; j < buildingThreadCount; j++) {
-                    // We have 1 sequence for each build thread & input channel combination
-                    buildSequenceIn[j][i] = new Sequence(Sequencer.INITIAL_CURSOR_VALUE);
-                    // This sequence may be the last consumer before producer comes along
-                    rb.addGatingSequences(buildSequenceIn[j][i]);
-                }
-
+            // For each build thread ...
+            for (int j = 0; j < buildingThreadCount; j++) {
+                // We have 1 sequence for each build thread & input channel combination
+                buildSequenceIn[j][i] = new Sequence(Sequencer.INITIAL_CURSOR_VALUE);
+                // This sequence may be the last consumer before producer comes along
+                rb.addGatingSequences(buildSequenceIn[j][i]);
             }
 
             // We have 1 barrier for each channel (shared by building threads)
