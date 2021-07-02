@@ -3,6 +3,7 @@
 
 # except this one
 !.gitignore
+!.github
 
 # ignore generated files/dirs
 coda.pyc
