@@ -66,4 +66,4 @@ jobs:
           author_email: timmer@jlab.org
           message: 'Update docs'
           branch: gh-pages
-          add: '["doc-3.3/javadoc/", "doc-3.3/users_guide/emuUsersGuide.pdf"]'
+          add: '["doc-3.3/javadoc/", "doc-3.3/usersGuide/emuUsersGuide.pdf"]'
