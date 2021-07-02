@@ -18,12 +18,12 @@ Here are links to the documentation contained in the github repository
 ___________________________
 ## **Version 3.3**
 
-* [User's Guide PDF](https://jeffersonlab.github.io/emu/doc-3.3/users_guide/emuUsersGuide.pdf)
+* [User's Guide PDF](https://jeffersonlab.github.io/emu/doc-3.3/usersGuide/emuUsersGuide.pdf)
 * [Javadoc for Java Library](https://jeffersonlab.github.io/emu/doc-3.3/javadoc/index.html)
 
 ___________________________
 ## **Version 3.1**
 
-* [User's Guide PDF](https://jeffersonlab.github.io/emu/doc-3.1/users_guide/emuUsersGuide.pdf)
+* [User's Guide PDF](https://jeffersonlab.github.io/emu/doc-3.1/usersGuide/emuUsersGuide.pdf)
 * [Javadoc for Java Library](https://jeffersonlab.github.io/emu/doc-3.1/javadoc/index.html)
 
