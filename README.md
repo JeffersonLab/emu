@@ -61,7 +61,7 @@ One can download the Java 8, pre-built emu-3.3.jar file from either:
  
 or
 
-  [Jar File @ GitHub](https://github.com/JeffersonLab/emu/blob/master/java/jars/java8/emu-3.3.jar)
+  [Jar File @ GitHub](https://github.com/JeffersonLab/emu/blob/emu-3.3/java/jars/java8/emu-3.3.jar)
 
 One can find the pre-built emu-3.3.jar file in the repository in the java/jars/java8
 directory built with Java 8, or in the java/jars/java15 directory built with Java 15,
