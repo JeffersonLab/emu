@@ -31,7 +31,7 @@ website, Java 8 or higher is necessary since it was compiled with that version.
 
   [EMU Home Page](https://coda.jlab.org/drupal/content/event-management-unit-emu-0/)
 
-  [EMU on GitHub](https://github.com/JeffersonLab/emu)
+  [EMU on GitHub](https://github.com/JeffersonLab/emu/tree/emu-3.1)
 
   
 -----------------------------
