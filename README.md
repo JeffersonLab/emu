@@ -102,12 +102,20 @@ To get a list of options with ant, type _**ant help**_:
         [echo]      prepare     - create necessary directories
 
 
-To generate a new EMU jar file, type "ant jar" which will
-create the file and place it in build/lib.
+To generate a new EMU jar file, execute
+
+    ant jar
+    
+which will create the file and place it in build/lib.
 
 Included in the java/jars subdirectory are all auxiliary jar files used
-by the GUI graphics. These are installed when executing "ant install"
-and uninstalled when executing "ant uninstall".
+by the GUI graphics. These are installed when executing
+
+    ant install
+
+and uninstalled when executing
+    
+    ant uninstall
 
 
 ----------------------------
