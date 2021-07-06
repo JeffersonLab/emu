@@ -142,7 +142,7 @@ for user-level documentation, or
 
     ant developdoc
     
-for developer-level documentation. To remove it:
+for developer-level documentation (which is one displayed on emu webpages). To remove it:
 
     ant undoc
 
