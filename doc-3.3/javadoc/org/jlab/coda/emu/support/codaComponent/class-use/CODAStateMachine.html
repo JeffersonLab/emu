@@ -147,23 +147,7 @@
 <tr class="rowColor">
 <td class="colFirst"><code>class&nbsp;</code></td>
 <td class="colLast"><code><span class="memberNameLink"><a href="../../../../../../../org/jlab/coda/emu/modules/EventRecording.html" title="class in org.jlab.coda.emu.modules">EventRecording</a></span></code>
-<div class="block"><code>
-
-
-
-                Ring Buffer (single producer, lock free)
-                   ____
-                 /  |  \
-         ^      /1 _|_ 2\
-         |     |__/   \__|
-     Producer-&gt;|6 |   | 3|
-               |__|___|__|
-                \ 5 | 4 / &lt;-- Recording Thread
-                 \__|__/         |
-                                 V
-
-
- Actual input channel ring buffer has thousands of events (not 6).</div>
+<div class="block">This class implements an event recorder.</div>
 </td>
 </tr>
 <tr class="altColor">
@@ -175,7 +159,7 @@
 <tr class="rowColor">
 <td class="colFirst"><code>class&nbsp;</code></td>
 <td class="colLast"><code><span class="memberNameLink"><a href="../../../../../../../org/jlab/coda/emu/modules/FastEventBuilder.html" title="class in org.jlab.coda.emu.modules">FastEventBuilder</a></span></code>
-<div class="block">This class implements an event builder for the CODA online DAQ system.</div>
+<div class="block">This class implements an event builder.</div>
 </td>
 </tr>
 <tr class="altColor">
@@ -199,7 +183,7 @@
 <tr class="rowColor">
 <td class="colFirst"><code>class&nbsp;</code></td>
 <td class="colLast"><code><span class="memberNameLink"><a href="../../../../../../../org/jlab/coda/emu/modules/TsFixedRateSimulation.html" title="class in org.jlab.coda.emu.modules">TsFixedRateSimulation</a></span></code>
-<div class="block">This class is used when running simulated, emu-based ROCS.</div>
+<div class="block">This class is used when running simulated, emu-based, fixed-output-rate ROCS.</div>
 </td>
 </tr>
 <tr class="altColor">
