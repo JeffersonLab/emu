@@ -29,6 +29,8 @@ import java.nio.ByteBuffer;
 import java.util.*;
 
 /**
+ * This class implements an event recorder.
+ *
  * <pre><code>
  *
  *

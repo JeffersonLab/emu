@@ -30,6 +30,8 @@ import java.nio.ByteOrder;
 import java.util.*;
 
 /**
+ * This class implements an event builder.
+ *
  * <pre><code>
  *
  *   Ring Buffer (single producer, lock free) for a single input channel
