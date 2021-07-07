@@ -30,6 +30,8 @@ import java.nio.ByteOrder;
 import java.util.*;
 
 /**
+ * This class implements an event builder for the CODA online DAQ system.
+ *
  * <pre><code>
  *
  *   Ring Buffer (single producer, lock free) for a single input channel
@@ -141,8 +143,6 @@ import java.util.*;
  *     and BT1 the odd which means BT1 will skip over 4 - at the same time setting [1][0] = 4.</p>
  *     
  *  --------------------------------------------------------------------------------------------------
- *
- * This class is the event building module.
  *
  * <p>Each BuildingThread - of which there may be any number - takes
  * one bank from each ring buffer (and therefore input channel), skipping every Mth,
