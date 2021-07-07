@@ -30,7 +30,7 @@ import java.nio.ByteOrder;
 import java.util.*;
 
 /**
- * This class implements an event builder for the CODA online DAQ system.
+ * This class implements an event builder.
  *
  * <pre><code>
  *

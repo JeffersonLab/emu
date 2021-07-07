@@ -21,7 +21,7 @@ import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 
 /**
- * This class is used when running simulated, emu-based ROCS.
+ * This class is used when running simulated, emu-based, fixed-output-rate ROCS.
  * This must be the master ROC in order for synchronization to work properly.
  * All simulated ROCs need to be the same priority level so that they all
  * receive the RC commands - END in particular - at the same time.
