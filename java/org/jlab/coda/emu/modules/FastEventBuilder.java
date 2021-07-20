@@ -230,21 +230,11 @@ public class FastEventBuilder extends ModuleAdapter {
     private int[] ringBufferSize;
 
 
-
     /** For each input channel, 1 sequence per build thread. */
     private Sequence[][] buildSequenceIn;
 
     /** For each input channel, all build threads share one barrier. */
     private SequenceBarrier[] buildBarrierIn;
-
-
-
-    /** One post-build sequence for each input channel. */
-    private Sequence[] postBuildSequence;
-
-    /** The post-build (garbage-releasing) thread has one barrier per input channel. */
-    private SequenceBarrier[] postBuildBarrier;
-
 
 
     /** For multiple build threads and releasing ring items in sequence,
@@ -1646,7 +1636,7 @@ System.out.println("  EB mod: got user event from channel " + inputChannels.get(
                      // Check for identical syncs, uniqueness of ROC ids,
                      // identical (physics or ROC raw) event types,
                      // and the same # of events in each bank
-                     nonFatalError |= Evio.checkConsistency(buildingBanks, firstEventNumber);
+                     nonFatalError |= Evio.checkConsistency(buildingBanks, firstEventNumber, entangledEventCount);
                      isSync = buildingBanks[0].isSync();
 //                     if (isSync) {
 // System.out.println("  EB mod: sync bit set for ev #" + (firstEventNumber + entangledEventCount - 1));
