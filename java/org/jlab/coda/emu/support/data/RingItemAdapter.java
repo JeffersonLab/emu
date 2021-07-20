@@ -14,8 +14,6 @@ package org.jlab.coda.emu.support.data;
 
 import org.jlab.coda.jevio.EvioEvent;
 import org.jlab.coda.jevio.EvioNode;
-import org.jlab.coda.jevio.EvioNodePool;
-import org.jlab.coda.jevio.EvioNodeSource;
 
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
@@ -111,13 +109,6 @@ abstract class RingItemAdapter implements RingItem {
 
     /** Constructor. */
     public RingItemAdapter() {}
-
-
-    /**
-     * Constructor.
-     * @param nodeArraySize  number of EvioNode objects to create in pool.
-     */
-    public RingItemAdapter(int nodeArraySize) {}
 
 
     /**

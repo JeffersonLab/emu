@@ -721,12 +721,14 @@ System.out.println("checkPayload: buf source id = " + pBuf.getSourceId() +
      * @param buildingBanks array containing banks that will be built together
      * @param eventNumber   first event number in each bank (used for diagnostic output).
      *                      Currently event # will not be valid for SEB with multiple streams.
+     * @param entangledCount also called blockLevel, it's the number of events entangled together
+     *                       in one data bank.
      * @return <code>true</code> if non-fatal error occurred, else <code>false</code>
      * @throws EmuException if some physics and others ROC raw event types;
      *                      if there are a differing number of events in each payload bank;
      *                      if some events have a sync bit set and others do not.
      */
-    public static boolean checkConsistency(PayloadBuffer[] buildingBanks, long eventNumber)
+    public static boolean checkConsistency(PayloadBuffer[] buildingBanks, long eventNumber, int entangledCount)
             throws EmuException {
         boolean nonFatalError = false;
 
@@ -784,8 +786,10 @@ System.out.println("  EB mod: events have duplicate source ids");
 
             if (syncBankCount != numBanks) {
                 // Some banks are sync banks and some are not, currently event # will not be valid
-                // for SEB with multiple streams
-                System.out.print("  EB mod: these channels have NO sync at event " + eventNumber + ": ");
+                // for SEB with multiple streams.
+                // A single buildingBank will have "entangledCount" number of physics events mixed together.
+                // In this scenario, the offending sync event will be the LAST of the bunch.
+                System.out.print("  EB mod: these channels have NO sync at event " + (eventNumber + entangledCount - 1) + ": ");
                 for (PayloadBuffer buildingBank : buildingBanks) {
                     if (!buildingBank.isSync()) {
                         System.out.print(buildingBank.getSourceName() + ", ");
@@ -793,7 +797,7 @@ System.out.println("  EB mod: events have duplicate source ids");
                 }
                 System.out.println();
 
-                throw new EmuException("events out of sync at event " + eventNumber);
+                throw new EmuException("events out of sync at event " + (eventNumber + entangledCount - 1));
             }
         }
 
