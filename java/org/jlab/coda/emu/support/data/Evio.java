@@ -794,8 +794,8 @@ System.out.println("  EB mod: events have duplicate source ids");
                     }
                 }
                 System.out.println();
-
-                throw new EmuException("events out of sync at event " + (eventNumber + entangledCount - 1));
+                nonFatalError = true;
+                //throw new EmuException("events out of sync at event " + (eventNumber + entangledCount - 1));
             }
         }
 
