@@ -1139,7 +1139,7 @@ System.out.println("      DataChannel Emu in: " + name +
 
             RingItem ri;
             EvioNode node;
-            boolean hasFirstEvent, isUser=false;
+            boolean hasFirstEvent, isUser=false, isStreaming;
             ControlType controlType = null;
             EvioNodeSource pool;
 
@@ -1191,6 +1191,7 @@ System.out.println("      DataChannel Emu in: " + name +
             }
 
             hasFirstEvent = blockHeader.hasFirstEvent();
+            isStreaming   = blockHeader.isStreaming();
 
             EventType eventType = EventType.getEventType(blockHeader.getEventType());
             if (eventType == null || !eventType.isEbFriendly()) {
@@ -1304,7 +1305,7 @@ logger.info("      DataChannel Emu in: got " + controlType + " event from " + na
 //                     // Send control events on to module so we can prestart, go and take data
 //                     if (!eventType.isBuildable()) {
 //                         ri.setAll(null, null, node, eventType, controlType,
-//                                   isUser, hasFirstEvent, id, recordId, sourceId,
+//                                   isUser, hasFirstEvent, isStreaming, id, recordId, sourceId,
 //                                   1, name, item, bbSupply);
 //
 //                         ringBufferIn.publish(nextRingItem);
@@ -1316,12 +1317,12 @@ logger.info("      DataChannel Emu in: got " + controlType + " event from " + na
                  // Set & reset all parameters of the ringItem
                  if (eventType.isBuildable()) {
                      ri.setAll(null, null, node, eventType, controlType,
-                               isUser, hasFirstEvent, id, recordId, sourceId,
+                               isUser, hasFirstEvent, isStreaming, id, recordId, sourceId,
                                node.getNum(), name, item, bbSupply);
                  }
                  else {
                      ri.setAll(null, null, node, eventType, controlType,
-                               isUser, hasFirstEvent, id, recordId, sourceId,
+                               isUser, hasFirstEvent, isStreaming, id, recordId, sourceId,
                                1, name, item, bbSupply);
                  }
 

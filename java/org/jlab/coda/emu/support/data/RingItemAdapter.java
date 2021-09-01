@@ -12,6 +12,7 @@
 package org.jlab.coda.emu.support.data;
 
 
+import com.lmax.disruptor.Sequence;
 import org.jlab.coda.jevio.EvioEvent;
 import org.jlab.coda.jevio.EvioNode;
 
@@ -97,6 +98,23 @@ abstract class RingItemAdapter implements RingItem {
     /** Associated object used to store things. */
     protected Object attachment;
 
+    //---------------------------------------------------------------------------------------
+    // Streaming related members
+    //---------------------------------------------------------------------------------------
+
+    /** Is the DAQ streaming or triggered? from evio block header bit set in ROC. */
+    protected boolean isStreaming;
+
+    /** In the DAQ streaming mode, the timestamp of data in this item. */
+    protected long timestamp;
+
+    /** In the DAQ streaming mode, the input channel sequence object used to get this item. */
+    protected Sequence channelSequenceObj;
+
+    /** In the DAQ streaming mode, the input channel sequence used to get this item. */
+    protected long channelSequence;
+
+
     // Deal with ring buffers
 
     /** This refers to a supply of reusable ByteBuffers from which buffer came (if any). */
@@ -132,6 +150,8 @@ abstract class RingItemAdapter implements RingItem {
         controlType            = ringItem.getControlType();
         isUser                 = ringItem.isUser();
         isFirst                = ringItem.isFirstEvent();
+        isStreaming            = ringItem.isStreaming();
+        timestamp              = ringItem.getTimestamp();
         sourceId               = ringItem.getSourceId();
         matchesId              = ringItem.matchesId();
         sourceName             = ringItem.getSourceName();
@@ -157,8 +177,8 @@ abstract class RingItemAdapter implements RingItem {
 
     /** {@inheritDoc} */
     public void setAll(EvioEvent ev, ByteBuffer buf, EvioNode nd, EventType eType,
-                       ControlType cType, boolean user, boolean first, int chanId,
-                       int rId, int sId, int evCount, String sName,
+                       ControlType cType, boolean user, boolean first, boolean streaming,
+                       int chanId, int rId, int sId, int evCount, String sName,
                        ByteBufferItem bbItem, ByteBufferSupply bbSupply) {
         event                  = ev;
         buffer                 = buf;
@@ -167,6 +187,8 @@ abstract class RingItemAdapter implements RingItem {
         controlType            = cType;
         isUser                 = user;
         isFirst                = first;
+        isStreaming            = streaming;
+        timestamp              = timestamp;
         recordId               = rId;
         sourceId               = sId;
         matchesId              = sId == chanId;
@@ -307,6 +329,32 @@ abstract class RingItemAdapter implements RingItem {
     public void setNonFatalBuildingError(boolean nonFatalBuildingError) {
         this.nonFatalBuildingError = nonFatalBuildingError;
     }
+
+    //---------------------------------------------------------------------------------------
+    // Streaming related members
+    //---------------------------------------------------------------------------------------
+
+    /** {@inheritDoc} */
+    public boolean isStreaming() {return isStreaming;}
+    /** {@inheritDoc} */
+    public void setStreaming(boolean streaming) {isStreaming = streaming;}
+
+    /** {@inheritDoc} */
+    public long getTimestamp() {return timestamp;}
+    /** {@inheritDoc} */
+    public void setTimestamp(long time) {timestamp = time;}
+
+    /** {@inheritDoc} */
+    public long getChannelSequence() {return channelSequence;}
+    /** {@inheritDoc} */
+    public void setChannelSequence(long seq) {channelSequence = seq;}
+
+    /** {@inheritDoc} */
+    public Sequence getChannelSequenceObj() {return channelSequenceObj;}
+    /** {@inheritDoc} */
+    public void setChannelSequenceObj(Sequence seq) {channelSequenceObj = seq;}
+
+    //---------------------------------------------------------------------------------------
 
 
     public Object clone() {

@@ -565,6 +565,46 @@ System.out.println("checkPayload: buf source id = " + pBuf.getSourceId() +
         pBuf.setNonFatalBuildingError(nonFatalError || nonFatalRecordIdError);
     }
 
+    /**
+     * Check the given payload buffer for correct record id, source id.
+     * Store sync and error info in payload buffer.
+     *
+     * @param pBuf          payload buffer to be examined
+     * @param channel       input channel buffer is from
+     * @param eventType     type of input event in buffer
+     * @param inputNode     EvioNode object representing event
+     * @param recordIdError non-fatal record id error found in
+     *                      {@link #checkInputType(int, DataChannel, EventType, EvioNode)}.
+     */
+    public static void checkStreamInput(PayloadBuffer pBuf, DataChannel channel,
+                                        EventType eventType, EvioNode inputNode,
+                                        boolean recordIdError) {
+
+        int sourceId = pBuf.getSourceId();
+        boolean nonFatalError = false;
+
+        // Only worry about record id if event to be built.
+        // Initial recordId stored is 0, ignore that.
+        if (eventType != null && eventType.isBuildable()) {
+            int tag = inputNode.getTag();
+
+            if (sourceId != getTagCodaId(tag)) {
+                System.out.println("checkInput: buf source Id (" + sourceId +
+                        ") != buf's id from tag (" + getTagCodaId(tag) + ')');
+                nonFatalError = true;
+            }
+        }
+
+        // Check source ID of bank to see if it matches channel id
+        if (!pBuf.matchesId()) {
+            System.out.println("checkInput: buf source id = " + sourceId +
+                    " != input channel id = " + channel.getID());
+            nonFatalError = true;
+        }
+
+        pBuf.setNonFatalBuildingError(nonFatalError || recordIdError);
+    }
+
 
     /**
       * Check the given payload buffer for correct record id, source id.
@@ -819,6 +859,7 @@ System.out.println("  EB mod: events have duplicate source ids");
      * @param runNumber check this (correct) run # against the one in the control event
      * @param runType   check this (correct) run type against the one in the control event
      * @throws EmuException if events contain mixture of different control types;
+     *                      if events contain mixture of streaming and triggered DAQ sources;
      *                      if prestart events contain bad data
      */
     public static void gotConsistentControlEvents(PayloadBuffer[] buildingBanks,
@@ -828,10 +869,14 @@ System.out.println("  EB mod: events have duplicate source ids");
         boolean debug = false;
 
         // Make sure all are the same type of control event
+        boolean firstStreamType = buildingBanks[0].isStreaming();
         ControlType firstControlType = buildingBanks[0].getControlType();
         for (PayloadBuffer buf : buildingBanks) {
             if (buf.getControlType() != firstControlType) {
                 throw new EmuException("different type control events on each channel");
+            }
+            if (buf.isStreaming() != firstStreamType) {
+                throw new EmuException("streaming and triggered channels mixed");
             }
         }
 
@@ -2281,6 +2326,469 @@ System.out.println("Timestamp NOT consistent: ev #" + (firstEventNumber + j) + "
 
         return nonFatalError;
     }
+
+
+//    /**
+//     * Combine the trigger banks of all input payload banks of Physics event format (from previous
+//     * event builder) into a single trigger bank which will be used in the final built event.
+//     * Any error which occurs but allows the build to continue will be noted in the return value.
+//     * Errors which stop the event building cause an exception to be thrown.<p>
+//     *
+//     * If timestamp checking is enabled, it will only be valid here if all physics events
+//     * being currently built have come via previous event builders in which timestamp
+//     * checking was enabled. In this case, each input bank must have timestamp information
+//     * in its trigger bank or an exception with be thrown. The first level of
+//     * event builders check the timestamp drift of each ROC. This (2nd or higher) level of
+//     * event builder checks the average timestamp for an event from one group of ROCs against
+//     * another group's. The trigger bank created in this method will contain the average
+//     * timestamps.<p>
+//     *
+//     * If run number and run type data are included in all input banks, then they will be
+//     * checked for consistency. A non-fatal error will be returned if they are not.<p>
+//     *
+//     * If sparsify flag is <code>true</code>, then no roc-specific data is included.
+//     * The trigger bank is not sparsified if timestamps exist.
+//     * Note that if incoming trigger banks are from events built in single event mode,
+//     * then there will be no roc-specific data in that case as well. If roc-specific
+//     * data is missing from any of the trigger banks, then it will be missing in the
+//     * final trigger bank as well.<p>
+//     *
+//     * Many of the inputs are externally provided arrays used here in order to avoid allocating
+//     * them each time this method is called. Some, like rocNodes, triggerBanks, and
+//     * inputBuffers, are quickly found in FastEventBuilder and easy to pass in.
+//     *
+//     * @param inputPayloadBanks array containing a bank (Physics event) from each channel's
+//     *                          payload buffer queue that will be built into one event.
+//     * @param rocNodes          array of EvioNodes of input banks.
+//     * @param triggerBanks      array of EvioNodes of input trigger banks.
+//     * @param inputBuffers      array of ByteBuffers of input banks.
+//     * @param evBuf             ByteBuffer in which event is being built.
+//     * @param ebId              id of event builder calling this method.
+//     * @param sparsify          if <code>true</code>, do not add roc specific segments if no relevant data.
+//     * @param fastCopyReady     if <code>true</code>, ...
+//     * @param timestampSlop     maximum number of timestamp ticks that timestamps can differ
+//     *                          for a single event before the error bit is set in a bank's
+//     *                          status. Only used when checkTimestamps arg is <code>true</code>.
+//     * @param returnLen         array in which to return index in evBuf just past trigger bank.
+//     * @param longData          array used to store long data of trigger bank.
+//     * @param commonLong        array used to hold long trigger data for comparison of inputs.
+//     * @param firstInputCommonLong  array used to hold long trigger data from first input.
+//     * @param eventTypes        array used to hold short trigger data for comparison of inputs.
+//     * @param eventTypesRoc1    array used to store short trigger data from first input.
+//     *
+//     * @return <code>true</code> if non-fatal error occurred, else <code>false</code>
+//     * @throws EmuException for major error in event building which necessitates stopping the build
+//     */
+//    public static boolean makeStreamInfoBankFromPhysics(PayloadBuffer[] inputPayloadBanks,
+//                                                     EvioNode[] rocNodes,
+//                                                     EvioNode[] triggerBanks,
+//                                                     ByteBuffer[] inputBuffers,
+//                                                     ByteBuffer evBuf,
+//                                                     int ebId,
+//                                                     boolean sparsify,
+//                                                     boolean fastCopyReady,
+//                                                     int timestampSlop,
+//                                                     int[]   returnLen,
+//                                                     long[]  longData,
+//                                                     long[]  commonLong,
+//                                                     long[]  firstInputCommonLong,
+//                                                     short[] eventTypes,
+//                                                     short[] eventTypesRoc1)
+//            throws EmuException {
+//
+//        int rocCount;
+//        int totalRocCount = 0, validLongs = 0, validShorts = 0, validShortsRoc1 = 0;
+//        int numInputBanks = inputPayloadBanks.length;
+//
+//        CODATag tag;
+//        EvioNode triggerBank;
+//
+//        boolean nonFatalError = false;
+//        boolean allHaveRunData = true;
+//        boolean haveTimestamps=true, isTimestamped;
+//        boolean haveTrigWithNoRocSpecificData=false;
+//        boolean firstTrigTimestamped = false;
+//
+//        EvioNode eventTypesSeg = null;
+//        long firstEventNumber = 0L;
+//
+//        // Number of events in each payload bank
+//        int numEvents = rocNodes[0].getNum();
+//
+//        // In each payload bank (of banks) is a built trigger bank. Extract them all.
+//        for (int i=0; i < numInputBanks; i++) {
+//
+//            // store stuff
+//            inputPayloadBanks[i].setEventCount(numEvents);
+//
+//            // Find the built trigger bank - first child bank
+//            triggerBank = triggerBanks[i];
+//
+//            tag = CODATag.getTagType(triggerBank.getTag());
+//            if (tag == null || !Evio.isBuiltTriggerBank(triggerBank)) {
+//                throw new EmuException("No built trigger bank or bad tag in physics event");
+//            }
+//
+//            if (i==0) {
+//                eventTypesSeg   = triggerBanks[0].getChildAt(1);
+//                eventTypesRoc1  = eventTypesSeg.getShortData(eventTypesRoc1, returnLen);
+//                validShortsRoc1 = returnLen[0];
+//                firstInputCommonLong  = triggerBanks[0].getChildAt(0).getLongData(firstInputCommonLong, returnLen);
+//                validLongs      = returnLen[0];
+//                firstEventNumber     = firstInputCommonLong[0];
+//                firstTrigTimestamped = tag.hasTimestamp();
+//            }
+//            else {
+//                // Event-type stuff
+//                eventTypes  = triggerBank.getChildAt(1).getShortData(eventTypes, returnLen);
+//                validShorts = returnLen[0];
+//                if (validShortsRoc1 != validShorts) {
+//                    throw new EmuException("Trying to merge records with different numbers of events");
+//                }
+//                for (int j=0; j < validShortsRoc1; j++) {
+//                    if (eventTypesRoc1[j] != eventTypes[j]) {
+//                        throw new EmuException("Trying to merge records with different event types");
+//                    }
+//                }
+//            }
+//
+//            // Number of rocs in this trigger bank
+//            rocCount = triggerBank.getNum();
+//
+//            // Total number of rocs
+//            totalRocCount += rocCount;
+//
+//            //--------------------------------
+//            // run specific and timestamp data
+//            //--------------------------------
+//
+//            // Do all trigger banks have run number & type data?
+//            allHaveRunData = allHaveRunData && tag.hasRunData();
+//
+//            // Does this trigger have timestamps?
+//            isTimestamped = tag.hasTimestamp();
+//
+//            // Do all trigger banks have timestamp data?
+//            haveTimestamps = haveTimestamps && isTimestamped;
+//
+//            // If one has a timestamp, all must
+//            if (firstTrigTimestamped != isTimestamped) {
+//                throw new EmuException("If 1 trigger bank has timestamps, all must");
+//            }
+//
+//            //--------------------------------
+//            // roc specific data
+//            //--------------------------------
+//
+////                System.out.println("makeTriggerBankFromPhysics: # Rocs = " + rocCount +
+////                                           ", haveRunData = " + tag.hasRunData() +
+////                                           ", hasRocSpecific data = " + tag.hasRocSpecificData() +
+////                                   ", isTimeStamped = " + isTimestamped);
+//
+//
+//            // Sanity check:  Does this trigger have roc-specific data?
+//            if (tag.hasRocSpecificData()) {
+//                // Number of trigger bank children must = # rocs + 2
+//                if (triggerBank.getChildCount() != rocCount + 2) {
+//                    throw new EmuException("Trigger bank does not have correct # of segments (" +
+//                            (rocCount + 2) + "), it has " + triggerBank.getChildCount());
+//                }
+//            }
+//            else {
+//                // Is there at least one trigger bank without run specific data?
+//                haveTrigWithNoRocSpecificData = true;
+//
+//                // If sparsified, there are no segments for roc-specific data
+//                // so the number of trigger bank children must = 2
+//                if (triggerBank.getChildCount() != 2) {
+//                    throw new EmuException("Trigger bank does not have correct # of segments (2), it has " +
+//                            triggerBank.getChildCount());
+//                }
+//            }
+//        }
+//
+//        // Can only check timestamps if you got 'em
+//        if (checkTimestamps && !haveTimestamps) {
+//            nonFatalError   = true;
+//            checkTimestamps = false;
+////System.out.println("Roc(s) missing timestamp info!");
+//        }
+//
+//        // If we've been told to sparsify ...
+//        if (sparsify) {
+//            // If there is timestamp data, ignore it
+//            if (haveTimestamps) sparsify = false;
+//        }
+//        // else we've been told NOT to sparsify ...
+//        else {
+//            // If sparsified trigger banks are coming in, ignore it
+//            if (haveTrigWithNoRocSpecificData) sparsify = true;
+//        }
+//
+//        //    Merging built banks should NOT change anything in the 2 common data banks.
+//        //    However, all merging built trigger banks must have identical contents in
+//        //    these banks (which will be checked). The only change necessary is to update
+//        //    the EB id info in the header of each.
+//        //
+//        //
+//        // 1) The first segment in each built trigger bank contains common data
+//        //    in the format given below. This is a segment of unsigned 64 bit
+//        //    integers containing the first event number followed by timestamps
+//        //    IF the config is set for checking timestamps. That is followed by
+//        //    the run number (high 32 bits) and the run type (low 32 bits) IF
+//        //    the config is set for adding runData.
+//        //
+//        //    MSB(63)                LSB(0)
+//        //    _____________________________
+//        //    |     first event number    |
+//        //    |       avg timestamp1      |
+//        //    |            ...            |
+//        //    |       avg timestampM      |
+//        //    | run number  |  run type   |
+//        //    _____________________________
+//        //
+//        //
+//        // 2) The second segment in each built trigger bank contains common data
+//        //    in the format given below. This is a segment of unsigned 16 bit
+//        //    integers containing the event type of each event.
+//        //
+//        //                        <-- higher mem
+//        //                                     |
+//        //                                     V
+//        //    __________________________________
+//        //    |  event2 type  |  event1 type   |
+//        //    |        .      |        .       |
+//        //    |        .      |        .       |
+//        //    |  eventM type  | eventM-1 type  |
+//        //    __________________________________
+//        //
+//
+//        int triggerTag;
+//
+//        // 1) Create common data segment of longs, with first event #,
+//        //    avg timestamps, and possibly run number & run type in it.
+//        int longDataLen;
+//        if (!checkTimestamps) {
+//            if (includeRunData) {
+//                longData[0] = firstEventNumber;
+//                longData[1] = (((long)runNumber) << 32) | (runType & 0xffffffffL);
+//                longDataLen = 2;
+//                if (sparsify) {
+//                    triggerTag = CODATag.BUILT_TRIGGER_RUN_NRSD.getValue();
+//                }
+//                else {
+//                    triggerTag = CODATag.BUILT_TRIGGER_RUN.getValue();
+//                }
+//            }
+//            else {
+//                longData[0] = firstEventNumber;
+//                longDataLen = 1;
+//                if (sparsify) {
+//                    triggerTag = CODATag.BUILT_TRIGGER_NRSD.getValue();
+//                }
+//                else {
+//                    triggerTag = CODATag.BUILT_TRIGGER_BANK.getValue();
+//                }
+//            }
+//        }
+//        // Put in avg timestamps if doing timestamp checking in loop below
+//        else {
+//            if (includeRunData) {
+//                longData[0] = firstEventNumber;
+//                longData[numEvents+1] = (((long)runNumber) << 32) | (runType & 0xffffffffL);
+//                longDataLen = numEvents + 2;
+//                triggerTag = CODATag.BUILT_TRIGGER_TS_RUN.getValue();
+//            }
+//            else {
+//                longData[0] = firstEventNumber;
+//                longDataLen = numEvents + 1;
+//                triggerTag = CODATag.BUILT_TRIGGER_TS.getValue();
+//            }
+//        }
+//
+//        // Checking timestamps
+//        long ts;
+//        long[] longArray;
+//
+//        // Check consistency of common data across events
+//        for (int i=0; i < numInputBanks; i++) {
+//            if (i > 0) {
+//                // long stuff
+//                longArray = triggerBanks[i].getChildAt(0).getLongData(commonLong, returnLen);
+//                int len = returnLen[0];
+//
+//                // check event number
+//                if (firstEventNumber != commonLong[0]) {
+//                    throw new EmuException("Trying to merge records with different event numbers: 1st bank = " +
+//                            firstEventNumber + ", bank from chan " + i + " = " + commonLong[0]);
+//                }
+//
+//                // check run number & type if all such data is present
+//                if (allHaveRunData) {
+//                    if (validLongs == 2+numEvents &&
+//                            len == 2+numEvents)  {
+//                        // if run # and/or type are different ...
+//                        if (firstInputCommonLong[1+numEvents] != commonLong[1+numEvents]) {
+//                            throw new EmuException("Trying to merge records with different run numbers and/or types");
+//                        }
+//                    }
+//                }
+//            }
+//            else {
+//                longArray = firstInputCommonLong;
+//            }
+//
+//            // store timestamp info
+//            if (checkTimestamps) {
+//                // timestamp data is not all there even though tag says it is
+//                if (validLongs < numEvents + 1) {
+//                    nonFatalError = true;
+//                    checkTimestamps = false;
+//                    System.out.println("Timestamp data is missing!");
+//                }
+//                else {
+//                    // for each event find avg, max, & min
+//                    for (int j=0; j < numEvents; j++) {
+//                        ts = longArray[j+1];
+//                        longData[j+1] += ts;
+//                        timestampsMax[j] = (ts >= timestampsMax[j]) ? ts : timestampsMax[j];
+//                        timestampsMin[j] = (ts <= timestampsMin[j]) ? ts : timestampsMin[j];
+//                    }
+//                }
+//            }
+//        }
+//
+//
+//        // Now that we have all timestamp info, check them against each other.
+//        // Allow a slop of TIMESTAMP_SLOP from the max to min.
+//        if (checkTimestamps) {
+//            for (int j=0; j < numEvents; j++) {
+//                // finish calculation to find average
+//                longData[j+1] /= numInputBanks;
+//
+//                if (timestampsMax[j] - timestampsMin[j] > timestampSlop)  {
+//                    nonFatalError = true;
+//                    System.out.println("Timestamp NOT consistent: ev #" + (firstEventNumber + j) + ", diff = " +
+//                            (timestampsMax[j] - timestampsMin[j]) + ", allowed = " + timestampSlop );
+//                }
+//            }
+//        }
+//
+//        // Skip over event's bank header and the trigger bank length word
+//        int writeIndex = 12;
+//
+//        // Top bank len is not written yet. Top bank 2nd word is already written.
+//
+//        //------------------------------------------------------------------
+//        // Trig bank header: 1) len not written yet, 2) write 2nd word now
+//        //------------------------------------------------------------------
+//        int headerWord = (triggerTag << 16) |
+//                ((DataType.SEGMENT.getValue() & 0x3f) << 8) |
+//                (totalRocCount & 0xff);
+//        evBuf.putInt(writeIndex, headerWord);
+//        writeIndex += 4;
+//
+//        //----------------------------
+//        // Add segment of long data
+//        //----------------------------
+//
+//        // Header
+//        headerWord = (ebId << 24) |
+//                ((DataType.ULONG64.getValue() & 0x3f) << 16) |
+//                (2*longDataLen & 0xffff);
+//        evBuf.putInt(writeIndex, headerWord);
+//        writeIndex += 4;
+//
+//        // Data
+//        for (int i=0; i < longDataLen; i++) {
+//            evBuf.putLong(writeIndex, longData[i]);
+//            writeIndex += 8;
+//        }
+//
+//        //----------------------------
+//        // Add segment of event types
+//        //----------------------------
+//
+//        // Header
+//        int padding = eventTypesSeg.getPad();
+//
+//        headerWord = (ebId << 24) |
+//                (padding << 22) |
+//                ((DataType.USHORT16.getValue() & 0x3f) << 16) |
+//                (eventTypesSeg.getLength() & 0xffff);
+//        evBuf.putInt(writeIndex, headerWord);
+//        writeIndex += 4;
+//
+//        // Data
+//        for (int i=0; i < numEvents; i++) {
+//            evBuf.putShort(writeIndex, eventTypesRoc1[i]);
+//            writeIndex += 2;
+//        }
+//        writeIndex += padding;
+//
+//        //-------------------------------------------------------
+//        // 3) Add ROC-specific segments if not sparsifying
+//        //-------------------------------------------------------
+//
+//        if (!sparsify) {
+//            int segBytes, srcPos;
+//            EvioNode trigBank, trigSeg;
+//            ByteBuffer inputBuffer;
+//
+//            // For each trigger bank (from previous level EBs) ...
+//            for (int i=0; i < numInputBanks; i++) {
+//                trigBank    = triggerBanks[i];
+//                inputBuffer = inputBuffers[i];
+//
+//                // Copy over each roc segment in trigger bank to combined trigger bank.
+//                // Skip over timestamp seg and event type seg.
+//                for (int j=2; j < trigBank.getChildCount(); j++) {
+//                    trigSeg = trigBank.getChildAt(j);
+//
+//                    // Copy over data
+//                    if (fastCopyReady) {
+//                        // How many bytes to copy?
+//                        segBytes = trigSeg.getTotalBytes();
+//
+//                        System.arraycopy(inputBuffer.array(), trigSeg.getPosition(),
+//                                evBuf.array(), writeIndex, segBytes);
+//                    }
+//                    else {
+//                        // Write header
+//                        headerWord = (trigSeg.getTag() << 24) |
+//                                ((trigSeg.getType() & 0x3f) << 16) |
+//                                (trigSeg.getLength() & 0xffff);
+//
+//                        evBuf.putInt(writeIndex, headerWord);
+//                        writeIndex += 4;
+//
+//                        // How much data and where is it?
+//                        segBytes = 4*trigSeg.getDataLength();
+//                        srcPos = trigSeg.getDataPosition();
+//
+//                        ByteBuffer duplicateBuf = inputBuffer.duplicate();
+//                        duplicateBuf.limit(srcPos + segBytes).position(srcPos);
+//
+//                        evBuf.position(writeIndex);
+//                        // This method is relative to position
+//                        evBuf.put(duplicateBuf);
+//                        evBuf.position(0);
+//                    }
+//
+//                    writeIndex += segBytes;
+//                }
+//            }
+//        }
+//
+//        // Now go back and write trigger bank header since we have length.
+//        // Note, writeIndex starts at beginning of built event so skip over
+//        // 1st bank header and then trig bank length words.
+//        evBuf.putInt(8, writeIndex/4 - 3);
+//        returnLen[0] = writeIndex;
+//
+//        return nonFatalError;
+//    }
+
 
     /**
      * Combine the trigger banks of all input payload banks of ROC raw format into a single

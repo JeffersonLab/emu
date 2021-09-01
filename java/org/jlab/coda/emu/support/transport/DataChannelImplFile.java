@@ -120,6 +120,9 @@ public class DataChannelImplFile extends DataChannelAdapter {
     /** Does this file have a "first event" ? */
     private boolean hasFirstEvent;
 
+    /** Does this input file have data from a streaming DAQ? */
+    private boolean isStreaming;
+
     /** Use this object to set the sub stream ids if multiple output files per emu. */
     static private AtomicInteger subStreamIdCount = new AtomicInteger(0);
 
@@ -237,6 +240,7 @@ logger.info("      DataChannel File: dictionary file cannot be read");
                 // First evio block header read from a version 4 file
                 IBlockHeader firstBlockHeader = compactFileReader.getFirstBlockHeader();
                 hasFirstEvent = firstBlockHeader.hasFirstEvent();
+                isStreaming = firstBlockHeader.isStreaming();
 
                 // Get the # of events in file
                 eventCount = compactFileReader.getEventCount();
@@ -481,7 +485,6 @@ logger.info("      DataChannel File: reset " + name + " - done");
                     else {
                         node = compactFileReader.getScannedEvent(i);
                     }
-
                     bankType = eventType;
 
                     // Unlikely that a file has roc raw data, but accommodate it anyway
@@ -510,12 +513,12 @@ logger.info("      DataChannel File: reset " + name + " - done");
 
                     if (bankType.isBuildable()) {
                         ringItem.setAll(null, null, node, bankType, controlType,
-                                        isUser, hasFirstEvent, id, recordId, sourceId,
+                                        isUser, hasFirstEvent, isStreaming, id, recordId, sourceId,
                                         node.getNum(), name, null, null);
                     }
                     else {
                         ringItem.setAll(null, null, node, bankType, controlType,
-                                       isUser, hasFirstEvent, id, recordId, sourceId,
+                                       isUser, hasFirstEvent, isStreaming, id, recordId, sourceId,
                                        1, name, null, null);
                     }
 
@@ -533,7 +536,7 @@ logger.info("      DataChannel File: reset " + name + " - done");
 
                 ringItem.setAll(Evio.createControlEvent(ControlType.END, 0, 0, counter, 0, false),
                                 null, null, EventType.CONTROL, ControlType.END, false,
-                                false, id, recordId, sourceId, 1, name, null, null);
+                                false, isStreaming, id, recordId, sourceId, 1, name, null, null);
 
                 ringBufferIn.publish(nextRingItem);
 

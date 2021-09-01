@@ -526,7 +526,8 @@ System.out.println("Client " + me + ", bufferSize = " + bufferSize);
 
                 RingItem ri;
                 EvioNode node;
-                boolean hasFirstEvent, isUser=false, dumpData=false, haveInputEndEvent=false;
+                boolean hasFirstEvent, isUser=false, isStreaming;
+                boolean dumpData=false, haveInputEndEvent=false;
                 ControlType controlType = null;
                 EvioCompactReader compactReader = null;
                 int id = 0, sourceId = 0;
@@ -556,6 +557,8 @@ System.out.println("Client " + me + ", bufferSize = " + bufferSize);
                 }
 
                 hasFirstEvent = blockHeader.hasFirstEvent();
+                isStreaming = blockHeader.isStreaming();
+
                 EventType eventType = EventType.getEventType(blockHeader.getEventType());
                 if (eventType == null) {
     System.out.println("EmuBlastee: bad format evio block header");
@@ -628,12 +631,12 @@ System.out.println("EmuBlastee: " + controlType + " event from ROC");
                     // Set & reset all parameters of the ringItem
                     if (eventType.isBuildable()) {
                         ri.setAll(null, null, node, eventType, controlType,
-                                  isUser, hasFirstEvent, id, recordId, sourceId,
+                                  isUser, hasFirstEvent, isStreaming, id, recordId, sourceId,
                                   node.getNum(), "Blaster", item, bbSupply);
                     }
                     else {
                         ri.setAll(null, null, node, eventType, controlType,
-                                  isUser, hasFirstEvent, id, recordId, sourceId,
+                                  isUser, hasFirstEvent, isStreaming, id, recordId, sourceId,
                                   1, "Blaster", item, bbSupply);
                     }
 

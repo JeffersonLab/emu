@@ -12,9 +12,9 @@
 package org.jlab.coda.emu.support.data;
 
 
+import com.lmax.disruptor.Sequence;
 import org.jlab.coda.jevio.EvioEvent;
 import org.jlab.coda.jevio.EvioNode;
-import org.jlab.coda.jevio.EvioNodeSource;
 
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
@@ -34,39 +34,39 @@ public interface RingItem extends Cloneable, Attached {
      * Get the byte order of the data contained in this object.
      * @return byte order of the data contained in this object.
      */
-    public ByteOrder getByteOrder();
+    ByteOrder getByteOrder();
 
     /**
      * Copy the argument's data into this RingItem object.
      * @param ringItem RingItem to copy from
      */
-    public void copy(RingItem ringItem);
+    void copy(RingItem ringItem);
 
     /**
      * Get the evio event object contained in this ring item if any.
      * @return evio event object contained in this ring item if any (null if none).
      */
-    public EvioEvent getEvent();
+    EvioEvent getEvent();
 
     /**
      * Set the evio event object contained in this ring item.
      * @param event evio event object to be contained in this ring item.
      */
-    public void setEvent(EvioEvent event);
+    void setEvent(EvioEvent event);
 
     /**
      * Get the ByteBuffer object (containing evio data) referenced by this ring item if any.
      * Used in conjunction with {{@link #getNode()}}.
      * @return ByteBuffer object referenced by this ring item if any (null if none).
      */
-    public ByteBuffer getBuffer();
+    ByteBuffer getBuffer();
 
     /**
      * Set the ByteBuffer object (containing evio data) referenced by this ring item if any.
      * Used in conjunction with {{@link #setNode(org.jlab.coda.jevio.EvioNode)}}.
      * @param buffer ByteBuffer object to be referenced by this ring item.
      */
-    public void setBuffer(ByteBuffer buffer);
+    void setBuffer(ByteBuffer buffer);
 
     /**
      * Get the EvioNode object which selects a particular event in the ByteBuffer
@@ -75,7 +75,7 @@ public interface RingItem extends Cloneable, Attached {
      * @return EvioNode object which selects a particular event in the ByteBuffer
      *         referenced by this ring item, if any (null if none).
      */
-    public EvioNode getNode();
+    EvioNode getNode();
 
     /**
      * Set the EvioNode object which selects a particular event in the ByteBuffer
@@ -84,90 +84,90 @@ public interface RingItem extends Cloneable, Attached {
      * @param node EvioNode object which selects a particular event in the ByteBuffer
      *             referenced by this ring item.
      */
-    public void setNode(EvioNode node);
+    void setNode(EvioNode node);
 
     /**
      * Get the length of this structure in bytes, including the header.
      * @return the length of this structure in bytes, including the header.
      */
-    public int getTotalBytes();
+    int getTotalBytes();
 
     /**
      * Is this object a control event?
      * @return {@code true} if control event, else {@code false}.
      */
-    public boolean isControlEvent();
+    boolean isControlEvent();
 
     /**
      * If this is control event, this method returns the type of
      * control event, otherwise it returns null.
      * @return type of control event, else null.
      */
-    public ControlType getControlType();
+    ControlType getControlType();
 
     /**
      * Set the type of control event this is.
      * @param type type of control event this is.
      */
-    public void setControlType(ControlType type);
+    void setControlType(ControlType type);
 
     /**
      * Is this object a USER event type?
      * @return {@code true} if USEr event type, else {@code false}.
      */
-    public boolean isUser();
+    boolean isUser();
 
     /**
      * Is this object a first event?
      * @return {@code true} if first event, else {@code false}.
      */
-    public boolean isFirstEvent();
+    boolean isFirstEvent();
 
     /**
      * Set whether this object a first event.
      * @param isFirst {@code true} if first event, else {@code false}.
      */
-    public void isFirstEvent(boolean isFirst);
+    void isFirstEvent(boolean isFirst);
 
     /**
      * Get the type of event (ROC raw, physics, user, control , etc) this is.
      * @return type of event this is.
      */
-    public EventType getEventType();
+    EventType getEventType();
 
     /**
      * Set the type of event (ROC raw, physics, user, control , etc) this is.
      * @param type type of event this is.
      */
-    public void setEventType(EventType type);
+    void setEventType(EventType type);
 
     /**
      * If emu input channel is reading ROC raw data, then this method
      * gets the CODA id number of the source.
      * @return CODA id number of input ROC raw data source.
      */
-    public int getSourceId();
+    int getSourceId();
 
     /**
      * If emu input channel is reading Roc Raw data, then this method
      * sets the CODA id number of the source.
      * @param sourceId CODA id number of input Roc Raw data source.
      */
-    public void setSourceId(int sourceId);
+    void setSourceId(int sourceId);
 
     /**
      * Does the source id match that of the input channel?
      * @return {@code true} if source id matches that of the input channel,
      *         else {@code false}.
      */
-    public boolean matchesId();
+    boolean matchesId();
 
     /**
      * Set whether the source id matches that of the input channel.
      * @param matchId {@code true} if source id matches that of the input channel,
      *                else {@code false}.
      */
-    public void matchesId(boolean matchId);
+    void matchesId(boolean matchId);
 
     /**
      * The recordId, for a physics or ROC Raw type, starts at zero and
@@ -178,72 +178,72 @@ public interface RingItem extends Cloneable, Attached {
      *
      * @return record id
      */
-    public int getRecordId();
+    int getRecordId();
 
     /**
      * This method sets the record id.
      * @param recordId  the record id
      */
-    public void setRecordId(int recordId);
+    void setRecordId(int recordId);
 
     /**
      * Get the name of the data input channel (from xml config file)
      * which read the data into this object.
      * @return name of the data input channel from xml config file.
      */
-    public String getSourceName();
+    String getSourceName();
 
     /**
      * Set the name of the data input channel (from xml config file)
      * which read the data into this object.
      * @param sourceName name of the data input channel from xml config file.
      */
-    public void setSourceName(String sourceName);
+    void setSourceName(String sourceName);
 
     /**
      * Get the number of ROC events in this object's data.
      * @return number of ROC events in this object's data.
      */
-    public int getEventCount();
+    int getEventCount();
 
     /**
      * Set the number of ROC events in this object's data.
      * @param eventCount number of ROC events in this object's data.
      */
-    public void setEventCount(int eventCount);
+    void setEventCount(int eventCount);
 
     /**
      * Get the first event number in this object's data.
      * @return first event number in this object's data.
      */
-    public long getFirstEventNumber();
+    long getFirstEventNumber();
 
     /**
      * Set the first event number in this object's data.
      * @param firstEventNumber first event number in this object's data.
      */
-    public void setFirstEventNumber(long firstEventNumber);
+    void setFirstEventNumber(long firstEventNumber);
 
     /**
      * If merging contents of multiple rings, it's convenient to have a means
      * to tell the caller when to switch reading from one ring to the next.
      * @return true if time to switch ring being read, else false.
      */
-    public boolean getSwitchRing();
+    boolean getSwitchRing();
 
     /**
      * If merging contents of multiple rings, it's convenient to have a means
      * to tell the caller when to switch reading from one ring to the next.
      * @param switchRing true if time to switch ring being read, else false.
      */
-    public void setSwitchRing(boolean switchRing);
+    void setSwitchRing(boolean switchRing);
 
     /**
      * Is this object is a sync event?
      * This condition is set by the ROC and it is only read - never set.
      * @return {@code true} if this object is a sync event, else {@code false}.
      */
-    public boolean isSync();
+    boolean isSync();
 
     /**
      * Sets whether or not this object is a sync event.
@@ -251,40 +251,40 @@ public interface RingItem extends Cloneable, Attached {
      * pass on that information.
      * @param sync {@code true} if this object is a sync event, else {@code false}.
      */
-    public void setSync(boolean sync);
+    void setSync(boolean sync);
 
     /**
      * Did this object already have an error when first received from transport?
      * @return {@code true} if this object had an error when first received,
      *         else {@code false}.
      */
-    public boolean hasError();
+    boolean hasError();
 
     /**
      * Sets whether or not this object has an error.
      * @param hasError {@code true} if this object has an error,  else {@code false}.
      */
-    public void setError(boolean hasError);
+    void setError(boolean hasError);
 
     /**
      * Did this object generate a non-fatal error while being built
      * (still allows build to continue) ?
      * @return {@code true} if this object generated a non-fatal build error, else {@code false}.
      */
-    public boolean hasNonFatalBuildingError();
+    boolean hasNonFatalBuildingError();
 
     /**
      * Sets whether or not this object generated a non-fatal error while being built.
      * @param nonFatalBuildingError {@code true} if this object generate a non-fatal
      *                              error while being built, else {@code false}.
      */
-    public void setNonFatalBuildingError(boolean nonFatalBuildingError);
+    void setNonFatalBuildingError(boolean nonFatalBuildingError);
 
     /**
      * Releases a ByteBuffer (if any) referenced by this object which was obtained
      * from a ByteBufferSupply object. This allows the buffer to be reused.
      */
-    public void releaseByteBuffer();
+    void releaseByteBuffer();
 
     /**
      * Set the objects needed to release (by calling {@link #releaseByteBuffer()})
@@ -292,20 +292,81 @@ public interface RingItem extends Cloneable, Attached {
      * @param byteBufferSupply object which supplied the ByteBuffer
      * @param byteBufferItem   object wrapping ByteBuffer in the supply
      */
-    public void setReusableByteBuffer(ByteBufferSupply byteBufferSupply,
+    void setReusableByteBuffer(ByteBufferSupply byteBufferSupply,
                                       ByteBufferItem byteBufferItem);
 
     /**
      * Get the ByteBufferSupply object used to create the referenced ByteBuffer (if any).
      * @return ByteBufferSupply object used to create the referenced ByteBuffer (if any, else null).
      */
-    public ByteBufferSupply getByteBufferSupply();
+    ByteBufferSupply getByteBufferSupply();
 
     /**
      * Get the ByteBufferItem object used to wrap the referenced ByteBuffer (if any).
      * @return ByteBufferItem object used to wrap the referenced ByteBuffer (if any, else null).
      */
-    public ByteBufferItem getByteBufferItem();
+    ByteBufferItem getByteBufferItem();
+
+
+    //---------------------------------------------------------------------------------------
+    // Streaming related members
+    //---------------------------------------------------------------------------------------
+
+    /**
+     * Is the DAQ triggering or streaming?
+     * This condition is set by the ROC and it is only read - never set.
+     * @return {@code true} if DAQ is streaming, else {@code false}.
+     */
+    boolean isStreaming();
+
+    /**
+     * Sets whether DAQ triggering or streaming.
+     * This condition is set by the ROC and so this method is only used to
+     * pass on that information.
+     * @param sync {@code true} if this DAQ is streaming, else {@code false}.
+     */
+    void setStreaming(boolean sync);
+
+    /**
+     * Get the timestamp if DAQ in streaming mode.
+     * @see #isStreaming()
+     * @return timestamp, only meaningful in streaming mode.
+     */
+    long getTimestamp();
+
+    /**
+     * Sets the timestamp. Relevent only if DAQ in streaming mode.
+     * @see #isStreaming()
+     * @param time timestamp.
+     */
+    void setTimestamp(long time);
+
+    /**
+     * Get the input channel sequence used to get this item.
+     * @return input channel sequence used to get this item.
+     */
+    long getChannelSequence();
+
+    /**
+     * Sets the input channel sequence used to get this item.
+     * @param seq input channel sequence used to get this item.
+     */
+    void setChannelSequence(long seq);
+
+    /**
+     * Get the input channel sequence object used to get this item.
+     * @return input channel sequence object used to get this item.
+     */
+    Sequence getChannelSequenceObj();
+
+    /**
+     * Sets the input channel sequence object used to get this item.
+     * @param seq input channel sequence object used to get this item.
+     */
+    void setChannelSequenceObj(Sequence seq);
+
+
+    //---------------------------------------------------------------------------------------
 
 
     /**
@@ -320,6 +381,7 @@ public interface RingItem extends Cloneable, Attached {
      * @param cType       type of control event: prestart, go, end, etc.
      * @param user        is this a USER event type
      * @param first       is this a "first" or "beginning-of-run" event
+     * @param streaming   is DAQ streaming or triggered
      * @param chanId      ID of data channel this method is called for
      * @param rId         record ID
      * @param sId         CODA ID of data source
@@ -329,9 +391,9 @@ public interface RingItem extends Cloneable, Attached {
      *                    the data
      * @param bbSupply    Supply object containing the ByteBufferItem
      */
-    public void setAll(EvioEvent ev, ByteBuffer buf, EvioNode nd, EventType eType,
-                       ControlType cType, boolean user, boolean first, int chanId,
-                       int rId, int sId, int evCount, String sName,
+    void setAll(EvioEvent ev, ByteBuffer buf, EvioNode nd, EventType eType,
+                       ControlType cType, boolean user, boolean first, boolean streaming,
+                       int chanId, int rId, int sId, int evCount, String sName,
                        ByteBufferItem bbItem, ByteBufferSupply bbSupply);
 
 }
