@@ -827,13 +827,13 @@ System.out.println("WRITE CONTROL EVENT to chan #" + i + ", ring 0");
         // Stuff needed to direct built events to proper output channel(s)
 
         /** Number (index) of the current, sequential-between-all-built-thds,
-         * built event produced from this EMU.
+         * built event produced from this thread.
          * 1st build thread starts at 0, 2nd starts at 1, etc.
          * 1st build thread's 2nd event is btCount, 2nd thread's 2nd event is btCount + 1, etc.*/
         private long evIndex = 0;
 
-        /** Which channel does this thread currently output to, starting at btIndex?
-         * channel = (prev_channel + btCount) % outputChannelCount.*/
+        /** Which channel does this thread currently output to, using round-robin?
+         * outputChannelIndex = (int) (evIndex % outputChannelCount). */
         private int outputChannelIndex = 0;
 
         // RingBuffer Stuff
@@ -874,6 +874,11 @@ System.out.println("  EB mod: create Build Thread with index " + btIndex + ", co
             //return ((int)(ringBuffersIn[chanIndex].getCursor() - nextSequences[chanIndex]) + 1)*100/ringBufferSize[chanIndex];
             return ((int)(ringBuffersIn[chanIndex].getCursor() -
                           ringBuffersIn[chanIndex].getMinimumGatingSequence()) + 1)*100/ringBufferSize[chanIndex];
+        }
+
+
+        int getLastChannelWritten() {
+            return outputChannelIndex;
         }
 
 
@@ -1032,8 +1037,6 @@ System.out.println("  EB mod: try sending END event to output channel " + nextCh
                 // Release input channel's ring's slot
                 buildSequences[i].set(nextSequences[i]++);
                 // Release byte buffer from a supply holding END event.
-                // If more than 1 BT, release is done by ReleaseRingResourceThread
-                //if (btCount == 1 && buildingBanks != null) {
                 if (buildingBanks != null) {
                     buildingBanks[i].releaseByteBuffer();
                 }

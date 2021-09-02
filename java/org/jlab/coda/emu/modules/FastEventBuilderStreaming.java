@@ -1427,13 +1427,13 @@ System.out.println("  EB mod: found END events on all input channels");
         // Stuff needed to direct built events to proper output channel(s)
 
         /** Number (index) of the current, sequential-between-all-built-thds,
-         * built event produced from this EMU.
+         * built event produced from this thread.
          * 1st build thread starts at 0, 2nd starts at 1, etc.
          * 1st build thread's 2nd event is btCount, 2nd thread's 2nd event is btCount + 1, etc.*/
         private long evIndex = 0;
 
-        /** Which channel does this thread currently output to, starting at btIndex?
-         * channel = (prev_channel + btCount) % outputChannelCount.*/
+        /** Which channel does this thread currently output to, using round-robin?
+         * outputChannelIndex = (int) (evIndex % outputChannelCount). */
         private int outputChannelIndex = 0;
 
         // RingBuffer Stuff
@@ -1464,9 +1464,9 @@ System.out.println("  EB mod: create Build Thread with index " + btIndex + ", co
 
         /**
          * Handle the END event.
-         * @param buildingBanks all banks holding END events, one for each input channel
+         * @param bank the banks holding the locally created END event
          */
-        private void handleEndEvent(PayloadBuffer[] buildingBanks) {
+        private void handleEndEvent(PayloadBuffer bank) {
 
 System.out.println("  EB mod: in handleEndEvent(), bt #" + btIndex + ", output chan count = " +
                            outputChannelCount);
@@ -1485,12 +1485,11 @@ System.out.println("  EB mod: in handleEndEvent(), bt #" + btIndex + ", output c
                 endBufs = new PayloadBuffer[outputChannelCount];
 
                 // For the first output channel
-                endBufs[0] = Evio.createControlBuffer(ControlType.END, runNumber, runTypeId,
-                                                      (int) eventCountTotal, 0, outputOrder, false);
+                endBufs[0] = bank;
 
                 // For the other output channel(s), duplicate first with separate position & limit
                 for (int i=1; i < outputChannelCount; i++) {
-                    endBufs[i] =  new PayloadBuffer(endBufs[0]);
+                    endBufs[i] = new PayloadBuffer(bank);
                 }
 
                 // END needs to be sent over each channel.
@@ -1504,72 +1503,50 @@ System.out.println("  EB mod: in handleEndEvent(), bt #" + btIndex + ", output c
                 // the reader, etc.
                 // Each BT writes to the same numbered ring in each
                 // channel since we carefully created one ring/BT in each channel.
+                //
+                // One output channel is easy, have this build thread
+                // write the END as it would the very next physics.
+                //
+                // Here's the strategy for multiple output channels:
+                //
+                // - This build thread (btIndex) has the END event.
+                //   It writes that as it would the next physics -
+                //   to the channel found by:
+                //        outputChannelIndex = evIndex % outputChannelCount
+                //   The ring is that same one this thread always writes to.
+                //
+                // - Writing an END to the next channel is the exact equivalent of having
+                //   the next build thread writing its next physics. This tells us
+                //   the ring it's written to:
+                //       btIndexNext = (btIndex + 1) % buildThreadCount
+                //   The channel is found by the normal round robin method:
+                //       outputChannelIndex = (evIndex + 1) % outputChannelCount.
+
 
                 // The channel due to receive the next physics event is ...
                 outputChannelIndex = (int) (evIndex % outputChannelCount);
 
 System.out.println("  EB mod: try sending END event to output channel " + outputChannelIndex +
                ", ring " + btIndex + ", ev# = " + evIndex);
-                // Send END event to first output channel
+                // Send END event to that channel
                 try {
                     eventToOutputChannel(endBufs[0], outputChannelIndex, btIndex);
                 }
                 catch (InterruptedException e) {
                     return;
                 }
-                System.out.println("  EB mod: sent END event to output channel  " + outputChannelIndex);
+System.out.println("  EB mod: sent END event to output channel  " + outputChannelIndex);
 
-                // Give the other build threads (BTs) time to finish writing their last event
-                // since we'll be writing END to rings this BT does not normally write to.
-                // Wait up to 2 seconds for each BT before printing a warning.
-                // That should be plenty of time.
-                if (outputChannelCount > 1) {
-                    // One clean up thread / input channel ...
-                    for (int i=0; i < inputChannelCount; i++) {
-                        // 2 sec
-                        int timeLeft = 2000;
-                        long ev;
-
-                        // The last event to be cleaned up for this input chan
-                        if (buildingThreadCount > 1) {
-                            // For multiple build threads, each thread may be at a different sequence.
-                            // Pick the minimum.
-                            long seq;
-                            ev = Long.MAX_VALUE;
-                            for (int j = 0; j < buildingThreadCount; j++) {
-                                seq = buildSequenceIn[j][i].get();
-                                ev = Math.min(seq, ev);
-                            }
+                // If there are multiple channels,
+                // give any other build threads time to finish writing their last event
+                // since we'll be writing END to rings this thread does not normally write to.
+                // Wait 2 seconds, print warning
+                if ((outputChannelCount > 1) && (buildingThreadCount > 1)) {
+                        try {
+                            Thread.sleep(2000);
                         }
-                        else {
-                            ev = buildSequenceIn[0][i].get();
-                        }
-
-                        // If it's not to the one before END, it must still be writing
-                        while (ev < evIndex - 1 && timeLeft > 0) {
-                            try {Thread.sleep(200);}
-                            catch (InterruptedException e) {}
-
-                            if (buildingThreadCount > 1) {
-                                long seq;
-                                ev = Long.MAX_VALUE;
-                                for (int j = 0; j < buildingThreadCount; j++) {
-                                    seq = buildSequenceIn[j][i].get();
-                                    ev = Math.min(seq, ev);
-                                }
-                            }
-                            else {
-                                ev = buildSequenceIn[0][i].get();
-                            }
-
-                            timeLeft -= 200;
-                        }
-
-                        // If it still isn't done, hope for the best ...
-                        if (ev < evIndex - 1) {
-                            System.out.println("  EB mod: WARNING, might have a problem writing END event");
-                        }
-                    }
+                        catch (InterruptedException e) {}
+System.out.println("  EB mod: WARNING, might have a problem writing END event");
                 }
 
                 // Now send END to the other channels. Do this by going forward.
@@ -1577,14 +1554,16 @@ System.out.println("  EB mod: try sending END event to output channel " + output
                 // processed by build threads round-robin. So ...
                 // go to the next channel we would normally send a physics event on,
                 // calculate which ring & channel, and write END to it.
-                // Then continue by going to the next channel until all channels are done.
+                // Then continue by going to the next channel until all additional
+                // channels are done.
                 for (int i=1; i < outputChannelCount; i++) {
 
                     // Next channel to be sent a physics event
                     int nextChannel = (int) ((evIndex + i) % outputChannelCount);
 
-                    // Next build thread to write (and therefore ring to receive) a physics event
-                    int nextBtIndex = (int) ((evIndex + i) % btCount);
+                    // Next build thread to write (and therefore ring to receive) a physics event.
+                    // int nextBtIndex = (int) ((evIndex + i) % btCount);  OR
+                    int nextBtIndex = (btIndex + i) % btCount;
 
                     // One issue here is that each build thread only writes to a single
                     // ring in an output channel. This allows us not to use locks when writing.
@@ -1613,21 +1592,11 @@ System.out.println("  EB mod: try sending END event to output channel " + nextCh
                 wordCountTotal += 5;
             }
 
-            for (int i=0; i < inputChannelCount; i++) {
-                // Release input channel's ring's slot
-                buildSequences[i].set(nextSequences[i]++);
-                // Release byte buffer from a supply holding END event.
-                // If more than 1 BT, release is done by ReleaseRingResourceThread
-                //if (btCount == 1 && buildingBanks != null) {
-                if (buildingBanks != null) {
-                    buildingBanks[i].releaseByteBuffer();
-                }
-            }
+            // No END events need to be released from a ByteBuffer supply since they
+            // were locally created in the Sorter thread.
 
             if (endCallback != null) endCallback.endWait();
         }
-
-        
 
 
 
@@ -1659,6 +1628,7 @@ System.out.println("  EB mod: try sending END event to output channel " + nextCh
                 // Initialize
                 int     tag;
                 long    firstEventNumber=1, startTime=0L;
+                long    storedSequence = 0L;
                 boolean haveEnd, havePhysicsEvents;
                 boolean nonFatalError;
                 boolean generalInitDone = false;
@@ -1709,8 +1679,9 @@ System.out.println("  EB mod: try sending END event to output channel " + nextCh
                 // The array should be sliceCount size, but we don't know
                 // what that is yet. If it needs to be increased, do it later.
                 PayloadBuffer[] sameStampBanks = new PayloadBuffer[200];
+                int sameStampBankEntries = 0;
 
-                PayloadBuffer bank, storedBank;
+                PayloadBuffer bank, storedBank = null;
 
                 minEventSize = Integer.MAX_VALUE;
                 if (timeStatsOn) {
@@ -1762,15 +1733,23 @@ System.out.println("  EB mod: try sending END event to output channel " + nextCh
 //System.out.println("  EB mod: bt" + btIndex + ", available seq  = " + availableSequence);
                         }
 
-                        // Next bank to work with ...
-                        bank = (PayloadBuffer) ringBuffersIn[btIndex].get(nextSequence);
+
+                        if (storedBank != null) {
+                            bank = storedBank;
+                            nextSequence = storedSequence;
+                            storedBank = null;
+                        }
+                        else {
+                            // Next bank to work with ...
+                            bank = (PayloadBuffer) ringBuffersIn[btIndex].get(nextSequence);
+                        }
+
                         ts = bank.getTimestamp();
-                        inputNode = bank.getNode();
                         eventType = bank.getEventType();
 //System.out.println("  EB mod: bt" + btIndex + ", event order = " + bank.getByteOrder());
 
                         // Found a bank, so do something with it
-//System.out.println("  EB mod: bt" + btIndex + ", accept item " + nextSequence);
+//System.out.println("  EB mod: bt" + btIndex + ", accept item " + thisSequence);
 
                         // If event needs to be built ...
                         if (!eventType.isControl()) {
@@ -1812,6 +1791,7 @@ System.out.println("  EB mod: try sending END event to output channel " + nextCh
 
                             if (diff == TimestampDiff.SAME) {
                                 sameStampBanks[sliceCount] = bank;
+                                sliceCount++;
                                 continue;
                             }
                             else {
@@ -1819,58 +1799,34 @@ System.out.println("  EB mod: try sending END event to output channel " + nextCh
                                 // so go ahead and build what we've collected
                                 // and use this bank in the next round
                                 storedBank = bank;
+                                storedSequence = nextSequence;
+                                // TODO: Is this useful???
+                                // sequence of last bank being built now
+                                nextSequence--;
                             }
 
                             break;
                         }
 
-                        // If we're here, we've got a CONTROL event
+                        // If we're here, we've got a CONTROL event and it's guaranteed to be an END
+                        // since the only control events placed into the ring buffer is such.
+                        // This will be the only build thread with the END event.
 
-                        // If not END, we got problems
-                        if (!buildingBank.getControlType().isEnd()) {
-                            throw new EmuException(buildingBank.getControlType() +
-                                    " control events not allowed");
-                        }
-
-                        // At this point all controls are END events
-                        haveEnd = true;
                         endSequence = nextSequence;
-                        System.out.println("  EB mod: bt" + btIndex + ", found END event from " + buildingBank.getSourceName() + " at seq " + endSequence);
-
-
-                        // Go to next input channel
-                        break;
-                    }
-
-                        // repeat for loop endlessly
-//                        if (dumpData && (i == (inputChannelCount - 1))) i = -1;
-//                    }
-
-                    //--------------------------------------------------------
-                    // At this point we have one event from each input channel
-                    //--------------------------------------------------------
-
-                    // In general, at this point there will only be 1 build thread
-                    // that makes it this far and has at least one END event from
-                    // an input channel. The others will be stuck trying to get
-                    // an END event from that channel from a slot past where it is
-                    // in the ring buffer.
-
-                    // If we have all END events ...
-                    if (haveEnd) {
-                        System.out.println("  EB mod: bt#" + btIndex + " found END events on all input channels");
                         haveEndEvent = true;
-                        handleEndEvent(buildingBank);
+                        handleEndEvent(bank);
+                        System.out.println("  EB mod: bt" + btIndex + ", found END event from " + bank.getSourceName() + " at seq " + endSequence);
                         return;
                     }
 
+
                     // At this point there are only physics or ROC raw events, which do we have?
-                    havePhysicsEvents = buildingBank.getEventType().isAnyPhysics();
+                    havePhysicsEvents = sameStampBanks[0].getEventType().isAnyPhysics();
 
                     // Check for identical syncs, uniqueness of ROC ids,
                     // identical (physics or ROC raw) event types,
                     // and the same # of events in each bank
-                    nonFatalError |= Evio.checkConsistency(buildingBank, firstEventNumber, entangledEventCount);
+                    nonFatalError |= Evio.checkConsistency(bank, firstEventNumber, entangledEventCount);
 
                     //--------------------------------------------------------------------
                     // Build trigger bank, number of ROCs given by number of buildingBanks
@@ -2088,13 +2044,13 @@ System.out.println("  EB mod: try sending END event to output channel " + nextCh
 
                     evIndex += btCount;
 
-                    for (int i=0; i < inputChannelCount; i++) {
+                    for (int i=0; i < sliceCount; i++) {
                         // The ByteBufferSupply takes care of releasing buffers in proper order.
-                        buildingBanks[i].releaseByteBuffer();
+                        sameStampBanks[i].releaseByteBuffer();
 
                         // Each build thread must release the "slots" in the input channel
                         // ring buffers of the components it uses to build the physics event.
-                        buildSequences[i].set(nextSequences[i]++);
+                        buildSequences[i].set(nextSequence++);
                     }
 
                     // Stats (need to be thread-safe)
