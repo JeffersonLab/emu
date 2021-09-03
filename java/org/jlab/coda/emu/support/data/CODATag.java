@@ -59,6 +59,21 @@ public enum CODATag {
     BUILT_BY_SEB                (0xFF70),
     /** Event built by secondary event builder with sync bit set. */
     BUILT_BY_SEB_SYNC           (0xFF78),
+
+    //---------------------------------------------
+    // Streaming
+    //---------------------------------------------
+
+    /** Streaming Info Bank containing timestamp and frame number. */
+    STREAMING_SIB                (0xFF30),
+    // Physics event
+    /** Event built by primary event builder in streaming mode. */
+    BUILT_BY_PEB_STREAMING       (0xFF60),
+    /** Event built by secondary event builder in streaming mode. */
+    BUILT_BY_SEB_STREAMING       (0xFF62),
+    /** Event built by DC event builder in streaming mode. */
+    BUILT_BY_DC_STREAMING        (0xFF64),
+
     ;
 
     private int value;

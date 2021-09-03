@@ -1012,6 +1012,8 @@ if (debug) System.out.println("gotValidControlEvents: found control event of typ
     }
 
 
+    // TODO: For STREAMING, event count no longer makes any sense!!!
+
     /**
      * Create a Control event with a ByteBuffer which is ready to read.
      *

@@ -660,6 +660,7 @@ logger.info("  EB mod: internal ring buf count -> " + ringItemCount);
         PayloadBuffer[] controlBufs = new PayloadBuffer[outputChannelCount];
 
         // Create a new control event with updated control data in it
+ // TODO: for streaming, event count does NOT make sense!!
         controlBufs[0] = Evio.createControlBuffer(controlType,
                                                   runNumber, runTypeId,
                                                   (int)eventCountTotal,
@@ -1562,8 +1563,8 @@ System.out.println("  EB mod: WARNING, might have a problem writing END event");
                     int nextChannel = (int) ((evIndex + i) % outputChannelCount);
 
                     // Next build thread to write (and therefore ring to receive) a physics event.
-                    // int nextBtIndex = (int) ((evIndex + i) % btCount);  OR
-                    int nextBtIndex = (btIndex + i) % btCount;
+                    // int nextBtIndex = (btIndex + i) % btCount; OR
+                    int nextBtIndex = (int) ((evIndex + i) % btCount);
 
                     // One issue here is that each build thread only writes to a single
                     // ring in an output channel. This allows us not to use locks when writing.
@@ -1733,7 +1734,6 @@ System.out.println("  EB mod: try sending END event to output channel " + nextCh
 //System.out.println("  EB mod: bt" + btIndex + ", available seq  = " + availableSequence);
                         }
 
-
                         if (storedBank != null) {
                             bank = storedBank;
                             nextSequence = storedSequence;
@@ -1800,7 +1800,6 @@ System.out.println("  EB mod: try sending END event to output channel " + nextCh
                                 // and use this bank in the next round
                                 storedBank = bank;
                                 storedSequence = nextSequence;
-                                // TODO: Is this useful???
                                 // sequence of last bank being built now
                                 nextSequence--;
                             }
@@ -1823,22 +1822,17 @@ System.out.println("  EB mod: try sending END event to output channel " + nextCh
                     // At this point there are only physics or ROC raw events, which do we have?
                     havePhysicsEvents = sameStampBanks[0].getEventType().isAnyPhysics();
 
-                    // Check for identical syncs, uniqueness of ROC ids,
-                    // identical (physics or ROC raw) event types,
-                    // and the same # of events in each bank
-                    nonFatalError |= Evio.checkConsistency(bank, firstEventNumber, entangledEventCount);
 
                     //--------------------------------------------------------------------
-                    // Build trigger bank, number of ROCs given by number of buildingBanks
+                    // Build Stream Info Bank (SIB)
                     //--------------------------------------------------------------------
-                    // The tag will be finally set when this trigger bank is fully created
+                    // The tag will be finally set when this bank is fully created
 
                     // Get an estimate on the buffer memory needed.
                     // Start with 1K and add roughly the amount of trigger bank data + data wrapper
-                    int memSize = 1000 + inputChannelCount * entangledEventCount * 40;
-//System.out.println("  EB mod: estimate trigger bank bytes <= " + memSize);
-                    for (int i=0; i < inputChannelCount; i++) {
-                        rocNodes[i] = buildingBanks[i].getNode();
+                    int memSize = 10000; // Start with a little extra room
+                    for (int i=0; i < sliceCount; i++) {
+                        rocNodes[i] = sameStampBanks[i].getNode();
                         memSize += rocNodes[i].getTotalBytes();
                         // Get the backing buffer
                         backingBufs[i] = rocNodes[i].getBuffer();
@@ -1849,37 +1843,27 @@ System.out.println("  EB mod: try sending END event to output channel " + nextCh
                     // Grab a stored ByteBuffer
                     ByteBufferItem bufItem = bbSupply.get();
                     bufItem.ensureCapacity(memSize);
-                    //System.out.println("  EB mod: ensure buf has size " + memSize + "\n");
+//System.out.println("  EB mod: ensure buf has size " + memSize + "\n");
                     ByteBuffer evBuf = bufItem.getBuffer();
                     int builtEventHeaderWord2;
 
                     // Create a (top-level) physics event from payload banks
-                    // and the combined trigger bank. First create the tag:
-                    //   -if I'm a data concentrator or DC, the tag has 4 status bits and the ebId
-                    //   -if I'm a primary event builder or PEB, the tag is 0xFF50
-                    //   -if I'm a secondary event builder or SEB, the tag is 0xFF70
+                    // and the combined SIB bank. First create the tag:
+                    //   -if I'm a data concentrator or DC
+                    //   -if I'm a primary event builder or PEB
+                    //   -if I'm a secondary event builder or SEB
                     CODAClass myClass = emu.getCodaClass();
                     switch (myClass) {
                         case SEB:
                         case SEBER:
-                            if (isSync) {
-                                tag = CODATag.BUILT_BY_SEB_SYNC.getValue();
-                            }
-                            else {
-                                tag = CODATag.BUILT_BY_SEB.getValue();
-                            }
+                            tag = CODATag.BUILT_BY_SEB_STREAMING.getValue();
                             // output event type
                             eventType = EventType.PHYSICS;
                             break;
 
                         case PEB:
                         case PEBER:
-                            if (isSync) {
-                                tag = CODATag.BUILT_BY_PEB_SYNC.getValue();
-                            }
-                            else {
-                                tag = CODATag.BUILT_BY_PEB.getValue();
-                            }
+                            tag = CODATag.BUILT_BY_PEB_STREAMING.getValue();
                             eventType = EventType.PHYSICS;
                             break;
 
@@ -1887,19 +1871,10 @@ System.out.println("  EB mod: try sending END event to output channel " + nextCh
                         default:
                             eventType = EventType.PARTIAL_PHYSICS;
                             // Check input banks for non-fatal errors
-                            for (PayloadBuffer pBank : buildingBanks)  {
+                            for (PayloadBuffer pBank : sameStampBanks)  {
                                 nonFatalError |= pBank.hasNonFatalBuildingError();
                             }
-
-                            tag = Evio.createCodaTag(isSync,
-                                    buildingBanks[0].hasError() || nonFatalError,
-                                    buildingBanks[0].getByteOrder() == ByteOrder.BIG_ENDIAN,
-                                    false, /* don't use single event mode */
-                                    id);
-//if (debug) System.out.println("  EB mod: tag = " + tag + ", is sync = " + isSync +
-//                   ", has error = " + (buildingBanks[0].hasError() || nonFatalError) +
-//                   ", is big endian = " + buildingBanks[0].getByteOrder() == ByteOrder.BIG_ENDIAN +
-//                   ", is single mode = " + buildingBanks[0].isSingleEventMode());
+                            tag = id;
                     }
 
                     // 2nd word of top level header
@@ -1918,9 +1893,8 @@ System.out.println("  EB mod: try sending END event to output channel " + nextCh
                     if (havePhysicsEvents) {
 
                         //-----------------------------------------------------------------------------------
-                        // The actual number of rocs will replace num in combinedTrigger definition above
+                        // Combine the SIB banks of input events into one
                         //-----------------------------------------------------------------------------------
-                        // Combine the trigger banks of input events into one
 
                         System.arraycopy(longDataZero, 0, timeStampMax, 0, entangledEventCount);
                         System.arraycopy(longDataMin, 0, timeStampMin, 0, entangledEventCount);
@@ -1930,7 +1904,7 @@ System.out.println("  EB mod: try sending END event to output channel " + nextCh
 
 
                         nonFatalError |= Evio.makeStreamInfoBankFromPhysics(
-                                    buildingBanks,
+                                    sameStampBanks,
                                     rocNodes, trigNodes,
                                     backingBufs,
                                     evBuf, id,
@@ -1959,7 +1933,7 @@ System.out.println("  EB mod: try sending END event to output channel " + nextCh
                         // Combine the trigger banks of input events into one
                         System.arraycopy(longDataZero, 0, longData, 0, entangledEventCount + 2);
 
-                        nonFatalError |= Evio.makeTriggerBankFromRocRaw(buildingBanks, evBuf,
+                        nonFatalError |= Evio.makeTriggerBankFromRocRaw(sameStampBanks, evBuf,
                                 id, firstEventNumber,
                                 runNumber, runTypeId,
                                 includeRunData, sparsify,
@@ -2047,11 +2021,12 @@ System.out.println("  EB mod: try sending END event to output channel " + nextCh
                     for (int i=0; i < sliceCount; i++) {
                         // The ByteBufferSupply takes care of releasing buffers in proper order.
                         sameStampBanks[i].releaseByteBuffer();
-
-                        // Each build thread must release the "slots" in the input channel
-                        // ring buffers of the components it uses to build the physics event.
-                        buildSequences[i].set(nextSequence++);
                     }
+                    
+                    // Each build thread must release the "slots" in the sorter ring
+                    // buffer of the components it uses to build the physics event.
+                    sorterSequenceIn[btIndex].set(nextSequence++);
+
 
                     // Stats (need to be thread-safe)
                     eventCountTotal += entangledEventCount;
