@@ -208,6 +208,9 @@ public class Emu implements CODAComponent {
     // Configuration Parameters
     //------------------------------------------------
 
+    /** Is this emu receiving streamed data or not? */
+    private boolean streamingData;
+
     /**
      * In the case that a configuration has more than 1 data stream -
      * the number of final EBs - the components that write to a file
@@ -809,6 +812,12 @@ System.out.println("Emu created, name = " + name + ", type = " + codaClass);
      * @return true if someone hit the END button (until END transition finished).
      */
     public boolean theEndIsNigh() {return theEndIsNigh;}
+
+    /**
+     * Does this emu process streaming data?
+     * @return {@code true} if this emu processes streaming data, else {@code false}.
+     */
+    public boolean isStreamingData() {return streamingData;}
 
 
     //------------------------------------------------
