@@ -64,8 +64,10 @@ public enum CODATag {
     // Streaming
     //---------------------------------------------
 
-    /** Streaming Info Bank containing timestamp and frame number. */
+    /** Streaming Stream Info Bank (SIB) containing timestamp and frame number. */
     STREAMING_SIB                (0xFF30),
+    /** Streaming Time Info Bank (TIB) containing timestamp and frame number. */
+    STREAMING_TIB                (0xFF31),
     // Physics event
     /** Event built by primary event builder in streaming mode. */
     BUILT_BY_PEB_STREAMING       (0xFF60),
@@ -294,7 +296,7 @@ public enum CODATag {
      * @param value the tag value to check
      * @return <code>true</code> if any kind of sync event tag, else <code>false</code>
      */
-     public static boolean isSyncEVent(int value) {
+     public static boolean isSyncEvent(int value) {
          return (value == BUILT_BY_PEB_SYNC.value || value == BUILT_BY_SEB_SYNC.value);
      }
 
@@ -302,9 +304,15 @@ public enum CODATag {
      * Is this any kind of a sync event tag?
      * @return <code>true</code> if any kind of sync event tag, else <code>false</code>
      */
-     public boolean isSyncEVent() {
+     public boolean isSyncEvent() {
          return (this == BUILT_BY_PEB_SYNC || this == BUILT_BY_SEB_SYNC);
      }
 
+
+    ////////////////////
+    // STREAMING
+    ////////////////////
+
+    public static boolean isSIB(int value) {return (value == 0xFF30);}
 
 }
