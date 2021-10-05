@@ -342,6 +342,23 @@ public interface RingItem extends Cloneable, Attached {
     void setTimestamp(long time);
 
     /**
+     * Get the time frame number (sequential count of time slice).
+     * Relevent only if DAQ in streaming mode.
+     * @see #isStreaming()
+     * @return time frame number (sequential count of time slice),
+     *         only meaningful in streaming mode.
+     */
+    long getTimeFrame();
+
+    /**
+     * Sets the time frame number (sequential count of time slice).
+     * Relevent only if DAQ in streaming mode.
+     * @see #isStreaming()
+     * @param frame time frame number (sequential count of time slice).
+     */
+    void setTimeFrame(long frame);
+
+    /**
      * Get the input channel sequence used to get this item.
      * @return input channel sequence used to get this item.
      */
