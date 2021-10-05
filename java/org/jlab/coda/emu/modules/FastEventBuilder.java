@@ -58,7 +58,7 @@ import java.util.*;
  * All build threads consume slots that the input channels fill.
  * There are a fixed number of build threads which can be set in the config file.
  * After initially consuming and filling all slots (once around ring),
- * the producer (input channel) will only take additional slots that the post-build thread
+ * the producer (input channel) will only take additional slots that the build thread
  * is finished with.
  *
  * N Input Channels
@@ -135,7 +135,7 @@ import java.util.*;
  *
  *     <p>Before an input channel can reuse a place on the ring (say 4, although at that
  *     point its number would be 6+4=10), all the gating sequences for that ring must reach that same value
- *     (4) or higher. This signals that all users (BT0 and BT1) are done using that ring item.</p>
+ *     (10) or higher. This signals that all users (BT0 and BT1) are done using that ring item.</p>
  *
  *     <p>For example, let's say that on Chan0, BT0 is done with 4 so that [0][0] = 4, but BT1 is only done with
  *     3 so that [1][0] = 3, then Ring0 cannot reuse slot 4. It's not until BT1 is done with 4 ([1][0] = 4)
