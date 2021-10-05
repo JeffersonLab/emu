@@ -108,6 +108,9 @@ abstract class RingItemAdapter implements RingItem {
     /** In the DAQ streaming mode, the timestamp of data in this item. */
     protected long timestamp;
 
+    /** In the DAQ streaming mode, the time frame (sequential count of time slice) of data in this item. */
+    protected long timeFrame;
+
     /** In the DAQ streaming mode, the input channel sequence object used to get this item. */
     protected Sequence channelSequenceObj;
 
@@ -343,6 +346,12 @@ abstract class RingItemAdapter implements RingItem {
     public long getTimestamp() {return timestamp;}
     /** {@inheritDoc} */
     public void setTimestamp(long time) {timestamp = time;}
+
+    /** {@inheritDoc} */
+    public long getTimeFrame() {return timeFrame;}
+    /** {@inheritDoc} */
+    public void setTimeFrame(long frame) {timeFrame = frame;}
+
 
     /** {@inheritDoc} */
     public long getChannelSequence() {return channelSequence;}
