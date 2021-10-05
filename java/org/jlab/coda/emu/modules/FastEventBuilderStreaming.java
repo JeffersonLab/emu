@@ -26,7 +26,6 @@ import org.jlab.coda.emu.support.transport.DataChannel;
 import org.jlab.coda.jevio.*;
 
 import java.nio.ByteBuffer;
-import java.nio.ByteOrder;
 import java.util.*;
 
 import static com.lmax.disruptor.RingBuffer.createSingleProducer;
@@ -161,19 +160,6 @@ public class FastEventBuilderStreaming extends ModuleAdapter {
      */
     private boolean dumpData;
 
-    // --------------------------------------------------------------
-    // Parameters to find difference between consecutive time slices
-    // --------------------------------------------------------------
-
-    /** Difference in time between consecutive time slices. */
-    private long timeStep = 0L;
-
-    /** The number of data points do we use to find a good value for timeStep. */
-    private final int timeStepPointsMax = 10000;
-
-    /** Use to find a good average value for timeStep. */
-    private int timeStepPoints = 0;
-
     // ---------------------------------------------------
     // Configuration parameters
     // ---------------------------------------------------
@@ -181,21 +167,11 @@ public class FastEventBuilderStreaming extends ModuleAdapter {
     /** If <code>true</code>, data to be built is from a streaming (not triggered) source. */
     private boolean streamingData;
 
-    /** If <code>true</code>, check timestamps for consistency. */
-    private boolean checkTimestamps;
-
     /**
      * The maximum difference in ticks for timestamps for a single event before
-     * an error condition is flagged. Only used if {@link #checkTimestamps} is
-     * <code>true</code>.
+     * an error condition is flagged.
      */
     private int timestampSlop;
-
-    /** If true, include run number & type in built trigger bank. */
-    private boolean includeRunData;
-
-    /** If true, do not include empty roc-specific segments in trigger bank. */
-    private boolean sparsify;
 
     // ---------------------------------------------------
     // Control events
@@ -229,6 +205,8 @@ public class FastEventBuilderStreaming extends ModuleAdapter {
 
     private final RingBuffer<TimeSliceBankItem>[] sorterRingBuffers;
 
+    private TimeSliceSorter timeSliceSorterThread;
+
 
     // Each build thread is receiving data from 1 sorterRingBuffer
 
@@ -237,10 +215,7 @@ public class FastEventBuilderStreaming extends ModuleAdapter {
 
     /** For each sorter ring, 1 barrier since only 1 build thread uses it. */
     private SequenceBarrier[] buildBarrierIn;
-
-
-
-
+    
     /** For multiple build threads and releasing ring items in sequence,
      *  the lowest finished sequence of a build thread for each ring. */
     private long[][] lastSeq;
@@ -295,20 +270,8 @@ logger.info("  EB mod: output byte order = little endian");
 
 logger.info("  EB mod: # of event building threads = " + buildingThreadCount);
 
-        // default is NOT to include run number & type in built trigger bank
-        String str = attributeMap.get("runData");
-        if (str != null) {
-            if (str.equalsIgnoreCase("true") ||
-                str.equalsIgnoreCase("in")   ||
-                str.equalsIgnoreCase("on")   ||
-                str.equalsIgnoreCase("yes"))   {
-                includeRunData = true;
-            }
-        }
-
-
         // set "data dump" option on
-        str = attributeMap.get("dump");
+        String str = attributeMap.get("dump");
         if (str != null) {
             if (str.equalsIgnoreCase("true") ||
                 str.equalsIgnoreCase("on")   ||
@@ -317,28 +280,6 @@ logger.info("  EB mod: # of event building threads = " + buildingThreadCount);
             }
         }
 //dumpData = true;
-
-        // default is NOT to sparsify (not include) roc-specific segments in trigger bank
-        sparsify = false;
-        str = attributeMap.get("sparsify");
-        if (str != null) {
-            if (str.equalsIgnoreCase("true") ||
-                str.equalsIgnoreCase("on")   ||
-                str.equalsIgnoreCase("yes"))   {
-                sparsify = true;
-            }
-        }
-
-        // default is to check timestamp consistency
-        checkTimestamps = true;
-        str = attributeMap.get("tsCheck");
-        if (str != null) {
-            if (str.equalsIgnoreCase("false") ||
-                    str.equalsIgnoreCase("off")   ||
-                    str.equalsIgnoreCase("no"))   {
-                checkTimestamps = false;
-            }
-        }
 
         // default is that data is from triggered source
         streamingData = false;
@@ -1981,6 +1922,11 @@ System.out.println("  EB mod: endBuildThreads: will end building/filling threads
             RateCalculator.interrupt();
         }
 
+        // Interrupt the sorter thread
+        if (timeSliceSorterThread != null) {
+            timeSliceSorterThread.interrupt();
+        }
+
         // Interrupt all Building threads
         for (Thread thd : buildingThreadList) {
             // Try to end thread nicely but it could block on rb.next()
@@ -2001,6 +1947,14 @@ System.out.println("  EB mod: endBuildThreads: will end building/filling threads
             catch (InterruptedException e) {}
         }
 
+        // Join sorter thread
+        if (timeSliceSorterThread != null) {
+            try {
+                timeSliceSorterThread.join(1000);
+            }
+            catch (InterruptedException e) {}
+        }
+
         // Join all Building threads
         for (Thread thd : buildingThreadList) {
             try {
@@ -2012,7 +1966,7 @@ System.out.println("  EB mod: endBuildThreads: will end building/filling threads
 
 
     /**
-     * Start threads for stats, pre-processing incoming events, and building events.
+     * Start threads for stats, processing incoming events, and building events.
      * It creates these threads if they don't exist yet.
      */
     private void startThreads() {
@@ -2027,7 +1981,14 @@ System.out.println("  EB mod: endBuildThreads: will end building/filling threads
             RateCalculator.start();
         }
 
-        int inChanCount = inputChannels.size();
+        // Time slice sorting thread
+        if (timeSliceSorterThread != null) {
+            timeSliceSorterThread.interrupt();
+        }
+        timeSliceSorterThread = new TimeSliceSorter();
+        if (timeSliceSorterThread.getState() == Thread.State.NEW) {
+            timeSliceSorterThread.start();
+        }
 
 //        if (!dumpData) {
             // Build threads
@@ -2056,6 +2017,7 @@ System.out.println("  EB mod: endBuildThreads: will end building/filling threads
         joinThreads();
         //stopBlockingThreads();
         RateCalculator = null;
+        timeSliceSorterThread = null;
         buildingThreadList.clear();
 
         paused = false;
@@ -2086,6 +2048,7 @@ System.out.println("  EB mod: end(), interrupt threads");
         interruptThreads(true);
         joinThreads();
         RateCalculator = null;
+        timeSliceSorterThread = null;
         buildingThreadList.clear();
 
         paused = false;

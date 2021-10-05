@@ -1998,7 +1998,7 @@ System.out.println("  EB mod: endBuildThreads: will end building/filling threads
 
 
     /**
-     * Start threads for stats, pre-processing incoming events, and building events.
+     * Start threads for stats and building events.
      * It creates these threads if they don't exist yet.
      */
     private void startThreads() {
@@ -2012,8 +2012,6 @@ System.out.println("  EB mod: endBuildThreads: will end building/filling threads
         if (RateCalculator.getState() == Thread.State.NEW) {
             RateCalculator.start();
         }
-
-        int inChanCount = inputChannels.size();
 
 //        if (!dumpData) {
             // Build threads
