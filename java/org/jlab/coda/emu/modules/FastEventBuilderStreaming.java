@@ -42,7 +42,7 @@ import static com.lmax.disruptor.RingBuffer.createSingleProducer;
  *                        |
  *                      __|__
  *                     /  |  \
- *                    /1 _|_ 2\  &lt;---- Build Threads 1-M
+ *                    /1 _|_ 2\  &lt;---- Sorter Thread
  *                   |__/   \__|        |
  *                   |6 |   | 3|        |
  *             ^     |__|___|__|        |
@@ -56,98 +56,71 @@ import static com.lmax.disruptor.RingBuffer.createSingleProducer;
  * The producer is a single input channel which reads incoming data,
  * parses it and places it into the ring buffer.
  *
- * The leading consumer of each ring is a build thread - one for each input channel.
- * All build threads consume slots that the input channels fill.
+ * The leading consumer of each input channel ring is the sorter thread. This thread
+ * sends all events of the same time frame to the ring of the same build thread.
+ * Each build thread consumes ring items that the sorter thread fills.
  * There are a fixed number of build threads which can be set in the config file.
- * After initially consuming and filling all slots (once around ring),
- * the producer (input channel) will only take additional slots that the post-build thread
+ * After initially consuming and filling all input channel ring slots (once around ring),
+ * the producer (input channel) will only take additional slots that the build thread
  * is finished with.
  *
  * N Input Channels
- * (evio bank               RB1_      RB2_ ...  RBN_
- *  ring buffers)            |         |         |
- *                           |         |         |
+ * (evio bank ring bufs)    RB1       RB2  ...  RBN
+ *                           3         4         4
+ *  time frame of event      3         4         3
+ *                           3         3         2
+ *                           2         3         1
+ *                           2         2         |
+ *                           2         2         |
+ *                           1         1         |
+ *                           1         1         |
+ *                           1         |         |
  *                           V         V         V
- *                           |        /         /       _
- *                           |      /        /       /
- *                           |    /        /        /
- *                           |  /       /         &lt;   Crossbar of
- *                           | /      /            \  Connections
- *                           |/    /                \
- *                           |  /                    \
- *                           |/       |       |       -
- *                           V        V       V
- *  BuildingThreads:        BT1      BT2      BTM
- *  Grab 1 bank from         |        |        |
- *  each ring,               |        |        |
- *  build event, and         |        |        |
- *  place in                 |        |        |
- *  output channel(s)        \        |       /
- *                            \       |      /
- *                             V      V     V
- * Output Channel(s):    OC1: RB1    RB2   RBM
- * (1 ring buffer for    OC2: RB1    RB2   RBM  ...
+ *  Sorter sends all     ____________________________
+ *  banks of the same    -----   Sorter Thread  -----
+ *  frame to the same    ____________________________
+ *  build thread                3          4
+ *                              3          4
+ *                              3          4
+ *                              3          4
+ *                              3          4
+ *                              3          4
+ *                              1          2
+ *                              1          2
+ *                              1          2
+ *                              1          2
+ *                              1          2
+ *                              1          2
+ *                              |          |
+ *                              V          V
+ *  BuildingThreads:          BT1         BT2  ...  BTM
+ *  Grab all identical frame   |           |
+ *  banks from 1 ring,         |           |
+ *  build event, and           |           |
+ *  place in                   |           |
+ *  output channel(s)          |           |
+ *                             |           |
+ *                             V           V
+ * Output Channel(s):    OC1: RB1         RB2
+ * (1 ring buffer for    OCZ: RB1         RB2
  *  each build thread
  *  in each channel)
  *
- *  M != N in general
+ *  M != N != Z in general
  *  M  = 1 by default
  *
- *  --------------------------------------------------------------------------------------------------
- *  SEQUENCES :
- *   Example of 3 channels, 2 build threads, and releasing channel ring slots for reuse.
- *
- *       Chan/Ring 0              Chan 1                Chan 2
- *
- *         _____                  _____                  _____
- *        /  |  \                /  |  \                /  |  \
- *       /1 _|_ 6\              /1 _|_ 6\              /1 _|_ 6\
- *      |__/   \__|            |__/   \__|            |__/   \__|
- *      |2 |   | 5|            |2 |   | 5|            |2 |   | 5|
- *      |__|___|__|            |__|___|__|            |__|___|__|
- *       \ 3 | 4 /              \ 3 | 4 /              \ 3 | 4 /
- *        \__|__/                \__|__/                \__|__/
- *          \ \                   /    \              _/     |
- *           \  \                /      \          __/       |
- *            \  `----,         /        \      __/          |
- *             \       `----,  /          \ __/              |
- *              \            `----,     __/\_                |
- *               \          /      `---/--,  \__             |
- *                \       /          /     \    \____        |
- *                |      |         /        \        \        |
- *  Sequences: [0][0]   [0][1]   [0][2]  | [1][0]  [1][1]   [1][2]
- *                                       |
- *     Build Threads:    BT 0            |          BT 1
- *                                       |
- *
- *                     Gating sequence arrays are seq[bt][chan].
- *                 A gating sequence(s) is the last sequence (group of sequences)
- *                 on a ring that must reach a value (be done with that slot item)
- *                 for the ring to be able to reuse it.
- *
- *                                       |
- *        seq[0][0],[0][1],[0][2]        |       seq[1][0],[1][1],[1][2]
- *                                       |
- *                                       |
- *     BT0 uses all the events,          |
- *     represented by the above seqs,    |
- *     in building a single event.       |
  *
  * </code></pre>
  *
  *     <p>Before an input channel can reuse a place on the ring (say 4, although at that
- *     point its number would be 6+4=10), all the gating sequences for that ring must reach that same value
- *     (4) or higher. This signals that all users (BT0 and BT1) are done using that ring item.</p>
+ *     point its number would be 6+4=10), the gating sequence for that ring must reach that same value
+ *     (10) or higher. This signals that the user (Sorter which depends on BT1 and BT2) are done using
+ *     that ring item.</p>
  *
- *     <p>For example, let's say that on Chan0, BT0 is done with 4 so that [0][0] = 4, but BT1 is only done with
- *     3 so that [1][0] = 3, then Ring0 cannot reuse slot 4. It's not until BT1 is done with 4 ([1][0] = 4)
- *     that slot 4 is released. Remember that in the above example BT0 will process even numbered events,
- *     and BT1 the odd which means BT1 will skip over 4 - at the same time setting [1][0] = 4.</p>
- *     
  *  --------------------------------------------------------------------------------------------------
  *
  * <p>Each BuildingThread - of which there may be any number - takes
- * one bank from each ring buffer (and therefore input channel), skipping every Mth,
+ * all banks with identical frame number from its own ring buffer,
  * and builds them into a single event. The built event is placed in a ring buffer of
  * an output channel. This is by round robin if more than one channel or on all output channels
  * if a control event, or the first output channel's first ring if user event.
@@ -167,7 +140,7 @@ public class FastEventBuilderStreaming extends ModuleAdapter {
     private int buildingThreadCount;
 
     /** Container for threads used to build events. */
-    private ArrayList<BuildingThread> buildingThreadList = new ArrayList<>(6);
+    private final ArrayList<BuildingThread> buildingThreadList = new ArrayList<>(6);
 
     /** The number of the experimental run. */
     private int runNumber;
@@ -180,7 +153,7 @@ public class FastEventBuilderStreaming extends ModuleAdapter {
     private volatile boolean haveAllPrestartEvents;
 
     /** If <code>true</code>, produce debug print out. */
-    private boolean debug = true;
+    private final boolean debug = true;
 
     /**
      * If true, dump incoming data immediately after reading off input rings.
@@ -476,7 +449,7 @@ logger.info("  EB mod: internal ring buf count -> " + ringItemCount);
             return;
         }
 
-        RingBuffer rb = outputChannels.get(channelNum).getRingBuffersOut()[ringNum];
+        RingBuffer<RingItem> rb = outputChannels.get(channelNum).getRingBuffersOut()[ringNum];
 
 //System.out.println(  EB mod: wait for next ring buf for writing");
         long lastRingItem = rb.next(banksOut.size());
@@ -524,7 +497,7 @@ logger.info("  EB mod: internal ring buf count -> " + ringItemCount);
             return;
         }
 
-        RingBuffer rb = outputChannels.get(channelNum).getRingBuffersOut()[ringNum];
+        RingBuffer<RingItem> rb = outputChannels.get(channelNum).getRingBuffersOut()[ringNum];
 
 //System.out.println("  EB mod: wait for out buf, ch" + channelNum + ", ring " + ringNum);
         long nextRingItem = rb.nextIntr(1);
@@ -791,30 +764,27 @@ System.out.println("WRITE CONTROL EVENT to chan #" + i + ", ring 0");
 
 
     /**
-     * Compare two timestamps to see if they're in the same time slices,
+     * Compare two time frames to see if they're in the same time slice,
      * in sequential time slices, or differ by multiple time slices.
+     * Frame is just the sequential slice number.
      *
-     * @param ts1   first timestamp to examine.
-     * @param ts2   second timestamp to examine.
+     * @param tf1   first time frame to examine.
+     * @param tf2   second time frame to examine.
      * @return {@link TimestampDiff#SAME} if in same time slice,
      *         {@link TimestampDiff#NEXT} if in sequential time slices, or
      *         {@link TimestampDiff#MULTIPLE} if in different and non-sequential time slices.
      */
-    private TimestampDiff compareTimestamps(long ts1, long ts2) {
-        // Same?
-        boolean same = Math.abs(ts1 - ts2) <= timestampSlop;
+    private TimestampDiff compareTimesFrames(long tf1, long tf2) {
+        // Same frame?
+        boolean same = (tf1 == tf2);
 
         if (same) {
-            // Same as last time stamp
+            // Same as last time slice
             return TimestampDiff.SAME;
         }
-        else {
-            long diff = ts1 > ts2 ? (ts1 - (ts2 + timeStep)) : (ts2 - (ts1 + timeStep));
-
-            // Has the time been incremented by 1 slice only?
-            if (Math.abs(diff) <= timestampSlop) {
-                return TimestampDiff.NEXT;
-            }
+        else if (Math.abs(tf1 - tf2) == 1) {
+            // Do times differ by 1 slice only?
+            return TimestampDiff.NEXT;
         }
 
         // Times differ by multiple slices
@@ -824,57 +794,30 @@ System.out.println("WRITE CONTROL EVENT to chan #" + i + ", ring 0");
 
     /**
      * <p>
-     * Find the difference in timestamps between the given value and the value
+     * Find the difference in time frames between the given value and the value
      * being looked for. This is difference is expressed in relation to
      * time slices. In other words, are they in the same, in the next, or in a
      * multiply removed time slice?.</p>
-     * Since it's relatively simple to tag on this calculation, this method also
-     * finds the average difference in time between 2 successive time slices.
      *
-     * @param ts          timestamp to examine (>= lookedForTS)
-     * @param lookedForTS timestamp we're looking for on a channel.
+     * @param tf          time frame to examine (>= lookedForTF)
+     * @param lookedForTF time frame we're looking for on a channel.
      *
      * @return {@link TimestampDiff#SAME} if in same time slice,
      *         {@link TimestampDiff#NEXT} if in sequential time slices, or
      *         {@link TimestampDiff#MULTIPLE} if in different and non-sequential time slices.
      * @throws EmuException if given timestamp is moving backward in time.
      */
-    private TimestampDiff compareWithLookedForTS(long ts, long lookedForTS) throws EmuException {
-        // Diff in time (may be negative)
-        long deltaT = ts - lookedForTS;
+    private TimestampDiff compareWithLookedForTF(long tf, long lookedForTF) throws EmuException {
+        TimestampDiff diff = compareTimesFrames(tf, lookedForTF);
 
-        // Same TS as last?
-        boolean same = Math.abs(deltaT) <= timestampSlop;
-
-        // If we've changed to another time slice? or is it the very first?
-        if (same) {
-            // Same as last time stamp
-            return TimestampDiff.SAME;
-        }
-        else {
-            if (deltaT < 0) {
+        if (diff != TimestampDiff.SAME) {
+            if ((tf - lookedForTF) < 0) {
                 throw new EmuException("timestamps moving backward in time");
             }
-
-            // Spend a few iterations getting a good value for a single time slice difference
-            if (timeStepPoints >= timeStepPointsMax) {
-                // Calculate running average
-                timeStep = (timeStep*(timeStepPoints) + deltaT) / (timeStepPoints + 1);
-                timeStepPoints++;
-            }
-
-            // Has the channel incremented timestamp by 1 slice only?
-            if (Math.abs(ts - (lookedForTS + timeStep)) <= timestampSlop) {
-                return TimestampDiff.NEXT;
-            }
         }
 
-        // Time stamp differs by multiple slices
-        return TimestampDiff.MULTIPLE;
+        return diff;
     }
-
-
-
 
 
     class TimeSliceSorter extends Thread {
@@ -888,8 +831,8 @@ System.out.println("WRITE CONTROL EVENT to chan #" + i + ", ring 0");
 
         /** First time through the sorting? */
         boolean firstTimeThru = true;
-        /** Time stamp currently being written to a build thread ring. */
-        long lookingForTS = 0L;
+        /** Time frame currently being written to a build thread ring. */
+        long lookingForFrame = 0L;
 
         // RingBuffer Stuff
 
@@ -941,11 +884,11 @@ System.out.println("WRITE CONTROL EVENT to chan #" + i + ", ring 0");
          * Method to search for END event on each channel when END found on one channel.
          * @param endChannel    channel in which END event first appeared.
          * @param endSequence   sequence of the first END event
-         * @param lookedForTS   time stamp of slice currently being written to the ring
+         * @param lookedForTF   time frame of slice currently being written to the ring
          *                      of a build thread when END found.
          * @return the total number of END events found in all channels.
          */
-        private int findEnds(int endChannel, long endSequence, long lookedForTS) {
+        private int findEnds(int endChannel, long endSequence, long lookedForTF) {
             // If the END event is far back on any of the communication channels, in order to be able
             // to read in those events, resources must be released after being read/used.
 
@@ -1019,10 +962,9 @@ System.out.println("WRITE CONTROL EVENT to chan #" + i + ", ring 0");
                                 bank.setChannelSequence(nextSequences[ch]);
                                 bank.setChannelSequenceObj(sorterSequenceIn[ch]);
 
-                                // Get TS from bank just read from chan
-                                long ts = bank.getTimestamp();
+                                // Get TF from bank just read from chan
                                 // Compare to what we're looking for
-                                TimestampDiff diff = compareWithLookedForTS(ts, lookedForTS);
+                                TimestampDiff diff = compareWithLookedForTF(bank.getTimeFrame(), lookedForTF);
                                 if (diff == TimestampDiff.SAME) {
                                     // If it's what we're looking for, write it out
                                     sendToTimeSliceBankRing(bank, currentBT);
@@ -1182,13 +1124,10 @@ System.out.println("WRITE CONTROL EVENT to chan #" + i + ", ring 0");
                 // Now do the sorting
                 while (moduleState == CODAState.ACTIVE || paused) {
 
-                    // The input channels' rings (1 per channel)
-                    // are filled by the PreProcessor threads.
-
                     // Here we have what we need to build:
                     // ROC raw events from all ROCs (or partially built events from
-                    // each contributing EB) each with sequential record IDs.
-                    // However, there are also user and END events in the rings.
+                    // each contributing EB) each with sequential time slices.
+                    // However, there may also be user and END events in the rings.
 
                     // Put null into buildingBanks array elements
                     Arrays.fill(buildingBanks, null);
@@ -1209,7 +1148,7 @@ System.out.println("WRITE CONTROL EVENT to chan #" + i + ", ring 0");
                         //----------------------------------------------------
                         while (!gotBank) {
 
-                            // Make sure there available data on this channel.
+                            // Make sure there are available data on this channel.
                             // Only wait if necessary ...
                             if (availableSequences[chan] < nextSequences[chan]) {
                                 //System.out.println("  EB mod: ch" + chan + ", wait for event (seq [" + chan + "] = " +
@@ -1248,7 +1187,7 @@ System.out.println("WRITE CONTROL EVENT to chan #" + i + ", ring 0");
                                     else {
                                         //System.out.println("  EB mod: ch" + chan + ", accept item " + nextSequences[chan]);
                                         // Check payload buffer for source id.
-                                        // Store sync and error info in payload buffer.
+                                        // Store error info in payload buffer.
                                         Evio.checkStreamInput(bank, inputChannels.get(chan),
                                                               eventType, inputNode, recordIdError);
                                         gotBank = true;
@@ -1258,8 +1197,6 @@ System.out.println("WRITE CONTROL EVENT to chan #" + i + ", ring 0");
                                     }
                                 }
                             }
-                            // If we're here, we haven't found a physics/control event and we've run out
-                            // of sequences obtained from the barrier, to go back for more.
                         }
 
                         //----------------------------------------------------
@@ -1267,20 +1204,20 @@ System.out.println("WRITE CONTROL EVENT to chan #" + i + ", ring 0");
                         // If event needs to be built - a real time slice ...
                         if (!eventType.isControl()) {
 
-                            // Get TS from bank just read from chan
-                            long ts = bank.getTimestamp();
+                            // Get time frame from bank just read from chan
+                            long frame = bank.getTimeFrame();
 
                             // If this is the first read from the first channel
                             if (firstTimeThru) {
-                                // This is the timestamp will be looking for in each channel
-                                lookingForTS = ts;
+                                // This is the time frame will be looking for in each channel
+                                lookingForFrame = frame;
                                 firstTimeThru = false;
                             }
 
                             // Compare bank's TS to the one we're looking for -
                             // those to be placed into the current build thread's ring.
                             // First time thru this comes back as "SAME".
-                            TimestampDiff diff = compareWithLookedForTS(ts, lookingForTS);
+                            TimestampDiff diff = compareWithLookedForTF(frame, lookingForFrame);
 
                             // Bank was has same Time Slice as the one we're looking for.
                             // This means that this bank must be written out to the current
@@ -1315,7 +1252,7 @@ System.out.println("WRITE CONTROL EVENT to chan #" + i + ", ring 0");
                                         // Go back to the first channel
                                         chan = 0;
                                         // Start looking for the next slice
-                                        lookingForTS = ts;
+                                        lookingForFrame = frame;
                                         // Which will go to the next build thread
                                         currentBT = (currentBT + 1) % buildingThreadCount;
                                     }
@@ -1358,7 +1295,7 @@ System.out.println("WRITE CONTROL EVENT to chan #" + i + ", ring 0");
                         //-------------------------------------------
 
                         // We need one from each channel so find them now.
-                        int endEventCount = findEnds(chan, nextSequences[chan], lookingForTS);
+                        int endEventCount = findEnds(chan, nextSequences[chan], lookingForFrame);
 
 System.out.println("  EB mod: found END event from " + bank.getSourceName() + " at seq " + nextSequences[chan]);
 
@@ -1385,7 +1322,7 @@ System.out.println("  EB mod: found END events on all input channels");
                 moduleState = CODAState.ERROR;
             }
             catch (InterruptedException e) {
-                e.printStackTrace();
+                //e.printStackTrace();
             }
             catch (AlertException | TimeoutException e) {
                 e.printStackTrace();
@@ -1605,9 +1542,6 @@ System.out.println("  EB mod: try sending END event to output channel " + nextCh
         public void run() {
 
             try {
-                // Streaming or triggered data?
-                boolean streaming = true;
-
                 // Create a reusable supply of ByteBuffer objects
                 // for writing built physics events into.
                 //--------------------------------------------
@@ -1621,9 +1555,9 @@ System.out.println("  EB mod: try sending END event to output channel " + nextCh
                 }
                 boolean useDirectBB = false;
                 ByteBufferSupply bbSupply = new ByteBufferSupply(ringItemCount, 2000, outputOrder,
-                        useDirectBB, releaseSequentially);
-                System.out.println("  EB mod: bbSupply -> " + ringItemCount + " # of bufs, direct = " + false +
-                        ", seq = " + releaseSequentially);
+                                                                 useDirectBB, releaseSequentially);
+System.out.println("  EB mod: bbSupply -> " + ringItemCount + " # of bufs, direct = " + false +
+                   ", seq = " + releaseSequentially);
 
 
                 // Initialize
@@ -1633,54 +1567,29 @@ System.out.println("  EB mod: try sending END event to output channel " + nextCh
                 boolean haveEnd, havePhysicsEvents;
                 boolean nonFatalError;
                 boolean generalInitDone = false;
-                EventType eventType = null;
-                EvioNode  inputNode = null;
+                EventType eventType;
 
-                // Allocate arrays once here so building method does not have to
-                // allocate once per built event. Size is set later when the # of
-                // entangled events (block level) is known.
-                long[]  longData   = null; // allocated later
-                long[]  commonLong = null;
-                long[]  firstInputCommonLong = null;
-                long[]  timeStampMin = null;
-                long[]  timeStampMax = null;
-                short[] evData       = null;
-                short[] eventTypesRoc1 = null;
 
-                int[]   segmentData = new int[20];  // currently only use 3 ints
+                int[]   bankData = new int[20];  // currently only use 3 ints
                 int[]   returnLen   = new int[1];
-                int[] backBufOffsets     = new int[inputChannelCount];
                 ByteBuffer[] backingBufs = new ByteBuffer[inputChannelCount];
-                EvioNode[] rocNodes      = new EvioNode[inputChannelCount];
+                EvioNode[] inputNodes    = new EvioNode[inputChannelCount];
 
-                //TODO: only if SEB
-                EvioNode[] trigNodes     = new EvioNode[inputChannelCount];
-
-                // Some of the above arrays need to be cleared for each event being built.
-                // Copy the contents (all 0's) of the following arrays for efficient clearing.
-                long[]  longDataZero    = null;  // allocated later
-                long[]  longDataMin     = null;  // allocated later
-//                 short[] evDataZero      = null;  // allocated later
-//                 int[]   segmentDataZero = new int[20];
 
                 if (outputChannelCount > 1) {
                     outputChannelIndex = -1;
                 }
 
 
-                long ts;
-                // The timestamp we're currently looking for
-                long lookingForTS = 0;
-                // Track the number of banks with the same time stamp.
-                // This should not vary from stamp to stamp.
-                int slicesPerStamp = 0;
+                long frame;
+                // The time frame we're currently looking for
+                long lookingForTF = 0;
                 // Current number of banks that have the same stamp
                 int sliceCount;
                 // Place to store banks with the same stamp.
                 // The array should be sliceCount size, but we don't know
                 // what that is yet. If it needs to be increased, do it later.
                 PayloadBuffer[] sameStampBanks = new PayloadBuffer[200];
-                int sameStampBankEntries = 0;
 
                 PayloadBuffer bank, storedBank = null;
 
@@ -1715,7 +1624,6 @@ System.out.println("  EB mod: try sending END event to output channel " + nextCh
                     // However, there are also END events in the rings.
 
                     // Set variables/flags
-                    haveEnd = false;
                     sliceCount = 0;
 
                     // Start the clock on how long it takes to build the next event
@@ -1744,7 +1652,7 @@ System.out.println("  EB mod: try sending END event to output channel " + nextCh
                             bank = (PayloadBuffer) ringBuffersIn[btIndex].get(nextSequence);
                         }
 
-                        ts = bank.getTimestamp();
+                        frame = bank.getTimeFrame();
                         eventType = bank.getEventType();
 //System.out.println("  EB mod: bt" + btIndex + ", event order = " + bank.getByteOrder());
 
@@ -1757,7 +1665,7 @@ System.out.println("  EB mod: try sending END event to output channel " + nextCh
                             // Do this once per build thread on first buildable event
                             if (!generalInitDone) {
 
-                                lookingForTS = ts;
+                                lookingForTF = frame;
 
                                 // Find out if the event's buffer has a backing byte array,
                                 // if this object's ByteBufferSupply has buffers with backing byte arrays,
@@ -1787,7 +1695,7 @@ System.out.println("  EB mod: try sending END event to output channel " + nextCh
                                 generalInitDone = true;
                             }
 
-                            TimestampDiff diff = compareWithLookedForTS(ts, lookingForTS);
+                            TimestampDiff diff = compareWithLookedForTF(frame, lookingForTF);
 
                             if (diff == TimestampDiff.SAME) {
                                 sameStampBanks[sliceCount] = bank;
@@ -1829,15 +1737,13 @@ System.out.println("  EB mod: try sending END event to output channel " + nextCh
                     // The tag will be finally set when this bank is fully created
 
                     // Get an estimate on the buffer memory needed.
-                    // Start with 1K and add roughly the amount of trigger bank data + data wrapper
+                    // Start with 10K and add roughly the amount of trigger bank data + data wrapper
                     int memSize = 10000; // Start with a little extra room
                     for (int i=0; i < sliceCount; i++) {
-                        rocNodes[i] = sameStampBanks[i].getNode();
-                        memSize += rocNodes[i].getTotalBytes();
+                        inputNodes[i] = sameStampBanks[i].getNode();
+                        memSize += inputNodes[i].getTotalBytes();
                         // Get the backing buffer
-                        backingBufs[i] = rocNodes[i].getBuffer();
-                        // Offset into backing buffer to start of given input's event
-                        backBufOffsets[i] = rocNodes[i].getPosition();
+                        backingBufs[i] = inputNodes[i].getBuffer();
                     }
 
                     // Grab a stored ByteBuffer
@@ -1853,17 +1759,12 @@ System.out.println("  EB mod: try sending END event to output channel " + nextCh
                     //   -if I'm a primary event builder or PEB
                     //   -if I'm a secondary event builder or SEB
                     CODAClass myClass = emu.getCodaClass();
+                    tag = CODATag.STREAMING_TIB.getValue();
                     switch (myClass) {
                         case SEB:
                         case SEBER:
-                            tag = CODATag.BUILT_BY_SEB_STREAMING.getValue();
-                            // output event type
-                            eventType = EventType.PHYSICS;
-                            break;
-
                         case PEB:
                         case PEBER:
-                            tag = CODATag.BUILT_BY_PEB_STREAMING.getValue();
                             eventType = EventType.PHYSICS;
                             break;
 
@@ -1874,13 +1775,12 @@ System.out.println("  EB mod: try sending END event to output channel " + nextCh
                             for (PayloadBuffer pBank : sameStampBanks)  {
                                 nonFatalError |= pBank.hasNonFatalBuildingError();
                             }
-                            tag = id;
                     }
 
                     // 2nd word of top level header
                     builtEventHeaderWord2 = (tag << 16) |
                             ((DataType.BANK.getValue() & 0x3f) << 8) |
-                            (entangledEventCount & 0xff);
+                            (sliceCount & 0xff);
 
                     // Start top level. Write the length later, now, just the 2nd header word of top bank
                     evBuf.putInt(4, builtEventHeaderWord2);
@@ -1891,33 +1791,20 @@ System.out.println("  EB mod: try sending END event to output channel " + nextCh
 
                     // If building with Physics events ...
                     if (havePhysicsEvents) {
-
                         //-----------------------------------------------------------------------------------
                         // Combine the SIB banks of input events into one
                         //-----------------------------------------------------------------------------------
-
-                        System.arraycopy(longDataZero, 0, timeStampMax, 0, entangledEventCount);
-                        System.arraycopy(longDataMin, 0, timeStampMin, 0, entangledEventCount);
-                        for (int i = 0; i < inputChannelCount; i++) {
-                            trigNodes[i] = rocNodes[i].getChildAt(0);
-                        }
-
-
-                        nonFatalError |= Evio.makeStreamInfoBankFromPhysics(
-                                    sameStampBanks,
-                                    rocNodes, trigNodes,
-                                    backingBufs,
-                                    evBuf, id,
-                                    sparsify,
-                                    fastCopyReady,
-                                    timestampSlop,
-                                    returnLen,
-                                    longData,
-                                    commonLong,
-                                    firstInputCommonLong,
-                                    evData,
-                                    eventTypesRoc1);
-
+                        nonFatalError |= Evio.combineEbStreams(
+                                sameStampBanks,
+                                evBuf,
+                                tag,
+                                timestampSlop,
+                                frame,
+                                bankData,
+                                returnLen,
+                                backingBufs,
+                                inputNodes,
+                                fastCopyReady);
 
                             writeIndex = returnLen[0];
 
@@ -1926,70 +1813,39 @@ System.out.println("  EB mod: try sending END event to output channel " + nextCh
 //                            System.out.println("PAUSE ..................................................");
 //                            Thread.sleep(1000);
 //                        }
-
                     }
                     // else if building with ROC raw records ...
                     else {
-                        // Combine the trigger banks of input events into one
-                        System.arraycopy(longDataZero, 0, longData, 0, entangledEventCount + 2);
+                        nonFatalError |= Evio.combineRocStreams(
+                                sameStampBanks,
+                                evBuf,
+                                CODATag.STREAMING_TIB.getValue(),
+                                timestampSlop,
+                                frame,
+                                bankData,
+                                returnLen,
+                                backingBufs,
+                                inputNodes,
+                                fastCopyReady);
 
-                        nonFatalError |= Evio.makeTriggerBankFromRocRaw(sameStampBanks, evBuf,
-                                id, firstEventNumber,
-                                runNumber, runTypeId,
-                                includeRunData, sparsify,
-                                checkTimestamps,
-                                timestampSlop, btIndex,
-                                longData, evData,
-                                segmentData, returnLen,
-                                backBufOffsets, backingBufs,
-                                rocNodes, fastCopyReady);
                         writeIndex = returnLen[0];
                     }
 
-                    // If the trigger bank has an error, go back and reset built event's tag
+                    // If there is a non-fatal error, go back and reset built event's tag
                     if (nonFatalError && emu.getCodaClass() == CODAClass.DC) {
-                        tag = Evio.createCodaTag(isSync,true,
-                                buildingBanks[0].getByteOrder() == ByteOrder.BIG_ENDIAN,
-                                false, /* don't use single event mode */
-                                id);
+                        tag = CODATag.STREAMING_TIB_ERROR.getValue();
 
                         // 2nd word of top level header
                         builtEventHeaderWord2 = (tag << 16) |
                                 ((DataType.BANK.getValue() & 0x3f) << 8) |
-                                (entangledEventCount & 0xff);
+                                (sliceCount & 0xff);
                         evBuf.putInt(4, builtEventHeaderWord2);
-                    }
-
-                    if (havePhysicsEvents) {
-                        Evio.buildPhysicsEventWithPhysics(rocNodes,
-                                evBuf,
-                                inputChannelCount,
-                                writeIndex,
-                                fastCopyReady,
-                                returnLen,
-                                backingBufs);
-                        writeIndex = returnLen[0];
-                    }
-                    else {
-                        Evio.buildPhysicsEventWithRocRaw(rocNodes,
-                                fastCopyReady,
-                                inputChannelCount,
-                                writeIndex, evBuf, returnLen,
-                                backingBufs);
-                        writeIndex = returnLen[0];
                     }
 
                     // Write the length of top bank
 //                    System.out.println("writeIndex = " + writeIndex + ", %4 = " + (writeIndex % 4));
                     evBuf.putInt(0, writeIndex/4 - 1);
                     evBuf.limit(writeIndex).position(0);
-
-//                    if (emu.getCodaClass() != CODAClass.DC) {
-//                        Utilities.printBufferBytes(evBuf, 0, writeIndex, "NEW Built Event Buf");
-//                        System.out.println("PAUSE ..................................................");
-//                        Thread.sleep(5000);
-//                    }
-
 
                     //-------------------------
                     // Stats
@@ -2013,8 +1869,8 @@ System.out.println("  EB mod: try sending END event to output channel " + nextCh
 
                     // Put event in the correct output channel.
 //System.out.println("  EB mod: bt#" + btIndex + " write event " + evIndex + " on ch" + outputChannelIndex + ", ring " + btIndex);
-                    eventToOutputRing(btIndex, outputChannelIndex, entangledEventCount,
-                            evBuf, eventType, bufItem, bbSupply);
+                    eventToOutputRing(btIndex, outputChannelIndex, sliceCount,
+                                      evBuf, eventType, bufItem, bbSupply);
 
                     evIndex += btCount;
 
@@ -2022,14 +1878,13 @@ System.out.println("  EB mod: try sending END event to output channel " + nextCh
                         // The ByteBufferSupply takes care of releasing buffers in proper order.
                         sameStampBanks[i].releaseByteBuffer();
                     }
-                    
+
                     // Each build thread must release the "slots" in the sorter ring
                     // buffer of the components it uses to build the physics event.
                     sorterSequenceIn[btIndex].set(nextSequence++);
 
-
                     // Stats (need to be thread-safe)
-                    eventCountTotal += entangledEventCount;
+                    eventCountTotal += sliceCount;
                     wordCountTotal  += writeIndex / 4;
                     keepStats(writeIndex);
                 }
@@ -2073,34 +1928,28 @@ System.out.println("  EB mod: try sending END event to output channel " + nextCh
                 // If we're exiting due to an error, make sure all the input channels
                 // are drained. This makes ROC recovery much easier.
 
-                // Grab banks from each channel
-                for (int i=0; i < inputChannelCount; i++) {
+                cursor = buildBarrierIn[btIndex].getCursor();
 
-                    cursor = buildBarrierIn[i].getCursor();
+                while (true) {
+                    try {
+                        availableSequence = buildBarrierIn[btIndex].waitFor(cursor);
+                    }
+                    catch (Exception e) {}
 
-                    while (true) {
-                        try {
-                            availableSequences[i] = buildBarrierIn[i].waitFor(cursor);
-                        }
-                        catch (Exception e) {}
+                    // While we have data to read ...
+                    while (nextSequence <= availableSequence) {
+                        buildingBank = (PayloadBuffer) ringBuffersIn[btIndex].get(nextSequence);
+//System.out.println("  EB mod: clean inputs, releasing seq " + nextSequence + " from channel #" + btIndex);
+                        buildingBank.releaseByteBuffer();
+                        nextSequence++;
+                    }
+                    buildSequenceIn[btIndex].set(availableSequence);
 
-                        // While we have data to read ...
-                        while (nextSequences[i] <= availableSequences[i]) {
-                            buildingBank = (PayloadBuffer) ringBuffersIn[i].get(nextSequences[i]);
-//System.out.println("  EB mod: clean inputs, releasing seq " + nextSequences[i] + " from channel #" + i);
-                            //if (btCount == 1) {
-                            buildingBank.releaseByteBuffer();
-                            //}
-                            nextSequences[i]++;
-                        }
-                        buildSequences[i].set(availableSequences[i]);
+                    lastCursor = cursor;
+                    cursor = buildBarrierIn[btIndex].getCursor();
 
-                        lastCursor = cursor;
-                        cursor = buildBarrierIn[i].getCursor();
-
-                        if (cursor == lastCursor) {
-                            break;
-                        }
+                    if (cursor == lastCursor) {
+                        break;
                     }
                 }
             }
@@ -2296,6 +2145,11 @@ System.out.println("  EB mod: prestart, input channels have duplicate rocIDs");
         // "One ring buffer to rule them all and in the darkness bind them."
         // Actually, one ring buffer for each input channel.
         ringBuffersIn = new RingBuffer[inputChannelCount];
+
+        // For each input channel, 1 sequence (used by sorter thread)
+        sorterSequenceIn = new Sequence[inputChannelCount];
+        // For each input channel, one barrier
+        sorterBarrierIn = new SequenceBarrier[inputChannelCount];
 
         // For each input channel, 1 sequence (used by sorter thread)
         buildSequenceIn = new Sequence[inputChannelCount];
