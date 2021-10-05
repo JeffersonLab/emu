@@ -68,6 +68,9 @@ public enum CODATag {
     STREAMING_SIB                (0xFF30),
     /** Streaming Time Info Bank (TIB) containing timestamp and frame number. */
     STREAMING_TIB                (0xFF31),
+    /** Streaming Time Info Bank (TIB) containing timestamp and frame number with non-fatal error. */
+    STREAMING_TIB_ERROR          (0xFF32),
+
     // Physics event
     /** Event built by primary event builder in streaming mode. */
     BUILT_BY_PEB_STREAMING       (0xFF60),
