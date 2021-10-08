@@ -208,8 +208,13 @@ public class Emu implements CODAComponent {
     // Configuration Parameters
     //------------------------------------------------
 
-    /** Is this emu receiving streamed data or not? */
-    private boolean streamingData;
+    /**
+     * Is this emu sending/receiving streaming format data or not?
+     * This is different than stream id or stream count which
+     * does NOT refer to data format but only the number of parallel
+     * data conduits or streams.
+     * */
+    private boolean streamingData = true;
 
     /**
      * In the case that a configuration has more than 1 data stream -
@@ -303,12 +308,6 @@ public class Emu implements CODAComponent {
      * Used as a ring.
      */
     private Command[] rcCommands;
-
-    /**
-     * Index into rcCommands which indicates the next transition command
-     * from run control to execute.
-     */
-    private int rcCommandIndex;
 
     /** The Object which defines how to execute transition commands from RC. */
     private TransitionExecutor transitionRunnable;
