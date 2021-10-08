@@ -1735,6 +1735,7 @@ System.out.println("  EB mod: got user event from channel " + inputChannels.get(
 
                          System.arraycopy(longDataZero, 0, timeStampMax, 0, entangledEventCount);
                          System.arraycopy(longDataMin,  0, timeStampMin, 0, entangledEventCount);
+                         System.arraycopy(longDataZero, 0, longData, 0, entangledEventCount + 2);
                          for (int i=0; i < inputChannelCount; i++) {
                              trigNodes[i] = rocNodes[i].getChildAt(0);
                          }
