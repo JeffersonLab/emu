@@ -495,8 +495,8 @@ logger.info("  EB mod: internal ring buf count -> " + ringItemCount);
      * @throws InterruptedException if taking of event off of Q is interrupted
      */
     private ControlType getAllControlEvents(Sequence[] sequences,
-                                     SequenceBarrier barriers[],
-                                     long nextSequences[], int threadIndex)
+                                     SequenceBarrier[] barriers,
+                                     long[] nextSequences, int threadIndex)
             throws EmuException, InterruptedException {
 
         PayloadBuffer[] buildingBanks = new PayloadBuffer[inputChannelCount];
@@ -516,7 +516,7 @@ logger.info("  EB mod: internal ring buf count -> " + ringItemCount);
                         // If it's not a control event, it may be a user event.
                         // If so, skip over it and look at the next one.
                         EventType eType = buildingBanks[i].getEventType();
-                        if (eType != null && eType == EventType.USER) {
+                        if (eType == EventType.USER) {
                             // Send it to the output channel
                             handleUserEvent(buildingBanks[i], inputChannels.get(i), false);
                             // Release ring slot
@@ -547,11 +547,7 @@ logger.info("  EB mod: internal ring buf count -> " + ringItemCount);
                     throw new EmuException("Expecting prestart, go or end, got " + cType);
                 }
             }
-            catch (final TimeoutException e) {
-                e.printStackTrace();
-                throw new EmuException("Cannot get control event", e);
-            }
-            catch (final AlertException e) {
+            catch (final TimeoutException | AlertException e) {
                 e.printStackTrace();
                 throw new EmuException("Cannot get control event", e);
             }
@@ -1264,7 +1260,14 @@ System.out.println("  EB mod: findEnd, chan " + ch + " got END from " + source +
                           }
                      }
                  }
-                 catch (Exception e) {
+                 catch (EmuException e) {
+                     e.printStackTrace();
+                     if (debug) System.out.println("  EB mod: error getting prestart event");
+                     emu.setErrorState("EB error getting prestart event");
+                     moduleState = CODAState.ERROR;
+                     return;
+                 }
+                 catch (InterruptedException e) {
                      e.printStackTrace();
                      // If interrupted we must quit
                      if (debug) System.out.println("  EB mod: interrupted while waiting for prestart event");
@@ -1281,17 +1284,17 @@ System.out.println("  EB mod: findEnd, chan " + ch + " got END from " + source +
 
                  // Second thing we do is look for the GO or END event and pass it on
                  try {
-                     // 1st build thread writes prestart event on all output channels, ring 0.
+                     // 1st build thread writes go event on all output channels, ring 0.
                      // Other build threads ignore this.
-                     ControlType cType = null;
+                     ControlType cType;
                      if (btIndex == 0) {
-                         // Get prestart from each input channel
+                         // Get go from each input channel
       //TODO: can pass in buildingBanks and save some mem allocation/garbage
                           cType = getAllControlEvents(buildSequences, buildBarrierIn,
                                                       nextSequences, btIndex);
                      }
                      else {
-                         // Get prestart from each input channel
+                         // Get go from each input channel
       //TODO: can pass in buildingBanks and save some mem allocation/garbage
                           cType = hopOverControlEvents(buildBarrierIn, nextSequences, btIndex);
                      }
@@ -1314,6 +1317,13 @@ System.out.println("  EB mod: findEnd, chan " + ch + " got END from " + source +
                          controlToOutputAsync(false);
                      }
                  }
+                 catch (EmuException e) {
+                     e.printStackTrace();
+                     if (debug) System.out.println("  EB mod: error getting go event");
+                     emu.setErrorState("EB error getting go event");
+                     moduleState = CODAState.ERROR;
+                     return;
+                 }
                  catch (InterruptedException e) {
                      e.printStackTrace();
                      // If interrupted, then we must quit
@@ -1335,7 +1345,7 @@ System.out.println("  EB mod: findEnd, chan " + ch + " got END from " + source +
                      nonFatalError = false;
 
                      // The input channels' rings (1 per channel)
-                     // are filled by the PreProcessor threads.
+                     // are filled by the input channels.
 
                      // Here we have what we need to build:
                      // ROC raw events from all ROCs (or partially built events from
