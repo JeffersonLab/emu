@@ -636,24 +636,30 @@ System.out.println("      DataChannel Et: can't create/attach to station " +
         }
         else if (etSystem != null) {
             try {
+logger.info("      DataChannel Et closeEtSystem(): detach from ET sytem");
                 etSystem.detach(attachment);
             }
             catch (Exception e) {
                 // Might be detached already or cannot communicate with ET
+                e.printStackTrace();
             }
 
             try {
                 if (!stationName.equals("GRAND_CENTRAL")) {
+logger.info("      DataChannel Et closeEtSystem(): remove station " + stationName + " from ET sytem");
                     etSystem.removeStation(station);
                 }
             }
             catch (Exception e) {
                 // Station may not exist, may still have attachments, or
                 // cannot communicate with ET
+                e.printStackTrace();
             }
 
+logger.info("      DataChannel Et closeEtSystem(): call close()");
             etSystem.close();
             etSystem = null;
+logger.info("      DataChannel Et closeEtSystem(): done");
         }
     }
 
@@ -787,12 +793,14 @@ logger.info("      DataChannel Et: # copy-ET-buffers in input supply -> " + numE
     private void interruptThreads() {
         // Don't close ET system until helper threads are done
         if (dataInputThread != null) {
+logger.info("      DataChannel Et interruptThreads(): shutdown dataInputThread");
             dataInputThread.interruptThreads();
             if (etSysLocal != null) {
                 etSysLocal.detach(attachmentLocal);
             }
             else if (etSystem != null) {
                 try {
+logger.info("      DataChannel Et interruptThreads(): wake up attachment to ET station " + stationName);
                     etSystem.wakeUpAttachment(attachment);
                 }
                 catch (Exception e) {
@@ -802,6 +810,7 @@ logger.info("      DataChannel Et: # copy-ET-buffers in input supply -> " + numE
         }
 
         if (dataOutputThread != null) {
+logger.info("      DataChannel Et interruptThreads(): shutdown dataOutputThread");
             dataOutputThread.shutdown();
         }
     }
@@ -814,14 +823,17 @@ logger.info("      DataChannel Et: # copy-ET-buffers in input supply -> " + numE
         // Don't close ET system until helper threads are done
         try {
             if (dataInputThread != null) {
+logger.info("      DataChannel Et joinThreads(): join dataInputThread");
                 dataInputThread.join(1000);
             }
         }
         catch (InterruptedException e) {}
 
         if (dataOutputThread != null) {
+logger.info("      DataChannel Et joinThreads(): join dataOutputThread");
             dataOutputThread.waitForThreadsToEnd(1000);
         }
+logger.info("      DataChannel Et joinThreads(): done");
     }
 
     
@@ -842,14 +854,14 @@ logger.info("      DataChannel Et: " + name + " - end threads & close ET system"
         // Threads and sockets can be shutdown quickly, since we've already
         // waited for the END event.
 
-//        logger.info("      DataChannel Et: interrupt threads");
+logger.info("      DataChannel Et end(): interrupt threads");
         interruptThreads();
-////        logger.info("      DataChannel Et: join threads");
+logger.info("      DataChannel Et end(): join threads");
         joinThreads();
 
         // At this point all threads should be done
         try {
-//            logger.info("      DataChannel Et: close ET");
+logger.info("      DataChannel Et end(): close ET sytem");
             closeEtSystem();
         }
         catch (DataTransportException e) {
@@ -2058,9 +2070,12 @@ logger.info("      DataChannel Et in: wake up GETTER's getEvents() call so it ca
             // If any EvGetter thread is stuck on etSystem.newEvents(), unstuck it
             try {
                 // Wake up getter thread
+logger.info("      DataChannel Et out: wake up attachment to ET station " + stationName + " in order shutdown threads");
                 etSystem.wakeUpAttachment(attachment);
             }
-            catch (Exception e) {}
+            catch (Exception e) {
+                e.printStackTrace();
+            }
         }
 
 
