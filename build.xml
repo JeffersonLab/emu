@@ -116,11 +116,12 @@
     <!-- if $CODA is set, use that for classpath -->
     <target name="CODA_cp" depends="installCheck" if="codaDefined">
         <path id="classpath">
-            <fileset dir="${env.CODA}/common/jar" >
+            <!-- use jars from this distribution  -->
+            <fileset dir="${local.jars}" >
                 <include name="*.jar" />
             </fileset>
-            <!-- however, use jars from this distribution if necessary -->
-            <fileset dir="${local.jars}" >
+            <!-- use jars from $CODA if necessary (do this to avoid picking up jevio-6.0.jar by default) -->
+            <fileset dir="${env.CODA}/common/jar" >
                 <include name="*.jar" />
             </fileset>
         </path>
