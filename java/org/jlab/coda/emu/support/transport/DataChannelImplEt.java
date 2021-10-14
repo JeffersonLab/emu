@@ -2067,10 +2067,12 @@ logger.info("      DataChannel Et in: wake up GETTER's getEvents() call so it ca
 
         /** Stop all this object's threads from an external thread. */
         private void shutdown() {
+            if (etSystem == null || attachment == null) return;
+
             // If any EvGetter thread is stuck on etSystem.newEvents(), unstuck it
             try {
                 // Wake up getter thread
-logger.info("      DataChannel Et out: wake up attachment to ET station " + stationName + " in order shutdown threads");
+logger.info("      DataChannel Et out: wake up attachment to ET station " + stationName + " in order to shutdown threads");
                 etSystem.wakeUpAttachment(attachment);
             }
             catch (Exception e) {
