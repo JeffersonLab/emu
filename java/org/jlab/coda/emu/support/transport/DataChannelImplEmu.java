@@ -1282,13 +1282,16 @@ logger.info("      DataChannel Emu in: got " + controlType + " event from " + na
                          if (ControlType.isControl(tag)) {
                              controlType = ControlType.getControlType(tag);
                              evType = EventType.CONTROL;
+logger.info("      DataChannel Emu in: " + name + " mixed type to " + controlType.name());
                          }
                          else {
                              isUser = true;
                              evType = EventType.USER;
+logger.info("      DataChannel Emu in: " + name + " mixed type to user type");
                          }
                      }
                      else {
+logger.info("      DataChannel Emu in: " + name + " mixed type to ROC RAW");
                          evType = EventType.ROC_RAW;
                          // Pick this raw data event apart a little
                          if (!node.getDataTypeObj().isBank()) {
