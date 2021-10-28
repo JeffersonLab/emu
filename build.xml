@@ -117,11 +117,12 @@
     <!-- if $CODA is set, use that for classpath -->
     <target name="CODA_cp" depends="installCheck" if="codaDefined">
         <path id="classpath">
-            <fileset dir="${env.CODA}/common/jar" >
+            <!-- use jars from this distribution first -->
+            <fileset dir="${local.jars}" >
                 <include name="*.jar" />
             </fileset>
-            <!-- however, use jars from this distribution if necessary -->
-            <fileset dir="${local.jars}" >
+            <!-- look in $CODA next -->
+            <fileset dir="${env.CODA}/common/jar" >
                 <include name="*.jar" />
             </fileset>
         </path>
@@ -244,6 +245,8 @@
         <antcall target="installInCODA"/>
         <antcall target="installScriptsInPrefix"/>
         <antcall target="installScriptsInCODA"/>
+        <antcall target="installDataInPrefix"/>
+        <antcall target="installDataInCODA"/>
     </target>
 
     <!-- Install in scripts in prefix -->
@@ -266,6 +269,23 @@
         </delete>
         <exec executable="bash">
             <arg line="-c 'mkdir ${env.CODA}/common/bin; cp -pr ${scripts.dir}/* ${env.CODA}/common/bin'" />
+        </exec>
+    </target>
+
+    <!-- Install in data files in prefix -->
+    <target name="installDataInPrefix" if="prefixDefined">
+        <echo>Install Hall D data files into ${prefix}/bin/hallDdata</echo>
+        <exec executable="bash">
+            <arg line="-c 'mkdir -p ${prefix}/bin/hallDdata; cp -pr hallDdata* ${prefix}/bin/hallDdata'" />
+        </exec>
+    </target>
+
+    <!-- Install in scripts in $CODA -->
+    <target name="installDataInCODA" unless="prefixDefined" if="codaDefined">
+        <echo>Install Hall D data files into ${env.CODA}/common/bin/hallDdata</echo>
+        <!-- Using "exec", bash and cp preserves file permissions, but "copy" does not -->
+        <exec executable="bash">
+            <arg line="-c 'mkdir -p ${env.CODA}/common/bin/hallDdata; cp -pr hallDdata* ${env.CODA}/common/bin/hallDdata'" />
         </exec>
     </target>
 
