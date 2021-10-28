@@ -74,7 +74,7 @@ public class RocFixedRateSimulation extends ModuleAdapter {
     private int loops;
 
     /** Number of ByteBuffers in each EventGeneratingThread. */
-    private int bufSupplySize = 4096;
+    private int bufSupplySize = 1024;
 
     /** Flag saying we got the END command. */
     private volatile boolean gotEndCommand;
@@ -832,8 +832,8 @@ System.out.println("  Roc mod: NEED TO GENERATE MORE REAL DATA, have " + arrayBy
         // endianness does not matter.
         // Only copy data into each of the "bufSupplySize" number of events once.
         // Doing this for each event produced every time slows things down too much.
-        // Each event has eventBlockSize * eventSize (40*75 = 3000) data bytes.
-        // 3k bytes * 4096 events = 12.3MB. This works out nicely since we have
+        // Each event has eventBlockSize * eventSize (40*75 = 3000) data words.
+        // 4 * 3k bytes * 1024 events = 12.3MB. This works out nicely since we have
         // retrieved 16MB from a single Hall D data file.
         // However, each Roc has the same data which will lend itself to more compression.
         // So the best thing is for each ROC to have different data.
@@ -943,7 +943,7 @@ System.out.println("  Roc mod: start With (id=" + myId + "):\n    record id = " 
                 bufSupplySize = outputChannels.get(0).getRingBuffersOut()[0].getBufferSize();
             }
             else {
-                bufSupplySize = 4096;
+                bufSupplySize = 1024;
             }
 
             // Now create our own buffer supply to match

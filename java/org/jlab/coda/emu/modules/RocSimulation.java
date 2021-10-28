@@ -37,7 +37,6 @@ import java.util.concurrent.Phaser;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import static com.lmax.disruptor.RingBuffer.createSingleProducer;
 
 /**
  * This class simulates a Roc. It is a module which can use multiple threads
@@ -66,7 +65,7 @@ public class RocSimulation extends ModuleAdapter {
     /** Size of a single generated Roc raw event in 32-bit words (including header). */
     private int eventWordSize;
 
-    /** Size of a single generated event in bytes (including header). */
+    /** Size of a single generated event in WORDS (including header). */
     private int eventSize;
 
     /** Number of Roc raw events to produce before syncing with other Rocs. */
@@ -76,7 +75,7 @@ public class RocSimulation extends ModuleAdapter {
     private int loops;
 
     /** Number of ByteBuffers in each EventGeneratingThread. */
-    private int bufSupplySize = 4096;
+    private int bufSupplySize = 1024;
 
     /** Flag saying we got the END command. */
     private volatile boolean gotEndCommand;
@@ -86,6 +85,9 @@ public class RocSimulation extends ModuleAdapter {
 
     /** Flag saying we got the GO command. */
     private volatile boolean gotGoCommand;
+
+    /** If true, data is in streaming format. */
+    private boolean streaming;
 
     //-------------------------------------------
     // For using real data
@@ -165,48 +167,16 @@ public class RocSimulation extends ModuleAdapter {
 
 
     /**
-     * Create a User event with a ByteBuffer which is ready to read.
-     *
-     * @param order byte order in which to write event into buffer
-     * @param isFirstEvent true if event is to be a "first event",
-     *                     that is, written as the first event in each file split
-     * @param val first int value in array of 3 int values
-     * @return created PayloadBuffer object containing User event in byte buffer
+     * Run as a stand-alone application to file real data files.
+     * @param args args
      */
-    static private PayloadBuffer createUserBuffer(ByteOrder order, boolean isFirstEvent, int val) {
+    public static void main(String[] args) {
         try {
-            CompactEventBuilder builder = new CompactEventBuilder(44, order);
-
-            // Create a single array of integers which is the bank data
-            // The user event looks like a Roc Raw event but with num = 0.
-            // tag=rocID, num=0 (indicates user event), type=bank
-            builder.openBank(1, 0, DataType.BANK);
-                builder.openBank(2, 0, DataType.INT32);
-                builder.addIntData(new int[]{val, 2, 3});
-            builder.closeAll();
-            ByteBuffer bb = builder.getBuffer();
-
-            PayloadBuffer pBuf = new PayloadBuffer(bb);  // Ready to read buffer
-            // User events from the ROC come as type ROC RAW but with num = 0
-//            if (isFirstEvent) {
-                pBuf.setEventType(EventType.USER);
-                // TODO: CANNOT make this a ROC RAW event!
-                // This confuses the emu output channel which packs it in with other roc data,
-                // which in turn confuses the emu input channel which is expecting user events
-                // in their own buffers!
-//            }
-//            else {
-//                pBuf.setEventType(EventType.ROC_RAW);
-//            }
-            if (isFirstEvent) {
-                pBuf.isFirstEvent(true);
-            }
-
-            return pBuf;
+            getRealDataFromDataFile();
         }
-        catch (Exception e) {/* never happen */}
-
-        return null;
+        catch (Exception e) {
+            e.printStackTrace();
+        }
     }
 
 
@@ -231,7 +201,7 @@ public class RocSimulation extends ModuleAdapter {
 
         // Try to get the last digit at end of name if any
         int num;
-        String numStr = null;
+        String numStr;
         if (matcher.matches()) {
             numStr = matcher.group(1);
         }
@@ -251,10 +221,10 @@ public class RocSimulation extends ModuleAdapter {
         // First check to see if we already have some data in a file
         String filename = System.getenv("CODA");
         if (filename != null) {
-            filename += "/common/bin/hallDdata" + num + ".bin";
+            filename += "/common/bin/hallDdata/hallDdata" + num + ".bin";
         }
         else {
-            filename = "/Users/timmer/coda/coda3/common/bin/hallDdata" + num + ".bin";
+            filename = "/Users/timmer/coda/coda3/common/bin/hallDdata/hallData" + num + ".bin";
         }
 
         try {
@@ -270,7 +240,7 @@ public class RocSimulation extends ModuleAdapter {
             return false;
         }
 
-System.out.println("getRealData: successfully read in file " + filename);
+System.out.println("getRealData: successfully read " + arrayBytes + " bytes from file " + filename);
         return true;
     }
 
@@ -374,20 +344,6 @@ System.out.println("getRealData: successfully read in file " + filename);
 
 
     /**
-     * Run as a stand-alone application to file real data files.
-     * @param args args
-     */
-    public static void main(String[] args) {
-        try {
-            getRealDataFromDataFile();
-        }
-        catch (Exception e) {
-            e.printStackTrace();
-        }
-    }
-
-
-    /**
      * Constructor RocSimulation creates a simulated ROC instance.
      *
      * @param name name of module
@@ -431,7 +387,7 @@ System.out.println("getRealData: successfully read in file " + filename);
         if (eventBlockSize <   1) eventBlockSize = 1;
         else if (eventBlockSize > 255) eventBlockSize = 255;
 
-        // How many bytes in a single event?
+        // How many WORDS in a single event?
         eventSize = 75;  // 300 bytes
         try { eventSize = Integer.parseInt(attributeMap.get("eventSize")); }
         catch (NumberFormatException e) { /* defaults to 40 */ }
@@ -475,6 +431,11 @@ System.out.println("  Roc mod: sync = " + synced);
                 noPhysics = true;
                 eventProducingThreads = 1;
             }
+        }
+
+        // Keep things simple for streaming
+        if (emu.isStreamingData()) {
+            eventProducingThreads = 1;
         }
 
         // Event generating threads
@@ -705,11 +666,12 @@ System.out.println("  Roc mod: NEED TO GENERATE MORE REAL DATA, have " + arrayBy
         return buf;
     }
 
+
     //TODO: 1st
     void  writeEventBuffer(ByteBuffer buf, ByteBuffer templateBuf,
-                          long eventNumber, long timestamp,
-                          boolean syncBit, boolean copy,
-                          int generatedDataBytes) {
+                           long eventNumber, long timestamp,
+                           boolean syncBit, boolean copy,
+                           int generatedDataBytes) {
 
         // Since we're using recirculating buffers, we do NOT need to copy everything
         // into the buffer each time. Once each of the buffers in the BufferSupply object
@@ -735,8 +697,8 @@ System.out.println("  Roc mod: NEED TO GENERATE MORE REAL DATA, have " + arrayBy
 
         // 2nd bank header word = tag << 16 | ((padding & 0x3) << 14) | ((type & 0x3f) << 8) | num
         int secondWord = rocTag << 16 |
-                         (DataType.BANK.getValue() << 8) |
-                         (eventBlockSize & 0xff);
+                (DataType.BANK.getValue() << 8) |
+                (eventBlockSize & 0xff);
 
         buf.putInt(4, secondWord);
 
@@ -765,8 +727,8 @@ System.out.println("  Roc mod: NEED TO GENERATE MORE REAL DATA, have " + arrayBy
         // endianness does not matter.
         // Only copy data into each of the "bufSupplySize" number of events once.
         // Doing this for each event produced every time slows things down too much.
-        // Each event has eventBlockSize * eventSize (40*75 = 3000) data bytes.
-        // 3k bytes * 4096 events = 12.3MB. This works out nicely since we have
+        // Each event has eventBlockSize * eventSize (40*75 = 3000) data words.
+        // 4 * 3k bytes * 1024 events = 12.3MB. This works out nicely since we have
         // retrieved 16MB from a single Hall D data file.
         // However, each Roc has the same data which will lend itself to more compression.
         // So the best thing is for each ROC to have different data.
@@ -794,6 +756,336 @@ System.out.println("  Roc mod: NEED TO GENERATE MORE REAL DATA, have " + arrayBy
     }
 
 
+    //////////////////////////////
+    // For Streaming Data
+    //////////////////////////////
+
+    /** Store intermediate calculation here. */
+    private int bytesPerDataBank = 0;
+
+    /**
+     * <p>Get the total bytes of a time slice buffer (and containing bank).
+     * If not using real data, i.e. using composite data type in data banks,
+     * the result is only an approximation.</p>
+     *
+     * @param generatedDataWords total number of desired data words to be generated for a single slice.
+     * @param payloadCount number of payloads in this ROC.
+     * @return total bytes of time slice buffer created by createSingleTimeSliceBuffer().
+     */
+    private int getSingleTimeSliceBufferWords(int generatedDataWords, int payloadCount) {
+        // Make generatedDataWords a multiple of 4, round up
+        generatedDataWords = 4*((generatedDataWords + 3) / 4);
+
+        // This is only an estimate if not using realData since composite type is used
+        // and exact calculation of its length is not worth hassling with.
+
+        // bank header + bank header + bank header + 1st seg (4 words) + 2nd seg (1 + 2*((payloadCount + 1)/2)) +
+        // 2*payloadCount (data banks' headers) + generatedDataWords
+        // If using composite data we need to add roughly 4*5words. This depends on the format string
+        // and other complications.
+
+        int len = 11 + 2*((payloadCount + 1)/2) + 2*payloadCount + generatedDataWords;
+        if (useRealData) {
+            len += 20;
+        }
+        return len;
+    }
+
+
+    /**
+     * Generate data from a streaming ROC.
+     *
+     * @param generatedDataWords desired amount of total words (not including headers)
+     *                           for all data banks (each corresponding to one payload port).
+     * @param frameNumber frame number
+     * @param timestamp   time stamp
+     * @return ByteBuffer with generated single ROC time slice bank inside containing bank.
+     */
+    private ByteBuffer createSingleTimeSliceBuffer(int generatedDataWords, long frameNumber, long timestamp) {
+
+        try {
+            // Make generatedDataWords a multiple of 4, round up
+            generatedDataWords = 4*((generatedDataWords + 3) / 4);
+            int totalLen = 16 + generatedDataWords + 1000; // total of 16 header words + 1K extra
+
+            // Each of 4 data banks has 1/4 of total words so generateDataWords = # bytes for each bank ...
+            // Store calculation here
+            bytesPerDataBank = generatedDataWords;
+
+            int tag = CODATag.ROCRAW_STREAMING.getValue(), num = 99;
+            CompactEventBuilder builder = new CompactEventBuilder(4*totalLen, outputOrder, false);
+
+            // Top (Containing) Bank, possibly containing many ROC Time Slice Banks
+            builder.openBank(tag, num, DataType.BANK);
+
+            // ROC Time Slice Bank
+            int rocId = 7;
+            int totalStreams = 2;
+            int streamMask = 3;
+            int streamStatus = ((totalStreams << 4) & 0x7) | (streamMask & 0xf);
+            builder.openBank(rocId, streamStatus, DataType.BANK);
+
+            // Stream Info Bank (SIB)
+            builder.openBank(CODATag.STREAMING_SIB.getValue(), streamStatus, DataType.SEGMENT);
+
+            // 1st SIB Segment -> TSS or Time Slice Segment
+            builder.openSegment(0x31, DataType.UINT32);
+            int[] intData = new int[3];
+            intData[0] = (int)frameNumber;
+            intData[1] = (int)timestamp;
+            intData[2] = (int)((timestamp >>> 32) & 0xFFFF);
+            builder.addIntData(intData);
+            builder.closeStructure();
+
+            // 2nd SIB Segment -> AIS or Aggregation Info Segment
+            builder.openSegment(0x41, DataType.USHORT16);
+            short[] shortData = new short[4];
+
+            int payloadPort1 = 0;
+            int laneId = 0;
+            int bond = 0;
+            int moduleId = 2;
+            short payload1 = (short) (((moduleId << 8) & 0xf) | ((bond << 7) & 0x1) | ((laneId << 5) & 0x3)| (payloadPort1 & 0x1f));
+            shortData[0] = payload1;
+
+            int payloadPort2 = 1;
+            laneId = 1;
+            bond = 0;
+            moduleId = 3;
+            short payload2 = (short) (((moduleId << 8) & 0xf) | ((bond << 7) & 0x1) | ((laneId << 5) & 0x3)| (payloadPort2 & 0x1f));
+            shortData[1] = payload2;
+
+            int payloadPort3 = 2;
+            laneId = 2;
+            bond = 0;
+            moduleId = 5;
+            short payload3 = (short) (((moduleId << 8) & 0xf) | ((bond << 7) & 0x1) | ((laneId << 5) & 0x3)| (payloadPort3 & 0x1f));
+            shortData[2] = payload3;
+
+            int payloadPort4 = 3;
+            laneId = 3;
+            bond = 0;
+            moduleId = 7;
+            short payload4 = (short) (((moduleId << 8) & 0xf) | ((bond << 7) & 0x1) | ((laneId << 5) & 0x3)| (payloadPort4 & 0x1f));
+            shortData[3] = payload4;
+
+            builder.addShortData(shortData);
+            builder.closeStructure();
+            // Close SIB
+            builder.closeStructure();
+
+            // Add Data Bank, 1 for each payload (4)
+            // TODO: Question: is this stream status different??
+            // Assume this stream status is only for the payload in question
+
+            if (useRealData) {
+                byte[] iData = new byte[bytesPerDataBank];
+                if (4*bytesPerDataBank > arrayBytes) {
+                    System.out.println("  Roc mod: NEED TO GENERATE MORE REAL DATA, have " + arrayBytes +
+                            " bytes but need " + (4*bytesPerDataBank));
+                }
+                System.arraycopy(hallDdata, hallDdataPosition, iData, 0, bytesPerDataBank);
+                hallDdataPosition += bytesPerDataBank;
+
+                // Fill banks with real data ...
+
+                totalStreams = 1;
+                streamMask = 1;
+                streamStatus = ((totalStreams << 4) & 0x7) | (streamMask & 0xf);
+                builder.openBank(payloadPort1, streamStatus, DataType.UCHAR8);
+                builder.addByteData(iData);
+                builder.closeStructure();
+
+                System.arraycopy(hallDdata, hallDdataPosition, iData, 0, bytesPerDataBank);
+                hallDdataPosition += bytesPerDataBank;
+                streamMask = 2;
+                streamStatus = ((totalStreams << 4) & 0x7) | (streamMask & 0xf);
+                builder.openBank(payloadPort2, streamStatus, DataType.UCHAR8);
+                builder.addByteData(iData);
+                builder.closeStructure();
+
+                System.arraycopy(hallDdata, hallDdataPosition, iData, 0, bytesPerDataBank);
+                hallDdataPosition += bytesPerDataBank;
+                streamMask = 4;
+                streamStatus = ((totalStreams << 4) & 0x7) | (streamMask & 0xf);
+                builder.openBank(payloadPort3, streamStatus, DataType.UCHAR8);
+                builder.addByteData(iData);
+                builder.closeStructure();
+
+                System.arraycopy(hallDdata, hallDdataPosition, iData, 0, bytesPerDataBank);
+                hallDdataPosition += bytesPerDataBank;
+                streamMask = 8;
+                streamStatus = ((totalStreams << 4) & 0x7) | (streamMask & 0xf);
+                builder.openBank(payloadPort4, streamStatus, DataType.UCHAR8);
+                builder.addByteData(iData);
+                builder.closeStructure();
+            }
+            else {
+                // Put the same composite data in each data bank.
+                // Format to write a N signed 32-bit ints, 1 float, 1 double a total of N times
+                // Because the we have 4 payloads, the number of generatedDataWords, conveniently,
+                // becomes the number of bytes for each of the payloads. But, because of the complex
+                // structure of composite data, we won't bother to include all the header info
+                // contained in that data type in our simple calculations.
+
+                String format = "N(NI,F,D)";
+
+                // Let's pick the first N to be 2, the 2nd N becomes (within rounding error)
+                int N = (generatedDataWords / 2 - 4 - 8) / 4;
+
+                // Now create some data
+                CompositeData.Data myData = new CompositeData.Data();
+                myData.addN(2);
+
+                myData.addN(N);
+                int[] iData = new int[N];
+                Arrays.fill(iData, 1);
+                myData.addInt(iData);
+                myData.addFloat(1.0F);
+                myData.addDouble(Math.PI);
+
+                myData.addN(N);
+                Arrays.fill(iData, 2);
+                myData.addInt(iData);
+                myData.addFloat(2.0F);
+                myData.addDouble(2. * Math.PI);
+
+                // Create CompositeData object
+                CompositeData cData = null;
+                try {
+                    cData = new CompositeData(format, 1, myData, 0, 0);
+                }
+                catch (EvioException e) {
+                    e.printStackTrace();
+                }
+                CompositeData[] cArray = new CompositeData[]{cData};
+
+                // Fill banks with generated composite data ...
+
+                totalStreams = 1;
+                streamMask = 1;
+                streamStatus = ((totalStreams << 4) & 0x7) | (streamMask & 0xf);
+                builder.openBank(payloadPort1, streamStatus, DataType.COMPOSITE);
+                builder.addCompositeData(cArray);
+                builder.closeStructure();
+
+                streamMask = 2;
+                streamStatus = ((totalStreams << 4) & 0x7) | (streamMask & 0xf);
+                builder.openBank(payloadPort2, streamStatus, DataType.COMPOSITE);
+                builder.addCompositeData(cArray);
+                builder.closeStructure();
+
+                streamMask = 4;
+                streamStatus = ((totalStreams << 4) & 0x7) | (streamMask & 0xf);
+                builder.openBank(payloadPort3, streamStatus, DataType.COMPOSITE);
+                builder.addCompositeData(cArray);
+                builder.closeStructure();
+
+                streamMask = 8;
+                streamStatus = ((totalStreams << 4) & 0x7) | (streamMask & 0xf);
+                builder.openBank(payloadPort4, streamStatus, DataType.COMPOSITE);
+                builder.addCompositeData(cArray);
+                builder.closeStructure();
+            }
+
+            builder.closeAll();
+            // buf is ready to read
+            return builder.getBuffer();
+        }
+        catch (EvioException e) {
+            e.printStackTrace();
+        }
+
+        return null;
+    }
+
+
+    /**
+     * Instead of rewriting the entire event buffer for each event
+     * (with only slightly different data), only update the couple of places
+     * in which data changes. Save time, memory and garbage collection time.
+     * After the first round of writing the entire event, once for each buffer
+     * in the ByteBufferSupply, just do updates.
+     * The only 2 quantities that need updating are the frame number and time stamp.
+     * Both of these are data in the Stream Info Bank.
+     *
+     * @param buf          buffer from supply.
+     * @param templateBuf  buffer with time slice data
+     * @param frameNumber  new frame number to place into buf.
+     * @param timestamp    new time stamp to place into buf
+     * @param copy         ss templateBuf to be copied into buf or not.
+     * @param generatedDataBytes number of bytes generated as data for each payload data bank.
+     */
+    void  writeTimeSliceBuffer(ByteBuffer buf, ByteBuffer templateBuf,
+                               long frameNumber, long timestamp,
+                               boolean copy, int generatedDataBytes) {
+
+        // Since we're using recirculating buffers, we do NOT need to copy everything
+        // into the buffer each time. Once each of the buffers in the BufferSupply object
+        // have been copied into, we only need to change the few places that need updating
+        // with frame number and timestamp!
+        if (copy) {
+            // This will be the case if buf is direct
+            if (!buf.hasArray()) {
+                templateBuf.position(0);
+                buf.put(templateBuf);
+            }
+            else {
+                System.arraycopy(templateBuf.array(), 0, buf.array(), 0, templateBuf.limit());
+            }
+        }
+
+        // Get buf ready to read for output channel
+        buf.limit(templateBuf.limit()).position(0);
+System.out.println("  Roc mod: setting frame = " + frameNumber);
+        buf.putInt(28, (int)frameNumber);
+        buf.putInt(32, (int)timestamp);// low 32 bits
+        buf.putInt(36, (int)(timestamp >>> 32 & 0xFFFF)); // high 32 bits
+
+        // For testing compression, need to have real data that changes,
+        // endianness does not matter.
+        // Only copy data into each of the "bufSupplySize" number of events once.
+        // Doing this for each event produced every time slows things down too much.
+        // Each event has eventBlockSize * eventSize (40*75 = 3000) data words.
+        // 4 * 3k bytes * 1024 events = 12.3MB. This works out nicely since we have
+        // retrieved 16MB from a single Hall D data file.
+        // However, each Roc has the same data which will lend itself to more compression.
+        // So the best thing is for each ROC to have different data.
+
+        // Move to data input position
+        int writeIndex = 4*15;
+
+        if (copy && useRealData) {
+            // For each of 4 banks
+            for (int i=0; i < 4; i++) {
+                // Have we run out of data? If so, start over from beginning ...
+                if (arrayBytes - hallDdataPosition < generatedDataBytes) {
+                    hallDdataPosition = 0;
+                }
+
+                if (buf.hasArray()) {
+                    System.arraycopy(hallDdata, hallDdataPosition, buf.array(), writeIndex, generatedDataBytes);
+                }
+                else {
+                    buf.position(writeIndex);
+                    buf.put(hallDdata, hallDdataPosition, generatedDataBytes);
+                    // Get buf ready to read for output channel
+                    buf.limit(templateBuf.limit()).position(0);
+                }
+
+                hallDdataPosition += generatedDataBytes;
+
+                // Move to next data bank's data position
+                writeIndex += 8 + generatedDataBytes;
+            }
+        }
+    }
+
+
+    //////////////////////////////
+    //////////////////////////////
+
+
     /**
      * <p>This thread generates events with junk data in it (all zeros except first word which
      * is the event number).
@@ -809,7 +1101,7 @@ System.out.println("  Roc mod: NEED TO GENERATE MORE REAL DATA, have " + arrayBy
 
         private final int myId;
         private int  myRocRecordId;
-        private long myEventNumber, timestamp;
+        private long myEventNumber, timestamp = 100;
         /** Ring buffer containing ByteBuffers - used to hold events for writing. */
         private ByteBufferSupply bbSupply;
         // Number of data words in each event
@@ -820,31 +1112,47 @@ System.out.println("  Roc mod: NEED TO GENERATE MORE REAL DATA, have " + arrayBy
         /** Boolean used to kill this thread. */
         private volatile boolean killThd;
 
+        // Streaming stuff
+        private boolean streaming;
+        private long frameNumber = 0L;
+
 
         EventGeneratingThread(int id, ThreadGroup group, String name) {
             super(group, name);
             this.myId = id;
 
-            // Set & initialize values
-            myRocRecordId = rocRecordId + myId;
-            myEventNumber = 1L + myId*eventBlockSize;
-            timestamp = myId*4*eventBlockSize;
+            // Is we streamin'?
+            if (emu.isStreamingData()) {
+                streaming = true;
+                generatedDataWords = 40*75;
+                templateBuffer = createSingleTimeSliceBuffer(generatedDataWords, frameNumber, timestamp);
+                eventWordSize = templateBuffer.remaining()/4;
+                frameNumber++;
+                timestamp += 10;
+            }
+            // or ain't we?
+            else {
+                // Set & initialize values
+                myRocRecordId = rocRecordId + myId;
+                myEventNumber = 1L + myId * eventBlockSize;
+                timestamp = myId * 4 * eventBlockSize;
 
-            // Need to coordinate amount of data words
-            generatedDataWords = eventBlockSize * eventSize;
-            generatedDataBytes = 4*generatedDataWords;
-System.out.println("  Roc mod: generatedDataWords = " + generatedDataWords);
+                // Need to coordinate amount of data words
+                generatedDataWords = eventBlockSize * eventSize;
+                generatedDataBytes = 4 * generatedDataWords;
+                System.out.println("  Roc mod: generatedDataWords = " + generatedDataWords);
 
 
-            eventWordSize  = getSingleEventBufferWords(generatedDataWords);
-System.out.println("  Roc mod: eventWordSize = " + eventWordSize);
+                eventWordSize = getSingleEventBufferWords(generatedDataWords);
+                System.out.println("  Roc mod: eventWordSize = " + eventWordSize);
 
-            templateBuffer = createSingleEventBuffer(generatedDataWords, myEventNumber, timestamp);
+                templateBuffer = createSingleEventBuffer(generatedDataWords, myEventNumber, timestamp);
 
 
-System.out.println("  Roc mod: start With (id=" + myId + "):\n    record id = " + myRocRecordId +
-                           ", ev # = " +myEventNumber + ", ts = " + timestamp +
-                           ", blockSize = " + eventBlockSize);
+                System.out.println("  Roc mod: start With (id=" + myId + "):\n    record id = " + myRocRecordId +
+                        ", ev # = " + myEventNumber + ", ts = " + timestamp +
+                        ", blockSize = " + eventBlockSize);
+            }
         }
 
 
@@ -859,14 +1167,13 @@ System.out.println("  Roc mod: start With (id=" + myId + "):\n    record id = " 
 
         public void run() {
 
-            int  i,j,k=0;
             int  skip=3, syncBitLoop = syncBitCount;
             //int   userEventLoop = syncCount;
             int   userEventLoop = 5;
             long oldVal=0L, totalT=0L, totalCount=0L, bufCounter=0L;
             long t1, deltaT, t2;
-            ByteBuffer buf = null;
-            ByteBufferItem bufItem = null;
+            ByteBuffer buf;
+            ByteBufferItem bufItem;
             boolean copyWholeBuf = true;
 
             // We need for the # of buffers in our bbSupply object to be >=
@@ -877,7 +1184,7 @@ System.out.println("  Roc mod: start With (id=" + myId + "):\n    record id = " 
                 bufSupplySize = outputChannels.get(0).getRingBuffersOut()[0].getBufferSize();
             }
             else {
-                bufSupplySize = 4096;
+                bufSupplySize = 1024;
             }
 
             // Now create our own buffer supply to match
@@ -973,44 +1280,41 @@ System.out.println("  Roc mod: start With (id=" + myId + "):\n    record id = " 
                         }
 //System.out.println("  Roc mod: write event");
 
-                        if (--syncBitLoop == 0) {
-                            syncBitLoop = syncBitCount;
-                            // Set the sync bit
-                            writeEventBuffer(buf, templateBuffer, myEventNumber,
-                                             timestamp, true, copyWholeBuf,
-                                             generatedDataBytes);
+                        if (streaming) {
+                            writeTimeSliceBuffer(buf, templateBuffer, frameNumber,
+                                                 timestamp, copyWholeBuf, bytesPerDataBank);
                         }
                         else {
-                            writeEventBuffer(buf, templateBuffer, myEventNumber,
-                                             timestamp, false, copyWholeBuf,
-                                             generatedDataBytes);
+                            if (--syncBitLoop == 0) {
+                                syncBitLoop = syncBitCount;
+                                // Set the sync bit
+                                writeEventBuffer(buf, templateBuffer, myEventNumber,
+                                        timestamp, true, copyWholeBuf,
+                                        generatedDataBytes);
+                            } else {
+                                writeEventBuffer(buf, templateBuffer, myEventNumber,
+                                        timestamp, false, copyWholeBuf,
+                                        generatedDataBytes);
+                            }
                         }
-//                        writeEventBuffer(buf, templateBuffer, myEventNumber,
-//                                         timestamp, copyWholeBuf);
 
-
+Thread.sleep(1000);
                         if (killThd) return;
 
                         // Put generated events into output channel
                         eventToOutputRing(myId, buf, bufItem, bbSupply);
 
-//                        // Delay things
-//                        for (j=0; j < loops; j++) {
-//                            for (i = 0; i < 15; i++) {
-//                                k = k % 3;
-//                            }
-//                        }
-
-                        eventCountTotal += eventBlockSize;
-                        wordCountTotal  += eventWordSize;
-
-                        myEventNumber += eventProducingThreads*eventBlockSize;
-                        timestamp     += 4*eventProducingThreads*eventBlockSize;
-//                        myRocRecordId += eventProducingThreads;
-//System.out.println("  Roc mod: next (id=" + myId + "):\n           record id = " + myRocRecordId +
-//                           ", ev # = " +myEventNumber + ", ts = " + timestamp);
-
- //                       Thread.sleep(10000);
+                        if (streaming) {
+                            wordCountTotal += eventWordSize;
+                            frameNumber++;
+                            timestamp += 10;
+                        }
+                        else {
+                            eventCountTotal += eventBlockSize;
+                            wordCountTotal  += eventWordSize;
+                            myEventNumber   += eventProducingThreads * eventBlockSize;
+                            timestamp       += 4 * eventProducingThreads * eventBlockSize;
+                        }
 
 //                        if (userEventLoop == userEventLoopMax - 10) {
 //System.out.println("  Roc mod: INSERT USER EVENT");

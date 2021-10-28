@@ -590,16 +590,16 @@ System.out.println("checkPayload: buf source id = " + pBuf.getSourceId() +
             int tag = inputNode.getTag();
 
             if (sourceId != getTagCodaId(tag)) {
-                System.out.println("checkInput: buf source Id (" + sourceId +
-                        ") != buf's id from tag (" + getTagCodaId(tag) + ')');
+//                System.out.println("checkInput: buf source Id (" + sourceId +
+//                        ") != buf's id from tag (" + getTagCodaId(tag) + ')');
                 nonFatalError = true;
             }
         }
 
         // Check source ID of bank to see if it matches channel id
         if (!pBuf.matchesId()) {
-            System.out.println("checkInput: buf source id = " + sourceId +
-                    " != input channel id = " + channel.getID());
+//            System.out.println("checkInput: buf source id = " + sourceId +
+//                    " != input channel id = " + channel.getID());
             nonFatalError = true;
         }
 
@@ -2103,11 +2103,6 @@ System.out.println("                         : segWords from event 0 = " + dataW
      }
 
 
-
-    //////////////////////////////////////
-    // Called only by PEB or SEB, not DC
-    //////////////////////////////////////
-
     /**
      * Method to switch the endian of all contained evio headers (NOT the data)
      * in a ROC's time slice bank while copying to another buffer.
@@ -2116,17 +2111,15 @@ System.out.println("                         : segWords from event 0 = " + dataW
      * @param builtEventBuf  buffer to write to.
      * @param ebBuffer       buffer containing data from a DC to be swapped.
      * @param writeIndex     position in builtEventBuffer to begin writing.
-     * @param returnLen      array in which to return the final writeIndex.
      * @param timeSliceBank  EvioNode object to be writtten to builtEventBuffer (backed by ebBuffer).
      *
-     * @return array whose first element is the new writeIndex.
+     * @return final writeIndex value.
      */
-    private static int[] switchTimeSliceEndian(boolean switchEndianFastCopyReady,
-                                               ByteBuffer builtEventBuf,
-                                               ByteBuffer ebBuffer,
-                                               int writeIndex,
-                                               int[] returnLen,
-                                               EvioNode timeSliceBank) {
+    private static int switchTimeSliceEndian(boolean switchEndianFastCopyReady,
+                                             ByteBuffer builtEventBuf,
+                                             ByteBuffer ebBuffer,
+                                             int writeIndex,
+                                             EvioNode timeSliceBank) {
 
         // Note that each ROC's time slice bank has multiple internal banks and segments.
         // All headers of such evio structures need to have their endian switched.
@@ -2202,20 +2195,26 @@ System.out.println("                         : segWords from event 0 = " + dataW
             writeIndex += dataByteLen;
             pos += dataByteLen;
         }
-        returnLen[0] = writeIndex;
-        return returnLen;
+
+        return writeIndex;
     }
 
 
+    //////////////////////////////////////
+    // Called only if SEB, not DC or PEB
+    //////////////////////////////////////
+
+
     /**
-     * Combine banks from DC output into an event
+     * <p>Combine banks from DC output into an event
      * with a Time Info Bank, and appended Time Slice Banks. Any error
      * which occurs but allows the build to continue will be noted in the return value.
-     * Errors which stop the event building cause an exception to be thrown.<p>
+     * Errors which stop the event building cause an exception to be thrown.
+     * Called only if SEB, not DC or PEB.</p>
      *
-     * To check timestamp consistency, for each event the difference between the max and
+     * <p>To check timestamp consistency, for each event the difference between the max and
      * min timestamps cannot exceed the argument timestampSlop. If it does for any event,
-     * this method returns <code>true</code>.<p>
+     * this method returns <code>true</code>.</p>
      *
      * Many of the args are externally provided arrays used here in order to avoid allocating
      * them each time this method is called. Some, like inputNodes and ebRecord,
@@ -2418,15 +2417,12 @@ System.out.println("                         : segWords from event 0 = " + dataW
                 }
                 // If endianness IS being switched
                 else {
-                    switchTimeSliceEndian(
+                    writeIndex = switchTimeSliceEndian(
                             switchEndianFastCopyReady,
                             builtEventBuf,
                             ebBuffer,
                             writeIndex,
-                            returnLen,
                             timeSliceBank);
-
-                    writeIndex = returnLen[0];
                 }
             }
         }
@@ -2445,25 +2441,27 @@ System.out.println("                         : segWords from event 0 = " + dataW
     }
 
 
+    //////////////////////////////////////
+    // Called only if DC or PEB, not SEB
+    //////////////////////////////////////
 
-    //////////////////////////////////////
-    // Called only if DC, not SEB / PEB
-    //////////////////////////////////////
 
     /**
-     * Combine the input payload banks of ROC raw format into an event
+     * <p>Combine the input payload banks of ROC raw format into an event
      * with a Time Info Bank, and appended Time Slice Banks. Any error
      * which occurs but allows the build to continue will be noted in the return value.
-     * Errors which stop the event building cause an exception to be thrown.<p>
+     * Errors which stop the event building cause an exception to be thrown.
+     * Called only if DC or PEB, not SEB.</p>
      *
-     * To check timestamp consistency, for each event the difference between the max and
+     * <p>To check timestamp consistency, for each event the difference between the max and
      * min timestamps cannot exceed the argument timestampSlop. If it does for any event,
-     * this method returns <code>true</code>.<p>
+     * this method returns <code>true</code>.</p>
      *
      * Many of the inputs are externally provided arrays used here in order to avoid allocating
      * them each time this method is called. Some, like rocNodes, rocRecord, and rocOffset,
      * are quickly found in FastEventBuilder and easy to pass in.
      *
+     * @param sliceCount        number of input buffers.
      * @param inputPayloadBanks array containing a bank (ROC Raw) from each channel's
      *                          payload bank queue that will be built into one event.
      * @param builtEventBuf     ByteBuffer of event being built.
@@ -2482,7 +2480,8 @@ System.out.println("                         : segWords from event 0 = " + dataW
      * @return <code>true</code> if recoverable error occurred, else <code>false</code>
      * @throws EmuException for major error in event building which necessitates stopping the build
      */
-    public static boolean combineRocStreams(PayloadBuffer[] inputPayloadBanks,
+    public static boolean combineRocStreams(int sliceCount,
+                                            PayloadBuffer[] inputPayloadBanks,
                                             ByteBuffer builtEventBuf,
                                             int tag,
                                             int timestampSlop,
@@ -2495,12 +2494,12 @@ System.out.println("                         : segWords from event 0 = " + dataW
             throws EmuException {
 
         // Number of rocs
-        int numROCs = inputPayloadBanks.length;
+//        int numROCs = inputPayloadBanks.length;
         EvioNode bank, node, sibBank;
         boolean nonFatalError=false;
 
         // In each payload bank (of banks) is a Stream Info Bank. Examine their tags.
-        for (int i=0; i < numROCs; i++) {
+        for (int i=0; i < sliceCount; i++) {
             // Find the SIB bank - first child bank
             node = rocNodes[i];
             sibBank =node.getChildAt(0);
@@ -2532,7 +2531,7 @@ System.out.println("                         : segWords from event 0 = " + dataW
         long ts, tsAvg = 0, frameNum, timestampsMax=0, timestampsMin=Long.MAX_VALUE;
         long tsTotal=0L;
 
-        for (int j=0; j < numROCs; j++) {
+        for (int j=0; j < sliceCount; j++) {
             bank = rocNodes[j].getChildAt(0).getChildAt(0);
             // If Roc has no frame and timestamp info, error
             if (bank == null) {
@@ -2565,7 +2564,7 @@ System.out.println("                         : segWords from event 0 = " + dataW
         }
 
         // Calculate avg TS now
-        tsAvg = tsTotal / numROCs;
+        tsAvg = tsTotal / sliceCount;
         //System.out.println("avg TS = " + tsAvg);
 
         // Now that we have the timestamp info, check them against each other,
@@ -2576,7 +2575,7 @@ System.out.println("                         : segWords from event 0 = " + dataW
                     timestampsMin + ", diff = " + (timestampsMax - timestampsMin) + ", allowed = " + timestampSlop);
 
             // Go back, fish out the timestamp values, and print them
-            for (int i=0; i < numROCs; i++) {
+            for (int i=0; i < sliceCount; i++) {
                 bank = rocNodes[i].getChildAt(0).getChildAt(0);
 
                 bank.getIntData(bankData, returnLen);
@@ -2605,7 +2604,7 @@ System.out.println("                         : segWords from event 0 = " + dataW
         writeIndex += 4;
         int headerWord = (CODATag.STREAMING_TIB.getValue() << 16) |
                          ((DataType.UINT32.getValue() & 0x3f) << 8) |
-                         (numROCs & 0xff);
+                         (sliceCount & 0xff);
         builtEventBuf.putInt(writeIndex, headerWord);
         writeIndex += 4;
 
@@ -2634,7 +2633,7 @@ System.out.println("                         : segWords from event 0 = " + dataW
         }
 
         // Add all data banks
-        for (int i=0; i < numROCs; i++) {
+        for (int i=0; i < sliceCount; i++) {
             node = rocNodes[i];
             int childrenCount = node.getChildCount();
 
@@ -2667,15 +2666,12 @@ System.out.println("                         : segWords from event 0 = " + dataW
                 }
                 // If endianness IS being switched
                 else {
-                    switchTimeSliceEndian(
+                    writeIndex = switchTimeSliceEndian(
                             switchEndianFastCopyReady,
                             builtEventBuf,
                             rocBuffer,
                             writeIndex,
-                            returnLen,
                             timeSliceBank);
-
-                    writeIndex = returnLen[0];
                 }
             }
         }
@@ -2684,152 +2680,13 @@ System.out.println("                         : segWords from event 0 = " + dataW
         builtEventBuf.putInt(0, totalWords);
         headerWord = (tag << 16) |
                      ((DataType.BANK.getValue() & 0x3f) << 8) |
-                     (numROCs & 0xff);
+                     (sliceCount & 0xff);
         builtEventBuf.putInt(4, headerWord);
 
         // Send back position for the next write to start
         returnLen[0] = writeIndex;
 
         return nonFatalError;
-    }
-
-
-    /**
-     * Build a single physics event with the given array of Physics events.
-     *
-     * @param inputNodes     array containing EvioNode events that will be built together.
-     * @param evBuf          ByteBuffer containing event being built.
-     * @param inputCount     number of input channels.
-     * @param writeIndex     index in evBuf's backing array to start writing.
-     * @param fastCopyReady  if <code>true</code>, roc data buffer backing byte arrays and
-     *                       EB's ByteBufferSupply buffers both have the same endian value.
-     * @param returnLen      int array used to return index into evBuf of where to write.
-     * @param rocRecord      array of backing buffers to inputNodes.
-     */
-    public static void buildPhysicsEventWithPhysics(EvioNode[] inputNodes,
-                                                    ByteBuffer evBuf,
-                                                    int inputCount,
-                                                    int writeIndex,
-                                                    boolean fastCopyReady,
-                                                    int[] returnLen,
-                                                    ByteBuffer[] rocRecord) {
-
-        int childrenCount, byteLen, pos;
-        int subChildrenCount, dataBlockByteLen;
-        boolean switchEndianFastCopyReady = false;
-        EvioNode dataBank, dataBlockBank, node;
-        ByteBuffer rocBuffer;
-
-        if (!fastCopyReady) {
-            // If switching endian, can we do fast copy of data?
-            switchEndianFastCopyReady = rocRecord[0].hasArray() && evBuf.hasArray();
-        }
-
-        // Add all data banks (from payload banks) which are already wrapped properly
-        for (int i=0; i < inputCount; i++) {
-            node = inputNodes[i];
-            childrenCount = node.getChildCount();
-
-            // Get buffer
-            rocBuffer = rocRecord[i];
-
-            // Skip over first (trigger) bank
-            for (int j=1; j < childrenCount; j++) {
-                dataBank = node.getChildNodes().get(j);
-                pos = dataBank.getPosition();
-                byteLen = dataBank.getTotalBytes();
-
-                // There's nothing tricky to worry about (e.g. buffer mapped to part of backing array)
-                if (fastCopyReady) {
-                    System.arraycopy(rocBuffer.array(), pos, evBuf.array(), writeIndex, byteLen);
-                    writeIndex += byteLen;
-                }
-                // If endianness not being switched, copy everything as is
-                else if (evBuf.order() == rocBuffer.order()) {
-                    ByteBuffer duplicateBuf = rocBuffer.duplicate();
-                    duplicateBuf.limit(pos + byteLen).position(pos);
-
-                    evBuf.position(writeIndex);
-                    // This method is relative to position
-                    evBuf.put(duplicateBuf);
-                    evBuf.position(0);
-                    writeIndex += byteLen;
-                }
-                // If endianness IS being switched
-                else {
-                    // Note that each data bank may contain multiple data block banks,
-                    // so all these headers need to have endian switched.
-                    // Data is NOT switched.
-
-                    // First the data bank header
-                    evBuf.putInt(writeIndex, rocBuffer.getInt(pos));
-                    writeIndex += 4; pos += 4;
-                    evBuf.putInt(writeIndex, rocBuffer.getInt(pos));
-                    writeIndex += 4; pos += 4;
-
-                    // Now the contained data block banks
-                    subChildrenCount = dataBank.getChildCount();
-                    for (int k=0; k < subChildrenCount; k++) {
-                        dataBlockBank = dataBank.getChildNodes().get(k);
-                        dataBlockByteLen = 4*dataBlockBank.getDataLength();
-
-                        // Header
-                        evBuf.putInt(writeIndex, rocBuffer.getInt(pos));
-                        writeIndex += 4; pos += 4;
-                        evBuf.putInt(writeIndex, rocBuffer.getInt(pos));
-                        writeIndex += 4; pos += 4;
-
-                        // Data
-                        if (switchEndianFastCopyReady) {
-                            System.arraycopy(rocBuffer.array(), pos, evBuf.array(), writeIndex, dataBlockByteLen);
-                        }
-                        else {
-                            ByteBuffer duplicateBuf = rocBuffer.duplicate();
-                            duplicateBuf.limit(pos + dataBlockByteLen).position(pos);
-
-                            evBuf.position(writeIndex);
-                            // This method is relative to position
-                            evBuf.put(duplicateBuf);
-                            evBuf.position(0);
-                        }
-                        writeIndex += dataBlockByteLen; pos += dataBlockByteLen;
-                    }
-                }
-            }
-        }
-        returnLen[0] = writeIndex;
-    }
-
-
-    /**
-     * Build a single physics event with the given trigger bank and the given array of Physics events.
-     *
-     * @param inputPayloadBanks array containing Physics events that will be built together
-     * @param builder object used to build event
-     */
-    public static void buildPhysicsEventWithPhysics(PayloadBuffer[] inputPayloadBanks,
-                                                    CompactEventBuilder builder) {
-
-        int childrenCount;
-        EvioNode dataBlock;
-
-        try {
-            // add all data banks (from payload banks) which are already wrapped properly
-            for (PayloadBuffer inputBank : inputPayloadBanks) {
-                childrenCount = inputBank.getNode().getChildCount();
-
-                for (int j = 0; j < childrenCount; j++) {
-                    dataBlock = inputBank.getNode().getChildNodes().get(j);
-                    // ignore the built trigger bank (should be first one)
-                    if (Evio.isBuiltTriggerBank(dataBlock)) {
-                        continue;
-                    }
-                    builder.addEvioNode(dataBlock);
-                }
-            }
-        } catch (EvioException e) {
-            // not enough room in buffer
-        }
     }
 
 
@@ -2941,65 +2798,109 @@ System.out.println("                         : segWords from event 0 = " + dataW
 
 
     /**
-     * Build a single physics event with the given trigger bank
-     * and the given array of ROC raw records.
-     * Currently, no swapping is done since the bank in question may
-     * contain anything.
+     * Build a single physics event with the given array of Physics events.
      *
-     * @param inputPayloadBanks array containing ROC raw records that will be built together
-     * @param builder object used to build trigger bank
-     * @return bank final built event
+     * @param inputNodes     array containing EvioNode events that will be built together.
+     * @param evBuf          ByteBuffer containing event being built.
+     * @param inputCount     number of input channels.
+     * @param writeIndex     index in evBuf's backing array to start writing.
+     * @param fastCopyReady  if <code>true</code>, roc data buffer backing byte arrays and
+     *                       EB's ByteBufferSupply buffers both have the same endian value.
+     * @param returnLen      int array used to return index into evBuf of where to write.
+     * @param rocRecord      array of backing buffers to inputNodes.
      */
-    public static EvioBank buildPhysicsEventWithRocRaw(PayloadBuffer[] inputPayloadBanks,
-                                                       CompactEventBuilder builder) {
+    public static void buildPhysicsEventWithPhysics(EvioNode[] inputNodes,
+                                                    ByteBuffer evBuf,
+                                                    int inputCount,
+                                                    int writeIndex,
+                                                    boolean fastCopyReady,
+                                                    int[] returnLen,
+                                                    ByteBuffer[] rocRecord) {
 
-        int childrenCount, i=0;
-        EvioNode blockBank, inputBank;
+        int childrenCount, byteLen, pos;
+        int subChildrenCount, dataBlockByteLen;
+        boolean switchEndianFastCopyReady = false;
+        EvioNode dataBank, dataBlockBank, node;
+        ByteBuffer rocBuffer;
 
-        try {
-            // Wrap and add data block banks (from payload banks).
-            // Use the same header to wrap data blocks as used for payload bank.
-            for (PayloadBuffer inputPayloadBank : inputPayloadBanks) {
-                // Get Roc Raw node
-                inputBank = inputPayloadBank.getNode();
-
-                // Create physics data bank with same tag & num as Roc Raw bank
-                // in order to wrap the data block bank from Roc.
-                builder.openBank(inputBank.getTag(), inputBank.getNum(), DataType.BANK);
-//System.out.println("    created a wrapping data-bank of tag " + inputBank.getTag() +
-//", num " + inputBank.getNum());
-
-                // How many banks inside Roc Raw bank ?
-                childrenCount = inputBank.getChildCount();
-
-//System.out.println("    roc raw ev #" + (i++) + " has " + childrenCount + " banks");
-                // Add Roc Raw's data block banks to our data bank.
-                // Ignore any trigger bank. If in SEM, there is no trigger bank.
-                // The trigger bank is always the first one.
-                int j = 1;
-
-                for (; j < childrenCount; j++) {
-                    blockBank = inputBank.getChildNodes().get(j);
-                    // -------------------- NOTE -----------------------------
-                    // If blockBank has data of opposite endian to our buffer,
-                    // we can still add it (although less efficient).
-                    // However, NO data swapping is done, only headers.
-                    // -------------------------------------------------------
-
-                    // Don't mess with user data banks since we don't know what's inside.
-                    // Just copy whole thing over (with swapped headers if necessary).
-//System.out.println("    try adding data-block-bank to wrapping data-bank");
-                    builder.addEvioNode(blockBank);
-                }
-
-                builder.closeStructure();
-            }
-
-        } catch (EvioException e) {
-            e.printStackTrace();
+        if (!fastCopyReady) {
+            // If switching endian, can we do fast copy of data?
+            switchEndianFastCopyReady = rocRecord[0].hasArray() && evBuf.hasArray();
         }
 
-        return null;
+        // Add all data banks (from payload banks) which are already wrapped properly
+        for (int i=0; i < inputCount; i++) {
+            node = inputNodes[i];
+            childrenCount = node.getChildCount();
+
+            // Get buffer
+            rocBuffer = rocRecord[i];
+
+            // Skip over first (trigger) bank
+            for (int j=1; j < childrenCount; j++) {
+                dataBank = node.getChildNodes().get(j);
+                pos = dataBank.getPosition();
+                byteLen = dataBank.getTotalBytes();
+
+                // There's nothing tricky to worry about (e.g. buffer mapped to part of backing array)
+                if (fastCopyReady) {
+                    System.arraycopy(rocBuffer.array(), pos, evBuf.array(), writeIndex, byteLen);
+                    writeIndex += byteLen;
+                }
+                // If endianness not being switched, copy everything as is
+                else if (evBuf.order() == rocBuffer.order()) {
+                    ByteBuffer duplicateBuf = rocBuffer.duplicate();
+                    duplicateBuf.limit(pos + byteLen).position(pos);
+
+                    evBuf.position(writeIndex);
+                    // This method is relative to position
+                    evBuf.put(duplicateBuf);
+                    evBuf.position(0);
+                    writeIndex += byteLen;
+                }
+                // If endianness IS being switched
+                else {
+                    // Note that each data bank may contain multiple data block banks,
+                    // so all these headers need to have endian switched.
+                    // Data is NOT switched.
+
+                    // First the data bank header
+                    evBuf.putInt(writeIndex, rocBuffer.getInt(pos));
+                    writeIndex += 4; pos += 4;
+                    evBuf.putInt(writeIndex, rocBuffer.getInt(pos));
+                    writeIndex += 4; pos += 4;
+
+                    // Now the contained data block banks
+                    subChildrenCount = dataBank.getChildCount();
+                    for (int k=0; k < subChildrenCount; k++) {
+                        dataBlockBank = dataBank.getChildNodes().get(k);
+                        dataBlockByteLen = 4*dataBlockBank.getDataLength();
+
+                        // Header
+                        evBuf.putInt(writeIndex, rocBuffer.getInt(pos));
+                        writeIndex += 4; pos += 4;
+                        evBuf.putInt(writeIndex, rocBuffer.getInt(pos));
+                        writeIndex += 4; pos += 4;
+
+                        // Data
+                        if (switchEndianFastCopyReady) {
+                            System.arraycopy(rocBuffer.array(), pos, evBuf.array(), writeIndex, dataBlockByteLen);
+                        }
+                        else {
+                            ByteBuffer duplicateBuf = rocBuffer.duplicate();
+                            duplicateBuf.limit(pos + dataBlockByteLen).position(pos);
+
+                            evBuf.position(writeIndex);
+                            // This method is relative to position
+                            evBuf.put(duplicateBuf);
+                            evBuf.position(0);
+                        }
+                        writeIndex += dataBlockByteLen; pos += dataBlockByteLen;
+                    }
+                }
+            }
+        }
+        returnLen[0] = writeIndex;
     }
 
 

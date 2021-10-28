@@ -72,13 +72,14 @@ public enum CODATag {
     STREAMING_TIB_ERROR          (0xFF32),
 
     // Physics event
-    /** Event built by primary event builder in streaming mode. */
-    BUILT_BY_PEB_STREAMING       (0xFF60),
-    /** Event built by secondary event builder in streaming mode. */
-    BUILT_BY_SEB_STREAMING       (0xFF62),
+    /** Event sent by ROC in streaming mode. */
+    ROCRAW_STREAMING   (0xFF60),
     /** Event built by DC event builder in streaming mode. */
-    BUILT_BY_DC_STREAMING        (0xFF64),
-
+    BUILT_BY_DC_STREAMING       (0xFF62),
+    /** Event built by SEB event builder in streaming mode. */
+    BUILT_BY_SEB_STREAMING      (0xFF64),
+    /** Event built by PEB event builder in streaming mode. */
+    BUILT_BY_PEB_STREAMING      (0xFF66)
     ;
 
     private int value;

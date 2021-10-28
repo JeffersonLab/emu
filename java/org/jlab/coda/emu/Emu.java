@@ -126,7 +126,7 @@ public class Emu implements CODAComponent {
     /** Path that the data takes through the parts of the emu. */
     private EmuDataPath dataPath;
 
-    private boolean debug = false;
+    private boolean debug = true;
 
     //------------------------------------------------
     // State / error
@@ -479,6 +479,7 @@ logger.info("Emu " + name + ": WARNING transition thread still alive even after 
 System.out.println("Emu created, name = " + name + ", type = " + codaClass);
 
         this.debug = debug;
+        this.debug = true;
 
         // Set the name of this EMU
         this.name = name;
@@ -2096,7 +2097,8 @@ System.out.println("Emu " + name + " go: " + e.getMessage());
      * @param cmd
      */
     private void prestart(Command cmd) {
-logger.info("Emu " + name + " prestart: change state to PRESTARTING");
+        logger.info("Emu " + name + " prestart: change state to PRESTARTING");
+        logger.info("Emu " + name + " streaming = " + isStreamingData());
 //        System.out.println("CMD; " + cmd.getMessage().toString());
         setState(PRESTARTING);
 
@@ -2547,7 +2549,8 @@ if (debug) System.out.println("Emu " + name + " download: pass download down to 
                             module = new EventRecording(n.getNodeName(), attributeMap, this);
                             break;
                         case "EventBuilding":
-                            module = new FastEventBuilder(n.getNodeName(), attributeMap, this);
+                            //module = new FastEventBuilder(n.getNodeName(), attributeMap, this);
+                            module = new FastEventBuilderStreaming(n.getNodeName(), attributeMap, this);
                             break;
                         case "RocSimulation":
                             module = new RocSimulation(n.getNodeName(), attributeMap, this);
