@@ -203,8 +203,16 @@ public class FastEventBuilderStreaming extends ModuleAdapter {
     /** For each input channel, one barrier. */
     private SequenceBarrier[] sorterBarrierIn;
 
+    /** Array of available sequences (largest index of items desired), one per input channel. */
+    private long[] availableSequences;
+
+    /** Array of next sequences (index of next item desired), one per input channel. */
+    private long[] nextSequences;
+
+    /** One ring buffer for each build thread to hold time slice banks. */
     private final RingBuffer<TimeSliceBankItem>[] sorterRingBuffers;
 
+    /** Thread to sort incoming time slice banks to proper build thread. */
     private TimeSliceSorter timeSliceSorterThread;
 
 
@@ -263,7 +271,7 @@ public class FastEventBuilderStreaming extends ModuleAdapter {
         if (!epThreadsSetInConfig) {
             buildingThreadCount = eventProducingThreads = 2;
         }
-        //buildingThreadCount = eventProducingThreads = 1;
+        //buildingThreadCount = eventProducingThreads = 2;
 
         //outputOrder = ByteOrder.LITTLE_ENDIAN;
 logger.info("  EB mod: output byte order = little endian");
@@ -781,10 +789,6 @@ System.out.println("WRITE CONTROL EVENT to chan #" + i + ", ring 0");
 
         // RingBuffer Stuff
 
-        /** Array of available sequences (largest index of items desired), one per input channel. */
-        private long[] availableSequences;
-        /** Array of next sequences (index of next item desired), one per input channel. */
-        private long[] nextSequences;
         /** Get empty items from each build thread's sorted TSB ring. */
         private final long[] getSequences = new long[buildingThreadCount];
 
@@ -1176,7 +1180,7 @@ System.out.println("  EB mod: sorter got user event from channel " + inputChanne
                             // go to the same ring buffer no matter the input channel.
                             if (diff == TimestampDiff.SAME) {
 // TODO: Need to get this bank into a build thread ring!!!
-System.out.println("  EB mod: ch" + chan + ", sorter send time slice to BT# = " + currentBT +", event type = " + bank.getEventType());
+System.out.println("  EB mod: ch" + chan + ", sorter send time slice to BT# = " + currentBT +", event type = " + bank.getEventType() + ", frame = " + frame);
                                 sendToTimeSliceBankRing(bank, currentBT);
 
                                 sorterSequenceIn[chan].set(nextSequences[chan]);
@@ -1194,6 +1198,7 @@ System.out.println("  EB mod: ch" + chan + ", sorter send time slice to BT# = " 
                             // Check the other channels to see if they have banks with the same time slices
                             // as the one last written.
                             else if (diff == TimestampDiff.NEXT) {
+System.out.println("  EB mod: ch" + chan + ", sorter DIFF timestamp, frame = " + frame);
                                 // If the last write was on this channel, then the bank we just
                                 // read from that channel is part of the next time slice.
                                 // This is our clue to move to the next channel to see if it has
@@ -1525,27 +1530,24 @@ System.out.println("  EB mod: bbSupply -> " + ringItemCount + " # of bufs, direc
                 boolean generalInitDone = false;
                 EventType eventType;
 
-
                 int[]   bankData = new int[20];  // currently only use 3 ints
                 int[]   returnLen   = new int[1];
-                ByteBuffer[] backingBufs = new ByteBuffer[inputChannelCount];
-                EvioNode[] inputNodes    = new EvioNode[inputChannelCount];
-
 
                 if (outputChannelCount > 1) {
                     outputChannelIndex = -1;
                 }
-
 
                 long frame, prevFrame=0;
                 // The time frame we're currently looking for
                 long lookingForTF = 0;
                 // Current number of banks that have the same stamp
                 int sliceCount;
-                // Place to store banks with the same stamp.
+                // Places to store banks, input nodes, and backing buffers with the same stamp.
                 // The array should be sliceCount size, but we don't know
                 // what that is yet. If it needs to be increased, do it later.
                 PayloadBuffer[] sameStampBanks = new PayloadBuffer[200];
+                EvioNode[] inputNodes = new EvioNode[200];
+                ByteBuffer[] backingBufs = new ByteBuffer[200];
 
                 PayloadBuffer bank, storedBank = null;
                 TimeSliceBankItem timeSliceItem;
@@ -1659,12 +1661,27 @@ System.out.println("  EB mod: bbSupply -> " + ringItemCount + " # of bufs, direc
                             TimestampDiff diff = compareWithLookedForTF(frame, lookingForTF);
 
                             if (diff == TimestampDiff.SAME) {
+
+                                // First check to make sure we have room to store this bank
+                                if (sameStampBanks.length < (sliceCount + 1)) {
+                                    // If not enough room, double the relevant arrays
+                                    int newLength = 2*sameStampBanks.length;
+//System.out.println("\n  EB mod: bt" + btIndex + " ***** EXPAND arrays from " + sameStampBanks.length + " to " + newLength);
+                                    PayloadBuffer[] sameStampBanksNew = new PayloadBuffer[newLength];
+                                    inputNodes  = new EvioNode[newLength];
+                                    backingBufs = new ByteBuffer[newLength];
+
+                                    // Copy over array elements
+                                    System.arraycopy(sameStampBanks, 0, sameStampBanksNew, 0, sameStampBanks.length);
+                                    sameStampBanks = sameStampBanksNew;
+                                }
+
                                 sameStampBanks[sliceCount] = bank;
                                 sliceCount++;
                                 nextSequence++;
                                 prevFrame = frame;
-//System.out.println("\n  EB mod: bt" + btIndex + " ***** found bank, look for another ---> continue, next seq = " + nextSequence +
-//        ", frame (prevFrame) = " + frame + ", lookingForTF = " +lookingForTF);
+System.out.println("\n  EB mod: bt" + btIndex + " ***** found bank, look for another ---> continue, next seq = " + nextSequence +
+        ", frame (prevFrame) = " + frame + ", lookingForTF = " +lookingForTF);
                                 continue;
                             }
                             else {
@@ -1675,8 +1692,8 @@ System.out.println("  EB mod: bbSupply -> " + ringItemCount + " # of bufs, direc
                                 storedSequence = nextSequence;
                                 // Start looking for the next frame
                                 lookingForTF = frame;
-//System.out.println("\n  EB mod: bt" + btIndex + " ***** at next timestamp, got to next seq = " + nextSequence + ", frame = " + frame +
-//        ", prevFrame = " + prevFrame + ", lookingForTF = " + lookingForTF);
+System.out.println("\n  EB mod: bt" + btIndex + " ***** at next timestamp, got to next seq = " + nextSequence + ", frame = " + frame +
+        ", prevFrame = " + prevFrame + ", lookingForTF = " + lookingForTF);
                             }
 
                             break;
@@ -1848,9 +1865,9 @@ System.out.println("  EB mod: bt" + btIndex + " ***** Building frame " + prevFra
                         sameStampBanks[i].releaseByteBuffer();
                     }
 
-                    // Each build thread must release the "slots" in the sorter ring
+                    // Each build thread must release the "slots" in the build thread ring
                     // buffer of the components it uses to build the physics event.
-                    sorterSequenceIn[btIndex].set(nextSequence++);
+                    buildSequenceIn[btIndex].set(nextSequence++);
 
                     // Stats (need to be thread-safe)
                     eventCountTotal += sliceCount;
@@ -1897,28 +1914,34 @@ System.out.println("  EB mod: bt" + btIndex + " ***** Building frame " + prevFra
                 // If we're exiting due to an error, make sure all the input channels
                 // are drained. This makes ROC recovery much easier.
 
-                cursor = buildBarrierIn[btIndex].getCursor();
+                // Grab banks from each channel
+                for (int i=0; i < inputChannelCount; i++) {
 
-                while (true) {
-                    try {
-                        availableSequence = buildBarrierIn[btIndex].waitFor(cursor);
-                    }
-                    catch (Exception e) {}
+                    cursor = sorterBarrierIn[i].getCursor();
 
-                    // While we have data to read ...
-                    while (nextSequence <= availableSequence) {
-                        buildingBank = (PayloadBuffer) ringBuffersIn[btIndex].get(nextSequence);
-//System.out.println("  EB mod: clean inputs, releasing seq " + nextSequence + " from channel #" + btIndex);
-                        buildingBank.releaseByteBuffer();
-                        nextSequence++;
-                    }
-                    buildSequenceIn[btIndex].set(availableSequence);
+                    while (true) {
+                        try {
+                            availableSequences[i] = sorterBarrierIn[i].waitFor(cursor);
+                        }
+                        catch (Exception e) {}
 
-                    lastCursor = cursor;
-                    cursor = buildBarrierIn[btIndex].getCursor();
+                        // While we have data to read ...
+                        while (nextSequences[i] <= availableSequences[i]) {
+                            buildingBank = (PayloadBuffer) ringBuffersIn[i].get(nextSequences[i]);
+//System.out.println("  EB mod: clean inputs, releasing seq " + nextSequences[i] + " from channel #" + i);
+                            //if (btCount == 1) {
+                            buildingBank.releaseByteBuffer();
+                            //}
+                            nextSequences[i]++;
+                        }
+                        sorterSequenceIn[i].set(availableSequences[i]);
 
-                    if (cursor == lastCursor) {
-                        break;
+                        lastCursor = cursor;
+                        cursor = buildBarrierIn[i].getCursor();
+
+                        if (cursor == lastCursor) {
+                            break;
+                        }
                     }
                 }
             }

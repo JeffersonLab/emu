@@ -1503,7 +1503,7 @@ logger.info("      DataChannel Emu in: got " + controlType + " event from " + na
                                                           eventType, DataChannelImplEmu.this);
 //System.out.println("      DataChannel Emu in: expected record id = " + expectedRecordId +
 //                    ", actual = " + recordId);
-System.out.println("      DataChannel Emu in: event type = " + eventType + ", event count = " + reader.getEventCount() + " from " + name);
+//System.out.println("      DataChannel Emu in: event type = " + eventType + ", event count = " + reader.getEventCount() + " from " + name);
 
             int eventCount = reader.getEventCount();
             ArrayList<EvioNode> timeSliceBanks = null;
@@ -1517,6 +1517,10 @@ System.out.println("      DataChannel Emu in: event type = " + eventType + ", ev
                 }
 
                 EvioNode topNode = reader.getScannedEvent(1, pool);
+                if (topNode == null) {
+                    throw new EvioException("Empty buffer arriving into input channel ???");
+                }
+
                 if (topNode.getTag() != CODATag.ROCRAW_STREAMING.getValue()) {
                     throw new EvioException("Wrong tag for streaming ROC Raw bank, got 0x" +
                             Integer.toHexString(topNode.getTag()) +
