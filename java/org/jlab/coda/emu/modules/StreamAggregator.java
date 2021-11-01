@@ -132,7 +132,7 @@ import static com.lmax.disruptor.RingBuffer.createSingleProducer;
  * If not, an exception may be thrown. If so, the Control event is passed along to all output channels.
  * If no output channels are defined in the config file, this module builds, but discards all events.
  */
-public class FastEventBuilderStreaming extends ModuleAdapter {
+public class StreamAggregator extends ModuleAdapter {
 
 
     /** The number of BuildingThread objects. */
@@ -260,7 +260,7 @@ public class FastEventBuilderStreaming extends ModuleAdapter {
      * @param attributeMap map containing attributes of module
      * @param emu          emu which created this module
      */
-    public FastEventBuilderStreaming(String name, Map<String, String> attributeMap, Emu emu) {
+    public StreamAggregator(String name, Map<String, String> attributeMap, Emu emu) {
         super(name, attributeMap, emu);
 
         // Set number of building threads (always >= 1, set in ModuleAdapter constructor)

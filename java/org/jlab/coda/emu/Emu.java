@@ -2548,9 +2548,11 @@ if (debug) System.out.println("Emu " + name + " download: pass download down to 
                         case "EventRecording":
                             module = new EventRecording(n.getNodeName(), attributeMap, this);
                             break;
+                        case "Aggregator":
+                            module = new StreamAggregator(n.getNodeName(), attributeMap, this);
+                            break;
                         case "EventBuilding":
-                            //module = new FastEventBuilder(n.getNodeName(), attributeMap, this);
-                            module = new FastEventBuilderStreaming(n.getNodeName(), attributeMap, this);
+                            module = new FastEventBuilder(n.getNodeName(), attributeMap, this);
                             break;
                         case "RocSimulation":
                             module = new RocSimulation(n.getNodeName(), attributeMap, this);
