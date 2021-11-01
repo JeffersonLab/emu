@@ -1122,348 +1122,349 @@ System.out.println("  Roc mod: NEED TO GENERATE MORE REAL DATA, have " + arrayBy
             builder.openBank(tag, num, DataType.BANK);
 
 
-            //-----------------------------------
-            // ROC Time Slice Bank 1
-            //-----------------------------------
-            int rocId = 7;
-            int totalStreams = 2;
-            int streamMask = 3;
-            int streamStatus = ((totalStreams << 4) & 0x7) | (streamMask & 0xf);
-            builder.openBank(rocId, streamStatus, DataType.BANK);
+                //-----------------------------------
+                // ROC Time Slice Bank 1
+                //-----------------------------------
+                int rocId = 7;
+                int totalStreams = 2;
+                int streamMask = 3;
+                int streamStatus = ((totalStreams << 4) & 0x7) | (streamMask & 0xf);
+                builder.openBank(rocId, streamStatus, DataType.BANK);
 
-            // Stream Info Bank (SIB)
-            builder.openBank(CODATag.STREAMING_SIB.getValue(), streamStatus, DataType.SEGMENT);
+                    // Stream Info Bank (SIB)
+                    builder.openBank(CODATag.STREAMING_SIB.getValue(), streamStatus, DataType.SEGMENT);
 
-            // 1st SIB Segment -> TSS or Time Slice Segment
-            builder.openSegment(0x31, DataType.UINT32);
-            int[] intData = new int[3];
-            intData[0] = (int)frameNumber;
-            intData[1] = (int)timestamp;
-            intData[2] = (int)((timestamp >>> 32) & 0xFFFF);
-            builder.addIntData(intData);
-            builder.closeStructure();
+                        // 1st SIB Segment -> TSS or Time Slice Segment
+                        builder.openSegment(0x31, DataType.UINT32);
+                        int[] intData = new int[3];
+                        intData[0] = (int)frameNumber;
+                        intData[1] = (int)timestamp;
+                        intData[2] = (int)((timestamp >>> 32) & 0xFFFF);
+                        builder.addIntData(intData);
+                        builder.closeStructure();
 
-            // 2nd SIB Segment -> AIS or Aggregation Info Segment
-            builder.openSegment(0x41, DataType.USHORT16);
-            short[] shortData = new short[4];
+                        // 2nd SIB Segment -> AIS or Aggregation Info Segment
+                        builder.openSegment(0x41, DataType.USHORT16);
+                        short[] shortData = new short[4];
 
-            int payloadPort1 = 0;
-            int laneId = 0;
-            int bond = 0;
-            int moduleId = 2;
-            short payload1 = (short) (((moduleId << 8) & 0xf) | ((bond << 7) & 0x1) | ((laneId << 5) & 0x3)| (payloadPort1 & 0x1f));
-            shortData[0] = payload1;
+                        int payloadPort1 = 0;
+                        int laneId = 0;
+                        int bond = 0;
+                        int moduleId = 2;
+                        short payload1 = (short) (((moduleId << 8) & 0xf) | ((bond << 7) & 0x1) | ((laneId << 5) & 0x3)| (payloadPort1 & 0x1f));
+                        shortData[0] = payload1;
 
-            int payloadPort2 = 1;
-            laneId = 1;
-            bond = 0;
-            moduleId = 3;
-            short payload2 = (short) (((moduleId << 8) & 0xf) | ((bond << 7) & 0x1) | ((laneId << 5) & 0x3)| (payloadPort2 & 0x1f));
-            shortData[1] = payload2;
+                        int payloadPort2 = 1;
+                        laneId = 1;
+                        bond = 0;
+                        moduleId = 3;
+                        short payload2 = (short) (((moduleId << 8) & 0xf) | ((bond << 7) & 0x1) | ((laneId << 5) & 0x3)| (payloadPort2 & 0x1f));
+                        shortData[1] = payload2;
 
-            int payloadPort3 = 2;
-            laneId = 2;
-            bond = 0;
-            moduleId = 5;
-            short payload3 = (short) (((moduleId << 8) & 0xf) | ((bond << 7) & 0x1) | ((laneId << 5) & 0x3)| (payloadPort3 & 0x1f));
-            shortData[2] = payload3;
+                        int payloadPort3 = 2;
+                        laneId = 2;
+                        bond = 0;
+                        moduleId = 5;
+                        short payload3 = (short) (((moduleId << 8) & 0xf) | ((bond << 7) & 0x1) | ((laneId << 5) & 0x3)| (payloadPort3 & 0x1f));
+                        shortData[2] = payload3;
 
-            int payloadPort4 = 3;
-            laneId = 3;
-            bond = 0;
-            moduleId = 7;
-            short payload4 = (short) (((moduleId << 8) & 0xf) | ((bond << 7) & 0x1) | ((laneId << 5) & 0x3)| (payloadPort4 & 0x1f));
-            shortData[3] = payload4;
+                        int payloadPort4 = 3;
+                        laneId = 3;
+                        bond = 0;
+                        moduleId = 7;
+                        short payload4 = (short) (((moduleId << 8) & 0xf) | ((bond << 7) & 0x1) | ((laneId << 5) & 0x3)| (payloadPort4 & 0x1f));
+                        shortData[3] = payload4;
 
-            builder.addShortData(shortData);
-            builder.closeStructure();
-            // Close SIB
-            builder.closeStructure();
+                        builder.addShortData(shortData);
+                        builder.closeStructure();
+                    // Close SIB
+                    builder.closeStructure();
 
-            // Add Data Bank, 1 for each payload (4)
-            // TODO: Question: is this stream status different??
-            // Assume this stream status is only for the payload in question
+                    // Add Data Bank, 1 for each payload (4)
+                    // TODO: Question: is this stream status different??
+                    // Assume this stream status is only for the payload in question
 
-            if (useRealData) {
-                byte[] iData = new byte[bytesPerDataBank];
-                if (4*bytesPerDataBank > arrayBytes) {
-                    System.out.println("  Roc mod: NEED TO GENERATE MORE REAL DATA, have " + arrayBytes +
-                            " bytes but need " + (4*bytesPerDataBank));
+                    if (useRealData) {
+                        byte[] iData = new byte[bytesPerDataBank];
+                        if (4*bytesPerDataBank > arrayBytes) {
+                            System.out.println("  Roc mod: NEED TO GENERATE MORE REAL DATA, have " + arrayBytes +
+                                    " bytes but need " + (4*bytesPerDataBank));
+                        }
+                        System.arraycopy(hallDdata, hallDdataPosition, iData, 0, bytesPerDataBank);
+                        hallDdataPosition += bytesPerDataBank;
+
+                        // Fill banks with real data ...
+
+                        totalStreams = 1;
+                        streamMask = 1;
+                        streamStatus = ((totalStreams << 4) & 0x7) | (streamMask & 0xf);
+                        builder.openBank(payloadPort1, streamStatus, DataType.UCHAR8);
+                            builder.addByteData(iData);
+                        builder.closeStructure();
+
+                        System.arraycopy(hallDdata, hallDdataPosition, iData, 0, bytesPerDataBank);
+                        hallDdataPosition += bytesPerDataBank;
+                        streamMask = 2;
+                        streamStatus = ((totalStreams << 4) & 0x7) | (streamMask & 0xf);
+                        builder.openBank(payloadPort2, streamStatus, DataType.UCHAR8);
+                            builder.addByteData(iData);
+                        builder.closeStructure();
+
+                        System.arraycopy(hallDdata, hallDdataPosition, iData, 0, bytesPerDataBank);
+                        hallDdataPosition += bytesPerDataBank;
+                        streamMask = 4;
+                        streamStatus = ((totalStreams << 4) & 0x7) | (streamMask & 0xf);
+                        builder.openBank(payloadPort3, streamStatus, DataType.UCHAR8);
+                            builder.addByteData(iData);
+                        builder.closeStructure();
+
+                        System.arraycopy(hallDdata, hallDdataPosition, iData, 0, bytesPerDataBank);
+                        hallDdataPosition += bytesPerDataBank;
+                        streamMask = 8;
+                        streamStatus = ((totalStreams << 4) & 0x7) | (streamMask & 0xf);
+                        builder.openBank(payloadPort4, streamStatus, DataType.UCHAR8);
+                            builder.addByteData(iData);
+                        builder.closeStructure();
+                    }
+                    else {
+                        // Put the same composite data in each data bank.
+                        // Format to write a N signed 32-bit ints, 1 float, 1 double a total of N times
+                        // Because the we have 4 payloads, the number of generatedDataWords, conveniently,
+                        // becomes the number of bytes for each of the payloads. But, because of the complex
+                        // structure of composite data, we won't bother to include all the header info
+                        // contained in that data type in our simple calculations.
+
+                        String format = "N(NI,F,D)";
+
+                        // Let's pick the first N to be 2, the 2nd N becomes (within rounding error)
+                        int N = (generatedDataWords / 2 - 4 - 8) / 4;
+
+                        // Now create some data
+                        CompositeData.Data myData = new CompositeData.Data();
+                        myData.addN(2);
+
+                        myData.addN(N);
+                        int[] iData = new int[N];
+                        Arrays.fill(iData, 1);
+                        myData.addInt(iData);
+                        myData.addFloat(1.0F);
+                        myData.addDouble(Math.PI);
+
+                        myData.addN(N);
+                        Arrays.fill(iData, 2);
+                        myData.addInt(iData);
+                        myData.addFloat(2.0F);
+                        myData.addDouble(2. * Math.PI);
+
+                        // Create CompositeData object
+                        CompositeData cData = null;
+                        try {
+                            cData = new CompositeData(format, 1, myData, 0, 0);
+                        }
+                        catch (EvioException e) {
+                            e.printStackTrace();
+                        }
+                        CompositeData[] cArray = new CompositeData[]{cData};
+
+                        // Fill banks with generated composite data ...
+
+                        totalStreams = 1;
+                        streamMask = 1;
+                        streamStatus = ((totalStreams << 4) & 0x7) | (streamMask & 0xf);
+                        builder.openBank(payloadPort1, streamStatus, DataType.COMPOSITE);
+                            builder.addCompositeData(cArray);
+                        builder.closeStructure();
+
+                        streamMask = 2;
+                        streamStatus = ((totalStreams << 4) & 0x7) | (streamMask & 0xf);
+                        builder.openBank(payloadPort2, streamStatus, DataType.COMPOSITE);
+                            builder.addCompositeData(cArray);
+                        builder.closeStructure();
+
+                        streamMask = 4;
+                        streamStatus = ((totalStreams << 4) & 0x7) | (streamMask & 0xf);
+                        builder.openBank(payloadPort3, streamStatus, DataType.COMPOSITE);
+                            builder.addCompositeData(cArray);
+                        builder.closeStructure();
+
+                        streamMask = 8;
+                        streamStatus = ((totalStreams << 4) & 0x7) | (streamMask & 0xf);
+                        builder.openBank(payloadPort4, streamStatus, DataType.COMPOSITE);
+                            builder.addCompositeData(cArray);
+                        builder.closeStructure();
+                    }
+
+                builder.closeStructure();
+
+                //-----------------------------------
+                // ROC Time Slice Bank 2
+                //-----------------------------------
+                rocId = 7;
+                totalStreams = 2;
+                streamMask = 12;
+                streamStatus = ((totalStreams << 4) & 0x7) | (streamMask & 0xf);
+                builder.openBank(rocId, streamStatus, DataType.BANK);
+
+                // Stream Info Bank (SIB)
+                builder.openBank(CODATag.STREAMING_SIB.getValue(), streamStatus, DataType.SEGMENT);
+
+                // 1st SIB Segment -> TSS or Time Slice Segment
+                builder.openSegment(0x31, DataType.UINT32);
+                intData[0] = (int)frameNumber;
+                intData[1] = (int)timestamp;
+                intData[2] = (int)((timestamp >>> 32) & 0xFFFF);
+                builder.addIntData(intData);
+                builder.closeStructure();
+
+                // 2nd SIB Segment -> AIS or Aggregation Info Segment
+                builder.openSegment(0x41, DataType.USHORT16);
+
+                payloadPort1 = 0;
+                laneId = 0;
+                bond = 0;
+                moduleId = 2;
+                payload1 = (short) (((moduleId << 8) & 0xf) | ((bond << 7) & 0x1) | ((laneId << 5) & 0x3)| (payloadPort1 & 0x1f));
+                shortData[0] = payload1;
+
+                payloadPort2 = 1;
+                laneId = 1;
+                bond = 0;
+                moduleId = 3;
+                payload2 = (short) (((moduleId << 8) & 0xf) | ((bond << 7) & 0x1) | ((laneId << 5) & 0x3)| (payloadPort2 & 0x1f));
+                shortData[1] = payload2;
+
+                payloadPort3 = 2;
+                laneId = 2;
+                bond = 0;
+                moduleId = 5;
+                payload3 = (short) (((moduleId << 8) & 0xf) | ((bond << 7) & 0x1) | ((laneId << 5) & 0x3)| (payloadPort3 & 0x1f));
+                shortData[2] = payload3;
+
+                payloadPort4 = 3;
+                laneId = 3;
+                bond = 0;
+                moduleId = 7;
+                payload4 = (short) (((moduleId << 8) & 0xf) | ((bond << 7) & 0x1) | ((laneId << 5) & 0x3)| (payloadPort4 & 0x1f));
+                shortData[3] = payload4;
+
+                builder.addShortData(shortData);
+                builder.closeStructure();
+                // Close SIB
+                builder.closeStructure();
+
+                // Add Data Bank, 1 for each payload (4)
+                // TODO: Question: is this stream status different??
+                // Assume this stream status is only for the payload in question
+
+                if (useRealData) {
+                    byte[] iData = new byte[bytesPerDataBank];
+                    if (4*bytesPerDataBank > arrayBytes) {
+                        System.out.println("  Roc mod: NEED TO GENERATE MORE REAL DATA, have " + arrayBytes +
+                                " bytes but need " + (4*bytesPerDataBank));
+                    }
+                    System.arraycopy(hallDdata, hallDdataPosition, iData, 0, bytesPerDataBank);
+                    hallDdataPosition += bytesPerDataBank;
+
+                    // Fill banks with real data ...
+
+                    totalStreams = 1;
+                    streamMask = 1;
+                    streamStatus = ((totalStreams << 4) & 0x7) | (streamMask & 0xf);
+                    builder.openBank(payloadPort1, streamStatus, DataType.UCHAR8);
+                    builder.addByteData(iData);
+                    builder.closeStructure();
+
+                    System.arraycopy(hallDdata, hallDdataPosition, iData, 0, bytesPerDataBank);
+                    hallDdataPosition += bytesPerDataBank;
+                    streamMask = 2;
+                    streamStatus = ((totalStreams << 4) & 0x7) | (streamMask & 0xf);
+                    builder.openBank(payloadPort2, streamStatus, DataType.UCHAR8);
+                    builder.addByteData(iData);
+                    builder.closeStructure();
+
+                    System.arraycopy(hallDdata, hallDdataPosition, iData, 0, bytesPerDataBank);
+                    hallDdataPosition += bytesPerDataBank;
+                    streamMask = 4;
+                    streamStatus = ((totalStreams << 4) & 0x7) | (streamMask & 0xf);
+                    builder.openBank(payloadPort3, streamStatus, DataType.UCHAR8);
+                    builder.addByteData(iData);
+                    builder.closeStructure();
+
+                    System.arraycopy(hallDdata, hallDdataPosition, iData, 0, bytesPerDataBank);
+                    hallDdataPosition += bytesPerDataBank;
+                    streamMask = 8;
+                    streamStatus = ((totalStreams << 4) & 0x7) | (streamMask & 0xf);
+                    builder.openBank(payloadPort4, streamStatus, DataType.UCHAR8);
+                    builder.addByteData(iData);
+                    builder.closeStructure();
                 }
-                System.arraycopy(hallDdata, hallDdataPosition, iData, 0, bytesPerDataBank);
-                hallDdataPosition += bytesPerDataBank;
+                else {
+                    // Put the same composite data in each data bank.
+                    // Format to write a N signed 32-bit ints, 1 float, 1 double a total of N times
+                    // Because the we have 4 payloads, the number of generatedDataWords, conveniently,
+                    // becomes the number of bytes for each of the payloads. But, because of the complex
+                    // structure of composite data, we won't bother to include all the header info
+                    // contained in that data type in our simple calculations.
 
-                // Fill banks with real data ...
+                    String format = "N(NI,F,D)";
 
-                totalStreams = 1;
-                streamMask = 1;
-                streamStatus = ((totalStreams << 4) & 0x7) | (streamMask & 0xf);
-                builder.openBank(payloadPort1, streamStatus, DataType.UCHAR8);
-                builder.addByteData(iData);
-                builder.closeStructure();
+                    // Let's pick the first N to be 2, the 2nd N becomes (within rounding error)
+                    int N = (generatedDataWords / 2 - 4 - 8) / 4;
 
-                System.arraycopy(hallDdata, hallDdataPosition, iData, 0, bytesPerDataBank);
-                hallDdataPosition += bytesPerDataBank;
-                streamMask = 2;
-                streamStatus = ((totalStreams << 4) & 0x7) | (streamMask & 0xf);
-                builder.openBank(payloadPort2, streamStatus, DataType.UCHAR8);
-                builder.addByteData(iData);
-                builder.closeStructure();
+                    // Now create some data
+                    CompositeData.Data myData = new CompositeData.Data();
+                    myData.addN(2);
 
-                System.arraycopy(hallDdata, hallDdataPosition, iData, 0, bytesPerDataBank);
-                hallDdataPosition += bytesPerDataBank;
-                streamMask = 4;
-                streamStatus = ((totalStreams << 4) & 0x7) | (streamMask & 0xf);
-                builder.openBank(payloadPort3, streamStatus, DataType.UCHAR8);
-                builder.addByteData(iData);
-                builder.closeStructure();
+                    myData.addN(N);
+                    int[] iData = new int[N];
+                    Arrays.fill(iData, 1);
+                    myData.addInt(iData);
+                    myData.addFloat(1.0F);
+                    myData.addDouble(Math.PI);
 
-                System.arraycopy(hallDdata, hallDdataPosition, iData, 0, bytesPerDataBank);
-                hallDdataPosition += bytesPerDataBank;
-                streamMask = 8;
-                streamStatus = ((totalStreams << 4) & 0x7) | (streamMask & 0xf);
-                builder.openBank(payloadPort4, streamStatus, DataType.UCHAR8);
-                builder.addByteData(iData);
-                builder.closeStructure();
-            }
-            else {
-                // Put the same composite data in each data bank.
-                // Format to write a N signed 32-bit ints, 1 float, 1 double a total of N times
-                // Because the we have 4 payloads, the number of generatedDataWords, conveniently,
-                // becomes the number of bytes for each of the payloads. But, because of the complex
-                // structure of composite data, we won't bother to include all the header info
-                // contained in that data type in our simple calculations.
+                    myData.addN(N);
+                    Arrays.fill(iData, 2);
+                    myData.addInt(iData);
+                    myData.addFloat(2.0F);
+                    myData.addDouble(2. * Math.PI);
 
-                String format = "N(NI,F,D)";
+                    // Create CompositeData object
+                    CompositeData cData = null;
+                    try {
+                        cData = new CompositeData(format, 1, myData, 0, 0);
+                    }
+                    catch (EvioException e) {
+                        e.printStackTrace();
+                    }
+                    CompositeData[] cArray = new CompositeData[]{cData};
 
-                // Let's pick the first N to be 2, the 2nd N becomes (within rounding error)
-                int N = (generatedDataWords / 2 - 4 - 8) / 4;
+                    // Fill banks with generated composite data ...
 
-                // Now create some data
-                CompositeData.Data myData = new CompositeData.Data();
-                myData.addN(2);
+                    totalStreams = 1;
+                    streamMask = 1;
+                    streamStatus = ((totalStreams << 4) & 0x7) | (streamMask & 0xf);
+                    builder.openBank(payloadPort1, streamStatus, DataType.COMPOSITE);
+                    builder.addCompositeData(cArray);
+                    builder.closeStructure();
 
-                myData.addN(N);
-                int[] iData = new int[N];
-                Arrays.fill(iData, 1);
-                myData.addInt(iData);
-                myData.addFloat(1.0F);
-                myData.addDouble(Math.PI);
+                    streamMask = 2;
+                    streamStatus = ((totalStreams << 4) & 0x7) | (streamMask & 0xf);
+                    builder.openBank(payloadPort2, streamStatus, DataType.COMPOSITE);
+                    builder.addCompositeData(cArray);
+                    builder.closeStructure();
 
-                myData.addN(N);
-                Arrays.fill(iData, 2);
-                myData.addInt(iData);
-                myData.addFloat(2.0F);
-                myData.addDouble(2. * Math.PI);
+                    streamMask = 4;
+                    streamStatus = ((totalStreams << 4) & 0x7) | (streamMask & 0xf);
+                    builder.openBank(payloadPort3, streamStatus, DataType.COMPOSITE);
+                    builder.addCompositeData(cArray);
+                    builder.closeStructure();
 
-                // Create CompositeData object
-                CompositeData cData = null;
-                try {
-                    cData = new CompositeData(format, 1, myData, 0, 0);
+                    streamMask = 8;
+                    streamStatus = ((totalStreams << 4) & 0x7) | (streamMask & 0xf);
+                    builder.openBank(payloadPort4, streamStatus, DataType.COMPOSITE);
+                    builder.addCompositeData(cArray);
+                    builder.closeStructure();
                 }
-                catch (EvioException e) {
-                    e.printStackTrace();
-                }
-                CompositeData[] cArray = new CompositeData[]{cData};
-
-                // Fill banks with generated composite data ...
-
-                totalStreams = 1;
-                streamMask = 1;
-                streamStatus = ((totalStreams << 4) & 0x7) | (streamMask & 0xf);
-                builder.openBank(payloadPort1, streamStatus, DataType.COMPOSITE);
-                builder.addCompositeData(cArray);
-                builder.closeStructure();
-
-                streamMask = 2;
-                streamStatus = ((totalStreams << 4) & 0x7) | (streamMask & 0xf);
-                builder.openBank(payloadPort2, streamStatus, DataType.COMPOSITE);
-                builder.addCompositeData(cArray);
-                builder.closeStructure();
-
-                streamMask = 4;
-                streamStatus = ((totalStreams << 4) & 0x7) | (streamMask & 0xf);
-                builder.openBank(payloadPort3, streamStatus, DataType.COMPOSITE);
-                builder.addCompositeData(cArray);
-                builder.closeStructure();
-
-                streamMask = 8;
-                streamStatus = ((totalStreams << 4) & 0x7) | (streamMask & 0xf);
-                builder.openBank(payloadPort4, streamStatus, DataType.COMPOSITE);
-                builder.addCompositeData(cArray);
-                builder.closeStructure();
-            }
-
-
-            //-----------------------------------
-            // ROC Time Slice Bank 2
-            //-----------------------------------
-            rocId = 7;
-            totalStreams = 2;
-            streamMask = 12;
-            streamStatus = ((totalStreams << 4) & 0x7) | (streamMask & 0xf);
-            builder.openBank(rocId, streamStatus, DataType.BANK);
-
-            // Stream Info Bank (SIB)
-            builder.openBank(CODATag.STREAMING_SIB.getValue(), streamStatus, DataType.SEGMENT);
-
-            // 1st SIB Segment -> TSS or Time Slice Segment
-            builder.openSegment(0x31, DataType.UINT32);
-            intData[0] = (int)frameNumber;
-            intData[1] = (int)timestamp;
-            intData[2] = (int)((timestamp >>> 32) & 0xFFFF);
-            builder.addIntData(intData);
-            builder.closeStructure();
-
-            // 2nd SIB Segment -> AIS or Aggregation Info Segment
-            builder.openSegment(0x41, DataType.USHORT16);
-
-            payloadPort1 = 0;
-            laneId = 0;
-            bond = 0;
-            moduleId = 2;
-            payload1 = (short) (((moduleId << 8) & 0xf) | ((bond << 7) & 0x1) | ((laneId << 5) & 0x3)| (payloadPort1 & 0x1f));
-            shortData[0] = payload1;
-
-            payloadPort2 = 1;
-            laneId = 1;
-            bond = 0;
-            moduleId = 3;
-            payload2 = (short) (((moduleId << 8) & 0xf) | ((bond << 7) & 0x1) | ((laneId << 5) & 0x3)| (payloadPort2 & 0x1f));
-            shortData[1] = payload2;
-
-            payloadPort3 = 2;
-            laneId = 2;
-            bond = 0;
-            moduleId = 5;
-            payload3 = (short) (((moduleId << 8) & 0xf) | ((bond << 7) & 0x1) | ((laneId << 5) & 0x3)| (payloadPort3 & 0x1f));
-            shortData[2] = payload3;
-
-            payloadPort4 = 3;
-            laneId = 3;
-            bond = 0;
-            moduleId = 7;
-            payload4 = (short) (((moduleId << 8) & 0xf) | ((bond << 7) & 0x1) | ((laneId << 5) & 0x3)| (payloadPort4 & 0x1f));
-            shortData[3] = payload4;
-
-            builder.addShortData(shortData);
-            builder.closeStructure();
-            // Close SIB
-            builder.closeStructure();
-
-            // Add Data Bank, 1 for each payload (4)
-            // TODO: Question: is this stream status different??
-            // Assume this stream status is only for the payload in question
-
-            if (useRealData) {
-                byte[] iData = new byte[bytesPerDataBank];
-                if (4*bytesPerDataBank > arrayBytes) {
-                    System.out.println("  Roc mod: NEED TO GENERATE MORE REAL DATA, have " + arrayBytes +
-                            " bytes but need " + (4*bytesPerDataBank));
-                }
-                System.arraycopy(hallDdata, hallDdataPosition, iData, 0, bytesPerDataBank);
-                hallDdataPosition += bytesPerDataBank;
-
-                // Fill banks with real data ...
-
-                totalStreams = 1;
-                streamMask = 1;
-                streamStatus = ((totalStreams << 4) & 0x7) | (streamMask & 0xf);
-                builder.openBank(payloadPort1, streamStatus, DataType.UCHAR8);
-                builder.addByteData(iData);
-                builder.closeStructure();
-
-                System.arraycopy(hallDdata, hallDdataPosition, iData, 0, bytesPerDataBank);
-                hallDdataPosition += bytesPerDataBank;
-                streamMask = 2;
-                streamStatus = ((totalStreams << 4) & 0x7) | (streamMask & 0xf);
-                builder.openBank(payloadPort2, streamStatus, DataType.UCHAR8);
-                builder.addByteData(iData);
-                builder.closeStructure();
-
-                System.arraycopy(hallDdata, hallDdataPosition, iData, 0, bytesPerDataBank);
-                hallDdataPosition += bytesPerDataBank;
-                streamMask = 4;
-                streamStatus = ((totalStreams << 4) & 0x7) | (streamMask & 0xf);
-                builder.openBank(payloadPort3, streamStatus, DataType.UCHAR8);
-                builder.addByteData(iData);
-                builder.closeStructure();
-
-                System.arraycopy(hallDdata, hallDdataPosition, iData, 0, bytesPerDataBank);
-                hallDdataPosition += bytesPerDataBank;
-                streamMask = 8;
-                streamStatus = ((totalStreams << 4) & 0x7) | (streamMask & 0xf);
-                builder.openBank(payloadPort4, streamStatus, DataType.UCHAR8);
-                builder.addByteData(iData);
-                builder.closeStructure();
-            }
-            else {
-                // Put the same composite data in each data bank.
-                // Format to write a N signed 32-bit ints, 1 float, 1 double a total of N times
-                // Because the we have 4 payloads, the number of generatedDataWords, conveniently,
-                // becomes the number of bytes for each of the payloads. But, because of the complex
-                // structure of composite data, we won't bother to include all the header info
-                // contained in that data type in our simple calculations.
-
-                String format = "N(NI,F,D)";
-
-                // Let's pick the first N to be 2, the 2nd N becomes (within rounding error)
-                int N = (generatedDataWords / 2 - 4 - 8) / 4;
-
-                // Now create some data
-                CompositeData.Data myData = new CompositeData.Data();
-                myData.addN(2);
-
-                myData.addN(N);
-                int[] iData = new int[N];
-                Arrays.fill(iData, 1);
-                myData.addInt(iData);
-                myData.addFloat(1.0F);
-                myData.addDouble(Math.PI);
-
-                myData.addN(N);
-                Arrays.fill(iData, 2);
-                myData.addInt(iData);
-                myData.addFloat(2.0F);
-                myData.addDouble(2. * Math.PI);
-
-                // Create CompositeData object
-                CompositeData cData = null;
-                try {
-                    cData = new CompositeData(format, 1, myData, 0, 0);
-                }
-                catch (EvioException e) {
-                    e.printStackTrace();
-                }
-                CompositeData[] cArray = new CompositeData[]{cData};
-
-                // Fill banks with generated composite data ...
-
-                totalStreams = 1;
-                streamMask = 1;
-                streamStatus = ((totalStreams << 4) & 0x7) | (streamMask & 0xf);
-                builder.openBank(payloadPort1, streamStatus, DataType.COMPOSITE);
-                builder.addCompositeData(cArray);
-                builder.closeStructure();
-
-                streamMask = 2;
-                streamStatus = ((totalStreams << 4) & 0x7) | (streamMask & 0xf);
-                builder.openBank(payloadPort2, streamStatus, DataType.COMPOSITE);
-                builder.addCompositeData(cArray);
-                builder.closeStructure();
-
-                streamMask = 4;
-                streamStatus = ((totalStreams << 4) & 0x7) | (streamMask & 0xf);
-                builder.openBank(payloadPort3, streamStatus, DataType.COMPOSITE);
-                builder.addCompositeData(cArray);
-                builder.closeStructure();
-
-                streamMask = 8;
-                streamStatus = ((totalStreams << 4) & 0x7) | (streamMask & 0xf);
-                builder.openBank(payloadPort4, streamStatus, DataType.COMPOSITE);
-                builder.addCompositeData(cArray);
-                builder.closeStructure();
-            }
 
 
             //-----------------------------------
@@ -1646,9 +1647,9 @@ System.out.println("  Roc mod: NEED TO GENERATE MORE REAL DATA, have " + arrayBy
                 generatedDataWords = 5;
                 ByteBuffer singleTSB = createSingleTimeSliceBuffer(generatedDataWords, frameNumber, timestamp);
                 singleTSBsize = singleTSB.limit() - 8;
-System.out.println("  Roc mod: single TSB bytes size = " + singleTSBsize + ", words = " + (singleTSBsize/4));
+//System.out.println("  Roc mod: single TSB bytes size = " + singleTSBsize + ", words = " + (singleTSBsize/4));
                 templateBuffer = createDualTimeSliceBuffer(generatedDataWords, frameNumber, timestamp);
-Utilities.printBuffer(templateBuffer, 0, 56, "TEMPLATE BUFFER");
+//Utilities.printBuffer(templateBuffer, 0, 56, "TEMPLATE BUFFER");
                 eventWordSize = templateBuffer.remaining()/4;
                 frameNumber++;
                 timestamp += 10;
@@ -1704,7 +1705,7 @@ Utilities.printBuffer(templateBuffer, 0, 56, "TEMPLATE BUFFER");
                 frameChange = fChange = 1;
             }
             else {
-                frameChange = fChange = 3;
+                frameChange = fChange = 2;
             }
 
             // We need for the # of buffers in our bbSupply object to be >=
@@ -1829,7 +1830,7 @@ Utilities.printBuffer(templateBuffer, 0, 56, "TEMPLATE BUFFER");
                             }
                         }
 
-Thread.sleep(2000);
+Thread.sleep(3000);
                         if (killThd) return;
 
                         // Put generated events into output channel
