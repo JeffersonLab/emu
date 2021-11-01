@@ -1530,7 +1530,8 @@ logger.info("      DataChannel Emu in: got " + controlType + " event from " + na
                 // The number of children = number of ROC time slice banks (events)
                 eventCount = topNode.getChildCount();
                 timeSliceBanks = topNode.getChildNodes();
-//System.out.println("      DataChannel Emu in: roc raw has # time slice banks = " + eventCount);
+System.out.println("      DataChannel Emu in: roc raw has # time slice banks = " + eventCount + ", tag of topNode = 0x" +
+        Integer.toHexString(topNode.getTag()));
             }
 
             // Each PayloadBuffer contains a reference to the buffer it was
@@ -1687,7 +1688,7 @@ logger.info("      DataChannel Emu in: got " + controlType + " event from " + na
 
                 // Set & reset all parameters of the ringItem
                 if (eventType.isBuildable()) {
-//logger.info("      DataChannel Emu in: put buildable event into channel ring, event from " + name);
+logger.info("      DataChannel Emu in: put buildable event into channel ring, event from " + name);
                     ri.setAll(null, null, node, eventType, controlType,
                             isUser, hasFirstEvent, isStreaming, id, recordId, sourceId,
                             node.getNum(), name, item, bbSupply);

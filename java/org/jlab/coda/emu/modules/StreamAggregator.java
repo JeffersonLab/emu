@@ -1530,7 +1530,7 @@ System.out.println("  EB mod: bbSupply -> " + ringItemCount + " # of bufs, direc
                 boolean generalInitDone = false;
                 EventType eventType;
 
-                int[]   bankData = new int[20];  // currently only use 3 ints
+                int[]   bankData = new int[3];
                 int[]   returnLen   = new int[1];
 
                 if (outputChannelCount > 1) {
@@ -1778,7 +1778,9 @@ System.out.println("  EB mod: bt" + btIndex + " ***** found END event from " + b
                         //-----------------------------------------------------------------------------------
                         // Combine the SIB banks of input events into one
                         //-----------------------------------------------------------------------------------
-                        nonFatalError |= Evio.combineEbStreams(
+System.out.println("  EB mod: bt" + btIndex + " ***** Building frame " + prevFrame + " with " + sliceCount + " BUILT slices");
+                        nonFatalError |= Evio.combineAggregatedStreams(
+                                sliceCount,
                                 sameStampBanks,
                                 evBuf,
                                 tag,
@@ -1800,7 +1802,7 @@ System.out.println("  EB mod: bt" + btIndex + " ***** found END event from " + b
                     }
                     // else if building with ROC raw records ...
                     else {
-System.out.println("  EB mod: bt" + btIndex + " ***** Building frame " + prevFrame + " with ROC RAW records");
+System.out.println("  EB mod: bt" + btIndex + " ***** Building frame " + prevFrame + " with " + sliceCount + " ROC RAW time slices");
                         nonFatalError |= Evio.combineRocStreams(
                                 sliceCount,
                                 sameStampBanks,
