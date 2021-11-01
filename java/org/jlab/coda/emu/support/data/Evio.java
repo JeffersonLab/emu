@@ -2200,28 +2200,29 @@ System.out.println("                         : segWords from event 0 = " + dataW
     }
 
 
-    //////////////////////////////////////
-    // Called only if SEB, not DC or PEB
-    //////////////////////////////////////
+    //////////////////////////////////////////////////////
+    // Called for aggregating already aggregated streams
+    //////////////////////////////////////////////////////
 
 
     /**
-     * <p>Combine banks from DC output into an event
+     * <p>Combine banks from an Aggregator output into an event
      * with a Time Info Bank, and appended Time Slice Banks. Any error
      * which occurs but allows the build to continue will be noted in the return value.
      * Errors which stop the event building cause an exception to be thrown.
-     * Called only if SEB, not DC or PEB.</p>
+     * Called only for aggregating already aggregated streams.</p>
      *
-     * <p>To check timestamp consistency, for each event the difference between the max and
-     * min timestamps cannot exceed the argument timestampSlop. If it does for any event,
+     * <p>To check timestamp consistency, for each built slice the difference between the max and
+     * min timestamps cannot exceed the argument timestampSlop. If it does for any slice,
      * this method returns <code>true</code>.</p>
      *
      * Many of the args are externally provided arrays used here in order to avoid allocating
      * them each time this method is called. Some, like inputNodes and ebRecord,
-     * are quickly found in FastEventBuilderStreaming and easy to pass in.
+     * are quickly found in StreamAggregator and easy to pass in.
      *
-     * @param inputPayloadBanks array containing a bank (from DC) from each channel's
-     *                          payload bank queue that will be built into one event.
+     * @param inputSliceCount   number of input buffers/banks/timeslices.
+     * @param inputPayloadBanks array containing all banks of the same time slice from all
+     *                          input channels.
      * @param builtEventBuf     ByteBuffer of event being built.
      * @param tag               evio tag of top level bank to create.
      * @param timestampSlop     maximum number of timestamp ticks that timestamps can differ
@@ -2231,34 +2232,32 @@ System.out.println("                         : segWords from event 0 = " + dataW
      * @param returnLen         int array used to return index into builtEventBuf of where to write.
      * @param ebBuf             array of inputNodes' backing buffers.
      * @param inputNodes        array of EvioNodes of input banks.
-     * @param fastCopyReady     if <code>true</code>, roc data buffer backing byte arrays and
-     *                          EB's ByteBufferSupply buffers both have the same endian value.
+     * @param fastCopyReady     if <code>true</code>, input data buffer backing byte arrays and
+     *                          this builder's ByteBufferSupply buffers both have the same endian value.
      *
      * @return <code>true</code> if recoverable error occurred, else <code>false</code>
-     * @throws EmuException for major error in event building which necessitates stopping the build
+     * @throws EmuException for major error in aggregating which necessitates stopping the build
      */
-    public static boolean combineEbStreams(PayloadBuffer[] inputPayloadBanks,
-                                           ByteBuffer builtEventBuf,
-                                           int tag,
-                                           int timestampSlop,
-                                           long frame,
-                                           int[] bankData,
-                                           int[] returnLen,
-                                           ByteBuffer[] ebBuf,
-                                           EvioNode[] inputNodes,
-                                           boolean fastCopyReady)
+    public static boolean combineAggregatedStreams(int inputSliceCount,
+                                                   PayloadBuffer[] inputPayloadBanks,
+                                                   ByteBuffer builtEventBuf,
+                                                   int tag,
+                                                   int timestampSlop,
+                                                   long frame,
+                                                   int[] bankData,
+                                                   int[] returnLen,
+                                                   ByteBuffer[] ebBuf,
+                                                   EvioNode[] inputNodes,
+                                                   boolean fastCopyReady)
             throws EmuException {
 
-        // If this method is being called, the output of ROCs have been combined by the
-        // combineRocStreams() method, thus assuring us each input has a Time Info Bank.
+        // If this method is being called, the output of streaming ROCs have been combined by
+        // the combineRocStreams() method, thus assuring us each input has a Time Info Bank (TIB).
 
         int childrenCount, byteLen, pos;
         boolean switchEndianFastCopyReady = false;
         EvioNode timeSliceBank, node;
         ByteBuffer ebBuffer;
-
-         // Number of EBs
-        int numEBs = inputPayloadBanks.length;
         boolean nonFatalError=false;
 
         // Start building combined Time Info Bank
@@ -2282,9 +2281,10 @@ System.out.println("                         : segWords from event 0 = " + dataW
         // Perhaps we need to count ROCs instead?
         int sliceCount, totalSlices = 0;
 
-        for (int j=0; j < numEBs; j++) {
-            bank = inputNodes[j].getChildAt(0).getChildAt(0);
-            // If EB output has no frame and timestamp info, error
+        for (int j=0; j < inputSliceCount; j++) {
+            // TIB
+            bank = inputNodes[j].getChildAt(0);
+            // If input bank has no frame and timestamp info, error
             if (bank == null) {
                 throw new EmuException("no Time Info Bank found");
             }
@@ -2328,7 +2328,7 @@ System.out.println("                         : segWords from event 0 = " + dataW
                     timestampsMin + ", diff = " + (timestampsMax - timestampsMin) + ", allowed = " + timestampSlop);
 
             // Go back, fish out the timestamp values, and print them
-            for (int i=0; i < numEBs; i++) {
+            for (int i=0; i < inputSliceCount; i++) {
                 bank = inputNodes[i].getChildAt(0).getChildAt(0);
 
                 bank.getIntData(bankData, returnLen);
@@ -2357,7 +2357,7 @@ System.out.println("                         : segWords from event 0 = " + dataW
         writeIndex += 4;
         int headerWord = (CODATag.STREAMING_TIB.getValue() << 16) |
                          ((DataType.UINT32.getValue() & 0x3f) << 8) |
-                         (numEBs & 0xff);
+                         (totalSlices & 0xff);
         builtEventBuf.putInt(writeIndex, headerWord);
         writeIndex += 4;
 
@@ -2384,7 +2384,7 @@ System.out.println("                         : segWords from event 0 = " + dataW
         }
 
         // Add all data banks
-        for (int i=0; i < numEBs; i++) {
+        for (int i=0; i < inputSliceCount; i++) {
             node = inputNodes[i];
             childrenCount = node.getChildCount();
 
@@ -2431,7 +2431,7 @@ System.out.println("                         : segWords from event 0 = " + dataW
         builtEventBuf.putInt(0, totalWords);
         headerWord = (tag << 16) |
                      ((DataType.BANK.getValue() & 0x3f) << 8) |
-                     (numEBs & 0xff);
+                     (totalSlices & 0xff);
         builtEventBuf.putInt(4, headerWord);
 
         // Send back position for the next write to start
@@ -2441,29 +2441,29 @@ System.out.println("                         : segWords from event 0 = " + dataW
     }
 
 
-    //////////////////////////////////////
-    // Called only if DC or PEB, not SEB
-    //////////////////////////////////////
+    ////////////////////////////////////////////
+    // Called only if aggregating ROC streams
+    ///////////////////////////////////////////
 
 
     /**
-     * <p>Combine the input payload banks of ROC raw format into an event
+     * <p>Combine the input payload banks of streamed ROC raw format into an event
      * with a Time Info Bank, and appended Time Slice Banks. Any error
      * which occurs but allows the build to continue will be noted in the return value.
      * Errors which stop the event building cause an exception to be thrown.
-     * Called only if DC or PEB, not SEB.</p>
+     * Called only if aggregating ROC streams.</p>
      *
-     * <p>To check timestamp consistency, for each event the difference between the max and
-     * min timestamps cannot exceed the argument timestampSlop. If it does for any event,
+     * <p>To check timestamp consistency, for each built slice the difference between the max and
+     * min timestamps cannot exceed the argument timestampSlop. If it does for any slice,
      * this method returns <code>true</code>.</p>
      *
      * Many of the inputs are externally provided arrays used here in order to avoid allocating
      * them each time this method is called. Some, like rocNodes, rocRecord, and rocOffset,
-     * are quickly found in FastEventBuilder and easy to pass in.
+     * are quickly found in StreamAggregator and easy to pass in.
      *
-     * @param sliceCount        number of input buffers.
-     * @param inputPayloadBanks array containing a bank (ROC Raw) from each channel's
-     *                          payload bank queue that will be built into one event.
+     * @param sliceCount        number of input buffers/banks/timeslices.
+     * @param inputPayloadBanks array containing all banks of the same time slice from all
+     *                          input channels.
      * @param builtEventBuf     ByteBuffer of event being built.
      * @param tag               evio tag of top level bank to create.
      * @param timestampSlop     maximum number of timestamp ticks that timestamps can differ
@@ -2474,8 +2474,8 @@ System.out.println("                         : segWords from event 0 = " + dataW
      * @param returnLen         int array used to return index into builtEventBuf of where to write.
      * @param rocBuf            array of rocNodes' backing buffers.
      * @param rocNodes          array of EvioNodes of input banks.
-     * @param fastCopyReady     if <code>true</code>, roc data buffer backing byte arrays and
-     *                          EB's ByteBufferSupply buffers both have the same endian value.
+     * @param fastCopyReady     if <code>true</code>, input data buffer backing byte arrays and
+     *                          this builder's ByteBufferSupply buffers both have the same endian value.
      *
      * @return <code>true</code> if recoverable error occurred, else <code>false</code>
      * @throws EmuException for major error in event building which necessitates stopping the build
@@ -2493,8 +2493,6 @@ System.out.println("                         : segWords from event 0 = " + dataW
                                             boolean fastCopyReady)
             throws EmuException {
 
-        // Number of rocs
-//        int numROCs = inputPayloadBanks.length;
         EvioNode bank, node, sibBank;
         boolean nonFatalError=false;
 
