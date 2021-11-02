@@ -833,12 +833,11 @@ System.out.println("WRITE CONTROL EVENT to chan #" + i + ", ring 0");
         /**
          * Method to search for END event on each channel when END found on one channel.
          * @param endChannel    channel in which END event first appeared.
-         * @param endSequence   sequence of the first END event
          * @param lookedForTF   time frame of slice currently being written to the ring
          *                      of a build thread when END found.
          * @return the total number of END events found in all channels.
          */
-        private int findEnds(int endChannel, long endSequence, long lookedForTF) {
+        private int findEnds(int endChannel, long lookedForTF) {
             // If the END event is far back on any of the communication channels, in order to be able
             // to read in those events, resources must be released after being read/used.
 
@@ -857,7 +856,7 @@ System.out.println("WRITE CONTROL EVENT to chan #" + i + ", ring 0");
 
                     int offset = 0;
                     boolean done = false, written;
-                    long veryNextSequence = endSequence + 1L;
+                    long veryNextSequence = nextSequences[ch];
 
                     while (true) {
                         // Check to see if there is anything to read so we don't block.
@@ -884,7 +883,6 @@ System.out.println("WRITE CONTROL EVENT to chan #" + i + ", ring 0");
 //System.out.println("  EB mod: findEnd, got items from chan " + ch + " up to sequence " + available);
 
                         while (veryNextSequence <= available) {
-                            offset++;
                             PayloadBuffer bank = (PayloadBuffer) ringBuffersIn[ch].get(veryNextSequence);
                             String source = bank.getSourceName();
 //System.out.println("  EB mod: findEnd, on chan " + ch + " found event of type " + bank.getEventType() + " from " + source + ", back " + offset +
@@ -895,7 +893,7 @@ System.out.println("WRITE CONTROL EVENT to chan #" + i + ", ring 0");
                             if (eventType == EventType.CONTROL) {
                                 if (bank.getControlType() == ControlType.END) {
                                     // Found the END event
-                                    System.out.println("  EB mod: findEnd, chan " + ch + " got END from " + source + ", back " + offset + " places in ring");
+System.out.println("  EB mod: findEnd, chan " + ch + " got END from " + source + ", back " + offset + " places in ring");
                                     // Release buffer back to ByteBufferSupply
                                     bank.releaseByteBuffer();
                                     endEventCount++;
@@ -930,6 +928,7 @@ System.out.println("WRITE CONTROL EVENT to chan #" + i + ", ring 0");
                             // Advance sequence
                             sorterSequenceIn[ch].set(veryNextSequence);
                             veryNextSequence++;
+                            offset++;
                         }
 
                         if (done) {
@@ -1179,8 +1178,7 @@ System.out.println("  EB mod: sorter got user event from channel " + inputChanne
                             // receiving ring buffer. That's because all identical time slices
                             // go to the same ring buffer no matter the input channel.
                             if (diff == TimestampDiff.SAME) {
-// TODO: Need to get this bank into a build thread ring!!!
-System.out.println("  EB mod: ch" + chan + ", sorter send time slice to BT# = " + currentBT +", event type = " + bank.getEventType() + ", frame = " + frame);
+//System.out.println("  EB mod: ch" + chan + ", sorter send time slice to BT# = " + currentBT +", event type = " + bank.getEventType() + ", frame = " + frame);
                                 sendToTimeSliceBankRing(bank, currentBT);
 
                                 sorterSequenceIn[chan].set(nextSequences[chan]);
@@ -1198,7 +1196,7 @@ System.out.println("  EB mod: ch" + chan + ", sorter send time slice to BT# = " 
                             // Check the other channels to see if they have banks with the same time slices
                             // as the one last written.
                             else if (diff == TimestampDiff.NEXT) {
-System.out.println("  EB mod: ch" + chan + ", sorter DIFF timestamp, frame = " + frame);
+//System.out.println("  EB mod: ch" + chan + ", sorter DIFF timestamp, frame = " + frame);
                                 // If the last write was on this channel, then the bank we just
                                 // read from that channel is part of the next time slice.
                                 // This is our clue to move to the next channel to see if it has
@@ -1256,7 +1254,7 @@ System.out.println("  EB mod: ch" + chan + ", sorter DIFF timestamp, frame = " +
                         //-------------------------------------------
 
                         // We need one from each channel so find them now.
-                        int endEventCount = findEnds(chan, nextSequences[chan], lookingForFrame);
+                        int endEventCount = findEnds(chan, lookingForFrame);
 
 System.out.println("  EB mod: sorter found END event from " + bank.getSourceName() + " at seq " + nextSequences[chan]);
 
@@ -1483,7 +1481,7 @@ System.out.println("  EB mod: try sending END event to output channel " + nextCh
                     catch (InterruptedException e) {
                         return;
                     }
-                    System.out.println("  EB mod: sent END event to output channel  " + nextChannel);
+System.out.println("  EB mod: sent END event to output channel  " + nextChannel);
                 }
 
                 // Stats
@@ -1680,8 +1678,8 @@ System.out.println("  EB mod: bbSupply -> " + ringItemCount + " # of bufs, direc
                                 sliceCount++;
                                 nextSequence++;
                                 prevFrame = frame;
-System.out.println("\n  EB mod: bt" + btIndex + " ***** found bank, look for another ---> continue, next seq = " + nextSequence +
-        ", frame (prevFrame) = " + frame + ", lookingForTF = " +lookingForTF);
+//System.out.println("\n  EB mod: bt" + btIndex + " ***** found bank, look for another ---> continue, next seq = " + nextSequence +
+//        ", frame (prevFrame) = " + frame + ", lookingForTF = " +lookingForTF);
                                 continue;
                             }
                             else {
@@ -1692,8 +1690,8 @@ System.out.println("\n  EB mod: bt" + btIndex + " ***** found bank, look for ano
                                 storedSequence = nextSequence;
                                 // Start looking for the next frame
                                 lookingForTF = frame;
-System.out.println("\n  EB mod: bt" + btIndex + " ***** at next timestamp, got to next seq = " + nextSequence + ", frame = " + frame +
-        ", prevFrame = " + prevFrame + ", lookingForTF = " + lookingForTF);
+//System.out.println("\n  EB mod: bt" + btIndex + " ***** at next timestamp, got to next seq = " + nextSequence + ", frame = " + frame +
+//        ", prevFrame = " + prevFrame + ", lookingForTF = " + lookingForTF);
                             }
 
                             break;
@@ -1778,7 +1776,7 @@ System.out.println("  EB mod: bt" + btIndex + " ***** found END event from " + b
                         //-----------------------------------------------------------------------------------
                         // Combine the SIB banks of input events into one
                         //-----------------------------------------------------------------------------------
-System.out.println("  EB mod: bt" + btIndex + " ***** Building frame " + prevFrame + " with " + sliceCount + " BUILT slices");
+//System.out.println("  EB mod: bt" + btIndex + " ***** Building frame " + prevFrame + " with " + sliceCount + " BUILT slices");
                         nonFatalError |= Evio.combineAggregatedStreams(
                                 sliceCount,
                                 sameStampBanks,
@@ -1802,7 +1800,7 @@ System.out.println("  EB mod: bt" + btIndex + " ***** Building frame " + prevFra
                     }
                     // else if building with ROC raw records ...
                     else {
-System.out.println("  EB mod: bt" + btIndex + " ***** Building frame " + prevFrame + " with " + sliceCount + " ROC RAW time slices");
+//System.out.println("  EB mod: bt" + btIndex + " ***** Building frame " + prevFrame + " with " + sliceCount + " ROC RAW time slices");
                         nonFatalError |= Evio.combineRocStreams(
                                 sliceCount,
                                 sameStampBanks,
@@ -1872,7 +1870,8 @@ System.out.println("  EB mod: bt" + btIndex + " ***** Building frame " + prevFra
                     buildSequenceIn[btIndex].set(nextSequence++);
 
                     // Stats (need to be thread-safe)
-                    eventCountTotal += sliceCount;
+                    eventCountTotal++;
+                    //eventCountTotal += sliceCount;
                     wordCountTotal  += writeIndex / 4;
                     keepStats(writeIndex);
                 }
