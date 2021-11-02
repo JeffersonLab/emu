@@ -1530,8 +1530,8 @@ logger.info("      DataChannel Emu in: got " + controlType + " event from " + na
                 // The number of children = number of ROC time slice banks (events)
                 eventCount = topNode.getChildCount();
                 timeSliceBanks = topNode.getChildNodes();
-System.out.println("      DataChannel Emu in: roc raw has # time slice banks = " + eventCount + ", tag of topNode = 0x" +
-        Integer.toHexString(topNode.getTag()));
+//System.out.println("      DataChannel Emu in: roc raw has # time slice banks = " + eventCount + ", tag of topNode = 0x" +
+//        Integer.toHexString(topNode.getTag()));
             }
 
             // Each PayloadBuffer contains a reference to the buffer it was
@@ -1688,13 +1688,14 @@ logger.info("      DataChannel Emu in: got " + controlType + " event from " + na
 
                 // Set & reset all parameters of the ringItem
                 if (eventType.isBuildable()) {
-logger.info("      DataChannel Emu in: put buildable event into channel ring, event from " + name);
+//logger.info("      DataChannel Emu in: put buildable event into channel ring, event from " + name);
                     ri.setAll(null, null, node, eventType, controlType,
                             isUser, hasFirstEvent, isStreaming, id, recordId, sourceId,
                             node.getNum(), name, item, bbSupply);
                     ri.setTimeFrame(frame);
                     ri.setTimestamp(timestamp);
                 } else {
+logger.info("      DataChannel Emu in: put CONTROL (user?) event into channel ring, event from " + name);
                     ri.setAll(null, null, node, eventType, controlType,
                             isUser, hasFirstEvent, isStreaming, id, recordId, sourceId,
                             1, name, item, bbSupply);
@@ -2107,14 +2108,14 @@ System.out.println("DataOutputHelper constr: making BB supply of 8 bufs @ bytes 
                 }
 
                 recordId++;
-System.out.println("      DataChannel Emu out: writeEvioData: record Id set to " + blockNum +
-                  ", then incremented to " + recordId);
+//System.out.println("      DataChannel Emu out: writeEvioData: record Id set to " + blockNum +
+//                  ", then incremented to " + recordId);
 
                 // Make sure there's enough room for that one event
                 if (rItem.getTotalBytes() > currentBuffer.capacity()) {
                     currentBBitem.ensureCapacity(rItem.getTotalBytes() + 1024);
                     currentBuffer = currentBBitem.getBuffer();
-System.out.println("\n  &&&&&  DataChannel Emu out: writeEvioData:  expand 1 current buf -> rec # = " + currentBuffer.getInt(4));
+//System.out.println("\n  &&&&&  DataChannel Emu out: writeEvioData:  expand 1 current buf -> rec # = " + currentBuffer.getInt(4));
                 }
 
                 // Write the event ..
@@ -2122,7 +2123,7 @@ System.out.println("\n  &&&&&  DataChannel Emu out: writeEvioData:  expand 1 cur
                 if (rItem.isFirstEvent()) {
                     EmuUtilities.setFirstEvent(bitInfo);
                 }
-System.out.println("      DataChannel Emu out: writeEvioData: single write into buffer");
+//System.out.println("      DataChannel Emu out: writeEvioData: single write into buffer");
                 writer.setBuffer(currentBuffer, bitInfo, blockNum);
 
                 // Unset first event for next round
@@ -2131,8 +2132,8 @@ System.out.println("      DataChannel Emu out: writeEvioData: single write into 
                 ByteBuffer buf = rItem.getBuffer();
                 if (buf != null) {
                     try {
-System.out.println("      DataChannel Emu out: writeEvioData: single ev buf, pos = " + buf.position() +
-", lim = " + buf.limit() + ", cap = " + buf.capacity());
+//System.out.println("      DataChannel Emu out: writeEvioData: single ev buf, pos = " + buf.position() +
+//", lim = " + buf.limit() + ", cap = " + buf.capacity());
                         boolean fit = writer.writeEvent(buf);
                         if (!fit) {
                             // Our buffer is too small to fit even 1 event!
@@ -2179,25 +2180,25 @@ System.out.println("      c: single ev buf, pos = " + buf.position() +
 //                }
 
                 if (isBuildable) {
-System.out.println("      DataChannel Emu out: writeEvioData: flush " + eType + " type event, don't force ");
+//System.out.println("      DataChannel Emu out: writeEvioData: flush " + eType + " type event, don't force ");
                     flushEvents(false, false, true);
                 }
                 else {
-System.out.println("      DataChannel Emu out: writeEvioData: flush " + eType + " type event, FORCE");
+//System.out.println("      DataChannel Emu out: writeEvioData: flush " + eType + " type event, FORCE");
                     if (rItem.getControlType() == ControlType.END) {
-System.out.println("      DataChannel Emu out: writeEvioData: call flushEvents for END");
+//System.out.println("      DataChannel Emu out: writeEvioData: call flushEvents for END");
                         flushEvents(true, true, false);
                     }
                     else {
-System.out.println("      DataChannel Emu out: writeEvioData: call flushEvents for non-END");
+//System.out.println("      DataChannel Emu out: writeEvioData: call flushEvents for non-END");
                         flushEvents(true, false, false);
                     }
                 }
             }
             // If we're marshalling events into a single buffer before sending ...
             else {
-System.out.println("      DataChannel Emu out: writeEvioData: events into buf, written = " + eventsWritten +
-", closed = " + writer.isClosed());
+//System.out.println("      DataChannel Emu out: writeEvioData: events into buf, written = " + eventsWritten +
+//", closed = " + writer.isClosed());
                 // If we've already written at least 1 event AND
                 // (we have no more room in buffer OR we're changing event types),
                 // write what we have.
