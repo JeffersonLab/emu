@@ -115,18 +115,21 @@ public interface EmuModule extends StatedObject, CODAStateMachine {
     public void clearChannels();
 
     /**
-     * <p>Get the <b>output</b> statistics of this EmuModule object. The output statistics
-     * consists of an array of 2 Longs, 2 Floats, 4 Integers, and 1 int array:</p>
+     * <p>
+     * Get the <b>output</b> statistics of this EmuModule object. The output statistics
+     * consists of an array of 2 Longs, 2 Floats, 4 Integers, 1 int array, and one Long:
+     * </p>
      * <ol>
-     * <li><p>event count (Long)</p>
-     * <li><p>word count  (Long)</p>
-     * <li><p>event rate in Hz (Float</p>
-     * <li><p>data rate in kBytes/sec  (Float)</p>
-     * <li><p>max event size in bytes (Integer) if module is an EB</p>
-     * <li><p>min event size in bytes (Integer) if module is an EB</p>
-     * <li><p>avg event size in bytes (Integer) if module is an EB</p>
-     * <li><p>suggested value for chunk*EtBufSize (Integer) if have ET output channel</p>
-     * <li><p>if EB and switched on, histogram of time to build 1 event in nanoseconds (int array)</p>
+     * <li>event count  (Long)
+     * <li>word count  (Long)
+     * <li>event rate in Hz (Float)
+     * <li>data rate in kBytes/sec  (Float)
+     * <li>max event size in bytes (Integer) if module is an EB
+     * <li>min event size in bytes (Integer) if module is an EB
+     * <li>avg event size in bytes (Integer) if module is an EB
+     * <li>suggested value for chunk*EtBufSize (Integer) if have ET output channel
+     * <li>if EB and switched on, histogram of time to build 1 event in nanoseconds (int array)
+     * <li>frame count if aggregating streamed data, else null
      * </ol>
      *
      * @return array of objects containing in order: 1) event count (Long),
@@ -135,7 +138,8 @@ public interface EmuModule extends StatedObject, CODAStateMachine {
      *          7) average event byte size (Integer), and
      *          8) suggested value for chunk*EtBufSize (Integer) if have ET output channel, or
      *          9) histogram of time to build 1 event in nanosec (int array), or
-     *          null if no statistics reported for this module.
+     *          null if no statistics reported for this module, or
+     *          10) frame count if aggregating streamed data (Long).
      */
     public Object[] getStatistics();
 
