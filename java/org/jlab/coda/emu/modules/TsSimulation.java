@@ -77,7 +77,7 @@ public class TsSimulation extends ModuleAdapter {
             respondingRocs.add(msg.getType());
             // Int = 1 (got End cmd) or 0 (no End received)
             respondingStates.add(msg.getUserInt());
-//System.out.println("  TS mod: got type = " + msg.getType() + " & user int = " + msg.getUserInt());
+System.out.println("  TS mod: got type = " + msg.getType() + " & user int = " + msg.getUserInt());
 
             // If we got the expected number of responses, see if
             // we got them from the expected ROCs.
@@ -89,18 +89,19 @@ public class TsSimulation extends ModuleAdapter {
 //                    }
 //                }
 
-//System.out.println("All ROCs reporting");
+System.out.println("All ROCs reporting");
                 // If we're here we got the proper responses
 
                 // If all ROCs have received the END command,
                 // state = "gotEnd", then tell ROCs to finish up.
                 if (!respondingStates.contains(0)) {
-System.out.println("  TS mod: all ROCs got end cmd");
+System.out.println("  TS mod: all ROCs got end cmd, send 1 to tell ROCS to stop");
                     // Tell ROCs to stop sending events
                     message.setUserInt(1);
                 }
                 else {
                     // Tell ROCs to send next batch of events
+System.out.println("  TS mod: all ROCs, send next batch (0)");
                     message.setUserInt(0);
                 }
 
