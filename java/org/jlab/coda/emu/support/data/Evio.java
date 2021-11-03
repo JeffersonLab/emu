@@ -963,14 +963,17 @@ if (debug) System.out.println("gotValidControlEvents: found control event of typ
      * @param runNumber       current run number for prestart event
      * @param runType         current run type for prestart event
      * @param eventsInRun     number of events so far in run for all except prestart event
+     * @param framesInRun     number of time frames so far in run, if streaming
      * @param eventsSinceSync number of events since last sync for sync event
      * @param error           END control event sent due to error condition
+     * @param isStreaming     true if data is being streamed in time slices/frames,
+     *                        false if triggered events
      *
      * @return created Control event (EvioEvent object)
      */
     public static EvioEvent createControlEvent(ControlType type, int runNumber, int runType,
-                                               int eventsInRun, int eventsSinceSync,
-                                               boolean error) {
+                                               int eventsInRun, int framesInRun, int eventsSinceSync,
+                                               boolean error, boolean isStreaming) {
 
         try {
             int[] data;
@@ -1022,16 +1025,19 @@ if (debug) System.out.println("gotValidControlEvents: found control event of typ
      * @param runNumber       current run number for prestart event
      * @param runType         current run type for prestart event
      * @param eventsInRun     number of events so far in run for all except prestart event
+     * @param framesInRun     number of time frames so far in run, if streaming
      * @param eventsSinceSync number of events since last sync for sync event
      * @param order           byte order in which to write event into buffer
      * @param error           END control event sent due to error condition
+     * @param isStreaming     true if data is being streamed in time slices/frames,
+     *                        false if triggered events
      *
      * @return created PayloadBuffer object containing Control event in byte buffer
      */
     public static PayloadBuffer createControlBuffer(ControlType type, int runNumber,
-                                                    int runType, int eventsInRun,
+                                                    int runType, int eventsInRun, int framesInRun,
                                                     int eventsSinceSync, ByteOrder order,
-                                                    boolean error) {
+                                                    boolean error, boolean isStreaming) {
 
         try {
             int[] data;
@@ -1043,6 +1049,7 @@ if (debug) System.out.println("gotValidControlEvents: found control event of typ
             // create a single bank of integers which is the user bank
             switch (type) {
                 case SYNC:
+                    // sync not used in streaming
                     data = new int[] {time, eventsSinceSync, eventsInRun};
                     break;
                 case PRESTART:
@@ -1052,11 +1059,14 @@ if (debug) System.out.println("gotValidControlEvents: found control event of typ
                 case PAUSE:
                 case END:
                 default:
+                    int count = eventsInRun;
+                    if (isStreaming) count = framesInRun;
+
                     if (error) {
-                        data = new int[]{time, 0xffffffff, eventsInRun};
+                        data = new int[]{time, 0xffffffff, count};
                     }
                     else {
-                        data = new int[]{time, 0, eventsInRun};
+                        data = new int[]{time, 0, count};
                     }
             }
 

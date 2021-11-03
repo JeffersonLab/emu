@@ -682,8 +682,9 @@ logger.info("  EB mod: internal ring buf count -> " + ringItemCount);
         // Create a new control event with updated control data in it
         controlBufs[0] = Evio.createControlBuffer(controlType,
                                                   runNumber, runTypeId,
-                                                  (int)eventCountTotal,
-                                                  0, outputOrder, false);
+                                                  (int)eventCountTotal, (int)frameCountTotal,
+                                                  0, outputOrder, false,
+                                                   emu.isStreamingData());
 
         // For the other output channels, duplicate first with separate position & limit.
         // Important to do this duplication BEFORE sending to output channels or position
@@ -906,7 +907,8 @@ System.out.println("  EB mod: in handleEndEvent(), bt #" + btIndex + ", output c
 
                 // For the first output channel
                 endBufs[0] = Evio.createControlBuffer(ControlType.END, runNumber, runTypeId,
-                                                      (int) eventCountTotal, 0, outputOrder, false);
+                                                      (int) eventCountTotal, (int)frameCountTotal, 0,
+                                                      outputOrder, false, emu.isStreamingData());
 
                 // For the other output channel(s), duplicate first with separate position & limit
                 for (int i=1; i < outputChannelCount; i++) {
@@ -2003,16 +2005,16 @@ System.out.println("  EB mod: endBuildThreads: will end building/filling threads
      * It creates these threads if they don't exist yet.
      */
     private void startThreads() {
-        // Rate calculating thread
-        if (RateCalculator != null) {
-            RateCalculator.interrupt();
-        }
-
-        RateCalculator = new Thread(emu.getThreadGroup(), new RateCalculatorThread(), name+":watcher");
-
-        if (RateCalculator.getState() == Thread.State.NEW) {
-            RateCalculator.start();
-        }
+//        // Rate calculating thread
+//        if (RateCalculator != null) {
+//            RateCalculator.interrupt();
+//        }
+//
+//        RateCalculator = new Thread(emu.getThreadGroup(), new RateCalculatorThread(), name+":watcher");
+//
+//        if (RateCalculator.getState() == Thread.State.NEW) {
+//            RateCalculator.start();
+//        }
 
 //        if (!dumpData) {
             // Build threads

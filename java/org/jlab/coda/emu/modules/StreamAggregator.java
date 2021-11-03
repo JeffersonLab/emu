@@ -589,8 +589,8 @@ System.out.println("  EB mod: getAllControlEvents got seq " + nextSequences[i]);
  // TODO: for streaming, event count does NOT make sense!!
         controlBufs[0] = Evio.createControlBuffer(controlType,
                                                   runNumber, runTypeId,
-                                                  (int)eventCountTotal,
-                                                  0, outputOrder, false);
+                                                  (int)frameCountTotal, (int)frameCountTotal,
+                                                  0, outputOrder, false, emu.isStreamingData());
 
         // For the other output channels, duplicate first with separate position & limit.
         // Important to do this duplication BEFORE sending to output channels or position
@@ -954,8 +954,8 @@ System.out.println("  EB mod: findEnd, chan " + ch + " got END from " + source +
         private void endEventToBuildThread() throws InterruptedException {
             // Create END event
             PayloadBuffer endEvent = Evio.createControlBuffer(ControlType.END, runNumber, runTypeId,
-                    (int) eventCountTotal, 0,
-                    outputOrder, false);
+                    (int) frameCountTotal, (int)frameCountTotal, 0,
+                    outputOrder, false, emu.isStreamingData());
 
             int nextBt = (currentBT + 1) % buildingThreadCount;
             sendToTimeSliceBankRing(endEvent, nextBt);
@@ -1870,8 +1870,9 @@ System.out.println("  EB mod: bt" + btIndex + " ***** found END event from " + b
                     buildSequenceIn[btIndex].set(nextSequence++);
 
                     // Stats (need to be thread-safe)
+                    frameCountTotal++;
+                    // TODO: Keep this here temporarily
                     eventCountTotal++;
-                    //eventCountTotal += sliceCount;
                     wordCountTotal  += writeIndex / 4;
                     keepStats(writeIndex);
                 }
@@ -1938,7 +1939,7 @@ System.out.println("  EB mod: bt" + btIndex + " ***** found END event from " + b
                         sorterSequenceIn[i].set(availableSequences[i]);
 
                         lastCursor = cursor;
-                        cursor = buildBarrierIn[i].getCursor();
+                        cursor = sorterBarrierIn[i].getCursor();
 
                         if (cursor == lastCursor) {
                             break;
@@ -2022,16 +2023,15 @@ System.out.println("  EB mod: endBuildThreads: will end building/filling threads
      * It creates these threads if they don't exist yet.
      */
     private void startThreads() {
-        // Rate calculating thread
-        if (RateCalculator != null) {
-            RateCalculator.interrupt();
-        }
-
-        RateCalculator = new Thread(emu.getThreadGroup(), new RateCalculatorThread(), name+":watcher");
-
-        if (RateCalculator.getState() == Thread.State.NEW) {
-            RateCalculator.start();
-        }
+//        // Rate calculating thread
+//        if (RateCalculator != null) {
+//            RateCalculator.interrupt();
+//        }
+//
+//        RateCalculator = new Thread(emu.getThreadGroup(), new RateCalculatorThread(), name+":watcher");
+//        if (RateCalculator.getState() == Thread.State.NEW) {
+//            RateCalculator.start();
+//        }
 
         // Time slice sorting thread
         if (timeSliceSorterThread != null) {
@@ -2225,7 +2225,7 @@ System.out.println("  EB mod: prestart, input channels have duplicate rocIDs");
 
         // Reset some variables
         eventRate = wordRate = 0F;
-        eventCountTotal = wordCountTotal = 0L;
+        frameCountTotal = eventCountTotal = wordCountTotal = 0L;
         runTypeId = emu.getRunTypeId();
         runNumber = emu.getRunNumber();
 //        eventNumberAtLastSync = 1L;

@@ -126,11 +126,17 @@ public class ModuleAdapter implements EmuModule {
     /** Sum of the sizes, in 32-bit words, of all evio events written to the outputs. */
     protected long wordCountTotal;
 
+    /** Total number of time slice frames (timestamps) written to the outputs if streaming. */
+    protected long frameCountTotal;
+
     /** Instantaneous event rate in Hz over the last time period of length {@link #statGatheringPeriod}. */
     protected float eventRate;
 
     /** Instantaneous word rate in Hz over the last time period of length {@link #statGatheringPeriod}. */
     protected float wordRate;
+
+    /** Instantaneous frame rate in Hz over the last time period of length {@link #statGatheringPeriod}, if streaming. */
+    protected float frameRate;
 
     /** Maximum-sized built event in bytes. */
     protected int maxEventSize;
@@ -420,7 +426,7 @@ logger.info("  Module Adapter: output byte order = " + outputOrder);
     /** {@inheritDoc} */
     synchronized public Object[] getStatistics() {
 
-        Object[] stats = new Object[9];
+        Object[] stats = new Object[10];
 
         // If we're not active, keep the accumulated
         // totals and sizes, but the rates are zero.
@@ -435,6 +441,7 @@ logger.info("  Module Adapter: output byte order = " + outputOrder);
             stats[6] = avgEventSize;
             stats[7] = goodChunk_X_EtBufSize;
             stats[8] = timeToBuild;
+            stats[9] = frameCountTotal;
         }
         else {
             if (timeStatsOn && statistics != null) {
@@ -451,6 +458,7 @@ logger.info("  Module Adapter: output byte order = " + outputOrder);
             stats[6] = avgEventSize;
             stats[7] = goodChunk_X_EtBufSize;
             stats[8] = timeToBuild;
+            stats[9] = frameCountTotal;
         }
 
         return stats;
@@ -503,6 +511,7 @@ logger.info("  Module Adapter: output byte order = " + outputOrder);
 
     //----------------------------------------------------------------
 
+// TODO: This thread is run for modules, but results are NEVER used!!
 
     /**
      * This class defines a thread that makes instantaneous rate calculations
@@ -519,7 +528,7 @@ logger.info("  Module Adapter: output byte order = " + outputOrder);
         public void run() {
 
             // variables for instantaneous stats
-            long deltaT, t1, t2, prevEventCount=0L, prevWordCount=0L;
+            long deltaT, t1, t2, prevEventCount=0L, prevWordCount=0L, prevFrameCount=0L;
 
             while ((moduleState == CODAState.ACTIVE) || paused) {
                 try {
@@ -535,13 +544,16 @@ logger.info("  Module Adapter: output byte order = " + outputOrder);
                         deltaT = t2 - t1;
 
                         // calculate rates
+                        frameRate = (frameCountTotal - prevFrameCount)*1000F/deltaT;
                         eventRate = (eventCountTotal - prevEventCount)*1000F/deltaT;
                         wordRate  = (wordCountTotal  - prevWordCount)*1000F/deltaT;
 
+                        prevFrameCount = frameCountTotal;
                         prevEventCount = eventCountTotal;
                         prevWordCount  = wordCountTotal;
                         t1 = t2;
-//                        System.out.println("evRate = " + eventRate + ", byteRate = " + 4*wordRate);
+//                        System.out.println("event rate = " + eventRate + ", byteRate = " + 4*wordRate);
+//                        System.out.println("frame rate = " + frameRate + ", byteRate = " + 4*wordRate);
 
                         // The following was in the old RateCalculatorThread thread ...
 //                        try {

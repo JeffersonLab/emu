@@ -114,7 +114,7 @@ public class RocSimulation extends ModuleAdapter {
     // Members used to synchronize all fake Rocs to each other which allows run to
     // end properly. I.e., they all produce the same number of buildable events.
     //----------------------------------------------------
-    /** If true, no physics events are produces.
+    /** If true, no physics events are produced.
      *  This is equivalent to having no triggers. */
     private boolean noPhysics;
 
@@ -123,13 +123,13 @@ public class RocSimulation extends ModuleAdapter {
 
     /** Set this ROC's sync bit set every syncBitCount events.
      *  Value of 0 means no sync bit. */
-    private int syncBitCount;
+    private final int syncBitCount;
 
     /** Connection to platform's cMsg name server. */
     private cMsg cMsgServer;
 
     /** Message to send synchronizer saying that we finished our loops. */
-    private cMsgMessage message;
+    private final cMsgMessage message;
 
     /** Object to handle callback subscription. */
     private cMsgSubscriptionHandle cmsgSubHandle;
@@ -149,18 +149,21 @@ public class RocSimulation extends ModuleAdapter {
      *  once to subject = "sync" and type = "ROC". */
     private class SyncCallback extends cMsgCallbackAdapter {
         public void callback(cMsgMessage msg, Object userObject) {
-//System.out.println("callback: got msg from synchronizer");
+System.out.println("callback: got msg from synchronizer");
             int endIt = msg.getUserInt();
             if (endIt > 0) {
                 // Signal to finish end() method and it will
                 // also quit event-producing thread.
-//System.out.println("callback: ARRIVE -> END IT");
+System.out.println("callback: ARRIVE -> END IT, WWWWWAITTTTT");
                 timeToEnd = true;
                 endPhaser.arriveAndDeregister();
+                System.out.println("callback: ARRIVE -> END IT, deregistered");
             }
 
             // Signal for event-producing loop to continue
+System.out.println("callback: phaser arrive, WWWWWWAITTT");
             phaser.arrive();
+System.out.println("callback: phaser past");
         }
     }
 
@@ -407,7 +410,7 @@ System.out.println("getRealData: successfully read " + arrayBytes + " bytes from
 
         // How many iterations (writes of an entangled block of evio events)
         // before syncing fake ROCs together?
-        syncCount = 20000;
+        syncCount = 80000;
         try { syncCount = Integer.parseInt(attributeMap.get("syncCount")); }
         catch (NumberFormatException e) { /* defaults to 100k */ }
         if (syncCount < 10) syncCount = 10;
@@ -520,14 +523,16 @@ System.out.println("  Roc mod: using real Hall D data = " + useRealData);
                 // block on the uninterruptible rb.next() method call and RESET never
                 // completes. First give it a chance to end gracefully.
                 thd.endThread();
-//System.out.println("  Roc mod: interrupted event generating thread");
+System.out.println("  Roc mod: interrupted event generating thread");
                 try {
                     thd.join(1000);
                 }
-                catch (InterruptedException e) {}
+                catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
             }
         }
-//System.out.println("  Roc mod: done killThreads()");
+System.out.println("  Roc mod: done killThreads()");
     }
 
 
@@ -557,17 +562,20 @@ System.out.println("  Roc mod: using real Hall D data = " + useRealData);
 
 //System.out.println("  Roc mod: wait for next ring buf for writing");
         long nextRingItem = rb.next();
+//System.out.println("  Roc mod: GOT next ring buf");
 
-//System.out.println("  Roc mod: got sequence " + nextRingItem);
+//System.out.println("  Roc mod: get out sequence " + nextRingItem);
         RingItem ri = (RingItem) rb.get(nextRingItem);
+//System.out.println("  Roc mod: GOT out sequence " + nextRingItem);
         ri.setBuffer(buf);
         ri.setEventType(EventType.ROC_RAW);
         ri.setControlType(null);
         ri.setSourceName(null);
         ri.setReusableByteBuffer(bbSupply, item);
 
-//System.out.println("  Roc mod: published ring item #" + nextRingItem + " to ring " + ringNum);
+//System.out.println("  Roc mod: publish ring item #" + nextRingItem + " to ring " + ringNum);
         rb.publish(nextRingItem);
+//System.out.println("  Roc mod: published " + nextRingItem);
     }
 
 
@@ -1879,7 +1887,7 @@ System.out.println("  Roc mod: NEED TO GENERATE MORE REAL DATA, have " + arrayBy
                             // Did we receive the END command yet? ("moduleState" is volatile)
                             if (moduleState == CODAState.DOWNLOADED) {
                                 // END command has arrived
-//System.out.println("  Roc mod: end has arrived");
+System.out.println("  Roc mod: end has arrived");
                                 gotEndCommand = true;
                             }
 
@@ -1891,14 +1899,14 @@ System.out.println("  Roc mod: NEED TO GENERATE MORE REAL DATA, have " + arrayBy
                             }
 
                             // Wait for synchronizer's response before continuing
-//System.out.println("  Roc mod: phaser await advance, ev count = " + eventCountTotal);
+System.out.println("  Roc mod: phaser await advance, ev count = " + eventCountTotal);
                             phaser.arriveAndAwaitAdvance();
-//System.out.println("  Roc mod: phaser PAST advance, ev count = " + eventCountTotal);
+System.out.println("  Roc mod: phaser PAST advance, ev count = " + eventCountTotal);
 
                             // Every ROC has received the END command and completed the
                             // same number of iterations, therefore it's time to quit.
                             if (timeToEnd) {
-//System.out.println("  Roc mod: arrive, SYNC told me to quit");
+System.out.println("  Roc mod: arrive, SYNC told me to quit");
                                 endPhaser.arriveAndDeregister();
                                 return;
                             }
@@ -1971,7 +1979,7 @@ System.out.println("  Roc mod: reset()");
         moduleState = CODAState.CONFIGURED;
 
         eventRate = wordRate = 0F;
-        eventCountTotal = wordCountTotal = 0L;
+        frameCountTotal = eventCountTotal = wordCountTotal = 0L;
 
         // rb.next() can block in endThreads() when doing a RESET.
         killThreads();
@@ -2009,15 +2017,16 @@ System.out.println("  Roc mod: reset()");
         // Skip over this if not synced or go never received
         if (gotGoCommand && synced) {
             // Wait until all threads are done writing events
-//System.out.println("  Roc mod: end(), endPhaser block here");
+System.out.println("  Roc mod: end(), endPhaser block here");
             try {
                 endPhaser.awaitAdvanceInterruptibly(endPhaser.arrive());
             }
             catch (InterruptedException e) {
-//System.out.println("  Roc mod: end(), endPhaser interrupted");
+                e.printStackTrace();
+System.out.println("  Roc mod: end(), endPhaser interrupted, XXXXXXXXXXXXXXXXXXXXXXXXXXXXX");
                 return;
             }
-//System.out.println("  Roc mod: end(), past endPhaser");
+System.out.println("  Roc mod: end(), past endPhaser");
         }
 
         // Put this line down here so we don't pop out of event-generating
@@ -2028,6 +2037,7 @@ System.out.println("  Roc mod: reset()");
             // Unsubscribe
             try {
                 if (cmsgSubHandle != null) {
+System.out.println("  Roc mod: end(), UNSUBSCRIBE");
                     cMsgServer.unsubscribe(cmsgSubHandle);
                     cmsgSubHandle = null;
                 }
@@ -2053,8 +2063,8 @@ System.out.println("  Roc mod: reset()");
 
         // Put in END event
         PayloadBuffer pBuf = Evio.createControlBuffer(ControlType.END, 0, 0,
-                                                      (int)eventCountTotal, 0,
-                                                      outputOrder, false);
+                                                      (int)eventCountTotal, (int)frameCountTotal, 0,
+                                                      outputOrder, false, emu.isStreamingData());
         // Send to first ring on ALL channels
         for (int i=0; i < outputChannelCount; i++) {
             if (i > 0) {
@@ -2075,7 +2085,7 @@ System.out.println("  Roc mod: reset()");
     /** {@inheritDoc} */
     public void prestart() {
 
-//System.out.println("  Roc mod: PRESTART");
+System.out.println("  Roc mod: PRESTART");
         moduleState = CODAState.PAUSED;
 
         // Reset some variables
@@ -2085,14 +2095,15 @@ System.out.println("  Roc mod: reset()");
         rocRecordId = 1;
 
         if (synced) {
+ System.out.println("  Roc mod: PRESTART, (re)create phasers");
             phaser    = new Phaser(eventProducingThreads + 1);
             endPhaser = new Phaser(eventProducingThreads + 2);
             timeToEnd = false;
             gotEndCommand = false;
         }
 
-        // create threads objects (but don't start them yet)
-        RateCalculator = new Thread(emu.getThreadGroup(), new RateCalculatorThread(), emu.name()+":watcher");
+//        // create threads objects (but don't start them yet)
+//        RateCalculator = new Thread(emu.getThreadGroup(), new RateCalculatorThread(), emu.name()+":watcher");
 
 
 //        boolean sendUser = true;
@@ -2139,8 +2150,8 @@ System.out.println("  Roc mod: reset()");
 
         // Create PRESTART event
         PayloadBuffer pBuf = Evio.createControlBuffer(ControlType.PRESTART, emu.getRunNumber(),
-                                                      emu.getRunTypeId(), 0, 0,
-                                                      outputOrder, false);
+                                                      emu.getRunTypeId(), 0, 0,0,
+                                                      outputOrder, false, emu.isStreamingData());
         // Send to first ring on ALL channels
         for (int i=0; i < outputChannelCount; i++) {
             // Copy buffer and use that
@@ -2197,6 +2208,7 @@ System.out.println("  Roc mod: reset()");
         if (synced) {
             cMsgServer = emu.getCmsgPortal().getCmsgServer();
             try {
+                System.out.println("  Roc mod: prestart(), SUBSCRIBE");
                 cmsgSubHandle = cMsgServer.subscribe("sync", "ROC", callback, null);
             }
             catch (cMsgException e) {/* never happen */}
@@ -2215,8 +2227,8 @@ System.out.println("  Roc mod: reset()");
 
         // Create GO event
         PayloadBuffer pBuf = Evio.createControlBuffer(ControlType.GO, 0, 0,
-                                                      (int) eventCountTotal, 0,
-                                                      outputOrder, false);
+                                                      (int) eventCountTotal, (int)frameCountTotal, 0,
+                                                      outputOrder, false, emu.isStreamingData());
         // Send to first ring on ALL channels
         for (int i=0; i < outputChannelCount; i++) {
             // Copy buffer and use that
@@ -2240,32 +2252,32 @@ System.out.println("  Roc mod: reset()");
 
         moduleState = CODAState.ACTIVE;
 
-        // start up all threads
-        if (RateCalculator == null) {
-            RateCalculator = new Thread(emu.getThreadGroup(), new RateCalculatorThread(), emu.name()+":watcher");
-        }
-
-        if (RateCalculator.getState() == Thread.State.NEW) {
-            RateCalculator.start();
-        }
+//        // start up all threads
+//        if (RateCalculator == null) {
+//            RateCalculator = new Thread(emu.getThreadGroup(), new RateCalculatorThread(), emu.name()+":watcher");
+//        }
+//
+//        if (RateCalculator.getState() == Thread.State.NEW) {
+//            RateCalculator.start();
+//        }
 
         if (!noPhysics) {
             for (int i = 0; i < eventProducingThreads; i++) {
                 if (eventGeneratingThreads[i] == null) {
-//System.out.println("  Roc mod: create new event generating thread ");
+System.out.println("  Roc mod: create new event generating thread ");
                     eventGeneratingThreads[i] = new EventGeneratingThread(i, emu.getThreadGroup(),
                                                                           emu.name() + ":generator");
                 }
                 else if (!eventGeneratingThreads[i].isAlive()) {
-//System.out.println("  Roc mod: create new event generating thread, since old one is DEAD");
+System.out.println("  Roc mod: create new event generating thread, since old one is DEAD");
                     eventGeneratingThreads[i] = new EventGeneratingThread(i, emu.getThreadGroup(),
                                                                           emu.name() + ":generator");
                 }
 
-//System.out.println("  Roc mod: event generating thread " + eventGeneratingThreads[i].getName() + " isAlive = " +
-//                           eventGeneratingThreads[i].isAlive());
+System.out.println("  Roc mod: event generating thread " + eventGeneratingThreads[i].getName() + " isAlive = " +
+                           eventGeneratingThreads[i].isAlive());
                 if (eventGeneratingThreads[i].getState() == Thread.State.NEW) {
-//System.out.println("  Roc mod: starting event generating thread");
+System.out.println("  Roc mod: starting event generating thread");
                     eventGeneratingThreads[i].start();
                 }
             }

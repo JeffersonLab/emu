@@ -104,7 +104,7 @@ public class FarmController extends ModuleAdapter {
 
         // Reset some variables
         eventRate = wordRate = 0F;
-        eventCountTotal = wordCountTotal = 0L;
+        frameCountTotal = eventCountTotal = wordCountTotal = 0L;
 
         moduleState = CODAState.PAUSED;
         eventMovingThread = new EventMovingThread();
@@ -214,8 +214,8 @@ public class FarmController extends ModuleAdapter {
                                 // Create a new control event with updated control data in it
                                 PayloadBuffer pBuf = Evio.createControlBuffer(controlType,
                                                                               runNumber, runTypeId,
-                                                                              (int)eventCountTotal, 0,
-                                                                              outputOrder, false);
+                                                                              (int)eventCountTotal, (int)frameCountTotal,0,
+                                                                              outputOrder, false, emu.isStreamingData());
                                 // Goes to ring 0 since there is only 1 event-moving thread
                                 eventToOutputChannel(pBuf, i, 0);
                             }

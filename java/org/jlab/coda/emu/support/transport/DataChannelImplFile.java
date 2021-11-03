@@ -415,9 +415,10 @@ logger.info("      DataChannel File: reset " + name + " channel");
                         eventsWritten = (Long) stats[0];
                     }
                     // This END, has error condition set in 2nd data word
+// TODO: Take a look at this !!!
                     PayloadBuffer endBuf = Evio.createControlBuffer(ControlType.END, emu.getRunNumber(),
-                                                                    emu.getRunTypeId(), (int) eventsWritten,
-                                                                    0, byteOrder, true);
+                                                                    emu.getRunTypeId(), (int) eventsWritten, 0,
+                                                                    0, byteOrder, true, emu.isStreamingData());
                     if (emu.isFileWritingOn()) {
                         evioFileWriter.writeEventToFile(null, endBuf.getBuffer(), true);
                     }
@@ -533,8 +534,8 @@ logger.info("      DataChannel File: reset " + name + " - done");
                 // Put in END event
                 nextRingItem = ringBufferIn.nextIntr(1);
                 ringItem = ringBufferIn.get(nextRingItem);
-
-                ringItem.setAll(Evio.createControlEvent(ControlType.END, 0, 0, counter, 0, false),
+                ringItem.setAll(Evio.createControlEvent(ControlType.END, 0, 0, counter, counter,
+                                           0, false, emu.isStreamingData()),
                                 null, null, EventType.CONTROL, ControlType.END, false,
                                 false, isStreaming, id, recordId, sourceId, 1, name, null, null);
 

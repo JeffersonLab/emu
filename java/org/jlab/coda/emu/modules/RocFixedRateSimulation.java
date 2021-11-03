@@ -1227,8 +1227,8 @@ System.out.println("  Roc mod: reset()");
 
         // Put in END event
         PayloadBuffer pBuf = Evio.createControlBuffer(ControlType.END, 0, 0,
-                                                      (int)eventCountTotal, 0,
-                                                      outputOrder, false);
+                                                      (int)eventCountTotal, (int)frameCountTotal,0,
+                                                      outputOrder, false, emu.isStreamingData());
         // Send to first ring on ALL channels
         for (int i=0; i < outputChannelCount; i++) {
             if (i > 0) {
@@ -1275,8 +1275,8 @@ System.out.println("  Roc mod: reset()");
             gotEndCommand = false;
         }
 
-        // create threads objects (but don't start them yet)
-        RateCalculator = new Thread(emu.getThreadGroup(), new RateCalculatorThread(), emu.name()+":watcher");
+//        // create threads objects (but don't start them yet)
+//        RateCalculator = new Thread(emu.getThreadGroup(), new RateCalculatorThread(), emu.name()+":watcher");
 
         boolean sendUser = true;
 
@@ -1313,8 +1313,8 @@ System.out.println("  Roc mod: reset()");
 
         // Create PRESTART event
         PayloadBuffer pBuf = Evio.createControlBuffer(ControlType.PRESTART, emu.getRunNumber(),
-                                                      emu.getRunTypeId(), 0, 0,
-                                                      outputOrder, false);
+                                                      emu.getRunTypeId(), 0, 0, 0,
+                                                      outputOrder, false, emu.isStreamingData());
         // Send to first ring on ALL channels
         for (int i=0; i < outputChannelCount; i++) {
             // Copy buffer and use that
@@ -1401,8 +1401,8 @@ System.out.println("  Roc mod: reset()");
 
         // Create GO event
         PayloadBuffer pBuf = Evio.createControlBuffer(ControlType.GO, 0, 0,
-                                                      (int) eventCountTotal, 0,
-                                                      outputOrder, false);
+                                                      (int) eventCountTotal, (int)frameCountTotal, 0,
+                                                      outputOrder, false, emu.isStreamingData());
         // Send to first ring on ALL channels
         for (int i=0; i < outputChannelCount; i++) {
             // Copy buffer and use that
@@ -1427,14 +1427,14 @@ System.out.println("  Roc mod: inserted GO event to channel " + i);
 
         moduleState = CODAState.ACTIVE;
 
-        // start up all threads
-        if (RateCalculator == null) {
-            RateCalculator = new Thread(emu.getThreadGroup(), new RateCalculatorThread(), emu.name()+":watcher");
-        }
-
-        if (RateCalculator.getState() == Thread.State.NEW) {
-            RateCalculator.start();
-        }
+//        // start up all threads
+//        if (RateCalculator == null) {
+//            RateCalculator = new Thread(emu.getThreadGroup(), new RateCalculatorThread(), emu.name()+":watcher");
+//        }
+//
+//        if (RateCalculator.getState() == Thread.State.NEW) {
+//            RateCalculator.start();
+//        }
 
         if (!noPhysics) {
             for (int i = 0; i < eventProducingThreads; i++) {
