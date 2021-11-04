@@ -215,6 +215,8 @@ public class StreamAggregator extends ModuleAdapter {
     /** Thread to sort incoming time slice banks to proper build thread. */
     private TimeSliceSorter timeSliceSorterThread;
 
+    /** Number of elements in each sorter ring. */
+    private int sorterRingSize;
 
     // Each build thread is receiving data from 1 sorterRingBuffer
 
@@ -344,17 +346,11 @@ logger.info("  EB mod: internal ring buf count -> " + ringItemCount);
         //--------------------------------------------------------------------
         // Create rings to hold TimeSliceBanks - 1 for each build thread.
         // These rings only hold references to objects so no real memory
-        // being used.
+        // being used. Do this in prestart() but define array here.
         //--------------------------------------------------------------------
-        int sortRingSize = 4096;
+        sorterRingSize = 4096;
         sorterRingBuffers = new RingBuffer[buildingThreadCount];
-        for (int i=0; i < buildingThreadCount; i++) {
-            sorterRingBuffers[i] = createSingleProducer(new TimeSliceBankItemFactory(), sortRingSize,
-                    new SpinCountBackoffWaitStrategy(10000, new LiteBlockingWaitStrategy()));
-        }
-
-
-    }
+     }
 
 
     /** {@inheritDoc} */
@@ -1292,15 +1288,14 @@ System.out.println("  EB mod: sorter found END events on all input channels");
 
 
     /**
-     * <p>This thread is started by the PRESTART transition.
+     * <p>
+     * This thread is started by the PRESTART transition.
      * An empty buffer is obtained from a supply.
-     * One evio bank from each input channel are together built into a new event
-     * in that buffer. If this module has outputs, the built events are placed on
-     * an output channel.
-     * </p>
-     * <p>If there are multiple output channels, in default operation, this thread
-     * selects an output by round-robin. If however, this is a DC with multiple
-     * SEBs to send events to, then things are more complicated.
+     * All time slice banks with the same frame # (from a single input ring buffer
+     * containing all slices with the same time stamp) are built into a new aggregated
+     * bank in that buffer.
+     * If this module has outputs, the built banks are placed on an output channel.
+     * If there are multiple output channels, output is selected by round-robin.
      * </p>
      */
     class BuildingThread extends Thread {
@@ -1324,7 +1319,7 @@ System.out.println("  EB mod: sorter found END events on all input channels");
         // Stuff needed to direct built events to proper output channel(s)
 
         /** Number (index) of the current, sequential-between-all-built-thds,
-         * built event produced from this thread.
+         * built bank produced from this thread.
          * 1st build thread starts at 0, 2nd starts at 1, etc.
          * 1st build thread's 2nd event is btCount, 2nd thread's 2nd event is btCount + 1, etc.*/
         private long evIndex = 0;
@@ -1341,6 +1336,9 @@ System.out.println("  EB mod: sorter found END events on all input channels");
         private long nextSequence;
 
 
+        private String thdName;
+
+
 
         /**
          * Constructor.
@@ -1351,10 +1349,11 @@ System.out.println("  EB mod: sorter found END events on all input channels");
          */
         BuildingThread(int btIndex, ThreadGroup group, String name) {
             super(group, name);
+            thdName = name;
             this.btIndex = btIndex;
             evIndex = btIndex;
             btCount = buildingThreadCount;
-System.out.println("  EB mod: create Build Thread with index " + btIndex + ", count = " + btCount);
+System.out.println("  EB mod: create Build Thread (" + name + ") with index " + btIndex + ", count = " + btCount);
         }
 
 
@@ -1521,15 +1520,16 @@ System.out.println("  EB mod: bbSupply -> " + ringItemCount + " # of bufs, direc
 
                 // Initialize
                 int     tag;
-                long    firstEventNumber=1, startTime=0L;
+                long    startTime=0L;
                 long    storedSequence = 0L;
-                boolean haveEnd, havePhysicsEvents;
+                long    endSequence = -1;
+                boolean havePhysicsEvents;
                 boolean nonFatalError;
                 boolean generalInitDone = false;
                 EventType eventType;
 
-                int[]   bankData = new int[3];
-                int[]   returnLen   = new int[1];
+                int[] bankData  = new int[3];
+                int[] returnLen = new int[1];
 
                 if (outputChannelCount > 1) {
                     outputChannelIndex = -1;
@@ -1555,19 +1555,12 @@ System.out.println("  EB mod: bbSupply -> " + ringItemCount + " # of bufs, direc
                     statistics = new Statistics(1000000, 30);
                 }
 
-                // Ring Buffer stuff - define array for convenience
-                for (int i=0; i < btCount; i++) {
-                    // Gating sequence for each of the input channel rings
-                    nextSequence = buildSequenceIn[i].get() + 1L;
-                }
+                // Ring Buffer stuff
+                nextSequence = buildSequenceIn[btIndex].get() + 1L;
 
-                long endSequence = -1;
-
-
-                // All banks on the ring are physics events with the single possibility
+                // All banks on the ring are ROC raw / physics slices with the single possibility
                 // that there is an END event. User and other controls have already
                 // been dealt with in the sorter thread and been sent to output channels.
-
 
                 // Now do the event building
                 while (moduleState == CODAState.ACTIVE || paused) {
@@ -1613,7 +1606,7 @@ System.out.println("  EB mod: bbSupply -> " + ringItemCount + " # of bufs, direc
 
                         frame = bank.getTimeFrame();
                         eventType = bank.getEventType();
-                        ControlType controlType = bank.getControlType();
+//                        ControlType controlType = bank.getControlType();
 //System.out.println("  EB mod: bt" + btIndex + " ***** event order = " + bank.getByteOrder());
 //System.out.println("  EB mod: bt" + btIndex + " ***** frame = " + frame + ", event type = " + eventType + ", control type = " + controlType);
 
@@ -1867,6 +1860,7 @@ System.out.println("  EB mod: bt" + btIndex + " ***** found END event from " + b
 
                     // Each build thread must release the "slots" in the build thread ring
                     // buffer of the components it uses to build the physics event.
+//System.out.println("  EB mod: bt#" + btIndex + " release build seq " + nextSequence);
                     buildSequenceIn[btIndex].set(nextSequence++);
 
                     // Stats (need to be thread-safe)
@@ -1930,7 +1924,7 @@ System.out.println("  EB mod: bt" + btIndex + " ***** found END event from " + b
                         // While we have data to read ...
                         while (nextSequences[i] <= availableSequences[i]) {
                             buildingBank = (PayloadBuffer) ringBuffersIn[i].get(nextSequences[i]);
-//System.out.println("  EB mod: clean inputs, releasing seq " + nextSequences[i] + " from channel #" + i);
+//System.out.println("  EB mod:   clean inputs, releasing seq " + nextSequences[i] + " from channel #" + i);
                             //if (btCount == 1) {
                             buildingBank.releaseByteBuffer();
                             //}
@@ -1965,7 +1959,7 @@ System.out.println("  EB mod: bt" + btIndex + " ***** found END event from " + b
         // at each channel or module.
         // Check again if END event has arrived.
         if (end && !haveEndEvent) {
-System.out.println("  EB mod: endBuildThreads: will end building/filling threads but no END event");
+System.out.println("  EB mod: interruptThreads: will end building/filling threads but no END event");
             moduleState = CODAState.ERROR;
             emu.setErrorState("EB will end building/filling threads but no END event");
         }
@@ -2005,7 +1999,9 @@ System.out.println("  EB mod: endBuildThreads: will end building/filling threads
             try {
                 timeSliceSorterThread.join(1000);
             }
-            catch (InterruptedException e) {}
+            catch (InterruptedException e) {
+                e.printStackTrace();
+            }
         }
 
         // Join all Building threads
@@ -2013,7 +2009,9 @@ System.out.println("  EB mod: endBuildThreads: will end building/filling threads
             try {
                 thd.join(1000);
             }
-            catch (InterruptedException e) {}
+            catch (InterruptedException e) {
+                e.printStackTrace();
+            }
         }
     }
 
@@ -2026,6 +2024,10 @@ System.out.println("  EB mod: endBuildThreads: will end building/filling threads
 //        // Rate calculating thread
 //        if (RateCalculator != null) {
 //            RateCalculator.interrupt();
+//            try {
+//                RateCalculator.join(1000);
+//            }
+//            catch (Exception e) {}
 //        }
 //
 //        RateCalculator = new Thread(emu.getThreadGroup(), new RateCalculatorThread(), name+":watcher");
@@ -2036,6 +2038,10 @@ System.out.println("  EB mod: endBuildThreads: will end building/filling threads
         // Time slice sorting thread
         if (timeSliceSorterThread != null) {
             timeSliceSorterThread.interrupt();
+            try {
+                timeSliceSorterThread.join(1000);
+            }
+            catch (Exception e) {}
         }
         timeSliceSorterThread = new TimeSliceSorter();
         if (timeSliceSorterThread.getState() == Thread.State.NEW) {
@@ -2048,6 +2054,7 @@ System.out.println("  EB mod: endBuildThreads: will end building/filling threads
             for (int i = 0; i < buildingThreadCount; i++) {
                 BuildingThread thd1 = new BuildingThread(i, emu.getThreadGroup(), name + ":builder" + i);
                 buildingThreadList.add(thd1);
+//System.out.println("  EB mod: startThreads(), start build thread " + i);
                 thd1.start();
             }
 //        }
@@ -2067,10 +2074,11 @@ System.out.println("  EB mod: endBuildThreads: will end building/filling threads
         // EB threads must be immediately ended
         interruptThreads(false);
         joinThreads();
-        //stopBlockingThreads();
+
         RateCalculator = null;
         timeSliceSorterThread = null;
         buildingThreadList.clear();
+        Arrays.fill(sorterRingBuffers, null);
 
         paused = false;
 
@@ -2086,153 +2094,164 @@ System.out.println("  EB mod: endBuildThreads: will end building/filling threads
 
     /** {@inheritDoc} */
     public void end() {
-System.out.println("  EB mod: end(), set state to DOWNLOADED");
+//System.out.println("  EB mod: end(), set state to DOWNLOADED");
         moduleState = CODAState.DOWNLOADED;
 
         // Print out time-to-build-event histogram
         if (timeStatsOn) {
-System.out.println("  EB mod: end(), print histogram");
+//System.out.println("  EB mod: end(), print histogram");
             statistics.printBuildTimeHistogram("Time to build one event:", "nsec");
         }
 
         // Build & pre-processing threads should already be ended by END event
-System.out.println("  EB mod: end(), interrupt threads");
         interruptThreads(true);
         joinThreads();
+
         RateCalculator = null;
         timeSliceSorterThread = null;
         buildingThreadList.clear();
+        Arrays.fill(sorterRingBuffers, null);
 
         paused = false;
 
         try {
             // Set end-of-run time in local XML config / debug GUI
-System.out.println("  EB mod: end(), set internal ending time parameter");
+//System.out.println("  EB mod: end(), set internal ending time parameter");
             Configurer.setValue(emu.parameters(), "status/run_end_time", (new Date()).toString());
         }
         catch (DataNotFoundException e) {}
-System.out.println("  EB mod: end(), done");
     }
 
 
     /** {@inheritDoc} */
     public void prestart() throws CmdExecException {
 
-        // Event builder needs input
-        if (inputChannelCount < 1) {
-            moduleState = CODAState.ERROR;
-System.out.println("  EB mod: prestart, no input channels to EB");
-            emu.setErrorState("no input channels to EB");
-            throw new CmdExecException("no input channels to EB");
-        }
+            // Event builder needs input
+            if (inputChannelCount < 1) {
+                moduleState = CODAState.ERROR;
+    System.out.println("  EB mod: prestart, no input channels to EB");
+                emu.setErrorState("no input channels to EB");
+                throw new CmdExecException("no input channels to EB");
+            }
 
-        // Make sure each input channel is associated with a unique rocId
-        for (int i=0; i < inputChannelCount; i++) {
-            for (int j=i+1; j < inputChannelCount; j++) {
-                if (inputChannels.get(i).getID() == inputChannels.get(j).getID()) {
-                    moduleState = CODAState.ERROR;
-System.out.println("  EB mod: prestart, input channels have duplicate rocIDs");
-                    emu.setErrorState("input channels have duplicate rocIDs");
-                    throw new CmdExecException("input channels have duplicate rocIDs");
+            // Make sure each input channel is associated with a unique rocId
+            for (int i=0; i < inputChannelCount; i++) {
+                for (int j=i+1; j < inputChannelCount; j++) {
+                    if (inputChannels.get(i).getID() == inputChannels.get(j).getID()) {
+                        moduleState = CODAState.ERROR;
+    System.out.println("  EB mod: prestart, input channels have duplicate rocIDs");
+                        emu.setErrorState("input channels have duplicate rocIDs");
+                        throw new CmdExecException("input channels have duplicate rocIDs");
+                    }
                 }
             }
-        }
 
-        moduleState = CODAState.PAUSED;
-        paused = true;
+            moduleState = CODAState.PAUSED;
+            paused = true;
 
-        //------------------------------------------------
-        // Disruptor (RingBuffer) stuff for input channels
-        //------------------------------------------------
+            //------------------------------------------------
+            // Disruptor (RingBuffer) stuff for input channels
+            //------------------------------------------------
 
-        // Members used to free channel ring buffer items in sequence
-        lastSeq = new long[buildingThreadCount][inputChannelCount];
-        lastSeqReleased = new long[inputChannelCount];
-        maxSeqReleased  = new long[inputChannelCount];
-        betweenReleased = new int[inputChannelCount];
+            // Members used to free channel ring buffer items in sequence
+            lastSeq = new long[buildingThreadCount][inputChannelCount];
+            lastSeqReleased = new long[inputChannelCount];
+            maxSeqReleased  = new long[inputChannelCount];
+            betweenReleased = new int[inputChannelCount];
 
-        for (int i=0; i < buildingThreadCount; i++) {
-            Arrays.fill(lastSeq[i], -1);
-        }
-        Arrays.fill(lastSeqReleased, -1);
-        Arrays.fill(maxSeqReleased, -1);
+            for (int i=0; i < buildingThreadCount; i++) {
+                Arrays.fill(lastSeq[i], -1);
+            }
+            Arrays.fill(lastSeqReleased, -1);
+            Arrays.fill(maxSeqReleased, -1);
 
-        // "One ring buffer to rule them all and in the darkness bind them."
-        // Actually, one ring buffer for each input channel.
-        ringBuffersIn = new RingBuffer[inputChannelCount];
+            // "One ring buffer to rule them all and in the darkness bind them."
+            // Actually, one ring buffer for each input channel.
+            ringBuffersIn = new RingBuffer[inputChannelCount];
 
-        // For each input channel, 1 sequence (used by sorter thread)
-        sorterSequenceIn = new Sequence[inputChannelCount];
-        // For each input channel, one barrier
-        sorterBarrierIn = new SequenceBarrier[inputChannelCount];
+            // For each input channel, 1 sequence (used by sorter thread)
+            sorterSequenceIn = new Sequence[inputChannelCount];
+            // For each input channel, one barrier
+            sorterBarrierIn = new SequenceBarrier[inputChannelCount];
 
-        // 1 sequence used by a single build thread
-        buildSequenceIn = new Sequence[buildingThreadCount];
+            // 1 sequence used by a single build thread
+            System.out.println("  EB mod: prestart, redefine buildSequenceIn array");
+            buildSequenceIn = new Sequence[buildingThreadCount];
 
-        // For each build thread, one barrier
-        buildBarrierIn = new SequenceBarrier[buildingThreadCount];
+            // For each build thread, one barrier
+            buildBarrierIn = new SequenceBarrier[buildingThreadCount];
 
-        // Place to put ring level stats
-        inputChanLevels  = new int[inputChannelCount];
-        outputChanLevels = new int[outputChannelCount];
+            // Place to put ring level stats
+            inputChanLevels  = new int[inputChannelCount];
+            outputChanLevels = new int[outputChannelCount];
 
-        // Collect channel names for easy gathering of stats
-        int indx=0;
-        inputChanNames = new String[inputChannelCount];
-        for (DataChannel ch : inputChannels) {
-            inputChanNames[indx++] = ch.name();
-        }
-        indx = 0;
-        outputChanNames  = new String[outputChannelCount];
-        for (DataChannel ch : outputChannels) {
-            outputChanNames[indx++] = ch.name();
-        }
+            // Collect channel names for easy gathering of stats
+            int indx=0;
+            inputChanNames = new String[inputChannelCount];
+            for (DataChannel ch : inputChannels) {
+                inputChanNames[indx++] = ch.name();
+            }
+            indx = 0;
+            outputChanNames  = new String[outputChannelCount];
+            for (DataChannel ch : outputChannels) {
+                outputChanNames[indx++] = ch.name();
+            }
 
-        // Have ring sizes handy for calculations
-        ringBufferSize = new int[inputChannelCount];
+            // Have ring sizes handy for calculations
+            ringBufferSize = new int[inputChannelCount];
 
-        // For each build thread ...
-        for (int j = 0; j < buildingThreadCount; j++) {
-            // We have 1 sequence for each build thread
-            buildSequenceIn[j] = new Sequence(Sequencer.INITIAL_CURSOR_VALUE);
-            // This sequence will be the last consumer before sorter produces more
-            sorterRingBuffers[j].addGatingSequences(buildSequenceIn[j]);
-            // We have 1 barrier for each build thread
-            buildBarrierIn[j] = sorterRingBuffers[j].newBarrier();
-        }
+            //--------------------------------------------------------------------
+            // Create rings to hold TimeSliceBanks - 1 for each build thread.
+            // These rings only hold references to objects so no real memory
+            // being used.
+            //--------------------------------------------------------------------
+            for (int i=0; i < buildingThreadCount; i++) {
+                sorterRingBuffers[i] = createSingleProducer(new TimeSliceBankItemFactory(), sorterRingSize,
+                        new SpinCountBackoffWaitStrategy(10000, new LiteBlockingWaitStrategy()));
+            }
 
-        // For each channel ...
-        for (int i=0; i < inputChannelCount; i++) {
-            // Get channel's ring buffer
-            RingBuffer<RingItem> rb = inputChannels.get(i).getRingBufferIn();
-            ringBuffersIn[i]  = rb;
-            ringBufferSize[i] = rb.getBufferSize();
+            // For each build thread ...
+            for (int j = 0; j < buildingThreadCount; j++) {
+                // We have 1 sequence for each build thread
+                buildSequenceIn[j] = new Sequence(Sequencer.INITIAL_CURSOR_VALUE);
+                // This sequence will be the last consumer before sorter produces more
+                sorterRingBuffers[j].addGatingSequences(buildSequenceIn[j]);
+                // We have 1 barrier for each build thread
+                buildBarrierIn[j] = sorterRingBuffers[j].newBarrier();
+            }
 
-            // For sorter thread
+            // For each channel ...
+            for (int i=0; i < inputChannelCount; i++) {
+                // Get channel's ring buffer
+                RingBuffer<RingItem> rb = inputChannels.get(i).getRingBufferIn();
+                ringBuffersIn[i]  = rb;
+                ringBufferSize[i] = rb.getBufferSize();
 
-            // We have 1 sequence for each input channel
-            sorterSequenceIn[i] = new Sequence(Sequencer.INITIAL_CURSOR_VALUE);
-            // This sequence will be the last consumer before producer comes along
-            rb.addGatingSequences(sorterSequenceIn[i]);
+                // For sorter thread
 
-            // We have 1 barrier for each channel
-            sorterBarrierIn[i] = rb.newBarrier();
-        }
+                // We have 1 sequence for each input channel
+                sorterSequenceIn[i] = new Sequence(Sequencer.INITIAL_CURSOR_VALUE);
+                // This sequence will be the last consumer before producer comes along
+                rb.addGatingSequences(sorterSequenceIn[i]);
 
-        //------------------------------------------------
-        //
-        //------------------------------------------------
+                // We have 1 barrier for each channel
+                sorterBarrierIn[i] = rb.newBarrier();
+            }
 
-        // Reset some variables
-        eventRate = wordRate = 0F;
-        frameCountTotal = eventCountTotal = wordCountTotal = 0L;
-        runTypeId = emu.getRunTypeId();
-        runNumber = emu.getRunNumber();
+            //------------------------------------------------
+            //
+            //------------------------------------------------
+
+            // Reset some variables
+            eventRate = wordRate = 0F;
+            frameCountTotal = eventCountTotal = wordCountTotal = 0L;
+            runTypeId = emu.getRunTypeId();
+            runNumber = emu.getRunNumber();
 //        eventNumberAtLastSync = 1L;
-        haveEndEvent = false;
-        haveAllPrestartEvents = false;
+            haveEndEvent = false;
+            haveAllPrestartEvents = false;
 
-        // Print thread names
+            // Print thread names
 //        int thdCount = Thread.activeCount();
 //        Thread[] thds = new Thread[thdCount];
 //        Thread.enumerate(thds);
@@ -2240,13 +2259,14 @@ System.out.println("  EB mod: prestart, input channels have duplicate rocIDs");
 //        for (Thread t : thds) {
 //            System.out.println(t.getName());
 //        }
-        startThreads();
+            startThreads();
 
-        try {
-            // Set start-of-run time in local XML config / debug GUI
-            Configurer.setValue(emu.parameters(), "status/run_start_time", "--prestart--");
-        }
-        catch (DataNotFoundException e) {}
+            try {
+                // Set start-of-run time in local XML config / debug GUI
+                Configurer.setValue(emu.parameters(), "status/run_start_time", "--prestart--");
+            }
+            catch (DataNotFoundException e) {}
+
     }
 
 
