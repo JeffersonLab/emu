@@ -426,7 +426,7 @@ logger.info("  Module Adapter: output byte order = " + outputOrder);
     /** {@inheritDoc} */
     synchronized public Object[] getStatistics() {
 
-        Object[] stats = new Object[10];
+        Object[] stats = new Object[11];
 
         // If we're not active, keep the accumulated
         // totals and sizes, but the rates are zero.
@@ -441,7 +441,9 @@ logger.info("  Module Adapter: output byte order = " + outputOrder);
             stats[6] = avgEventSize;
             stats[7] = goodChunk_X_EtBufSize;
             stats[8] = timeToBuild;
-            stats[9] = frameCountTotal;
+
+            stats[9]  = frameCountTotal;
+            stats[10] = frameRate;
         }
         else {
             if (timeStatsOn && statistics != null) {
@@ -458,7 +460,9 @@ logger.info("  Module Adapter: output byte order = " + outputOrder);
             stats[6] = avgEventSize;
             stats[7] = goodChunk_X_EtBufSize;
             stats[8] = timeToBuild;
-            stats[9] = frameCountTotal;
+
+            stats[9]  = frameCountTotal;
+            stats[10] = frameRate;
         }
 
         return stats;

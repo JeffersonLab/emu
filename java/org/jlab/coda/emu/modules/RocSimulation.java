@@ -2102,8 +2102,8 @@ System.out.println("  Roc mod: PRESTART");
             gotEndCommand = false;
         }
 
-//        // create threads objects (but don't start them yet)
-//        RateCalculator = new Thread(emu.getThreadGroup(), new RateCalculatorThread(), emu.name()+":watcher");
+        // create threads objects (but don't start them yet)
+        RateCalculator = new Thread(emu.getThreadGroup(), new RateCalculatorThread(), emu.name()+":watcher");
 
 
 //        boolean sendUser = true;
@@ -2252,14 +2252,14 @@ System.out.println("  Roc mod: PRESTART");
 
         moduleState = CODAState.ACTIVE;
 
-//        // start up all threads
-//        if (RateCalculator == null) {
-//            RateCalculator = new Thread(emu.getThreadGroup(), new RateCalculatorThread(), emu.name()+":watcher");
-//        }
-//
-//        if (RateCalculator.getState() == Thread.State.NEW) {
-//            RateCalculator.start();
-//        }
+        // start up all threads
+        if (RateCalculator == null) {
+            RateCalculator = new Thread(emu.getThreadGroup(), new RateCalculatorThread(), emu.name()+":watcher");
+        }
+
+        if (RateCalculator.getState() == Thread.State.NEW) {
+            RateCalculator.start();
+        }
 
         if (!noPhysics) {
             for (int i = 0; i < eventProducingThreads; i++) {

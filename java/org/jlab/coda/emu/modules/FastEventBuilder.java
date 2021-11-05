@@ -2005,16 +2005,16 @@ System.out.println("  EB mod: endBuildThreads: will end building/filling threads
      * It creates these threads if they don't exist yet.
      */
     private void startThreads() {
-//        // Rate calculating thread
-//        if (RateCalculator != null) {
-//            RateCalculator.interrupt();
-//        }
-//
-//        RateCalculator = new Thread(emu.getThreadGroup(), new RateCalculatorThread(), name+":watcher");
-//
-//        if (RateCalculator.getState() == Thread.State.NEW) {
-//            RateCalculator.start();
-//        }
+        // Rate calculating thread
+        if (RateCalculator != null) {
+            RateCalculator.interrupt();
+        }
+
+        RateCalculator = new Thread(emu.getThreadGroup(), new RateCalculatorThread(), name+":watcher");
+
+        if (RateCalculator.getState() == Thread.State.NEW) {
+            RateCalculator.start();
+        }
 
 //        if (!dumpData) {
             // Build threads

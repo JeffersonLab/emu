@@ -181,14 +181,14 @@ public class EventRecording extends ModuleAdapter {
      * It creates these threads if they don't exist yet.
      */
     private void startThreads() {
-//        if (RateCalculator != null) {
-//            RateCalculator.interrupt();
-//        }
-//        RateCalculator = new Thread(emu.getThreadGroup(), new RateCalculatorThread(), name+":watcher");
-//
-//        if (RateCalculator.getState() == Thread.State.NEW) {
-//            RateCalculator.start();
-//        }
+        if (RateCalculator != null) {
+            RateCalculator.interrupt();
+        }
+        RateCalculator = new Thread(emu.getThreadGroup(), new RateCalculatorThread(), name+":watcher");
+
+        if (RateCalculator.getState() == Thread.State.NEW) {
+            RateCalculator.start();
+        }
 
         if (singleInput) {
             recordingThread = new RecordingThreadOneToMany(emu.getThreadGroup(), name+":recorder");

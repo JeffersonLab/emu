@@ -190,6 +190,8 @@ public class RCConstants {
     public static final String    eventCount64         = "eventCount64";
     public static final String    eventRate            = "eventRate";
     public static final String    dataRate             = "dataRate";
+    public static final String    frameCount           = "frameCount";
+    public static final String    frameRate            = "frameRate";
     public static final String    numberOfLongs        = "dataCount";
     public static final String    liveTime             = "liveTime";
     public static final String    filename             = "fileName";

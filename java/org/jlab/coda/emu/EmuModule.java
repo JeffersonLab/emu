@@ -129,17 +129,23 @@ public interface EmuModule extends StatedObject, CODAStateMachine {
      * <li>avg event size in bytes (Integer) if module is an EB
      * <li>suggested value for chunk*EtBufSize (Integer) if have ET output channel
      * <li>if EB and switched on, histogram of time to build 1 event in nanoseconds (int array)
-     * <li>frame count if aggregating streamed data, else null
+     * <li>frame count if aggregating streamed data, else null (Long)
+     * <li>frame rate if aggregating streamed data, else null  (Float)
      * </ol>
      *
-     * @return array of objects containing in order: 1) event count (Long),
-     *          2) word count (Long), 3) event rate(Float), 4) data rate (Float), optionally
-     *          5) max event byte size (Integer), 6) min event byte size (Integer),
-     *          7) average event byte size (Integer), and
-     *          8) suggested value for chunk*EtBufSize (Integer) if have ET output channel, or
-     *          9) histogram of time to build 1 event in nanosec (int array), or
-     *          null if no statistics reported for this module, or
-     *          10) frame count if aggregating streamed data (Long).
+     * @return array of objects containing in order:
+     *          1) event count (Long),
+     *          2) word count (Long),
+     *          3) event rate(Float),
+     *          4) data rate (Float),
+     *          5) max event byte size (Integer),
+     *          6) min event byte size (Integer),
+     *          7) average event byte size (Integer),
+     *          8) suggested value for chunk*EtBufSize (Integer) if have ET output channel,
+     *          9) histogram of time to build 1 event in nanosec (int array),
+     *             null if no statistics reported for this module,
+     *          10) frame count if aggregating streamed data (Long),
+     *          11) frame rate if aggregating streamed data (Float)
      */
     public Object[] getStatistics();
 

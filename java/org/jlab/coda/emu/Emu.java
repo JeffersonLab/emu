@@ -1061,8 +1061,8 @@ System.out.println("\n\n");
                     (cmsgPortal.getRcServer().isConnected())) {
 
                 // clear stats
-                long  eventCount=0L, wordCount=0L;
-                float eventRate=0.F, dataRate=0.F;
+                long  eventCount=0L, wordCount=0L, frameCount=0L;
+                float eventRate=0.F, dataRate=0.F, frameRate=0.F;
                 int   maxEvSize=0, minEvSize=0, avgEvSize=0, chunk_X_EtBuf=0;
                 int[] timeToBuild=null, inChanLevels=null, outChanLevels=null;
                 String[] inChanNames=null, outChanNames=null;
@@ -1082,6 +1082,9 @@ System.out.println("\n\n");
                         avgEvSize     = (Integer)stats[6];
                         chunk_X_EtBuf = (Integer)stats[7];
                         timeToBuild   = (int[])  stats[8];
+
+                        frameCount    = (Long)   stats[9];
+                        frameRate     = (Float)  stats[10];
                     }
 
                     // Channel levels are only meaningful for EB & ER during go.
@@ -1108,6 +1111,16 @@ System.out.println("\n\n");
                     if (codaClass == codaClass.PEBER || codaClass == codaClass.SEBER) {
                         reportMsg.addPayloadItem(new cMsgPayloadItem(RCConstants.codaClass, codaClass.EBER.name()));
                     }
+ // TODO:  For now masquerade as DC, SEB, and PEB
+                    else if (codaClass == codaClass.DCAG) {
+                        reportMsg.addPayloadItem(new cMsgPayloadItem(RCConstants.codaClass, codaClass.DC.name()));
+                    }
+                    else if (codaClass == codaClass.SAG) {
+                        reportMsg.addPayloadItem(new cMsgPayloadItem(RCConstants.codaClass, codaClass.SEB.name()));
+                    }
+                    else if (codaClass == codaClass.PAG) {
+                        reportMsg.addPayloadItem(new cMsgPayloadItem(RCConstants.codaClass, codaClass.PEB.name()));
+                    }
                     else {
                         reportMsg.addPayloadItem(new cMsgPayloadItem(RCConstants.codaClass, codaClass.name()));
                     }
@@ -1116,8 +1129,10 @@ System.out.println("\n\n");
                     reportMsg.addPayloadItem(new cMsgPayloadItem(RCConstants.eventCount, (int)eventCount));
                     reportMsg.addPayloadItem(new cMsgPayloadItem(RCConstants.eventCount64, eventCount));
                     reportMsg.addPayloadItem(new cMsgPayloadItem(RCConstants.numberOfLongs, wordCount));
+                    reportMsg.addPayloadItem(new cMsgPayloadItem(RCConstants.frameCount, frameCount));
                     // in Hz
                     reportMsg.addPayloadItem(new cMsgPayloadItem(RCConstants.eventRate, eventRate));
+                    reportMsg.addPayloadItem(new cMsgPayloadItem(RCConstants.frameRate, frameRate));
                     // in kBytes/sec
                     reportMsg.addPayloadItem(new cMsgPayloadItem(RCConstants.dataRate, (double)dataRate));
                     // in bytes
@@ -2009,10 +2024,7 @@ logger.info("Emu " + name + " go: change state to GOING");
         // The only thing we have to worry about is that the EB module checks to
         // see if all PRESTART events have arrived before it allows any building.
         // Also nice if ER gets it so it can be written to file before GO.
-        if (codaClass == CODAClass.DC    || codaClass == CODAClass.ER  ||
-            codaClass == CODAClass.SEB   || codaClass == CODAClass.PEB ||
-            codaClass == CODAClass.PEBER || codaClass == CODAClass.SEBER)  {
-
+        if (codaClass.isAggregator() || codaClass.isEventRecorder() || codaClass.isEventBuilder())  {
             try {
                 // Look at the last module in config
                 EmuModule mod = modules.get(modules.size() - 1);
