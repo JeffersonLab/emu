@@ -1730,25 +1730,23 @@ System.out.println("  EB mod: bt" + btIndex + " ***** found END event from " + b
 
                     // Create a (top-level) physics event from payload banks
                     // and the combined SIB bank. First create the tag:
-                    //   -if I'm a data concentrator or DC
-                    //   -if I'm a primary event builder or PEB
-                    //   -if I'm a secondary event builder or SEB
+                    //   -if I'm a data concentrator or DCAG
+                    //   -if I'm a primary aggregatpr or PAG
+                    //   -if I'm a secondary aggregator or SAG
                     CODAClass myClass = emu.getCodaClass();
                     tag = CODATag.STREAMING_TIB.getValue();
                     switch (myClass) {
-                        case SEB:
-                        case SEBER:
-                        case PEB:
-                        case PEBER:
+                        case SAG:
+                        case PAG:
                             eventType = EventType.PHYSICS;
                             break;
 
-                        //case DC:
+                        case DCAG:
                         default:
                             eventType = EventType.PARTIAL_PHYSICS;
                             // Check input banks for non-fatal errors
-                            for (PayloadBuffer pBank : sameStampBanks)  {
-                                nonFatalError |= pBank.hasNonFatalBuildingError();
+                            for (int i=0; i < sliceCount; i++) {
+                                nonFatalError |= sameStampBanks[i].hasNonFatalBuildingError();
                             }
                     }
 
@@ -2021,19 +2019,19 @@ System.out.println("  EB mod: interruptThreads: will end building/filling thread
      * It creates these threads if they don't exist yet.
      */
     private void startThreads() {
-//        // Rate calculating thread
-//        if (RateCalculator != null) {
-//            RateCalculator.interrupt();
-//            try {
-//                RateCalculator.join(1000);
-//            }
-//            catch (Exception e) {}
-//        }
-//
-//        RateCalculator = new Thread(emu.getThreadGroup(), new RateCalculatorThread(), name+":watcher");
-//        if (RateCalculator.getState() == Thread.State.NEW) {
-//            RateCalculator.start();
-//        }
+        // Rate calculating thread
+        if (RateCalculator != null) {
+            RateCalculator.interrupt();
+            try {
+                RateCalculator.join(1000);
+            }
+            catch (Exception e) {}
+        }
+
+        RateCalculator = new Thread(emu.getThreadGroup(), new RateCalculatorThread(), name+":watcher");
+        if (RateCalculator.getState() == Thread.State.NEW) {
+            RateCalculator.start();
+        }
 
         // Time slice sorting thread
         if (timeSliceSorterThread != null) {

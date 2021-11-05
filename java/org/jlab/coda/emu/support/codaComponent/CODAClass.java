@@ -31,23 +31,35 @@ public enum CODAClass {
     /** Read out controller. */
     ROC("read out controller", 1010),
 
-    /** Data concentrator (first level) type of event builder. */
+    /** Data concentrator, first level event builder to be followed by SEB. */
     DC("data concentrator", 910),
 
-    /** Event builder and Event recorder connected with fifo - to be used with DC's or ROCs. */
-    EBER("event builder", 810),
+    /** Data concentrating aggregator, first level aggregator to be followed by SAG.
+     *  Used in place of DC when streaming. */
+    DCAG("data concentrating aggregator", 910),
 
-    /** Event builder and Event recorder connected with fifo - to be used with ROCs. */
-    PEBER("event builder", 810),
+    /** Generic representation of either PEBER or SEBER. */
+    EBER("event builder and recorder", 810),
 
-    /** Event builder and Event recorder connected with fifo - to be used with DCs. */
-    SEBER("event builder", 810),
+    /** Primary event builder and event recorder connected with fifo in one emu - to be used with ROCs. */
+    PEBER("primary event builder and recorder", 810),
 
-    /** Secondary (second level) type of event builder - to be used with DC's. */
-    SEB("event builder", 610),
+    /** Secondary event builder and event recorder connected with fifo in one emu - to be used with DCs. */
+    SEBER("secondary event builder and recorder", 810),
+
+    /** Secondary event builder - to be used with DC's. */
+    SEB("secondary event builder", 610),
 
     /** Primary event builder (one and only one event builder). */
-    PEB("event builder", 510),
+    PEB("primary event builder", 510),
+
+    /** Secondary time slice aggregator - to be used with DCAG's.
+     *  Used in place of SEB when streaming.*/
+    SAG("secondary slice aggregator", 610),
+
+    /** Primary time slice aggregator (one and only one aggregator).
+     *  Used in place of PEB when streaming. */
+    PAG("primary slice aggregator", 510),
 
     /** Farm Controller. */
     FCS("farm controller", 410),
@@ -134,6 +146,24 @@ public enum CODAClass {
      */
     public boolean isFinalEventBuilder() {
         return (this == SEB || this == PEB || this == PEBER || this == SEBER);
+    }
+
+    /**
+     * Is this class representative of a time slice aggregating emu?
+     * @return {@code true} if this class represents an aggregatomg emu,
+     *         else {@code false}.
+     */
+    public boolean isAggregator() {
+        return (this == DCAG || this == SAG || this == PAG);
+    }
+
+    /**
+     * Is this class representative of a final time slice aggregator emu (NOT DCAG)?
+     * @return {@code true} if this class represents a final aggregating emu,
+     *         else {@code false}.
+     */
+    public boolean isFinalAggregator() {
+        return (this == SAG || this == PAG);
     }
 
     /**
