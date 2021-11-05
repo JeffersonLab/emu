@@ -1563,6 +1563,15 @@ logger.info("      DataChannel Emu in: got " + controlType + " event from " + na
                         // getScannedEvent will clear child and allNodes lists
                         node = reader.getScannedEvent(i, pool);
                     }
+
+                    // If time slices coming from DCAG, SAG, or PAG
+                    if (eventType.isBuildable()) {
+                        int pos = node.getPosition();
+                        ByteBuffer buff = node.getBuffer();
+                        frame = buff.getInt(16 + pos);
+                        timestamp = EmuUtilities.intsToLong(buff.getInt(20 + pos), buff.getInt(24 + pos));
+//System.out.println("      DataChannel Emu in: roc raw has frame = " + frame + ", timestamp = " + timestamp + ", pos = " + pos);
+                    }
                 }
 
                 nextRingItem = ringBufferIn.nextIntr(1);
