@@ -183,10 +183,7 @@ logger.warn("Emu: exit due to rc/cMsg connect error: " + e.getMessage());
         if (platformHost == null) platformHost = addrs[0];
 
         // Install callback for reporting the smallest number of evio events per ET event
-        if (emu.getCodaClass() == CODAClass.SEB   ||
-            emu.getCodaClass() == CODAClass.PEB   ||
-            emu.getCodaClass() == CODAClass.PEBER ||
-            emu.getCodaClass() == CODAClass.SEBER)  {
+        if (emu.getCodaClass().isEventBuilder() || emu.getCodaClass().isAggregator()) {
 
             boolean foundServer = false;
 //System.out.println("Emu: cMsgPortal got platform cMsg domain server port = " + platformPort);
