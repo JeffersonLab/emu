@@ -117,11 +117,10 @@
     <!-- if $CODA is set, use that for classpath -->
     <target name="CODA_cp" depends="installCheck" if="codaDefined">
         <path id="classpath">
-            <fileset dir="${env.CODA}/common/jar" >
+            <fileset dir="${local.jars}" >
                 <include name="*.jar" />
             </fileset>
-            <!-- however, use jars from this distribution if necessary -->
-            <fileset dir="${local.jars}" >
+            <fileset dir="${env.CODA}/common/jar" >
                 <include name="*.jar" />
             </fileset>
         </path>
