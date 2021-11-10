@@ -16,8 +16,6 @@ endif
 
 if ($#argv > 1) then
 $JAVA_HOME/bin/java -cp $CODA/common/jar/\* \
-    -XX:+UseZGC \
-    -XX:+FlightRecorder \
     -XX:PerMethodRecompilationCutoff=40 \
     -XX:NmethodSweepActivity=1 \
     -Xms10G \
@@ -29,8 +27,6 @@ $JAVA_HOME/bin/java -cp $CODA/common/jar/\* \
     -Dtype=SEB org.jlab.coda.emu.EmuFactory
 else
 $JAVA_HOME/bin/java -cp $CODA/common/jar/\* \
-    -XX:+UseZGC \
-    -XX:+FlightRecorder \
     -XX:PerMethodRecompilationCutoff=40 \
     -XX:NmethodSweepActivity=1 \
     -Xms10G \
