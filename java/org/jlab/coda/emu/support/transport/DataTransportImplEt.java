@@ -641,7 +641,7 @@ logger.info("    DataTransport Et: used java process handle to kill ET");
             etOpenConfig.setWaitTime(2000);
             etOpenConfig.setConnectRemotely(true);
             etSystem = new EtSystem(etOpenConfig);
-            //etSystem.setDebug(EtConstants.debugInfo);
+etSystem.setDebug(EtConstants.debugInfo);
         }
         catch (EtException e) {
             transportState = CODAState.ERROR;
