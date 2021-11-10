@@ -777,21 +777,6 @@ logger.debug("    DataTransport Et: create local C ET system, " + etOpenConfig.g
                         throw new CmdExecException(errorOut);
                     }
                 }
-                else {
-                    String errorOut = "";
-                    // grab any output
-                    String[] retStrings = gatherAllOutput(processET, true);
-                    if (retStrings[0] != null) {
-                        errorOut += retStrings[0];
-                    }
-                    if (retStrings[1] != null) {
-                        if (retStrings[0] != null) {
-                            errorOut += "\n";
-                        }
-                        errorOut += retStrings[1];
-                    }
-                    logger.debug("Output from starting ET:\n" + errorOut);
-                }
 
                 // There is no feedback mechanism to tell if
                 // this ET system actually started.
