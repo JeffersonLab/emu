@@ -266,6 +266,7 @@ logger.info("      DataChannel Et: creating output channel " + name);
             openConfig.setNoDelay(noDelay);
             // debug is set to error in constructor
             etSystem = new EtSystem(openConfig);
+            etSystem.setDebug(EtConstants.debugInfo);
         }
         catch (EtException e) {
             throw new DataTransportException("", e);
