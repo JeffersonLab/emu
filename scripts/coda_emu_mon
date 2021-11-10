@@ -20,15 +20,8 @@ endif
 if ($#argv > 2) then
 $JAVA_HOME/bin/java -cp $CODA/common/jar/\* \
     -XX:+UnlockCommercialFeatures -XX:+FlightRecorder \
-    -XX:+AssumeMP \
     -XX:PerMethodRecompilationCutoff=40 \
     -XX:NmethodSweepActivity=1 \
-    -XX:+UseConcMarkSweepGC \
-    -XX:+CMSParallelRemarkEnabled \
-    -XX:+ScavengeBeforeFullGC \
-    -XX:+CMSScavengeBeforeRemark \
-    -XX:+UseCMSInitiatingOccupancyOnly \
-    -XX:CMSInitiatingOccupancyFraction=70 \
     -Xms10G \
     -DrcAddr=$3 \
     -Djava.net.preferIPv4Stack=true \
@@ -39,15 +32,8 @@ $JAVA_HOME/bin/java -cp $CODA/common/jar/\* \
 else
 $JAVA_HOME/bin/java -cp $CODA/common/jar/\* \
     -XX:+UnlockCommercialFeatures -XX:+FlightRecorder \
-    -XX:+AssumeMP \
     -XX:PerMethodRecompilationCutoff=40 \
     -XX:NmethodSweepActivity=1 \
-    -XX:+UseConcMarkSweepGC \
-    -XX:+CMSParallelRemarkEnabled \
-    -XX:+ScavengeBeforeFullGC \
-    -XX:+CMSScavengeBeforeRemark \
-    -XX:+UseCMSInitiatingOccupancyOnly \
-    -XX:CMSInitiatingOccupancyFraction=70 \
     -Xms10G \
     -Djava.net.preferIPv4Stack=true \
     -Djava.library.path=$CODA/$MACHINE/lib \
