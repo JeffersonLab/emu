@@ -221,12 +221,12 @@ public class DataTransportImplEt extends DataTransportAdapter {
                 {
                     String line = in.readLine();
                     if (line == null) {
-                        try {
-                            Thread.sleep(200);
-                        } catch (InterruptedException e) {
-                            e.printStackTrace();
-                            return;
-                        }
+//                        try {
+//                            Thread.sleep(1);
+//                        } catch (InterruptedException e) {
+//                            e.printStackTrace();
+//                            return;
+//                        }
                         continue;
                     }
                     result.append(line).append(NEWLINE);
