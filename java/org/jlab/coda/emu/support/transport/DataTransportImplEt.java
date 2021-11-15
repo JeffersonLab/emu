@@ -784,11 +784,11 @@ logger.debug("    DataTransport Et: create local C ET system, " + etOpenConfig.g
                 // redefine these variables.
                 // Scrap this for now!
                 //processET = Runtime.getRuntime().exec(cmds);
-
+etCmd = "/daqfs/home/timmer/coda/coda3.11/Linux-x86_64/bin/" + etCmd;
                 ProcessBuilder pb = new ProcessBuilder(etCmd).redirectErrorStream(true);
                 processET = pb.start();
 
-                //processET = Runtime.getRuntime().exec(etCmd);
+                processET = Runtime.getRuntime().exec(etCmd);
 
                 // Allow process a chance to run before testing if its terminated.
                 Thread.yield();
