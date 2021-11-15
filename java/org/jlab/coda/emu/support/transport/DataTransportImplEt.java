@@ -744,7 +744,7 @@ logger.info("    DataTransport Et: used java process handle to kill ET");
                 List<String> command = new ArrayList<String>(13);
                 command.add("et_start");
                 command.add("-v");
-                command.add("-d");
+                //command.add("-d");
                 command.add("-f " + etOpenConfig.getEtName());
                 command.add("-s " + systemConfig.getEventSize());
                 command.add("-n " + systemConfig.getNumEvents());
