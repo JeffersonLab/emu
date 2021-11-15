@@ -220,11 +220,18 @@ public class DataTransportImplEt extends DataTransportAdapter {
                 while (true)
                 {
                     String line = in.readLine();
-                    if (line == null)
-                        break;
+                    if (line == null) {
+                        try {
+                            Thread.sleep(200);
+                        } catch (InterruptedException e) {
+                            e.printStackTrace();
+                            return;
+                        }
+                        continue;
+                    }
                     result.append(line).append(NEWLINE);
+                    System.out.println("ET SYSTEM: " + line);
                 }
-                System.out.println("ET SYSTEM: " + result.toString());
             }
             catch (IOException e) {
                 // probably best to ignore this error
@@ -818,6 +825,7 @@ etCmd = "/daqfs/home/timmer/coda/coda3.11/Linux-x86_64/bin/" + etCmd;
                 }
 
                 if (terminated) {
+                    logger.debug("    DataTransport Et:  ET system process was terminated");
                     String errorOut = "";
                     // grab any output
                     String[] retStrings = gatherAllOutput(processET, true);
@@ -851,7 +859,7 @@ etCmd = "/daqfs/home/timmer/coda/coda3.11/Linux-x86_64/bin/" + etCmd;
                     }
                 }
                 else {
-                    logger.debug("Run the GatherOutputThread so we can see what's going on in the ET system");
+                    logger.debug("    DataTransport Et: run the GatherOutputThread so we can see what's going on in the ET system");
                     // Start thread to gather and printout the output of the ET system
                     GatherOutputThread gthread = new GatherOutputThread(processET);
                     gthread.start();
