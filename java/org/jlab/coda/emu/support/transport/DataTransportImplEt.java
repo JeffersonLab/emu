@@ -751,27 +751,27 @@ logger.info("    DataTransport Et: used java process handle to kill ET");
                 List<String> command = new ArrayList<String>(13);
                 command.add("et_start");
                 command.add("-v");
-                //command.add("-d");
-                command.add("-f " + etOpenConfig.getEtName());
-                command.add("-s " + systemConfig.getEventSize());
-                command.add("-n " + systemConfig.getNumEvents());
-                command.add("-g " + systemConfig.getGroups().length);
-                command.add("-p " + systemConfig.getServerPort());
-                command.add("-u " + systemConfig.getUdpPort());
+                command.add("-f "); command.add(etOpenConfig.getEtName());
+                command.add("-s "); command.add(""+systemConfig.getEventSize());
+                command.add("-n "); command.add(""+systemConfig.getNumEvents());
+                command.add("-g "); command.add(""+systemConfig.getGroups().length);
+                command.add("-p "); command.add(""+systemConfig.getServerPort());
+                command.add("-u "); command.add(""+systemConfig.getUdpPort());
+                command.add("-d");
 
                 if (systemConfig.getMulticastAddrs().size() > 0) {
                     etCmd += " -a " + systemConfig.getMulticastStrings()[0];
-                    command.add("-a " + systemConfig.getMulticastStrings()[0]);
+                    command.add("-a "); command.add(systemConfig.getMulticastStrings()[0]);
                 }
 
                 if (systemConfig.getTcpRecvBufSize() > 0) {
                     etCmd += " -rb " + systemConfig.getTcpRecvBufSize();
-                    command.add("-rb " + systemConfig.getTcpRecvBufSize());
+                    command.add("-rb "); command.add(""+systemConfig.getTcpRecvBufSize());
                 }
 
                 if (systemConfig.getTcpSendBufSize() > 0) {
                     etCmd += " -sb " + systemConfig.getTcpSendBufSize();
-                    command.add("-sb " + systemConfig.getTcpSendBufSize());
+                    command.add("-sb "); command.add(""+systemConfig.getTcpSendBufSize());
                 }
 
                 if (systemConfig.isNoDelay()) {
@@ -779,7 +779,9 @@ logger.info("    DataTransport Et: used java process handle to kill ET");
                     command.add("-nd");
                 }
 
-logger.debug("    DataTransport Et: create local C ET system, " + etOpenConfig.getEtName() +
+
+
+                logger.debug("    DataTransport Et: create local C ET system, " + etOpenConfig.getEtName() +
                      " with cmd:\n" + etCmd);
 
 //                Calendar cal = Calendar.getInstance();
