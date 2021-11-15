@@ -230,7 +230,7 @@ public class DataTransportImplEt extends DataTransportAdapter {
                         continue;
                     }
                     result.append(line).append(NEWLINE);
-                    System.out.println("ET SYSTEM: " + line);
+                    System.out.println(line);
                 }
             }
             catch (IOException e) {
