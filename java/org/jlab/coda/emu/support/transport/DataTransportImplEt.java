@@ -741,20 +741,35 @@ logger.info("    DataTransport Et: used java process handle to kill ET");
                         " -u " + systemConfig.getUdpPort() +
                         " -d";
 
+                List<String> command = new ArrayList<String>(13);
+                command.add("et_start");
+                command.add("-v");
+                command.add("-d");
+                command.add("-f " + etOpenConfig.getEtName());
+                command.add("-s " + systemConfig.getEventSize());
+                command.add("-n " + systemConfig.getNumEvents());
+                command.add("-g " + systemConfig.getGroups().length);
+                command.add("-p " + systemConfig.getServerPort());
+                command.add("-u " + systemConfig.getUdpPort());
+
                 if (systemConfig.getMulticastAddrs().size() > 0) {
                     etCmd += " -a " + systemConfig.getMulticastStrings()[0];
+                    command.add("-a " + systemConfig.getMulticastStrings()[0]);
                 }
 
                 if (systemConfig.getTcpRecvBufSize() > 0) {
                     etCmd += " -rb " + systemConfig.getTcpRecvBufSize();
+                    command.add("-rb " + systemConfig.getTcpRecvBufSize());
                 }
 
                 if (systemConfig.getTcpSendBufSize() > 0) {
                     etCmd += " -sb " + systemConfig.getTcpSendBufSize();
+                    command.add("-sb " + systemConfig.getTcpSendBufSize());
                 }
 
                 if (systemConfig.isNoDelay()) {
                     etCmd += " -nd";
+                    command.add("-nd");
                 }
 
 logger.debug("    DataTransport Et: create local C ET system, " + etOpenConfig.getEtName() +
@@ -785,7 +800,7 @@ logger.debug("    DataTransport Et: create local C ET system, " + etOpenConfig.g
                 // Scrap this for now!
                 //processET = Runtime.getRuntime().exec(cmds);
 etCmd = "/daqfs/home/timmer/coda/coda3.11/Linux-x86_64/bin/" + etCmd;
-                ProcessBuilder pb = new ProcessBuilder(etCmd).redirectErrorStream(true);
+                ProcessBuilder pb = new ProcessBuilder(command).redirectErrorStream(true);
                 processET = pb.start();
 
                 //processET = Runtime.getRuntime().exec(etCmd);
