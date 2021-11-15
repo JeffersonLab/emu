@@ -39,29 +39,45 @@ import java.util.*;
  */
 public class DataTransportImplEt extends DataTransportAdapter {
 
-    /** Does the ET system get created by this object if it does not already exist? */
+    /**
+     * Does the ET system get created by this object if it does not already exist?
+     */
     private boolean tryToCreateET;
 
-    /** Did this object actually create the ET system? */
+    /**
+     * Did this object actually create the ET system?
+     */
     private boolean createdET;
 
-    /** Do we want a Java-based ET system run in this JVM (true) or
-     *  do we want a to connect to a C-based system in another process (false). */
+    /**
+     * Do we want a Java-based ET system run in this JVM (true) or
+     * do we want a to connect to a C-based system in another process (false).
+     */
     private boolean isJavaSystem;
 
-    /** ET system this object created. */
+    /**
+     * ET system this object created.
+     */
     private EtSystem etSystem;
 
-    /** Configuration for opening the associated ET system. */
+    /**
+     * Configuration for opening the associated ET system.
+     */
     private EtSystemOpenConfig openConfig;
 
-    /** Configuration for creating the associated ET system. */
+    /**
+     * Configuration for creating the associated ET system.
+     */
     private SystemConfig systemConfig;
 
-    /** Local, running, java ET system. */
+    /**
+     * Local, running, java ET system.
+     */
     private SystemCreate etSysLocal;
 
-    /** Running ET system process if any. */
+    /**
+     * Running ET system process if any.
+     */
     private Process processET;
 
     private Emu emu;
@@ -69,23 +85,28 @@ public class DataTransportImplEt extends DataTransportAdapter {
     private Logger logger;
 
 
-    /** Thread used to kill ET and remove file if JVM exited by control-C. */
+    /**
+     * Thread used to kill ET and remove file if JVM exited by control-C.
+     */
     private ControlCThread shutdownThread = new ControlCThread();
 
-    /** Class describing thread to be used for killing ET
-     *  and removing file if JVM exited by control-C. */
+    /**
+     * Class describing thread to be used for killing ET
+     * and removing file if JVM exited by control-C.
+     */
     static private class ControlCThread extends Thread {
         EtSystem etSys;
         String etFileName;
 
-        ControlCThread() {}
+        ControlCThread() {
+        }
 
-        ControlCThread(EtSystem etSys,String etFileName) {
+        ControlCThread(EtSystem etSys, String etFileName) {
             this.etSys = etSys;
             this.etFileName = etFileName;
         }
 
-        void reset(EtSystem etSys,String etFileName) {
+        void reset(EtSystem etSys, String etFileName) {
             this.etSys = etSys;
             this.etFileName = etFileName;
         }
@@ -98,8 +119,8 @@ public class DataTransportImplEt extends DataTransportAdapter {
                 try {
 //System.out.println("    DataTransport Et: try killing ET");
                     etSys.kill();
+                } catch (Exception e) {
                 }
-                catch (Exception e) {}
             }
 
             // Try deleting any ET system file
@@ -110,8 +131,8 @@ public class DataTransportImplEt extends DataTransportAdapter {
 //System.out.println("    DataTransport Et: try deleting file");
                         etFile.delete();
                     }
+                } catch (Exception e) {
                 }
-                catch (Exception e) {}
             }
         }
     }
@@ -135,14 +156,13 @@ public class DataTransportImplEt extends DataTransportAdapter {
                 sb.append(line);
                 sb.append('\n');
             }
-        }
-        catch (IOException e) {
+        } catch (IOException e) {
             // probably best to ignore this error
         }
 
         if (sb.length() > 0) {
             // take off last \n we put in buffer
-            sb.deleteCharAt(sb.length()-1);
+            sb.deleteCharAt(sb.length() - 1);
             return sb.toString();
         }
 
@@ -177,6 +197,41 @@ public class DataTransportImplEt extends DataTransportAdapter {
 
         return strs;
     }
+
+
+    /**
+     * Used to catch the ET system output.
+     * The process to start the ET system has already merged the regular and error streams.
+     */
+    private class GatherOutputThread extends Thread {
+
+        private final String NEWLINE = System.getProperty("line.separator");
+        Process process;
+
+        GatherOutputThread(Process process) {
+            this.process = process;
+        }
+
+        public void run() {
+            // Grab output
+            StringBuilder result = new StringBuilder(300);
+
+            try (BufferedReader in = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
+                while (true)
+                {
+                    String line = in.readLine();
+                    if (line == null)
+                        break;
+                    result.append(line).append(NEWLINE);
+                }
+                System.out.println("ET SYSTEM: " + result.toString());
+            }
+            catch (IOException e) {
+                // probably best to ignore this error
+            }
+        }
+    }
+
 
 
     /**
@@ -730,7 +785,10 @@ logger.debug("    DataTransport Et: create local C ET system, " + etOpenConfig.g
                 // Scrap this for now!
                 //processET = Runtime.getRuntime().exec(cmds);
 
-                processET = Runtime.getRuntime().exec(etCmd);
+                ProcessBuilder pb = new ProcessBuilder(etCmd).redirectErrorStream(true);
+                processET = pb.start();
+
+                //processET = Runtime.getRuntime().exec(etCmd);
 
                 // Allow process a chance to run before testing if its terminated.
                 Thread.yield();
@@ -777,6 +835,12 @@ logger.debug("    DataTransport Et: create local C ET system, " + etOpenConfig.g
                         throw new CmdExecException(errorOut);
                     }
                 }
+                else {
+                    logger.debug("Run the GatherOutputThread so we can see what's going on in the ET system");
+                    // Start thread to gather and printout the output of the ET system
+                    GatherOutputThread gthread = new GatherOutputThread(processET);
+                    gthread.start();
+                }
 
                 // There is no feedback mechanism to tell if
                 // this ET system actually started.
@@ -799,6 +863,7 @@ logger.debug("    DataTransport Et: create local C ET system, " + etOpenConfig.g
                 // Thread to run in case of control-C
                 shutdownThread.reset(etSystem, etOpenConfig.getEtName());
             }
+
         }
         catch (Exception e) {
             e.printStackTrace();
