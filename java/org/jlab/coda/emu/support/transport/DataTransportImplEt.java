@@ -808,8 +808,10 @@ logger.info("    DataTransport Et: used java process handle to kill ET");
                 // redefine these variables.
                 // Scrap this for now!
                 //processET = Runtime.getRuntime().exec(cmds);
-etCmd = "/daqfs/home/timmer/coda/coda3.11/Linux-x86_64/bin/" + etCmd;
-                ProcessBuilder pb = new ProcessBuilder(command).redirectErrorStream(true);
+//etCmd = "/daqfs/home/timmer/coda/coda3.11/Linux-x86_64/bin/" + etCmd;
+
+                String[] cmd = etCmd.split(" ");
+                ProcessBuilder pb = new ProcessBuilder(cmd).redirectErrorStream(true);
                 processET = pb.start();
 
                 //processET = Runtime.getRuntime().exec(etCmd);
