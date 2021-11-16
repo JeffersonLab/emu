@@ -799,9 +799,10 @@ logger.info("    DataTransport Et: used java process handle to kill ET");
 
                 String[] cmd = etCmd.split(" ");
                 // Merge the io and error streams into one stream for simplicity
-                ProcessBuilder pb = new ProcessBuilder(cmd).redirectErrorStream(true);
+                ProcessBuilder pb = new ProcessBuilder(cmd).redirectErrorStream(true).inheritIO();
                 // Start up ET system
                 processET = pb.start();
+
 
                 // Allow process a chance to run before testing if its terminated.
                 Thread.yield();
@@ -820,8 +821,8 @@ logger.info("    DataTransport Et: used java process handle to kill ET");
                     // If this is not done, then internal buffers fill up with console output
                     // and the ET system will eventually crash depending on how many print
                     // statements it executes.
-                    gatherOutputThread = new GatherOutputThread(processET, true);
-                    gatherOutputThread.start();
+              //      gatherOutputThread = new GatherOutputThread(processET, true);
+              //      gatherOutputThread.start();
                 }
                 else {
                     logger.debug("    DataTransport Et:  ET system process was terminated");
