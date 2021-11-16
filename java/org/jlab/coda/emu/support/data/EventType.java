@@ -23,7 +23,8 @@ public enum EventType {
     DISENTANGLED_PHYSICS (3),
     USER                 (4),
     CONTROL              (5),
-    OTHER               (15);
+    MIXED                (6),
+    OTHER                (15);
 
     private int value;
 
@@ -78,6 +79,14 @@ public enum EventType {
      */
     public int getValue() {
         return value;
+    }
+
+    /**
+     * Is this a mixed event type?
+     * @return <code>true</code> if mixed event type, else <code>false</code>
+     */
+    public boolean isMixed() {
+        return (this == MIXED);
     }
 
     /**
