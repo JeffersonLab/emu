@@ -2054,6 +2054,8 @@ logger.info("      DataChannel Et in: wake up GETTER's getEvents() call so it ca
 
         /** Stop all this object's threads from an external thread. */
         private void shutdown() {
+            if (etSystem == null || attachment == null) return;
+
             // If any EvGetter thread is stuck on etSystem.newEvents(), unstuck it
             try {
                 // Wake up getter thread
