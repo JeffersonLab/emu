@@ -27,7 +27,6 @@ import org.jlab.coda.et.system.SystemCreate;
 
 import java.io.*;
 import java.net.ServerSocket;
-import java.net.Socket;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -72,8 +71,8 @@ public class DataTransportImplEt extends DataTransportAdapter {
 
     private Logger logger;
 
-    /** Thread which reads out and error streams from ET process. */
-    GatherOutputThread gatherOutputThread;
+//    /** Thread which reads out and error streams from ET process. */
+//    GatherOutputThread gatherOutputThread;
 
     /** Thread used to kill ET and remove file if JVM exited by control-C. */
     private ControlCThread shutdownThread = new ControlCThread();
@@ -187,56 +186,56 @@ public class DataTransportImplEt extends DataTransportAdapter {
     }
 
 
-    /**
-     * Used to catch the ET system output.
-     * The process to start the ET system has already merged the regular and error streams.
-     */
-    private class GatherOutputThread extends Thread {
-
-        Process process;
-        boolean verbose;
-        AtomicBoolean die = new AtomicBoolean(false);
-
-        GatherOutputThread(Process process, boolean verbose) {
-            this.process = process;
-            this.verbose = verbose;
-        }
-
-        public void killThread() {
-            die.set(true);
-        }
-
-        public void run() {
-
-            try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
-
-                while (true) {
-                    // Don't want to block on read in case we need to kill this thread
-                    if (reader.ready()) {
-                        String line = reader.readLine();
-                        if (line == null) {
-                            continue;
-                        }
-                        if (verbose) System.out.println(line);
-                    }
-                    else {
-                        try {
-                            Thread.sleep(100);
-                        } catch (InterruptedException e) {
-                            return;
-                        }
-                    }
-
-                    if (Thread.interrupted() || die.get()) {
-                        return;
-                    }
-                }
-            }
-            catch (IOException e) {
-                // probably best to ignore this error
-            }
-        }
-    }
+//    /**
+//     * Used to catch the ET system output.
+//     * The process to start the ET system has already merged the regular and error streams.
+//     */
+//    private class GatherOutputThread extends Thread {
+//
+//        Process process;
+//        boolean verbose;
+//        AtomicBoolean die = new AtomicBoolean(false);
+//
+//        GatherOutputThread(Process process, boolean verbose) {
+//            this.process = process;
+//            this.verbose = verbose;
+//        }
+//
+//        public void killThread() {
+//            die.set(true);
+//        }
+//
+//        public void run() {
+//
+//            try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
+//
+//                while (true) {
+//                    // Don't want to block on read in case we need to kill this thread
+//                    if (reader.ready()) {
+//                        String line = reader.readLine();
+//                        if (line == null) {
+//                            continue;
+//                        }
+//                        if (verbose) System.out.println(line);
+//                    }
+//                    else {
+//                        try {
+//                            Thread.sleep(100);
+//                        } catch (InterruptedException e) {
+//                            return;
+//                        }
+//                    }
+//
+//                    if (Thread.interrupted() || die.get()) {
+//                        return;
+//                    }
+//                }
+//            }
+//            catch (IOException e) {
+//                // probably best to ignore this error
+//            }
+//        }
+//    }
 
 
 
@@ -612,10 +611,10 @@ logger.info("    DataTransport Et: tell ET to die - " + openConfig.getEtName());
 
         boolean killedIt = false;
 
-        // Kill thread reading streams from ET process
-        if (gatherOutputThread != null) {
-            gatherOutputThread.killThread();
-        }
+//        // Kill thread reading streams from ET process
+//        if (gatherOutputThread != null) {
+//            gatherOutputThread.killThread();
+//        }
 
         // Stop ET system running in this JVM
         if (etSysLocal != null) {
@@ -798,11 +797,10 @@ logger.info("    DataTransport Et: used java process handle to kill ET");
                 //processET = Runtime.getRuntime().exec(cmds);
 
                 String[] cmd = etCmd.split(" ");
-                // Merge the io and error streams into one stream for simplicity
-                ProcessBuilder pb = new ProcessBuilder(cmd).redirectErrorStream(true).inheritIO();
+                // Make ET io and error streams into local streams
+                ProcessBuilder pb = new ProcessBuilder(cmd).inheritIO();
                 // Start up ET system
                 processET = pb.start();
-
 
                 // Allow process a chance to run before testing if its terminated.
                 Thread.yield();
@@ -816,15 +814,7 @@ logger.info("    DataTransport Et: used java process handle to kill ET");
                     terminated = false;
                 }
 
-                if (!terminated) {
-                    // Start thread to gather (and perhaps printout) the output of the ET system.
-                    // If this is not done, then internal buffers fill up with console output
-                    // and the ET system will eventually crash depending on how many print
-                    // statements it executes.
-              //      gatherOutputThread = new GatherOutputThread(processET, true);
-              //      gatherOutputThread.start();
-                }
-                else {
+                if (terminated) {
                     logger.debug("    DataTransport Et:  ET system process was terminated");
                     String errorOut = "";
                     // grab any output
