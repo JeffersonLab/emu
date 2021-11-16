@@ -29,6 +29,7 @@ import java.io.*;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.util.*;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * This class specifies a single ET system to connect to.
@@ -39,14 +40,10 @@ import java.util.*;
  */
 public class DataTransportImplEt extends DataTransportAdapter {
 
-    /**
-     * Does the ET system get created by this object if it does not already exist?
-     */
+    /** Does the ET system get created by this object if it does not already exist? */
     private boolean tryToCreateET;
 
-    /**
-     * Did this object actually create the ET system?
-     */
+    /** Did this object actually create the ET system? */
     private boolean createdET;
 
     /**
@@ -55,40 +52,32 @@ public class DataTransportImplEt extends DataTransportAdapter {
      */
     private boolean isJavaSystem;
 
-    /**
-     * ET system this object created.
-     */
+    /** ET system this object created. */
     private EtSystem etSystem;
 
-    /**
-     * Configuration for opening the associated ET system.
-     */
+    /** Configuration for opening the associated ET system. */
     private EtSystemOpenConfig openConfig;
 
-    /**
-     * Configuration for creating the associated ET system.
-     */
+    /** Configuration for creating the associated ET system. */
     private SystemConfig systemConfig;
 
-    /**
-     * Local, running, java ET system.
-     */
+    /** Local, running, java ET system. */
     private SystemCreate etSysLocal;
 
-    /**
-     * Running ET system process if any.
-     */
+    /** Running ET system process if any. */
     private Process processET;
 
+    /** Emu which created this object. */
     private Emu emu;
 
     private Logger logger;
 
+    /** Thread which reads out and error streams from ET process. */
+    GatherOutputThread gatherOutputThread;
 
-    /**
-     * Thread used to kill ET and remove file if JVM exited by control-C.
-     */
+    /** Thread used to kill ET and remove file if JVM exited by control-C. */
     private ControlCThread shutdownThread = new ControlCThread();
+
 
     /**
      * Class describing thread to be used for killing ET
@@ -98,8 +87,7 @@ public class DataTransportImplEt extends DataTransportAdapter {
         EtSystem etSys;
         String etFileName;
 
-        ControlCThread() {
-        }
+        ControlCThread() {}
 
         ControlCThread(EtSystem etSys, String etFileName) {
             this.etSys = etSys;
@@ -205,32 +193,43 @@ public class DataTransportImplEt extends DataTransportAdapter {
      */
     private class GatherOutputThread extends Thread {
 
-        private final String NEWLINE = System.getProperty("line.separator");
         Process process;
+        boolean verbose;
+        AtomicBoolean die = new AtomicBoolean(false);
 
-        GatherOutputThread(Process process) {
+        GatherOutputThread(Process process, boolean verbose) {
             this.process = process;
+            this.verbose = verbose;
+        }
+
+        public void killThread() {
+            die.set(true);
         }
 
         public void run() {
-            // Grab output
-            StringBuilder result = new StringBuilder(300);
 
-            try (BufferedReader in = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
-                while (true)
-                {
-                    String line = in.readLine();
-                    if (line == null) {
-//                        try {
-//                            Thread.sleep(1);
-//                        } catch (InterruptedException e) {
-//                            e.printStackTrace();
-//                            return;
-//                        }
-                        continue;
+            try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
+
+                while (true) {
+                    // Don't want to block on read in case we need to kill this thread
+                    if (reader.ready()) {
+                        String line = reader.readLine();
+                        if (line == null) {
+                            continue;
+                        }
+                        if (verbose) System.out.println(line);
                     }
-                    result.append(line).append(NEWLINE);
-                    System.out.println(line);
+                    else {
+                        try {
+                            Thread.sleep(100);
+                        } catch (InterruptedException e) {
+                            return;
+                        }
+                    }
+
+                    if (Thread.interrupted() || die.get()) {
+                        return;
+                    }
                 }
             }
             catch (IOException e) {
@@ -613,6 +612,11 @@ logger.info("    DataTransport Et: tell ET to die - " + openConfig.getEtName());
 
         boolean killedIt = false;
 
+        // Kill thread reading streams from ET process
+        if (gatherOutputThread != null) {
+            gatherOutputThread.killThread();
+        }
+
         // Stop ET system running in this JVM
         if (etSysLocal != null) {
 logger.info("    DataTransport Et: shutdown local Java ET system");
@@ -748,38 +752,21 @@ logger.info("    DataTransport Et: used java process handle to kill ET");
                         " -u " + systemConfig.getUdpPort() +
                         " -d";
 
-                List<String> command = new ArrayList<String>(13);
-                command.add("et_start");
-                command.add("-v");
-                command.add("-f "); command.add(etOpenConfig.getEtName());
-                command.add("-s "); command.add(""+systemConfig.getEventSize());
-                command.add("-n "); command.add(""+systemConfig.getNumEvents());
-                command.add("-g "); command.add(""+systemConfig.getGroups().length);
-                command.add("-p "); command.add(""+systemConfig.getServerPort());
-                command.add("-u "); command.add(""+systemConfig.getUdpPort());
-                command.add("-d");
-
                 if (systemConfig.getMulticastAddrs().size() > 0) {
                     etCmd += " -a " + systemConfig.getMulticastStrings()[0];
-                    command.add("-a "); command.add(systemConfig.getMulticastStrings()[0]);
                 }
 
                 if (systemConfig.getTcpRecvBufSize() > 0) {
                     etCmd += " -rb " + systemConfig.getTcpRecvBufSize();
-                    command.add("-rb "); command.add(""+systemConfig.getTcpRecvBufSize());
                 }
 
                 if (systemConfig.getTcpSendBufSize() > 0) {
                     etCmd += " -sb " + systemConfig.getTcpSendBufSize();
-                    command.add("-sb "); command.add(""+systemConfig.getTcpSendBufSize());
                 }
 
                 if (systemConfig.isNoDelay()) {
                     etCmd += " -nd";
-                    command.add("-nd");
                 }
-
-
 
                 logger.debug("    DataTransport Et: create local C ET system, " + etOpenConfig.getEtName() +
                      " with cmd:\n" + etCmd);
@@ -807,14 +794,14 @@ logger.info("    DataTransport Et: used java process handle to kill ET");
                 // Script can be set to use bash if set with SHELL env var. Bash will not
                 // redefine these variables.
                 // Scrap this for now!
+
                 //processET = Runtime.getRuntime().exec(cmds);
-//etCmd = "/daqfs/home/timmer/coda/coda3.11/Linux-x86_64/bin/" + etCmd;
 
                 String[] cmd = etCmd.split(" ");
+                // Merge the io and error streams into one stream for simplicity
                 ProcessBuilder pb = new ProcessBuilder(cmd).redirectErrorStream(true);
+                // Start up ET system
                 processET = pb.start();
-
-                //processET = Runtime.getRuntime().exec(etCmd);
 
                 // Allow process a chance to run before testing if its terminated.
                 Thread.yield();
@@ -828,7 +815,15 @@ logger.info("    DataTransport Et: used java process handle to kill ET");
                     terminated = false;
                 }
 
-                if (terminated) {
+                if (!terminated) {
+                    // Start thread to gather (and perhaps printout) the output of the ET system.
+                    // If this is not done, then internal buffers fill up with console output
+                    // and the ET system will eventually crash depending on how many print
+                    // statements it executes.
+                    gatherOutputThread = new GatherOutputThread(processET, true);
+                    gatherOutputThread.start();
+                }
+                else {
                     logger.debug("    DataTransport Et:  ET system process was terminated");
                     String errorOut = "";
                     // grab any output
@@ -861,12 +856,6 @@ logger.info("    DataTransport Et: used java process handle to kill ET");
                                      systemConfig.getServerPort() + " already in use");
                         throw new CmdExecException(errorOut);
                     }
-                }
-                else {
-                    logger.debug("    DataTransport Et: run the GatherOutputThread so we can see what's going on in the ET system");
-                    // Start thread to gather and printout the output of the ET system
-                    GatherOutputThread gthread = new GatherOutputThread(processET);
-                    gthread.start();
                 }
 
                 // There is no feedback mechanism to tell if
