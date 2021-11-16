@@ -863,10 +863,10 @@ logger.info("    DataTransport Et: used java process handle to kill ET");
                     }
                 }
                 else {
-//                    logger.debug("    DataTransport Et: run the GatherOutputThread so we can see what's going on in the ET system");
-//                    // Start thread to gather and printout the output of the ET system
-//                    GatherOutputThread gthread = new GatherOutputThread(processET);
-//                    gthread.start();
+                    logger.debug("    DataTransport Et: run the GatherOutputThread so we can see what's going on in the ET system");
+                    // Start thread to gather and printout the output of the ET system
+                    GatherOutputThread gthread = new GatherOutputThread(processET);
+                    gthread.start();
                 }
 
                 // There is no feedback mechanism to tell if
