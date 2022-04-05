@@ -168,9 +168,13 @@
     </target>
     
     <!-- Compile all source -->
+
     <target name="compile" depends="CODA_cp,prepare" description="Compiles all source code.">
-        <javac destdir="${build.classes}" debug="${javac.debug}" optimize="yes" >
-            <src path="${src.dir}" />
+        <javac sourcepath="" srcdir="${src.dir}" destdir="${build.classes}" debug="${javac.debug}" optimize="yes" >
+            <include name="**/*.java"/>
+            <!-- Only way to exclude a file to set the sourcepath, then specify include as well as exclude -->
+            <exclude name="**/DataChannelImplUdpStream.java" />
+            <exclude name="**/DataTransportImplUdpStream.java" />
             <classpath refid="classpath" />
         </javac>
 
