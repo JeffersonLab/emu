@@ -1514,7 +1514,7 @@ System.out.println("      DataChannel Et in: GETTER is Quitting");
             boolean delay = false;
             boolean useDirectEt = (etSysLocal != null);
             boolean etAlive = true;
-            boolean hasFirstEvent, isUser=false, isStreaming;
+            boolean hasFirstEvent, isUser=false;
             EvioNodeSource nodePool;
 
             EtContainer etContainer = null;
@@ -1659,7 +1659,6 @@ System.out.println("      DataChannel Et in: GETTER is Quitting");
 
                         controlType   = null;
                         hasFirstEvent = header.hasFirstEvent();
-                        isStreaming   = header.isStreaming();
 
                         eventType = EventType.getEventType(header.getEventType());
                         if (eventType == null || !eventType.isEbFriendly()) {
@@ -1799,12 +1798,12 @@ System.out.println("      DataChannel Et in: GETTER is Quitting");
                             // Set & reset all parameters of the ringItem
                             if (eventType.isBuildable()) {
                                 ri.setAll(null, null, node, eventType, controlType,
-                                          isUser, hasFirstEvent, isStreaming, id, recordId, sourceId,
+                                          isUser, hasFirstEvent, module.isStreamingData(), id, recordId, sourceId,
                                           node.getNum(), name, bbItem, bbSupply);
                             }
                             else {
                                 ri.setAll(null, null, node, eventType, controlType,
-                                          isUser, hasFirstEvent, isStreaming, id, recordId,
+                                          isUser, hasFirstEvent, module.isStreamingData(), id, recordId,
                                           sourceId, 1, name, bbItem, bbSupply);
                             }
 

@@ -209,14 +209,6 @@ public class Emu implements CODAComponent {
     //------------------------------------------------
 
     /**
-     * Is this emu sending/receiving streaming format data or not?
-     * This is different than stream id or stream count which
-     * does NOT refer to data format but only the number of parallel
-     * data conduits or streams.
-     * */
-    private boolean streamingData = true;
-
-    /**
      * In the case that a configuration has more than 1 data stream -
      * the number of final EBs - the components that write to a file
      * (usually the ERs) need to know how many data streams there are in the
@@ -812,12 +804,6 @@ System.out.println("Emu created, name = " + name + ", type = " + codaClass);
      * @return true if someone hit the END button (until END transition finished).
      */
     public boolean theEndIsNigh() {return theEndIsNigh;}
-
-    /**
-     * Does this emu process streaming data?
-     * @return {@code true} if this emu processes streaming data, else {@code false}.
-     */
-    public boolean isStreamingData() {return streamingData;}
 
 
     //------------------------------------------------
@@ -2110,7 +2096,6 @@ System.out.println("Emu " + name + " go: " + e.getMessage());
      */
     private void prestart(Command cmd) {
         logger.info("Emu " + name + " prestart: change state to PRESTARTING");
-        logger.info("Emu " + name + " streaming = " + isStreamingData());
 //        System.out.println("CMD; " + cmd.getMessage().toString());
         setState(PRESTARTING);
 

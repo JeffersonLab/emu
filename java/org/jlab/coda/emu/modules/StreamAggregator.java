@@ -164,9 +164,6 @@ public class StreamAggregator extends ModuleAdapter {
     // Configuration parameters
     // ---------------------------------------------------
 
-    /** If <code>true</code>, data to be built is from a streaming (not triggered) source. */
-    private boolean streamingData;
-
     /**
      * The maximum difference in ticks for timestamps for a single event before
      * an error condition is flagged.
@@ -289,18 +286,12 @@ logger.info("  EB mod: # of event building threads = " + buildingThreadCount);
                 dumpData = true;
             }
         }
-//dumpData = true;
+//dumpData = true;wq
 
-        // default is that data is from triggered source
+        // The only way a StreamAggregator gets created in the first place
+        // is for streaming="on" to be set in jcedit.
+        // So just ignore the "streaming" attribute.
         streamingData = true;
-        str = attributeMap.get("streaming");
-        if (str != null) {
-            if (str.equalsIgnoreCase("true") ||
-                    str.equalsIgnoreCase("on")   ||
-                    str.equalsIgnoreCase("yes"))   {
-                streamingData = true;
-            }
-        }
 
         // default to 2 clock ticks
         timestampSlop = 2;
@@ -374,6 +365,10 @@ logger.info("  EB mod: internal ring buf count -> " + ringItemCount);
             builtEventCount = avgEventSize = 0;
         }
     }
+
+
+    /** {@inheritDoc} */
+    public boolean isStreamingData() {return true;}
 
 
     /**
@@ -586,7 +581,7 @@ System.out.println("  EB mod: getAllControlEvents got seq " + nextSequences[i]);
         controlBufs[0] = Evio.createControlBuffer(controlType,
                                                   runNumber, runTypeId,
                                                   (int)frameCountTotal, (int)frameCountTotal,
-                                                  0, outputOrder, false, emu.isStreamingData());
+                                                  0, outputOrder, false, streamingData);
 
         // For the other output channels, duplicate first with separate position & limit.
         // Important to do this duplication BEFORE sending to output channels or position
@@ -951,7 +946,7 @@ System.out.println("  EB mod: findEnd, chan " + ch + " got END from " + source +
             // Create END event
             PayloadBuffer endEvent = Evio.createControlBuffer(ControlType.END, runNumber, runTypeId,
                     (int) frameCountTotal, (int)frameCountTotal, 0,
-                    outputOrder, false, emu.isStreamingData());
+                    outputOrder, false, streamingData);
 
             int nextBt = (currentBT + 1) % buildingThreadCount;
             sendToTimeSliceBankRing(endEvent, nextBt);

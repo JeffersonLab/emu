@@ -113,7 +113,6 @@ public class DataChannelImplCmsg extends DataChannelAdapter {
             }
 
             boolean isUser = false;
-            boolean isStreaming = blockHeader.isStreaming();
             boolean hasFirstEvent = blockHeader.hasFirstEvent();
             EventType eventType = EventType.getEventType(blockHeader.getEventType());
             int recordId = blockHeader.getNumber();
@@ -160,12 +159,12 @@ public class DataChannelImplCmsg extends DataChannelAdapter {
 
                 if (bankType.isBuildable()) {
                     ringItem.setAll(null, null, node, bankType, controlType,
-                                   isUser, hasFirstEvent, isStreaming, id, recordId, sourceId,
+                                   isUser, hasFirstEvent, module.isStreamingData(), id, recordId, sourceId,
                                    node.getNum(), name, null, null);
                 }
                 else {
                     ringItem.setAll(null, null, node, bankType, controlType,
-                                   isUser, hasFirstEvent, isStreaming, id, recordId, sourceId,
+                                   isUser, hasFirstEvent, module.isStreamingData(), id, recordId, sourceId,
                                    1, name, null, null);
                 }
 

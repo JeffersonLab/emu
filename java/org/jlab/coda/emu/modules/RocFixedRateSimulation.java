@@ -1228,7 +1228,7 @@ System.out.println("  Roc mod: reset()");
         // Put in END event
         PayloadBuffer pBuf = Evio.createControlBuffer(ControlType.END, 0, 0,
                                                       (int)eventCountTotal, (int)frameCountTotal,0,
-                                                      outputOrder, false, emu.isStreamingData());
+                                                      outputOrder, false, isStreamingData());
         // Send to first ring on ALL channels
         for (int i=0; i < outputChannelCount; i++) {
             if (i > 0) {
@@ -1314,7 +1314,7 @@ System.out.println("  Roc mod: reset()");
         // Create PRESTART event
         PayloadBuffer pBuf = Evio.createControlBuffer(ControlType.PRESTART, emu.getRunNumber(),
                                                       emu.getRunTypeId(), 0, 0, 0,
-                                                      outputOrder, false, emu.isStreamingData());
+                                                      outputOrder, false, isStreamingData());
         // Send to first ring on ALL channels
         for (int i=0; i < outputChannelCount; i++) {
             // Copy buffer and use that
@@ -1402,7 +1402,7 @@ System.out.println("  Roc mod: reset()");
         // Create GO event
         PayloadBuffer pBuf = Evio.createControlBuffer(ControlType.GO, 0, 0,
                                                       (int) eventCountTotal, (int)frameCountTotal, 0,
-                                                      outputOrder, false, emu.isStreamingData());
+                                                      outputOrder, false, isStreamingData());
         // Send to first ring on ALL channels
         for (int i=0; i < outputChannelCount; i++) {
             // Copy buffer and use that

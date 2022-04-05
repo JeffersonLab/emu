@@ -32,7 +32,7 @@ public interface EmuModule extends StatedObject, CODAStateMachine {
      * Get the name of the module
      * @return module name
      */
-    public String name();
+    String name();
 
     /**
      * Get the named attribute from the config file of this module.
@@ -40,7 +40,7 @@ public interface EmuModule extends StatedObject, CODAStateMachine {
      * @return string value of the attribute
      * @throws DataNotFoundException if attribute not found.
      */
-    public String getAttr(String name) throws DataNotFoundException;
+    String getAttr(String name) throws DataNotFoundException;
 
     /**
      * Get the named attribute, as an integer, from the config file of this module.
@@ -49,13 +49,13 @@ public interface EmuModule extends StatedObject, CODAStateMachine {
      * @throws DataNotFoundException if attribute not found.
      * @throws NumberFormatException if attribute cannot be interpreted as an integer
      */
-    public int getIntAttr(String name) throws DataNotFoundException, NumberFormatException;
+    int getIntAttr(String name) throws DataNotFoundException, NumberFormatException;
 
     /**
      * Add the given input channels to this EmuModule object.
      * @param input_channels the input channels to add to this EmuModule object
      */
-    public void addInputChannels(ArrayList<DataChannel> input_channels);
+    void addInputChannels(ArrayList<DataChannel> input_channels);
 
     /**
      * Add the given output channels to this EmuModule object.
@@ -67,52 +67,52 @@ public interface EmuModule extends StatedObject, CODAStateMachine {
       * Get the input channels of this EmuModule object.
       * @return ArrayList containing the input channels of this EmuModule object
       */
-     public ArrayList<DataChannel> getInputChannels();
+     ArrayList<DataChannel> getInputChannels();
 
      /**
       * Get the output channels of this EmuModule object.
       * @return ArrayList containing the output channels of this EmuModule object
       */
-     public ArrayList<DataChannel> getOutputChannels();
+     ArrayList<DataChannel> getOutputChannels();
 
     /**
      * Get the number of items this EmuModule object has in its internal rings.
      * @return number of items this EmuModule object has in its internal rings.
      */
-    public int getInternalRingCount();
+    int getInternalRingCount();
 
     /**
      * Get the names of the input channels of this EmuModule object.
      * Used in gathering statistics.
      * @return array containing names of input channels of this EmuModule object
      */
-    public String[] getInputNames();
+    String[] getInputNames();
 
     /**
      * Get the names of the output channels of this EmuModule object.
      * Used in gathering statistics.
      * @return array containing names of output channels of this EmuModule object
      */
-    public String[] getOutputNames();
+    String[] getOutputNames();
 
     /**
      * Get array containing the relative fill level (0-100) of each input channel's ring.
      * Used in gathering statistics.
      * @return array containing relative fill level (0-100) of input channels' ring(s).
      */
-    public int[] getInputLevels();
+    int[] getInputLevels();
 
     /**
      * Get array containing the relative fill level (0-100) of each output channel's ring(s).
      * Used in gathering statistics.
      * @return array containing relative fill level (0-100) of output channels' ring(s).
      */
-    public int[] getOutputLevels();
+    int[] getOutputLevels();
 
     /**
      * Remove all channels from this EmuModule object.
      */
-    public void clearChannels();
+    void clearChannels();
 
     /**
      * <p>
@@ -147,7 +147,7 @@ public interface EmuModule extends StatedObject, CODAStateMachine {
      *          10) frame count if aggregating streamed data (Long),
      *          11) frame rate if aggregating streamed data (Float)
      */
-    public Object[] getStatistics();
+    Object[] getStatistics();
 
     /**
       * Adjust the event count and word count reported by this module to run control
@@ -158,7 +158,7 @@ public interface EmuModule extends StatedObject, CODAStateMachine {
       * @param eventsAdded number of events to be added the event count
       * @param wordsAdded number of words to be added the word count
       */
-     void adjustStatistics(long eventsAdded, long wordsAdded);
+    void adjustStatistics(long eventsAdded, long wordsAdded);
 
     /**
      * If an EMU has more than one module, which module's statistics represent the EMU
@@ -169,18 +169,24 @@ public interface EmuModule extends StatedObject, CODAStateMachine {
      *
      * @return <code>true</code> if this module's statistics represents the EMU, else <code>false</code>.
      */
-    public boolean representsEmuStatistics();
+    boolean representsEmuStatistics();
 
     /**
      * Get the number of threads which produce events to be placed in output channels.
      * @return number of threads which produce events to be placed in output channels.
      */
-    public int getEventProducingThreadCount();
+    int getEventProducingThreadCount();
 
     /**
      * Get the byte order of the module's output. Defaults to big endian.
      * @return byte order of the module's output.
      */
-    public ByteOrder getOutputOrder();
+    ByteOrder getOutputOrder();
+
+    /**
+     * Does this module process streaming data?
+     * @return {@code true} if this emodule processes streaming data, else {@code false}.
+     */
+    boolean isStreamingData();
 
 }

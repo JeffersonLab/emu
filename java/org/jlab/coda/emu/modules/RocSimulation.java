@@ -87,9 +87,6 @@ public class RocSimulation extends ModuleAdapter {
     /** Flag saying we got the GO command. */
     private volatile boolean gotGoCommand;
 
-    /** If true, data is in streaming format. */
-    private boolean streaming;
-
     /** Number suffix on ROC name. If none, 0. */
     private int rocNumber;
 
@@ -443,9 +440,8 @@ System.out.println("  Roc mod: sync = " + synced);
         }
 
         // Keep things simple for streaming
-        if (emu.isStreamingData()) {
+        if (isStreamingData()) {
             eventProducingThreads = 1;
-            streaming = true;
         }
 
         // Event generating threads
@@ -1652,7 +1648,7 @@ System.out.println("  Roc mod: NEED TO GENERATE MORE REAL DATA, have " + arrayBy
             this.myId = id;
 
             // Is we streamin'?
-            if (streaming) {
+            if (isStreamingData()) {
                 //generatedDataWords = 40*75;
                 generatedDataWords = 5;
                 ByteBuffer singleTSB = createSingleTimeSliceBuffer(generatedDataWords, frameNumber, timestamp);
@@ -1833,7 +1829,7 @@ System.out.println("  Roc mod: NEED TO GENERATE MORE REAL DATA, have " + arrayBy
                         }
 //System.out.println("  Roc mod: write event");
 
-                        if (streaming) {
+                        if (isStreamingData()) {
                             writeDualTimeSliceBuffer(buf, templateBuffer, frameNumber,
                                                  timestamp, copyWholeBuf, bytesPerDataBank, singleTSBsize);
                         }
@@ -1858,7 +1854,7 @@ System.out.println("  Roc mod: NEED TO GENERATE MORE REAL DATA, have " + arrayBy
                         eventToOutputRing(myId, buf, bufItem, bbSupply);
 //Utilities.printBuffer(buf, 0, 56, "EVENT BUFFER");
 
-                        if (streaming) {
+                        if (isStreamingData()) {
                             wordCountTotal += eventWordSize;
                             // Switch frame and timestamp, every other send
                             if (--fChange < 1) {
@@ -1920,7 +1916,7 @@ System.out.println("  Roc mod: arrive, SYNC told me to quit");
                     deltaT = t2 - t1;
 
                     if (myId == 0 && deltaT > 2000) {
-                        if (streaming) {
+                        if (isStreamingData()) {
                             if (skip-- < 1) {
                                 totalT += deltaT;
                                 totalFrameCount += frameNumber - oldFrameVal;
@@ -2064,7 +2060,7 @@ System.out.println("  Roc mod: end(), UNSUBSCRIBE");
         // Put in END event
         PayloadBuffer pBuf = Evio.createControlBuffer(ControlType.END, 0, 0,
                                                       (int)eventCountTotal, (int)frameCountTotal, 0,
-                                                      outputOrder, false, emu.isStreamingData());
+                                                      outputOrder, false, isStreamingData());
         // Send to first ring on ALL channels
         for (int i=0; i < outputChannelCount; i++) {
             if (i > 0) {
@@ -2151,7 +2147,7 @@ System.out.println("  Roc mod: PRESTART");
         // Create PRESTART event
         PayloadBuffer pBuf = Evio.createControlBuffer(ControlType.PRESTART, emu.getRunNumber(),
                                                       emu.getRunTypeId(), 0, 0,0,
-                                                      outputOrder, false, emu.isStreamingData());
+                                                      outputOrder, false, isStreamingData());
         // Send to first ring on ALL channels
         for (int i=0; i < outputChannelCount; i++) {
             // Copy buffer and use that
@@ -2228,7 +2224,7 @@ System.out.println("  Roc mod: PRESTART");
         // Create GO event
         PayloadBuffer pBuf = Evio.createControlBuffer(ControlType.GO, 0, 0,
                                                       (int) eventCountTotal, (int)frameCountTotal, 0,
-                                                      outputOrder, false, emu.isStreamingData());
+                                                      outputOrder, false, isStreamingData());
         // Send to first ring on ALL channels
         for (int i=0; i < outputChannelCount; i++) {
             // Copy buffer and use that

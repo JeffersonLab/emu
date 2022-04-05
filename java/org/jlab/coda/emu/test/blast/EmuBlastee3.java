@@ -499,7 +499,7 @@ System.out.println("Client " + me + ", bufferSize = " + bufferSize);
 
         RingItem ri;
         EvioNode node;
-        boolean isStreaming, hasFirstEvent, isUser=false, dumpData=false, haveInputEndEvent=false;
+        boolean isStreaming = false, hasFirstEvent, isUser=false, dumpData=false, haveInputEndEvent=false;
         ControlType controlType = null;
         EvioCompactReader compactReader = null;
         int id = 0, sourceId = 0;
@@ -529,7 +529,6 @@ System.out.println("EmuBlastee: data NOT evio v4 format");
         }
 
         hasFirstEvent = blockHeader.hasFirstEvent();
-        isStreaming = blockHeader.isStreaming();
 
         EventType eventType = EventType.getEventType(blockHeader.getEventType());
         if (eventType == null) {

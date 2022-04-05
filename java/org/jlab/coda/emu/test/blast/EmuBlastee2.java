@@ -526,7 +526,7 @@ System.out.println("Client " + me + ", bufferSize = " + bufferSize);
 
                 RingItem ri;
                 EvioNode node;
-                boolean hasFirstEvent, isUser=false, isStreaming;
+                boolean hasFirstEvent, isUser=false, isStreaming = false;
                 boolean dumpData=false, haveInputEndEvent=false;
                 ControlType controlType = null;
                 EvioCompactReader compactReader = null;
@@ -557,7 +557,6 @@ System.out.println("Client " + me + ", bufferSize = " + bufferSize);
                 }
 
                 hasFirstEvent = blockHeader.hasFirstEvent();
-                isStreaming = blockHeader.isStreaming();
 
                 EventType eventType = EventType.getEventType(blockHeader.getEventType());
                 if (eventType == null) {

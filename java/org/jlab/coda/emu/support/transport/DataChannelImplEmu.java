@@ -1088,7 +1088,7 @@ System.out.println("      DataChannel Emu in: " + name +
                     while (true) {
                         // Sets the consumer sequence
                         ByteBufferItem item = bbSupply.consumerGet();
-                        if (emu.isStreamingData()) {
+                        if (module.isStreamingData()) {
                             if (parseStreamingToRing(item, bbSupply)) {
                                 logger.info("      DataChannel Emu in: 1 quit streaming parser/merger thread for END event from " + name);
                                 break;
@@ -1110,7 +1110,7 @@ System.out.println("      DataChannel Emu in: " + name +
                         for (ByteBufferSupply bbSupply : bbInSupply) {
                             // Alternate by getting one buffer from each supply in order
                             ByteBufferItem item = bbSupply.consumerGet();
-                            if (emu.isStreamingData()) {
+                            if (module.isStreamingData()) {
                                 if (parseStreamingToRing(item, bbSupply)) {
                                     logger.info("      DataChannel Emu in: 2 quit streaming parser/merger thread for END event from " + name);
                                     break toploop;
@@ -1155,7 +1155,7 @@ e.printStackTrace();
 
             RingItem ri;
             EvioNode node;
-            boolean hasFirstEvent, isUser=false, isStreaming;
+            boolean hasFirstEvent, isUser=false;
             ControlType controlType = null;
             EvioNodeSource pool;
 
@@ -1207,10 +1207,6 @@ e.printStackTrace();
             }
 
             hasFirstEvent = blockHeader.hasFirstEvent();
-            isStreaming   = blockHeader.isStreaming();
-            if (isStreaming) {
-                throw new EvioException("error in internal logic selecting (non)streaming format");
-            }
 
             // The DAQ is NOT streaming data, so there is one ROC Raw Record that is being parsed.
 
@@ -1369,7 +1365,7 @@ logger.info("      DataChannel Emu in: got " + controlType + " event from " + na
 //                     // Send control events on to module so we can prestart, go and take data
 //                     if (!eventType.isBuildable()) {
 //                         ri.setAll(null, null, node, eventType, controlType,
-//                                   isUser, hasFirstEvent, isStreaming, id, recordId, sourceId,
+//                                   isUser, hasFirstEvent, module.isStreamingData(), id, recordId, sourceId,
 //                                   1, name, item, bbSupply);
 //
 //                         ringBufferIn.publish(nextRingItem);
@@ -1381,12 +1377,12 @@ logger.info("      DataChannel Emu in: got " + controlType + " event from " + na
                  // Set & reset all parameters of the ringItem
                  if (eventType.isBuildable()) {
                      ri.setAll(null, null, node, evType, controlType,
-                               isUser, hasFirstEvent, isStreaming, id, recordId, sourceId,
+                               isUser, hasFirstEvent, module.isStreamingData(), id, recordId, sourceId,
                                node.getNum(), name, item, bbSupply);
                  }
                  else {
                      ri.setAll(null, null, node, evType, controlType,
-                               isUser, hasFirstEvent, isStreaming, id, recordId, sourceId,
+                               isUser, hasFirstEvent, module.isStreamingData(), id, recordId, sourceId,
                                1, name, item, bbSupply);
                  }
 
@@ -1427,7 +1423,7 @@ logger.info("      DataChannel Emu in: got " + controlType + " event from " + na
 
             RingItem ri;
             EvioNode node;
-            boolean hasFirstEvent, isUser=false, isStreaming;
+            boolean hasFirstEvent, isUser=false;
             ControlType controlType = null;
             EvioNodeSource pool;
 
@@ -1482,11 +1478,6 @@ logger.info("      DataChannel Emu in: got " + controlType + " event from " + na
             }
 
             hasFirstEvent = blockHeader.hasFirstEvent();
-            //isStreaming   = blockHeader.isStreaming();
-            isStreaming   = true;
-            if (!isStreaming) {
-                throw new EvioException("error in internal logic selecting (non)streaming format");
-            }
 
             // Since we're streaming, then there are multiple ROC Time Slice Banks contained in the top
             // level bank.
@@ -1686,7 +1677,7 @@ logger.info("      DataChannel Emu in: got " + controlType + " event from " + na
 //                     // Send control events on to module so we can prestart, go and take data
 //                     if (!eventType.isBuildable()) {
 //                         ri.setAll(null, null, node, eventType, controlType,
-//                                   isUser, hasFirstEvent, isStreaming, id, recordId, sourceId,
+//                                   isUser, hasFirstEvent, module.isStreamingData(), id, recordId, sourceId,
 //                                   1, name, item, bbSupply);
 //
 //                         ringBufferIn.publish(nextRingItem);
@@ -1699,14 +1690,14 @@ logger.info("      DataChannel Emu in: got " + controlType + " event from " + na
                 if (eventType.isBuildable()) {
 //logger.info("      DataChannel Emu in: put buildable event into channel ring, event from " + name);
                     ri.setAll(null, null, node, eventType, controlType,
-                            isUser, hasFirstEvent, isStreaming, id, recordId, sourceId,
+                            isUser, hasFirstEvent, module.isStreamingData(), id, recordId, sourceId,
                             node.getNum(), name, item, bbSupply);
                     ri.setTimeFrame(frame);
                     ri.setTimestamp(timestamp);
                 } else {
 logger.info("      DataChannel Emu in: put CONTROL (user?) event into channel ring, event from " + name);
                     ri.setAll(null, null, node, eventType, controlType,
-                            isUser, hasFirstEvent, isStreaming, id, recordId, sourceId,
+                            isUser, hasFirstEvent, module.isStreamingData(), id, recordId, sourceId,
                             1, name, item, bbSupply);
                 }
 

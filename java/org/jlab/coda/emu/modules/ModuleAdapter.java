@@ -102,6 +102,10 @@ public class ModuleAdapter implements EmuModule {
     /** Do we produce big or little endian output in ByteBuffers? */
     protected ByteOrder outputOrder;
 
+    /** If <code>true</code>, data to be built is from a streaming (not triggered) source. */
+    protected boolean streamingData;
+
+
     //---------------------------
     // For generating statistics
     //---------------------------
@@ -258,6 +262,18 @@ logger.info("  Module Adapter: output byte order = " + outputOrder);
                 timeStatsOn = true;
             }
         }
+
+        // For FPGAs, fake ROCs, or EBs: is data in streaming format?
+        streamingData = false;
+        str = attributeMap.get("streaming");
+        if (str != null) {
+            if (str.equalsIgnoreCase("true") ||
+                str.equalsIgnoreCase("on")   ||
+                str.equalsIgnoreCase("yes"))   {
+                streamingData = true;
+            }
+        }
+
     }
 
 
@@ -512,6 +528,8 @@ logger.info("  Module Adapter: output byte order = " + outputOrder);
     /** {@inheritDoc} */
     public ByteOrder getOutputOrder() {return outputOrder;}
 
+    /** {@inheritDoc} */
+    public boolean isStreamingData() {return streamingData;}
 
     //----------------------------------------------------------------
 
