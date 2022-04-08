@@ -191,7 +191,6 @@ public class StreamAggregator extends ModuleAdapter {
     /** Size of RingBuffer for each input channel. */
     private int[] ringBufferSize;
 
-
     // Sorter thread is receiving data from all input channels
 
     /** For each input channel, 1 sequence for sorter thread. */
@@ -222,24 +221,6 @@ public class StreamAggregator extends ModuleAdapter {
 
     /** For each sorter ring, 1 barrier since only 1 build thread uses it. */
     private SequenceBarrier[] buildBarrierIn;
-
-    /** For multiple build threads and releasing ring items in sequence,
-     *  the lowest finished sequence of a build thread for each ring. */
-    private long[][] lastSeq;
-
-    /** For multiple build threads and releasing ring items in sequence,
-     *  the last sequence to have been released. */
-    private long[] lastSeqReleased;
-
-    /** For multiple build threads and releasing ring items in sequence,
-     *  the highest sequence to have asked for release. */
-    private long[] maxSeqReleased;
-
-    /** For multiple build threads and releasing ring items in sequence,
-     *  the number of sequences between maxSeqReleased &
-     *  lastSeqReleased which have called release(), but not been released yet. */
-    private int[] betweenReleased;
-
 
     //-------------------------------------------
     // Statistics
@@ -335,7 +316,7 @@ logger.info("  EB mod: # of event building threads = " + buildingThreadCount);
 logger.info("  EB mod: internal ring buf count -> " + ringItemCount);
 
         //--------------------------------------------------------------------
-        // Create rings to hold TimeSliceBanks - 1 for each build thread.
+        // Create rings to hold TimeSliceBanks, 1 ring for each build thread.
         // These rings only hold references to objects so no real memory
         // being used. Do this in prestart() but define array here.
         //--------------------------------------------------------------------
@@ -560,9 +541,10 @@ System.out.println("  EB mod: getAllControlEvents got seq " + nextSequences[i]);
     *
     * @param isPrestart {@code true} if prestart event being written, else go event
     * @param isEnd {@code true} if END event being written. END take precedence.
+    * @param sourceName name of event source.
     * @throws InterruptedException if writing of event to output channels is interrupted
     */
-    private void controlToOutputAsync(boolean isPrestart, boolean isEnd)
+    private void controlToOutputAsync(boolean isPrestart, boolean isEnd, String sourceName)
             throws InterruptedException {
 
         if (outputChannelCount < 1) {
@@ -581,7 +563,8 @@ System.out.println("  EB mod: getAllControlEvents got seq " + nextSequences[i]);
         controlBufs[0] = Evio.createControlBuffer(controlType,
                                                   runNumber, runTypeId,
                                                   (int)frameCountTotal, (int)frameCountTotal,
-                                                  0, outputOrder, false, streamingData);
+                                                  0, outputOrder,
+                                                    sourceName, false, streamingData);
 
         // For the other output channels, duplicate first with separate position & limit.
         // Important to do this duplication BEFORE sending to output channels or position
@@ -764,6 +747,11 @@ System.out.println("WRITE CONTROL EVENT to chan #" + i + ", ring 0");
     }
 
 
+    /**
+     * The leading consumer of each input channel ring is the sorter thread. This thread
+     * sends all events of the same time frame to the ring of the same build thread.
+     * Each build thread consumes ring items that the sorter thread fills.
+     */
     class TimeSliceSorter extends Thread {
 
         /** Index of build thread currently receiving TimeSliceBanks. */
@@ -942,11 +930,11 @@ System.out.println("  EB mod: findEnd, chan " + ch + " got END from " + source +
          * Since we've received END events on the input channels, create an END event now
          * and send it to the build thread next in line.
          */
-        private void endEventToBuildThread() throws InterruptedException {
+        private void endEventToBuildThread(String sourceName) throws InterruptedException {
             // Create END event
             PayloadBuffer endEvent = Evio.createControlBuffer(ControlType.END, runNumber, runTypeId,
                     (int) frameCountTotal, (int)frameCountTotal, 0,
-                    outputOrder, false, streamingData);
+                    outputOrder, sourceName, false, streamingData);
 
             int nextBt = (currentBT + 1) % buildingThreadCount;
             sendToTimeSliceBankRing(endEvent, nextBt);
@@ -997,7 +985,7 @@ System.out.println("  EB mod: findEnd, chan " + ch + " got END from " + source +
                     throw new EmuException("Expecting prestart event, got " + cType);
                 }
 
-                controlToOutputAsync(true, false);
+                controlToOutputAsync(true, false, name);
             }
             catch (EmuException e) {
                 e.printStackTrace();
@@ -1023,15 +1011,15 @@ System.out.println("  EB mod: findEnd, chan " + ch + " got END from " + source +
 
             // Second thing we do is look for the GO or END event and pass it on
             try {
-                // Sorter thread writes go event on all output channels, ring 0.
+                // Sorter thread writes GO event on all output channels, ring 0.
                 // Other build threads ignore this.
-                // Get prestart from each input channel
+                // Get GO from each input channel
                 ControlType cType = getAllControlEvents(sorterSequenceIn, sorterBarrierIn,
                                                         buildingBanks, nextSequences);
                 if (!cType.isGo()) {
                     if (cType.isEnd()) {
                         haveEndEvent = true;
-                        controlToOutputAsync(false, true);
+                        controlToOutputAsync(false, true, name);
                         System.out.println("  EB mod: got all END events");
                         return;
                     } else {
@@ -1039,7 +1027,7 @@ System.out.println("  EB mod: findEnd, chan " + ch + " got END from " + source +
                     }
                 }
 
-                controlToOutputAsync(false, false);
+                controlToOutputAsync(false, false, name);
             }
             catch (EmuException e) {
                 e.printStackTrace();
@@ -1078,7 +1066,6 @@ System.out.println("  EB mod: findEnd, chan " + ch + " got END from " + source +
                     // ring of the same build thread.
                     // Next go to the next slice, copy them to the ring of the next
                     // build thread - round and round.
-                    findBank:
                     while (true) {
 
 //System.out.println("  EB mod: ch" + chan + ",sorter set gotBank = FALSE");
@@ -1171,8 +1158,7 @@ System.out.println("  EB mod: sorter got user event from channel " + inputChanne
                             if (diff == TimestampDiff.SAME) {
 //System.out.println("  EB mod: ch" + chan + ", sorter send time slice to BT# = " + currentBT +", event type = " + bank.getEventType() + ", frame = " + frame);
                                 sendToTimeSliceBankRing(bank, currentBT);
-
-                                sorterSequenceIn[chan].set(nextSequences[chan]);
+                                // This bank must be released AFTER build thread finishes with it
                                 nextSequences[chan]++;
                                 lastWrittenChan = chan;
 
@@ -1219,6 +1205,7 @@ System.out.println("  EB mod: sorter got user event from channel " + inputChanne
                                 }
                             }
                             else {
+System.out.println("  EB mod: ch" + chan + ", sorter DIFF timestamp, time frame = " + frame + ", looking for " + lookingForFrame);
                                 throw new EmuException("Too big of a jump in timestamp");
                             }
 
@@ -1258,7 +1245,7 @@ System.out.println("  EB mod: sorter found END event from " + bank.getSourceName
                         }
                         else {
 System.out.println("  EB mod: sorter found END events on all input channels");
-                            endEventToBuildThread();
+                            endEventToBuildThread(name);
                             return;
                         }
                     }
@@ -1692,7 +1679,7 @@ System.out.println("  EB mod: bbSupply -> " + ringItemCount + " # of bufs, direc
                         endSequence = nextSequence;
                         haveEndEvent = true;
                         handleEndEvent(bank);
-System.out.println("  EB mod: bt" + btIndex + " ***** found END event from " + bank.getSourceName() + " at seq " + endSequence);
+System.out.println("  EB mod: bt" + btIndex + " ***** found END event at seq " + endSequence);
                         return;
                     }
 
@@ -1849,12 +1836,19 @@ System.out.println("  EB mod: bt" + btIndex + " ***** found END event from " + b
                     for (int i=0; i < sliceCount; i++) {
                         // The ByteBufferSupply takes care of releasing buffers in proper order.
                         sameStampBanks[i].releaseByteBuffer();
+
+                        // Since we're done building with sameStampBanks,
+                        // we can release them back to input channel rings.
+                        long seq = sameStampBanks[i].getChannelSequence();
+                        Sequence seqObj = sameStampBanks[i].getChannelSequenceObj();
+                        // The ring will now have access to this sequence
+                        seqObj.set(seq);
                     }
 
                     // Each build thread must release the "slots" in the build thread ring
                     // buffer of the components it uses to build the physics event.
-//System.out.println("  EB mod: bt#" + btIndex + " release build seq " + nextSequence);
-                    buildSequenceIn[btIndex].set(nextSequence++);
+//System.out.println("  EB mod: bt#" + btIndex + " release build seq " + (nextSequence - 1));
+                    buildSequenceIn[btIndex].set(nextSequence - 1);
 
                     // Stats (need to be thread-safe)
                     frameCountTotal++;
@@ -1917,12 +1911,13 @@ System.out.println("  EB mod: bt" + btIndex + " ***** found END event from " + b
                         // While we have data to read ...
                         while (nextSequences[i] <= availableSequences[i]) {
                             buildingBank = (PayloadBuffer) ringBuffersIn[i].get(nextSequences[i]);
-//System.out.println("  EB mod:   clean inputs, releasing seq " + nextSequences[i] + " from channel #" + i);
+System.out.println("  EB mod: bt" + btIndex + " %%%%% clean inputs, releasing input seq " + nextSequences[i] + " from channel #" + i);
                             //if (btCount == 1) {
                             buildingBank.releaseByteBuffer();
                             //}
                             nextSequences[i]++;
                         }
+System.out.println("  EB mod: bt" + btIndex + " %%%%% clean inputs, releasing sorter seq " + availableSequences[i] + " from channel #" + i);
                         sorterSequenceIn[i].set(availableSequences[i]);
 
                         lastCursor = cursor;
@@ -2119,132 +2114,111 @@ System.out.println("  EB mod: interruptThreads: will end building/filling thread
     /** {@inheritDoc} */
     public void prestart() throws CmdExecException {
 
-            // Event builder needs input
-            if (inputChannelCount < 1) {
-                moduleState = CODAState.ERROR;
-    System.out.println("  EB mod: prestart, no input channels to EB");
-                emu.setErrorState("no input channels to EB");
-                throw new CmdExecException("no input channels to EB");
-            }
+        // Event builder needs input
+        if (inputChannelCount < 1) {
+            moduleState = CODAState.ERROR;
+            System.out.println("  EB mod: prestart, no input channels to EB");
+            emu.setErrorState("no input channels to EB");
+            throw new CmdExecException("no input channels to EB");
+        }
 
-            // Make sure each input channel is associated with a unique rocId
-            for (int i=0; i < inputChannelCount; i++) {
-                for (int j=i+1; j < inputChannelCount; j++) {
-                    if (inputChannels.get(i).getID() == inputChannels.get(j).getID()) {
-                        moduleState = CODAState.ERROR;
-    System.out.println("  EB mod: prestart, input channels have duplicate rocIDs");
-                        emu.setErrorState("input channels have duplicate rocIDs");
-                        throw new CmdExecException("input channels have duplicate rocIDs");
-                    }
+        // Make sure each input channel is associated with a unique rocId
+        for (int i=0; i < inputChannelCount; i++) {
+            for (int j=i+1; j < inputChannelCount; j++) {
+                if (inputChannels.get(i).getID() == inputChannels.get(j).getID()) {
+                    moduleState = CODAState.ERROR;
+                    System.out.println("  EB mod: prestart, input channels have duplicate rocIDs");
+                    emu.setErrorState("input channels have duplicate rocIDs");
+                    throw new CmdExecException("input channels have duplicate rocIDs");
                 }
             }
+        }
 
-            moduleState = CODAState.PAUSED;
-            paused = true;
+        moduleState = CODAState.PAUSED;
+        paused = true;
 
-            //------------------------------------------------
-            // Disruptor (RingBuffer) stuff for input channels
-            //------------------------------------------------
+        //------------------------------------------------
+        // Disruptor (RingBuffer) stuff for input channels
+        //------------------------------------------------
 
-            // Members used to free channel ring buffer items in sequence
-            lastSeq = new long[buildingThreadCount][inputChannelCount];
-            lastSeqReleased = new long[inputChannelCount];
-            maxSeqReleased  = new long[inputChannelCount];
-            betweenReleased = new int[inputChannelCount];
+        // For each input channel, 1 ring buffer
+        ringBuffersIn = new RingBuffer[inputChannelCount];
+        // For each input channel, 1 sequence (used by sorter thread)
+        sorterSequenceIn = new Sequence[inputChannelCount];
+        // For each input channel, 1 barrier
+        sorterBarrierIn = new SequenceBarrier[inputChannelCount];
 
-            for (int i=0; i < buildingThreadCount; i++) {
-                Arrays.fill(lastSeq[i], -1);
-            }
-            Arrays.fill(lastSeqReleased, -1);
-            Arrays.fill(maxSeqReleased, -1);
+        // Place to put ring level stats
+        inputChanLevels  = new int[inputChannelCount];
+        outputChanLevels = new int[outputChannelCount];
 
-            // "One ring buffer to rule them all and in the darkness bind them."
-            // Actually, one ring buffer for each input channel.
-            ringBuffersIn = new RingBuffer[inputChannelCount];
+        // Collect channel names for easy gathering of stats
+        int indx=0;
+        inputChanNames = new String[inputChannelCount];
+        for (DataChannel ch : inputChannels) {
+            inputChanNames[indx++] = ch.name();
+        }
+        indx = 0;
+        outputChanNames  = new String[outputChannelCount];
+        for (DataChannel ch : outputChannels) {
+            outputChanNames[indx++] = ch.name();
+        }
 
-            // For each input channel, 1 sequence (used by sorter thread)
-            sorterSequenceIn = new Sequence[inputChannelCount];
-            // For each input channel, one barrier
-            sorterBarrierIn = new SequenceBarrier[inputChannelCount];
+        // Have ring sizes handy for calculations
+        ringBufferSize = new int[inputChannelCount];
 
-            // 1 sequence used by a single build thread
-            System.out.println("  EB mod: prestart, redefine buildSequenceIn array");
-            buildSequenceIn = new Sequence[buildingThreadCount];
+        // For each channel ...
+        for (int i=0; i < inputChannelCount; i++) {
+            // Get channel's ring buffer
+            RingBuffer<RingItem> rb = inputChannels.get(i).getRingBufferIn();
+            ringBuffersIn[i]  = rb;
+            ringBufferSize[i] = rb.getBufferSize();
 
-            // For each build thread, one barrier
-            buildBarrierIn = new SequenceBarrier[buildingThreadCount];
+            // For sorter thread
 
-            // Place to put ring level stats
-            inputChanLevels  = new int[inputChannelCount];
-            outputChanLevels = new int[outputChannelCount];
+            // We have 1 sequence for each input channel
+            sorterSequenceIn[i] = new Sequence(Sequencer.INITIAL_CURSOR_VALUE);
+            // This sequence will be the last consumer before producer comes along
+            rb.addGatingSequences(sorterSequenceIn[i]);
 
-            // Collect channel names for easy gathering of stats
-            int indx=0;
-            inputChanNames = new String[inputChannelCount];
-            for (DataChannel ch : inputChannels) {
-                inputChanNames[indx++] = ch.name();
-            }
-            indx = 0;
-            outputChanNames  = new String[outputChannelCount];
-            for (DataChannel ch : outputChannels) {
-                outputChanNames[indx++] = ch.name();
-            }
+            // We have 1 barrier for each channel
+            sorterBarrierIn[i] = rb.newBarrier();
+        }
 
-            // Have ring sizes handy for calculations
-            ringBufferSize = new int[inputChannelCount];
+        //------------------------------------------------
+        // Disruptor (RingBuffer) stuff for build threads
+        //------------------------------------------------
 
-            //--------------------------------------------------------------------
-            // Create rings to hold TimeSliceBanks - 1 for each build thread.
-            // These rings only hold references to objects so no real memory
-            // being used.
-            //--------------------------------------------------------------------
-            for (int i=0; i < buildingThreadCount; i++) {
-                sorterRingBuffers[i] = createSingleProducer(new TimeSliceBankItemFactory(), sorterRingSize,
-                        new SpinCountBackoffWaitStrategy(10000, new LiteBlockingWaitStrategy()));
-            }
+        // 1 sequence for each build thread
+        buildSequenceIn = new Sequence[buildingThreadCount];
+        // 1 barrier for each build thread
+        buildBarrierIn = new SequenceBarrier[buildingThreadCount];
 
-            // For each build thread ...
-            for (int j = 0; j < buildingThreadCount; j++) {
-                // We have 1 sequence for each build thread
-                buildSequenceIn[j] = new Sequence(Sequencer.INITIAL_CURSOR_VALUE);
-                // This sequence will be the last consumer before sorter produces more
-                sorterRingBuffers[j].addGatingSequences(buildSequenceIn[j]);
-                // We have 1 barrier for each build thread
-                buildBarrierIn[j] = sorterRingBuffers[j].newBarrier();
-            }
+        // For each build thread ...
+        for (int j = 0; j < buildingThreadCount; j++) {
+            // Create 1 ring to hold TimeSliceBanks.
+            // This ring only holds references to objects so no real memory being used.
+            sorterRingBuffers[j] = createSingleProducer(new TimeSliceBankItemFactory(), sorterRingSize,
+                    new SpinCountBackoffWaitStrategy(10000, new LiteBlockingWaitStrategy()));
+            // We have 1 sequence
+            buildSequenceIn[j] = new Sequence(Sequencer.INITIAL_CURSOR_VALUE);
+            // This sequence will be the last consumer before sorter produces more
+            sorterRingBuffers[j].addGatingSequences(buildSequenceIn[j]);
+            // We have 1 barrier
+            buildBarrierIn[j] = sorterRingBuffers[j].newBarrier();
+        }
 
-            // For each channel ...
-            for (int i=0; i < inputChannelCount; i++) {
-                // Get channel's ring buffer
-                RingBuffer<RingItem> rb = inputChannels.get(i).getRingBufferIn();
-                ringBuffersIn[i]  = rb;
-                ringBufferSize[i] = rb.getBufferSize();
+        //------------------------------------------------
+        // Reset some variables
+        //------------------------------------------------
+        eventRate = wordRate = 0F;
+        frameCountTotal = eventCountTotal = wordCountTotal = 0L;
+        runTypeId = emu.getRunTypeId();
+        runNumber = emu.getRunNumber();
+        haveEndEvent = false;
+        haveAllPrestartEvents = false;
 
-                // For sorter thread
-
-                // We have 1 sequence for each input channel
-                sorterSequenceIn[i] = new Sequence(Sequencer.INITIAL_CURSOR_VALUE);
-                // This sequence will be the last consumer before producer comes along
-                rb.addGatingSequences(sorterSequenceIn[i]);
-
-                // We have 1 barrier for each channel
-                sorterBarrierIn[i] = rb.newBarrier();
-            }
-
-            //------------------------------------------------
-            //
-            //------------------------------------------------
-
-            // Reset some variables
-            eventRate = wordRate = 0F;
-            frameCountTotal = eventCountTotal = wordCountTotal = 0L;
-            runTypeId = emu.getRunTypeId();
-            runNumber = emu.getRunNumber();
-//        eventNumberAtLastSync = 1L;
-            haveEndEvent = false;
-            haveAllPrestartEvents = false;
-
-            // Print thread names
+        // Print thread names
 //        int thdCount = Thread.activeCount();
 //        Thread[] thds = new Thread[thdCount];
 //        Thread.enumerate(thds);
@@ -2252,13 +2226,13 @@ System.out.println("  EB mod: interruptThreads: will end building/filling thread
 //        for (Thread t : thds) {
 //            System.out.println(t.getName());
 //        }
-            startThreads();
+        startThreads();
 
-            try {
-                // Set start-of-run time in local XML config / debug GUI
-                Configurer.setValue(emu.parameters(), "status/run_start_time", "--prestart--");
-            }
-            catch (DataNotFoundException e) {}
+        try {
+            // Set start-of-run time in local XML config / debug GUI
+            Configurer.setValue(emu.parameters(), "status/run_start_time", "--prestart--");
+        }
+        catch (DataNotFoundException e) {}
 
     }
 
