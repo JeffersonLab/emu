@@ -181,6 +181,7 @@ public class FarmController extends ModuleAdapter {
             RingItem ringItem;
             ControlType controlType;
             outputChannelCount = outputChannels.size();
+            String sourceName;
 
             // Ring Buffer stuff
             availableSequence = -2L;
@@ -215,7 +216,8 @@ public class FarmController extends ModuleAdapter {
                                 PayloadBuffer pBuf = Evio.createControlBuffer(controlType,
                                                                               runNumber, runTypeId,
                                                                               (int)eventCountTotal, (int)frameCountTotal,0,
-                                                                              outputOrder, false, isStreamingData());
+                                                                              outputOrder, name,
+                                                                        false, isStreamingData());
                                 // Goes to ring 0 since there is only 1 event-moving thread
                                 eventToOutputChannel(pBuf, i, 0);
                             }

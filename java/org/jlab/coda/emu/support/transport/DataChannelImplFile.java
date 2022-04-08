@@ -414,7 +414,7 @@ logger.info("      DataChannel File: reset " + name + " channel");
 // TODO: Take a look at this !!!
                     PayloadBuffer endBuf = Evio.createControlBuffer(ControlType.END, emu.getRunNumber(),
                                                                     emu.getRunTypeId(), (int) eventsWritten, 0,
-                                                                    0, byteOrder, true, module.isStreamingData());
+                                                                    0, byteOrder, name, true, module.isStreamingData());
                     if (emu.isFileWritingOn()) {
                         evioFileWriter.writeEventToFile(null, endBuf.getBuffer(), true);
                     }

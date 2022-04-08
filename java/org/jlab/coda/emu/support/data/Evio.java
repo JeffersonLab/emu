@@ -1027,6 +1027,7 @@ if (debug) System.out.println("gotValidControlEvents: found control event of typ
      * @param eventsInRun     number of events so far in run for all except prestart event
      * @param framesInRun     number of time frames so far in run, if streaming
      * @param eventsSinceSync number of events since last sync for sync event
+     * @param sourceName      name of input source
      * @param order           byte order in which to write event into buffer
      * @param error           END control event sent due to error condition
      * @param isStreaming     true if data is being streamed in time slices/frames,
@@ -1037,6 +1038,7 @@ if (debug) System.out.println("gotValidControlEvents: found control event of typ
     public static PayloadBuffer createControlBuffer(ControlType type, int runNumber,
                                                     int runType, int eventsInRun, int framesInRun,
                                                     int eventsSinceSync, ByteOrder order,
+                                                    String sourceName,
                                                     boolean error, boolean isStreaming) {
 
         try {
@@ -1078,6 +1080,7 @@ if (debug) System.out.println("gotValidControlEvents: found control event of typ
             pBuf.setControlType(type);
             // Do this so we can use fifo as output & get accurate stats
             pBuf.setEventCount(1);
+            pBuf.setSourceName(sourceName);
 
             return pBuf;
         }

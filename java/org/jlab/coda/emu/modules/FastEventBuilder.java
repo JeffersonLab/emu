@@ -683,7 +683,8 @@ logger.info("  EB mod: internal ring buf count -> " + ringItemCount);
         controlBufs[0] = Evio.createControlBuffer(controlType,
                                                   runNumber, runTypeId,
                                                   (int)eventCountTotal, (int)frameCountTotal,
-                                                  0, outputOrder, false,
+                                                  0, outputOrder,
+                                                   name, false,
                                                    isStreamingData());
 
         // For the other output channels, duplicate first with separate position & limit.
@@ -908,7 +909,7 @@ System.out.println("  EB mod: in handleEndEvent(), bt #" + btIndex + ", output c
                 // For the first output channel
                 endBufs[0] = Evio.createControlBuffer(ControlType.END, runNumber, runTypeId,
                                                       (int) eventCountTotal, (int)frameCountTotal, 0,
-                                                      outputOrder, false, isStreamingData());
+                                                      outputOrder, name, false, isStreamingData());
 
                 // For the other output channel(s), duplicate first with separate position & limit
                 for (int i=1; i < outputChannelCount; i++) {
