@@ -1259,7 +1259,7 @@ System.out.println("      DataChannel Emu in: WARNING, event count = " + eventCo
                  // Complication: from the ROC, we'll be receiving USER events
                  // mixed in with and labeled as ROC Raw events. Check for that
                  // and fix it.
-                 if (evType == EventType.ROC_RAW) {
+                 if (evType.isROCRaw()) {
                      if (Evio.isUserEvent(node)) {
                          isUser = true;
                          eventType = EventType.USER;
@@ -1279,7 +1279,7 @@ System.out.println("      DataChannel Emu in: WARNING, event count = " + eventCo
                          }
                      }
                  }
-                 else if (evType == EventType.CONTROL) {
+                 else if (evType.isControl()) {
                      // Find out exactly what type of control event it is
                      // (May be null if there is an error).
                      controlType = ControlType.getControlType(node.getTag());
@@ -1289,7 +1289,7 @@ logger.info("      DataChannel Emu in: got " + controlType + " event from " + na
                          throw new EvioException("Found unidentified control event");
                      }
                  }
-                 else if (eventType == EventType.USER) {
+                 else if (eventType.isUser()) {
                      isUser = true;
                      if (hasFirstEvent) {
                          logger.info("      DataChannel Emu in: " + name + " got FIRST event");
@@ -1298,7 +1298,7 @@ logger.info("      DataChannel Emu in: got " + controlType + " event from " + na
                          logger.info("      DataChannel Emu in: " + name + " got USER event");
                      }
                  }
-                 else if (evType == EventType.MIXED) {
+                 else if (evType.isMixed()) {
                      // Mix of event types.
                      // Can occur for combo of user, ROC RAW and possibly control events.
                      // Only occurs when a user inserts a User event during the End transition.
@@ -1422,7 +1422,6 @@ logger.info("      DataChannel Emu in: got " + controlType + " event from " + na
                 throws EvioException, InterruptedException {
 
             RingItem ri;
-            EvioNode node;
             boolean hasFirstEvent, isUser=false;
             ControlType controlType = null;
             EvioNodeSource pool;
@@ -1494,22 +1493,22 @@ logger.info("      DataChannel Emu in: got " + controlType + " event from " + na
                                                           eventType, DataChannelImplEmu.this);
 //System.out.println("      DataChannel Emu in: expected record id = " + expectedRecordId +
 //                    ", actual = " + recordId);
-//System.out.println("      DataChannel Emu in: event type = " + eventType + ", event count = " + reader.getEventCount() + " from " + name);
+//System.out.println("      DataChannel Emu in: event type = " + eventType + ", event count = " + reader.getEventCount() + " from " + name + "\n");
 
             int eventCount = reader.getEventCount();
-            ArrayList<EvioNode> timeSliceBanks = null;
-            boolean gotRocRaw = eventType == EventType.ROC_RAW;
+            boolean gotRocRaw  = eventType.isROCRaw();
+            boolean gotPhysics = eventType.isAnyPhysics();
 
             // For ROC Raw, presumably there is only 1 child which has multiple children -
             // each of which is a time slice bank, each of which must be parsed.
             if (gotRocRaw) {
-                if (eventCount != 1) {
-                    throw new EvioException("ROC Raw bank should have 1 child, not " + eventCount);
-                }
-
                 EvioNode topNode = reader.getScannedEvent(1, pool);
                 if (topNode == null) {
                     throw new EvioException("Empty buffer arriving into input channel ???");
+                }
+
+                if (topNode.getChildCount() != 1) {
+                    throw new EvioException("ROC Raw bank should have 1 child, not " + topNode.getChildCount());
                 }
 
                 if (topNode.getTag() != CODATag.ROCRAW_STREAMING.getValue()) {
@@ -1517,12 +1516,28 @@ logger.info("      DataChannel Emu in: got " + controlType + " event from " + na
                             Integer.toHexString(topNode.getTag()) +
                             ", expecting 0x" + Integer.toHexString(CODATag.ROCRAW_STREAMING.getValue()));
                 }
+            }
+            else if (gotPhysics) {
+                EvioNode topNode = reader.getScannedEvent(1, pool);
 
-                // The number of children = number of ROC time slice banks (events)
-                eventCount = topNode.getChildCount();
-                timeSliceBanks = topNode.getChildNodes();
-//System.out.println("      DataChannel Emu in: roc raw has # time slice banks = " + eventCount + ", tag of topNode = 0x" +
-//        Integer.toHexString(topNode.getTag()));
+                if (topNode == null) {
+                    throw new EvioException("Empty buffer arriving into input channel ???");
+                }
+
+                if (topNode.getChildCount() != 1) {
+                    throw new EvioException("ROC Raw bank should have 1 child, not " + topNode.getChildCount());
+                }
+
+                int physicsTag  = topNode.getTag();
+                if (physicsTag != CODATag.BUILT_BY_DC_STREAMING.getValue()  &&
+                    physicsTag != CODATag.BUILT_BY_SEB_STREAMING.getValue() &&
+                    physicsTag != CODATag.BUILT_BY_PEB_STREAMING.getValue())  {
+                    throw new EvioException("Wrong tag for streaming Physics bank, got 0x" +
+                            Integer.toHexString(physicsTag) +
+                            ", expecting 0x" + Integer.toHexString(CODATag.BUILT_BY_DC_STREAMING.getValue()) +
+                            " or 0x" + Integer.toHexString(CODATag.BUILT_BY_SEB_STREAMING.getValue()) +
+                            " or 0x" + Integer.toHexString(CODATag.BUILT_BY_PEB_STREAMING.getValue()));
+                }
             }
 
             // Each PayloadBuffer contains a reference to the buffer it was
@@ -1535,50 +1550,32 @@ logger.info("      DataChannel Emu in: got " + controlType + " event from " + na
 
                 int frame = 0;
                 long timestamp = 0L;
+                EvioNode topNode;
 
-                if (gotRocRaw) {
-                    node = timeSliceBanks.get(i-1);
-                    // Find the frame and timestamp now for later ease of use
-                    int pos = node.getPosition();
-                    ByteBuffer buff = node.getBuffer();
-                    frame = buff.getInt(20 + pos);
-                    timestamp = EmuUtilities.intsToLong(buff.getInt(24 + pos), buff.getInt(28 + pos));
-//System.out.println("      DataChannel Emu in: roc raw has frame = " + frame + ", timestamp = " + timestamp + ", pos = " + pos);
+                if (isER) {
+                    // Don't need to parse all bank headers, just top level.
+                    topNode = reader.getEvent(i);
                 }
                 else {
-                    if (isER) {
-                        // Don't need to parse all bank headers, just top level.
-                        node = reader.getEvent(i);
-                    }
-                    else {
-                        // getScannedEvent will clear child and allNodes lists
-                        node = reader.getScannedEvent(i, pool);
-                    }
-
-                    // If time slices coming from DCAG, SAG, or PAG
-                    if (eventType.isBuildable()) {
-                        int pos = node.getPosition();
-                        ByteBuffer buff = node.getBuffer();
-                        frame = buff.getInt(16 + pos);
-                        timestamp = EmuUtilities.intsToLong(buff.getInt(20 + pos), buff.getInt(24 + pos));
-//System.out.println("      DataChannel Emu in: roc raw has frame = " + frame + ", timestamp = " + timestamp + ", pos = " + pos);
-                    }
+                    // getScannedEvent will clear child and allNodes lists
+                    topNode = reader.getScannedEvent(i, pool);
                 }
 
-                nextRingItem = ringBufferIn.nextIntr(1);
-                ri = ringBufferIn.get(nextRingItem);
-
                 // This should NEVER happen
-                if (node == null) {
+                if (topNode == null) {
                     System.out.println("      DataChannel Emu in: WARNING, event count = " + eventCount +
                             " but get(Scanned)Event(" + i + ") is null - evio parsing bug");
                     continue;
                 }
 
-                // Complication: from the ROC, we'll be receiving USER events
-                // mixed in with and labeled as ROC Raw events. Check for that
-                // and fix it.
+                EvioNode node = topNode;
+
                 if (gotRocRaw) {
+                    // RocRaw's, Time Slice Bank
+                    node = topNode.getChildAt(0);
+
+                    // Complication: from the ROC, we'll be receiving USER events mixed
+                    // in with and labeled as ROC Raw events. Check for that & fix it.
                     if (Evio.isUserEvent(node)) {
                         isUser = true;
                         eventType = EventType.USER;
@@ -1587,15 +1584,40 @@ logger.info("      DataChannel Emu in: got " + controlType + " event from " + na
                         } else {
                             System.out.println("      DataChannel Emu in: " + name + " USER event from ROC RAW");
                         }
-                    } else {
+                    }
+                    else {
                         // Pick this raw data event apart a little
                         if (!node.getDataTypeObj().isBank()) {
                             DataType eventDataType = node.getDataTypeObj();
                             throw new EvioException("ROC raw record contains " + eventDataType +
                                     " instead of banks (data corruption?)");
                         }
+
+                        // Find the frame and timestamp now for later ease of use (skip over 5 ints)
+                        int pos = node.getPosition();
+                        ByteBuffer buff = node.getBuffer();
+                        frame = buff.getInt(20 + pos);
+                        timestamp = EmuUtilities.intsToLong(buff.getInt(24 + pos), buff.getInt(28 + pos));
+//System.out.println("      DataChannel Emu in: roc raw has frame = " + frame + ", timestamp = " + timestamp + ", pos = " + pos);
                     }
-                } else if (eventType == EventType.CONTROL) {
+                }
+                else if (eventType.isBuildable()) {
+                    // If time slices coming from DCAG, SAG, or PAG
+                    // Physics or partial physics event must have BANK as data type
+                    if (!node.getDataTypeObj().isBank()) {
+                        DataType eventDataType = node.getDataTypeObj();
+                        throw new EvioException("physics record contains " + eventDataType +
+                                " instead of banks (data corruption?)");
+                    }
+
+                    int pos = node.getPosition();
+                    // Find the frame and timestamp now for later ease of use (skip over 4 ints)
+                    ByteBuffer buff = node.getBuffer();
+                    frame = buff.getInt(16 + pos);
+                    timestamp = EmuUtilities.intsToLong(buff.getInt(20 + pos), buff.getInt(24 + pos));
+//System.out.println("      DataChannel Emu in: buildable has frame = " + frame + ", timestamp = " + timestamp + ", pos = " + pos);
+                }
+                else if (eventType == EventType.CONTROL) {
                     // Find out exactly what type of control event it is
                     // (May be null if there is an error).
                     controlType = ControlType.getControlType(node.getTag());
@@ -1604,7 +1626,8 @@ logger.info("      DataChannel Emu in: got " + controlType + " event from " + na
                         logger.info("      DataChannel Emu in: found unidentified control event");
                         throw new EvioException("Found unidentified control event");
                     }
-                } else if (eventType == EventType.USER) {
+                }
+                else if (eventType == EventType.USER) {
                     isUser = true;
                     if (hasFirstEvent) {
                         logger.info("      DataChannel Emu in: " + name + " got FIRST event");
@@ -1626,6 +1649,7 @@ logger.info("      DataChannel Emu in: got " + controlType + " event from " + na
 //                        //          else                    --> User event
 //                        // num > 0  --> block level for ROC RAW
 //
+//                        node = topNode;
 //                        int num = node.getNum();
 //                        if (num == 0) {
 //                            int tag = node.getTag();
@@ -1650,14 +1674,11 @@ logger.info("      DataChannel Emu in: got " + controlType + " event from " + na
 //                                        " instead of banks (data corruption?)");
 //                            }
 //                        }
-                } else {
-                    // Physics or partial physics event must have BANK as data type
-                    if (!node.getDataTypeObj().isBank()) {
-                        DataType eventDataType = node.getDataTypeObj();
-                        throw new EvioException("physics record contains " + eventDataType +
-                                " instead of banks (data corruption?)");
-                    }
                 }
+
+                nextRingItem = ringBufferIn.nextIntr(1);
+                ri = ringBufferIn.get(nextRingItem);
+
 
 //                 if (dumpData) {
 //                     bbSupply.release(item);
@@ -1714,6 +1735,7 @@ logger.info("      DataChannel Emu in: put CONTROL (user?) event into channel ri
                     haveInputEndEvent = true;
                     // Run callback saying we got end event
                     if (endCallback != null) endCallback.endWait();
+logger.info("      DataChannel Emu in: BREAK from loop, got END event");
                     break;
                 }
             }
