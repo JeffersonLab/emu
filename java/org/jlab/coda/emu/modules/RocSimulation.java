@@ -14,7 +14,6 @@ package org.jlab.coda.emu.modules;
 import com.lmax.disruptor.*;
 import org.jlab.coda.cMsg.*;
 import org.jlab.coda.emu.Emu;
-import org.jlab.coda.emu.EmuUtilities;
 import org.jlab.coda.emu.support.codaComponent.CODAClass;
 import org.jlab.coda.emu.support.codaComponent.CODAState;
 import org.jlab.coda.emu.support.codaComponent.CODAStateIF;
@@ -1048,7 +1047,7 @@ System.out.println("  Roc mod: NEED TO GENERATE MORE REAL DATA, have " + arrayBy
 
         // Get buf ready to read for output channel
         buf.limit(templateBuf.limit()).position(0);
-        System.out.println("  Roc mod: setting frame = " + frameNumber);
+//System.out.println("  Roc mod: setting frame = " + frameNumber);
         buf.putInt(28, (int)frameNumber);
         buf.putInt(32, (int)timestamp);// low 32 bits
         buf.putInt(36, (int)(timestamp >>> 32 & 0xFFFF)); // high 32 bits
@@ -1651,10 +1650,12 @@ System.out.println("  Roc mod: NEED TO GENERATE MORE REAL DATA, have " + arrayBy
             if (isStreamingData()) {
                 //generatedDataWords = 40*75;
                 generatedDataWords = 5;
-                ByteBuffer singleTSB = createSingleTimeSliceBuffer(generatedDataWords, frameNumber, timestamp);
-                singleTSBsize = singleTSB.limit() - 8;
+                //ByteBuffer singleTSB = createSingleTimeSliceBuffer(generatedDataWords, frameNumber, timestamp);
+                //singleTSBsize = singleTSB.limit() - 8;
 //System.out.println("  Roc mod: single TSB bytes size = " + singleTSBsize + ", words = " + (singleTSBsize/4));
-                templateBuffer = createDualTimeSliceBuffer(generatedDataWords, frameNumber, timestamp);
+                //templateBuffer = createDualTimeSliceBuffer(generatedDataWords, frameNumber, timestamp);
+System.out.println("\n  Roc mod: Starting sim ROC frame at " + frameNumber + "\n");
+                templateBuffer = createSingleTimeSliceBuffer(generatedDataWords, frameNumber, timestamp);
 //Utilities.printBuffer(templateBuffer, 0, 56, "TEMPLATE BUFFER");
                 eventWordSize = templateBuffer.remaining()/4;
                 frameNumber++;
@@ -1830,8 +1831,10 @@ System.out.println("  Roc mod: NEED TO GENERATE MORE REAL DATA, have " + arrayBy
 //System.out.println("  Roc mod: write event");
 
                         if (isStreamingData()) {
-                            writeDualTimeSliceBuffer(buf, templateBuffer, frameNumber,
-                                                 timestamp, copyWholeBuf, bytesPerDataBank, singleTSBsize);
+//                            writeDualTimeSliceBuffer(buf, templateBuffer, frameNumber,
+//                                    timestamp, copyWholeBuf, bytesPerDataBank, singleTSBsize);
+                            writeTimeSliceBuffer(buf, templateBuffer, frameNumber,
+                                                 timestamp, copyWholeBuf, bytesPerDataBank);
                         }
                         else {
                             if (--syncBitLoop == 0) {
@@ -2060,7 +2063,7 @@ System.out.println("  Roc mod: end(), UNSUBSCRIBE");
         // Put in END event
         PayloadBuffer pBuf = Evio.createControlBuffer(ControlType.END, 0, 0,
                                                       (int)eventCountTotal, (int)frameCountTotal, 0,
-                                                      outputOrder, false, isStreamingData());
+                                                      outputOrder, name, false, isStreamingData());
         // Send to first ring on ALL channels
         for (int i=0; i < outputChannelCount; i++) {
             if (i > 0) {
@@ -2147,7 +2150,7 @@ System.out.println("  Roc mod: PRESTART");
         // Create PRESTART event
         PayloadBuffer pBuf = Evio.createControlBuffer(ControlType.PRESTART, emu.getRunNumber(),
                                                       emu.getRunTypeId(), 0, 0,0,
-                                                      outputOrder, false, isStreamingData());
+                                                      outputOrder, name, false, isStreamingData());
         // Send to first ring on ALL channels
         for (int i=0; i < outputChannelCount; i++) {
             // Copy buffer and use that
@@ -2224,7 +2227,7 @@ System.out.println("  Roc mod: PRESTART");
         // Create GO event
         PayloadBuffer pBuf = Evio.createControlBuffer(ControlType.GO, 0, 0,
                                                       (int) eventCountTotal, (int)frameCountTotal, 0,
-                                                      outputOrder, false, isStreamingData());
+                                                      outputOrder, name, false, isStreamingData());
         // Send to first ring on ALL channels
         for (int i=0; i < outputChannelCount; i++) {
             // Copy buffer and use that
