@@ -210,6 +210,7 @@ public class ModuleAdapter implements EmuModule {
             if (id < 0)  id = 0;
         }
         catch (NumberFormatException e) { /* default to 0 */ }
+logger.info("  Module Adapter: id set to " + id);
         emu.setCodaid(id);
 
 
