@@ -90,6 +90,9 @@ public class DataTransportImplEmu extends DataTransportAdapter {
 logger.debug("    Transport Emu: port should be specified in config file, using default " + port);
             }
 
+            // TODO: temporarily hardwire this for Dave's VTP
+            port = 6000;
+
             // Start up Emu domain server (receiver of data)
 logger.debug("    Transport Emu: start up emu server in " + emu.name() + " @ port " + port);
             emuServer = new EmuDomainServer(port, emu.getExpid(), emu.name(), this);
