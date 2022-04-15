@@ -964,46 +964,58 @@ System.out.println("  EB mod: findEnd, chan " + ch + " got END from " + source +
                 nextSequences[i] = sorterSequenceIn[i].get() + 1L;
             }
 
+            // To help with FPGA-based VTP - with no PRESTART event - ignore its lack
+            if (!streamingData) {
+                // First thing we do is look for the PRESTART event(s) and pass it on
+                try {
+                    // Sorter thread writes prestart event on all output channels, ring 0.
+                    // Get prestart from each input channel.
+                    ControlType cType = getAllControlEvents(sorterSequenceIn, sorterBarrierIn,
+                            buildingBanks, nextSequences);
 
-            // First thing we do is look for the PRESTART event(s) and pass it on
-            try {
-                // Sorter thread writes prestart event on all output channels, ring 0.
-                // Get prestart from each input channel.
-                ControlType cType = getAllControlEvents(sorterSequenceIn, sorterBarrierIn,
-                                                        buildingBanks, nextSequences);
-
-                // In previous call, buildingBanks filled with control events from each channel
-                streaming = buildingBanks[0].isStreaming();
-                if (streaming != streamingData) {
-                    if (streamingData) {
-                        throw new EmuException("Expecting streamed data, got triggered");
+                    // In previous call, buildingBanks filled with control events from each channel
+                    streaming = buildingBanks[0].isStreaming();
+                    if (streaming != streamingData) {
+                        if (streamingData) {
+                            throw new EmuException("Expecting streamed data, got triggered");
+                        }
+                        throw new EmuException("Expecting triggered data, got streamed");
                     }
-                    throw new EmuException("Expecting triggered data, got streamed");
-                }
 
-                if (!cType.isPrestart()) {
-                    throw new EmuException("Expecting prestart event, got " + cType);
-                }
+                    if (!cType.isPrestart()) {
+                        throw new EmuException("Expecting prestart event, got " + cType);
+                    }
 
-                controlToOutputAsync(true, false, name);
-            }
-            catch (EmuException e) {
-                // To help with FPGA-based VTP - with no PRESTART event - ignore its lack
-                if (!streamingData) {
+                    controlToOutputAsync(true, false, name);
+                }
+                catch (EmuException e) {
                     e.printStackTrace();
                     if (debug) System.out.println("  EB mod: error getting prestart event");
                     emu.setErrorState("EB error getting prestart event");
                     moduleState = CODAState.ERROR;
                     return;
                 }
+                catch (InterruptedException e) {
+                    e.printStackTrace();
+                    // If interrupted we must quit
+                    if (debug) System.out.println("  EB mod: interrupted while waiting for prestart event");
+                    emu.setErrorState("EB interrupted waiting for prestart event");
+                    moduleState = CODAState.ERROR;
+                    return;
+                }
             }
-            catch (InterruptedException e) {
-                e.printStackTrace();
-                // If interrupted we must quit
-                if (debug) System.out.println("  EB mod: interrupted while waiting for prestart event");
-                emu.setErrorState("EB interrupted waiting for prestart event");
-                moduleState = CODAState.ERROR;
-                return;
+            else {
+                try {
+                    controlToOutputAsync(true, false, name);
+                }
+                catch (InterruptedException e) {
+                    e.printStackTrace();
+                    // If interrupted we must quit
+                    if (debug) System.out.println("  EB mod: interrupted while waiting for prestart event");
+                    emu.setErrorState("EB interrupted waiting for prestart event");
+                    moduleState = CODAState.ERROR;
+                    return;
+                }
             }
 
 
@@ -1012,43 +1024,57 @@ System.out.println("  EB mod: findEnd, chan " + ch + " got END from " + source +
             System.out.println("  EB mod: got all PRESTART events");
 
 
-            // Second thing we do is look for the GO or END event and pass it on
-            try {
-                // Sorter thread writes GO event on all output channels, ring 0.
-                // Other build threads ignore this.
-                // Get GO from each input channel
-                ControlType cType = getAllControlEvents(sorterSequenceIn, sorterBarrierIn,
-                                                        buildingBanks, nextSequences);
-                if (!cType.isGo()) {
-                    if (cType.isEnd()) {
-                        haveEndEvent = true;
-                        controlToOutputAsync(false, true, name);
-                        System.out.println("  EB mod: got all END events");
-                        return;
-                    } else {
-                        throw new EmuException("Expecting GO or END event, got " + cType);
+            // To help with FPGA-based VTP - with no GO event - ignore its lack
+            if (!streamingData) {
+                // Second thing we do is look for the GO or END event and pass it on
+                try {
+                    // Sorter thread writes GO event on all output channels, ring 0.
+                    // Other build threads ignore this.
+                    // Get GO from each input channel
+                    ControlType cType = getAllControlEvents(sorterSequenceIn, sorterBarrierIn,
+                            buildingBanks, nextSequences);
+                    if (!cType.isGo()) {
+                        if (cType.isEnd()) {
+                            haveEndEvent = true;
+                            controlToOutputAsync(false, true, name);
+                            System.out.println("  EB mod: got all END events");
+                            return;
+                        }
+                        else {
+                            throw new EmuException("Expecting GO or END event, got " + cType);
+                        }
                     }
-                }
 
-                controlToOutputAsync(false, false, name);
-            }
-            catch (EmuException e) {
-                // To help with FPGA-based VTP - with no GO event - ignore its lack
-                if (!streamingData) {
+                    controlToOutputAsync(false, false, name);
+                }
+                catch (EmuException e) {
                     e.printStackTrace();
                     if (debug) System.out.println("  EB mod: error getting go event");
                     emu.setErrorState("EB error getting go event");
                     moduleState = CODAState.ERROR;
                     return;
                 }
+                catch (InterruptedException e) {
+                    e.printStackTrace();
+                    // If interrupted, then we must quit
+                    if (debug) System.out.println("  EB mod: interrupted while waiting for go event");
+                    emu.setErrorState("EB interrupted waiting for go event");
+                    moduleState = CODAState.ERROR;
+                    return;
+                }
             }
-            catch (InterruptedException e) {
-                e.printStackTrace();
-                // If interrupted, then we must quit
-                if (debug) System.out.println("  EB mod: interrupted while waiting for go event");
-                emu.setErrorState("EB interrupted waiting for go event");
-                moduleState = CODAState.ERROR;
-                return;
+            else {
+                try {
+                    controlToOutputAsync(false, false, name);
+                }
+                catch (InterruptedException e) {
+                    e.printStackTrace();
+                    // If interrupted, then we must quit
+                    if (debug) System.out.println("  EB mod: interrupted while waiting for go event");
+                    emu.setErrorState("EB interrupted waiting for go event");
+                    moduleState = CODAState.ERROR;
+                    return;
+                }
             }
 
             System.out.println("  EB mod: got all GO events");
