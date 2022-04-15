@@ -677,8 +677,18 @@ logger.info("      DataChannel Emu out: will directly connect to server w/ UDL =
     public int getInputLevel() {
         // Pick out the fullest of the socket buffer supplies
         int supplyLevel, level = 0;
+
+        if (bbInSupply == null || bbInSupply.length < socketCount) {
+            return 0;
+        }
+
         for (int i = 0; i < socketCount; i++)  {
-            supplyLevel = bbInSupply[i].getFillLevel();
+            if (bbInSupply[i] == null) {
+                supplyLevel = 0;
+            }
+            else {
+                supplyLevel = bbInSupply[i].getFillLevel();
+            }
             level = level > supplyLevel ? level : supplyLevel;
         }
         return level;
@@ -1850,7 +1860,6 @@ System.out.println("SocketSender: killThread, set flag, interrupt");
 
             /**
              * Send the events currently marshalled into a single buffer.
-             * @force if true, force data over socket
              */
             public void run() {
                 boolean isEnd = false;
