@@ -1439,7 +1439,7 @@ logger.info("      DataChannel Emu in: got " + controlType + " event from " + na
             // Get buffer from an item from ByteBufferSupply - one per channel
             ByteBuffer buf = item.getBuffer();
 
-//Utilities.printBytes(buf, 0, 240, "Incoming buf");
+Utilities.printBytes(buf, 0, 240, "Incoming buf");
 
 
 //            // Do this for possibly compressed data. Make sure the buffer we got from the
@@ -1454,11 +1454,11 @@ logger.info("      DataChannel Emu in: got " + controlType + " event from " + na
                 // Each pool must be reset only once!
                 pool.reset();
                 if (reader == null) {
-//System.out.println("      DataChannel Emu in: create reader, buf's pos/lim = " + buf.position() + "/" + buf.limit());
+System.out.println("      DataChannel Emu in: create reader, buf's pos/lim = " + buf.position() + "/" + buf.limit());
                     reader = new EvioCompactReader(buf, pool, false);
                 }
                 else {
-//System.out.println("      DataChannel Emu in: set buffer, expected id = " + expectedRecordId);
+System.out.println("      DataChannel Emu in: set buffer, expected id = " + expectedRecordId);
                     reader.setBuffer(buf, pool);
                 }
 
@@ -1501,9 +1501,11 @@ logger.info("      DataChannel Emu in: got " + controlType + " event from " + na
             // Check record for sequential record id
             expectedRecordId = Evio.checkRecordIdSequence(recordId, expectedRecordId, false,
                                                           eventType, DataChannelImplEmu.this);
-//System.out.println("      DataChannel Emu in: expected record id = " + expectedRecordId +
-//                    ", actual = " + recordId);
-//System.out.println("      DataChannel Emu in: event type = " + eventType + ", event count = " + reader.getEventCount() + " from " + name + "\n");
+System.out.println("      DataChannel Emu in: expected record id = " + expectedRecordId +
+                    ", actual = " + recordId);
+System.out.println("      DataChannel Emu in: event type = " + eventType + ", event count = " + reader.getEventCount() + " from " + name + "\n");
+            EvioNode nd = reader.getScannedEvent(1, pool);
+Utilities.printBytes(nd.getBuffer(), 0, nd.getTotalBytes(), "First event bytes");
 
             int eventCount = reader.getEventCount();
             boolean gotRocRaw  = eventType.isROCRaw();
