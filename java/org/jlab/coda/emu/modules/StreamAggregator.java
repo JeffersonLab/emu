@@ -988,11 +988,14 @@ System.out.println("  EB mod: findEnd, chan " + ch + " got END from " + source +
                 controlToOutputAsync(true, false, name);
             }
             catch (EmuException e) {
-                e.printStackTrace();
-                if (debug) System.out.println("  EB mod: error getting prestart event");
-                emu.setErrorState("EB error getting prestart event");
-                moduleState = CODAState.ERROR;
-                return;
+                // To help with FPGA-based VTP - with no PRESTART event - ignore its lack
+                if (!streamingData) {
+                    e.printStackTrace();
+                    if (debug) System.out.println("  EB mod: error getting prestart event");
+                    emu.setErrorState("EB error getting prestart event");
+                    moduleState = CODAState.ERROR;
+                    return;
+                }
             }
             catch (InterruptedException e) {
                 e.printStackTrace();
@@ -1030,11 +1033,14 @@ System.out.println("  EB mod: findEnd, chan " + ch + " got END from " + source +
                 controlToOutputAsync(false, false, name);
             }
             catch (EmuException e) {
-                e.printStackTrace();
-                if (debug) System.out.println("  EB mod: error getting go event");
-                emu.setErrorState("EB error getting go event");
-                moduleState = CODAState.ERROR;
-                return;
+                // To help with FPGA-based VTP - with no GO event - ignore its lack
+                if (!streamingData) {
+                    e.printStackTrace();
+                    if (debug) System.out.println("  EB mod: error getting go event");
+                    emu.setErrorState("EB error getting go event");
+                    moduleState = CODAState.ERROR;
+                    return;
+                }
             }
             catch (InterruptedException e) {
                 e.printStackTrace();
