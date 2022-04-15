@@ -91,7 +91,7 @@ logger.debug("    Transport Emu: port should be specified in config file, using 
             }
 
             // TODO: temporarily hardwire this for Dave's VTP
-            port = 6000;
+            //port = 6000;
 
             // Start up Emu domain server (receiver of data)
 logger.debug("    Transport Emu: start up emu server in " + emu.name() + " @ port " + port);
