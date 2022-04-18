@@ -992,13 +992,14 @@ logger.debug("      DataChannel Emu: end(), close output channel " + name);
 
                     // Sets the producer sequence
                     item = bbSupply.get();
-//System.out.println("      DataChannel Emu in: GOT pool " + item.myIndex);
+System.out.println("      DataChannel Emu in: GOT item " + item.myIndex + " from ByteBuffer supply");
 
                     // First read the command & size with one read, into a long.
                     // These 2, 32-bit ints are sent in network byte order, cmd first.
                     // Reading a long assumes big endian so cmd, which is sent
                     // first, should appear in most significant bytes.
                     if (direct) {
+System.out.println("      DataChannel Emu in: Try reading cmsg hdr words into direct buf");
                         sockChannel.read(wordCmdBuf);
                         cmd  = ibuf.get();
                         size = ibuf.get();
@@ -1009,13 +1010,16 @@ logger.debug("      DataChannel Emu: end(), close output channel " + name);
                         buf = item.getBuffer();
                         buf.limit(size);
 
+System.out.println("      DataChannel Emu in: got cmd = " + cmd + ", size = " + size + ", now read in data ...");
                         // Be sure to read everything
                         while (buf.hasRemaining()) {
                             sockChannel.read(buf);
                         }
+System.out.println("      DataChannel Emu in: done reading in data");
                         buf.flip();
                     }
                     else {
+System.out.println("      DataChannel Emu in: Try reading cmsg hdr words");
                         word = inStream.readLong();
                         cmd  = (int) ((word >>> 32) & 0xffL);
                         size = (int)   word;   // just truncate for lowest 32 bytes
@@ -1023,10 +1027,12 @@ logger.debug("      DataChannel Emu: end(), close output channel " + name);
                         buf = item.getBuffer();
                         buf.limit(size);
 
+System.out.println("      DataChannel Emu in: got cmd = " + cmd + ", size = " + size + ", now read in data ...");
                         inStream.readFully(item.getBuffer().array(), 0, size);
+System.out.println("      DataChannel Emu in: done reading in data");
                     }
-//System.out.println("      DataChannel Emu in: " + name + ", incoming buf size = " + size);
-//Utilities.printBuffer(item.getBuffer(), 0, size/4, "PRESTART EVENT, buf lim = " + buf.limit());
+System.out.println("      DataChannel Emu in: " + name + ", incoming buf size = " + size);
+Utilities.printBuffer(item.getBuffer(), 0, size/4, "PRESTART EVENT, buf lim = " + buf.limit());
                     bbSupply.publish(item);
 
                     // We just received the END event
@@ -1098,6 +1104,7 @@ System.out.println("      DataChannel Emu in: " + name +
                     while (true) {
                         // Sets the consumer sequence
                         ByteBufferItem item = bbSupply.consumerGet();
+logger.info("      DataChannel Emu in: streaming parser, parse 1 buf from " + name);
                         if (module.isStreamingData()) {
                             if (parseStreamingToRing(item, bbSupply)) {
                                 logger.info("      DataChannel Emu in: 1 quit streaming parser/merger thread for END event from " + name);
