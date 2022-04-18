@@ -38,7 +38,7 @@ public class EmuDomainTcpServer extends Thread {
 
 
     /** Level of debug output for this class. */
-    private int debug = cMsgConstants.debugError;
+    private int debug = cMsgConstants.debugInfo;
 
     private final int serverPort;
 
@@ -246,7 +246,7 @@ System.out.println("    Emu TCP Server: Got socket count = " + socketCount);
                                 // Position of this socket compared to others: 1, 2, ...
                                 socketPosition = buffer.getInt();
 System.out.println("    Emu TCP Server: Got socket position = " + socketPosition);
-                                if (socketCount < 1) {
+                                if (socketPosition < 1) {
                                     if (debug >= cMsgConstants.debugInfo) {
                                         System.out.println("    Emu TCP Server: bad socket position of sender (" +
                                                                    socketPosition + ')');
@@ -274,10 +274,10 @@ System.out.println("    Emu TCP Server: Got socket position = " + socketPosition
                         // Look up the associated channel in the transport object
                         DataChannelImplEmu emuChannel = server.transport.inputChannelTable.get(codaId);
                         if (emuChannel == null) {
-                            if (debug >= cMsgConstants.debugInfo) {
-                                System.out.println("    Emu TCP Server: no emu input channel found for CODA id = " +
-                                                   codaId);
-                            }
+                      //      if (debug >= cMsgConstants.debugInfo) {
+                                System.out.println("********\n    Emu TCP Server: no emu input channel found for CODA id = " +
+                                                   codaId + "\n********");
+                       //     }
                             channel.close();
                             it.remove();
                             continue;
@@ -308,6 +308,7 @@ System.out.println("    Emu TCP Server: domain server, new connection");
             }
         }
         catch (Exception ex) {
+            ex.printStackTrace();
             server.transport.transportState = CODAState.ERROR;
             server.transport.emu.setErrorState("    Emu TCP Server: in emu TCP server: " +
                                                        ex.getMessage());

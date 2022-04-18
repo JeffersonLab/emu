@@ -495,7 +495,7 @@ logger.info("      DataChannel Emu in: created " + (numBufs) + " node pools for 
         bbInSupply[index] = new ByteBufferSupply(numBufs, 32,
                                                  ByteOrder.BIG_ENDIAN, direct,
                                                  sequentialRelease, nodePools[index]);
-        
+
 logger.info("      DataChannel Emu in: connection made from " + name);
 
         // Start thread to handle socket input
@@ -997,7 +997,7 @@ System.out.println("      DataChannel Emu in: GOT item " + item.myIndex + " from
                     // Reading a long assumes big endian so cmd, which is sent
                     // first, should appear in most significant bytes.
                     if (direct) {
-System.out.println("      DataChannel Emu in: Try reading cmsg hdr words into direct buf");
+System.out.println("      DataChannel Emu in: Try reading buffer hdr words into direct buf");
                         sockChannel.read(wordCmdBuf);
                         cmd  = ibuf.get();
                         size = ibuf.get();
@@ -1017,7 +1017,7 @@ System.out.println("      DataChannel Emu in: done reading in data");
                         buf.flip();
                     }
                     else {
-System.out.println("      DataChannel Emu in: Try reading cmsg hdr words");
+System.out.println("      DataChannel Emu in: Try reading buffer hdr words");
                         word = inStream.readLong();
                         cmd  = (int) ((word >>> 32) & 0xffL);
                         size = (int)   word;   // just truncate for lowest 32 bytes
