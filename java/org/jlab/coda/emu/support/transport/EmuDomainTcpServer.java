@@ -186,6 +186,9 @@ public class EmuDomainTcpServer extends Thread {
                                     it.remove();
                                     continue keyLoop;
                                 }
+System.out.println("    Emu TCP Server: Got magic1 = " + magic1);
+System.out.println("    Emu TCP Server: Got magic2 = " + magic2);
+System.out.println("    Emu TCP Server: Got magic3 = " + magic3);
 
                                 // Check for server / client compatibility for cMsg version
                                 version = buffer.getInt();
