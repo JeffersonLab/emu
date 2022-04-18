@@ -1991,7 +1991,7 @@ System.out.println("Emu " + name + " end: try setting state to DOWNLOADED");
      * Implement go command.
      */
     private void go() {
-logger.info("Emu " + name + " go: change state to GOING");
+logger.info("Emu " + name + " go: change state to ACTIVATING");
         setState(ACTIVATING);
 
         //--------------------------------------------------------
