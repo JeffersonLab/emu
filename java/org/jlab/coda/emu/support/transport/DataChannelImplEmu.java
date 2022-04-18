@@ -403,8 +403,8 @@ logger.info("      DataChannel Emu: set sendBuf to " + tcpSendBuf);
 
         // Make power of 2, round up
         numBufs = EmuUtilities.powerOfTwo(numBufs, true);
-//logger.info("\n\n      DataChannel Emu in: " + numBufs + " buffers in input supply, socketCount = " +
-//                    socketCount + "\n\n");
+logger.info("\n\n      DataChannel Emu in: " + numBufs + " buffers in input supply, socketCount = " +
+                    socketCount + "\n\n");
 
         // Initialize things once
         if (socketChannel == null) {
@@ -415,7 +415,7 @@ logger.info("      DataChannel Emu: set sendBuf to " + tcpSendBuf);
             dataInputThread = new DataInputHelper[socketCount];
             parserMergerThread = new ParserMerger();
             nodePools = new EvioNodePool[socketCount][numBufs];
-//logger.info("      DataChannel Emu in: allocated " + (socketCount * numBufs) + " node pools in array");
+logger.info("      DataChannel Emu in: allocated " + (socketCount * numBufs) + " node pools in array");
         }
         // If establishing multiple sockets for this single emu channel,
         // make sure their settings are compatible.
@@ -482,7 +482,7 @@ logger.info("      DataChannel Emu: set sendBuf to " + tcpSendBuf);
             }
         }
 
-//logger.info("      DataChannel Emu in: seq release of buffers = " + sequentialRelease);
+logger.info("      DataChannel Emu in: seq release of buffers = " + sequentialRelease);
 
         // Create the EvioNode pools - each socket gets numBuf number of pools -
         // each of which contain 3500 EvioNodes to begin with. These are used for
@@ -490,14 +490,12 @@ logger.info("      DataChannel Emu: set sendBuf to " + tcpSendBuf);
         for (int i = 0; i < numBufs; i++) {
             nodePools[index][i] = new EvioNodePool(3500);
         }
-//logger.info("      DataChannel Emu in: created " + (numBufs) + " node pools for socket " + index + ", " + name());
+logger.info("      DataChannel Emu in: created " + (numBufs) + " node pools for socket " + index + ", " + name());
 
         bbInSupply[index] = new ByteBufferSupply(numBufs, 32,
                                                  ByteOrder.BIG_ENDIAN, direct,
                                                  sequentialRelease, nodePools[index]);
-
-//logger.info("      DataChannel Emu in: seq release = " + sequentialRelease);
-
+        
 logger.info("      DataChannel Emu in: connection made from " + name);
 
         // Start thread to handle socket input
