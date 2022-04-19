@@ -38,7 +38,7 @@ public class EmuDomainTcpServer extends Thread {
 
 
     /** Level of debug output for this class. */
-    private int debug = cMsgConstants.debugInfo;
+    private final int debug = cMsgConstants.debugError;
 
     private final int serverPort;
 
@@ -164,9 +164,9 @@ public class EmuDomainTcpServer extends Thread {
 
                             bytesRead += bytes;
 
-                           // if (debug >= cMsgConstants.debugInfo) {
+                            if (debug >= cMsgConstants.debugInfo) {
                                 System.out.println("    Emu TCP Server: bytes read = " + bytesRead);
-                           // }
+                            }
 
                             // If we've read everything, look to see what we got ...
                             if (bytesRead >= BYTES_TO_READ) {
@@ -179,22 +179,22 @@ public class EmuDomainTcpServer extends Thread {
                                 if (magic1 != cMsgNetworkConstants.magicNumbers[0] ||
                                     magic2 != cMsgNetworkConstants.magicNumbers[1] ||
                                     magic3 != cMsgNetworkConstants.magicNumbers[2])  {
-                                    if (debug >= cMsgConstants.debugInfo) {
+                                    if (debug >= cMsgConstants.debugError) {
                                         System.out.println("    Emu TCP Server: Magic #s did NOT match, ignore");
                                     }
                                     channel.close();
                                     it.remove();
                                     continue keyLoop;
                                 }
-System.out.println("    Emu TCP Server: Got magic1 = " + magic1);
-System.out.println("    Emu TCP Server: Got magic2 = " + magic2);
-System.out.println("    Emu TCP Server: Got magic3 = " + magic3);
+//System.out.println("    Emu TCP Server: Got magic1 = " + magic1);
+//System.out.println("    Emu TCP Server: Got magic2 = " + magic2);
+//System.out.println("    Emu TCP Server: Got magic3 = " + magic3);
 
                                 // Check for server / client compatibility for cMsg version
                                 version = buffer.getInt();
-System.out.println("    Emu TCP Server: Got version = " + version);
+//System.out.println("    Emu TCP Server: Got version = " + version);
                                 if (version != cMsgConstants.version) {
-                                    if (debug >= cMsgConstants.debugInfo) {
+                                    if (debug >= cMsgConstants.debugError) {
                                         System.out.println("    Emu TCP Server: version mismatch, got " +
                                                             version + ", needed " + cMsgConstants.version);
                                     }
@@ -205,9 +205,9 @@ System.out.println("    Emu TCP Server: Got version = " + version);
 
                                 // CODA id of sender
                                 codaId = buffer.getInt();
-System.out.println("    Emu TCP Server: Got coda id = " + codaId);
+//System.out.println("    Emu TCP Server: Got coda id = " + codaId);
                                 if (codaId < 0) {
-                                    if (debug >= cMsgConstants.debugInfo) {
+                                    if (debug >= cMsgConstants.debugError) {
                                         System.out.println("    Emu TCP Server: bad coda id of sender (" +
                                                            codaId + ')');
                                     }
@@ -218,10 +218,10 @@ System.out.println("    Emu TCP Server: Got coda id = " + codaId);
 
                                 // Max size buffers to hold incoming data in bytes
                                 bufferSizeDesired = buffer.getInt();
-System.out.println("    Emu TCP Server: Got buffer size = " + bufferSizeDesired);
+//System.out.println("    Emu TCP Server: Got buffer size = " + bufferSizeDesired);
                                 if (bufferSizeDesired < 4*10) {
                                     // 40 bytes is smallest possible evio file format size
-                                    if (debug >= cMsgConstants.debugInfo) {
+                                    if (debug >= cMsgConstants.debugError) {
                                         System.out.println("    Emu TCP Server: bad buffer size from sender (" +
                                                                    bufferSizeDesired + ')');
                                     }
@@ -232,9 +232,9 @@ System.out.println("    Emu TCP Server: Got buffer size = " + bufferSizeDesired)
 
                                 // Number of sockets expected to be made by client
                                 socketCount = buffer.getInt();
-System.out.println("    Emu TCP Server: Got socket count = " + socketCount);
+//System.out.println("    Emu TCP Server: Got socket count = " + socketCount);
                                 if (socketCount < 1) {
-                                    if (debug >= cMsgConstants.debugInfo) {
+                                    if (debug >= cMsgConstants.debugError) {
                                         System.out.println("    Emu TCP Server: bad socket count of sender (" +
                                                                    socketCount + ')');
                                     }
@@ -245,9 +245,9 @@ System.out.println("    Emu TCP Server: Got socket count = " + socketCount);
 
                                 // Position of this socket compared to others: 1, 2, ...
                                 socketPosition = buffer.getInt();
-System.out.println("    Emu TCP Server: Got socket position = " + socketPosition);
+//System.out.println("    Emu TCP Server: Got socket position = " + socketPosition);
                                 if (socketPosition < 1) {
-                                    if (debug >= cMsgConstants.debugInfo) {
+                                    if (debug >= cMsgConstants.debugError) {
                                         System.out.println("    Emu TCP Server: bad socket position of sender (" +
                                                                    socketPosition + ')');
                                     }
@@ -274,10 +274,10 @@ System.out.println("    Emu TCP Server: Got socket position = " + socketPosition
                         // Look up the associated channel in the transport object
                         DataChannelImplEmu emuChannel = server.transport.inputChannelTable.get(codaId);
                         if (emuChannel == null) {
-                      //      if (debug >= cMsgConstants.debugInfo) {
+                            if (debug >= cMsgConstants.debugError) {
                                 System.out.println("********\n    Emu TCP Server: no emu input channel found for CODA id = " +
                                                    codaId + "\n********");
-                       //     }
+                            }
                             channel.close();
                             it.remove();
                             continue;
@@ -286,12 +286,12 @@ System.out.println("    Emu TCP Server: Got socket position = " + socketPosition
                         // The emu (not socket) channel will start a
                         // thread to handle all further communication.
                         try {
-System.out.println("    Emu TCP Server: domain server, call attachToInput");
+//System.out.println("    Emu TCP Server: domain server, call attachToInput");
                             emuChannel.attachToInput(channel, codaId, bufferSizeDesired,
                                                      socketCount, socketPosition);
                         }
                         catch (IOException e) {
-                            if (debug >= cMsgConstants.debugInfo) {
+                            if (debug >= cMsgConstants.debugError) {
                                 System.out.println("    Emu TCP Server: " + e.getMessage());
                             }
                             channel.close();
@@ -299,7 +299,7 @@ System.out.println("    Emu TCP Server: domain server, call attachToInput");
                             continue;
                         }
 
-System.out.println("    Emu TCP Server: domain server, new connection");
+//System.out.println("    Emu TCP Server: domain server, new connection");
                     }
 
                     // remove key from selected set since it's been handled

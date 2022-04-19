@@ -257,7 +257,7 @@ public class DataChannelImplEmu extends DataChannelAdapter {
                 catch (NumberFormatException e) {}
             }
 
-logger.info("      DataChannel Emu: recvBuf = " + tcpRecvBuf);
+            logger.info("      DataChannel Emu: recvBuf = " + tcpRecvBuf);
 
             // set "data dump" option on
             // Currently unused.
@@ -287,7 +287,7 @@ logger.info("      DataChannel Emu: recvBuf = " + tcpRecvBuf);
                     noDelay = false;
                 }
             }
-logger.info("      DataChannel Emu: noDelay = " + noDelay);
+            logger.info("      DataChannel Emu: noDelay = " + noDelay);
 
             // size of TCP send buffer (0 means use operating system default)
             //tcpSendBuf = 3000000;     // THIS VALUE DOES NOT WORK FOR 1G Ethernet!!!
@@ -303,7 +303,7 @@ logger.info("      DataChannel Emu: noDelay = " + noDelay);
                 }
                 catch (NumberFormatException e) {}
             }
-logger.info("      DataChannel Emu: set sendBuf to " + tcpSendBuf);
+            logger.info("      DataChannel Emu: set sendBuf to " + tcpSendBuf);
 
             // Send port
             sendPort = cMsgNetworkConstants.emuTcpPort;
@@ -415,7 +415,7 @@ logger.info("\n\n      DataChannel Emu in: " + numBufs + " buffers in input supp
             dataInputThread = new DataInputHelper[socketCount];
             parserMergerThread = new ParserMerger();
             nodePools = new EvioNodePool[socketCount][numBufs];
-logger.info("      DataChannel Emu in: allocated " + (socketCount * numBufs) + " node pools in array");
+//logger.info("      DataChannel Emu in: allocated " + (socketCount * numBufs) + " node pools in array");
         }
         // If establishing multiple sockets for this single emu channel,
         // make sure their settings are compatible.
@@ -482,7 +482,7 @@ logger.info("      DataChannel Emu in: allocated " + (socketCount * numBufs) + "
             }
         }
 
-logger.info("      DataChannel Emu in: seq release of buffers = " + sequentialRelease);
+//logger.info("      DataChannel Emu in: seq release of buffers = " + sequentialRelease);
 
         // Create the EvioNode pools - each socket gets numBuf number of pools -
         // each of which contain 3500 EvioNodes to begin with. These are used for
@@ -490,7 +490,7 @@ logger.info("      DataChannel Emu in: seq release of buffers = " + sequentialRe
         for (int i = 0; i < numBufs; i++) {
             nodePools[index][i] = new EvioNodePool(3500);
         }
-logger.info("      DataChannel Emu in: created " + (numBufs) + " node pools for socket " + index + ", " + name());
+//logger.info("      DataChannel Emu in: created " + (numBufs) + " node pools for socket " + index + ", " + name());
 
         bbInSupply[index] = new ByteBufferSupply(numBufs, 32,
                                                  ByteOrder.BIG_ENDIAN, direct,
@@ -990,14 +990,14 @@ logger.debug("      DataChannel Emu: end(), close output channel " + name);
 
                     // Sets the producer sequence
                     item = bbSupply.get();
-System.out.println("      DataChannel Emu in: GOT item " + item.myIndex + " from ByteBuffer supply");
+//System.out.println("      DataChannel Emu in: GOT item " + item.myIndex + " from ByteBuffer supply");
 
                     // First read the command & size with one read, into a long.
                     // These 2, 32-bit ints are sent in network byte order, cmd first.
                     // Reading a long assumes big endian so cmd, which is sent
                     // first, should appear in most significant bytes.
                     if (direct) {
-System.out.println("      DataChannel Emu in: Try reading buffer hdr words into direct buf");
+//System.out.println("      DataChannel Emu in: Try reading buffer hdr words into direct buf");
                         sockChannel.read(wordCmdBuf);
                         cmd  = ibuf.get();
                         size = ibuf.get();
@@ -1008,16 +1008,16 @@ System.out.println("      DataChannel Emu in: Try reading buffer hdr words into 
                         buf = item.getBuffer();
                         buf.limit(size);
 
-System.out.println("      DataChannel Emu in: got cmd = " + cmd + ", size = " + size + ", now read in data ...");
+//System.out.println("      DataChannel Emu in: got cmd = " + cmd + ", size = " + size + ", now read in data ...");
                         // Be sure to read everything
                         while (buf.hasRemaining()) {
                             sockChannel.read(buf);
                         }
-System.out.println("      DataChannel Emu in: done reading in data");
+//System.out.println("      DataChannel Emu in: done reading in data");
                         buf.flip();
                     }
                     else {
-System.out.println("      DataChannel Emu in: Try reading buffer hdr words");
+//System.out.println("      DataChannel Emu in: Try reading buffer hdr words");
                         word = inStream.readLong();
                         cmd  = (int) ((word >>> 32) & 0xffL);
                         size = (int)   word;   // just truncate for lowest 32 bytes
@@ -1025,12 +1025,12 @@ System.out.println("      DataChannel Emu in: Try reading buffer hdr words");
                         buf = item.getBuffer();
                         buf.limit(size);
 
-System.out.println("      DataChannel Emu in: got cmd = " + cmd + ", size = " + size + ", now read in data ...");
+//System.out.println("      DataChannel Emu in: got cmd = " + cmd + ", size = " + size + ", now read in data ...");
                         inStream.readFully(item.getBuffer().array(), 0, size);
-System.out.println("      DataChannel Emu in: done reading in data");
+//System.out.println("      DataChannel Emu in: done reading in data");
                     }
-System.out.println("      DataChannel Emu in: " + name + ", incoming buf size = " + size);
-Utilities.printBuffer(item.getBuffer(), 0, size/4, "PRESTART EVENT, buf lim = " + buf.limit());
+//System.out.println("      DataChannel Emu in: " + name + ", incoming buf size = " + size);
+//Utilities.printBuffer(item.getBuffer(), 0, size/4, "PRESTART EVENT, buf lim = " + buf.limit());
                     bbSupply.publish(item);
 
                     // We just received the END event
@@ -1102,7 +1102,6 @@ System.out.println("      DataChannel Emu in: " + name +
                     while (true) {
                         // Sets the consumer sequence
                         ByteBufferItem item = bbSupply.consumerGet();
-logger.info("      DataChannel Emu in: streaming parser, parse 1 buf from " + name);
                         if (module.isStreamingData()) {
                             if (parseStreamingToRing(item, bbSupply)) {
                                 logger.info("      DataChannel Emu in: 1 quit streaming parser/merger thread for END event from " + name);
@@ -1149,7 +1148,7 @@ logger.info("      DataChannel Emu in: streaming parser, parse 1 buf from " + na
             }
             catch (EvioException e) {
                 // Bad data format or unknown control event.
-e.printStackTrace();
+                e.printStackTrace();
                 channelState = CODAState.ERROR;
                 emu.setErrorState("DataChannel Emu in: " + e.getMessage());
             }
@@ -1444,7 +1443,7 @@ logger.info("      DataChannel Emu in: got " + controlType + " event from " + na
             // Get buffer from an item from ByteBufferSupply - one per channel
             ByteBuffer buf = item.getBuffer();
 
-Utilities.printBytes(buf, 0, 240, "Incoming buf");
+//Utilities.printBytes(buf, 0, 240, "Incoming buf");
 
 
 //            // Do this for possibly compressed data. Make sure the buffer we got from the
@@ -1461,9 +1460,10 @@ Utilities.printBytes(buf, 0, 240, "Incoming buf");
                 if (reader == null) {
 System.out.println("      DataChannel Emu in: create reader, buf's pos/lim = " + buf.position() + "/" + buf.limit());
                     reader = new EvioCompactReader(buf, pool, false);
+System.out.println("      DataChannel Emu in: incoming data's evio version = " + reader.getEvioVersion());
                 }
                 else {
-System.out.println("      DataChannel Emu in: set buffer, expected id = " + expectedRecordId);
+//System.out.println("      DataChannel Emu in: set buffer, expected id = " + expectedRecordId);
                     reader.setBuffer(buf, pool);
                 }
 
@@ -1496,9 +1496,12 @@ System.out.println("      DataChannel Emu in: set buffer, expected id = " + expe
             // Since we're streaming, then there are multiple ROC Time Slice Banks contained in the top
             // level bank.
 
+            int evtType = blockHeader.getEventType();
             EventType eventType = EventType.getEventType(blockHeader.getEventType());
             if (eventType == null || !eventType.isEbFriendly()) {
-                throw new EvioException("bad evio format or improper event type");
+                System.out.println("bad evio format or improper event type (" + evtType + ")\n");
+                Utilities.printBytes(buf, 0, 200, "Incoming (bad format bytes");
+                throw new EvioException("bad evio format or improper event type (" + evtType + ")");
             }
 
             recordId = blockHeader.getNumber();
@@ -1506,11 +1509,11 @@ System.out.println("      DataChannel Emu in: set buffer, expected id = " + expe
             // Check record for sequential record id
             expectedRecordId = Evio.checkRecordIdSequence(recordId, expectedRecordId, false,
                                                           eventType, DataChannelImplEmu.this);
-System.out.println("      DataChannel Emu in: expected record id = " + expectedRecordId +
-                    ", actual = " + recordId);
-System.out.println("      DataChannel Emu in: event type = " + eventType + ", event count = " + reader.getEventCount() + " from " + name + "\n");
+//System.out.println("      DataChannel Emu in: expected record id = " + expectedRecordId +
+//                    ", actual = " + recordId);
+//System.out.println("      DataChannel Emu in: event type = " + eventType + ", event count = " + reader.getEventCount() + " from " + name + "\n");
             EvioNode nd = reader.getScannedEvent(1, pool);
-Utilities.printBytes(nd.getBuffer(), 0, nd.getTotalBytes(), "First event bytes");
+//Utilities.printBytes(nd.getBuffer(), 0, nd.getTotalBytes(), "First event bytes");
 
             int eventCount = reader.getEventCount();
             boolean gotRocRaw  = eventType.isROCRaw();
