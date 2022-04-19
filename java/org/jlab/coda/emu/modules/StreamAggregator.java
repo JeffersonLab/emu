@@ -352,6 +352,10 @@ logger.info("  EB mod: internal ring buf count -> " + ringItemCount);
     public boolean isStreamingData() {return true;}
 
 
+    /** {@inheritDoc} */
+    public boolean dataFromVTP() {return true;}
+
+
     /**
      * This method is used to place an item onto a ring buffer of an output channel.
      *
@@ -965,8 +969,7 @@ System.out.println("  EB mod: findEnd, chan " + ch + " got END from " + source +
             }
 
             // To help with FPGA-based VTP - with no PRESTART event - ignore its lack
-            boolean fromVTP = true;
-            if (!fromVTP) {
+            if (!dataFromVTP()) {
                 // First thing we do is look for the PRESTART event(s) and pass it on
                 try {
                     // Sorter thread writes prestart event on all output channels, ring 0.
@@ -1026,7 +1029,7 @@ System.out.println("  EB mod: findEnd, chan " + ch + " got END from " + source +
 
 
             // To help with FPGA-based VTP - with no GO event - ignore its lack
-            if (!fromVTP) {
+            if (!dataFromVTP()) {
                 // Second thing we do is look for the GO or END event and pass it on
                 try {
                     // Sorter thread writes GO event on all output channels, ring 0.

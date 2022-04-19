@@ -189,4 +189,10 @@ public interface EmuModule extends StatedObject, CODAStateMachine {
      */
     boolean isStreamingData();
 
+    /**
+     * Does this module process data coming from a VTP?
+     * @return {@code true} if this emodule processes data coming from a VTP, else {@code false}.
+     */
+    boolean dataFromVTP();
+
 }

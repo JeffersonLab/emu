@@ -105,6 +105,8 @@ public class ModuleAdapter implements EmuModule {
     /** If <code>true</code>, data to be built is from a streaming (not triggered) source. */
     protected boolean streamingData;
 
+    /** If <coda>true</coda>, data processed by this module comes from a VTP. */
+    protected boolean dataFromVTP;
 
     //---------------------------
     // For generating statistics
@@ -531,6 +533,9 @@ logger.info("  Module Adapter: output byte order = " + outputOrder);
 
     /** {@inheritDoc} */
     public boolean isStreamingData() {return streamingData;}
+
+    /** {@inheritDoc} */
+    public boolean dataFromVTP() {return dataFromVTP;}
 
     //----------------------------------------------------------------
 
