@@ -24,6 +24,7 @@ public enum EventType {
     USER                 (4),
     CONTROL              (5),
     MIXED                (6),
+    ROC_RAW_STREAM       (8),
     OTHER                (15);
 
     private int value;
@@ -68,6 +69,10 @@ public enum EventType {
     }
 
 
+    /**
+     * Constructor
+     * @param value integer value associated with event type.
+     */
     EventType(int value) {
         this.value = value;
     }
@@ -106,11 +111,25 @@ public enum EventType {
     }
 
     /**
-     * Is this a data event type?
-     * @return <code>true</code> if data event type, else <code>false</code>
+     * Is this a triggered ROC RAW event type?
+     * @return <code>true</code> if triggered ROC RAW event type, else <code>false</code>
      */
     public boolean isROCRaw() {
         return this == ROC_RAW;
+    }
+
+    /**
+     * Is this event from a ROC, either triggered or streaming?
+     * @return <code>true</code> if event from ROC (triggered or streaming), else <code>false</code>
+     */
+    public boolean isFromROC() {return (this == ROC_RAW_STREAM || this == ROC_RAW);}
+
+    /**
+     * Is this a streaming ROC RAW event type?
+     * @return <code>true</code> if streaming ROC RAW event type, else <code>false</code>
+     */
+    public boolean isROCRawStream() {
+        return this == ROC_RAW_STREAM;
     }
 
     /**
@@ -160,7 +179,7 @@ public enum EventType {
      * @return <code>true</code> if buildable by the event builder, else <code>false</code>
      */
     public boolean isBuildable() {
-        return (this == ROC_RAW || this == PHYSICS || this == PARTIAL_PHYSICS);
+        return (this == ROC_RAW || this == ROC_RAW_STREAM || this == PHYSICS || this == PARTIAL_PHYSICS);
     }
 
     /**
