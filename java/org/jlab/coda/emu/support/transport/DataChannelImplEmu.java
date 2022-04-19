@@ -1516,7 +1516,7 @@ System.out.println("      DataChannel Emu in: incoming data's evio version = " +
 //Utilities.printBytes(nd.getBuffer(), 0, nd.getTotalBytes(), "First event bytes");
 
             int eventCount = reader.getEventCount();
-            boolean gotRocRaw  = eventType.isROCRaw();
+            boolean gotRocRaw  = eventType.isFromROC();
             boolean gotPhysics = eventType.isAnyPhysics();
 
             // For ROC Raw, presumably there is only 1 child which has multiple children -
