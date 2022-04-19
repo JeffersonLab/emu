@@ -563,7 +563,12 @@ System.out.println("  Roc mod: done killThreads()");
         RingItem ri = (RingItem) rb.get(nextRingItem);
 //System.out.println("  Roc mod: GOT out sequence " + nextRingItem);
         ri.setBuffer(buf);
-        ri.setEventType(EventType.ROC_RAW);
+        if (streamingData) {
+            ri.setEventType(EventType.ROC_RAW_STREAM);
+        }
+        else {
+            ri.setEventType(EventType.ROC_RAW);
+        }
         ri.setControlType(null);
         ri.setSourceName(null);
         ri.setReusableByteBuffer(bbSupply, item);
