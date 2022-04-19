@@ -965,7 +965,8 @@ System.out.println("  EB mod: findEnd, chan " + ch + " got END from " + source +
             }
 
             // To help with FPGA-based VTP - with no PRESTART event - ignore its lack
-            if (!streamingData) {
+            boolean fromVTP = true;
+            if (!fromVTP) {
                 // First thing we do is look for the PRESTART event(s) and pass it on
                 try {
                     // Sorter thread writes prestart event on all output channels, ring 0.
@@ -1025,7 +1026,7 @@ System.out.println("  EB mod: findEnd, chan " + ch + " got END from " + source +
 
 
             // To help with FPGA-based VTP - with no GO event - ignore its lack
-            if (!streamingData) {
+            if (!fromVTP) {
                 // Second thing we do is look for the GO or END event and pass it on
                 try {
                     // Sorter thread writes GO event on all output channels, ring 0.

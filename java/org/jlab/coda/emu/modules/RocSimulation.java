@@ -794,12 +794,12 @@ System.out.println("  Roc mod: NEED TO GENERATE MORE REAL DATA, have " + arrayBy
         // This is only an estimate if not using realData since composite type is used
         // and exact calculation of its length is not worth hassling with.
 
-        // bank header + bank header + bank header + 1st seg (4 words) + 2nd seg (1 + 2*((payloadCount + 1)/2)) +
+        // bank header + bank header + 1st seg (4 words) + 2nd seg (1 + 2*((payloadCount + 1)/2)) +
         // 2*payloadCount (data banks' headers) + generatedDataWords
         // If using composite data we need to add roughly 4*5words. This depends on the format string
         // and other complications.
 
-        int len = 11 + 2*((payloadCount + 1)/2) + 2*payloadCount + generatedDataWords;
+        int len = 9 + 2*((payloadCount + 1)/2) + 2*payloadCount + generatedDataWords;
         if (useRealData) {
             len += 20;
         }
@@ -821,17 +821,13 @@ System.out.println("  Roc mod: NEED TO GENERATE MORE REAL DATA, have " + arrayBy
         try {
             // Make generatedDataWords a multiple of 4, round up
             generatedDataWords = 4*((generatedDataWords + 3) / 4);
-            int totalLen = 16 + generatedDataWords + 1000; // total of 16 header words + 1K extra
+            int totalLen = 14 + generatedDataWords + 1000; // total of 14 header words + 1K extra
 
             // Each of 4 data banks has 1/4 of total words so generateDataWords = # bytes for each bank ...
             // Store calculation here
             bytesPerDataBank = generatedDataWords;
 
-            int tag = CODATag.ROCRAW_STREAMING.getValue(), num = 99;
             CompactEventBuilder builder = new CompactEventBuilder(4*totalLen, outputOrder, false);
-
-            // Top (Containing) Bank, possibly containing many ROC Time Slice Banks
-            builder.openBank(tag, num, DataType.BANK);
 
             // ROC Time Slice Bank
             int rocId = 7;
@@ -1053,9 +1049,9 @@ System.out.println("  Roc mod: NEED TO GENERATE MORE REAL DATA, have " + arrayBy
         // Get buf ready to read for output channel
         buf.limit(templateBuf.limit()).position(0);
 //System.out.println("  Roc mod: setting frame = " + frameNumber);
-        buf.putInt(28, (int)frameNumber);
-        buf.putInt(32, (int)timestamp);// low 32 bits
-        buf.putInt(36, (int)(timestamp >>> 32 & 0xFFFF)); // high 32 bits
+        buf.putInt(20, (int)frameNumber);
+        buf.putInt(24, (int)timestamp);// low 32 bits
+        buf.putInt(28, (int)(timestamp >>> 32 & 0xFFFF)); // high 32 bits
 
         // For testing compression, need to have real data that changes,
         // endianness does not matter.
@@ -1068,7 +1064,7 @@ System.out.println("  Roc mod: NEED TO GENERATE MORE REAL DATA, have " + arrayBy
         // So the best thing is for each ROC to have different data.
 
         // Move to data input position
-        int writeIndex = 4*15;
+        int writeIndex = 4*13;
 
         if (copy && useRealData) {
             // For each of 4 banks
@@ -1115,7 +1111,7 @@ System.out.println("  Roc mod: NEED TO GENERATE MORE REAL DATA, have " + arrayBy
         try {
             // Make generatedDataWords a multiple of 4, round up
             generatedDataWords = 4*((generatedDataWords + 3) / 4);
-            int totalLen = 15 + generatedDataWords + 10; // total of 15 header words + 10 extra
+            int totalLen = 13 + generatedDataWords + 10; // total of 13 header words + 10 extra
 
             // Since we're doing 2 slices
             totalLen *= 2;
@@ -1124,11 +1120,7 @@ System.out.println("  Roc mod: NEED TO GENERATE MORE REAL DATA, have " + arrayBy
             // Store calculation here
             bytesPerDataBank = generatedDataWords;
 
-            int tag = CODATag.ROCRAW_STREAMING.getValue(), num = 99;
             CompactEventBuilder builder = new CompactEventBuilder(4*totalLen, outputOrder, false);
-
-            // Top (Containing) Bank, possibly containing many ROC Time Slice Banks
-            builder.openBank(tag, num, DataType.BANK);
 
                 //-----------------------------------
                 // ROC Time Slice Bank 1
@@ -1482,7 +1474,6 @@ System.out.println("  Roc mod: NEED TO GENERATE MORE REAL DATA, have " + arrayBy
 
             //-----------------------------------
 
-            builder.closeAll();
             // buf is ready to read
             return builder.getBuffer();
         }
@@ -1537,14 +1528,14 @@ System.out.println("  Roc mod: NEED TO GENERATE MORE REAL DATA, have " + arrayBy
         buf.limit(templateBuf.limit()).position(0);
 
         // Change data in 1st TSB
-        buf.putInt(28, (int)frameNumber);
-        buf.putInt(32, (int)timestamp);// low 32 bits
-        buf.putInt(36, (int)(timestamp >>> 32 & 0xFFFF)); // high 32 bits
+        buf.putInt(20, (int)frameNumber);
+        buf.putInt(24, (int)timestamp);// low 32 bits
+        buf.putInt(28, (int)(timestamp >>> 32 & 0xFFFF)); // high 32 bits
 
         // Change data in 2nd TSB
-        buf.putInt(28 + singleTimeSliceBytes, (int)frameNumber);
-        buf.putInt(32 + singleTimeSliceBytes, (int)timestamp);
-        buf.putInt(36 + singleTimeSliceBytes, (int)(timestamp >>> 32 & 0xFFFF));
+        buf.putInt(20 + singleTimeSliceBytes, (int)frameNumber);
+        buf.putInt(24 + singleTimeSliceBytes, (int)timestamp);
+        buf.putInt(28 + singleTimeSliceBytes, (int)(timestamp >>> 32 & 0xFFFF));
 
         // For testing compression, need to have real data that changes,
         // endianness does not matter.
@@ -1557,7 +1548,7 @@ System.out.println("  Roc mod: NEED TO GENERATE MORE REAL DATA, have " + arrayBy
         // So the best thing is for each ROC to have different data.
 
         // Move to data input position
-        int writeIndex1 = 4*15;
+        int writeIndex1 = 4*13;
         int writeIndex2 = writeIndex1 + singleTimeSliceBytes;
 
         if (copy && useRealData) {

@@ -1519,22 +1519,17 @@ System.out.println("      DataChannel Emu in: incoming data's evio version = " +
             boolean gotRocRaw  = eventType.isFromROC();
             boolean gotPhysics = eventType.isAnyPhysics();
 
-            // For ROC Raw, presumably there is only 1 child which has multiple children -
-            // each of which is a time slice bank, each of which must be parsed.
+            // For streaming ROC Raw, there is a ROC bank with at least 2 children -
+            // one of which is a stream info bank (SIB) and the others which are
+            // data banks, each of which must be parsed.
             if (gotRocRaw) {
                 EvioNode topNode = reader.getScannedEvent(1, pool);
                 if (topNode == null) {
                     throw new EvioException("Empty buffer arriving into input channel ???");
                 }
 
-                if (topNode.getChildCount() != 1) {
-                    throw new EvioException("ROC Raw bank should have 1 child, not " + topNode.getChildCount());
-                }
-
-                if (topNode.getTag() != CODATag.ROCRAW_STREAMING.getValue()) {
-                    throw new EvioException("Wrong tag for streaming ROC Raw bank, got 0x" +
-                            Integer.toHexString(topNode.getTag()) +
-                            ", expecting 0x" + Integer.toHexString(CODATag.ROCRAW_STREAMING.getValue()));
+                if (topNode.getChildCount() < 2) {
+                    throw new EvioException("ROC Raw bank should have at least 2 children, not " + topNode.getChildCount());
                 }
             }
             else if (gotPhysics) {
@@ -1588,12 +1583,10 @@ System.out.println("      DataChannel Emu in: incoming data's evio version = " +
                     continue;
                 }
 
+                // RocRaw's, Time Slice Bank
                 EvioNode node = topNode;
 
                 if (gotRocRaw) {
-                    // RocRaw's, Time Slice Bank
-                    node = topNode.getChildAt(0);
-
                     // Complication: from the ROC, we'll be receiving USER events mixed
                     // in with and labeled as ROC Raw events. Check for that & fix it.
                     if (Evio.isUserEvent(node)) {
