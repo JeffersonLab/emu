@@ -382,6 +382,39 @@ System.out.println("      DataChannel File out: Cannot create file, " + e.getMes
 
         if (dataThread != null) dataThread.interrupt();
 
+        // If module is writing file with data from VTP,
+        // we're not going to get an END event. This
+        // end command will be called, so close file that's
+        // currently being written.
+        if (module.dataFromVTP()) {
+            try {
+                if (evioFileWriter != null) {
+                        // Insert an END event "by hand" if actively taking data when END hit
+                        Object[] stats = module.getStatistics();
+                        long eventsWritten = 0;
+                        if (stats != null) {
+                            eventsWritten = (Long) stats[0];
+                        }
+                        // This END, has error condition set in 2nd data word
+// TODO: Take a look at this !!!
+                        PayloadBuffer endBuf = Evio.createControlBuffer(ControlType.END, emu.getRunNumber(),
+                                emu.getRunTypeId(), (int) eventsWritten, 0,
+                                0, byteOrder, name, true, module.isStreamingData());
+                        if (emu.isFileWritingOn()) {
+                            logger.info("      DataChannel File: END " + name + " - write END event \"by hand\"");
+                            evioFileWriter.writeEventToFile(null, endBuf.getBuffer(), true);
+                        }
+                    }
+
+                    // Then close to save everything to disk.
+                    if (emu.isFileWritingOn()) {
+                        logger.info("      DataChannel File: END " + name + " - CALL writer close()");
+                        evioFileWriter.close();
+                        logger.info("      DataChannel File: END " + name + " - DONE writer close()");
+                    }
+            } catch (Exception e) {}
+        }
+
         channelState = CODAState.DOWNLOADED;
     }
 
