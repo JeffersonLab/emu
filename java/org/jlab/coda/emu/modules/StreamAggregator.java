@@ -1838,7 +1838,7 @@ System.out.println("  EB mod: bt" + btIndex + " ***** found END event at seq " +
 //                    // Write the length of top bank
 ////                    System.out.println("writeIndex = " + writeIndex + ", %4 = " + (writeIndex % 4));
 //                    evBuf.putInt(0, writeIndex/4 - 1);
-//                    evBuf.limit(writeIndex).position(0);
+                    evBuf.limit(writeIndex).position(0);
 
                     //-------------------------
                     // Stats
