@@ -1744,37 +1744,37 @@ System.out.println("  EB mod: bt" + btIndex + " ***** found END event at seq " +
                     bufItem.ensureCapacity(memSize);
 //System.out.println("  EB mod: bt" + btIndex + " ***** ensure buf has size " + memSize + ", frame = " + frame + ", prevFrame = " + prevFrame);
                     ByteBuffer evBuf = bufItem.getBuffer();
-                    int builtEventHeaderWord2;
+//                    int builtEventHeaderWord2;
 
                     // Create a (top-level) physics event from payload banks
                     // and the combined SIB bank. First create the tag:
                     //   -if I'm a data concentrator or DCAG
                     //   -if I'm a primary aggregatpr or PAG
                     //   -if I'm a secondary aggregator or SAG
-                    CODAClass myClass = emu.getCodaClass();
                     tag = CODATag.ROCRAW_STREAMING.getValue();
-                    switch (myClass) {
-                        case SAG:
-                        case PAG:
-                            eventType = EventType.PHYSICS;
-                            break;
-
-                        case DCAG:
-                        default:
-                            eventType = EventType.PARTIAL_PHYSICS;
+//                    CODAClass myClass = emu.getCodaClass();
+//                    switch (myClass) {
+//                        case SAG:
+//                        case PAG:
+//                            eventType = EventType.ROC_RAW_STREAM;
+//                            break;
+//
+//                        case DCAG:
+//                        default:
+                            eventType = EventType.ROC_RAW_STREAM;
                             // Check input banks for non-fatal errors
                             for (int i=0; i < sliceCount; i++) {
                                 nonFatalError |= sameStampBanks[i].hasNonFatalBuildingError();
                             }
-                    }
+//                    }
 
-                    // 2nd word of top level header
-                    builtEventHeaderWord2 = (tag << 16) |
-                            ((DataType.BANK.getValue() & 0x3f) << 8) |
-                            (sliceCount & 0xff);
-
-                    // Start top level. Write the length later, now, just the 2nd header word of top bank
-                    evBuf.putInt(4, builtEventHeaderWord2);
+//                    // 2nd word of top level header
+//                    builtEventHeaderWord2 = (tag << 16) |
+//                            ((DataType.BANK.getValue() & 0x3f) << 8) |
+//                            (sliceCount & 0xff);
+//
+//                    // Start top level. Write the length later, now, just the 2nd header word of top bank
+//                    evBuf.putInt(4, builtEventHeaderWord2);
 
                     // Reset this to see if creating trigger bank causes an error
                     nonFatalError = false;
@@ -1814,7 +1814,7 @@ System.out.println("  EB mod: bt" + btIndex + " ***** found END event at seq " +
                                 sliceCount,
                                 sameStampBanks,
                                 evBuf,
-                                CODATag.STREAMING_TIB.getValue(),
+                                tag,
                                 timestampSlop,
                                 prevFrame,
                                 bankData,
@@ -1828,19 +1828,17 @@ System.out.println("  EB mod: bt" + btIndex + " ***** found END event at seq " +
 
                     // If there is a non-fatal error, go back and reset built event's tag
                     if (nonFatalError && emu.getCodaClass() == CODAClass.DC) {
-                        tag = CODATag.STREAMING_TIB_ERROR.getValue();
-
-                        // 2nd word of top level header
-                        builtEventHeaderWord2 = (tag << 16) |
-                                ((DataType.BANK.getValue() & 0x3f) << 8) |
-                                (sliceCount & 0xff);
-                        evBuf.putInt(4, builtEventHeaderWord2);
+                        // Update tag only of 2nd word of top level header
+                        tag = CODATag.ROCRAW_STREAMING_ERROR.getValue();
+                        int word2 = evBuf.getInt(4);
+                        word2 = (word2 & 0x0000ffff) | (tag << 16);
+                        evBuf.putInt(4, word2);
                     }
 
-                    // Write the length of top bank
-//                    System.out.println("writeIndex = " + writeIndex + ", %4 = " + (writeIndex % 4));
-                    evBuf.putInt(0, writeIndex/4 - 1);
-                    evBuf.limit(writeIndex).position(0);
+//                    // Write the length of top bank
+////                    System.out.println("writeIndex = " + writeIndex + ", %4 = " + (writeIndex % 4));
+//                    evBuf.putInt(0, writeIndex/4 - 1);
+//                    evBuf.limit(writeIndex).position(0);
 
                     //-------------------------
                     // Stats
