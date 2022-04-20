@@ -1984,8 +1984,10 @@ System.out.println("  EB mod: bt" + btIndex + " %%%%% clean inputs, releasing so
         // Check again if END event has arrived.
         if (end && !haveEndEvent) {
 System.out.println("  EB mod: interruptThreads: will end building/filling threads but no END event");
-            moduleState = CODAState.ERROR;
-            emu.setErrorState("EB will end building/filling threads but no END event");
+            if (!dataFromVTP()) {
+                moduleState = CODAState.ERROR;
+                emu.setErrorState("EB will end building/filling threads but no END event");
+            }
         }
 
         // Interrupt the rate calculating thread
