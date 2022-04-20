@@ -1752,7 +1752,7 @@ System.out.println("  EB mod: bt" + btIndex + " ***** found END event at seq " +
                     //   -if I'm a primary aggregatpr or PAG
                     //   -if I'm a secondary aggregator or SAG
                     CODAClass myClass = emu.getCodaClass();
-                    tag = CODATag.STREAMING_TIB.getValue();
+                    tag = CODATag.ROCRAW_STREAMING.getValue();
                     switch (myClass) {
                         case SAG:
                         case PAG:
