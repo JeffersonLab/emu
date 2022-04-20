@@ -72,8 +72,10 @@ public enum CODATag {
     STREAMING_TIB_ERROR          (0xFF32),
 
     // Physics event
-    /** Event sent by ROC in streaming mode. */
-    ROCRAW_STREAMING   (0xFF60),
+    /** Event built from data sent by ROC/VTP in streaming mode. */
+    ROCRAW_STREAMING            (0xFF60),
+    /** Event built from data sent by ROC/VTP in streaming mode with non-fatal error. */
+    ROCRAW_STREAMING_ERROR      (0xFF61),
     /** Event built by DC event builder in streaming mode. */
     BUILT_BY_DC_STREAMING       (0xFF62),
     /** Event built by SEB event builder in streaming mode. */
