@@ -2643,47 +2643,42 @@ System.out.println("                         : segWords from event 0 = " + dataW
             switchEndianFastCopyReady = rocBuf[0].hasArray() && builtEventBuf.hasArray();
         }
 
-        // Add all data banks
+        // Add all Time Slice Banks
         for (int i=0; i < sliceCount; i++) {
             node = rocNodes[i];
-            int childrenCount = node.getChildCount();
 
             // Get buffer
-            ByteBuffer rocBuffer = rocBuf[i];
+            ByteBuffer rocTsbBuffer = rocBuf[i];
 
-            // Skip over first (Time Info) bank
-            for (int j=1; j < childrenCount; j++) {
-                EvioNode timeSliceBank = node.getChildNodes().get(j);
-                int pos = timeSliceBank.getPosition();
-                // Get length of bank to be written
-                int byteLen = timeSliceBank.getTotalBytes();
-                totalWords += byteLen/4;
+            int pos = node.getPosition();
+            // Get length of Time Slice Bank to be written
+            int byteLen = node.getTotalBytes();
+            totalWords += byteLen / 4;
 
-                // There's nothing tricky to worry about (e.g. buffer mapped to part of backing array)
-                if (fastCopyReady) {
-                    System.arraycopy(rocBuffer.array(), pos, builtEventBuf.array(), writeIndex, byteLen);
-                    writeIndex += byteLen;
-                }
-                // If endianness not being switched, copy everything as is
-                else if (builtEventBuf.order() == rocBuffer.order()) {
-                    ByteBuffer duplicateBuf = rocBuffer.duplicate();
-                    duplicateBuf.limit(pos + byteLen).position(pos);
+            // There's nothing tricky to worry about (e.g. buffer mapped to part of backing array)
+            if (fastCopyReady) {
+                System.arraycopy(rocTsbBuffer.array(), pos, builtEventBuf.array(), writeIndex, byteLen);
+                writeIndex += byteLen;
+            }
+            // If endianness not being switched, copy everything as is
+            else if (builtEventBuf.order() == rocTsbBuffer.order()) {
+                ByteBuffer duplicateBuf = rocTsbBuffer.duplicate();
+                duplicateBuf.limit(pos + byteLen).position(pos);
 
-                    builtEventBuf.position(writeIndex);
-                    // This method is relative to position
-                    builtEventBuf.put(duplicateBuf);
-                    builtEventBuf.position(0);
-                    writeIndex += byteLen;
-                }
-                // If endianness IS being switched
-                else {
-                    writeIndex = switchTimeSliceEndian(
-                            switchEndianFastCopyReady,
-                            builtEventBuf,
-                            rocBuffer,
-                            writeIndex,
-                            timeSliceBank);
-                }
+                builtEventBuf.position(writeIndex);
+                // This method is relative to position
+                builtEventBuf.put(duplicateBuf);
+                builtEventBuf.position(0);
+                writeIndex += byteLen;
+            }
+            // If endianness IS being switched
+            else {
+                writeIndex = switchTimeSliceEndian(
+                        switchEndianFastCopyReady,
+                        builtEventBuf,
+                        rocTsbBuffer,
+                        writeIndex,
+                        node);
             }
         }
 
