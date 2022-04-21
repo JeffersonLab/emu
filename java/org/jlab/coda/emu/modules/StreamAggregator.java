@@ -681,13 +681,13 @@ System.out.println("WRITE CONTROL EVENT to chan #" + i + ", ring 0");
     }
 
 
-    /** Enum to describe a difference in timestamps in relation to time slices. */
-    enum TimestampDiff {
-        /** Same time slice. */
+    /** Enum to describe a difference in frame numbers of various time slices. */
+    enum FrameNumberDiff {
+        /** Same frame. */
         SAME(),
-        /** Next time slice. */
+        /** Next frame. */
         NEXT(),
-        /** Multiple slices removed. */
+        /** Multiple frames removed. */
         MULTIPLE();
     }
 
@@ -695,31 +695,31 @@ System.out.println("WRITE CONTROL EVENT to chan #" + i + ", ring 0");
 
 
     /**
-     * Compare two time frames to see if they're in the same time slice,
-     * in sequential time slices, or differ by multiple time slices.
+     * Compare two time frames to see if they're the same,
+     * in sequential, or differ by multiple time slices.
      * Frame is just the sequential slice number.
      *
      * @param tf1   first time frame to examine.
      * @param tf2   second time frame to examine.
-     * @return {@link TimestampDiff#SAME} if in same time slice,
-     *         {@link TimestampDiff#NEXT} if in sequential time slices, or
-     *         {@link TimestampDiff#MULTIPLE} if in different and non-sequential time slices.
+     * @return {@link FrameNumberDiff#SAME} if in same time frame,
+     *         {@link FrameNumberDiff#NEXT} if in sequential time frames, or
+     *         {@link FrameNumberDiff#MULTIPLE} if in different and non-sequential time slices.
      */
-    private TimestampDiff compareTimesFrames(long tf1, long tf2) {
+    private FrameNumberDiff compareTimeFrames(long tf1, long tf2) {
         // Same frame?
         boolean same = (tf1 == tf2);
 
         if (same) {
-            // Same as last time slice
-            return TimestampDiff.SAME;
+            // Same as last time frame
+            return FrameNumberDiff.SAME;
         }
         else if (Math.abs(tf1 - tf2) == 1) {
-            // Do times differ by 1 slice only?
-            return TimestampDiff.NEXT;
+            // Neighboring time frame?
+            return FrameNumberDiff.NEXT;
         }
 
-        // Times differ by multiple slices
-        return TimestampDiff.MULTIPLE;
+        // Frames differ by multiple slices
+        return FrameNumberDiff.MULTIPLE;
     }
 
 
@@ -733,17 +733,17 @@ System.out.println("WRITE CONTROL EVENT to chan #" + i + ", ring 0");
      * @param tf          time frame to examine (>= lookedForTF)
      * @param lookedForTF time frame we're looking for on a channel.
      *
-     * @return {@link TimestampDiff#SAME} if in same time slice,
-     *         {@link TimestampDiff#NEXT} if in sequential time slices, or
-     *         {@link TimestampDiff#MULTIPLE} if in different and non-sequential time slices.
+     * @return {@link FrameNumberDiff#SAME} if in same time frame,
+     *         {@link FrameNumberDiff#NEXT} if in sequential time frame, or
+     *         {@link FrameNumberDiff#MULTIPLE} if in different and non-sequential time slices.
      * @throws EmuException if given timestamp is moving backward in time.
      */
-    private TimestampDiff compareWithLookedForTF(long tf, long lookedForTF) throws EmuException {
-        TimestampDiff diff = compareTimesFrames(tf, lookedForTF);
+    private FrameNumberDiff compareWithLookedForTF(long tf, long lookedForTF) throws EmuException {
+        FrameNumberDiff diff = compareTimeFrames(tf, lookedForTF);
 
-        if (diff != TimestampDiff.SAME) {
+        if (diff != FrameNumberDiff.SAME) {
             if ((tf - lookedForTF) < 0) {
-                throw new EmuException("timestamps moving backward in time");
+                throw new EmuException("time frame moving backward");
             }
         }
 
@@ -895,8 +895,8 @@ System.out.println("  EB mod: findEnd, chan " + ch + " got END from " + source +
 
                                 // Get TF from bank just read from chan
                                 // Compare to what we're looking for
-                                TimestampDiff diff = compareWithLookedForTF(bank.getTimeFrame(), lookedForTF);
-                                if (diff == TimestampDiff.SAME) {
+                                FrameNumberDiff diff = compareWithLookedForTF(bank.getTimeFrame(), lookedForTF);
+                                if (diff == FrameNumberDiff.SAME) {
                                     // If it's what we're looking for, write it out
                                     sendToTimeSliceBankRing(bank, currentBT);
                                     written = true;
@@ -1184,14 +1184,14 @@ System.out.println("  EB mod: sorter got user event from channel " + inputChanne
                             // Compare bank's TS to the one we're looking for -
                             // those to be placed into the current build thread's ring.
                             // First time thru this comes back as "SAME".
-                            TimestampDiff diff = compareWithLookedForTF(frame, lookingForFrame);
+                            FrameNumberDiff diff = compareWithLookedForTF(frame, lookingForFrame);
 
 //System.out.println("  EB mod: ch" + chan + ", sorter NOT CONTROL EVENT, frame = " + frame + ", looking for " + lookingForFrame + ", diff = " + diff);
                             // Bank was has same Time Slice as the one we're looking for.
                             // This means that this bank must be written out to the current
                             // receiving ring buffer. That's because all identical time slices
                             // go to the same ring buffer no matter the input channel.
-                            if (diff == TimestampDiff.SAME) {
+                            if (diff == FrameNumberDiff.SAME) {
 //System.out.println("  EB mod: ch" + chan + ", sorter send time slice to BT# = " + currentBT +", event type = " + bank.getEventType() + ", frame = " + frame);
                                 sendToTimeSliceBankRing(bank, currentBT);
                                 // This bank must be released AFTER build thread finishes with it
@@ -1208,7 +1208,7 @@ System.out.println("  EB mod: sorter got user event from channel " + inputChanne
                             // it for later use.
                             // Check the other channels to see if they have banks with the same time slices
                             // as the one last written.
-                            else if (diff == TimestampDiff.NEXT) {
+                            else if (diff == FrameNumberDiff.NEXT) {
 //System.out.println("  EB mod: ch" + chan + ", sorter DIFF timestamp, frame = " + frame);
                                 // If the last write was on this channel, then the bank we just
                                 // read from that channel is part of the next time slice.
@@ -1241,8 +1241,8 @@ System.out.println("  EB mod: sorter got user event from channel " + inputChanne
                                 }
                             }
                             else {
-System.out.println("  EB mod: ch" + chan + ", sorter DIFF timestamp, time frame = " + frame + ", looking for " + lookingForFrame);
-                                throw new EmuException("Too big of a jump in timestamp");
+System.out.println("  EB mod: ch" + chan + ", sorter DIFF frames, time frame = " + frame + ", looking for " + lookingForFrame);
+                                throw new EmuException("Too big of a jump in time frame #");
                             }
 
                             continue;
@@ -1667,9 +1667,9 @@ System.out.println("  EB mod: bbSupply -> " + ringItemCount + " # of bufs, direc
                                 generalInitDone = true;
                             }
 
-                            TimestampDiff diff = compareWithLookedForTF(frame, lookingForTF);
+                            FrameNumberDiff diff = compareWithLookedForTF(frame, lookingForTF);
 
-                            if (diff == TimestampDiff.SAME) {
+                            if (diff == FrameNumberDiff.SAME) {
 
                                 // First check to make sure we have room to store this bank
                                 if (sameStampBanks.length < (sliceCount + 1)) {
