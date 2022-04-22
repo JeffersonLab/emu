@@ -1493,9 +1493,6 @@ System.out.println("      DataChannel Emu in: incoming data's evio version = " +
 
             hasFirstEvent = blockHeader.hasFirstEvent();
 
-            // Since we're streaming, then there are multiple ROC Time Slice Banks contained in the top
-            // level bank.
-
             int evtType = blockHeader.getEventType();
             EventType eventType = EventType.getEventType(blockHeader.getEventType());
             if (eventType == null || !eventType.isEbFriendly()) {
@@ -1512,7 +1509,7 @@ System.out.println("      DataChannel Emu in: incoming data's evio version = " +
 //System.out.println("      DataChannel Emu in: expected record id = " + expectedRecordId +
 //                    ", actual = " + recordId);
 //System.out.println("      DataChannel Emu in: event type = " + eventType + ", event count = " + reader.getEventCount() + " from " + name + "\n");
-            EvioNode nd = reader.getScannedEvent(1, pool);
+//            EvioNode nd = reader.getScannedEvent(1, pool);
 //Utilities.printBytes(nd.getBuffer(), 0, nd.getTotalBytes(), "First event bytes");
 
             int eventCount = reader.getEventCount();
@@ -1544,14 +1541,12 @@ System.out.println("      DataChannel Emu in: incoming data's evio version = " +
                 }
 
                 int physicsTag  = topNode.getTag();
-                if (physicsTag != CODATag.BUILT_BY_DC_STREAMING.getValue()  &&
-                    physicsTag != CODATag.BUILT_BY_SEB_STREAMING.getValue() &&
-                    physicsTag != CODATag.BUILT_BY_PEB_STREAMING.getValue())  {
-                    throw new EvioException("Wrong tag for streaming Physics bank, got 0x" +
-                            Integer.toHexString(physicsTag) +
-                            ", expecting 0x" + Integer.toHexString(CODATag.BUILT_BY_DC_STREAMING.getValue()) +
-                            " or 0x" + Integer.toHexString(CODATag.BUILT_BY_SEB_STREAMING.getValue()) +
-                            " or 0x" + Integer.toHexString(CODATag.BUILT_BY_PEB_STREAMING.getValue()));
+                if (physicsTag != CODATag.ROCRAW_STREAMING.getValue()  &&
+                        physicsTag != CODATag.BUILT_BY_DC_STREAMING.getValue()  &&
+                        physicsTag != CODATag.BUILT_BY_SEB_STREAMING.getValue() &&
+                        physicsTag != CODATag.BUILT_BY_PEB_STREAMING.getValue())  {
+                    throw new EvioException("Wrong tag for streaming Physics bank, got " +
+                            CODATag.getName(physicsTag));
                 }
             }
 
