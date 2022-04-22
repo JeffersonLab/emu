@@ -30,7 +30,6 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Date;
 import java.util.Map;
 import java.util.concurrent.Phaser;
@@ -932,70 +931,35 @@ System.out.println("  Roc mod: NEED TO GENERATE MORE REAL DATA, have " + arrayBy
                 builder.closeStructure();
             }
             else {
-                // Put the same composite data in each data bank.
-                // Format to write a N signed 32-bit ints, 1 float, 1 double a total of N times
-                // Because the we have 4 payloads, the number of generatedDataWords, conveniently,
-                // becomes the number of bytes for each of the payloads. But, because of the complex
-                // structure of composite data, we won't bother to include all the header info
-                // contained in that data type in our simple calculations.
-
-                String format = "N(NI,F,D)";
-
-                // Let's pick the first N to be 2, the 2nd N becomes (within rounding error)
-                int N = (generatedDataWords / 2 - 4 - 8) / 4;
-
-                // Now create some data
-                CompositeData.Data myData = new CompositeData.Data();
-                myData.addN(2);
-
-                myData.addN(N);
-                int[] iData = new int[N];
-                Arrays.fill(iData, 1);
-                myData.addInt(iData);
-                myData.addFloat(1.0F);
-                myData.addDouble(Math.PI);
-
-                myData.addN(N);
-                Arrays.fill(iData, 2);
-                myData.addInt(iData);
-                myData.addFloat(2.0F);
-                myData.addDouble(2. * Math.PI);
-
-                // Create CompositeData object
-                CompositeData cData = null;
-                try {
-                    cData = new CompositeData(format, 1, myData, 0, 0);
+                // Fill banks with generated fake data ...
+                byte[] iData = new byte[bytesPerDataBank];
+                for (int i=0; i < bytesPerDataBank; i++) {
+                    iData[i] = (byte)i;
                 }
-                catch (EvioException e) {
-                    e.printStackTrace();
-                }
-                CompositeData[] cArray = new CompositeData[]{cData};
-
-                // Fill banks with generated composite data ...
 
                 totalStreams = 1;
                 streamMask = 1;
                 streamStatus = ((totalStreams << 4) & 0x7) | (streamMask & 0xf);
-                builder.openBank(payloadPort1, streamStatus, DataType.COMPOSITE);
-                builder.addCompositeData(cArray);
+                builder.openBank(payloadPort1, streamStatus, DataType.UCHAR8);
+                builder.addByteData(iData);
                 builder.closeStructure();
 
                 streamMask = 2;
                 streamStatus = ((totalStreams << 4) & 0x7) | (streamMask & 0xf);
-                builder.openBank(payloadPort2, streamStatus, DataType.COMPOSITE);
-                builder.addCompositeData(cArray);
+                builder.openBank(payloadPort2, streamStatus, DataType.UCHAR8);
+                builder.addByteData(iData);
                 builder.closeStructure();
 
                 streamMask = 4;
                 streamStatus = ((totalStreams << 4) & 0x7) | (streamMask & 0xf);
-                builder.openBank(payloadPort3, streamStatus, DataType.COMPOSITE);
-                builder.addCompositeData(cArray);
+                builder.openBank(payloadPort3, streamStatus, DataType.UCHAR8);
+                builder.addByteData(iData);
                 builder.closeStructure();
 
                 streamMask = 8;
                 streamStatus = ((totalStreams << 4) & 0x7) | (streamMask & 0xf);
-                builder.openBank(payloadPort4, streamStatus, DataType.COMPOSITE);
-                builder.addCompositeData(cArray);
+                builder.openBank(payloadPort4, streamStatus, DataType.UCHAR8);
+                builder.addByteData(iData);
                 builder.closeStructure();
             }
 
@@ -1228,70 +1192,35 @@ System.out.println("  Roc mod: NEED TO GENERATE MORE REAL DATA, have " + arrayBy
                         builder.closeStructure();
                     }
                     else {
-                        // Put the same composite data in each data bank.
-                        // Format to write a N signed 32-bit ints, 1 float, 1 double a total of N times
-                        // Because the we have 4 payloads, the number of generatedDataWords, conveniently,
-                        // becomes the number of bytes for each of the payloads. But, because of the complex
-                        // structure of composite data, we won't bother to include all the header info
-                        // contained in that data type in our simple calculations.
-
-                        String format = "N(NI,F,D)";
-
-                        // Let's pick the first N to be 2, the 2nd N becomes (within rounding error)
-                        int N = (generatedDataWords / 2 - 4 - 8) / 4;
-
-                        // Now create some data
-                        CompositeData.Data myData = new CompositeData.Data();
-                        myData.addN(2);
-
-                        myData.addN(N);
-                        int[] iData = new int[N];
-                        Arrays.fill(iData, 1);
-                        myData.addInt(iData);
-                        myData.addFloat(1.0F);
-                        myData.addDouble(Math.PI);
-
-                        myData.addN(N);
-                        Arrays.fill(iData, 2);
-                        myData.addInt(iData);
-                        myData.addFloat(2.0F);
-                        myData.addDouble(2. * Math.PI);
-
-                        // Create CompositeData object
-                        CompositeData cData = null;
-                        try {
-                            cData = new CompositeData(format, 1, myData, 0, 0);
+                        // Fill banks with generated fake data ...
+                        byte[] iData = new byte[bytesPerDataBank];
+                        for (int i=0; i < bytesPerDataBank; i++) {
+                            iData[i] = (byte)i;
                         }
-                        catch (EvioException e) {
-                            e.printStackTrace();
-                        }
-                        CompositeData[] cArray = new CompositeData[]{cData};
-
-                        // Fill banks with generated composite data ...
 
                         totalStreams = 1;
                         streamMask = 1;
                         streamStatus = ((totalStreams << 4) & 0x7) | (streamMask & 0xf);
-                        builder.openBank(payloadPort1, streamStatus, DataType.COMPOSITE);
-                            builder.addCompositeData(cArray);
+                        builder.openBank(payloadPort1, streamStatus, DataType.UCHAR8);
+                        builder.addByteData(iData);
                         builder.closeStructure();
 
                         streamMask = 2;
                         streamStatus = ((totalStreams << 4) & 0x7) | (streamMask & 0xf);
-                        builder.openBank(payloadPort2, streamStatus, DataType.COMPOSITE);
-                            builder.addCompositeData(cArray);
+                        builder.openBank(payloadPort2, streamStatus, DataType.UCHAR8);
+                        builder.addByteData(iData);
                         builder.closeStructure();
 
                         streamMask = 4;
                         streamStatus = ((totalStreams << 4) & 0x7) | (streamMask & 0xf);
-                        builder.openBank(payloadPort3, streamStatus, DataType.COMPOSITE);
-                            builder.addCompositeData(cArray);
+                        builder.openBank(payloadPort3, streamStatus, DataType.UCHAR8);
+                        builder.addByteData(iData);
                         builder.closeStructure();
 
                         streamMask = 8;
                         streamStatus = ((totalStreams << 4) & 0x7) | (streamMask & 0xf);
-                        builder.openBank(payloadPort4, streamStatus, DataType.COMPOSITE);
-                            builder.addCompositeData(cArray);
+                        builder.openBank(payloadPort4, streamStatus, DataType.UCHAR8);
+                        builder.addByteData(iData);
                         builder.closeStructure();
                     }
 
@@ -1402,70 +1331,35 @@ System.out.println("  Roc mod: NEED TO GENERATE MORE REAL DATA, have " + arrayBy
                         builder.closeStructure();
                     }
                     else {
-                        // Put the same composite data in each data bank.
-                        // Format to write a N signed 32-bit ints, 1 float, 1 double a total of N times
-                        // Because the we have 4 payloads, the number of generatedDataWords, conveniently,
-                        // becomes the number of bytes for each of the payloads. But, because of the complex
-                        // structure of composite data, we won't bother to include all the header info
-                        // contained in that data type in our simple calculations.
-
-                        String format = "N(NI,F,D)";
-
-                        // Let's pick the first N to be 2, the 2nd N becomes (within rounding error)
-                        int N = (generatedDataWords / 2 - 4 - 8) / 4;
-
-                        // Now create some data
-                        CompositeData.Data myData = new CompositeData.Data();
-                        myData.addN(2);
-
-                        myData.addN(N);
-                        int[] iData = new int[N];
-                        Arrays.fill(iData, 1);
-                        myData.addInt(iData);
-                        myData.addFloat(1.0F);
-                        myData.addDouble(Math.PI);
-
-                        myData.addN(N);
-                        Arrays.fill(iData, 2);
-                        myData.addInt(iData);
-                        myData.addFloat(2.0F);
-                        myData.addDouble(2. * Math.PI);
-
-                        // Create CompositeData object
-                        CompositeData cData = null;
-                        try {
-                            cData = new CompositeData(format, 1, myData, 0, 0);
+                        // Fill banks with generated fake data ...
+                        byte[] iData = new byte[bytesPerDataBank];
+                        for (int i=0; i < bytesPerDataBank; i++) {
+                            iData[i] = (byte)i;
                         }
-                        catch (EvioException e) {
-                            e.printStackTrace();
-                        }
-                        CompositeData[] cArray = new CompositeData[]{cData};
-
-                        // Fill banks with generated composite data ...
 
                         totalStreams = 1;
                         streamMask = 1;
                         streamStatus = ((totalStreams << 4) & 0x7) | (streamMask & 0xf);
-                        builder.openBank(payloadPort1, streamStatus, DataType.COMPOSITE);
-                            builder.addCompositeData(cArray);
+                        builder.openBank(payloadPort1, streamStatus, DataType.UCHAR8);
+                        builder.addByteData(iData);
                         builder.closeStructure();
 
                         streamMask = 2;
                         streamStatus = ((totalStreams << 4) & 0x7) | (streamMask & 0xf);
-                        builder.openBank(payloadPort2, streamStatus, DataType.COMPOSITE);
-                            builder.addCompositeData(cArray);
+                        builder.openBank(payloadPort2, streamStatus, DataType.UCHAR8);
+                        builder.addByteData(iData);
                         builder.closeStructure();
 
                         streamMask = 4;
                         streamStatus = ((totalStreams << 4) & 0x7) | (streamMask & 0xf);
-                        builder.openBank(payloadPort3, streamStatus, DataType.COMPOSITE);
-                            builder.addCompositeData(cArray);
+                        builder.openBank(payloadPort3, streamStatus, DataType.UCHAR8);
+                        builder.addByteData(iData);
                         builder.closeStructure();
 
                         streamMask = 8;
                         streamStatus = ((totalStreams << 4) & 0x7) | (streamMask & 0xf);
-                        builder.openBank(payloadPort4, streamStatus, DataType.COMPOSITE);
-                           builder.addCompositeData(cArray);
+                        builder.openBank(payloadPort4, streamStatus, DataType.UCHAR8);
+                        builder.addByteData(iData);
                         builder.closeStructure();
                     }
 
