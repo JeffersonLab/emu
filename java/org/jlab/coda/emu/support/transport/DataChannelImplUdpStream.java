@@ -27,7 +27,6 @@ import java.nio.ByteOrder;
 import java.nio.channels.AsynchronousCloseException;
 import java.util.*;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 
@@ -62,17 +61,6 @@ public class DataChannelImplUdpStream extends DataChannelAdapter {
      */
     private int bufSize;
 
-    /** Size of EJFAT header to be used in future, but currently not. */
-    private static final int LB_HEADER_BYTES = 0;
-    /** Size of UDP reassembly header. */
-    private static final int RE_HEADER_BYTES = 16;
-    /** Size of all headers. */
-    private static final int HEADER_BYTES = RE_HEADER_BYTES + LB_HEADER_BYTES;
-    /** Is EJFAT being used? */
-    private static boolean toLoadBalancer = LB_HEADER_BYTES != 0;
-    /** Default MTU to be used if it cannot be found programmatically. */
-    private int DEFAULT_MTU = 1400;
-
     // OUTPUT
 
     /** Host to send packets to. */
@@ -84,13 +72,30 @@ public class DataChannelImplUdpStream extends DataChannelAdapter {
     /** UDP send buffer size. */
     private int sendBufSize;
 
-    // For possible future use of EJFAT hardware (currently unused):
+    /** Thread used to write outgoing data. */
+    private DataOutputHelper dataOutputThread;
+
+    /** Are we sending UDP packets to the EJFAT load balancer? */
+    private boolean useEjfatLoadBalancer;
+
+    /** Are we sending ERSAP style reassembly header? */
+    private boolean useErsapReHeader;
+
     /** FPGA Load Balancer reassembly protocol. */
-    private final int protocol = 1;
-    /** FPGA Load Balancer reassembly version. */
-    private final int lbVersion = 1;
+    private final int lbProtocol = 1;
+    /** FPGA Load Balancer reassembly version. LB only works for version = 2. */
+    private final int lbVersion = 2;
     /** VTP reassembly version */
     private final int reVersion = 1;
+
+    /** Size of EJFAT header, by default, nothing */
+    private int LB_HEADER_BYTES = 0;
+    /** Size of UDP CODA reassembly header. */
+    private int RE_HEADER_BYTES = 8;
+    /** Size of all headers. By default, do NOT include EJFAT header. */
+    private int HEADER_BYTES = RE_HEADER_BYTES;
+    /** Default MTU to be used if it cannot be found programmatically. */
+    private int DEFAULT_MTU = 1400;
 
     // INPUT
 
@@ -120,6 +125,12 @@ public class DataChannelImplUdpStream extends DataChannelAdapter {
 
     /** Use the evio block header's block number as a record id. */
     private int recordId = 1;
+
+    // TODO: In Dave's scheme, record id identifies a specific time frame,
+    // TODO: So separate the idea of evio block number from record id!!
+    // TODO: In fact, block number can always be 0 since each buffer is
+    // isolated from the others. AT LEAST I think so.
+    private int blockNum = 1;
 
     /** Do not use direct ByteBuffers, only those with a backing array. */
     private boolean direct = false;
@@ -156,10 +167,10 @@ public class DataChannelImplUdpStream extends DataChannelAdapter {
         dataTransportImplUdpStream = transport;
 
         if (input) {
-            logger.info("      DataChannel UDP: creating input channel " + name);
+            logger.info("    DataChannel UDP: creating input channel " + name);
         }
         else {
-            logger.info("      DataChannel UDP: creating output channel " + name);
+            logger.info("    DataChannel UDP: creating output channel " + name);
         }
 
         String attribString;
@@ -169,7 +180,7 @@ public class DataChannelImplUdpStream extends DataChannelAdapter {
         // They'll be expanded as needed.
         // TODO: see how many bytes Dave A. sends at once
 
-        bufSize = 4010000;
+        bufSize = 100000;
         attribString = attributeMap.get("bufSize");
         if (attribString != null) {
             try {
@@ -183,7 +194,7 @@ public class DataChannelImplUdpStream extends DataChannelAdapter {
                 throw new DataTransportException("bad port number in config");
             }
         }
-        logger.info("      DataChannel UDP stream: single buffer byte size = " + bufSize);
+        logger.info("    DataChannel UDP stream: single buffer byte size = " + bufSize);
 
 
         // Either destination port to send UDP datagrams to, or port to receive on
@@ -224,20 +235,22 @@ public class DataChannelImplUdpStream extends DataChannelAdapter {
             try {
                 inSocket = new DatagramSocket(port);
                 inSocket.setReceiveBufferSize(recvBufSize);
+
+// TODO: to wake up the socket, send a packet. The timeout feature SLOWS socket down!!
                 // Timeout of 10 seconds
-                inSocket.setSoTimeout(10000);
+//                inSocket.setSoTimeout(10000);
                 // Only enable this if killing and restarting emu gives problems trying to bind to this port
                 // socket.setReuseAddress(true);
 
                 logger.debug("    DataChannel UDP: create UDP receiving socket at port " + port +
-                        " with " + inSocket.getReceiveBufferSize() + " byte receive buffer");
+                        " with " + inSocket.getReceiveBufferSize() + " byte UDP receive buffer");
             }
             catch (SocketException e) {
                 throw new DataTransportException(e);
             }
 
 
-            int ringSize = 32;
+            int ringSize = 256;
 
             nodePools = new EvioNodePool[ringSize];
             // Create the EvioNode pools - the BBsupply gets ringSize number of pools -
@@ -250,7 +263,7 @@ public class DataChannelImplUdpStream extends DataChannelAdapter {
 
             // module releases events sequentially if there's only 1 build thread,
             // else the release is NOT sequential.
-            boolean sequentialRelease = true;
+            boolean sequentialRelease = false;
             if (module.getEventProducingThreadCount() > 1) {
                 sequentialRelease = false;
             }
@@ -266,17 +279,51 @@ public class DataChannelImplUdpStream extends DataChannelAdapter {
             parserMergerThread = new ParserMerger();
             parserMergerThread.start();
 
-            logger.info("      DataChannel UDP stream in: seq release of buffers = " + sequentialRelease);
-            logger.info("      DataChannel UDP stream in: created " + ringSize + " node pools for source");
+            logger.info("    DataChannel UDP stream in: seq release of buffers = " + sequentialRelease);
+            logger.info("    DataChannel UDP stream in: created " + ringSize + " node pools for source");
 
             //            dumpData = true;
-//logger.info("      DataChannel UDP stream: dumpData = " + dumpData);
+//logger.info("    DataChannel UDP stream: dumpData = " + dumpData);
 
         }
         else {
-            // The only situation in which this transport acts as a server
-            // is when it's used as the output of the simulated ROC.
-            // In this case it's port number is ephemral.
+            // The situations in which this transport acts as a server
+            // is when it's used as:
+            // 1) the output of the simulated ROC,
+            // 2) the output of an aggregtator to an EJFAT load balancer
+            // In these cases it's port number is ephemral.
+
+            // Do use the ERSAP style reassembly header?
+            attribString = attributeMap.get("useErsapReHeader");
+            if (attribString != null) {
+                if (attribString.equalsIgnoreCase("true") ||
+                        attribString.equalsIgnoreCase("on")   ||
+                        attribString.equalsIgnoreCase("yes"))   {
+                    useErsapReHeader = true;
+                }
+            }
+
+            if (useErsapReHeader) {
+                RE_HEADER_BYTES = 16;
+                HEADER_BYTES = RE_HEADER_BYTES;
+            }
+
+            // Do use the EJFAT load balancer?
+            attribString = attributeMap.get("useLoadBalancer");
+            if (attribString != null) {
+                if (attribString.equalsIgnoreCase("true") ||
+                    attribString.equalsIgnoreCase("on")   ||
+                    attribString.equalsIgnoreCase("yes"))   {
+                    useEjfatLoadBalancer = true;
+                }
+            }
+
+            if (useEjfatLoadBalancer) {
+                // Include LB header
+                LB_HEADER_BYTES = 16;
+                HEADER_BYTES = RE_HEADER_BYTES + LB_HEADER_BYTES;
+logger.info("    DataChannel UDP stream: total header bytes = " + HEADER_BYTES);
+            }
 
             // Let's try 12MB buf by default, which will most likely get doubled to 24MB by the system
             sendBufSize = 12000000;
@@ -300,6 +347,9 @@ public class DataChannelImplUdpStream extends DataChannelAdapter {
                 throw new DataTransportException("no destination host in config");
             }
 
+            // Start thread to handle socket input
+            dataOutputThread = new DataOutputHelper();
+            dataOutputThread.start();
         }
 
         // State after prestart transition -
@@ -325,7 +375,9 @@ public class DataChannelImplUdpStream extends DataChannelAdapter {
             NetworkInterface networkInterface = NetworkInterface.getByInetAddress(
                     socket.getLocalAddress());
             if (networkInterface != null) {
-                return networkInterface.getMTU();
+                int mtu = networkInterface.getMTU();
+                mtu = mtu > 9000 ? 9000 : mtu;
+                return mtu;
             }
             return DEFAULT_MTU;
         } catch (SocketException exception) {
@@ -374,7 +426,7 @@ public class DataChannelImplUdpStream extends DataChannelAdapter {
             // The parser merger thread needs to be interrupted first,
             // otherwise the parseToRing method may get stuck waiting
             // on further data in a loop around parkNanos().
-//logger.debug("      DataChannel UDP stream: end/reset(), interrupt parser/merger thread");
+//logger.debug("    DataChannel UDP stream: end/reset(), interrupt parser/merger thread");
             parserMergerThread.interrupt();
             try {Thread.sleep(10);}
             catch (InterruptedException e) {}
@@ -382,7 +434,7 @@ public class DataChannelImplUdpStream extends DataChannelAdapter {
                 if (dataInputThread != null) {
                     dataInputThread.interrupt();
                 }
-//logger.debug("      DataChannel UDP stream: end/reset(), interrupt input thread");
+//logger.debug("    DataChannel UDP stream: end/reset(), interrupt input thread");
         }
 
     }
@@ -396,13 +448,13 @@ public class DataChannelImplUdpStream extends DataChannelAdapter {
             try {parserMergerThread.join(1000);}
             catch (InterruptedException e) {}
 
-//logger.debug("      DataChannel UDP stream: end/reset(), joined parser/merger thread");
+//logger.debug("    DataChannel UDP stream: end/reset(), joined parser/merger thread");
 
             try {
                 dataInputThread.join(1000);
             }
             catch (InterruptedException e) {}
-//logger.debug("      DataChannel UDP stream: end/reset(), joined input thread");
+//logger.debug("    DataChannel UDP stream: end/reset(), joined input thread");
         }
     }
     
@@ -493,7 +545,7 @@ public class DataChannelImplUdpStream extends DataChannelAdapter {
         int second = 0;
         try {
             first  = ByteDataTransformer.toInt(buffer, ByteOrder.BIG_ENDIAN, 0);
-            second = ByteDataTransformer.toInt(buffer, ByteOrder.BIG_ENDIAN, 3);
+            second = ByteDataTransformer.toInt(buffer, ByteOrder.BIG_ENDIAN, 4);
         } catch (EvioException e) {/* never happen */}
 
         // version
@@ -505,12 +557,12 @@ public class DataChannelImplUdpStream extends DataChannelAdapter {
         // last
         parsedVals[3] = (first >> 15) & 0x1;
         // source id
-        parsedVals[4] = (first >> 16) & 0xffff;
+        parsedVals[4] = first >>> 16;
 
         // sequence
         parsedVals[5] = second & 0xffff;
         // packet count
-        parsedVals[6] = (second >> 16) & 0xffff;
+        parsedVals[6] = second >>> 16;
     }
 
 
@@ -531,14 +583,15 @@ public class DataChannelImplUdpStream extends DataChannelAdapter {
      * +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
      * </pre>
      *
-     * @param buffer   buffer to parse.
+     * @param buffer buffer to parse.
+     * @param off    offset into buffer.
      * @param parsedVals array to hold parsed values
      */
-    static void parseReHeader(ByteBuffer buffer, int[] parsedVals) {
+    static void parseReHeader(ByteBuffer buffer, int off, int[] parsedVals) {
         if (parsedVals == null || parsedVals.length < 7) return;
 
-        int first  = buffer.getInt(0);
-        int second = buffer.getInt(4);
+        int first  = buffer.getInt(off);
+        int second = buffer.getInt(off + 4);
 
         // version
         parsedVals[0] = first & 0xf;
@@ -549,12 +602,12 @@ public class DataChannelImplUdpStream extends DataChannelAdapter {
         // last
         parsedVals[3] = (first >> 15) & 0x1;
         // source id
-        parsedVals[4] = (first >> 16) & 0xffff;
+        parsedVals[4] = first >> 16;
 
         // sequence
         parsedVals[5] = second & 0xffff;
         // packet count
-        parsedVals[6] = (second >> 16) & 0xffff;
+        parsedVals[6] = second >> 16;
     }
 
 
@@ -579,10 +632,14 @@ public class DataChannelImplUdpStream extends DataChannelAdapter {
      */
     private final class DataInputHelper extends Thread {
 
-        /** Variable to print messages when paused. */
+        /**
+         * Variable to print messages when paused.
+         */
         private int pauseCounter = 0;
 
-        /** Let a single waiter know that the main thread has been started. */
+        /**
+         * Let a single waiter know that the main thread has been started.
+         */
         private final CountDownLatch latch = new CountDownLatch(1);
 
 
@@ -597,15 +654,18 @@ public class DataChannelImplUdpStream extends DataChannelAdapter {
         //     key   = pair of {sequence, recordId} (unique for each packet)
         //     value = tuple of {byte array holding packet data bytes, data length,
         //                       is last packet, is first packet}
-        private HashMap<Pair<Integer, Integer>,
-                        Quartet<byte[], Integer, Boolean, Boolean>> outOfOrderPackets = new HashMap<>();
+        private HashMap<Integer,
+                Triplet<byte[], Integer, Boolean>> outOfOrderPacketsNew = new HashMap<>();
+
+        private HashMap< Pair<Integer, Integer>,
+                Triplet<byte[], Integer, Boolean>> outOfOrderPackets = new HashMap<>();
 
         // Max bytes per packet for this data source:
         private int maxBytesPerPacket;
 
         // Set to hold the status of the "last" packet bit for each recordId:
         //     if recordId present, last packet received
-        private HashSet<Integer> endCondition = new HashSet<>();
+//        private HashSet<Integer> endCondition = new HashSet<>();
 
         // Map to hold the next expected sequence for each recordId:
         //     key   = recordId
@@ -616,59 +676,113 @@ public class DataChannelImplUdpStream extends DataChannelAdapter {
         private AtomicBoolean quitThread = new AtomicBoolean(false);
 
 
-        /** Constructor. */
+        /**
+         * Constructor.
+         */
         DataInputHelper() {
             super(emu.getThreadGroup(), name() + "_data_in");
         }
 
 
-        /** A single waiter can call this method which returns when thread was started. */
+        /**
+         * A single waiter can call this method which returns when thread was started.
+         */
         private void waitUntilStarted() {
             try {
                 latch.await();
             }
-            catch (InterruptedException e) {}
+            catch (InterruptedException e) {
+            }
         }
 
 
-        /** Call in order to exit this thread. */
-        public void exitThread() {quitThread.set(true);}
+        /**
+         * Call in order to exit this thread.
+         */
+        public void exitThread() {
+            quitThread.set(true);
+        }
 
 
-        /** {@inheritDoc} */
-        @Override
+        /**
+         * When publishing a completely reassembled buffer, remove all stored packets
+         * associated with previous records.
+         *
+         * @param recordId id of record to be published. Note the value of the record id
+         *                 varies between 0 and 255 only.
+         */
+        private void cleanOutOfOrderPacketsSequencesBuffers(Integer recordId) {
+            int nextRecord = (recordId + 1) % 256;
+
+            if (!outOfOrderPackets.isEmpty()) {
+                //int size = outOfOrderPackets.size();
+
+                // Remove the specified entry from the Map in safe way while iterating.
+                //
+                // NOTE: When switching to build a new record, all previous,
+                // not-fully-formed records are dropped. Also, all out of order packets
+                // are cleared as well.
+                //
+                // Thus, the only permissible packets in this map must come from the next record id.
+                outOfOrderPackets.entrySet()
+                                    .removeIf(
+                                            entry -> ((entry.getKey().getValue1()) != nextRecord));
+// TODO: This is seq NOT record id!!!
+                //System.out.println(" -" + (size - outOfOrderPackets.size()));
+            }
+
+            if (!expSequence.isEmpty()) {
+                expSequence.entrySet()
+                        .removeIf(
+                                entry -> ((entry.getKey()) != nextRecord));
+            }
+
+            if (!buffers.isEmpty()) {
+                buffers.entrySet()
+                        .removeIf(
+                                entry -> ((entry.getKey()) != nextRecord));
+            }
+        }
+
+
+        /**
+         * It's the observation of this programmer that in the simple network environments in which
+         * this code is run, any irregularity in the sequence of packets is due to dropped packets
+         * and not to simple reordering. Thus this is the assumption made in attempts to recover
+         * from errors. Little attempt is made to hold on to out-of-order packets. If a packet
+         * appears from a new record id, all the saved packets are dropped and any previous partially
+         * filled buffers are dumped as well.
+         */
+      //  @Override
         public void run() {
 
             // Tell the everyone I've started
             latch.countDown();
+            logger.info("    DataChannel UDP stream in: " + name + " - started");
 
-            ByteBufferItem item;
             // Allocate once to minimize garbage. Contains data from a single UDP reassembly header.
             int[] reHeader = new int[7];
-
-            // For receiving packet.
-            // Allocate byte array once to minimize garbage. Contains one UDP packet, including jumbo
             final int recvBufLen = 9100;
             byte[] recvBuf = new byte[recvBufLen];
             DatagramPacket packet = new DatagramPacket(recvBuf, recvBufLen);
 
-            boolean debug = true;
-//            int firstRecordId = 0;
-
             // Next expected sequence or packet # from UDP reassembly header
-            int expectedSequence;
+            int expectedSequence = 0;
+
+            int prevRecordId = -1;
+            int prevSequence = 0;
+            ByteBufferItem item = null;
+            ByteBufferItem prevItem = null;
 
             // Buffer in which to place recontructed data from packets
-            ByteBuffer buffer;
+            ByteBuffer buffer = null;
             // Total byte size of buffer being used
-            int bufSizeMax;
+            int bufSizeMax = 0;
             // Total number of bytes currently written to buffer
-            int totalBytesWritten;
-            // Number of unused bytes left in buffer
-            int remainingLen = 0;
-            // First time data being read for this buffer?
-            boolean firstReadForBuf;
+            int totalBytesWritten = 0;
 
+            boolean debug = false;
+            boolean dumpRecord, recordIdCompleted;
 
             try {
 
@@ -680,13 +794,16 @@ public class DataChannelImplUdpStream extends DataChannelAdapter {
 
                     if (pause) {
                         if (pauseCounter++ % 400 == 0)
-                            logger.warn("      DataChannel UDP stream in: " + name + " - PAUSED");
+                            logger.warn("    DataChannel UDP stream in: " + name + " - PAUSED");
                         Thread.sleep(5);
                         continue;
                     }
 
                     // Set true when all data associated with a single recordId has been written into a buffer
-                    boolean recordIdCompleted = false;
+                    recordIdCompleted = false;
+                    // Dump all packets associated with record
+                    dumpRecord = false;
+                    int recordId;
 
                     while (true) {
 
@@ -701,6 +818,7 @@ public class DataChannelImplUdpStream extends DataChannelAdapter {
                             if (quitThread.get()) {
                                 return;
                             }
+                            logger.info("    DataChannel UDP stream in: " + name + " - socket timeout");
                             continue;
                         }
 
@@ -712,85 +830,65 @@ public class DataChannelImplUdpStream extends DataChannelAdapter {
                         int nBytes = bytesRead - HEADER_BYTES;
 
                         // Parse UDP reassembly header
-                        parseReHeader(packet.getData(), reHeader);
-                        int version         = reHeader[0];
-                        int recordId        = reHeader[1];
+                        parseReHeader(packetBytes, reHeader);
+                        recordId = reHeader[1];
                         boolean packetFirst = reHeader[2] == 1;
-                        boolean packetLast  = reHeader[3] == 1;
-                        int sourceId        = reHeader[4];
-                        int sequence        = reHeader[5];
-                        int packetCount     = reHeader[6];
+                        boolean packetLast = reHeader[3] == 1;
+                        int sequence = reHeader[5];
+                        //int version = reHeader[0];
+                        //int sourceId = reHeader[4];
+                        //int packetCount = reHeader[6];
 
-                        if (debug) {
-                            System.out.println("\nPkt hdr: ver = " + version + ", first = " + packetFirst + ", last = " +
-                                    packetLast + ", recordId = " + recordId + ", seq = " + sequence +
-                                    ", source id = " + sourceId + ", packetCount = " + packetCount +
-                                    ", nBytes = " + nBytes);
-                        }
+//                        if (debug) {
+//                            System.out.println("\nPkt hdr: ver = " + version + ", first = " + packetFirst + ", last = " +
+//                                    packetLast + ", recordId = " + recordId + ", seq = " + sequence +
+//                                    ", source id = " + sourceId + ", packetCount = " + packetCount +
+//                                    ", nBytes = " + nBytes);
+//                        }
 
-                        // Key to both the map of buffers and map of next-expected-sequence
-                        Integer key = recordId;
-
-                        // If buffer for this recordId already exists ...
-                        if (buffers.containsKey(key)) {
-                            if (debug) System.out.println("buffer already exists for record id = " + recordId);
-
-                            // Get the stored ByteBuffer and its data
-                            item = buffers.get(key);
-                            buffer = item.getBuffer();
-
-                            // Find the next expected sequence
-                            expectedSequence = expSequence.get(key);
-
-                            // Bytes previously written into buffer
-                            totalBytesWritten = buffer.limit();
-                            bufSizeMax = buffer.capacity();
-
-                            // How much room do we currently have?
-                            remainingLen = bufSizeMax - totalBytesWritten;
-
-                            // Room for packet?
-                            //if (nBytes > remainingLen) {
-                            if (totalBytesWritten + nBytes > bufSizeMax) {
-                                // No room in buffer? Make 2x more.
-                                buffer = expandBuffer(buffer);
-                                bufSizeMax = buffer.capacity();
-                                remainingLen = bufSizeMax - totalBytesWritten;;
-                                // Make sure new buf is put into supply
-                                item.setBuffer(buffer);
+                        // This if-else statement is what enables the packet reading/parsing to keep
+                        // up an input rate that is too high (causing dropped packets) and still salvage
+                        // much of what is coming in.
+                        if (recordId != prevRecordId) {
+                            if (sequence != 0) {
+                                // Already have trouble, looks like we dropped the first packet of a record.
+                                // So go ahead and dump the rest of the record in an effort to keep up.
+//System.out.println("Skip r " + recordId + " s " + sequence);
+                                continue;
                             }
 
-                            firstReadForBuf = false;
+                            // If here, new record, seq = 0
+
+                            // Dump everything we saved from previous record.
+                            // Delete all out-of-seq packets.
+                            outOfOrderPacketsNew.clear();
+                            // Because we don't set prevItem.setUserBoolean(true),
+                            // the previous buffer is labeled as "Bad" and will be ignored by parser.
+                            if (prevItem != null) {
+//System.out.println("Rel old r " + prevRecordId + " s " + prevSequence);
+                                bbSupply.publish(prevItem);
+                            }
+
+                            dumpRecord = false;
                         }
+                        // Same record as last packet
                         else {
-                            // This is the first time this record id has been seen.
-                            // Get another buffer from the supply to store it in.
-
-                            if (debug) System.out.println("buffer must be created for record id = " + recordId);
-
-                            // Get the next available empty ByteBuffer
-                            item = bbSupply.get();
-                            buffer = item.getBuffer();
-//System.out.println("      DataChannel UDP stream in: GOT BB supply item " + item.myIndex);
-
-                            // Put bbSupply item entry into map for future access
-                            buffers.put(key, item);
-
-                            // First expected sequence is 0
-                            expectedSequence = 0;
-                            // Put expected seq into map for future access
-                            expSequence.put(key, 0);
-                            // Bytes previously written into buffer
-                            totalBytesWritten = 0;
-                            // How much room do we have?
-                            bufSizeMax = remainingLen = buffer.capacity();
-
-                            firstReadForBuf = true;
+                            if (dumpRecord || (Math.abs(sequence - prevSequence) > 1)) {
+                                // If here, the sequence hopped by at least 2,
+                                // probably dropped at least 1,
+                                // so drop rest of packets for record.
+                                // This branch of the "if" will no longer
+                                // be executed once the next record shows up.
+                                dumpRecord = true;
+                                prevSequence = sequence;
+//System.out.println("Dump r " + recordId + " s " + sequence);
+                                continue;
+                            }
                         }
 
+                        // If a new record
                         if (sequence == 0) {
                             if (!packetFirst) {
-                                if (debug) System.out.println("\"first\" bit not set on first packet");
                                 throw new EmuException("\"first\" bit not set on first packet");
                             }
 
@@ -798,30 +896,71 @@ public class DataChannelImplUdpStream extends DataChannelAdapter {
                             // thus have a different number of bytes per packet. Track it.
                             // If small payload (< MTU), then this is irrelevant, but save anyway.
                             maxBytesPerPacket = nBytes;
+
+                            // This is the first time this record id has been seen.
+                            // Get the next available empty ByteBuffer from the supply to store it in.
+
+//System.out.println("Get buf, r " + recordId + " s " + sequence);
+                            item = bbSupply.get();
+                            // Store record id for future use
+                            item.setUserInt(recordId);
+                            buffer = item.getBuffer();
+                            buffer.limit(0);
+
+                            // First expected sequence is 0
+                            expectedSequence = 0;
+                            // Bytes previously written into buffer
+                            totalBytesWritten = 0;
+                            // How much room do we have?
+                            bufSizeMax = buffer.capacity();
                         }
-                        else if (packetFirst) {
-                            if (debug) System.out.println("expecting first bit NOT to be set, but was");
-                            throw new EmuException("expecting first bit NOT to be set, but was");
+                        // If buffer for this recordId already exists ...
+                        else {
+                            if (packetFirst) {
+                                throw new EmuException("expecting first bit NOT to be set, but was");
+                            }
+//System.out.println("Use buf, r " + recordId + " s " + sequence);
+
+                            // Room for packet?
+                            if (totalBytesWritten + nBytes > bufSizeMax) {
+                                //if (debug) System.out.println("wrote " + totalBytesWritten + " new " + nBytes + " >? max " + bufSizeMax);
+                                // No room in buffer? Make 2x more.
+                                buffer = expandBuffer(buffer);
+                                bufSizeMax = buffer.capacity();
+                                // Make sure new buf is put into supply
+                                item.setBuffer(buffer);
+                            }
                         }
 
-if (debug) System.out.println("Received " + nBytes + " bytes from sender " + id + ", recordId " + recordId +
-                ", seq " + sequence + ", last = " + packetLast + ", firstReadForBuf = " + firstReadForBuf);
+                        prevItem     = item;
+                        prevRecordId = recordId;
+                        prevSequence = sequence;
+
+//if (debug) System.out.println("Received " + nBytes + " bytes from sender " + id + ", recordId " + recordId +
+//                ", seq " + sequence + ", last = " + packetLast);
 
                         // Check to see if packet is in sequence, if not ...
+                        // The challenge here is to TEMPORARILY store the out-of-order packets.
+                        //
+                        // The assumption here is that:
+                        // If the buffer associated with a particular record id is fully reassembled,
+                        // then it is very unlikely that any partially reassembled previous record
+                        // will ever receive the missing packets and be completed. Thus they will
+                        // be deleted and that record will be lost.
+                        //
+                        // There is another complicating factor:
+                        // This concerns the byte buffer supply, containing the buffers being built.
+                        // Once a record is reassembled in a buffer and that is "published" back into
+                        // the supply (to the waiting consumer), it also frees up all buffers
+                        // previously taken from the supply, including those containing the partially
+                        // reassembled records. A flag or something needs setting so any consumer ignores it.
                         if (sequence != expectedSequence) {
-                            if (debug) System.out.println("\n    ID " + id + ": got seq " + sequence +
-                                                          ", expecting " + expectedSequence);
+                            //           if (debug) System.out.println("\n    ID " + id + ": got seq " + sequence +
+                            //                                         ", expecting " + expectedSequence + ", record id = " + recordId);
 
                             // If we get a sequence that we already received, ERROR!
                             if (sequence < expectedSequence) {
-                                if (debug) System.out.println("    Got seq " + sequence + " once before!");
-                                throw new EmuException("got seq " + sequence + " once before!");
-                            }
-
-                            // Limit how many out-of-order packets we're going to store (1000 packets) while we wait
-                            if (outOfOrderPackets.size() >= 1000) {
-                                if (debug) System.out.println( "    Reached limit of 1000 stored packets!");
-                                throw new EmuException("reached limit of 1000 stored packets");
+                                throw new EmuException("got seq " + sequence + " before!");
                             }
 
                             // Since it's out of order, what was written into packetBytes
@@ -830,20 +969,22 @@ if (debug) System.out.println("Received " + nBytes + " bytes from sender " + id 
                             byte[] dataCopy = new byte[bytesRead];
                             System.arraycopy(packetBytes, 0, dataCopy, 0, bytesRead);
 
-                            if (debug) System.out.println("    Save & store packet " + sequence +
-                                            ", packetLast = " + packetLast + ", storage has " + outOfOrderPackets.size());
+//                            if (debug) System.out.println("    Save & store packet " + sequence +
+//                                            ", packetLast = " + packetLast + ", storage has " + outOfOrderPacketsNew.size());
 
                             // Put it into map. The key of sequence & recordId is unique for each packet
-                            Pair<Integer, Integer> kee = new Pair<>(sequence, recordId);
-                            Quartet<byte[], Integer, Boolean, Boolean> val = new Quartet<>(dataCopy, nBytes, packetLast, packetFirst);
-                            outOfOrderPackets.put(kee, val);
+                            Integer kee = sequence;
+                            Triplet<byte[], Integer, Boolean> val = new Triplet<>(dataCopy, nBytes, packetLast);
+                            outOfOrderPacketsNew.put(kee, val);
 
+//                            System.out.println(" +" + outOfOrderPacketsNew.size() + ", id " + recordId + ", seq " + sequence + ", x " + expectedSequence);
                             // Read next packet
                             continue;
                         }
 
                         while (true) {
-                            if (debug) System.out.println("\nPacket " + sequence + " in proper order, last = " + packetLast);
+//                            if (debug) System.out.println("Packet " + sequence + " in order, last = " +
+//                                    packetLast + ", record id = " + recordId);
 
                             // Packet was in proper order, write it into appropriate buffer
 
@@ -854,15 +995,8 @@ if (debug) System.out.println("Received " + nBytes + " bytes from sender " + id 
                             totalBytesWritten += nBytes;
                             buffer.limit(totalBytesWritten);
 
-                            // Number of bytes left in this buffer
-                            remainingLen = bufSizeMax - totalBytesWritten;
-
                             // Next expected sequence
-                            // TODO: make sure this is the correct KEY!!!
-                            expSequence.put(key, ++expectedSequence);
-
-if (debug) System.out.println("remainingLen = " + remainingLen + ", expected offset = " + expectedSequence +
-                              ", first = " + packetFirst + ", last = " +packetLast);
+                            expectedSequence++;
 
                             // Is this the last packet for a record id?
                             if (packetLast) {
@@ -872,35 +1006,32 @@ if (debug) System.out.println("remainingLen = " + remainingLen + ", expected off
 
                             // Since we have room and don't have all the last packets,
                             // check out-of-order packets for this tick and dataId
-                            if (!outOfOrderPackets.isEmpty()) {
-if (debug) System.out.println("We have stored packets, look for exp seq = " + expectedSequence + ", id = " + recordId);
+                            if (!outOfOrderPacketsNew.isEmpty()) {
+//if (debug) System.out.println("We have stored packets, look for exp seq = " + expectedSequence + ", id = " + recordId);
 
                                 // Create key (unique for every packet)
-                                Pair<Integer, Integer> kee = new Pair<>(expectedSequence, recordId);
+                                Integer kee = expectedSequence;
 
                                 // Use key to look into the map
-                                Quartet<byte[], Integer, Boolean, Boolean> val = outOfOrderPackets.get(kee);
+                                Triplet<byte[], Integer, Boolean> val = outOfOrderPacketsNew.get(kee);
 
                                 // If packet of interest exists ...
                                 if (val != null) {
                                     // Get stored packet info
-                                    packetBytes    = val.getValue0();
-                                    nBytes         = val.getValue1();
-                                    packetLast     = val.getValue2();
-                                    packetFirst    = val.getValue3();
-                                    sequence       = expectedSequence;
+                                    packetBytes = val.getValue0();
+                                    nBytes = val.getValue1();
+                                    packetLast = val.getValue2();
 
                                     // Remove packet from map
-                                    outOfOrderPackets.remove(kee);
-if (debug) System.out.println("Go and add stored packet " + expectedSequence +
-                              ", size of map = " + outOfOrderPackets.size() + ", last = " + packetLast);
+                                    outOfOrderPacketsNew.remove(kee);
+                                    if (debug)
+                                        System.out.println("Add stored seq " + expectedSequence + ", id = " + recordId);
 
                                     // Room for packet?
                                     if (totalBytesWritten + nBytes > bufSizeMax) {
                                         // No room in buffer? Make 2x more.
                                         buffer = expandBuffer(buffer);
                                         bufSizeMax = buffer.capacity();
-                                        remainingLen = bufSizeMax - totalBytesWritten;;
                                         // Make sure new buf is put into supply
                                         item.setBuffer(buffer);
                                     }
@@ -914,31 +1045,39 @@ if (debug) System.out.println("Go and add stored packet " + expectedSequence +
                         }
 
                         if (recordIdCompleted) {
+                            // Delete all out-of-seq keys prior to this one
+                            outOfOrderPacketsNew.clear();
                             break;
                         }
 
                         // read next packet
                     }
 
-                    // Done with this buffer/id, work on the next record id
+                    // Done with this buffer/id, work on the next record id.
+                    // Tell parser this is a good buffer. The publish call will also release
+                    // the partially-filled items which will now be discarded (ie ignored
+                    // by parser since user boolean is false by default).
+                    item.setUserBoolean(true);
+ //System.out.println("PUB, r " + recordId );
                     bbSupply.publish(item);
+                    prevItem = null;
                 }
             }
             catch (InterruptedException e) {
-                logger.warn("      DataChannel UDP stream in: " + name + ", interrupted, exit reading thd");
+                logger.warn("    DataChannel UDP stream in: " + name + ", interrupted, exit reading thd");
             }
             catch (AsynchronousCloseException e) {
-                logger.warn("      DataChannel UDP stream in: " + name + ", socket closed, exit reading thd");
+                logger.warn("    DataChannel UDP stream in: " + name + ", socket closed, exit reading thd");
             }
             catch (IOException e) {
                 // Assume that if the other end of the socket closes, it's because it has
                 // sent the END event and received the end() command.
-                logger.warn("      DataChannel UDP stream in: " + name + ", socket I/O error");
+                logger.warn("    DataChannel UDP stream in: " + name + ", socket I/O error");
             }
             catch (Exception e) {
                 if (haveInputEndEvent) {
-System.out.println("      DataChannel UDP stream in: " + name +
-                   ", exception but already have END event, so exit reading thd");
+                    System.out.println("    DataChannel UDP stream in: " + name +
+                            ", exception but already have END event, so exit reading thd");
                     return;
                 }
                 e.printStackTrace();
@@ -953,7 +1092,375 @@ System.out.println("      DataChannel UDP stream in: " + name +
             }
         }
 
+
+
+        /**
+         * This method is similar to run() except it uses some older, more
+         * garbage-producing code. It also is less drastic in what it dumps in an
+         * effort to recover from dropped packets due to an input rate that is too
+         * high. Does not seem to make much difference in performance - at least on
+         * Macbook.
+         */
+        public void runOrig() {
+
+            // Tell the everyone I've started
+            latch.countDown();
+            logger.info("    DataChannel UDP stream in: " + name + " - started");
+
+            // Allocate once to minimize garbage. Contains data from a single UDP reassembly header.
+            int[] reHeader = new int[7];
+            final int recvBufLen = 9100;
+            byte[] recvBuf = new byte[recvBufLen];
+            DatagramPacket packet = new DatagramPacket(recvBuf, recvBufLen);
+
+            int expectedSequence;
+            int prevRecordId = -1;
+            int prevSequence = 0;
+            ByteBufferItem item;
+            ByteBufferItem prevItem = null;
+
+            // Buffer in which to place recontructed data from packets
+            ByteBuffer buffer;
+            // Total byte size of buffer being used
+            int bufSizeMax;
+            // Total number of bytes currently written to buffer
+            int totalBytesWritten;
+
+            boolean debug = true;
+            boolean dumpRecord, recordIdCompleted;
+
+            try {
+
+                while (true) {
+                    // If I've been told to RESET ...
+                    if (gotResetCmd) {
+                        return;
+                    }
+
+                    if (pause) {
+                        if (pauseCounter++ % 400 == 0)
+                            logger.warn("    DataChannel UDP stream in: " + name + " - PAUSED");
+                        Thread.sleep(5);
+                        continue;
+                    }
+
+                    // Set true when all data associated with a single recordId has been written into a buffer
+                    recordIdCompleted = false;
+                    // Dump all packets associated with record
+                    dumpRecord = false;
+
+                    while (true) {
+
+                        // READ UDP PACKET including reassembly header
+                        try {
+                            packet.setLength(recvBufLen);
+                            inSocket.receive(packet);
+                        }
+                        catch (SocketTimeoutException e) {
+                            // This socket read is set to time out after 10 seconds (see transport class).
+                            // Check to see if we've been told to reset.
+                            if (quitThread.get()) {
+                                return;
+                            }
+                            logger.info("    DataChannel UDP stream in: " + name + " - socket timeout");
+                            continue;
+                        }
+
+                        // Total bytes in packet
+                        int bytesRead = packet.getLength();
+                        // Packet data byte array
+                        byte[] packetBytes = packet.getData();
+                        // Number of actual data bytes not counting RE header
+                        int nBytes = bytesRead - HEADER_BYTES;
+
+                        // Parse UDP reassembly header
+                        parseReHeader(packetBytes, reHeader);
+                        int recordId = reHeader[1];
+                        boolean packetFirst = reHeader[2] == 1;
+                        boolean packetLast = reHeader[3] == 1;
+                        int sequence = reHeader[5];
+                        //int version = reHeader[0];
+                        //int sourceId = reHeader[4];
+                        //int packetCount = reHeader[6];
+
+//                        if (debug) {
+//                            System.out.println("\nPkt hdr: ver = " + version + ", first = " + packetFirst + ", last = " +
+//                                    packetLast + ", recordId = " + recordId + ", seq = " + sequence +
+//                                    ", source id = " + sourceId + ", packetCount = " + packetCount +
+//                                    ", nBytes = " + nBytes);
+//                        }
+
+                        // This if-else statement is what enables the packet reading/parsing to keep
+                        // up an input rate that is too high (causing dropped packets) and still salvage
+                        // much of what is coming in.
+                        if (recordId != prevRecordId) {
+                            if (sequence != 0) {
+                                // Already have trouble, looks like we dropped the first packet of a record.
+                                // So go ahead and dump the rest of the record in an effort to keep up.
+//System.out.println("Skip r " + recordId + " s " + sequence);
+
+                                // Delete all out-of-seq packets as we're moving on
+                                outOfOrderPackets.clear();
+                                expSequence.clear();
+                                buffers.clear();
+                                // Because we don't set prevItem.setUserBoolean(true),
+                                // the buffer is labeled as "Bad" and will be ignored.
+                                if (prevItem != null) {
+                                    bbSupply.publish(prevItem);
+                                    prevItem = null;
+                                }
+
+                                continue;
+                            }
+
+                            // If here, new record, seq = 0
+                            dumpRecord = false;
+                        }
+                        // Same record as last packet
+                        else {
+                            if (dumpRecord || (Math.abs(sequence - prevSequence) > 2)) {
+                                // If here, the sequence hopped by at least 3, probably dropped 2,
+                                // so drop rest of record packets for record.
+                                // This branch of the "if" will no longer
+                                // be executed once the next record shows up.
+                                dumpRecord = true;
+                                prevSequence = sequence;
+                                continue;
+                            }
+                        }
+
+                        // Key to both the map of buffers and map of next-expected-sequence
+                        Integer key = recordId;
+
+                        // If buffer for this recordId already exists ...
+                        if (buffers.containsKey(key)) {
+                            // If we're here the sequence is > 0
+                            if (packetFirst) {
+                                throw new EmuException("expecting first bit NOT to be set, but was");
+                            }
+//                            if (debug) System.out.println("buffer already exists for record id = " + recordId);
+
+                            // Get the stored ByteBuffer and its data
+                            item = buffers.get(key);
+                            buffer = item.getBuffer();
+
+                            // Find the next expected sequence
+                            expectedSequence = expSequence.get(key);
+
+                            // Bytes previously written into buffer
+                            totalBytesWritten = buffer.limit();
+                            bufSizeMax = buffer.capacity();
+
+                            // Room for packet?
+                            if (totalBytesWritten + nBytes > bufSizeMax) {
+                                //if (debug) System.out.println("wrote " + totalBytesWritten + " new " + nBytes + " >? max " + bufSizeMax);
+                                // No room in buffer? Make 2x more.
+                                buffer = expandBuffer(buffer);
+                                bufSizeMax = buffer.capacity();
+                                // Make sure new buf is put into supply
+                                item.setBuffer(buffer);
+                            }
+                        }
+                        else {
+                            // This is the first time this record id has been seen.
+                            // Get another buffer from the supply to store it in.
+
+                            // If we're here the sequence = 0
+                            if (!packetFirst) {
+                                throw new EmuException("\"first\" bit not set on first packet");
+                            }
+
+                            // Each data source may come over a different network/interface and
+                            // thus have a different number of bytes per packet. Track it.
+                            // If small payload (< MTU), then this is irrelevant, but save anyway.
+                            maxBytesPerPacket = nBytes;
+
+//                            if (debug) System.out.println("buffer must be created for record id = " + recordId);
+
+                            // Get the next available empty ByteBuffer
+                            item = bbSupply.get();
+                            // Store record id for future use
+                            item.setUserInt(recordId);
+                            buffer = item.getBuffer();
+                            buffer.limit(0);
+//System.out.println("    DataChannel UDP stream in: GOT BB supply item " + item.myIndex);
+
+                            // Put bbSupply item entry into map for future access
+                            buffers.put(key, item);
+
+                            // First expected sequence is 0
+                            expectedSequence = 0;
+                            // Put expected seq into map for future access
+                            expSequence.put(key, 0);
+                            // Bytes previously written into buffer
+                            totalBytesWritten = 0;
+                            // How much room do we have?
+                            bufSizeMax = buffer.capacity();
+                        }
+
+                        prevItem     = item;
+                        prevRecordId = recordId;
+                        prevSequence = sequence;
+
+//if (debug) System.out.println("Received " + nBytes + " bytes from sender " + id + ", recordId " + recordId +
+//                ", seq " + sequence + ", last = " + packetLast);
+
+                        // Check to see if packet is in sequence, if not ...
+                        // The challenge here is to TEMPORARILY store the out-of-order packets.
+                        //
+                        // The assumption here is that:
+                        // If the buffer associated with a particular record id is fully reassembled,
+                        // then it is very unlikely that any partially reassembled previous record
+                        // will ever receive the missing packets and be completed. Thus they will
+                        // be deleted and that record will be lost.
+                        //
+                        // There is another complicating factor:
+                        // This concerns the byte buffer supply, containing the buffers being built.
+                        // Once a record is reassembled in a buffer and that is "published" back into
+                        // the supply (to the waiting consumer), it also frees up all buffers
+                        // previously taken from the supply, including those containing the partially
+                        // reassembled records. A flag or something needs setting so any consumer ignores it.
+                        if (sequence != expectedSequence) {
+                            //           if (debug) System.out.println("\n    ID " + id + ": got seq " + sequence +
+                            //                                         ", expecting " + expectedSequence + ", record id = " + recordId);
+
+                            // If we get a sequence that we already received, ERROR!
+                            if (sequence < expectedSequence) {
+                                throw new EmuException("got seq " + sequence + " before!");
+                            }
+
+                            // Since it's out of order, what was written into packetBytes
+                            // will need to be copied and stored.
+                            // Copy everything including header to make code easier later on
+                            byte[] dataCopy = new byte[bytesRead];
+                            System.arraycopy(packetBytes, 0, dataCopy, 0, bytesRead);
+
+//                            if (debug) System.out.println("    Save & store packet " + sequence +
+//                                            ", packetLast = " + packetLast + ", storage has " + outOfOrderPackets.size());
+
+                            // Put it into map. The key of sequence & recordId is unique for each packet
+                            Pair<Integer, Integer> kee = new Pair<>(sequence, recordId);
+                            Triplet<byte[], Integer, Boolean> val = new Triplet<>(dataCopy, nBytes, packetLast);
+                            outOfOrderPackets.put(kee, val);
+
+//                            System.out.println(" +" + outOfOrderPackets.size() + ", id " + recordId + ", seq " + sequence + ", x " + expectedSequence);
+                            // Read next packet
+                            continue;
+                        }
+
+                        while (true) {
+//                            if (debug) System.out.println("\nPacket " + sequence + " proper order, last = " +
+//                                    packetLast + ", record id = " + recordId);
+//
+                            // Packet was in proper order, write it into appropriate buffer
+
+                            // Copy data from packet into buffer
+                            System.arraycopy(packetBytes, HEADER_BYTES, buffer.array(), totalBytesWritten, nBytes);
+
+                            // Total bytes written into this buffer
+                            totalBytesWritten += nBytes;
+                            buffer.limit(totalBytesWritten);
+
+                            // Next expected sequence
+                            expSequence.put(key, ++expectedSequence);
+
+                            // Is this the last packet for a record id?
+                            if (packetLast) {
+                                recordIdCompleted = true;
+                                break;
+                            }
+
+                            // Since we have room and don't have all the last packets,
+                            // check out-of-order packets for this tick and dataId
+                            if (!outOfOrderPackets.isEmpty()) {
+//if (debug) System.out.println("We have stored packets, look for exp seq = " + expectedSequence + ", id = " + recordId);
+
+                                // Create key (unique for every packet)
+                                Pair<Integer, Integer> kee = new Pair<>(expectedSequence, recordId);
+
+                                // Use key to look into the map
+                                Triplet<byte[], Integer, Boolean> val = outOfOrderPackets.get(kee);
+
+                                // If packet of interest exists ...
+                                if (val != null) {
+                                    // Get stored packet info
+                                    packetBytes = val.getValue0();
+                                    nBytes = val.getValue1();
+                                    packetLast = val.getValue2();
+
+                                    // Remove packet from map
+                                    outOfOrderPackets.remove(kee);
+                                    if (debug)
+                                        System.out.println("Add stored seq " + expectedSequence + ", id = " + recordId);
+
+                                    // Room for packet?
+                                    if (totalBytesWritten + nBytes > bufSizeMax) {
+                                        // No room in buffer? Make 2x more.
+                                        buffer = expandBuffer(buffer);
+                                        bufSizeMax = buffer.capacity();
+                                        // Make sure new buf is put into supply
+                                        item.setBuffer(buffer);
+                                    }
+
+                                    // Write this packet into main buffer now
+                                    continue;
+                                }
+                            }
+
+                            break;
+                        }
+
+                        if (recordIdCompleted) {
+                            // Delete all previous, now irrelevant, data from prior to this record
+                            cleanOutOfOrderPacketsSequencesBuffers(recordId);
+                            break;
+                        }
+
+                        // read next packet
+                    }
+
+                    // Done with this buffer/id, work on the next record id.
+                    // Tell parser this is a good buffer. The publish call will also release
+                    // the partially-filled items which will now be discarded (ie ignored
+                    // by parser since user boolean is false by default).
+                    item.setUserBoolean(true);
+                    bbSupply.publish(item);
+                    prevItem = null;
+                }
+            }
+            catch (InterruptedException e) {
+                logger.warn("    DataChannel UDP stream in: " + name + ", interrupted, exit reading thd");
+            }
+            catch (AsynchronousCloseException e) {
+                logger.warn("    DataChannel UDP stream in: " + name + ", socket closed, exit reading thd");
+            }
+            catch (IOException e) {
+                // Assume that if the other end of the socket closes, it's because it has
+                // sent the END event and received the end() command.
+                logger.warn("    DataChannel UDP stream in: " + name + ", socket I/O error");
+            }
+            catch (Exception e) {
+                if (haveInputEndEvent) {
+                    System.out.println("    DataChannel UDP stream in: " + name +
+                            ", exception but already have END event, so exit reading thd");
+                    return;
+                }
+                e.printStackTrace();
+                channelState = CODAState.ERROR;
+                // If error msg already set, this will not
+                // set it again. It will send it to rc.
+                String errString = "DataChannel UDP stream in: error reading " + name;
+                if (e.getMessage() != null) {
+                    errString += ' ' + e.getMessage();
+                }
+                emu.setErrorState(errString);
+            }
+        }
+
+
     }
+
+
 
 
     /**
@@ -982,14 +1489,21 @@ System.out.println("      DataChannel UDP stream in: " + name +
                 while (true) {
                     // Sets the consumer sequence
                     ByteBufferItem item = bbSupply.consumerGet();
+                    if (!item.getUserBoolean()) {
+                        // This buffer has partially constructed data, missing at least 1 packet.
+                        // Dump it and move on.
+                        //System.out.println("XXX");
+                        bbSupply.release(item);
+                        continue;
+                    }
                     if (parseStreamingToRing(item, bbSupply)) {
-                        logger.info("      DataChannel UDP stream in: 1 quit streaming parser/merger thread for END event from " + name);
+                        logger.info("    DataChannel UDP stream in: 1 quit streaming parser/merger thread for END event from " + name);
                         break;
                     }
                 }
             }
             catch (InterruptedException e) {
-//                logger.warn("      DataChannel UDP stream in: " + name +
+//                logger.warn("    DataChannel UDP stream in: " + name +
 //                            " parserMerger thread interrupted, quitting ####################################");
             }
             catch (EvioException e) {
@@ -1027,11 +1541,11 @@ System.out.println("      DataChannel UDP stream in: " + name +
                 // Each pool must be reset only once!
                 pool.reset();
                 if (reader == null) {
-//System.out.println("      DataChannel UDP stream in: create reader, buf's pos/lim = " + buf.position() + "/" + buf.limit());
+//System.out.println("    DataChannel UDP stream in: create reader, buf's pos/lim = " + buf.position() + "/" + buf.limit());
                     reader = new EvioCompactReader(buf, pool, false);
                 }
                 else {
-//System.out.println("      DataChannel UDP stream in: set buffer, expected id = " + expectedRecordId);
+//System.out.println("    DataChannel UDP stream in: set buffer, expected id = " + expectedRecordId);
                     reader.setBuffer(buf, pool);
                 }
 
@@ -1046,7 +1560,7 @@ System.out.println("      DataChannel UDP stream in: " + name +
                 }
             }
             catch (EvioException e) {
-                System.out.println("      DataChannel UDP stream in: data NOT evio format 1");
+                System.out.println("    DataChannel UDP stream in: data NOT evio format 1");
                 e.printStackTrace();
                 Utilities.printBytes(buf, 0, 80, "BAD BUFFER TO PARSE");
                 throw e;
@@ -1066,14 +1580,16 @@ System.out.println("      DataChannel UDP stream in: " + name +
                 throw new EvioException("bad evio format or improper event type");
             }
 
-            recordId = blockHeader.getNumber();
+            // Stored the record id previously when reassembling packets
+            recordId = item.getUserInt();
+            //recordId = blockHeader.getNumber();
 
             // Check record for sequential record id
             expectedRecordId = Evio.checkRecordIdSequence(recordId, expectedRecordId, false,
                                                           eventType, DataChannelImplUdpStream.this);
-//System.out.println("      DataChannel UDP stream in: expected record id = " + expectedRecordId +
+//System.out.println("    DataChannel UDP stream in: expected record id = " + expectedRecordId +
 //                    ", actual = " + recordId);
-//System.out.println("      DataChannel UDP stream in: event type = " + eventType + ", event count = " + reader.getEventCount() + " from " + name);
+//System.out.println("    DataChannel UDP stream in: event type = " + eventType + ", event count = " + reader.getEventCount() + " from " + name);
 
             int eventCount = reader.getEventCount();
             boolean gotRocRaw  = eventType.isFromROC();
@@ -1131,7 +1647,7 @@ System.out.println("      DataChannel UDP stream in: " + name +
 
                 // This should NEVER happen
                 if (topNode == null) {
-                    System.out.println("      DataChannel UDP stream in: WARNING, event count = " + eventCount +
+                    System.out.println("    DataChannel UDP stream in: WARNING, event count = " + eventCount +
                             " but get(Scanned)Event(" + i + ") is null - evio parsing bug");
                     continue;
                 }
@@ -1146,9 +1662,9 @@ System.out.println("      DataChannel UDP stream in: " + name +
                         isUser = true;
                         eventType = EventType.USER;
                         if (hasFirstEvent) {
-                            System.out.println("      DataChannel UDP stream in: " + name + "  FIRST event from ROC RAW");
+                            System.out.println("    DataChannel UDP stream in: " + name + "  FIRST event from ROC RAW");
                         } else {
-                            System.out.println("      DataChannel UDP stream in: " + name + " USER event from ROC RAW");
+                            System.out.println("    DataChannel UDP stream in: " + name + " USER event from ROC RAW");
                         }
                     }
                     else {
@@ -1164,7 +1680,7 @@ System.out.println("      DataChannel UDP stream in: " + name +
                         ByteBuffer buff = node.getBuffer();
                         frame = buff.getInt(20 + pos);
                         timestamp = EmuUtilities.intsToLong(buff.getInt(24 + pos), buff.getInt(28 + pos));
-//System.out.println("      DataChannel UDP stream in: roc raw has frame = " + frame + ", timestamp = " + timestamp + ", pos = " + pos);
+//System.out.println("    DataChannel UDP stream in: roc raw has frame = " + frame + ", timestamp = " + timestamp + ", pos = " + pos);
                     }
                 }
                 else if (eventType.isBuildable()) {
@@ -1181,24 +1697,24 @@ System.out.println("      DataChannel UDP stream in: " + name +
                     ByteBuffer buff = node.getBuffer();
                     frame = buff.getInt(16 + pos);
                     timestamp = EmuUtilities.intsToLong(buff.getInt(20 + pos), buff.getInt(24 + pos));
-//System.out.println("      DataChannel UDP stream in: buildable has frame = " + frame + ", timestamp = " + timestamp + ", pos = " + pos);
+//System.out.println("    DataChannel UDP stream in: buildable has frame = " + frame + ", timestamp = " + timestamp + ", pos = " + pos);
                 }
                 else if (eventType == EventType.CONTROL) {
                     // Find out exactly what type of control event it is
                     // (May be null if there is an error).
                     controlType = ControlType.getControlType(node.getTag());
-                    logger.info("      DataChannel UDP stream in: got " + controlType + " event from " + name);
+                    logger.info("    DataChannel UDP stream in: got " + controlType + " event from " + name);
                     if (controlType == null) {
-                        logger.info("      DataChannel UDP stream in: found unidentified control event");
+                        logger.info("    DataChannel UDP stream in: found unidentified control event");
                         throw new EvioException("Found unidentified control event");
                     }
                 }
                 else if (eventType == EventType.USER) {
                     isUser = true;
                     if (hasFirstEvent) {
-                        logger.info("      DataChannel UDP stream in: " + name + " got FIRST event");
+                        logger.info("    DataChannel UDP stream in: " + name + " got FIRST event");
                     } else {
-                        logger.info("      DataChannel UDP stream in: " + name + " got USER event");
+                        logger.info("    DataChannel UDP stream in: " + name + " got USER event");
                     }
                 }
 
@@ -1207,14 +1723,14 @@ System.out.println("      DataChannel UDP stream in: " + name +
 
                 // Set & reset all parameters of the ringItem
                 if (eventType.isBuildable()) {
-//logger.info("      DataChannel UDP stream in: put buildable event into channel ring, event from " + name);
+//logger.info("    DataChannel UDP stream in: put buildable event into channel ring, event from " + name);
                     ri.setAll(null, null, node, eventType, controlType,
                             isUser, hasFirstEvent, module.isStreamingData(), id, recordId, id,
                             node.getNum(), name, item, bbSupply);
                     ri.setTimeFrame(frame);
                     ri.setTimestamp(timestamp);
                 } else {
-//logger.info("      DataChannel UDP stream in: put CONTROL (user?) event into channel ring, event from " + name);
+//logger.info("    DataChannel UDP stream in: put CONTROL (user?) event into channel ring, event from " + name);
                     ri.setAll(null, null, node, eventType, controlType,
                             isUser, hasFirstEvent, module.isStreamingData(), id, recordId, id,
                             1, name, item, bbSupply);
@@ -1233,7 +1749,7 @@ System.out.println("      DataChannel UDP stream in: " + name +
                     haveInputEndEvent = true;
                     // Run callback saying we got end event
                     if (endCallback != null) endCallback.endWait();
-                    logger.info("      DataChannel UDP stream in: BREAK from loop, got END event");
+                    logger.info("    DataChannel UDP stream in: BREAK from loop, got END event");
                     break;
                 }
             }
@@ -1241,6 +1757,8 @@ System.out.println("      DataChannel UDP stream in: " + name +
             return haveInputEndEvent;
         }
     }
+
+
 
 
     //////////////////////////////////////////////////////////////////////////////////////////////////
@@ -1352,9 +1870,88 @@ System.out.println("      DataChannel UDP stream in: " + name +
 
 
     /**
+     * <p>
+     * Write the reassembly header, at the start of the given byte array,
+     * in the format used in ERSAP project.
+     * The first 16 bits go as ordered. The dataId is put in network byte order.
+     * The offset and tick are also put into network byte order.</p>
+     * </p>
+     * <pre>
+     *  protocol 'Version:4, Rsvd:10, First:1, Last:1, Data-ID:16, Offset:32'
+     *
+     *  0                   1                   2                   3
+     *  0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+     *  +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+     *  |Version|        Rsvd       |F|L|            Data-ID            |
+     *  +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+     *  |                  UDP Packet Offset                            |
+     *  +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+     *  |                                                               |
+     *  +                              Tick                             +
+     *  |                                                               |
+     *  +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+     * </pre>
+     *
+     * @param buffer        byte array in which to write.
+     * @param offset        index in buffer to start writing.
+     * @param version       version of meta data.
+     * @param first         is this the first packet of a record/buffer being sent?
+     * @param last          is this the last packet of a record/buffer being sent?
+     * @param dataId        data source id.
+     * @param packetOffset  packet sequence.
+     * @param tick          tick value.
+     * @throws EmuException if offset &lt; 0 or buffer overflow.
+     */
+    static void writeErsapReHeader(byte[] buffer, int offset,
+                                  int version, boolean first, boolean last,
+                                  short dataId, int packetOffset, long tick)
+            throws EmuException {
+
+        if (offset < 0 || (offset + 16 > buffer.length)) {
+            throw new EmuException("offset arg < 0 or buf too small");
+        }
+
+        buffer[0] = (byte) (version << 4);
+        int fst = first ? 1 : 0;
+        int lst =  last ? 1 : 0;
+        buffer[1] = (byte) ((fst << 1) + lst);
+
+        try {
+            ByteDataTransformer.toBytes(dataId, ByteOrder.BIG_ENDIAN, buffer, offset + 2);
+            ByteDataTransformer.toBytes(packetOffset, ByteOrder.BIG_ENDIAN, buffer, offset + 4);
+            ByteDataTransformer.toBytes(tick, ByteOrder.BIG_ENDIAN, buffer, offset + 8);
+        }
+        catch (EvioException e) {/* never happen */}
+    }
+
+
+    /**
      * Set the Load Balancer header data.
      * The first four bytes go as ordered.
+     * The entropy goes as a single, network byte ordered, 16-bit int.
      * The tick goes as a single, network byte ordered, 64-bit int.
+     *
+     * <pre>
+     *  protocol 'L:8,B:8,Version:8,Protocol:8,Reserved:16,Entropy:16,Tick:64'
+     *
+     *  0                   1                   2                   3
+     *  0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+     *  +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+     *  |       L       |       B       |    Version    |    Protocol   |
+     *  +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+     *  3               4                   5                   6
+     *  2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3
+     *  +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+     *  |              Rsvd             |            Entropy            |
+     *  +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+     *  6                                               12
+     *  4 5       ...           ...         ...         0 1 2 3 4 5 6 7
+     *  +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+     *  |                                                               |
+     *  +                              Tick                             +
+     *  |                                                               |
+     *  +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+     * </pre>
      *
      * @param buffer   buffer in which to write the header.
      * @param off      index in buffer to start writing.
@@ -1362,26 +1959,14 @@ System.out.println("      DataChannel UDP stream in: " + name +
      *                 which backend host to direct the packet to.
      * @param version  version of load balancer metadata.
      * @param protocol protocol this software uses.
+     * @param entropy  entropy field used to determine destination port.
      * @return bytes written.
      * @throws EmuException if offset &lt; 0 or buffer overflow.
      */
-    static int writeLbHeader(ByteBuffer buffer, int off, long tick, int version, int protocol)
+    static int writeLbHeader(ByteBuffer buffer, int off, long tick, int version, int protocol, int entropy)
                     throws EmuException{
 
-        if (!toLoadBalancer) return 0;
-
-        // protocol 'L:8, B:8, Version:8, Protocol:8, Tick:64'
-        // 0                   1                   2                   3
-        // 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
-        // +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-        // |       L       |       B       |    Version    |    Protocol   |
-        // +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-        // |                                                               |
-        // +                              Tick                             +
-        // |                                                               |
-        // +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-
-        if (off < 0 || (off + 12 > buffer.limit())) {
+        if (off < 0 || (off + 16 > buffer.limit())) {
             throw new EmuException("offset arg < 0 or buf too small");
         }
 
@@ -1389,15 +1974,39 @@ System.out.println("      DataChannel UDP stream in: " + name +
         buffer.put(off+1, (byte)('B'));
         buffer.put(off+2, (byte)version);
         buffer.put(off+3, (byte)protocol);
-        buffer.putLong(off+4, tick);
-        return 8;
+        buffer.putShort(off+6, (short)entropy);
+        buffer.putLong(off+8, tick);
+        return 16;
     }
 
 
     /**
      * Set the Load Balancer header data.
      * The first four bytes go as ordered.
+     * The entropy goes as a single, network byte ordered, 16-bit int.
      * The tick goes as a single, network byte ordered, 64-bit int.
+     *
+     * <pre>
+     *  protocol 'L:8,B:8,Version:8,Protocol:8,Reserved:16,Entropy:16,Tick:64'
+     *
+     *  0                   1                   2                   3
+     *  0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+     *  +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+     *  |       L       |       B       |    Version    |    Protocol   |
+     *  +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+     *  3               4                   5                   6
+     *  2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3
+     *  +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+     *  |              Rsvd             |            Entropy            |
+     *  +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+     *  6                                               12
+     *  4 5       ...           ...         ...         0 1 2 3 4 5 6 7
+     *  +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+     *  |                                                               |
+     *  +                              Tick                             +
+     *  |                                                               |
+     *  +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+     * </pre>
      *
      * @param buffer   buffer in which to write the header.
      * @param off      index in buffer to start writing.
@@ -1405,26 +2014,14 @@ System.out.println("      DataChannel UDP stream in: " + name +
      *                 which backend host to direct the packet to.
      * @param version  version of load balancer metadata.
      * @param protocol protocol this software uses.
+     * @param entropy  entropy field used to determine destination port.
      * @return bytes written.
      * @throws EmuException if offset &lt; 0 or buffer overflow.
      */
-    static int writeLbHeader(byte[] buffer, int off, long tick, int version, int protocol)
+    static int writeLbHeader(byte[] buffer, int off, long tick, int version, int protocol, int entropy)
                     throws EmuException{
 
-        if (!toLoadBalancer) return 0;
-
-        // protocol 'L:8, B:8, Version:8, Protocol:8, Tick:64'
-        // 0                   1                   2                   3
-        // 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
-        // +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-        // |       L       |       B       |    Version    |    Protocol   |
-        // +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-        // |                                                               |
-        // +                              Tick                             +
-        // |                                                               |
-        // +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-
-        if (off < 0 || (off + 12 > buffer.length)) {
+        if (off < 0 || (off + 16 > buffer.length)) {
             throw new EmuException("offset arg < 0 or buf too small");
         }
 
@@ -1433,10 +2030,11 @@ System.out.println("      DataChannel UDP stream in: " + name +
         buffer[off+2] = (byte) version;
         buffer[off+3] = (byte) protocol;
         try {
-            ByteDataTransformer.toBytes(tick, ByteOrder.BIG_ENDIAN, buffer, off+4);
+            ByteDataTransformer.toBytes((short)entropy, ByteOrder.BIG_ENDIAN, buffer, off+6);
+            ByteDataTransformer.toBytes(tick, ByteOrder.BIG_ENDIAN, buffer, off+8);
         }
         catch (EvioException e) {/* never happen */}
-        return 8;
+        return 16;
     }
 
 
@@ -1489,18 +2087,14 @@ System.out.println("      DataChannel UDP stream in: " + name +
         private long tick;
         private int entropy;
 
-        /** When regulating output buffer flow, the last time a buffer was sent. */
-        private long lastBufSendTime;
 
         /** When regulating output buffer flow, the current
          * number of physics events written to buffer. */
         private int currentEventCount;
 
-        /** Used to implement a precision sleep when regulating output data rate. */
-        private final long SLEEP_PRECISION = TimeUnit.MILLISECONDS.toNanos(2);
-        
-         /** Used to implement a precision sleep when regulating output data rate. */
-        private final long SPIN_YIELD_PRECISION = TimeUnit.MICROSECONDS.toNanos(2);
+
+        /** Do we call connect on the UDP socket? */
+        private boolean useConnectedSocket = true;
 
 
 
@@ -1527,6 +2121,7 @@ System.out.println("      DataChannel UDP stream in: " + name +
                 supply = bufSupply;
                 destAddr = addr;
                 destPort = port;
+logger.info("    DataChannel UDP out: constructed SocketSender thread");
             }
 
             /**
@@ -1544,14 +2139,18 @@ System.out.println("SocketSender: killThread, set flag, interrupt");
              */
             public void run() {
                 boolean isEnd;
-                boolean debug = true;
+                boolean debug = false;
                 int[] packetsSent = new int[1];
                 byte[] packetStorage = new byte[10000];
                 int delay = 0;
 
                 // Use dummy values just to create packet object, overwritten later
-                packet = new DatagramPacket(packetStorage, 10000);
-
+                if (useConnectedSocket) {
+                    packet = new DatagramPacket(packetStorage, 10000, destAddr, port);
+                }
+                else {
+                    packet = new DatagramPacket(packetStorage, 10000);
+                }
 
                 while (true) {
                     if (killThd) {
@@ -1561,10 +2160,12 @@ System.out.println("SocketSender thread told to return");
 
                     try {
 //                        Thread.sleep(2000);
-                        
+
                         // Get a buffer filled by the other thread
+//logger.info("    DataChannel UDP out: get BB from BBsupply");
                         ByteBufferItem item = supply.consumerGet();
                         ByteBuffer buf = item.getBufferAsIs();
+                        boolean isBuildable = item.getUserInt() == 1;
                         isEnd = item.getUserBoolean();
 
                         packetsSent[0] = 0;
@@ -1580,11 +2181,12 @@ System.out.println("SocketSender thread told to return");
 
                         // Fast version overwrites part of incoming data buffer, but that's OK.
                         // It's not used after this.
+//logger.info("    DataChannel UDP stream put: " + name + " - send packetized buffer");
                         sendPacketizedBufferFast(
                                 buf.array(), 0, buf.limit(),
                                 packetStorage, maxUdpPayload,
                                 outSocket, packet,
-                                tick, entropy, protocol, lbVersion,
+                                tick, entropy, lbProtocol, lbVersion,
                                 recordId, id, reVersion,
                                 delay, debug, packetsSent);
 
@@ -1594,6 +2196,9 @@ System.out.println("SocketSender thread told to return");
 //                                                           tick, entropy, protocol, lbVersion,
 //                                                           recordId, id, reVersion,
 //                                                           delay, debug, packetsSent);
+
+                        // increment record id
+                        recordId++;
 
                         // Run callback saying we got and are done with end event
                         if (isEnd) {
@@ -1631,15 +2236,18 @@ System.out.println("SocketSender thread interrupted");
             boolean orderedRelease = true;
 
             try {
-                Socket s;
                 // Create UDP socket
+logger.info("    DataChannel UDP out: create UDP sending socket");
                 outSocket = new DatagramSocket();
                 // Implementation dependent send buffer size
                 outSocket.setSendBufferSize(sendBufSize);
                 destAddr = InetAddress.getByName(destHost);
-                outSocket.connect(destAddr, port);
+//logger.info("    DataChannel UDP out: connect UDP socket to dest " + destAddr.getHostName() + " port " + port);
+                if (useConnectedSocket) {
+                    outSocket.connect(destAddr, port);
+                }
 
-                logger.debug("    DataChannel UDP: create UDP sending socket with " +
+                logger.debug("    DataChannel UDP out: create UDP sending socket with " +
                         " with " + outSocket.getSendBufferSize() + " byte send buffer");
             }
             catch (Exception e) {
@@ -1649,7 +2257,7 @@ System.out.println("SocketSender thread interrupted");
             // Break data into multiple packets of MTU size.
             // Attempt to get it progamatically.
             int mtu = getMTU(outSocket);
-            logger.debug("MTU on socket = " + mtu);
+logger.debug("MTU on socket = " + mtu);
 
             // I don't know how to set the MTU in java, so skip this set for now
 
@@ -1722,7 +2330,7 @@ System.out.println("SocketSender thread interrupted");
          * @param tick           value used by load balancer (LB) in directing packets to final host.
          * @param entropy        entropy used by LB header in directing packets to a specific port
          *                       (but currently unused).
-         * @param protocol       protocol in LB header.
+         * @param lbProtocol     protocol in LB header.
          * @param lbVersion      verion of LB header.
          *
          * @param recordId       record id in reassembly (RE) header.
@@ -1739,7 +2347,7 @@ System.out.println("SocketSender thread interrupted");
         void sendPacketizedBufferFast(byte[] dataBuffer, int readFromIndex, int dataLen,
                                       byte[] packetStorage, int maxUdpPayload,
                                       DatagramSocket clientSocket, DatagramPacket udpPacket,
-                                      long tick, int entropy, int protocol, int lbVersion,
+                                      long tick, int entropy, int lbProtocol, int lbVersion,
                                       int recordId, int dataId, int reVersion,
                                       int delay, boolean debug,
                                       int[] packetsSent)
@@ -1776,32 +2384,47 @@ System.out.println("SocketSender thread interrupted");
 
                 if (debug) System.out.println("Send " + bytesToWrite +
                                               " bytes, very first = " + veryFirstPacket +
-                                              ", very last = " + veryLastPacket);
+                                              ", very last = " + veryLastPacket +
+                        ", total packets = " + totalPackets +
+                        ", packet counter = " + packetCounter +
+                        ", writing to LB = " + useEjfatLoadBalancer +
+                        ", writeToIndex = " + writeToIndex);
 
                 // Write LB meta data into buffer
                 try {
-                    writeLbHeader(packetStorage, writeToIndex, tick, lbVersion, protocol);
+                    if (useEjfatLoadBalancer) {
+                        // Write LB meta data into byte array
+//logger.info("    DataChannel UDP stream: LB header: tick = " + tick + ", entropy = " + entropy);
+                        writeLbHeader(packetStorage, writeToIndex, tick, lbVersion, lbProtocol, entropy);
+                    }
 
-                    // Write RE meta data into buffer
-                    writeReHeader(packetStorage, writeToIndex + LB_HEADER_BYTES,
-                                  dataId, veryFirstPacket, veryLastPacket, recordId, reVersion,
-                                  totalPackets, packetCounter++);
+                    // Write RE meta data into byte array
+                    if (useErsapReHeader) {
+                        writeErsapReHeader(packetStorage, writeToIndex + LB_HEADER_BYTES,
+                                           reVersion, veryFirstPacket, veryLastPacket, (short)dataId,
+                                           packetCounter++, tick);
+                    }
+                    else {
+                        writeReHeader(packetStorage, writeToIndex + LB_HEADER_BYTES,
+                                      dataId, veryFirstPacket, veryLastPacket, recordId, reVersion,
+                                      totalPackets, packetCounter++);
+                    }
                 }
                 catch (EmuException e) {/* never happen */}
 
                 if (firstLoop) {
                     // Copy data for very first packet only
                     System.arraycopy(dataBuffer, readFromIndex,
-                                     packetCounter, writeToIndex + HEADER_BYTES,
+                                     packetStorage, writeToIndex + HEADER_BYTES,
                                      bytesToWrite);
                 }
 
                 // "UNIX Network Programming" points out that a connect call made on a UDP client side socket
                 // figures out and stores all the state about the destination socket address in advance
-                // (masking, selecting interface, etc.), saving the cost of doing so on every ::sendto call.
-                // This book claims that ::send vs ::sendto can be up to 3x faster because of this reduced overhead -
+                // (masking, selecting interface, etc.), saving the cost of doing so on every send call.
+                // This book claims that a connected socket can be up to 3x faster because of this reduced overhead -
                 // data can go straight to the NIC driver bypassing most IP stack processing.
-                // In our case, the calling function connected the socket, so we call "send".
+                // In our case, the calling function connected the socket.
 
                 // Send message to receiver
                 udpPacket.setData(packetStorage, writeToIndex, bytesToWrite + HEADER_BYTES);
@@ -1834,8 +2457,6 @@ System.out.println("SocketSender thread interrupted");
             }
 
             packetsSent[0] = sentPackets;
-
-            if (debug) System.out.println("Set next offset to = " + packetCounter);
         }
 
 
@@ -1926,12 +2547,23 @@ System.out.println("SocketSender thread interrupted");
 
                 // Write LB meta data into buffer
                 try {
-                    writeLbHeader(packetStorage, writeToIndex, tick, lbVersion, protocol);
+                    if (useEjfatLoadBalancer) {
+                        // Write LB meta data into buffer
+                        writeLbHeader(packetStorage, writeToIndex, tick, lbVersion, protocol, entropy);
+                    }
 
-                    // Write RE meta data into buffer
-                    writeReHeader(packetStorage, writeToIndex + LB_HEADER_BYTES,
-                            dataId, veryFirstPacket, veryLastPacket, recordId, reVersion,
-                            totalPackets, packetCounter++);
+                    // Write RE meta data into byte array
+                    if (useErsapReHeader) {
+                        writeErsapReHeader(packetStorage, writeToIndex + LB_HEADER_BYTES,
+                                reVersion, veryFirstPacket, veryLastPacket, (short)dataId,
+                                packetCounter++, tick);
+                    }
+                    else {
+                        writeReHeader(packetStorage, writeToIndex + LB_HEADER_BYTES,
+                                dataId, veryFirstPacket, veryLastPacket, recordId, reVersion,
+                                totalPackets, packetCounter++);
+                    }
+
                 }
                 catch (EmuException e) {/* never happen */}
 
@@ -1996,39 +2628,15 @@ System.out.println("SocketSender thread interrupted");
                 return;
             }
 
-            // If we're regulating the flow of data buffers to send at a fixed rate ...
-            if (isData && regulateBufferRate) {
-                long now = System.nanoTime();
-                long elapsedTime = now - lastBufSendTime;
-                lastBufSendTime = now;
-
-                // If not enough time has elapsed since last send, wait
-                if (elapsedTime < nanoSecPerBuf) {
-                    // New, highly accurate sleep method
-                    long timeLeft = nanoSecPerBuf - elapsedTime;
-                    final long end = now + timeLeft;
-                    do {
-                        if (timeLeft > SLEEP_PRECISION) {
-                            try {Thread.sleep(1);}
-                            catch (InterruptedException e) {}
-                        } else {
-                            if (timeLeft > SPIN_YIELD_PRECISION) {
-                                Thread.yield();
-                            }
-                        }
-                        timeLeft = end - System.nanoTime();
-
-                    } while (timeLeft > 0);
-
-                    lastBufSendTime = System.nanoTime();
-                }
-            }
-
             currentEventCount = 0;
 
             // Store flags for future use
             currentBBitem.setForce(force);
             currentBBitem.setUserBoolean(userBool);
+            if (isData) {
+                // Distinguish between user/control vs data
+                currentBBitem.setUserInt(1);
+            }
 
             // Put the written-into buffer back into the supply so the consumer -
             // the thread which writes it over the network - can get it and
@@ -2108,14 +2716,14 @@ System.out.println("SocketSender thread interrupted");
                 }
 
                 if (isBuildable) {
-                    blockNum = recordId;
+                    blockNum = 0;
                 }
                 else {
                     blockNum = -1;
                 }
 
-                recordId++;
-//System.out.println("      DataChannel UDP stream out: writeEvioData: record Id set to " + blockNum +
+                //recordId++;
+//System.out.println("    DataChannel UDP stream out: writeEvioData: record Id set to " + blockNum +
 //                  ", then incremented to " + recordId);
 
                 // Make sure there's enough room for that one event
@@ -2130,7 +2738,7 @@ System.out.println("SocketSender thread interrupted");
                 if (rItem.isFirstEvent()) {
                     EmuUtilities.setFirstEvent(bitInfo);
                 }
-//System.out.println("      DataChannel UDP stream out: writeEvioData: single write into buffer");
+//System.out.println("    DataChannel UDP stream out: writeEvioData: single write into buffer");
                 writer.setBuffer(currentBuffer, bitInfo, blockNum);
 
                 // Unset first event for next round
@@ -2139,7 +2747,7 @@ System.out.println("SocketSender thread interrupted");
                 ByteBuffer buf = rItem.getBuffer();
                 if (buf != null) {
                     try {
-//System.out.println("      DataChannel UDP stream out: writeEvioData: single ev buf, pos = " + buf.position() +
+//System.out.println("    DataChannel UDP stream out: writeEvioData: single ev buf, pos = " + buf.position() +
 //", lim = " + buf.limit() + ", cap = " + buf.capacity());
                         boolean fit = writer.writeEvent(buf);
                         if (!fit) {
@@ -2187,24 +2795,24 @@ System.out.println("      c: single ev buf, pos = " + buf.position() +
 //                }
 
                 if (isBuildable) {
-//System.out.println("      DataChannel UDP stream out: writeEvioData: flush " + eType + " type event, don't force ");
+//System.out.println("    DataChannel UDP stream out: writeEvioData: flush " + eType + " type event, don't force ");
                     flushEvents(false, false, true);
                 }
                 else {
-//System.out.println("      DataChannel UDP stream out: writeEvioData: flush " + eType + " type event, FORCE");
+//System.out.println("    DataChannel UDP stream out: writeEvioData: flush " + eType + " type event, FORCE");
                     if (rItem.getControlType() == ControlType.END) {
-//System.out.println("      DataChannel UDP stream out: writeEvioData: call flushEvents for END");
+//System.out.println("    DataChannel UDP stream out: writeEvioData: call flushEvents for END");
                         flushEvents(true, true, false);
                     }
                     else {
-//System.out.println("      DataChannel UDP stream out: writeEvioData: call flushEvents for non-END");
+//System.out.println("    DataChannel UDP stream out: writeEvioData: call flushEvents for non-END");
                         flushEvents(true, false, false);
                     }
                 }
             }
             // If we're marshalling events into a single buffer before sending ...
             else {
-//System.out.println("      DataChannel UDP stream out: writeEvioData: events into buf, written = " + eventsWritten +
+//System.out.println("    DataChannel UDP stream out: writeEvioData: events into buf, written = " + eventsWritten +
 //", closed = " + writer.isClosed());
                 // If we've already written at least 1 event AND
                 // (we have no more room in buffer OR we're changing event types),
@@ -2212,17 +2820,17 @@ System.out.println("      c: single ev buf, pos = " + buf.position() +
                 if ((eventsWritten > 0 && !writer.isClosed())) {
                     // If previous type not data ...
                     if (previousEventType != eType) {
-//System.out.println("      DataChannel UDP stream out: writeEvioData *** switch types, call flush at current event count = " + currentEventCount);
+//System.out.println("    DataChannel UDP stream out: writeEvioData *** switch types, call flush at current event count = " + currentEventCount);
                         flushEvents(false, false, false);
                     }
                     // Else if there's no more room or have exceeded event count limit ...
                     else if (!writer.hasRoom(rItem.getTotalBytes()) ||
                             (regulateBufferRate && (currentEventCount >= eventsPerBuffer))) {
-//System.out.println("      DataChannel UDP stream out: writeEvioData *** no room so call flush at current event count = " + currentEventCount);
+//System.out.println("    DataChannel UDP stream out: writeEvioData *** no room so call flush at current event count = " + currentEventCount);
                         flushEvents(false, false, true);
                     }
 //                    else {
-//System.out.println("      DataChannel UDP stream out: writeEvioData *** PLENTY OF ROOM, has room = " +
+//System.out.println("    DataChannel UDP stream out: writeEvioData *** PLENTY OF ROOM, has room = " +
 //                           writer.hasRoom(rItem.getTotalBytes()));
 //                    }
                     // Flush closes the writer so that the next "if" is true
@@ -2243,11 +2851,12 @@ System.out.println("      c: single ev buf, pos = " + buf.position() +
                     EmuUtilities.setEventType(bitInfo, eType);
 //System.out.println("\nwriteEvioData: setBuffer, eventsWritten = " + eventsWritten + ", writer -> " +
 //                           writer.getEventsWritten());
-                    writer.setBuffer(currentBuffer, bitInfo, recordId++);
+                    writer.setBuffer(currentBuffer, bitInfo, 0);
+                    //recordId++;
 //System.out.println("\nwriteEvioData: after setBuffer, eventsWritten = " + writer.getEventsWritten());
                 }
 
-//System.out.println("      DataChannel UDP stream write: write ev into buf");
+//System.out.println("    DataChannel UDP stream write: write ev into buf");
                 // Write the new event ..
                 ByteBuffer buf = rItem.getBuffer();
                 if (buf != null) {
@@ -2333,7 +2942,7 @@ System.out.println("      c: single ev buf, pos = " + buf.position() +
                             if (gotPrestart) {
                                 throw new EmuException("got 2 prestart events");
                             }
-logger.info("      DataChannel UDP stream out " + outputIndex + ": send prestart event");
+logger.info("    DataChannel UDP stream out " + outputIndex + ": send prestart event");
                             gotPrestart = true;
                             writeEvioData(ringItem);
                         }
@@ -2348,7 +2957,7 @@ logger.info("      DataChannel UDP stream out " + outputIndex + ": send prestart
                                 throw new EmuException("second control event must be go or end");
                             }
 
-logger.info("      DataChannel UDP stream out " + outputIndex + ": send " + pBankControlType + " event");
+logger.info("    DataChannel UDP stream out " + outputIndex + ": send " + pBankControlType + " event");
                             writeEvioData(ringItem);
 
                             // Release and go to the next event
@@ -2360,7 +2969,7 @@ logger.info("      DataChannel UDP stream out " + outputIndex + ": send " + pBan
                     }
                     // If user event ...
                     else if (pBankType == EventType.USER) {
-logger.debug("      DataChannel UDP stream out " + outputIndex + ": send user event");
+logger.debug("    DataChannel UDP stream out " + outputIndex + ": send user event");
                         // Write user event
                         writeEvioData(ringItem);
                     }
@@ -2376,7 +2985,7 @@ logger.debug("      DataChannel UDP stream out " + outputIndex + ": send user ev
 
                 if (pBankControlType == ControlType.END) {
                     // END event automatically flushed in writeEvioData()
-logger.info("      DataChannel UDP stream out: " + name + " got END event, quitting 1");
+logger.info("    DataChannel UDP stream out: " + name + " got END event, quitting 1");
                     threadState = ThreadState.DONE;
                     return;
                 }
@@ -2413,7 +3022,7 @@ logger.info("      DataChannel UDP stream out: " + name + " got END event, quitt
                         throw e;
                     }
 
-//logger.info("      DataChannel UDP stream out: send seq " + nextSequences[ringIndex] + ", release ring item");
+//logger.info("    DataChannel UDP stream out: send seq " + nextSequences[ringIndex] + ", release ring item");
                     releaseCurrentAndGoToNextOutputRingItem(ringIndex);
 
                     // Do not go to the next ring if we got a control or user event.
@@ -2422,19 +3031,19 @@ logger.info("      DataChannel UDP stream out: " + name + " got END event, quitt
                     // we know when to switch to the next ring.
                     if (outputRingCount > 1 && pBankControlType == null && !pBankType.isUser()) {
                         setNextEventAndRing();
-//logger.info("      DataChannel UDP stream out, " + name + ": for seq " + nextSequences[ringIndex] + " SWITCH TO ring = " + ringIndex);
+//logger.info("    DataChannel UDP stream out, " + name + ": for seq " + nextSequences[ringIndex] + " SWITCH TO ring = " + ringIndex);
                     }
 
                     if (pBankControlType == ControlType.END) {
                         // END event automatically flushed in writeEvioData()
-logger.info("      DataChannel UDP stream out: " + name + " got END event, quitting 2");
+logger.info("    DataChannel UDP stream out: " + name + " got END event, quitting 2");
                         threadState = ThreadState.DONE;
                         return;
                     }
 
                     // If I've been told to RESET ...
                     if (gotResetCmd) {
-logger.info("      DataChannel UDP stream out: " + name + " got RESET cmd, quitting");
+logger.info("    DataChannel UDP stream out: " + name + " got RESET cmd, quitting");
                         threadState = ThreadState.DONE;
                         return;
                     }
@@ -2451,12 +3060,12 @@ System.out.println("TIME FLUSH ******************, time = " + t + ", last time =
 
             }
             catch (InterruptedException e) {
-                logger.warn("      DataChannel UDP stream out: " + name + "  interrupted thd, quitting");
+                logger.warn("    DataChannel UDP stream out: " + name + "  interrupted thd, quitting");
             }
             catch (Exception e) {
                 e.printStackTrace();
                 channelState = CODAState.ERROR;
-System.out.println("      DataChannel UDP stream out:" + e.getMessage());
+System.out.println("    DataChannel UDP stream out:" + e.getMessage());
                 emu.setErrorState("DataChannel UDP stream out: " + e.getMessage());
             }
         }
