@@ -53,9 +53,11 @@ import static com.lmax.disruptor.RingBuffer.createSingleProducer;
  * producer provides data for a single consumer which is waiting for that data.
  * The producer does a get(), fills the buffer with data, and finally does a publish()
  * to let the consumer know the data is ready. Simultaneously, a consumer does a
- * consumerGet() to access the data once it is ready. The consumer then calls
- * release() when finished which allows the producer to reuse the
- * now unused buffer.<p>
+ * consumerGet() to access the data once it is ready. To access the ByteBuffer contained
+ * int the ByteBufferItem, call {@link ByteBufferItem#getBufferAsIs()}, do <b>NOT</b>
+ * call {@link ByteBufferItem#getBuffer()} as that clears the returned buffer.
+ * The consumer then calls {@link #release(ByteBufferItem)} when finished which
+ * allows the producer to reuse the now unused buffer.<p>
  *
  * @author timmer (4/7/14)
  */
@@ -652,6 +654,7 @@ public class ByteBufferSupply {
 
     /**
      * Used to tell that the consumer that the ring buffer item is ready for consumption.
+     * Note, it also publishes all previously gotten items!
      * Not sure if this method is thread-safe.
      * To be used in conjunction with {@link #get()} and {@link #consumerGet()}.
      * @param byteBufferItem item available for consumer's use.

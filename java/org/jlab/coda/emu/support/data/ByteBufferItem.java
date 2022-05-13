@@ -140,7 +140,7 @@ public class ByteBufferItem {
      * Constructor used to initially fill each ByteBufferItem of a ByteBufferSupply
      * with a copy of a template buffer.
      *
-     * @param templateBuf    this item's buffer is a copy this of template ByteBuffer.
+     * @param templateBuf    this item's buffer is a copy of this template ByteBuffer.
      * @param orderedRelease if true, release ByteBufferItems in same order as acquired.
      * @param myId unique id of this object.
      */
