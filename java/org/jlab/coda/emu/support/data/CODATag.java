@@ -71,6 +71,11 @@ public enum CODATag {
     /** Streaming Time Info Bank (TIB) containing timestamp and frame number with non-fatal error. */
     STREAMING_TIB_ERROR          (0xFF32),
 
+    /** Time Slice Segment (TSS) containing timestamp and frame number. */
+    STREAMING_TSS                (0x31),
+    /** Aggregation Info Segment (AIS). */
+    STREAMING_AIS                (0x41),
+
     // Physics event
     /** Event built from data sent by ROC/VTP in streaming mode. */
     ROCRAW_STREAMING            (0xFF60),
@@ -319,6 +324,10 @@ public enum CODATag {
     // STREAMING
     ////////////////////
 
-    public static boolean isSIB(int value) {return (value == 0xFF30);}
+    public static boolean isSIB(int value) {return (value == STREAMING_SIB.value);}
+    public static boolean isTIB(int value) {return (value == STREAMING_TIB.value);}
+
+    public static boolean isTSS(int value) {return (value == STREAMING_TSS.value);}
+    public static boolean isAIS(int value) {return (value == STREAMING_AIS.value);}
 
 }
