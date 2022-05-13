@@ -1590,6 +1590,8 @@ System.out.println("\n  Roc mod: Starting sim ROC frame at " + frameNumber + "\n
 
             int  skip=3, syncBitLoop = syncBitCount;
             int frameChange, fChange;
+            loops = 0;
+            int loopCount = loops;
 
             // We can count either frames or events depending if we're streaming or not
             int   userCountLoop = syncCount;
@@ -1740,7 +1742,12 @@ System.out.println("\n  Roc mod: Starting sim ROC frame at " + frameNumber + "\n
                             }
                         }
 
-//Thread.sleep(1000);
+//Thread.sleep(1);
+                        while (loopCount-- > 0) {
+                            Math.log((double)loopCount);
+                        }
+                        loopCount = loops;
+
                         if (killThd) return;
 
                         // Put generated events into output channel
