@@ -353,7 +353,7 @@ logger.info("  EB mod: internal ring buf count -> " + ringItemCount);
 
 
     /** {@inheritDoc} */
-    public boolean dataFromVTP() {return true;}
+    public boolean dataFromVTP() {return false;}
 
 
     /**
@@ -1208,7 +1208,8 @@ System.out.println("  EB mod: sorter got user event from channel " + inputChanne
                             // it for later use.
                             // Check the other channels to see if they have banks with the same time slices
                             // as the one last written.
-                            else if (diff == FrameNumberDiff.NEXT) {
+//                            else if (diff == FrameNumberDiff.NEXT) {
+                            else  {
 //System.out.println("  EB mod: ch" + chan + ", sorter DIFF timestamp, frame = " + frame);
                                 // If the last write was on this channel, then the bank we just
                                 // read from that channel is part of the next time slice.
@@ -1240,10 +1241,10 @@ System.out.println("  EB mod: sorter got user event from channel " + inputChanne
                                     throw new EmuException("Too big of a jump in timestamp");
                                 }
                             }
-                            else {
-System.out.println("  EB mod: ch" + chan + ", sorter DIFF frames, time frame = " + frame + ", looking for " + lookingForFrame);
-                                throw new EmuException("Too big of a jump in time frame #");
-                            }
+//                            else {
+//System.out.println("  EB mod: ch" + chan + ", sorter DIFF frames, time frame = " + frame + ", looking for " + lookingForFrame);
+//                                throw new EmuException("Too big of a jump in time frame #");
+//                            }
 
                             continue;
                         }
@@ -1587,7 +1588,7 @@ System.out.println("  EB mod: bbSupply -> " + ringItemCount + " # of bufs, direc
 
                     // Here we have what we need to build:
                     // ROC raw events from all ROCs (or partially built events from
-                    // each contributing EB) each with sequential time stamps.
+                    // each contributing Aggregator) each with sequential time stamps.
                     // There may be several contiguous banks with the same time stamp.
                     // However, there are also END events in the rings.
 
