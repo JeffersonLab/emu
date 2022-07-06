@@ -276,6 +276,9 @@ logger.info("      DataChannel File: dictionary file cannot be read");
                 }
 logger.info("      DataChannel File: compression = " + compType);
 
+                // Max record size in bytes (will not hold for 1 event of larger size)
+                int maxRecordSize = 0; // use default (8MB)
+
                 // Number of compression thread
                 compressionThreads = 1;
                 comp = attributeMap.get("compressionThreads");
@@ -290,20 +293,33 @@ logger.info("      DataChannel File: compression = " + compType);
 logger.info("      DataChannel File: compressionThreads = " + compressionThreads);
 
                 // Number of bytes specified for writer's internal buffer?
-                int internalBufferSizeBytes = 64000000;  // 64MB by default
+                int internalBufferSizeBytes = 8800000;  // 8.8MB by default
 
                 String bufBytes = attributeMap.get("evioRamBuffer");
                 if (bufBytes != null) {
                     try {
                         internalBufferSizeBytes = Integer.parseInt(bufBytes);
                         // Ignore small values
-                        if (internalBufferSizeBytes < 64000000) internalBufferSizeBytes = 64000000;
+                        if (internalBufferSizeBytes < 8800000) internalBufferSizeBytes = 8800000;
                     }
                     catch (NumberFormatException e) {}
                 }
 
+                // For the EventWriter ...
+                // If there is one (1) compression thread (which may not do any compression),
+                // then the internalBufferSizeBytes (last) arg determines the record size in bytes.
+                // If there are multiple compression threads, the maxRecordSize (6th) arg
+                // determines the size of the record.
+                // Note: for 1 thread, only 91% of buffer is used for record (to allow for possible
+                // expansion of random data when trying to compress). Thus 8.8MB * .91 = 8MB for record.
+                // Note: for multiple threads, a value of 0 for maxRecordSize means that records default
+                // to 8 MB.
+                if (compressionThreads > 1 && internalBufferSizeBytes > 8800000) {
+                    maxRecordSize = (int) (.91 * internalBufferSizeBytes);
+                }
+
                 evioFileWriter = new EventWriterUnsync(fileName, directory, runType,
-                                                       runNumber, split, 0, 100000,
+                                                       runNumber, split, maxRecordSize, 100000,
                                                        byteOrder, dictionaryXML, overWriteOK,
                                                        false, null,
                                                        emu.getDataStreamId(),
@@ -311,7 +327,7 @@ logger.info("      DataChannel File: compressionThreads = " + compressionThreads
                                                        emu.getFileOutputCount(),  // splitIncrement
                                                        emu.getDataStreamCount(),  // stream count
                                                        compType, compressionThreads,
-                                                       0, internalBufferSizeBytes);  // internal buffers of 64MB (0 -> 9MB)
+                                                       0, internalBufferSizeBytes);
 
                 if (evioFileWriter.isDiskFull()) {
                     emu.sendRcWarningMessage("files cannot be written, disk almost full");
