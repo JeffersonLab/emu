@@ -158,6 +158,15 @@ public enum CODAClass {
     }
 
     /**
+     * Is this class representative of a time slice aggregating emu (DC) connected to VTP(s)?
+     * @return {@code true} if this class represents an aggregating DC,
+     *         else {@code false}.
+     */
+    public boolean isDcAggregator() {
+        return (this == DCAG);
+    }
+
+    /**
      * Is this class representative of a final time slice aggregator emu (NOT DCAG)?
      * @return {@code true} if this class represents a final aggregating emu,
      *         else {@code false}.
