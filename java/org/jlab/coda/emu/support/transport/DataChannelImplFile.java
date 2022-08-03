@@ -418,7 +418,7 @@ System.out.println("      DataChannel File out: Cannot create file, " + e.getMes
                                 0, byteOrder, name, true, module.isStreamingData());
                         if (emu.isFileWritingOn()) {
                             logger.info("      DataChannel File: END " + name + " - write END event \"by hand\"");
-                            evioFileWriter.writeEventToFile(null, endBuf.getBuffer(), true);
+                            evioFileWriter.writeEventToFile(null, endBuf.getBuffer(), true, true);
                         }
                     }
 
@@ -465,7 +465,7 @@ logger.info("      DataChannel File: reset " + name + " channel");
                                                                     emu.getRunTypeId(), (int) eventsWritten, 0,
                                                                     0, byteOrder, name, true, module.isStreamingData());
                     if (emu.isFileWritingOn()) {
-                        evioFileWriter.writeEventToFile(null, endBuf.getBuffer(), true);
+                        evioFileWriter.writeEventToFile(null, endBuf.getBuffer(), true, true);
                     }
                 }
 
@@ -492,7 +492,7 @@ logger.info("      DataChannel File: reset " + name + " - done");
     private class DataInputHelper implements Runnable {
 
         /** Let a single waiter know that the main thread has been started. */
-        private CountDownLatch latch = new CountDownLatch(1);
+        private final CountDownLatch latch = new CountDownLatch(1);
 
         /** A single waiter can call this method which returns when thread was started. */
         private void waitUntilStarted() {
@@ -613,7 +613,7 @@ logger.warn("      DataChannel File in: (" + name + ") thd interrupted");
     private class DataOutputHelper extends Thread {
 
         /** Let a single waiter know that the main thread has been started. */
-        private CountDownLatch latch = new CountDownLatch(1);
+        private final CountDownLatch latch = new CountDownLatch(1);
 
         /** Help in pausing DAQ. */
         private int pauseCounter;
@@ -641,11 +641,13 @@ logger.warn("      DataChannel File in: (" + name + ") thd interrupted");
          *
          * @param ri          item to write to disk
          * @param forceToDisk if true, force event to hard disk
+         * @param ownRecord   if true, write event in its own record
+         *
          * @throws IOException
          * @throws EvioException
          * @throws InterruptedException
          */
-        private final void writeEvioData(RingItem ri, boolean forceToDisk)
+        private void writeEvioData(RingItem ri, boolean forceToDisk, boolean ownRecord)
                 throws IOException, EvioException, InterruptedException {
 
             if (emu.isFileWritingOn()) {
@@ -656,7 +658,7 @@ logger.warn("      DataChannel File in: (" + name + ") thd interrupted");
 
                 if (ri.getBuffer() != null) {
 //logger.info("      DataChannel File out: write buffer with order = " + ri.getBuffer().order());
-                    written = evioFileWriter.writeEventToFile(null, ri.getBuffer(), forceToDisk);
+                    written = evioFileWriter.writeEventToFile(null, ri.getBuffer(), forceToDisk, ownRecord);
                 }
                 else {
                     //logger.info("      DataChannel File out: write node with order = " + ri.getNode().getBuffer().order());
@@ -664,7 +666,7 @@ logger.warn("      DataChannel File in: (" + name + ") thd interrupted");
                     // Last boolean arg means do (not) duplicate node's buffer when writing.
                     // Setting this to false led to problems since the input channel is using
                     // the buffer at the same time.
-                    written = evioFileWriter.writeEventToFile(ri.getNode(), forceToDisk, true);
+                    written = evioFileWriter.writeEventToFile(ri.getNode(), forceToDisk, true, ownRecord);
                 }
 //System.out.println("      DataChannel File out: written = " + written);
 
@@ -699,10 +701,10 @@ logger.info("      DataChannel File out: disc is full, waiting ...");
                         else {
                             // Force these into the file. This write should be successful.
                             if (ri.getBuffer() != null) {
-                                written = evioFileWriter.writeEventToFile(null, ri.getBuffer(), forceToDisk);
+                                written = evioFileWriter.writeEventToFile(null, ri.getBuffer(), forceToDisk, ownRecord);
                             }
                             else {
-                                written = evioFileWriter.writeEventToFile(ri.getNode(), forceToDisk, true);
+                                written = evioFileWriter.writeEventToFile(ri.getNode(), forceToDisk, true, ownRecord);
                             }
 
                             break;
@@ -715,10 +717,10 @@ logger.info("      DataChannel File out: disc is full, waiting ...");
 
                         // Try writing again
                         if (ri.getBuffer() != null) {
-                            written = evioFileWriter.writeEventToFile(null, ri.getBuffer(), forceToDisk);
+                            written = evioFileWriter.writeEventToFile(null, ri.getBuffer(), forceToDisk, ownRecord);
                         }
                         else {
-                            written = evioFileWriter.writeEventToFile(ri.getNode(), forceToDisk, true);
+                            written = evioFileWriter.writeEventToFile(ri.getNode(), forceToDisk, true, ownRecord);
                         }
                     }
                 }
@@ -778,7 +780,7 @@ logger.info("      DataChannel File out: disc space is now available");
                             gotPrestart = true;
                             // Force prestart to hard disk
 System.out.println("      DataChannel File out " + outputIndex + ": try writing prestart event");
-                            writeEvioData(ringItem, true);
+                            writeEvioData(ringItem, true, true);
 System.out.println("      DataChannel File out " + outputIndex + ": wrote prestart event");
                         }
                         else {
@@ -794,10 +796,10 @@ System.out.println("      DataChannel File out " + outputIndex + ": wrote presta
 
                             if (pBankControlType == ControlType.GO) {
                                 // Do NOT force GO to hard disk as it will slow things down
-                                writeEvioData(ringItem, false);
+                                writeEvioData(ringItem, false, true);
                             }
                             else {
-                                writeEvioData(ringItem, true);
+                                writeEvioData(ringItem, true, true);
                             }
 
                             // Go to the next event
@@ -838,7 +840,7 @@ System.out.println("\n      DataChannel File out " + outputIndex + ": IGNORING U
                             // force to hard disk.
                             try {
 //System.out.println("      DataChannel File out " + outputIndex + ": try writing user event");
-                                writeEvioData(ringItem, true);
+                                writeEvioData(ringItem, true, true);
 //System.out.println("      DataChannel File out " + outputIndex + ": wrote user event");
                             }
                             catch (EvioException e) {
@@ -924,10 +926,10 @@ logger.info("      DataChannel File out " + outputIndex + ": wrote GO");
                         // If not END event, don't force to disk
                         else if (pBankType != EventType.CONTROL) {
 //System.out.println("      DataChannel File out " + outputIndex + ": write!");
-                            writeEvioData(ringItem, false);
+                            writeEvioData(ringItem, false, false);
                         }
                         else {
-                            writeEvioData(ringItem, true);
+                            writeEvioData(ringItem, true, true);
                         }
                     }
                     catch (Exception e) {
