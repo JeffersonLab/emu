@@ -57,11 +57,11 @@ import static com.lmax.disruptor.RingBuffer.createSingleProducer;
  *
  * The leading consumer of each input channel ring is the sorter thread. This thread
  * sends all events of the same time frame to the ring of the same build thread.
- * Each build thread consumes ring items that the sorter thread fills.
+ * Each build thread consumes items from its ring (that the sorter thread fills).
  * There are a fixed number of build threads which can be set in the config file.
- * After initially consuming and filling all input channel ring slots (once around ring),
- * the producer (input channel) will only take additional slots that the build thread
- * is finished with.
+ * After initially consuming all empty input channel ring slots and filling each with
+ * data (once around ring), the producer (input channel) will only take additional
+ * slots that the build thread is finished with.
  *
  * N Input Channels
  * (evio bank ring bufs)    RB1       RB2  ...  RBN
@@ -105,7 +105,7 @@ import static com.lmax.disruptor.RingBuffer.createSingleProducer;
  *  each build thread
  *  in each channel)
  *
- *  M != N != Z in general
+ *  M != N in general
  *  M  = 1 by default
  *
  *
@@ -211,7 +211,7 @@ public class StreamAggregator extends ModuleAdapter {
     /** Thread to sort incoming time slice banks to proper build thread. */
     private TimeSliceSorter timeSliceSorterThread;
 
-    /** Number of elements in each sorter ring. */
+    /** Number of elements in each sorter (build thread input) ring. */
     private int sorterRingSize;
 
     // Each build thread is receiving data from 1 sorterRingBuffer
@@ -427,7 +427,7 @@ logger.info("  EB mod: internal ring buf count -> " + ringItemCount);
 //System.out.println("  EB mod: wait for out buf, ch" + channelNum + ", ring " + ringNum);
         long nextRingItem = rb.nextIntr(1);
 //System.out.println("  EB mod: Got sequence " + nextRingItem + " for " + channelNum + ":" + ringNum);
-        RingItem ri = (RingItem) rb.get(nextRingItem);
+        RingItem ri = rb.get(nextRingItem);
         ri.setBuffer(buf);
         ri.setEventType(eventType);
         ri.setControlType(null);
@@ -1337,7 +1337,7 @@ System.out.println("  EB mod: sorter found END events on all input channels");
 
         // Stuff needed to direct built events to proper output channel(s)
 
-        /** Number (index) of the current, sequential-between-all-built-thds,
+        /** Number (index) of the current, sequential-between-all-build-thds,
          * built bank produced from this thread.
          * 1st build thread starts at 0, 2nd starts at 1, etc.
          * 1st build thread's 2nd event is btCount, 2nd thread's 2nd event is btCount + 1, etc.*/
@@ -1349,9 +1349,9 @@ System.out.println("  EB mod: sorter found END events on all input channels");
 
         // RingBuffer Stuff
 
-        /** Array of available sequences (largest index of items desired), one per input channel. */
+        /** Largest available input sequence. */
         private long availableSequence = -2;
-        /** Array of next sequences (index of next item desired), one per input channel. */
+        /** Next sequence. */
         private long nextSequence;
 
 
