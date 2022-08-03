@@ -31,7 +31,7 @@ public class DataTransportImplUdpStream extends DataTransportAdapter {
 
     private final Logger logger;
 
-    final HashMap<Integer, DataChannelImplUdpStream> inputChannelTable = new HashMap<>(16);
+    final HashMap<Integer, DataChannel> inputChannelTable = new HashMap<>(16);
 
 
     /**
@@ -42,10 +42,9 @@ public class DataTransportImplUdpStream extends DataTransportAdapter {
      * @param emu    emu object this transport belongs to
      *
      * @throws DataNotFoundException  when udl not given or cannot connect to cmsg server
-     * @throws SocketException  if cannot create UDP socket
      */
     public DataTransportImplUdpStream(String pname, Map<String, String> attrib, Emu emu)
-            throws DataNotFoundException, SocketException, DataTransportException {
+            throws DataNotFoundException {
 
         // pname is the "name" entry in the attrib map
         super(pname, attrib, emu);
@@ -70,6 +69,10 @@ public class DataTransportImplUdpStream extends DataTransportAdapter {
 
         return newChannel;
     }
+
+
+    /** {@inheritDoc} */
+    public HashMap<Integer, DataChannel> getInputChannelTable() {return inputChannelTable;}
 
 
     /** {@inheritDoc}. Disconnect from cMsg server. */

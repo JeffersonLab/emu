@@ -170,8 +170,8 @@ public class EmuDomainUdpListener extends Thread {
             baos.close();
         }
         catch (IOException e) {
-            server.transport.transportState = CODAState.ERROR;
-            server.transport.emu.setErrorState("Transport Emu: IO error in emu UDP server");
+            server.transport.setState(CODAState.ERROR);
+            server.transport.getEmu().setErrorState("Transport Emu: IO error in emu UDP server");
             if (debug >= cMsgConstants.debugError) {
                 System.out.println("    Emu UDP listen: main server IO error: " + e.getMessage());
             }
@@ -332,8 +332,8 @@ System.out.println("    Emu UDP listen: multicast listening thread exiting *****
             }
         }
         catch (IOException e) {
-            server.transport.transportState = CODAState.ERROR;
-            server.transport.emu.setErrorState("Transport Emu: IO error in emu UDP server");
+            server.transport.setState(CODAState.ERROR);
+            server.transport.getEmu().setErrorState("Transport Emu: IO error in emu UDP server");
             if (debug >= cMsgConstants.debugError) {
                 System.out.println("    Emu UDP server: IO error: " + e.getMessage());
             }

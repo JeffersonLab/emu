@@ -38,13 +38,13 @@ public class EmuDomainServer extends Thread {
     /** Containing emu's name. */
     private final String name;
 
-    final DataTransportImplEmu transport;
+    final DataTransport transport;
 
 
 
 
     public EmuDomainServer(int port, String expid, String name,
-                           DataTransportImplEmu transport) throws cMsgException {
+                           DataTransport transport) {
 
         this.name = name;
         this.expid = expid;
@@ -55,6 +55,11 @@ public class EmuDomainServer extends Thread {
 
     public EmuDomainTcpServer getTcpServer() {
         return tcpServer;
+    }
+
+
+    public DataTransport getTransport() {
+        return transport;
     }
 
 
@@ -79,8 +84,8 @@ public class EmuDomainServer extends Thread {
                         tcpServer.wait();
                     }
                     catch (InterruptedException e) {
-                        transport.transportState = CODAState.ERROR;
-                        transport.emu.setErrorState("Transport Emu: error starting emu TCP server");
+                        transport.setState(CODAState.ERROR);
+                        transport.getEmu().setErrorState("Transport Emu: error starting emu TCP server");
                         return;
                     }
                 }
@@ -98,19 +103,17 @@ public class EmuDomainServer extends Thread {
                         listener.wait();
                     }
                     catch (InterruptedException e) {
-                        transport.transportState = CODAState.ERROR;
-                        transport.emu.setErrorState("Transport Emu: error starting emu UDP server");
+                        transport.setState(CODAState.ERROR);
+                        transport.getEmu().setErrorState("Transport Emu: error starting emu UDP server");
                         return;
                     }
                 }
             }
         }
         catch (cMsgException e) {
-            transport.transportState = CODAState.ERROR;
-            transport.emu.setErrorState("Transport Emu: error starting emu domain server: " + e.getMessage());
+            transport.setState(CODAState.ERROR);
+            transport.getEmu().setErrorState("Transport Emu: error starting emu domain server: " + e.getMessage());
         }
-
-        return;
     }
 
 

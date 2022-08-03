@@ -38,7 +38,7 @@ public class DataTransportImplEmu extends DataTransportAdapter {
 
     private EmuDomainServer emuServer;
 
-    final HashMap<Integer, DataChannelImplEmu> inputChannelTable = new HashMap<>(16);
+    final HashMap<Integer, DataChannel> inputChannelTable = new HashMap<>(16);
 
 
 
@@ -105,6 +105,11 @@ logger.debug("    Transport Emu: start up emu server in " + emu.name() + " @ por
         }
 
     }
+
+
+    /** {@inheritDoc} */
+    public HashMap<Integer, DataChannel> getInputChannelTable() {return inputChannelTable;}
+
 
 
     /** {@inheritDoc} */
