@@ -2512,8 +2512,7 @@ System.out.println("                         : segWords from event 0 = " + dataW
         // In each payload bank (of banks) is a Stream Info Bank. Examine their tags.
         for (int i=0; i < sliceCount; i++) {
             // Find the SIB bank - first child bank
-            node = rocNodes[i];
-            sibBank =node.getChildAt(0);
+            sibBank = rocNodes[i].getChildAt(0);
             if (sibBank == null) {
                 throw new EmuException("SIB bank is missing from ROC input");
             }
@@ -2546,7 +2545,7 @@ System.out.println("                         : segWords from event 0 = " + dataW
             bank = rocNodes[j].getChildAt(0).getChildAt(0);
             // If Roc has no frame and timestamp info, error
             if (bank == null) {
-                throw new EmuException("no Stream Info Bank found");
+                throw new EmuException("no Stream Info Bank's time-slice-segment found");
             }
 
             // Check frame number consistency
