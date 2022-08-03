@@ -12,7 +12,6 @@
 package org.jlab.coda.emu.support.transport;
 
 import org.jlab.coda.cMsg.cMsgConstants;
-import org.jlab.coda.cMsg.cMsgException;
 import org.jlab.coda.cMsg.cMsgNetworkConstants;
 import org.jlab.coda.emu.support.codaComponent.CODAState;
 
@@ -272,7 +271,7 @@ public class EmuDomainTcpServer extends Thread {
                         channel.configureBlocking(true);
 
                         // Look up the associated channel in the transport object
-                        DataChannelImplEmu emuChannel = server.transport.inputChannelTable.get(codaId);
+                        DataChannel emuChannel = server.transport.getInputChannelTable().get(codaId);
                         if (emuChannel == null) {
                             if (debug >= cMsgConstants.debugError) {
                                 System.out.println("********\n    Emu TCP Server: no emu input channel found for CODA id = " +
@@ -287,8 +286,19 @@ public class EmuDomainTcpServer extends Thread {
                         // thread to handle all further communication.
                         try {
 //System.out.println("    Emu TCP Server: domain server, call attachToInput");
-                            emuChannel.attachToInput(channel, codaId, bufferSizeDesired,
-                                                     socketCount, socketPosition);
+                            // There are 2 types of transports/channels that use this server:
+                            // Emu and TcpStream. Accommodate both.
+                            String classNameEnding = server.transport.getTransportClass();
+                            if (classNameEnding.equalsIgnoreCase("Emu")) {
+                                DataChannelImplEmu emuChan = (DataChannelImplEmu)emuChannel;
+                                emuChan.attachToInput(channel, codaId, bufferSizeDesired,
+                                                      socketCount, socketPosition);
+                            }
+                            else if (classNameEnding.equalsIgnoreCase("TcpStream")) {
+                                DataChannelImplTcpStream tcpStrmChan = (DataChannelImplTcpStream)emuChannel;
+                                tcpStrmChan.attachToInput(channel, codaId, bufferSizeDesired,
+                                                          socketCount, socketPosition);
+                            }
                         }
                         catch (IOException e) {
                             if (debug >= cMsgConstants.debugError) {
@@ -309,8 +319,8 @@ public class EmuDomainTcpServer extends Thread {
         }
         catch (Exception ex) {
             ex.printStackTrace();
-            server.transport.transportState = CODAState.ERROR;
-            server.transport.emu.setErrorState("    Emu TCP Server: in emu TCP server: " +
+            server.transport.setState(CODAState.ERROR);
+            server.transport.getEmu().setErrorState("    Emu TCP Server: in emu TCP server: " +
                                                        ex.getMessage());
             if (debug >= cMsgConstants.debugError) {
                 System.out.println("    Emu TCP Server: error, " +
