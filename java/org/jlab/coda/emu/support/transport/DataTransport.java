@@ -13,11 +13,13 @@ package org.jlab.coda.emu.support.transport;
 
 import org.jlab.coda.emu.Emu;
 import org.jlab.coda.emu.EmuModule;
+import org.jlab.coda.emu.support.codaComponent.CODAStateIF;
 import org.jlab.coda.emu.support.codaComponent.CODAStateMachine;
 import org.jlab.coda.emu.support.codaComponent.StatedObject;
 import org.jlab.coda.emu.support.configurer.DataNotFoundException;
 
 import java.util.Map;
+import java.util.HashMap;
 
 /**
  * This interface defines how data is transported
@@ -106,7 +108,36 @@ public interface DataTransport extends CODAStateMachine, StatedObject {
 
     /**
      * This method gets the name of the transport class implementing this interface.
-     * @return the name of the transport class implementing this interface
+     * It's the part of the name which comes after
+     * "org.jlab.coda.emu.support.transport.DataTransportImpl". Thus it may have
+     * values of Et, Emu, Cmsg, File, TcpStream, UdpStream, etc.
+     * @return the name of the transport class implementing this interface.
      */
     String getTransportClass();
+
+    /**
+     * Get the state of this object.
+     * @return state of this object.
+     */
+    CODAStateIF getState();
+
+    /**
+     * Set the state of this object.
+     * @param state state of this object.
+     */
+    void setState(CODAStateIF state);
+
+    /**
+     * Get the Emu object that created this transport.
+     * @return Emu object that created this transport.
+     */
+    Emu getEmu();
+
+    /**
+     * Get the table of input channels, if any.
+     * Currently only implemented by Emu, TcpStream, and UdpStream transports.
+     * The map key is the coda ID, the value is the data channel object.
+     * @return table of input channels, if any, else null.
+     */
+    HashMap<Integer, DataChannel> getInputChannelTable();
 }

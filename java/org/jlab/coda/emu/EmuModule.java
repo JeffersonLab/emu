@@ -185,14 +185,22 @@ public interface EmuModule extends StatedObject, CODAStateMachine {
 
     /**
      * Does this module process streaming data?
-     * @return {@code true} if this emodule processes streaming data, else {@code false}.
+     * @return {@code true} if this module processes streaming data, else {@code false}.
      */
     boolean isStreamingData();
 
     /**
      * Does this module process data coming from a VTP?
-     * @return {@code true} if this emodule processes data coming from a VTP, else {@code false}.
+     * TODO: Currently this is NOT relevant since the VTP now produces control events.
+     * @return {@code true} if this module processes data coming from a VTP, else {@code false}.
      */
     boolean dataFromVTP();
+
+    /**
+     * Does this module have inputs from only one source - a single VTP?
+     * If returning true, each of the input streams may be combined into a single ROC Time Slice Bank.
+     * @return {@code true} if this module has inputs from only a single VTP, else {@code false}.
+     */
+    boolean singleVTPInputs();
 
 }

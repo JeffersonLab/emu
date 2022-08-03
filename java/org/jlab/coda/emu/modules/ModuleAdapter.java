@@ -105,8 +105,15 @@ public class ModuleAdapter implements EmuModule {
     /** If <code>true</code>, data to be built is from a streaming (not triggered) source. */
     protected boolean streamingData;
 
+    /** If <code>true</code>, and if streamingData is true, the number of streams coming from
+     * a single VTP to a single aggregator. */
+    protected int streamCount;
+
     /** If <coda>true</coda>, data processed by this module comes from a VTP. */
     protected boolean dataFromVTP;
+
+    /** If <coda>true</coda>, all inputs comes from a single VTP. */
+    protected boolean singleVTPInputs;
 
     //---------------------------
     // For generating statistics
@@ -271,12 +278,21 @@ logger.info("  Module Adapter: output byte order = " + outputOrder);
         str = attributeMap.get("streaming");
         if (str != null) {
             if (str.equalsIgnoreCase("true") ||
-                str.equalsIgnoreCase("on")   ||
-                str.equalsIgnoreCase("yes"))   {
+                    str.equalsIgnoreCase("on")   ||
+                    str.equalsIgnoreCase("yes"))   {
                 streamingData = true;
             }
         }
 
+        // For a single VTP, how many streams are going to the aggregator?
+        streamCount = 1;
+        try {
+            streamCount = Integer.parseInt(attributeMap.get("streams"));
+            if (streamCount < 1 || streamCount > 4) {
+                streamCount = 1;
+            }
+        }
+        catch (NumberFormatException e) {}
     }
 
 
@@ -536,6 +552,21 @@ logger.info("  Module Adapter: output byte order = " + outputOrder);
 
     /** {@inheritDoc} */
     public boolean dataFromVTP() {return dataFromVTP;}
+
+    /** {@inheritDoc} */
+    public boolean singleVTPInputs() {return singleVTPInputs;}
+
+    /**
+     * Method to set whether this module has only a single VTP for an input channel.
+     * The EMU prestart method calls this to set singleVTPInputs based on its parsing of config file.
+     * Called to notify the module that inputs can be combined into a single
+     * ROC Time Slice Bank.
+     * @param singleVTPInputs true if this module has only a single VTP for an input channel, else false.
+     */
+    public void setSingleVTPInputs(boolean singleVTPInputs) {
+        this.singleVTPInputs = singleVTPInputs;
+    }
+
 
     //----------------------------------------------------------------
 

@@ -17,6 +17,7 @@ import org.jlab.coda.emu.support.configurer.DataNotFoundException;
 import org.jlab.coda.emu.support.codaComponent.CODAStateIF;
 import org.jlab.coda.emu.support.logger.Logger;
 
+import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -95,6 +96,18 @@ public abstract class DataTransportAdapter extends CODAStateMachineAdapter imple
     }
 
     // createChannel needs to be defined in subclasses
+
+    /** {@inheritDoc} */
+    public HashMap<Integer, DataChannel> getInputChannelTable() {return null;}
+
+    /** {@inheritDoc} */
+    public Emu getEmu() {return emu;}
+
+    /** {@inheritDoc} */
+    public void setState(CODAStateIF state) {transportState = state;}
+
+    /** {@inheritDoc} */
+    public CODAStateIF getState() {return transportState;}
 
     /** {@inheritDoc} */
     public String getTransportClass() {return transportClass;}
