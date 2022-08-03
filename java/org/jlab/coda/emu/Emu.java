@@ -2169,6 +2169,9 @@ if (debug) System.out.println("Emu " + name + " prestart: PRESTART cmd to " + tr
             // modulesConfig never null cause checked in download transition
             Node modulesConfig = Configurer.getNode(configuration(), "component/modules");
             Node moduleNode = modulesConfig.getFirstChild();
+
+            boolean firstModule = true;
+
             // For each module in the list of modules ...
             do {
                 // Modules section present in config (no modules if no children)
@@ -2193,10 +2196,110 @@ if (debug) System.out.println("Emu " + name + " prestart: PRESTART cmd to " + tr
                     ArrayList<DataChannel> outFifo = new ArrayList<>(2);
 
                     int outputChannelCount = 0;
+                    boolean createVtpStreams = false;
 
 //System.out.println("\nEmu " + name + " prestart: looking at module = " + moduleNode.getNodeName());
                     // For each channel in (children of) the module ...
                     NodeList childList = moduleNode.getChildNodes();
+
+                    //------------------------------------------------------------------------------------
+                    // Do a preliminary scan over the first module's children since only the first module
+                    // has external input channels.
+                    //
+                    // Here we prepare to handle the special case of an Aggregator (streaming DC) which is
+                    // connected to a VTP which has from 1 to 4 outputs. Each of these is a separate stream.
+                    // Thus, a VTP with multiple streams needs to create multiple channels right here.
+                    //
+                    // Part of the trick here is to assign a unique port for each stream.
+                    // In the case of UDP streams, the base port will be defined as an attribute of the
+                    // input channel. On the other hand, in the case of TCP streams, the port will be
+                    // defined in the transport. The base port will be used for stream #1,
+                    // while stream 2 needs to increase that by 1, etc.
+                    //
+                    // Furthermore, if there is only 1 channel (only the single VTP) as an input to this
+                    // module in the config file, then all streams must be combined into a single
+                    // ROC Time Slice Bank as opposed to each stream having its own.
+                    //------------------------------------------------------------------------------------
+
+                    // How many inputs are VTPs? are not?
+                    int vtpInputs = 0, otherInputs = 0;
+                    // Number of streams for each of the VTP inputs
+                    ArrayList<Integer> streams = new ArrayList<>();
+                    // Port values in a single array for each VTP stream (1 to 4 values for each VTP).
+                    // Each array will be 4 ints in length, but only the first "stream" number are valid.
+                    // First entry in streams corresponds to first entry in portArrays, etc.
+                    ArrayList<Integer[]> portArrays = new ArrayList<>();
+
+                    if (codaClass.isDcAggregator() && firstModule) {
+                        for (int i = 0; i < childList.getLength(); i++) {
+                            Node channelNode = childList.item(i);
+                            if (channelNode.getNodeType() != Node.ELEMENT_NODE) continue;
+
+                            // If no attributes or no "name" attribute there's junk in config file, skip it
+                            NamedNodeMap nnm = channelNode.getAttributes();
+                            if (nnm == null || nnm.getNamedItem("name") == null) {
+                                continue;
+                            }
+
+                            // Ignore output channels
+                            if (!channelNode.getNodeName().equalsIgnoreCase("inchannel")) {
+                                continue;
+                            }
+
+                            // Get "transp" attribute node from map
+                            Node channelTranspNode = nnm.getNamedItem("transp");
+                            if (channelTranspNode == null) {
+//System.out.println("Emu " + name + " prestart: junk in config file (no transp attr), skip " + channelNode.getNodeName());
+                                continue;
+                            }
+                            // Get name of transport
+                            String channelTransName = channelTranspNode.getNodeValue();
+                            // Look up transport object from name
+                            DataTransport trans = findTransport(channelTransName);
+
+                            if (!trans.getTransportClass().equals("UdpStream") &&
+                                !trans.getTransportClass().equals("Emu")) {
+                                // If not streaming channel, skip it
+                                otherInputs++;
+                                continue;
+                            }
+
+                            vtpInputs++;
+
+                            // Look through all attributes
+                            for (int j = 0; j < nnm.getLength(); j++) {
+                                Node a = nnm.item(j);
+                                // Look for "streams"
+                                if (a.getNodeName().equalsIgnoreCase("streams")) {
+                                    int streamCount = Integer.parseInt(a.getNodeValue());
+                                    streams.add(streamCount);
+                                }
+                                // Look for "port"
+                                else if (a.getNodeName().equalsIgnoreCase("port")) {
+                                    // There may be fewer than 4 streams, but still define
+                                    // 4 ports, since that's much easier than the alternative.
+                                    Integer[] ports = new Integer[4];
+                                    int startingPort = Integer.parseInt(a.getNodeValue());
+                                    ports[0] = startingPort;
+                                    ports[1] = startingPort + 1;
+                                    ports[2] = startingPort + 2;
+                                    ports[3] = startingPort + 3;
+                                    portArrays.add(ports);
+                                }
+                            }
+                        }
+                    }
+
+                    // Tell this emu that there is only input and it's a VTP
+                    boolean onlyOneVTP = (vtpInputs == 1) && (otherInputs == 0);
+                    if (onlyOneVTP) {
+                        ((ModuleAdapter) (modules.get(0))).setSingleVTPInputs(true);
+System.out.println("Emu " + name + " prestart: setting module as having a single VTP input only");
+                    }
+
+                    // Start with first VTP in loop below
+                    int vtpIndex = 0;
+
                     for (int i = 0; i < childList.getLength(); i++) {
                         Node channelNode = childList.item(i);
                         if (channelNode.getNodeType() != Node.ELEMENT_NODE) continue;
@@ -2234,75 +2337,101 @@ if (debug) System.out.println("Emu " + name + " prestart: PRESTART cmd to " + tr
                         // Look up transport object from name
                         DataTransport trans = findTransport(channelTransName);
 
-                        // Store all attributes in a hashmap to pass to channel
-                        Map<String, String> attributeMap = new HashMap<>(8);
-                        for (int j = 0; j < nnm.getLength(); j++) {
-                            Node a = nnm.item(j);
+                        //------------------------------------------------------------------------------------
+                        // Using our previous results, we handle the special case of an Aggregator.
+                        // We need to create one channel per VTP stream.
+                        // Furthermore, if there is only 1 channel (only the single VTP) as an input to the
+                        // first module in the config file, then all streams must be combined into a single
+                        // ROC Time Slice Bank as opposed to each stream having its own.
+                        //------------------------------------------------------------------------------------
+                        int streamCount = 1;
+                        Integer[] ports = null;
+                        boolean haveVTP = false;
+                        String chanName = channelName;
+
+                        if (codaClass.isDcAggregator() && firstModule) {
+                            streamCount = streams.get(vtpIndex);
+                            ports = portArrays.get(vtpIndex);
+                            haveVTP = true;
+                            vtpIndex++;
+                        }
+
+                        // Make one channel for each stream (normally one, except for VTPs)
+                        for (int strNum=0; strNum < streamCount; strNum++) {
+                            // Store all attributes in a hashmap to pass to channel
+                            Map<String, String> attributeMap = new HashMap<>(8);
+                            for (int j = 0; j < nnm.getLength(); j++) {
+                                Node a = nnm.item(j);
 //System.out.println("Emu " + name + " prestart: Put (" + a.getNodeName() + "," + a.getNodeValue() + ") into attribute map for channel " + channelName);
-                            attributeMap.put(a.getNodeName(), a.getNodeValue());
-                        }
-
-                        // If it's an input channel ...
-                        if (channelNode.getNodeName().equalsIgnoreCase("inchannel")) {
-                            // Create channel
-                            DataChannel channel = trans.createChannel(channelName, attributeMap,
-                                                                      true, this, module, 0);
-                            // Add to list while keeping fifos separate
-                            if (channelTransName.equals("Fifo")) {
-                                // Fifo does NOT notify Emu when END event comes through
-                                channel.registerEndCallback(null);
-                                channel.registerPrestartCallback(null);
-                                inFifo.add(channel);
+                                attributeMap.put(a.getNodeName(), a.getNodeValue());
                             }
-                            else {
-                                if (channel != null) {
-                                    // Give it object to notify Emu when END event comes through
-                                    channel.registerEndCallback(new EmuEventNotify());
-                                    channel.registerPrestartCallback(new EmuEventNotify());
-                                    in.add(channel);
+
+                            // Provide proper port # and name for each stream
+                            if (haveVTP) {
+                                attributeMap.put("port", "" + ports[strNum]);
+                                chanName = channelName + "_" + strNum;
+System.out.println("Emu " + name + " prestart: Put (port," + ports[strNum] + ") into attribute map for channel " + chanName);
+                            }
+
+                            // If it's an input channel ...
+                            if (channelNode.getNodeName().equalsIgnoreCase("inchannel")) {
+                                // Create channel
+                                DataChannel channel = trans.createChannel(chanName, attributeMap,
+                                                                          true, this, module, 0);
+                                // Add to list while keeping fifos separate
+                                if (channelTransName.equals("Fifo")) {
+                                    // Fifo does NOT notify Emu when END event comes through
+                                    channel.registerEndCallback(null);
+                                    channel.registerPrestartCallback(null);
+                                    inFifo.add(channel);
+                                }
+                                else {
+                                    if (channel != null) {
+                                        // Give it object to notify Emu when END event comes through
+                                        channel.registerEndCallback(new EmuEventNotify());
+                                        channel.registerPrestartCallback(new EmuEventNotify());
+                                        in.add(channel);
+                                    }
                                 }
                             }
-                        }
-                        // If it's an output channel ...
-                        else if (channelNode.getNodeName().equalsIgnoreCase("outchannel")) {
-                            DataChannel channel = trans.createChannel(channelName, attributeMap,
-                                                                      false, this, module,
-                                                                      outputChannelCount++);
-                            if (channelTransName.equals("Fifo")) {
-                                channel.registerEndCallback(null);
-                                channel.registerPrestartCallback(null);
-                                outFifo.add(channel);
-                            }
-                            else {
-                                if (channel != null) {
-                                    pItem = cmd.getArg("ipList_" + channelName);
-                                    if (pItem != null) {
-                                        String[] ipList = pItem.getStringArray();
-                                        System.out.println("Found destination IP list:");
-                                        for (String ip : ipList) {
-                                            System.out.println("  " + ip);
+                            // If it's an output channel ...
+                            else if (channelNode.getNodeName().equalsIgnoreCase("outchannel")) {
+                                DataChannel channel = trans.createChannel(channelName, attributeMap,
+                                                                          false, this, module,
+                                                                          outputChannelCount++);
+                                if (channelTransName.equals("Fifo")) {
+                                    channel.registerEndCallback(null);
+                                    channel.registerPrestartCallback(null);
+                                    outFifo.add(channel);
+                                }
+                                else {
+                                    if (channel != null) {
+                                        pItem = cmd.getArg("ipList_" + channelName);
+                                        if (pItem != null) {
+                                            String[] ipList = pItem.getStringArray();
+                                            System.out.println("Found destination IP list:");
+                                            for (String ip : ipList) {
+                                                System.out.println("  " + ip);
+                                            }
+                                            channel.setDestinationIpList(ipList);
                                         }
-                                        channel.setDestinationIpList(ipList);
-                                    }
 
-                                    pItem = cmd.getArg("baList_" + channelName);
-                                    if (pItem != null) {
-                                        String[] baList = pItem.getStringArray();
-                                        System.out.println("Found destination broadcast list:");
-                                        for (String ip : baList) {
-                                            System.out.println("  " + ip);
+                                        pItem = cmd.getArg("baList_" + channelName);
+                                        if (pItem != null) {
+                                            String[] baList = pItem.getStringArray();
+                                            System.out.println("Found destination broadcast list:");
+                                            for (String ip : baList) {
+                                                System.out.println("  " + ip);
+                                            }
+                                            channel.setDestinationBaList(baList);
                                         }
-                                        channel.setDestinationBaList(baList);
-                                    }
 
-                                    channel.registerEndCallback(new EmuEventNotify());
-                                    channel.registerPrestartCallback(new EmuEventNotify());
-                                    out.add(channel);
+                                        channel.registerEndCallback(new EmuEventNotify());
+                                        channel.registerPrestartCallback(new EmuEventNotify());
+                                        out.add(channel);
+                                    }
                                 }
                             }
-                        }
-                        else {
-//System.out.println("Emu " + name + "u prestart: channel type \"" + channelNode.getNodeName() + "\" is unknown");
                         }
                     }
 
@@ -2320,6 +2449,9 @@ if (debug) System.out.println("Emu " + name + " prestart: PRESTART cmd to " + tr
                     // should only be added once.
                     fifoChannels.addAll(outFifo);
                 }
+
+                firstModule = false;
+
             } while ((moduleNode = moduleNode.getNextSibling()) != null);  // while another module exists ...
 
 
