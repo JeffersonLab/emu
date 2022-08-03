@@ -314,14 +314,25 @@ public class ByteBufferItem {
         buffer = buf;
     }
 
-    
+
     /**
      * Get the contained ByteBuffer.
-     * Position is set to 0.
-     * @return contained ByteBuffer.
+     * Set position = 0, leave limit alone.
+     * @return contained, cleared ByteBuffer.
      */
     public ByteBuffer getBuffer() {
         buffer.position(0);
+        return buffer;
+    }
+
+
+    /**
+     * Get the contained ByteBuffer and clear it.
+     * Position = 0, limit = capacity.
+     * @return contained, cleared ByteBuffer.
+     */
+    public ByteBuffer getClearedBuffer() {
+        buffer.clear();
         return buffer;
     }
 
@@ -337,6 +348,10 @@ public class ByteBufferItem {
 
     /**
      * Make sure the buffer is the size needed.
+     * This method is dangerous -- definitely not thread safe!
+     * Use this method immediately upon getting this item from the supply
+     * and before the buffer is used.
+     * If expanded, all data is <b>LOST</b>, so call this before writing data.
      * @param capacity minimum necessary size of buffer in bytes.
      */
     public void ensureCapacity(int capacity) {
