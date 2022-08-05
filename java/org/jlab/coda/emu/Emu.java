@@ -2198,9 +2198,10 @@ if (debug) System.out.println("Emu " + name + " prestart: PRESTART cmd to " + tr
                     int outputChannelCount = 0;
                     boolean createVtpStreams = false;
 
-//System.out.println("\nEmu " + name + " prestart: looking at module = " + moduleNode.getNodeName());
                     // For each channel in (children of) the module ...
                     NodeList childList = moduleNode.getChildNodes();
+System.out.println("\nEmu " + name + " prestart: looking at module = " + moduleNode.getNodeName() + " with " +
+                   childList.getLength() + " children");
 
                     //------------------------------------------------------------------------------------
                     // Do a preliminary scan over the first module's children since only the first module
@@ -2258,7 +2259,7 @@ if (debug) System.out.println("Emu " + name + " prestart: PRESTART cmd to " + tr
                             DataTransport trans = findTransport(channelTransName);
 
                             if (!trans.getTransportClass().equals("UdpStream") &&
-                                !trans.getTransportClass().equals("Emu")) {
+                                !trans.getTransportClass().equals("TcpStream")) {
                                 // If not streaming channel, skip it
                                 otherInputs++;
                                 continue;
@@ -2272,6 +2273,7 @@ if (debug) System.out.println("Emu " + name + " prestart: PRESTART cmd to " + tr
                                 // Look for "streams"
                                 if (a.getNodeName().equalsIgnoreCase("streams")) {
                                     int streamCount = Integer.parseInt(a.getNodeValue());
+System.out.println("Emu " + name + " prestart: add to list, streams = " + streamCount);
                                     streams.add(streamCount);
                                 }
                                 // Look for "port"
@@ -2284,6 +2286,7 @@ if (debug) System.out.println("Emu " + name + " prestart: PRESTART cmd to " + tr
                                     ports[1] = startingPort + 1;
                                     ports[2] = startingPort + 2;
                                     ports[3] = startingPort + 3;
+System.out.println("Emu " + name + " prestart: add to port array, port = " + startingPort);
                                     portArrays.add(ports);
                                 }
                             }
@@ -2300,15 +2303,22 @@ System.out.println("Emu " + name + " prestart: setting module as having a single
                     // Start with first VTP in loop below
                     int vtpIndex = 0;
 
+System.out.println("Emu " + name + " prestart: childList length = " + childList.getLength());
                     for (int i = 0; i < childList.getLength(); i++) {
                         Node channelNode = childList.item(i);
                         if (channelNode.getNodeType() != Node.ELEMENT_NODE) continue;
 
-//System.out.println("Emu " + name + " prestart: looking at channel node = " + channelNode.getNodeName());
+                        // Is this an input or output channel?
+                        boolean isInputChan = false;
+                        if (channelNode.getNodeName().equalsIgnoreCase("inchannel")) {
+                            isInputChan = true;
+                        }
+
+//System.out.println("Emu " + name + " prestart: looking at channel node # " + i);
                         // Get attributes of channel node
                         NamedNodeMap nnm = channelNode.getAttributes();
                         if (nnm == null) {
-//System.out.println("Emu " + name + " prestart: junk in config file (no attributes), skip " + channelNode.getNodeName());
+//System.out.println("Emu " + name + " prestart: junk in config file (no attributes), skip chan node # " + i);
                             continue;
                         }
 
@@ -2317,7 +2327,7 @@ System.out.println("Emu " + name + " prestart: setting module as having a single
 
                         // If none (junk in config file) go to next channel
                         if (channelNameNode == null) {
-//System.out.println("Emu " + name + " prestart: junk in config file (no name attr), skip " + channelNode.getNodeName());
+//System.out.println("Emu " + name + " prestart: junk in config file (no name attr), skip chan node # " + i);
                             continue;
                         }
 //System.out.println("Emu " + name + " prestart: channel node of attribute \"name\" = " + channelNameNode.getNodeName());
@@ -2328,7 +2338,7 @@ System.out.println("Emu " + name + " prestart: setting module as having a single
                         // Get "transp" attribute node from map
                         Node channelTranspNode = nnm.getNamedItem("transp");
                         if (channelTranspNode == null) {
-//System.out.println("Emu " + name + " prestart: junk in config file (no transp attr), skip " + channelNode.getNodeName());
+//System.out.println("Emu " + name + " prestart: junk in config file (no transp attr), skip chan node # " + i);
                             continue;
                         }
                         // Get name of transport
@@ -2339,7 +2349,7 @@ System.out.println("Emu " + name + " prestart: setting module as having a single
 
                         //------------------------------------------------------------------------------------
                         // Using our previous results, we handle the special case of an Aggregator.
-                        // We need to create one channel per VTP stream.
+                        // We need to create one channel per VTP input stream.
                         // Furthermore, if there is only 1 channel (only the single VTP) as an input to the
                         // first module in the config file, then all streams must be combined into a single
                         // ROC Time Slice Bank as opposed to each stream having its own.
@@ -2349,8 +2359,10 @@ System.out.println("Emu " + name + " prestart: setting module as having a single
                         boolean haveVTP = false;
                         String chanName = channelName;
 
-                        if (codaClass.isDcAggregator() && firstModule) {
+                        if (codaClass.isDcAggregator() && firstModule && isInputChan) {
+System.out.println("Emu " + name + " prestart: extract streamCount for vtpIndex = " + vtpIndex);
                             streamCount = streams.get(vtpIndex);
+                            System.out.println("Emu " + name + " prestart: streamCount = " + streamCount);
                             ports = portArrays.get(vtpIndex);
                             haveVTP = true;
                             vtpIndex++;
@@ -2374,7 +2386,7 @@ System.out.println("Emu " + name + " prestart: Put (port," + ports[strNum] + ") 
                             }
 
                             // If it's an input channel ...
-                            if (channelNode.getNodeName().equalsIgnoreCase("inchannel")) {
+                            if (isInputChan) {
                                 // Create channel
                                 DataChannel channel = trans.createChannel(chanName, attributeMap,
                                                                           true, this, module, 0);
@@ -2395,7 +2407,7 @@ System.out.println("Emu " + name + " prestart: Put (port," + ports[strNum] + ") 
                                 }
                             }
                             // If it's an output channel ...
-                            else if (channelNode.getNodeName().equalsIgnoreCase("outchannel")) {
+                            else {
                                 DataChannel channel = trans.createChannel(channelName, attributeMap,
                                                                           false, this, module,
                                                                           outputChannelCount++);
