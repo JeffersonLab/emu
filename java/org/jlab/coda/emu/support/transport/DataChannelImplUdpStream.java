@@ -96,7 +96,7 @@ public class DataChannelImplUdpStream extends DataChannelAdapter {
     /** VTP reassembly version */
     private final int reVersion = 1;
 
-    /** Size of EJFAT header, by default, nothing */
+    /** Size of EJFAT load balancing header, by default, nothing */
     private int LB_HEADER_BYTES = 0;
     /** Size of UDP CODA reassembly header. */
     private int RE_HEADER_BYTES = 8;
@@ -233,6 +233,12 @@ public class DataChannelImplUdpStream extends DataChannelAdapter {
             }
         }
 
+        if (useErsapReHeader) {
+            RE_HEADER_BYTES = 16;
+            HEADER_BYTES = RE_HEADER_BYTES;
+        }
+
+
         if (input) {
             // This transport gets data from some source which, in turn, means that source
             // is calling send, sendto, or sendmsg (C, C++) to a specific host and port.
@@ -263,7 +269,8 @@ public class DataChannelImplUdpStream extends DataChannelAdapter {
                 // socket.setReuseAddress(true);
 
                 logger.debug("    DataChannel UDP: create UDP receiving socket at port " + port +
-                        " with " + inSocket.getReceiveBufferSize() + " byte UDP receive buffer");
+                        " with " + inSocket.getReceiveBufferSize() + " byte UDP receive buffer, on host " +
+                        inSocket.getLocalAddress().getHostName());
             }
             catch (SocketException e) {
                 throw new DataTransportException(e);
@@ -307,16 +314,12 @@ public class DataChannelImplUdpStream extends DataChannelAdapter {
 
         }
         else {
+
             // The situations in which this transport acts as a server
             // is when it's used as:
             // 1) the output of the simulated ROC,
             // 2) the output of an aggregtator to an EJFAT load balancer
             // In these cases it's port number is ephemeral.
-
-            if (useErsapReHeader) {
-                RE_HEADER_BYTES = 16;
-                HEADER_BYTES = RE_HEADER_BYTES;
-            }
 
             // Do use the EJFAT load balancer?
             attribString = attributeMap.get("useLoadBalancer");
@@ -736,10 +739,11 @@ logger.info("    DataChannel UDP stream: total header bytes = " + HEADER_BYTES);
      * and have all data copied over up to limit. If given buf is direct,
      * so is the returned buffer. Order is set to match arg's.
      * @param buf buffer to increase size of.
+     * @param bytes number of bytes to copy.
      * @param factor number to multiply with given buffer size to give new size.
      * @return new, bigger buffer with same data as original.
      */
-    static ByteBuffer expandBuffer(ByteBuffer buf, int factor) {
+    static ByteBuffer expandBuffer(ByteBuffer buf, int bytes, int factor) {
         ByteBuffer newBuf;
         if (buf.isDirect()) {
             newBuf = ByteBuffer.allocateDirect(factor * buf.capacity());
@@ -748,9 +752,7 @@ logger.info("    DataChannel UDP stream: total header bytes = " + HEADER_BYTES);
             newBuf = ByteBuffer.allocate(factor * buf.capacity());
         }
         newBuf.order(buf.order());
-        int lim = buf.limit();
-        System.arraycopy(buf.array(), buf.arrayOffset(), newBuf.array(), 0, lim);
-        newBuf.limit(lim);
+        System.arraycopy(buf.array(), 0, newBuf.array(), 0, bytes);
         return newBuf;
     }
 
@@ -834,7 +836,7 @@ logger.info("    DataChannel UDP stream: total header bytes = " + HEADER_BYTES);
             // "Record ID" in VTP format, euivalent to "tick" in Ersap format
             long prevTick = -1;
             long packetTick;
-            int packetDataId, sequence, prevSequence = 0;
+            int packetDataId, sequence, prevSequence = 0, pktCount = 0;
             // Next expected sequence or packet # from UDP reassembly header
             int expectedSequence = 0;
 
@@ -914,6 +916,7 @@ logger.info("    DataChannel UDP stream: total header bytes = " + HEADER_BYTES);
                         if (veryFirstRead) {
                             // Read in first packet into temporary storage
                             packet.setData(pkt, 0, biggestPacketLen);
+//System.out.println("\nWait to receive packet on port " + inSocket.getLocalPort() + ", other end is port " + inSocket.getPort());
                             inSocket.receive(packet);
 
                             // Bytes in packet
@@ -925,28 +928,33 @@ logger.info("    DataChannel UDP stream: total header bytes = " + HEADER_BYTES);
                                 // Parse Ersap format RE header
                                 parseErsapReHeader(pkt, 0, reHeader, tick);
 
-                                version = reHeader[0];
-                                packetFirst = reHeader[1] == 1 ? true : false;
-                                packetLast = reHeader[2] == 1 ? true : false;
+                                version      = reHeader[0];
+                                packetFirst  = reHeader[1] == 1 ? true : false;
+                                packetLast   = reHeader[2] == 1 ? true : false;
                                 packetDataId = reHeader[3];
-                                sequence = reHeader[4];
-                                packetTick = tick[0];
+                                sequence     = reHeader[4];
+                                packetTick   = tick[0];
                             }
                             else {
                                 // Parse VTP format RE header
                                 parseReHeader(pkt, 0, reHeader);
 
-                                version = reHeader[0];
-                                packetTick = reHeader[1]; // recordId (1 byte)
-                                packetFirst = reHeader[2] == 1 ? true : false;
-                                packetLast = reHeader[3] == 1 ? true : false;
+                                version      = reHeader[0];
+                                packetTick   = reHeader[1]; // recordId (1 byte)
+                                packetFirst  = reHeader[2] == 1 ? true : false;
+                                packetLast   = reHeader[3] == 1 ? true : false;
                                 packetDataId = reHeader[4];
-                                sequence = reHeader[5];
-                                //pktCount = reHeader[6];
+                                sequence     = reHeader[5];
+                                pktCount     = reHeader[6];
                             }
 
                             // Copy data (NOT header) into main buffer
                             System.arraycopy(pkt, HEADER_BYTES, buffer, 0, nBytes);
+
+                            // This should never happen. Tick is not incrementing.
+                            if ((packetTick == prevTick) && !dumpTick) {
+                                throw new EmuException("Tick did NOT advance after last buf assembled");
+                            }
 
                             veryFirstRead = false;
                         }
@@ -969,34 +977,63 @@ logger.info("    DataChannel UDP stream: total header bytes = " + HEADER_BYTES);
                                 // Parse Ersap format RE header
                                 parseErsapReHeader(buffer, writeHeaderAt, reHeader, tick);
 
-                                version = reHeader[0];
-                                packetFirst = reHeader[1] == 1 ? true : false;
-                                packetLast = reHeader[2] == 1 ? true : false;
+                                version      = reHeader[0];
+                                packetFirst  = reHeader[1] == 1 ? true : false;
+                                packetLast   = reHeader[2] == 1 ? true : false;
                                 packetDataId = reHeader[3];
-                                sequence = reHeader[4];
-                                packetTick = tick[0];
+                                sequence     = reHeader[4];
+                                packetTick   = tick[0];
                             }
                             else {
                                 // Parse VTP format RE header
                                 parseReHeader(buffer, writeHeaderAt, reHeader);
 
-                                version = reHeader[0];
-                                packetTick = reHeader[1]; // recordId (1 byte)
-                                packetFirst = reHeader[2] == 1 ? true : false;
-                                packetLast = reHeader[3] == 1 ? true : false;
+                                version      = reHeader[0];
+                                packetTick   = reHeader[1]; // recordId (1 byte)
+                                packetFirst  = reHeader[2] == 1 ? true : false;
+                                packetLast   = reHeader[3] == 1 ? true : false;
                                 packetDataId = reHeader[4];
-                                sequence = reHeader[5];
-                                //pktCount = reHeader[6];
+                                sequence     = reHeader[5];
+                                pktCount     = reHeader[6];
                             }
 
-                            // Replace what was written over
-                            System.arraycopy(headerStorage, 0, buffer, writeHeaderAt, HEADER_BYTES);
+                            // If seq > 0 && tick has advanced, then the logic a few lines down
+                            // will dump this new tick and the previous incomplete one.
+
+                            // Sequence should never be 0 here, but we can dump the buffer we
+                            // were working on and go to the next
+                            if (sequence == 0) {
+                                // This should never happen. Tick is not incrementing.
+                                if (packetTick == prevTick) {
+                                    throw new EmuException("Tick did NOT advance with sequence = 0");
+                                }
+
+                                // If we're here then we dropped (at least) a packet with the "last" flag set,
+                                // thus we missed the last packet of a buffer and have now written
+                                // this packet's data into the wrong place. Probably a rare occurance.
+                                // Copy it into the beginning of the buffer and dump what came before
+                                // (dump is a several lines below).
+
+                                // This method automatically takes care of overlapping src and dest
+                                System.arraycopy(buffer, putDataAt, buffer, 0, nBytes);
+                                putDataAt = 0;
+                                remainingLen = bufLen;
+                            }
+                            else {
+                                // Replace what was written over
+                                System.arraycopy(headerStorage, 0, buffer, writeHeaderAt, HEADER_BYTES);
+                            }
                         }
 
-//                        if (debug) {
+//                        if (useErsapReHeader) {
 //                            System.out.println("\nPkt hdr: ver = " + version + ", first = " + packetFirst + ", last = " +
-//                                    packetLast + ", tick/recordId = " + packetTick + ", seq = " + sequence +
+//                                    packetLast + ", tick = " + packetTick + ", seq = " + sequence +
 //                                    ", source id = " + packetDataId + ", nBytes = " + nBytes);
+//                        }
+//                        else {
+//                            System.out.println("\nPkt hdr: ver = " + version + ", first = " + packetFirst + ", last = " +
+//                                    packetLast + ", recordId = " + packetTick + ", seq = " + sequence +
+//                                    ", pktCount = " +pktCount + ", source id = " + packetDataId + ", nBytes = " + nBytes);
 //                        }
 
                         //
@@ -1005,12 +1042,14 @@ logger.info("    DataChannel UDP stream: total header bytes = " + HEADER_BYTES);
                         // then it is very unlikely that any partially reassembled previous record
                         // will ever receive the missing packets and be completed.
                         // In practice, since it's much simpler, once a packet from a new recordId/tick
-                        // arrives, all the packets associated with the prevous tick are abandoned
+                        // arrives, all the packets associated with the previous tick are abandoned
                         // and that tick is lost.
 
                         // This if statement is what enables the packet reading/parsing to keep
                         // up an input rate that is too high (causing dropped packets) and still
                         // salvage much of what is coming in.
+                        // For the VTP, the "tick" is one byte so it rolls over constantly,
+                        // but is not a problem.
                         if (packetTick != prevTick) {
 
                             // If we're here, either we've just read the very first legitimate packet,
@@ -1021,7 +1060,7 @@ logger.info("    DataChannel UDP stream: total header bytes = " + HEADER_BYTES);
                                 // Already have trouble, looks like we dropped the first packet of a tick,
                                 // and possibly others after it.
                                 // So go ahead and dump the rest of the tick in an effort to keep up.
-//System.out.println("Skip r " + recordId + " s " + sequence);
+//System.out.println("Skip t " + packetTick + " s " + sequence);
                                 putDataAt = 0;
                                 remainingLen = bufLen;
                                 veryFirstRead = true;
@@ -1068,9 +1107,13 @@ logger.info("    DataChannel UDP stream: total header bytes = " + HEADER_BYTES);
 
                         // Check to see if packet is out-of-sequence
                         // The challenge here is to TEMPORARILY store the out-of-order packets.
+                        // TODO: I see difficulties with the algorithm here. How do we go to next
+                        // TODO: buffer gracefully? The first packet of the next buffer can easily
+                        // TODO: endup in the old buffer at nonzero putDataAt value!
+                        // TODO: This needs to be corrected in C++ code as well!
                         if (sequence != expectedSequence) {
-                                       System.out.println("\n    ID " + id + ": got seq " + sequence +
-                                                          ", expecting " + expectedSequence + ", record id = " + recordId);
+                             System.out.println("\n\n\n   ID " + id + ": got seq " + sequence +
+                                                ", expecting " + expectedSequence + ", record id = " + recordId + "\n\n");
 
                             // If we get a sequence that we already received, ERROR!
                             if (sequence < expectedSequence) {
@@ -1147,10 +1190,8 @@ logger.info("    DataChannel UDP stream: total header bytes = " + HEADER_BYTES);
                                     // This one gets it from the supply and therefore can expand it.
                                     // There is only user of this item/buffer at the moment, so expanding it
                                     // is possible without multithreading issues.
-                                    itemBB.position(0).limit(putDataAt);
-                                    ByteBuffer bb = expandBuffer(itemBB, 2);
-                                    // bb's pos = 0, limit = lim
-                                    bb.limit(bb.capacity());
+                                    ByteBuffer bb = expandBuffer(itemBB, putDataAt, 2);
+                                    itemBB = bb;
                                     item.setBuffer(bb);
                                     buffer = bb.array();
                                     bufLen = buffer.length;
@@ -1200,7 +1241,8 @@ logger.info("    DataChannel UDP stream: total header bytes = " + HEADER_BYTES);
                         // read next packet
                     }
 
-                    System.out.println("publish, seq " + sequence);
+                    //System.out.println("publish, seq " + sequence);
+                    itemBB.limit(putDataAt);
                     bbSupply.publish(item);
                 }
             }
@@ -1262,13 +1304,6 @@ logger.info("    DataChannel UDP stream: total header bytes = " + HEADER_BYTES);
                 while (true) {
                     // Sets the consumer sequence
                     ByteBufferItem item = bbSupply.consumerGet();
-                    if (!item.getUserBoolean()) {
-                        // This buffer has partially constructed data, missing at least 1 packet.
-                        // Dump it and move on.
-                        //System.out.println("XXX");
-                        bbSupply.release(item);
-                        continue;
-                    }
                     if (parseStreamingToRing(item, bbSupply)) {
                         logger.info("    DataChannel UDP stream in: 1 quit streaming parser/merger thread for END event from " + name);
                         break;
@@ -1682,10 +1717,10 @@ logger.info("    DataChannel UDP stream: total header bytes = " + HEADER_BYTES);
             throw new EmuException("offset arg < 0 or buf too small");
         }
 
-        buffer[0] = (byte) (version << 4);
+        buffer[offset] = (byte) (version << 4);
         int fst = first ? 1 : 0;
         int lst =  last ? 1 : 0;
-        buffer[1] = (byte) ((fst << 1) + lst);
+        buffer[offset + 1] = (byte) ((fst << 1) + lst);
 
         try {
             ByteDataTransformer.toBytes(dataId, ByteOrder.BIG_ENDIAN, buffer, offset + 2);
@@ -1952,7 +1987,8 @@ System.out.println("SocketSender thread told to return");
 
                         // Fast version overwrites part of incoming data buffer, but that's OK.
                         // It's not used after this.
-//logger.info("    DataChannel UDP stream put: " + name + " - send packetized buffer");
+
+//logger.info("    DataChannel UDP stream put: " + name + " - send packetized buffer of len " + buf.limit());
                         sendPacketizedBufferFast(
                                 buf.array(), 0, buf.limit(),
                                 packetStorage, maxUdpPayload,
@@ -1961,15 +1997,17 @@ System.out.println("SocketSender thread told to return");
                                 recordId, id, reVersion,
                                 delay, debug, packetsSent);
 
+
 //                            sendPacketizedBufferSend(buf.array(), 0, buf.limit(),
 //                                                           packetStorage, maxUdpPayload,
 //                                                           outSocket, packet,
-//                                                           tick, entropy, protocol, lbVersion,
+//                                                           tick, entropy, lbProtocol, lbVersion,
 //                                                           recordId, id, reVersion,
 //                                                           delay, debug, packetsSent);
 
-                        // increment record id
+                        // Increment record id or tick depending on if we're using VTP or Ersap RE header
                         recordId++;
+                        tick++;
 
                         // Run callback saying we got and are done with end event
                         if (isEnd) {
@@ -2009,13 +2047,15 @@ logger.info("    DataChannel UDP out: create UDP sending socket");
                 // Implementation dependent send buffer size
                 outSocket.setSendBufferSize(sendBufSize);
                 destAddr = InetAddress.getByName(destHost);
+                //destAddr = InetAddress.getByName("192.168.0.125");
 //logger.info("    DataChannel UDP out: connect UDP socket to dest " + destAddr.getHostName() + " port " + port);
                 if (useConnectedSocket) {
                     outSocket.connect(destAddr, port);
                 }
 
                 logger.debug("    DataChannel UDP out: create UDP sending socket with " +
-                        " with " + outSocket.getSendBufferSize() + " byte send buffer");
+                        " with " + outSocket.getSendBufferSize() + " byte send buffer, on port " +
+                        outSocket.getLocalPort() + " to port " + outSocket.getPort() + " to host " + destAddr.getHostName());
             }
             catch (Exception e) {
                 throw new DataTransportException(e);
@@ -2145,7 +2185,7 @@ System.out.println("DataOutputHelper constr: making BB supply of 16 bufs @ bytes
                 // The number of regular data bytes to write into this packet
                 bytesToWrite = dataLen > maxUdpPayload ? maxUdpPayload : dataLen;
 
-                // Is this the very last packet for all buffers?
+                // Is this the very last packet for buffer?
                 if (bytesToWrite == dataLen) {
                     veryLastPacket = true;
                 }
@@ -2337,7 +2377,7 @@ System.out.println("DataOutputHelper constr: making BB supply of 16 bufs @ bytes
 
                 // This is where and how many bytes to write for data
                 System.arraycopy(dataBuffer, readFromIndex,
-                                 packetCounter, writeToIndex + HEADER_BYTES,
+                                 packetStorage, writeToIndex + HEADER_BYTES,
                                  bytesToWrite);
 
                 // "UNIX Network Programming" points out that a connect call made on a UDP client side socket
@@ -2492,7 +2532,7 @@ System.out.println("DataOutputHelper constr: making BB supply of 16 bufs @ bytes
 
                 //recordId++;
 //System.out.println("    DataChannel UDP stream out: writeEvioData: record Id set to " + blockNum +
-//                  ", then incremented to " + recordId);
+//                   ", then incremented to " + recordId);
 
                 // Make sure there's enough room for that one event
                 if (rItem.getTotalBytes() > currentBuffer.capacity()) {
@@ -2516,7 +2556,7 @@ System.out.println("DataOutputHelper constr: making BB supply of 16 bufs @ bytes
                 if (buf != null) {
                     try {
 //System.out.println("    DataChannel UDP stream out: writeEvioData: single ev buf, pos = " + buf.position() +
-//", lim = " + buf.limit() + ", cap = " + buf.capacity());
+//                   ", lim = " + buf.limit() + ", cap = " + buf.capacity());
                         boolean fit = writer.writeEvent(buf);
                         if (!fit) {
                             // Our buffer is too small to fit even 1 event!
@@ -2710,7 +2750,7 @@ System.out.println("      c: single ev buf, pos = " + buf.position() +
                             if (gotPrestart) {
                                 throw new EmuException("got 2 prestart events");
                             }
-logger.info("    DataChannel UDP stream out " + outputIndex + ": send prestart event");
+logger.info("    DataChannel UDP stream out " + outputIndex + ": send PRESTART event");
                             gotPrestart = true;
                             writeEvioData(ringItem);
                         }
