@@ -2159,17 +2159,18 @@ System.out.println("  EB mod: interruptThreads: will end building/filling thread
             throw new CmdExecException("no input channels to EB");
         }
 
-        // Make sure each input channel is associated with a unique rocId
-        for (int i=0; i < inputChannelCount; i++) {
-            for (int j=i+1; j < inputChannelCount; j++) {
-                if (inputChannels.get(i).getID() == inputChannels.get(j).getID()) {
-                    moduleState = CODAState.ERROR;
-                    System.out.println("  EB mod: prestart, input channels have duplicate rocIDs");
-                    emu.setErrorState("input channels have duplicate rocIDs");
-                    throw new CmdExecException("input channels have duplicate rocIDs");
-                }
-            }
-        }
+        // TODO: handle multiple streams with the same ID with more grace!
+//        // Make sure each input channel is associated with a unique rocId
+//        for (int i=0; i < inputChannelCount; i++) {
+//            for (int j=i+1; j < inputChannelCount; j++) {
+//                if (inputChannels.get(i).getID() == inputChannels.get(j).getID()) {
+//                    moduleState = CODAState.ERROR;
+//                    System.out.println("  EB mod: prestart, input channels have duplicate rocIDs");
+//                    emu.setErrorState("input channels have duplicate rocIDs");
+//                    throw new CmdExecException("input channels have duplicate rocIDs");
+//                }
+//            }
+//        }
 
         moduleState = CODAState.PAUSED;
         paused = true;
