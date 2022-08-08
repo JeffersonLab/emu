@@ -2318,7 +2318,7 @@ System.out.println("DataOutputHelper constr: making BB supply of 16 bufs @ bytes
                                       int[] packetsSent)
                 throws IOException {
 
-            int bytesToWrite, sentPackets = 0, remainingBytes = dataLen, totalDataBytesSent = 0;
+            int bytesToWrite, sentPackets = 0;
 
             // How many total packets are we sending? Round up.
             int totalPackets = (dataLen + maxUdpPayload - 1)/maxUdpPayload;
@@ -2337,15 +2337,13 @@ System.out.println("DataOutputHelper constr: making BB supply of 16 bufs @ bytes
             // Use this flag to allow transmission of a single zero-length buffer
             boolean firstLoop = true;
 
-            while (firstLoop || remainingBytes > 0) {
-
-                firstLoop = false;
+            while (firstLoop || dataLen > 0) {
 
                 // The number of regular data bytes to write into this packet
                 bytesToWrite = dataLen > maxUdpPayload ? maxUdpPayload : dataLen;
 
                 // Is this the very last packet for all buffers?
-                if (bytesToWrite == remainingBytes) {
+                if (bytesToWrite == dataLen) {
                     veryLastPacket = true;
                 }
 
@@ -2400,10 +2398,10 @@ System.out.println("DataOutputHelper constr: making BB supply of 16 bufs @ bytes
                     catch (InterruptedException e) {}
                 }
 
-                remainingBytes -= bytesToWrite;
+                dataLen -= bytesToWrite;
                 readFromIndex += bytesToWrite;
-                totalDataBytesSent += bytesToWrite;
                 veryFirstPacket = false;
+                firstLoop = false;
 
                 if (debug) System.out.println("Sent pkt " + (packetCounter - 1) +
                         ", remaining bytes = " + dataLen + "\n");
