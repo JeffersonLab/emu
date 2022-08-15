@@ -46,6 +46,13 @@ public class EmuDomainTcpServer extends Thread {
     /** Setting this to true will kill all threads. */
     private volatile boolean killThreads;
 
+    /**
+     * There are 2 types of transports/channels that use this server:
+     * Emu and TcpStream. Accommodate both.
+     * Is the an EMU socket channel or TcpStream channel?
+     */
+    private boolean isEmuChan;
+
 
     /** Kills this and all spawned threads. */
     void killAllThreads() {
@@ -63,6 +70,11 @@ public class EmuDomainTcpServer extends Thread {
         setName("Emu-socket TCP server");
         this.server = server;
         this.serverPort = serverPort;
+
+        String classNameEnding = server.transport.getTransportClass();
+        if (classNameEnding.equalsIgnoreCase("Emu")) {
+            isEmuChan = true;
+        }
     }
 
 
@@ -271,8 +283,8 @@ public class EmuDomainTcpServer extends Thread {
                         channel.configureBlocking(true);
 
                         // Look up the associated channel in the transport object
-                        DataChannel emuChannel = server.transport.getInputChannelTable().get(codaId);
-                        if (emuChannel == null) {
+                        DataChannel inputChannel = server.transport.getInputChannelTable().get(codaId);
+                        if (inputChannel == null) {
                             if (debug >= cMsgConstants.debugError) {
                                 System.out.println("********\n    Emu TCP Server: no emu input channel found for CODA id = " +
                                                    codaId + "\n********");
@@ -286,18 +298,15 @@ public class EmuDomainTcpServer extends Thread {
                         // thread to handle all further communication.
                         try {
 //System.out.println("    Emu TCP Server: domain server, call attachToInput");
-                            // There are 2 types of transports/channels that use this server:
-                            // Emu and TcpStream. Accommodate both.
-                            String classNameEnding = server.transport.getTransportClass();
-                            if (classNameEnding.equalsIgnoreCase("Emu")) {
-                                DataChannelImplEmu emuChan = (DataChannelImplEmu)emuChannel;
+                            // There are 2 types of transports/channels that use this server
+                            if (isEmuChan) {
+                                DataChannelImplEmu emuChan = (DataChannelImplEmu)inputChannel;
                                 emuChan.attachToInput(channel, codaId, bufferSizeDesired,
                                                       socketCount, socketPosition);
                             }
-                            else if (classNameEnding.equalsIgnoreCase("TcpStream")) {
-                                DataChannelImplTcpStream tcpStrmChan = (DataChannelImplTcpStream)emuChannel;
-                                tcpStrmChan.attachToInput(channel, codaId, bufferSizeDesired,
-                                                          socketCount, socketPosition);
+                            else {
+                                DataChannelImplTcpStream tcpStrmChan = (DataChannelImplTcpStream)inputChannel;
+                                tcpStrmChan.attachToInput(channel, codaId, bufferSizeDesired);
                             }
                         }
                         catch (IOException e) {

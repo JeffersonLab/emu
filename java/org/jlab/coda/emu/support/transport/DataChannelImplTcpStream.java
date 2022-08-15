@@ -46,11 +46,25 @@ import java.util.concurrent.TimeUnit;
 import static com.lmax.disruptor.RingBuffer.createSingleProducer;
 
 /**
- * This class implement a data channel which
- * gets-data-from/sends-data-to an Emu domain client/server.
+ * <p>
+ * This class is copied from the DataChannelImpEmu class.
+ * It main purpose is to read streaming format data over TCP from VTPs.
+ * One way that it differs from the original class is that there is no
+ * "fat pipe" or multiple socket option for one stream.
+ * This is not necessary for the VTP which can send 4 individual streams
+ * to get the desired bandwidth.
+ * Some old code may be left in place in order to use the EmuDomainTcpServer
+ * for convenience.</p>
+ *
+ *
+ * To preferentially use IPv6, give following command line option to JVM:
+ * -Djava.net.preferIPv6Addresses=true
+ * Java sockets use either IPv4 or 6 automatically depending on what
+ * kind of addresses are used. No need (or possibility) for setting
+ * this explicitly.
  *
  * @author timmer
- * (4/23/2014)
+ * (8/8/2022)
  */
 public class DataChannelImplTcpStream extends DataChannelAdapter {
 
@@ -116,10 +130,10 @@ public class DataChannelImplTcpStream extends DataChannelAdapter {
     /** Data input streams from TCP sockets. */
     private DataInputStream in;
 
-    /** SocketChannels, up to 2, used to receive data. */
+    /** SocketChannels used to receive data. */
     private SocketChannel socketChannel;
 
-    /** Sockets, up to 2, used to receive data. */
+    /** Socket used to receive data. */
     private Socket socket;
 
     /** TCP receive buffer size in bytes. */
@@ -145,15 +159,6 @@ public class DataChannelImplTcpStream extends DataChannelAdapter {
 
     /** Use direct ByteBuffer? */
     private boolean direct;
-
-    /**
-     * In order to get a higher throughput for fast networks,
-     * this emu channel may use multiple sockets underneath. Defaults to 1.
-     */
-    private int socketCount;
-
-    /** Number of sockets created so far. */
-    private int socketsConnected;
 
     // Disruptor (RingBuffer)  stuff
 
@@ -206,9 +211,6 @@ public class DataChannelImplTcpStream extends DataChannelAdapter {
                 direct = false;
             }
         }
-
-        // How many sockets to use underneath
-        socketCount = 1;
 
         // if INPUT channel
         if (input) {
@@ -365,16 +367,10 @@ public class DataChannelImplTcpStream extends DataChannelAdapter {
      * @param channel        data input socket/channel
      * @param sourceId       CODA id # of data source
      * @param maxBufferSize  biggest chunk of data expected to be sent by data producer
-     * @param socketCount    total # of sockets data producer will be making
-     * @param socketPosition position with respect to other data producers: 1, 2 ...
-     *                       
+     *
      * @throws IOException   if exception dealing with socket or input stream
      */
-    final void attachToInput(SocketChannel channel, int sourceId, int maxBufferSize,
-                       int socketCount, int socketPosition) throws IOException {
-
-        // For get data from VTP's there's only 1 socket per channel
-        socketCount = 1;
+    final void attachToInput(SocketChannel channel, int sourceId, int maxBufferSize) throws IOException {
 
         // Create a ring buffer full of empty ByteBuffer objects
         // in which to copy incoming data from client.
@@ -385,41 +381,36 @@ public class DataChannelImplTcpStream extends DataChannelAdapter {
         // Put a limit on the total amount of memory used for all emu socket input channels.
         // Total limit is 1GB. This is probably the easiest way to figure out how many buffers to use.
         // Number of bufs must be a power of 2 with a minimum of 16 and max of 128.
-        int channelCount = emu.getInputChannelCount();
-        int numBufs = 1024000000 / (maxBufferSize * channelCount);
-        numBufs = numBufs <  16 ?  16 : numBufs;
-        numBufs = numBufs > 128 ? 128 : numBufs;
-        // Reducing numBufs to 32 increases barrier.waitfor() time from .02% to .4% of EB time
-        numBufs = 32;
-
+        //
+        // int channelCount = emu.getInputChannelCount();
+        // int numBufs = 1024000000 / (maxBufferSize * channelCount);
+        //
+        // numBufs = numBufs <  16 ?  16 : numBufs;
+        // numBufs = numBufs > 128 ? 128 : numBufs;
+        //
         // Make power of 2, round up
-        numBufs = EmuUtilities.powerOfTwo(numBufs, true);
-logger.info("\n\n      DataChannel Emu in: " + numBufs + " buffers in input supply, socketCount = " +
-                    socketCount + "\n\n");
+        // numBufs = EmuUtilities.powerOfTwo(numBufs, true);
+        // logger.info("\n\n      DataChannel Emu in: " + numBufs + " buffers in input supply\n\n");
+
+        // Reducing numBufs to 32 increases barrier.waitfor() time from .02% to .4% of EB time
+        int numBufs = 32;
 
         // Initialize things once
         if (socketChannel == null) {
             parserMergerThread = new ParserMerger();
             nodePools = new EvioNodePool[numBufs];
-//logger.info("      DataChannel Emu in: allocated " + (socketCount * numBufs) + " node pools in array");
+//logger.info("      DataChannel Emu in: allocated " + numBufs + " node pools in array");
         }
         // If establishing multiple sockets for this single emu channel,
         // make sure their settings are compatible.
         else {
-            if (socketCount != this.socketCount) {
-                System.out.println("Bad socketCount: " + socketCount + ", != previous " + this.socketCount);
-            }
-            
             if (sourceId != this.sourceId) {
                 System.out.println("Bad sourceId: " + sourceId + ", != previous " + this.sourceId);
             }
         }
 
         this.sourceId = sourceId;
-        this.socketCount = socketCount;
         this.maxBufferSize = maxBufferSize;
-
-        socketsConnected++;
 
         // Set socket options
         socket = channel.socket();
@@ -483,15 +474,13 @@ logger.info("\n\n      DataChannel Emu in: " + numBufs + " buffers in input supp
 logger.info("      DataChannel Emu in: connection made from " + name);
 
         // Start thread to handle socket input
-        dataInputThread = new DataInputHelper(socketPosition);
+        dataInputThread = new DataInputHelper();
         dataInputThread.start();
 
         // If this is the last socket, make sure all threads are started up before proceeding
-        if (socketsConnected == socketCount) {
-            parserMergerThread.start();
-            dataInputThread.waitUntilStarted();
+        parserMergerThread.start();
+        dataInputThread.waitUntilStarted();
 logger.info("      DataChannel Emu in: last connection made, parser thd started, input threads running");
-        }
     }
 
 
@@ -544,10 +533,6 @@ logger.info("      DataChannel Emu in: last connection made, parser thd started,
             builder.append("&subnet=").append(preferredSubnet);
         }
 
-        if (socketCount > 1) {
-            builder.append("&sockets=").append(socketCount);
-        }
-
         if (noDelay) {
             builder.append("&noDelay");
         }
@@ -595,10 +580,6 @@ logger.info("      DataChannel Emu in: last connection made, parser thd started,
 
             if (tcpSendBuf > 0) {
                 builder.append("&tcpSend=").append(tcpSendBuf);
-            }
-
-            if (socketCount > 1) {
-                builder.append("&sockets=").append(socketCount);
             }
 
             if (noDelay) {
@@ -860,6 +841,7 @@ logger.debug("      DataChannel Emu: end(), close output channel " + name);
     /**
      * Class used to get data over network and put into ring buffer.
      * There is one of these for each of the "socketCount" number of TCP sockets.
+     * Currently only one.
      */
     private final class DataInputHelper extends Thread {
 
@@ -878,12 +860,10 @@ logger.debug("      DataChannel Emu: end(), close output channel " + name);
         /** Supply of ByteBuffers to use for this socket. */
         private final ByteBufferSupply bbSupply;
 
-        private final int socketPosition;
 
         /** Constructor. */
-        DataInputHelper(int socketPosition) {
+        DataInputHelper() {
             super(emu.getThreadGroup(), name() + "_data_in");
-            this.socketPosition = socketPosition;
             inStream = in;
             bbSupply = bbInSupply;
             sockChannel = socketChannel;
@@ -984,7 +964,7 @@ logger.debug("      DataChannel Emu: end(), close output channel " + name);
 
                     // We just received the END event
                     if (cmd == cMsgConstants.emuEvioEndEvent) {
-System.out.println("      DataChannel Emu in: " + name + ", got END event on sock " + socketPosition + ", exit reading thd");
+System.out.println("      DataChannel Emu in: " + name + ", got END event, exit reading thd");
                         return;
                     }
                 }
@@ -998,8 +978,7 @@ System.out.println("      DataChannel Emu in: " + name + ", got END event on soc
             catch (EOFException e) {
                 // Assume that if the other end of the socket closes, it's because it has
                 // sent the END event and received the end() command.
-                logger.warn("      DataChannel Emu in: " + name + ", other end of socket closed for sock " +
-                                    socketPosition + ", exit reading thd");
+                logger.warn("      DataChannel Emu in: " + name + ", other end of socket closed, exit reading thd");
             }
             catch (Exception e) {
                 if (haveInputEndEvent) {
@@ -1018,15 +997,14 @@ System.out.println("      DataChannel Emu in: " + name +
                 emu.setErrorState(errString);
             }
         }
-
-
     }
 
 
     /**
-     * Class to consume all buffers read from all sockets, parse them into evio events,
-     * and merge this data from multiple sockets by placing them into this
-     * channel's single ring buffer.
+     * Class to consume all buffers read from the socket, parse them into evio events,
+     * and place events into this channel's single ring buffer. It no longer "merges"
+     * data from multiple inputs as it did in the EMU channel, but it does allow
+     * separation of the socket reading code from the parsing code.
      */
     private final class ParserMerger extends Thread {
 
@@ -1088,9 +1066,7 @@ System.out.println("      DataChannel Emu in: " + name +
 
             // Get buffer from an item from ByteBufferSupply - one per channel
             ByteBuffer buf = item.getBuffer();
-
 //Utilities.printBytes(buf, 0, 240, "Incoming buf");
-
 
 //            // Do this for possibly compressed data. Make sure the buffer we got from the
 //            // supply is big enough to hold the uncompressed data. If not, created a new,
@@ -1104,9 +1080,9 @@ System.out.println("      DataChannel Emu in: " + name +
                 // Each pool must be reset only once!
                 pool.reset();
                 if (reader == null) {
-System.out.println("      DataChannel Emu in: create reader, buf's pos/lim = " + buf.position() + "/" + buf.limit());
+//System.out.println("      DataChannel Emu in: create reader, buf's pos/lim = " + buf.position() + "/" + buf.limit());
                     reader = new EvioCompactReader(buf, pool, false);
-System.out.println("      DataChannel Emu in: incoming data's evio version = " + reader.getEvioVersion());
+//System.out.println("      DataChannel Emu in: incoming data's evio version = " + reader.getEvioVersion());
                 }
                 else {
 //System.out.println("      DataChannel Emu in: set buffer, expected id = " + expectedRecordId);
