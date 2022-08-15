@@ -34,11 +34,18 @@ import org.jlab.coda.emu.support.data.tuple.*;
 
 
 /**
+ * <p>
  * This class implement a data channel which
  * gets data from a hardware front-end via UDP packets.
  * This class acts as "client" which does a connect to the front-end
  * which acts as a "server" and does a bind.
- * This will be streaming format data.
+ * This will be streaming format data.</p>
+ *
+ * To preferentially use IPv6, give following command line option to JVM:
+ * -Djava.net.preferIPv6Addresses=true
+ * Java sockets use either IPv4 or 6 automatically depending on what
+ * kind of addresses are used. No need (or possibility) for setting
+ * this explicitly.
  *
  * @author timmer
  * (3/10/2022)
