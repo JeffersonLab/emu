@@ -448,7 +448,7 @@ System.out.println("getRealData: successfully read in file " + filename);
         super(name, attributeMap, emu);
 
         //outputOrder = ByteOrder.LITTLE_ENDIAN;
-        outputOrder = ByteOrder.BIG_ENDIAN;
+        //outputOrder = ByteOrder.BIG_ENDIAN;
 
         // Set the sync bit every 5000th record
         syncBitCount = 5000;
