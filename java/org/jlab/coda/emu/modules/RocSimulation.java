@@ -359,7 +359,7 @@ System.out.println("getRealData: successfully read " + arrayBytes + " bytes from
         super(name, attributeMap, emu);
 
         //outputOrder = ByteOrder.LITTLE_ENDIAN;
-        outputOrder = ByteOrder.BIG_ENDIAN;
+        //outputOrder = ByteOrder.BIG_ENDIAN;
 
         // Set the sync bit every 5000th record
         syncBitCount = 5000;
@@ -399,7 +399,10 @@ System.out.println("getRealData: successfully read " + arrayBytes + " bytes from
 
         // How many loops to constitute a delay?
         loops = 0;
-        try { loops = Integer.parseInt(attributeMap.get("loops")); }
+        try {
+            loops = Integer.parseInt(attributeMap.get("loops"));
+            System.out.println("  Roc mod: Set loops = " + loops);
+        }
         catch (NumberFormatException e) { /* defaults to 0 */ }
         if (loops < 1) loops = 0;
 
@@ -1590,7 +1593,6 @@ System.out.println("\n  Roc mod: Starting sim ROC frame at " + frameNumber + "\n
 
             int  skip=3, syncBitLoop = syncBitCount;
             int frameChange, fChange;
-            loops = 0;
             int loopCount = loops;
 
             // We can count either frames or events depending if we're streaming or not
@@ -1657,7 +1659,7 @@ System.out.println("\n  Roc mod: Starting sim ROC frame at " + frameNumber + "\n
                     //myRocRecordId += 2;
 //                }
 
-                System.out.println("SETTING loops to " + loops);
+                System.out.println("SET loops to " + loops);
 
                 while (moduleState == CODAState.ACTIVE || paused) {
 
@@ -1742,11 +1744,13 @@ System.out.println("\n  Roc mod: Starting sim ROC frame at " + frameNumber + "\n
                             }
                         }
 
-//Thread.sleep(1);
-                        while (loopCount-- > 0) {
-                            Math.log((double)loopCount);
+                        if (loopCount++ % loops == 0) {
+                            Thread.sleep(1);
                         }
-                        loopCount = loops;
+//                        while (loopCount-- > 0) {
+//                            Math.log((double)loopCount);
+//                        }
+//                        loopCount = loops;
 
                         if (killThd) return;
 
