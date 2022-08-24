@@ -252,10 +252,6 @@ public class StreamAggregator extends ModuleAdapter {
             buildingThreadCount = eventProducingThreads = 2;
         }
         //buildingThreadCount = eventProducingThreads = 2;
-
-        //outputOrder = ByteOrder.LITTLE_ENDIAN;
-logger.info("  EB mod: output byte order = little endian");
-
 logger.info("  EB mod: # of event building threads = " + buildingThreadCount);
 
         // set "data dump" option on
@@ -1550,6 +1546,8 @@ System.out.println("  EB mod: bbSupply -> " + ringItemCount + " # of bufs, direc
                 int[] bankData  = new int[3];
                 int[] returnLen = new int[1];
 
+                long[] timeStamps = new long[4];
+
                 if (outputChannelCount > 1) {
                     outputChannelIndex = -1;
                 }
@@ -1752,22 +1750,25 @@ System.out.println("  EB mod: bt" + btIndex + " ***** found END event at seq " +
                     //   -if I'm a data concentrator or DCAG
                     //   -if I'm a primary aggregatpr or PAG
                     //   -if I'm a secondary aggregator or SAG
-                    tag = CODATag.ROCRAW_STREAMING.getValue();
-//                    CODAClass myClass = emu.getCodaClass();
-//                    switch (myClass) {
-//                        case SAG:
-//                        case PAG:
-//                            eventType = EventType.ROC_RAW_STREAM;
-//                            break;
-//
-//                        case DCAG:
-//                        default:
-                            eventType = EventType.ROC_RAW_STREAM;
+                    CODAClass myClass = emu.getCodaClass();
+                    eventType = EventType.PHYSICS_STREAM;
+                    switch (myClass) {
+                        case SAG:
+                            tag = CODATag.BUILT_BY_SEB_STREAMING.getValue();
+                            break;
+
+                        case PAG:
+                            tag = CODATag.BUILT_BY_PEB_STREAMING.getValue();
+                            break;
+
+                        case DCAG:
+                        default:
+                            tag = CODATag.BUILT_BY_DC_STREAMING.getValue();
                             // Check input banks for non-fatal errors
                             for (int i=0; i < sliceCount; i++) {
                                 nonFatalError |= sameStampBanks[i].hasNonFatalBuildingError();
                             }
-//                    }
+                    }
 
 //                    // 2nd word of top level header
 //                    builtEventHeaderWord2 = (tag << 16) |
@@ -1810,19 +1811,34 @@ System.out.println("  EB mod: bt" + btIndex + " ***** found END event at seq " +
                     }
                     // else if building with ROC raw records ...
                     else {
+                        // If all inputs are from 1 VTP and can be combined into one ROC Time Slice Bank, do it
+                        if (singleVTPInputs()) {
+                            nonFatalError |= Evio.combineSingleVtpStreamsToPhysics(
+                                    sliceCount,
+                                    sameStampBanks,
+                                    evBuf,
+                                    timestampSlop,
+                                    timeStamps,
+                                    returnLen,
+                                    backingBufs,
+                                    inputNodes,
+                                    fastCopyReady);
+                        }
+                        else {
 //System.out.println("  EB mod: bt" + btIndex + " ***** Building frame " + prevFrame + " with " + sliceCount + " ROC RAW time slices");
-                        nonFatalError |= Evio.combineRocStreams(
-                                sliceCount,
-                                sameStampBanks,
-                                evBuf,
-                                tag,
-                                timestampSlop,
-                                prevFrame,
-                                bankData,
-                                returnLen,
-                                backingBufs,
-                                inputNodes,
-                                fastCopyReady);
+                            nonFatalError |= Evio.combineRocStreams(
+                                    sliceCount,
+                                    sameStampBanks,
+                                    evBuf,
+                                    tag,
+                                    timestampSlop,
+                                    prevFrame,
+                                    bankData,
+                                    returnLen,
+                                    backingBufs,
+                                    inputNodes,
+                                    fastCopyReady);
+                        }
 
                         writeIndex = returnLen[0];
                     }
