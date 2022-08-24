@@ -324,10 +324,44 @@ public enum CODATag {
     // STREAMING
     ////////////////////
 
+    /**
+     * Is this the tag of a streaming physics event of any type?
+     * @param val value to test
+     * @return <code>true</code> if tag is for a streaming physics event of any type, else <code>false</code>.
+     */
+    public static boolean isStreamingPhysic(int val) {
+         return (val == ROCRAW_STREAMING.value)       |
+                (val == ROCRAW_STREAMING_ERROR.value) |
+                (val == BUILT_BY_DC_STREAMING.value)  |
+                (val == BUILT_BY_SEB_STREAMING.value) |
+                (val == BUILT_BY_PEB_STREAMING.value);}
+
+    /**
+     * Is this a Stream Info Bank tag?
+     * @param value value to test
+     * @return <code>true</code> if tag of Stream Info Bank, else <code>false</code>.
+     */
     public static boolean isSIB(int value) {return (value == STREAMING_SIB.value);}
+
+    /**
+     * Is this a Time Info Bank tag?
+     * @param value value to test
+     * @return <code>true</code> if tag of Time Info Bank, else <code>false</code>.
+     */
     public static boolean isTIB(int value) {return (value == STREAMING_TIB.value);}
 
+    /**
+     * Is this a Time Slice Segment tag?
+     * @param value value to test
+     * @return <code>true</code> if tag of Time Slice Segment, else <code>false</code>.
+     */
     public static boolean isTSS(int value) {return (value == STREAMING_TSS.value);}
+
+    /**
+     * Is this a Aggregation Info Segment tag?
+     * @param value value to test
+     * @return <code>true</code> if tag of Aggregation Info Segment, else <code>false</code>.
+     */
     public static boolean isAIS(int value) {return (value == STREAMING_AIS.value);}
 
 }
