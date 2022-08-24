@@ -297,14 +297,15 @@ public class EmuDomainTcpServer extends Thread {
                         // The emu (not socket) channel will start a
                         // thread to handle all further communication.
                         try {
-//System.out.println("    Emu TCP Server: domain server, call attachToInput");
                             // There are 2 types of transports/channels that use this server
                             if (isEmuChan) {
+//System.out.println("    Emu TCP Server: domain server, call attachToInput of Emu channel");
                                 DataChannelImplEmu emuChan = (DataChannelImplEmu)inputChannel;
                                 emuChan.attachToInput(channel, codaId, bufferSizeDesired,
                                                       socketCount, socketPosition);
                             }
                             else {
+//System.out.println("    Emu TCP Server: domain server, call attachToInput of TcpStream channel");
                                 DataChannelImplTcpStream tcpStrmChan = (DataChannelImplTcpStream)inputChannel;
                                 tcpStrmChan.attachToInput(channel, codaId, bufferSizeDesired);
                             }
