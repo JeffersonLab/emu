@@ -329,7 +329,7 @@ public enum CODATag {
      * @param val value to test
      * @return <code>true</code> if tag is for a streaming physics event of any type, else <code>false</code>.
      */
-    public static boolean isStreamingPhysic(int val) {
+    public static boolean isStreamingPhysics(int val) {
          return (val == ROCRAW_STREAMING.value)       |
                 (val == ROCRAW_STREAMING_ERROR.value) |
                 (val == BUILT_BY_DC_STREAMING.value)  |
