@@ -162,9 +162,7 @@ public enum CODAClass {
      * @return {@code true} if this class represents an aggregating DC,
      *         else {@code false}.
      */
-    public boolean isDcAggregator() {
-        return (this == DCAG);
-    }
+    public boolean isDcAggregator() { return (this == DCAG); }
 
     /**
      * Is this class representative of a final time slice aggregator emu (NOT DCAG)?
