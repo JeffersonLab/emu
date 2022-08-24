@@ -1434,7 +1434,7 @@ logger.info("    DataChannel UDP stream: total header bytes = " + HEADER_BYTES);
                     throw new EvioException("Empty buffer arriving into input channel ???");
                 }
 
-                if (!CODATag.isStreamingPhysic(topNode.getTag()))  {
+                if (!CODATag.isStreamingPhysics(topNode.getTag()))  {
                     throw new EvioException("Wrong tag for streaming Physics bank, got " +
                             CODATag.getName(topNode.getTag()));
                 }
