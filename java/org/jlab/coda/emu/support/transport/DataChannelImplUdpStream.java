@@ -1355,6 +1355,9 @@ logger.info("    DataChannel UDP stream: total header bytes = " + HEADER_BYTES);
                 pool = (EvioNodePool)item.getMyObject();
                 // Each pool must be reset only once!
                 pool.reset();
+
+                // The following will set the endianness of the buffer when it's scanned,
+                // which overwrites the default big endian setting in creating bbSupply.
                 if (reader == null) {
 //System.out.println("    DataChannel UDP stream in: create reader, buf's pos/lim = " + buf.position() + "/" + buf.limit());
                     reader = new EvioCompactReader(buf, pool, false);
@@ -1409,6 +1412,7 @@ logger.info("    DataChannel UDP stream: total header bytes = " + HEADER_BYTES);
             int eventCount = reader.getEventCount();
             boolean gotRocRaw  = eventType.isFromROC();
             boolean gotPhysics = eventType.isAnyPhysics();
+//System.out.println("    DataChannel UDP stream in: gotRocRaw = " + gotRocRaw + ", is physics = " + gotPhysics);
 
             // For streaming ROC Raw, there is a ROC bank with at least 2 children -
             // one of which is a stream info bank (SIB) and the others which are
@@ -1430,17 +1434,9 @@ logger.info("    DataChannel UDP stream: total header bytes = " + HEADER_BYTES);
                     throw new EvioException("Empty buffer arriving into input channel ???");
                 }
 
-                if (topNode.getChildCount() != 1) {
-                    throw new EvioException("ROC Raw bank should have 1 child, not " + topNode.getChildCount());
-                }
-
-                int physicsTag  = topNode.getTag();
-                if (physicsTag != CODATag.ROCRAW_STREAMING.getValue()  &&
-                    physicsTag != CODATag.BUILT_BY_DC_STREAMING.getValue()  &&
-                    physicsTag != CODATag.BUILT_BY_SEB_STREAMING.getValue() &&
-                    physicsTag != CODATag.BUILT_BY_PEB_STREAMING.getValue())  {
+                if (!CODATag.isStreamingPhysic(topNode.getTag()))  {
                     throw new EvioException("Wrong tag for streaming Physics bank, got " +
-                            CODATag.getName(physicsTag));
+                            CODATag.getName(topNode.getTag()));
                 }
             }
 
@@ -1492,6 +1488,7 @@ logger.info("    DataChannel UDP stream: total header bytes = " + HEADER_BYTES);
 
                         // Find the frame and timestamp now for later ease of use (skip over 5 ints)
                         int pos = node.getPosition();
+//System.out.println("    DataChannel UDP stream in: read ts, node pos = " + pos + ", datalen = " + 4*node.getDataLength());
                         ByteBuffer buff = node.getBuffer();
                         frame = buff.getInt(20 + pos);
                         timestamp = EmuUtilities.intsToLong(buff.getInt(24 + pos), buff.getInt(28 + pos));
