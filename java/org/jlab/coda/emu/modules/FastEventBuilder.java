@@ -283,10 +283,6 @@ public class FastEventBuilder extends ModuleAdapter {
             buildingThreadCount = eventProducingThreads = 2;
         }
         //buildingThreadCount = eventProducingThreads = 1;
-
-        //outputOrder = ByteOrder.LITTLE_ENDIAN;
-logger.info("  EB mod: output byte order = little endian");
-
 logger.info("  EB mod: # of event building threads = " + buildingThreadCount);
 
         // default is NOT to include run number & type in built trigger bank
