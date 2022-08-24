@@ -2222,10 +2222,16 @@ System.out.println("\nEmu " + name + " prestart: looking at module = " + moduleN
                     // ROC Time Slice Bank as opposed to each stream having its own.
                     //------------------------------------------------------------------------------------
 
+                    // Do we have a UDP or TCP stream?
+                    boolean haveUdpStream = false;
+                    boolean haveTcpStream = false;
+
                     // How many inputs are VTPs? are not?
                     int vtpInputs = 0, otherInputs = 0;
+
                     // Number of streams for each of the VTP inputs
                     ArrayList<Integer> streams = new ArrayList<>();
+
                     // Port values in a single array for each VTP stream (1 to 4 values for each VTP).
                     // Each array will be 4 ints in length, but only the first "stream" number are valid.
                     // First entry in streams corresponds to first entry in portArrays, etc.
@@ -2258,8 +2264,10 @@ System.out.println("\nEmu " + name + " prestart: looking at module = " + moduleN
                             // Look up transport object from name
                             DataTransport trans = findTransport(channelTransName);
 
-                            if (!trans.getTransportClass().equals("UdpStream") &&
-                                !trans.getTransportClass().equals("TcpStream")) {
+                            haveTcpStream = trans.getTransportClass().equals("TcpStream");
+                            haveUdpStream = trans.getTransportClass().equals("UdpStream");
+
+                            if (!haveTcpStream && !haveUdpStream) {
                                 // If not streaming channel, skip it
                                 otherInputs++;
                                 continue;
@@ -2267,30 +2275,39 @@ System.out.println("\nEmu " + name + " prestart: looking at module = " + moduleN
 
                             vtpInputs++;
 
-                            // Look through all attributes
+                            // Look through all XML attributes
                             for (int j = 0; j < nnm.getLength(); j++) {
                                 Node a = nnm.item(j);
-                                // Look for "streams"
+                                // Look for "streams", up to 4 for UDP and 2 for TCP
                                 if (a.getNodeName().equalsIgnoreCase("streams")) {
                                     int streamCount = Integer.parseInt(a.getNodeValue());
-System.out.println("Emu " + name + " prestart: add to list, streams = " + streamCount);
+                                    System.out.println("Emu " + name + " prestart: add to list, streams = " + streamCount);
                                     streams.add(streamCount);
                                 }
-                                // Look for "port"
-                                else if (a.getNodeName().equalsIgnoreCase("port")) {
-                                    // There may be fewer than 4 streams, but still define
-                                    // 4 ports, since that's much easier than the alternative.
-                                    Integer[] ports = new Integer[4];
-                                    int startingPort = Integer.parseInt(a.getNodeValue());
-                                    ports[0] = startingPort;
-                                    ports[1] = startingPort + 1;
-                                    ports[2] = startingPort + 2;
-                                    ports[3] = startingPort + 3;
-System.out.println("Emu " + name + " prestart: add to port array, port = " + startingPort);
-                                    portArrays.add(ports);
+
+                                if (haveUdpStream) {
+                                    // Look for "port"
+                                    if (a.getNodeName().equalsIgnoreCase("port")) {
+                                        // There may be fewer than 4 streams, but still define
+                                        // 4 ports, since that's much easier than the alternative.
+                                        Integer[] ports = new Integer[4];
+                                        int startingPort = Integer.parseInt(a.getNodeValue());
+                                        ports[0] = startingPort;
+                                        ports[1] = startingPort + 1;
+                                        ports[2] = startingPort + 2;
+                                        ports[3] = startingPort + 3;
+                                        System.out.println("Emu " + name + " prestart: add to port array, port = " + startingPort);
+                                        portArrays.add(ports);
+                                    }
                                 }
                             }
                         }
+
+                        // There's always at least 1 stream
+                        if (streams.size() < 1) {
+                            streams.add(1);
+                        }
+
                     }
 
                     // Tell this emu that there is only input and it's a VTP
@@ -2354,6 +2371,9 @@ System.out.println("Emu " + name + " prestart: childList length = " + childList.
                         // first module in the config file, then all streams must be combined into a single
                         // ROC Time Slice Bank as opposed to each stream having its own.
                         //------------------------------------------------------------------------------------
+                        haveTcpStream = trans.getTransportClass().equals("TcpStream");
+                        haveUdpStream = trans.getTransportClass().equals("UdpStream");
+
                         int streamCount = 1;
                         Integer[] ports = null;
                         boolean haveVTP = false;
@@ -2362,8 +2382,10 @@ System.out.println("Emu " + name + " prestart: childList length = " + childList.
                         if (codaClass.isDcAggregator() && firstModule && isInputChan) {
 System.out.println("Emu " + name + " prestart: extract streamCount for vtpIndex = " + vtpIndex);
                             streamCount = streams.get(vtpIndex);
-                            System.out.println("Emu " + name + " prestart: streamCount = " + streamCount);
-                            ports = portArrays.get(vtpIndex);
+System.out.println("Emu " + name + " prestart: streamCount = " + streamCount);
+                            if (haveUdpStream) {
+                                ports = portArrays.get(vtpIndex);
+                            }
                             haveVTP = true;
                             vtpIndex++;
                         }
@@ -2380,9 +2402,14 @@ System.out.println("Emu " + name + " prestart: extract streamCount for vtpIndex 
 
                             // Provide proper port # and name for each stream
                             if (haveVTP) {
-                                attributeMap.put("port", "" + ports[strNum]);
                                 chanName = channelName + "_" + strNum;
-System.out.println("Emu " + name + " prestart: Put (port = " + ports[strNum] + ") into attribute map for channel " + chanName);
+                                if (haveUdpStream) {
+                                    attributeMap.put("port", "" + ports[strNum]);
+System.out.println("Emu " + name + " prestart: Put (port = " + ports[strNum] + ") into attribute map for UDP channel " + chanName);
+                                }
+                                else {
+System.out.println("Emu " + name + " prestart: Have streaming TCP channel " + chanName);
+                                }
                             }
 
                             // If it's an input channel ...

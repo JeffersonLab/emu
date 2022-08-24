@@ -194,10 +194,10 @@ public class DataChannelImplTcpStream extends DataChannelAdapter {
         dataTransportImplTcpStream = transport;
 
         if (input) {
-            logger.info("      DataChannel Emu: creating input channel " + name);
+            logger.info("      DataChannel TcpStream: creating input channel " + name);
         }
         else {
-            logger.info("      DataChannel Emu: creating output channel " + name);
+            logger.info("      DataChannel TcpStream: creating output channel " + name);
         }
 
         // Use direct ByteBuffers or not, faster & more stable with non-direct.
@@ -242,12 +242,12 @@ public class DataChannelImplTcpStream extends DataChannelAdapter {
                     if (tcpRecvBuf < 0) {
                         tcpRecvBuf = 0;
                     }
-                    logger.info("      DataChannel Emu: set recvBuf to " + tcpRecvBuf);
+                    logger.info("      DataChannel TcpStream: set recvBuf to " + tcpRecvBuf);
                 }
                 catch (NumberFormatException e) {}
             }
 
-            logger.info("      DataChannel Emu: recvBuf = " + tcpRecvBuf);
+            logger.info("      DataChannel TcpStream: recvBuf = " + tcpRecvBuf);
 
             // set "data dump" option on
             // Currently unused.
@@ -261,7 +261,7 @@ public class DataChannelImplTcpStream extends DataChannelAdapter {
             }
             
 //            dumpData = true;
-//logger.info("      DataChannel Emu: dumpData = " + dumpData);
+//logger.info("      DataChannel TcpStream: dumpData = " + dumpData);
 
 
         }
@@ -277,7 +277,7 @@ public class DataChannelImplTcpStream extends DataChannelAdapter {
                     noDelay = false;
                 }
             }
-            logger.info("      DataChannel Emu: noDelay = " + noDelay);
+            logger.info("      DataChannel TcpStream: noDelay = " + noDelay);
 
             // size of TCP send buffer (0 means use operating system default)
             //tcpSendBuf = 3000000;     // THIS VALUE DOES NOT WORK FOR 1G Ethernet!!!
@@ -289,11 +289,11 @@ public class DataChannelImplTcpStream extends DataChannelAdapter {
                     if (tcpSendBuf < 0) {
                         tcpSendBuf = 0;
                     }
-                    logger.info("      DataChannel Emu: sendBuf = " + tcpSendBuf);
+                    logger.info("      DataChannel TcpStream: sendBuf = " + tcpSendBuf);
                 }
                 catch (NumberFormatException e) {}
             }
-            logger.info("      DataChannel Emu: set sendBuf to " + tcpSendBuf);
+            logger.info("      DataChannel TcpStream: set sendBuf to " + tcpSendBuf);
 
             // Send port
             sendPort = cMsgNetworkConstants.emuTcpPort;
@@ -307,13 +307,14 @@ public class DataChannelImplTcpStream extends DataChannelAdapter {
                 }
                 catch (NumberFormatException e) {}
             }
-            logger.info("      DataChannel Emu: sending on port " + sendPort);
+            logger.info("      DataChannel TcpStream: sending on port " + sendPort);
 
 
             // Size of max buffer
             maxBufferSize = 4000000;
             attribString = attributeMap.get("maxBuf");
             if (attribString != null) {
+logger.info("      DataChannel TcpStream: max buf size attribute string = " + attribString);
                 try {
                     maxBufferSize = Integer.parseInt(attribString);
                     if (maxBufferSize < 0) {
@@ -322,7 +323,7 @@ public class DataChannelImplTcpStream extends DataChannelAdapter {
                 }
                 catch (NumberFormatException e) {}
             }
-            logger.info("      DataChannel Emu: max buf size = " + maxBufferSize);
+            logger.info("      DataChannel TcpStream: max buf size = " + maxBufferSize);
 
             // Emu domain connection timeout in sec
             connectTimeout = -1;
@@ -336,7 +337,7 @@ public class DataChannelImplTcpStream extends DataChannelAdapter {
                 }
                 catch (NumberFormatException e) {}
             }
-            logger.info("      DataChannel Emu: timeout = " + connectTimeout);
+            logger.info("      DataChannel TcpStream: timeout = " + connectTimeout);
 
             // Emu domain preferred subnet in dot-decimal format
             preferredSubnet = null;
@@ -347,7 +348,7 @@ public class DataChannelImplTcpStream extends DataChannelAdapter {
             else {
                 preferredSubnet = attribString;
             }
-            logger.info("      DataChannel Emu: over subnet " + preferredSubnet);
+            logger.info("      DataChannel TcpStream: over subnet " + preferredSubnet);
         }
 
         // State after prestart transition -
@@ -390,7 +391,7 @@ public class DataChannelImplTcpStream extends DataChannelAdapter {
         //
         // Make power of 2, round up
         // numBufs = EmuUtilities.powerOfTwo(numBufs, true);
-        // logger.info("\n\n      DataChannel Emu in: " + numBufs + " buffers in input supply\n\n");
+        // logger.info("\n\n      DataChannel TcpStream in: " + numBufs + " buffers in input supply\n\n");
 
         // Reducing numBufs to 32 increases barrier.waitfor() time from .02% to .4% of EB time
         int numBufs = 32;
@@ -399,7 +400,7 @@ public class DataChannelImplTcpStream extends DataChannelAdapter {
         if (socketChannel == null) {
             parserMergerThread = new ParserMerger();
             nodePools = new EvioNodePool[numBufs];
-//logger.info("      DataChannel Emu in: allocated " + numBufs + " node pools in array");
+//logger.info("      DataChannel TcpStream in: allocated " + numBufs + " node pools in array");
         }
         // If establishing multiple sockets for this single emu channel,
         // make sure their settings are compatible.
@@ -457,7 +458,7 @@ public class DataChannelImplTcpStream extends DataChannelAdapter {
             }
         }
 
-//logger.info("      DataChannel Emu in: seq release of buffers = " + sequentialRelease);
+//logger.info("      DataChannel TcpStream in: seq release of buffers = " + sequentialRelease);
 
         // Create the EvioNode pools,
         // each of which contain 3500 EvioNodes to begin with. These are used for
@@ -465,13 +466,13 @@ public class DataChannelImplTcpStream extends DataChannelAdapter {
         for (int i = 0; i < numBufs; i++) {
             nodePools[i] = new EvioNodePool(3500);
         }
-//logger.info("      DataChannel Emu in: created " + (numBufs) + " node pools for socket " + index + ", " + name());
+//logger.info("      DataChannel TcpStream in: created " + (numBufs) + " node pools for socket " + index + ", " + name());
 
         bbInSupply = new ByteBufferSupply(numBufs, 32,
                                           ByteOrder.BIG_ENDIAN, direct,
                                           sequentialRelease, nodePools);
 
-logger.info("      DataChannel Emu in: connection made from " + name);
+logger.info("      DataChannel TcpStream in: connection made from " + name);
 
         // Start thread to handle socket input
         dataInputThread = new DataInputHelper();
@@ -480,7 +481,7 @@ logger.info("      DataChannel Emu in: connection made from " + name);
         // If this is the last socket, make sure all threads are started up before proceeding
         parserMergerThread.start();
         dataInputThread.waitUntilStarted();
-logger.info("      DataChannel Emu in: last connection made, parser thd started, input threads running");
+logger.info("      DataChannel TcpStream in: last connection made, parser thd started, input threads running");
     }
 
 
@@ -537,7 +538,7 @@ logger.info("      DataChannel Emu in: last connection made, parser thd started,
             builder.append("&noDelay");
         }
 
- logger.info("      DataChannel Emu out: will connect to server w/ multicast UDL = " + builder.toString());
+ logger.info("      DataChannel TcpStream out: will connect to server w/ multicast UDL = " + builder.toString());
         // This connection will contain "sockCount" number of sockets
         // which are all used to send data.
         emuDomain = new cMsg(builder.toString(), name, "emu domain client");
@@ -589,14 +590,14 @@ logger.info("      DataChannel Emu in: last connection made, parser thd started,
             // This connection will contain "sockCount" number of sockets
             // which are all used to send data.
             try {
-logger.info("      DataChannel Emu out: will directly connect to server w/ UDL = " + builder.toString());
+logger.info("      DataChannel TcpStream out: will directly connect to server w/ UDL = " + builder.toString());
                 emuDomain = new cMsg(builder.toString(), name, "emu domain client");
                 emuDomain.connect();
                 startOutputThread();
                 return;
             }
             catch (cMsgException e) {
-                logger.info("      DataChannel Emu out: could not connect to server at " + ip);
+                logger.info("      DataChannel TcpStream out: could not connect to server at " + ip);
                 builder.delete(0, builder.length());
                 continue;
             }
@@ -615,7 +616,7 @@ logger.info("      DataChannel Emu out: will directly connect to server w/ UDL =
 
     private void closeInputSockets() {
         if (!input) return;
-//        logger.info("      DataChannel Emu in: close input sockets from " + name);
+//        logger.info("      DataChannel TcpStream in: close input sockets from " + name);
 
         try {
              in.close();
@@ -671,7 +672,7 @@ logger.info("      DataChannel Emu out: will directly connect to server w/ UDL =
         }
         catch (Exception e) {
             channelState = CODAState.ERROR;
-            emu.setErrorState("      DataChannel Emu out: " + e.getMessage());
+            emu.setErrorState("      DataChannel TcpStream out: " + e.getMessage());
             throw new CmdExecException(e);
         }
 
@@ -699,22 +700,22 @@ logger.info("      DataChannel Emu out: will directly connect to server w/ UDL =
             // The parser merger thread needs to be interrupted first,
             // otherwise the parseToRing method may get stuck waiting
             // on further data in a loop around parkNanos().
-//logger.debug("      DataChannel Emu: end/reset(), interrupt parser/merger thread");
+//logger.debug("      DataChannel TcpStream: end/reset(), interrupt parser/merger thread");
             parserMergerThread.interrupt();
             try {Thread.sleep(10);}
             catch (InterruptedException e) {}
 
             if (dataInputThread != null) {
                 dataInputThread.interrupt();
-//logger.debug("      DataChannel Emu: end/reset(), interrupt input thread " + i);
+//logger.debug("      DataChannel TcpStream: end/reset(), interrupt input thread " + i);
             }
         }
 
         if (dataOutputThread != null) {
-//logger.debug("      DataChannel Emu: end/reset(), interrupt main output thread");
+//logger.debug("      DataChannel TcpStream: end/reset(), interrupt main output thread");
             dataOutputThread.interrupt();
 
-//logger.debug("      DataChannel Emu: end/reset(), interrupt output thread");
+//logger.debug("      DataChannel TcpStream: end/reset(), interrupt output thread");
                 dataOutputThread.sender.endThread();
         }
     }
@@ -727,13 +728,13 @@ logger.info("      DataChannel Emu out: will directly connect to server w/ UDL =
         if (dataInputThread != null) {
             try {parserMergerThread.join(1000);}
             catch (InterruptedException e) {}
-//logger.debug("      DataChannel Emu: end/reset(), joined parser/merger thread");
+//logger.debug("      DataChannel TcpStream: end/reset(), joined parser/merger thread");
 
                 if (dataInputThread != null) {
                     try {dataInputThread.join(1000);}
                     catch (InterruptedException e) {}
                 }
-//logger.debug("      DataChannel Emu: end/reset(), joined input thread " + i);
+//logger.debug("      DataChannel TcpStream: end/reset(), joined input thread " + i);
         }
 
         if (dataOutputThread != null) {
@@ -741,11 +742,11 @@ logger.info("      DataChannel Emu out: will directly connect to server w/ UDL =
             try {dataOutputThread.join(1000);}
             catch (InterruptedException e) {}
 
-//logger.debug("      DataChannel Emu: end/reset(), joined main output thread ");
+//logger.debug("      DataChannel TcpStream: end/reset(), joined main output thread ");
 
                 try {dataOutputThread.sender.join(1000);}
                 catch (InterruptedException e) {}
-//logger.debug("      DataChannel Emu: end/reset(), joined output thread ");
+//logger.debug("      DataChannel TcpStream: end/reset(), joined output thread ");
         }
     }
     
@@ -776,7 +777,7 @@ logger.info("      DataChannel Emu out: will directly connect to server w/ UDL =
             dataOutputThread = null;
 
             try {
-logger.debug("      DataChannel Emu: end(), close output channel " + name);
+logger.debug("      DataChannel TcpStream: end(), close output channel " + name);
                 closeOutputChannel();
             }
             catch (cMsgException e) {}
@@ -809,7 +810,7 @@ logger.debug("      DataChannel Emu: end(), close output channel " + name);
             dataOutputThread = null;
 
             try {
-logger.debug("      DataChannel Emu: end(), close output channel " + name);
+logger.debug("      DataChannel TcpStream: end(), close output channel " + name);
                 closeOutputChannel();
             }
             catch (cMsgException e) {}
@@ -911,7 +912,7 @@ logger.debug("      DataChannel Emu: end(), close output channel " + name);
 
                     if (pause) {
                         if (pauseCounter++ % 400 == 0)
-                            logger.warn("      DataChannel Emu in: " + name + " - PAUSED");
+                            logger.warn("      DataChannel TcpStream in: " + name + " - PAUSED");
                         Thread.sleep(5);
                         continue;
                     }
@@ -919,14 +920,14 @@ logger.debug("      DataChannel Emu: end(), close output channel " + name);
 
                     // Sets the producer sequence
                     item = bbSupply.get();
-//System.out.println("      DataChannel Emu in: GOT item " + item.myIndex + " from ByteBuffer supply");
+//System.out.println("      DataChannel TcpStream in: GOT item " + item.myIndex + " from ByteBuffer supply");
 
                     // First read the command & size with one read, into a long.
                     // These 2, 32-bit ints are sent in network byte order, cmd first.
                     // Reading a long assumes big endian so cmd, which is sent
                     // first, should appear in most significant bytes.
                     if (direct) {
-//System.out.println("      DataChannel Emu in: Try reading buffer hdr words into direct buf");
+//System.out.println("      DataChannel TcpStream in: Try reading buffer hdr words into direct buf");
                         sockChannel.read(wordCmdBuf);
                         cmd  = ibuf.get();
                         size = ibuf.get();
@@ -937,16 +938,16 @@ logger.debug("      DataChannel Emu: end(), close output channel " + name);
                         buf = item.getBuffer();
                         buf.limit(size);
 
-//System.out.println("      DataChannel Emu in: got cmd = " + cmd + ", size = " + size + ", now read in data ...");
+//System.out.println("      DataChannel TcpStream in: got cmd = " + cmd + ", size = " + size + ", now read in data ...");
                         // Be sure to read everything
                         while (buf.hasRemaining()) {
                             sockChannel.read(buf);
                         }
-//System.out.println("      DataChannel Emu in: done reading in data");
+//System.out.println("      DataChannel TcpStream in: done reading in data");
                         buf.flip();
                     }
                     else {
-//System.out.println("      DataChannel Emu in: Try reading buffer hdr words");
+//System.out.println("      DataChannel TcpStream in: Try reading buffer hdr words");
                         word = inStream.readLong();
                         cmd  = (int) ((word >>> 32) & 0xffL);
                         size = (int)   word;   // just truncate for lowest 32 bytes
@@ -954,35 +955,35 @@ logger.debug("      DataChannel Emu: end(), close output channel " + name);
                         buf = item.getBuffer();
                         buf.limit(size);
 
-//System.out.println("      DataChannel Emu in: got cmd = " + cmd + ", size = " + size + ", now read in data ...");
+//System.out.println("      DataChannel TcpStream in: got cmd = " + cmd + ", size = " + size + ", now read in data ...");
                         inStream.readFully(item.getBuffer().array(), 0, size);
-//System.out.println("      DataChannel Emu in: done reading in data");
+//System.out.println("      DataChannel TcpStream in: done reading in data");
                     }
-//System.out.println("      DataChannel Emu in: " + name + ", incoming buf size = " + size);
+//System.out.println("      DataChannel TcpStream in: " + name + ", incoming buf size = " + size);
 //Utilities.printBuffer(item.getBuffer(), 0, size/4, "PRESTART EVENT, buf lim = " + buf.limit());
                     bbSupply.publish(item);
 
                     // We just received the END event
                     if (cmd == cMsgConstants.emuEvioEndEvent) {
-System.out.println("      DataChannel Emu in: " + name + ", got END event, exit reading thd");
+System.out.println("      DataChannel TcpStream in: " + name + ", got END event, exit reading thd");
                         return;
                     }
                 }
             }
             catch (InterruptedException e) {
-                logger.warn("      DataChannel Emu in: " + name + ", interrupted, exit reading thd");
+                logger.warn("      DataChannel TcpStream in: " + name + ", interrupted, exit reading thd");
             }
             catch (AsynchronousCloseException e) {
-                logger.warn("      DataChannel Emu in: " + name + ", socket closed, exit reading thd");
+                logger.warn("      DataChannel TcpStream in: " + name + ", socket closed, exit reading thd");
             }
             catch (EOFException e) {
                 // Assume that if the other end of the socket closes, it's because it has
                 // sent the END event and received the end() command.
-                logger.warn("      DataChannel Emu in: " + name + ", other end of socket closed, exit reading thd");
+                logger.warn("      DataChannel TcpStream in: " + name + ", other end of socket closed, exit reading thd");
             }
             catch (Exception e) {
                 if (haveInputEndEvent) {
-System.out.println("      DataChannel Emu in: " + name +
+System.out.println("      DataChannel TcpStream in: " + name +
                    ", exception but already have END event, so exit reading thd");
                     return;
                 }
@@ -990,7 +991,7 @@ System.out.println("      DataChannel Emu in: " + name +
                 channelState = CODAState.ERROR;
                 // If error msg already set, this will not
                 // set it again. It will send it to rc.
-                String errString = "DataChannel Emu in: error reading " + name;
+                String errString = "DataChannel TcpStream in: error reading " + name;
                 if (e.getMessage() != null) {
                     errString += ' ' + e.getMessage();
                 }
@@ -1029,20 +1030,20 @@ System.out.println("      DataChannel Emu in: " + name +
                     // Sets the consumer sequence
                     ByteBufferItem item = bbSupply.consumerGet();
                     if (parseStreamingToRing(item, bbSupply)) {
-                        logger.info("      DataChannel Emu in: 1 quit streaming parser/merger thread for END event from " + name);
+                        logger.info("      DataChannel TcpStream in: 1 quit streaming parser/merger thread for END event from " + name);
                         break;
                     }
                 }
             }
             catch (InterruptedException e) {
-//                logger.warn("      DataChannel Emu in: " + name +
+//                logger.warn("      DataChannel TcpStream in: " + name +
 //                            " parserMerger thread interrupted, quitting ####################################");
             }
             catch (EvioException e) {
                 // Bad data format or unknown control event.
                 e.printStackTrace();
                 channelState = CODAState.ERROR;
-                emu.setErrorState("DataChannel Emu in: " + e.getMessage());
+                emu.setErrorState("DataChannel TcpStream in: " + e.getMessage());
             }
         }
 
@@ -1066,7 +1067,7 @@ System.out.println("      DataChannel Emu in: " + name +
 
             // Get buffer from an item from ByteBufferSupply - one per channel
             ByteBuffer buf = item.getBuffer();
-//Utilities.printBytes(buf, 0, 240, "Incoming buf");
+//Utilities.printBytes(buf, 0, 100, "Incoming buf");
 
 //            // Do this for possibly compressed data. Make sure the buffer we got from the
 //            // supply is big enough to hold the uncompressed data. If not, created a new,
@@ -1080,12 +1081,12 @@ System.out.println("      DataChannel Emu in: " + name +
                 // Each pool must be reset only once!
                 pool.reset();
                 if (reader == null) {
-//System.out.println("      DataChannel Emu in: create reader, buf's pos/lim = " + buf.position() + "/" + buf.limit());
+//System.out.println("      DataChannel TcpStream in: create reader, buf's pos/lim = " + buf.position() + "/" + buf.limit());
                     reader = new EvioCompactReader(buf, pool, false);
-//System.out.println("      DataChannel Emu in: incoming data's evio version = " + reader.getEvioVersion());
+//System.out.println("      DataChannel TcpStream in: incoming data's evio version = " + reader.getEvioVersion());
                 }
                 else {
-//System.out.println("      DataChannel Emu in: set buffer, expected id = " + expectedRecordId);
+//System.out.println("      DataChannel TcpStream in: set buffer, expected id = " + expectedRecordId);
                     reader.setBuffer(buf, pool);
                 }
 
@@ -1100,7 +1101,7 @@ System.out.println("      DataChannel Emu in: " + name +
                 }
             }
             catch (EvioException e) {
-                System.out.println("      DataChannel Emu in: data NOT evio format 1");
+                System.out.println("      DataChannel TcpStream in: data NOT evio format 1");
                 e.printStackTrace();
                 Utilities.printBytes(buf, 0, 80, "BAD BUFFER TO PARSE");
                 throw e;
@@ -1128,9 +1129,9 @@ System.out.println("      DataChannel Emu in: " + name +
             // Check record for sequential record id
             expectedRecordId = Evio.checkRecordIdSequence(recordId, expectedRecordId, false,
                                                           eventType, DataChannelImplTcpStream.this);
-//System.out.println("      DataChannel Emu in: expected record id = " + expectedRecordId +
+//System.out.println("      DataChannel TcpStream in: expected record id = " + expectedRecordId +
 //                    ", actual = " + recordId);
-//System.out.println("      DataChannel Emu in: event type = " + eventType + ", event count = " + reader.getEventCount() + " from " + name + "\n");
+//System.out.println("      DataChannel TcpStream in: event type = " + eventType + ", event count = " + reader.getEventCount() + " from " + name + "\n");
 //            EvioNode nd = reader.getScannedEvent(1, pool);
 //Utilities.printBytes(nd.getBuffer(), 0, nd.getTotalBytes(), "First event bytes");
 
@@ -1158,17 +1159,9 @@ System.out.println("      DataChannel Emu in: " + name +
                     throw new EvioException("Empty buffer arriving into input channel ???");
                 }
 
-                if (topNode.getChildCount() != 1) {
-                    throw new EvioException("ROC Raw bank should have 1 child, not " + topNode.getChildCount());
-                }
-
-                int physicsTag  = topNode.getTag();
-                if (physicsTag != CODATag.ROCRAW_STREAMING.getValue()  &&
-                        physicsTag != CODATag.BUILT_BY_DC_STREAMING.getValue()  &&
-                        physicsTag != CODATag.BUILT_BY_SEB_STREAMING.getValue() &&
-                        physicsTag != CODATag.BUILT_BY_PEB_STREAMING.getValue())  {
+                if (!CODATag.isStreamingPhysics(topNode.getTag()))  {
                     throw new EvioException("Wrong tag for streaming Physics bank, got " +
-                            CODATag.getName(physicsTag));
+                            CODATag.getName(topNode.getTag()));
                 }
             }
 
@@ -1195,7 +1188,7 @@ System.out.println("      DataChannel Emu in: " + name +
 
                 // This should NEVER happen
                 if (topNode == null) {
-                    System.out.println("      DataChannel Emu in: WARNING, event count = " + eventCount +
+                    System.out.println("      DataChannel TcpStream in: WARNING, event count = " + eventCount +
                             " but get(Scanned)Event(" + i + ") is null - evio parsing bug");
                     continue;
                 }
@@ -1210,9 +1203,9 @@ System.out.println("      DataChannel Emu in: " + name +
                         isUser = true;
                         eventType = EventType.USER;
                         if (hasFirstEvent) {
-                            System.out.println("      DataChannel Emu in: " + name + "  FIRST event from ROC RAW");
+                            System.out.println("      DataChannel TcpStream in: " + name + "  FIRST event from ROC RAW");
                         } else {
-                            System.out.println("      DataChannel Emu in: " + name + " USER event from ROC RAW");
+                            System.out.println("      DataChannel TcpStream in: " + name + " USER event from ROC RAW");
                         }
                     }
                     else {
@@ -1228,7 +1221,7 @@ System.out.println("      DataChannel Emu in: " + name +
                         ByteBuffer buff = node.getBuffer();
                         frame = buff.getInt(20 + pos);
                         timestamp = EmuUtilities.intsToLong(buff.getInt(24 + pos), buff.getInt(28 + pos));
-//System.out.println("      DataChannel Emu in: roc raw has frame = " + frame + ", timestamp = " + timestamp + ", pos = " + pos);
+//System.out.println("      DataChannel TcpStream in: roc raw has frame = " + frame + ", timestamp = " + timestamp + ", pos = " + pos);
                     }
                 }
                 else if (eventType.isBuildable()) {
@@ -1245,24 +1238,24 @@ System.out.println("      DataChannel Emu in: " + name +
                     ByteBuffer buff = node.getBuffer();
                     frame = buff.getInt(16 + pos);
                     timestamp = EmuUtilities.intsToLong(buff.getInt(20 + pos), buff.getInt(24 + pos));
-//System.out.println("      DataChannel Emu in: buildable has frame = " + frame + ", timestamp = " + timestamp + ", pos = " + pos);
+//System.out.println("      DataChannel TcpStream in: buildable has frame = " + frame + ", timestamp = " + timestamp + ", pos = " + pos);
                 }
                 else if (eventType == EventType.CONTROL) {
                     // Find out exactly what type of control event it is
                     // (May be null if there is an error).
                     controlType = ControlType.getControlType(node.getTag());
-logger.info("      DataChannel Emu in: got " + controlType + " event from " + name);
+logger.info("      DataChannel TcpStream in: got " + controlType + " event from " + name);
                     if (controlType == null) {
-                        logger.info("      DataChannel Emu in: found unidentified control event");
+                        logger.info("      DataChannel TcpStream in: found unidentified control event");
                         throw new EvioException("Found unidentified control event");
                     }
                 }
                 else if (eventType == EventType.USER) {
                     isUser = true;
                     if (hasFirstEvent) {
-                        logger.info("      DataChannel Emu in: " + name + " got FIRST event");
+                        logger.info("      DataChannel TcpStream in: " + name + " got FIRST event");
                     } else {
-                        logger.info("      DataChannel Emu in: " + name + " got USER event");
+                        logger.info("      DataChannel TcpStream in: " + name + " got USER event");
                     }
 //                } else if (evType == EventType.MIXED) {
 //                        // Mix of event types.
@@ -1286,16 +1279,16 @@ logger.info("      DataChannel Emu in: got " + controlType + " event from " + na
 //                            if (ControlType.isControl(tag)) {
 //                                controlType = ControlType.getControlType(tag);
 //                                evType = EventType.CONTROL;
-//                                logger.info("      DataChannel Emu in: " + name + " mixed type to " + controlType.name());
+//                                logger.info("      DataChannel TcpStream in: " + name + " mixed type to " + controlType.name());
 //                            }
 //                            else {
 //                                isUser = true;
 //                                evType = EventType.USER;
-//                                logger.info("      DataChannel Emu in: " + name + " mixed type to user type");
+//                                logger.info("      DataChannel TcpStream in: " + name + " mixed type to user type");
 //                            }
 //                        }
 //                        else {
-//                            logger.info("      DataChannel Emu in: " + name + " mixed type to ROC RAW");
+//                            logger.info("      DataChannel TcpStream in: " + name + " mixed type to ROC RAW");
 //                            evType = EventType.ROC_RAW;
 //                            // Pick this raw data event apart a little
 //                            if (!node.getDataTypeObj().isBank()) {
@@ -1339,14 +1332,14 @@ logger.info("      DataChannel Emu in: got " + controlType + " event from " + na
 
                 // Set & reset all parameters of the ringItem
                 if (eventType.isBuildable()) {
-//logger.info("      DataChannel Emu in: put buildable event into channel ring, event from " + name);
+//logger.info("      DataChannel TcpStream in: put buildable event into channel ring, event from " + name);
                     ri.setAll(null, null, node, eventType, controlType,
                             isUser, hasFirstEvent, module.isStreamingData(), id, recordId, sourceId,
                             node.getNum(), name, item, bbSupply);
                     ri.setTimeFrame(frame);
                     ri.setTimestamp(timestamp);
                 } else {
-logger.info("      DataChannel Emu in: put CONTROL (user?) event into channel ring, event from " + name);
+logger.info("      DataChannel TcpStream in: put CONTROL (user?) event into channel ring, event from " + name);
                     ri.setAll(null, null, node, eventType, controlType,
                             isUser, hasFirstEvent, module.isStreamingData(), id, recordId, sourceId,
                             1, name, item, bbSupply);
@@ -1365,7 +1358,7 @@ logger.info("      DataChannel Emu in: put CONTROL (user?) event into channel ri
                     haveInputEndEvent = true;
                     // Run callback saying we got end event
                     if (endCallback != null) endCallback.endWait();
-logger.info("      DataChannel Emu in: BREAK from loop, got END event");
+logger.info("      DataChannel TcpStream in: BREAK from loop, got END event");
                     break;
                 }
             }
@@ -1537,7 +1530,7 @@ System.out.println("SocketSender thread interrupted");
                     catch (Exception e) {
                         e.printStackTrace();
                         channelState = CODAState.ERROR;
-                        emu.setErrorState("DataChannel Emu out: " + e.getMessage());
+                        emu.setErrorState("DataChannel TcpStream out: " + e.getMessage());
                         return;
                     }
 
@@ -1734,14 +1727,14 @@ System.out.println("DataOutputHelper constr: making BB supply of 8 bufs @ bytes 
                 }
 
                 recordId++;
-//System.out.println("      DataChannel Emu out: writeEvioData: record Id set to " + blockNum +
+//System.out.println("      DataChannel TcpStream out: writeEvioData: record Id set to " + blockNum +
 //                  ", then incremented to " + recordId);
 
                 // Make sure there's enough room for that one event
                 if (rItem.getTotalBytes() > currentBuffer.capacity()) {
                     currentBBitem.ensureCapacity(rItem.getTotalBytes() + 1024);
                     currentBuffer = currentBBitem.getBuffer();
-//System.out.println("\n  &&&&&  DataChannel Emu out: writeEvioData:  expand 1 current buf -> rec # = " + currentBuffer.getInt(4));
+//System.out.println("\n  &&&&&  DataChannel TcpStream out: writeEvioData:  expand 1 current buf -> rec # = " + currentBuffer.getInt(4));
                 }
 
                 // Write the event ..
@@ -1749,7 +1742,7 @@ System.out.println("DataOutputHelper constr: making BB supply of 8 bufs @ bytes 
                 if (rItem.isFirstEvent()) {
                     EmuUtilities.setFirstEvent(bitInfo);
                 }
-//System.out.println("      DataChannel Emu out: writeEvioData: single write into buffer");
+//System.out.println("      DataChannel TcpStream out: writeEvioData: single write into buffer");
                 writer.setBuffer(currentBuffer, bitInfo, blockNum);
 
                 // Unset first event for next round
@@ -1758,7 +1751,7 @@ System.out.println("DataOutputHelper constr: making BB supply of 8 bufs @ bytes 
                 ByteBuffer buf = rItem.getBuffer();
                 if (buf != null) {
                     try {
-//System.out.println("      DataChannel Emu out: writeEvioData: single ev buf, pos = " + buf.position() +
+//System.out.println("      DataChannel TcpStream out: writeEvioData: single ev buf, pos = " + buf.position() +
 //", lim = " + buf.limit() + ", cap = " + buf.capacity());
                         boolean fit = writer.writeEvent(buf);
                         if (!fit) {
@@ -1806,24 +1799,24 @@ System.out.println("      c: single ev buf, pos = " + buf.position() +
 //                }
 
                 if (isBuildable) {
-//System.out.println("      DataChannel Emu out: writeEvioData: flush " + eType + " type event, don't force ");
+//System.out.println("      DataChannel TcpStream out: writeEvioData: flush " + eType + " type event, don't force ");
                     flushEvents(false, false, true);
                 }
                 else {
-//System.out.println("      DataChannel Emu out: writeEvioData: flush " + eType + " type event, FORCE");
+//System.out.println("      DataChannel TcpStream out: writeEvioData: flush " + eType + " type event, FORCE");
                     if (rItem.getControlType() == ControlType.END) {
-//System.out.println("      DataChannel Emu out: writeEvioData: call flushEvents for END");
+//System.out.println("      DataChannel TcpStream out: writeEvioData: call flushEvents for END");
                         flushEvents(true, true, false);
                     }
                     else {
-//System.out.println("      DataChannel Emu out: writeEvioData: call flushEvents for non-END");
+//System.out.println("      DataChannel TcpStream out: writeEvioData: call flushEvents for non-END");
                         flushEvents(true, false, false);
                     }
                 }
             }
             // If we're marshalling events into a single buffer before sending ...
             else {
-//System.out.println("      DataChannel Emu out: writeEvioData: events into buf, written = " + eventsWritten +
+//System.out.println("      DataChannel TcpStream out: writeEvioData: events into buf, written = " + eventsWritten +
 //", closed = " + writer.isClosed());
                 // If we've already written at least 1 event AND
                 // (we have no more room in buffer OR we're changing event types),
@@ -1831,17 +1824,17 @@ System.out.println("      c: single ev buf, pos = " + buf.position() +
                 if ((eventsWritten > 0 && !writer.isClosed())) {
                     // If previous type not data ...
                     if (previousEventType != eType) {
-//System.out.println("      DataChannel Emu out: writeEvioData *** switch types, call flush at current event count = " + currentEventCount);
+//System.out.println("      DataChannel TcpStream out: writeEvioData *** switch types, call flush at current event count = " + currentEventCount);
                         flushEvents(false, false, false);
                     }
                     // Else if there's no more room or have exceeded event count limit ...
                     else if (!writer.hasRoom(rItem.getTotalBytes()) ||
                             (regulateBufferRate && (currentEventCount >= eventsPerBuffer))) {
-//System.out.println("      DataChannel Emu out: writeEvioData *** no room so call flush at current event count = " + currentEventCount);
+//System.out.println("      DataChannel TcpStream out: writeEvioData *** no room so call flush at current event count = " + currentEventCount);
                         flushEvents(false, false, true);
                     }
 //                    else {
-//System.out.println("      DataChannel Emu out: writeEvioData *** PLENTY OF ROOM, has room = " +
+//System.out.println("      DataChannel TcpStream out: writeEvioData *** PLENTY OF ROOM, has room = " +
 //                           writer.hasRoom(rItem.getTotalBytes()));
 //                    }
                     // Flush closes the writer so that the next "if" is true
@@ -1866,7 +1859,7 @@ System.out.println("      c: single ev buf, pos = " + buf.position() +
 //System.out.println("\nwriteEvioData: after setBuffer, eventsWritten = " + writer.getEventsWritten());
                 }
 
-//System.out.println("      DataChannel Emu write: write ev into buf");
+//System.out.println("      DataChannel TcpStream write: write ev into buf");
                 // Write the new event ..
                 ByteBuffer buf = rItem.getBuffer();
                 if (buf != null) {
@@ -1952,7 +1945,7 @@ System.out.println("      c: single ev buf, pos = " + buf.position() +
                             if (gotPrestart) {
                                 throw new EmuException("got 2 prestart events");
                             }
-logger.info("      DataChannel Emu out " + outputIndex + ": send prestart event");
+logger.info("      DataChannel TcpStream out " + outputIndex + ": send prestart event");
                             gotPrestart = true;
                             writeEvioData(ringItem);
                         }
@@ -1967,7 +1960,7 @@ logger.info("      DataChannel Emu out " + outputIndex + ": send prestart event"
                                 throw new EmuException("second control event must be go or end");
                             }
 
-logger.info("      DataChannel Emu out " + outputIndex + ": send " + pBankControlType + " event");
+logger.info("      DataChannel TcpStream out " + outputIndex + ": send " + pBankControlType + " event");
                             writeEvioData(ringItem);
 
                             // Release and go to the next event
@@ -1979,7 +1972,7 @@ logger.info("      DataChannel Emu out " + outputIndex + ": send " + pBankContro
                     }
                     // If user event ...
                     else if (pBankType == EventType.USER) {
-logger.debug("      DataChannel Emu out " + outputIndex + ": send user event");
+logger.debug("      DataChannel TcpStream out " + outputIndex + ": send user event");
                         // Write user event
                         writeEvioData(ringItem);
                     }
@@ -1995,7 +1988,7 @@ logger.debug("      DataChannel Emu out " + outputIndex + ": send user event");
 
                 if (pBankControlType == ControlType.END) {
                     // END event automatically flushed in writeEvioData()
-logger.info("      DataChannel Emu out: " + name + " got END event, quitting 1");
+logger.info("      DataChannel TcpStream out: " + name + " got END event, quitting 1");
                     threadState = ThreadState.DONE;
                     return;
                 }
@@ -2032,7 +2025,7 @@ logger.info("      DataChannel Emu out: " + name + " got END event, quitting 1")
                         throw e;
                     }
 
-//logger.info("      DataChannel Emu out: send seq " + nextSequences[ringIndex] + ", release ring item");
+//logger.info("      DataChannel TcpStream out: send seq " + nextSequences[ringIndex] + ", release ring item");
                     releaseCurrentAndGoToNextOutputRingItem(ringIndex);
 
                     // Do not go to the next ring if we got a control or user event.
@@ -2041,19 +2034,19 @@ logger.info("      DataChannel Emu out: " + name + " got END event, quitting 1")
                     // we know when to switch to the next ring.
                     if (outputRingCount > 1 && pBankControlType == null && !pBankType.isUser()) {
                         setNextEventAndRing();
-//logger.info("      DataChannel Emu out, " + name + ": for seq " + nextSequences[ringIndex] + " SWITCH TO ring = " + ringIndex);
+//logger.info("      DataChannel TcpStream out, " + name + ": for seq " + nextSequences[ringIndex] + " SWITCH TO ring = " + ringIndex);
                     }
 
                     if (pBankControlType == ControlType.END) {
                         // END event automatically flushed in writeEvioData()
-logger.info("      DataChannel Emu out: " + name + " got END event, quitting 2");
+logger.info("      DataChannel TcpStream out: " + name + " got END event, quitting 2");
                         threadState = ThreadState.DONE;
                         return;
                     }
 
                     // If I've been told to RESET ...
                     if (gotResetCmd) {
-logger.info("      DataChannel Emu out: " + name + " got RESET cmd, quitting");
+logger.info("      DataChannel TcpStream out: " + name + " got RESET cmd, quitting");
                         threadState = ThreadState.DONE;
                         return;
                     }
@@ -2070,13 +2063,13 @@ System.out.println("TIME FLUSH ******************, time = " + t + ", last time =
 
             }
             catch (InterruptedException e) {
-                logger.warn("      DataChannel Emu out: " + name + "  interrupted thd, quitting");
+                logger.warn("      DataChannel TcpStream out: " + name + "  interrupted thd, quitting");
             }
             catch (Exception e) {
                 e.printStackTrace();
                 channelState = CODAState.ERROR;
-System.out.println("      DataChannel Emu out:" + e.getMessage());
-                emu.setErrorState("DataChannel Emu out: " + e.getMessage());
+System.out.println("      DataChannel TcpStream out:" + e.getMessage());
+                emu.setErrorState("DataChannel TcpStream out: " + e.getMessage());
             }
         }
 
