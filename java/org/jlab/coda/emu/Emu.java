@@ -2382,7 +2382,7 @@ System.out.println("Emu " + name + " prestart: extract streamCount for vtpIndex 
                             if (haveVTP) {
                                 attributeMap.put("port", "" + ports[strNum]);
                                 chanName = channelName + "_" + strNum;
-System.out.println("Emu " + name + " prestart: Put (port," + ports[strNum] + ") into attribute map for channel " + chanName);
+System.out.println("Emu " + name + " prestart: Put (port = " + ports[strNum] + ") into attribute map for channel " + chanName);
                             }
 
                             // If it's an input channel ...
