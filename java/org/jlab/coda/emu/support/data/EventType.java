@@ -25,13 +25,14 @@ public enum EventType {
     CONTROL              (5),
     MIXED                (6),
     ROC_RAW_STREAM       (8),
+    PHYSICS_STREAM       (9),
     OTHER                (15);
 
-    private int value;
+    private final int value;
 
 
     /** Fast way to convert integer values into EventType objects. */
-    private static EventType[] intToType;
+    private final static EventType[] intToType;
 
 
     // Fill array after all enum objects created
@@ -138,7 +139,15 @@ public enum EventType {
      */
     public boolean isAnyPhysics() {
         return (this == PHYSICS || this == PARTIAL_PHYSICS ||
-                this == DISENTANGLED_PHYSICS);
+                this == DISENTANGLED_PHYSICS || this == PHYSICS_STREAM);
+    }
+
+    /**
+     * Is this a streaming physics event type?
+     * @return <code>true</code> if streaming physics event type, else <code>false</code>
+     */
+    public boolean isPhysicsStream() {
+        return this == PHYSICS_STREAM;
     }
 
     /**
@@ -179,7 +188,8 @@ public enum EventType {
      * @return <code>true</code> if buildable by the event builder, else <code>false</code>
      */
     public boolean isBuildable() {
-        return (this == ROC_RAW || this == ROC_RAW_STREAM || this == PHYSICS || this == PARTIAL_PHYSICS);
+        return (this == ROC_RAW || this == ROC_RAW_STREAM || this == PHYSICS_STREAM ||
+                this == PHYSICS || this == PARTIAL_PHYSICS);
     }
 
     /**
