@@ -202,7 +202,6 @@ public class DataChannelImplTcpStream extends DataChannelAdapter {
 
         // Use direct ByteBuffers or not, faster & more stable with non-direct.
         // Turn this off since performance is better.
-        direct = false;
         String attribString = attributeMap.get("direct");
         if (attribString != null) {
             if (attribString.equalsIgnoreCase("false") ||
@@ -211,6 +210,7 @@ public class DataChannelImplTcpStream extends DataChannelAdapter {
                 direct = false;
             }
         }
+        direct = false;
 
         // if INPUT channel
         if (input) {
