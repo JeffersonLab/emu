@@ -965,7 +965,7 @@ System.out.println("  EB mod: findEnd, chan " + ch + " got END from " + source +
             }
 
             // To help with FPGA-based VTP - with no PRESTART event - ignore its lack
-            if (!dataFromVTP()) {
+//            if (!dataFromVTP()) {
                 // First thing we do is look for the PRESTART event(s) and pass it on
                 try {
                     // Sorter thread writes prestart event on all output channels, ring 0.
@@ -1003,21 +1003,21 @@ System.out.println("  EB mod: findEnd, chan " + ch + " got END from " + source +
                     moduleState = CODAState.ERROR;
                     return;
                 }
-            }
-            else {
-                try {
-                    controlToOutputAsync(true, false, name);
-                }
-                catch (InterruptedException e) {
-                    e.printStackTrace();
-                    // If interrupted we must quit
-                    if (debug) System.out.println("  EB mod: interrupted while waiting for prestart event");
-                    emu.setErrorState("EB interrupted waiting for prestart event");
-                    moduleState = CODAState.ERROR;
-                    return;
-                }
-            }
-
+//            }
+//            else {
+//                try {
+//                    controlToOutputAsync(true, false, name);
+//                }
+//                catch (InterruptedException e) {
+//                    e.printStackTrace();
+//                    // If interrupted we must quit
+//                    if (debug) System.out.println("  EB mod: interrupted while waiting for prestart event");
+//                    emu.setErrorState("EB interrupted waiting for prestart event");
+//                    moduleState = CODAState.ERROR;
+//                    return;
+//                }
+//            }
+//
 
             prestartCallback.endWait();
             haveAllPrestartEvents = true;
@@ -1025,7 +1025,7 @@ System.out.println("  EB mod: findEnd, chan " + ch + " got END from " + source +
 
 
             // To help with FPGA-based VTP - with no GO event - ignore its lack
-            if (!dataFromVTP()) {
+//            if (!dataFromVTP()) {
                 // Second thing we do is look for the GO or END event and pass it on
                 try {
                     // Sorter thread writes GO event on all output channels, ring 0.
@@ -1037,6 +1037,7 @@ System.out.println("  EB mod: findEnd, chan " + ch + " got END from " + source +
                         if (cType.isEnd()) {
                             haveEndEvent = true;
                             controlToOutputAsync(false, true, name);
+                            if (endCallback != null) endCallback.endWait();
                             System.out.println("  EB mod: got all END events");
                             return;
                         }
@@ -1062,20 +1063,20 @@ System.out.println("  EB mod: findEnd, chan " + ch + " got END from " + source +
                     moduleState = CODAState.ERROR;
                     return;
                 }
-            }
-            else {
-                try {
-                    controlToOutputAsync(false, false, name);
-                }
-                catch (InterruptedException e) {
-                    e.printStackTrace();
-                    // If interrupted, then we must quit
-                    if (debug) System.out.println("  EB mod: interrupted while waiting for go event");
-                    emu.setErrorState("EB interrupted waiting for go event");
-                    moduleState = CODAState.ERROR;
-                    return;
-                }
-            }
+//            }
+//            else {
+//                try {
+//                    controlToOutputAsync(false, false, name);
+//                }
+//                catch (InterruptedException e) {
+//                    e.printStackTrace();
+//                    // If interrupted, then we must quit
+//                    if (debug) System.out.println("  EB mod: interrupted while waiting for go event");
+//                    emu.setErrorState("EB interrupted waiting for go event");
+//                    moduleState = CODAState.ERROR;
+//                    return;
+//                }
+//            }
 
             System.out.println("  EB mod: got all GO events");
 
