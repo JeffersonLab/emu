@@ -1856,19 +1856,16 @@ if (debug) System.out.println("Emu " + name + " end: end() done in fake ROC " + 
             //boolean gotEndEvent, gotAllEnds=true;
             boolean gotEndEvent=true, gotAllEnds=true;
 
-            // If we're handling data from a VTP, there will be NO END event coming,
-            // so skip over looking for it!
-            if (!dataFromVTP) {
-                // Look at the input channels for END first
-                if (inChannels.size() > 0) {
-                    for (DataChannel chan : inChannels) {
+            // Look at the input channels for END first
+            if (inChannels.size() > 0) {
+                for (DataChannel chan : inChannels) {
 //                    try {
-                        if (debug)
-                            System.out.println("Emu " + name + " end: in chan " + chan.name() + " wait for END event");
-                        //gotEndEvent = chan.getEndCallback().waitForEvent(timeout, timeUnits);
-                        chan.getEndCallback().waitForEvent();
-                        if (debug)
-                            System.out.println("Emu " + name + " end: in chan " + chan.name() + " got END event");
+                    if (debug)
+                        System.out.println("Emu " + name + " end: in chan " + chan.name() + " wait for END event");
+                    //gotEndEvent = chan.getEndCallback().waitForEvent(timeout, timeUnits);
+                    chan.getEndCallback().waitForEvent();
+                    if (debug)
+                        System.out.println("Emu " + name + " end: in chan " + chan.name() + " got END event");
 //                        if (!gotEndEvent) {
 //if (debug) System.out.println("Emu " + name + " end: timeout (30 sec) waiting for END event in in-chan " + chan.name());
 //                            setErrorState("Emu " + name + " end: timeout waiting for END event in in-chan " + chan.name());
@@ -1877,19 +1874,19 @@ if (debug) System.out.println("Emu " + name + " end: end() done in fake ROC " + 
 //                        }
 //                    }
 //                    catch (InterruptedException e) {}
-                    }
                 }
+            }
 
-                // Only bother looking downstream if all input channels received END
-                if (gotAllEnds) {
-                    // Look at the last module
+            // Only bother looking downstream if all input channels received END
+            if (gotAllEnds) {
+                // Look at the last module
 //                try {
-                    if (debug)
-                        System.out.println("Emu " + name + " end: wait for END event in module " + mods.getLast().name());
-                    //gotEndEvent = mods.getLast().getEndCallback().waitForEvent(timeout, timeUnits);
-                    mods.getLast().getEndCallback().waitForEvent();
-                    if (debug)
-                        System.out.println("Emu " + name + " end: got END event in module " + mods.getLast().name());
+                if (debug)
+                    System.out.println("Emu " + name + " end: wait for END event in module " + mods.getLast().name());
+                //gotEndEvent = mods.getLast().getEndCallback().waitForEvent(timeout, timeUnits);
+                mods.getLast().getEndCallback().waitForEvent();
+                if (debug)
+                    System.out.println("Emu " + name + " end: got END event in module " + mods.getLast().name());
 //                    if (!gotEndEvent) {
 //if (debug) System.out.println("Emu " + name + " end: timeout (30 sec) waiting for END event in module " + mods.getLast().name());
 //                        setErrorState("Emu " + name + " end: timeout waiting for END event in module " + mods.getLast().name());
@@ -1899,16 +1896,16 @@ if (debug) System.out.println("Emu " + name + " end: end() done in fake ROC " + 
 //                catch (InterruptedException e) {
 //                }
 
-                    // Look at the output channels only if all modules received END
-                    if (gotAllEnds && outChannels.size() > 0) {
-                        for (DataChannel chan : outChannels) {
+                // Look at the output channels only if all modules received END
+                if (gotAllEnds && outChannels.size() > 0) {
+                    for (DataChannel chan : outChannels) {
 //                        try {
-                            if (debug)
-                                System.out.println("Emu " + name + " end: output chan " + chan.name() + " wait for END event");
-                            //gotEndEvent = chan.getEndCallback().waitForEvent(timeout, timeUnits);
-                            chan.getEndCallback().waitForEvent();
-                            if (debug)
-                                System.out.println("Emu " + name + " end: output chan " + chan.name() + " got END event");
+                        if (debug)
+                            System.out.println("Emu " + name + " end: output chan " + chan.name() + " wait for END event");
+                        //gotEndEvent = chan.getEndCallback().waitForEvent(timeout, timeUnits);
+                        chan.getEndCallback().waitForEvent();
+                        if (debug)
+                            System.out.println("Emu " + name + " end: output chan " + chan.name() + " got END event");
 //                            if (!gotEndEvent) {
 //if (debug) System.out.println("Emu " + name + " end: timeout (30 sec) waiting for END event in output chan " + chan.name());
 //                                setErrorState("Emu " + name + " end: timeout waiting for END event in output chan " + chan.name());
@@ -1917,7 +1914,6 @@ if (debug) System.out.println("Emu " + name + " end: end() done in fake ROC " + 
 //                        }
 //                        catch (InterruptedException e) {
 //                        }
-                        }
                     }
                 }
             }
