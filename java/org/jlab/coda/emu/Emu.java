@@ -2108,6 +2108,7 @@ System.out.println("Emu " + name + " go: " + e.getMessage());
      */
     private void prestart(Command cmd) {
         logger.info("Emu " + name + " prestart: change state to PRESTARTING");
+        logger.info("Emu " + name + " prestart: Dave, the following contain changes for handling multiple TCP streams");
 //        System.out.println("CMD; " + cmd.getMessage().toString());
         setState(PRESTARTING);
 
@@ -2209,9 +2210,10 @@ System.out.println("\nEmu " + name + " prestart: looking at module = " + moduleN
                     //
                     // Part of the trick here is to assign a unique port for each stream.
                     // In the case of UDP streams, the base port will be defined as an attribute of the
-                    // input channel. On the other hand, in the case of TCP streams, the port will be
-                    // defined in the transport. The base port will be used for stream #1,
-                    // while stream 2 needs to increase that by 1, etc.
+                    // input channel. The base port will be used for stream #1, while stream 2 needs to
+                    // increase that by 1, etc.
+                    // On the other hand, in the case of TCP streams, the port will be defined in the
+                    // transport.
                     //
                     // Furthermore, if there is only 1 channel (only the single VTP) as an input to this
                     // module in the config file, then all streams must be combined into a single
