@@ -2414,7 +2414,7 @@ System.out.println("Emu " + name + " prestart: Have streaming TCP channel " + ch
                             if (isInputChan) {
                                 // Create channel
                                 DataChannel channel = trans.createChannel(chanName, attributeMap,
-                                                                          true, this, module, 0);
+                                                                          true, this, module, 0, strNum);
                                 // Add to list while keeping fifos separate
                                 if (channelTransName.equals("Fifo")) {
                                     // Fifo does NOT notify Emu when END event comes through
@@ -2435,7 +2435,7 @@ System.out.println("Emu " + name + " prestart: Have streaming TCP channel " + ch
                             else {
                                 DataChannel channel = trans.createChannel(channelName, attributeMap,
                                                                           false, this, module,
-                                                                          outputChannelCount++);
+                                                                          outputChannelCount++, strNum);
                                 if (channelTransName.equals("Fifo")) {
                                     channel.registerEndCallback(null);
                                     channel.registerPrestartCallback(null);

@@ -66,7 +66,6 @@ public abstract class DataTransportAdapter extends CODAStateMachineAdapter imple
     protected final Map<String, String> attr;
 
 
-
     /**
      * Constructor.
      *
@@ -96,6 +95,8 @@ public abstract class DataTransportAdapter extends CODAStateMachineAdapter imple
     }
 
     // createChannel needs to be defined in subclasses
+    /** {@inheritDoc} */
+    public DataChannel getChannel(int id, int streamNumber) {return null;}
 
     /** {@inheritDoc} */
     public HashMap<Integer, DataChannel> getInputChannelTable() {return null;}

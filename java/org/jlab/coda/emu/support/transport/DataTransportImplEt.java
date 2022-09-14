@@ -511,7 +511,7 @@ System.out.println("    DataTransport Et: ignoring preferred subnet of " + prefe
     /** {@inheritDoc} */
     public DataChannel createChannel(String name, Map<String,String> attributeMap,
                                      boolean isInput, Emu emu, EmuModule module,
-                                     int outputIndex)
+                                     int outputIndex, int streamNumber)
                     throws DataTransportException {
 
         return new DataChannelImplEt(name, this, attributeMap, isInput, emu, module, outputIndex);

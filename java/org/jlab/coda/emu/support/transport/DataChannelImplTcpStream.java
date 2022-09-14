@@ -170,7 +170,7 @@ public class DataChannelImplTcpStream extends DataChannelAdapter {
 
     /**
      * Constructor to create a new DataChannelImplEt instance. Used only by
-     * {@link DataTransportImplEt#createChannel(String, Map, boolean, Emu, EmuModule, int)}
+     * {@link DataTransportImplEt#createChannel(String, Map, boolean, Emu, EmuModule, int, int)}
      * which is only used during PRESTART in {@link Emu}.
      *
      * @param name         the name of this channel
@@ -185,13 +185,14 @@ public class DataChannelImplTcpStream extends DataChannelAdapter {
      */
     DataChannelImplTcpStream(String name, DataTransportImplTcpStream transport,
                              Map<String, String> attributeMap, boolean input, Emu emu,
-                             EmuModule module, int outputIndex)
+                             EmuModule module, int outputIndex, int streamNumber)
             throws DataTransportException {
 
         // constructor of super class
         super(name, transport, attributeMap, input, emu, module, outputIndex);
 
         dataTransportImplTcpStream = transport;
+        this.streamNumber = streamNumber;
 
         if (input) {
             logger.info("      DataChannel TcpStream: creating input channel " + name);

@@ -34,7 +34,7 @@ public interface DataChannel extends CODAStateMachine, StatedObject {
      * Get the type of transport this channel implements.
      * @return type of transport this channel implements.
      */
-    public TransportType getTransportType();
+    TransportType getTransportType();
 
     /**
      * Get the CODA ID number of the CODA component connected to this
@@ -43,13 +43,24 @@ public interface DataChannel extends CODAStateMachine, StatedObject {
      * @return the CODA ID number the CODA component connected to this
      *         data channel.
      */
-    public int getID();
+    int getID();
+
+    /**
+     * This method returns the streams number.
+     * Used only in the case of generating multiple input channels from a single
+     * config input channel entry - as in the case of a VTP connected to an aggregator.
+     * The aggregator will possible generate multiple channels. This number is used
+     * to distinguish between these channels.
+     *
+     * @return stream number.
+     */
+    int getStreamNumber();
 
     /**
      * Get the module which created this channel.
      * @return module which created this channel.
      */
-    public EmuModule getModule();
+    EmuModule getModule();
 
     /**
      * Get the record ID number of the latest event through this channel.
@@ -58,56 +69,56 @@ public interface DataChannel extends CODAStateMachine, StatedObject {
      * checks of incoming data.
      * @return the record ID number of the latest event through channel.
      */
-    public int getRecordId();
+    int getRecordId();
 
     /**
      * Set the record ID number of the latest event through this channel.
      * @param recordId record ID number of the latest event through channel.
      */
-    public void setRecordId(int recordId);
+    void setRecordId(int recordId);
 
     /**
      * Get the name of this data channel.
      * @return the name of this data channel.
      */
-    public String name();
+    String name();
 
     /**
      * Get whether this channel is an input channel (true),
      * or it is an output channel (false).
      * @return <code>true</code> if input channel, else <code>false</code>
      */
-    public boolean isInput();
+    boolean isInput();
 
     /**
      * Get the DataTransport object used to create this data channel.
      * @return the DataTransport object used to create this data channel.
      */
-    public DataTransport getDataTransport();
+    DataTransport getDataTransport();
 
     /**
      * Get the one and only input ring buffer of this data channel.
      * @return the input ring buffer.
      */
-    public RingBuffer<RingItem> getRingBufferIn();
+    RingBuffer<RingItem> getRingBufferIn();
 
     /**
      * Get the total number of data-holding output ring buffers.
      * @return total number of data-holding output ring buffers.
      */
-    public int getOutputRingCount();
+    int getOutputRingCount();
 
     /**
      * Get the array of output ring buffers.
      * @return array of output ring buffers.
      */
-    public RingBuffer<RingItem>[] getRingBuffersOut();
+    RingBuffer<RingItem>[] getRingBuffersOut();
 
     /**
      * Get the relative fill level (0-100) of the ring of this input channel.
      * @return relative fill level (0-100) of all the ring.
      */
-    public int getInputLevel();
+    int getInputLevel();
 
     /**
      * Get the relative fill level (0-100) of all the rings of this output channel.
@@ -115,14 +126,14 @@ public interface DataChannel extends CODAStateMachine, StatedObject {
      * (Input levels are associated directly with the module).
      * @return relative fill level (0-100) of all the rings together.
      */
-    public int getOutputLevel();
+    int getOutputLevel();
 
     /**
      * Set the output channel's list of possible destination IP addresses of emu TCP server
      * when using emu sockets to communicate.
      * @param ipList  list of possible destination IP addresses if connecting to server.
      */
-    public void setDestinationIpList(String[] ipList);
+    void setDestinationIpList(String[] ipList);
 
     /**
      * Set the output channel's list of destination broadcast addresses of emu TCP server
@@ -130,14 +141,14 @@ public interface DataChannel extends CODAStateMachine, StatedObject {
      * @param baList   list of destination broadcast addresses each corresponding
      *                 to the same element of the IpList.
      */
-    public void setDestinationBaList(String[] baList);
+    void setDestinationBaList(String[] baList);
 
     /**
      * Get the prescale value associated with this channel.
      * Defaults to 1. Used only for ET output of ER.
      * @return prescale value associated with this channel.
      */
-    public int getPrescale();
+    int getPrescale();
 
     /**
      * Turn on regulation of the flow of data through an output channel.
@@ -148,6 +159,6 @@ public interface DataChannel extends CODAStateMachine, StatedObject {
      * @param eventsPerBuffer   events per output 4 MB buffer.
      * @param buffersPerSec     desired number of buffers to be sent per second.
      */
-    public void regulateOutputBufferRate(int eventsPerBuffer, double buffersPerSec);
+    void regulateOutputBufferRate(int eventsPerBuffer, double buffersPerSec);
 
 }

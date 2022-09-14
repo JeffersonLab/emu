@@ -111,11 +111,16 @@ logger.debug("    Transport Emu: start up emu server in " + emu.name() + " @ por
     public HashMap<Integer, DataChannel> getInputChannelTable() {return inputChannelTable;}
 
 
+    /** {@inheritDoc} */
+    public DataChannel getChannel(int id, int streamNumber) {
+        return inputChannelTable.get(id);
+    }
+
 
     /** {@inheritDoc} */
     public DataChannel createChannel(String name, Map<String,String> attributeMap,
                                      boolean isInput, Emu emu, EmuModule module,
-                                     int outputIndex)
+                                     int outputIndex, int streamNumber)
                 throws DataTransportException {
 
         DataChannelImplEmu newChannel = new DataChannelImplEmu(name, this, attributeMap,

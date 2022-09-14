@@ -106,25 +106,36 @@ logger.debug("    Transport Emu: start up emu server in " + emu.name() + " @ por
     }
 
 
-
     /** {@inheritDoc} */
     public HashMap<Integer, DataChannel> getInputChannelTable() {return inputChannelTable;}
 
+
+    /** {@inheritDoc} */
+    public DataChannel getChannel(int id, int streamNumber) {
+        int actualId = streamNumber << 4 | id;
+        return inputChannelTable.get(actualId);
+    }
 
 
     /** {@inheritDoc} */
     public DataChannel createChannel(String name, Map<String,String> attributeMap,
                                      boolean isInput, Emu emu, EmuModule module,
-                                     int outputIndex)
+                                     int outputIndex, int streamNumber)
                 throws DataTransportException {
 
         DataChannelImplTcpStream newChannel = new DataChannelImplTcpStream(name, this, attributeMap,
-                                                               isInput, emu, module, outputIndex);
+                                                               isInput, emu, module, outputIndex, streamNumber);
 
         if (isInput) {
             // Store this channel so it can be looked up, once the emu domain
             // client attaches to our server, and connected to that client.
-            inputChannelTable.put(newChannel.getID(), newChannel);
+
+            // There's a new complication in that a single VTP can have multiple streams.
+            // The aggregator emu will create an input channel for each stream, even tho
+            // the config shows only 1 channel. To be able to distinguish between the streams,
+            // we'll do encode the stream # in more significant bits.
+            int id = streamNumber << 4 | newChannel.getID();
+            inputChannelTable.put(id, newChannel);
         }
 
         return newChannel;

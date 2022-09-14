@@ -123,6 +123,18 @@ public abstract class DataChannelAdapter extends CODAStateMachineAdapter impleme
     protected String[] bAddrList;
 
     //---------------------------------------------------------------------------
+    // AUTO GENERATION OF INPUT CHANNELS
+    //---------------------------------------------------------------------------
+
+    /**
+     * Used only in the case of generating multiple input channels from a single
+     * config input channel entry - as in the case of a VTP connected to an aggregator.
+     * The aggregator will possible generate multiple channels. This number is used
+     * to distinguish between these channels.
+     */
+    protected int streamNumber;
+
+    //---------------------------------------------------------------------------
     // OUTPUT DATA FLOW
     //---------------------------------------------------------------------------
 
@@ -486,6 +498,9 @@ logger.info("      DataChannel Adapter: output ring buffer count (1/buildthread)
 
     /** {@inheritDoc} */
     abstract public TransportType getTransportType();
+
+    /** {@inheritDoc} */
+    public int getStreamNumber() {return streamNumber;}
 
     /** {@inheritDoc} */
     public EmuModule getModule() {return module;}

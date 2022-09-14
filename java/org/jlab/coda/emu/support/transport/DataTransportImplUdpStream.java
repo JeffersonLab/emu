@@ -55,7 +55,7 @@ public class DataTransportImplUdpStream extends DataTransportAdapter {
     /** {@inheritDoc} */
     public DataChannel createChannel(String name, Map<String,String> attributeMap,
                                      boolean isInput, Emu emu, EmuModule module,
-                                     int outputIndex)
+                                     int outputIndex, int streamNumber)
                 throws DataTransportException {
 
         DataChannelImplUdpStream newChannel = new DataChannelImplUdpStream(name, this, attributeMap,

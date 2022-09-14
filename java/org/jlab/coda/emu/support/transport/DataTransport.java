@@ -81,13 +81,17 @@ public interface DataTransport extends CODAStateMachine, StatedObject {
      * @param module        module creating this channel
      * @param outputIndex   order in which module's events will be sent to this
      *                      output channel (0 for first output channel, 1 for next, etc.).
+     * @param streamNumber  when creating multiple channels from one entry in the config file
+     *                      (ie VTP has mulitple streams), this number uniquely identifies
+     *                      the particular stream of that single source. Defaults to 0.
+     *                      output channel (0 for first output channel, 1 for next, etc.).
      *
      * @return DataChannel object
      * @throws DataTransportException if transport problem
      */
     DataChannel createChannel(String name, Map<String, String> attributeMap,
                                      boolean isInput, Emu emu, EmuModule module,
-                                     int outputIndex)
+                                     int outputIndex, int streamNumber)
             throws DataTransportException;
 
     /**
@@ -114,6 +118,16 @@ public interface DataTransport extends CODAStateMachine, StatedObject {
      * @return the name of the transport class implementing this interface.
      */
     String getTransportClass();
+
+    /**
+     * This method gets the specified channel associated with this transport.
+     * Only implemented for DataChannelImplEmu and DataChannelImpTcpStream.
+     *
+     * @param id id associated with channel
+     * @param streamNumber stream number associated with channel (if any).
+     * @return the name of the transport class implementing this interface.
+     */
+    DataChannel getChannel(int id, int streamNumber);
 
     /**
      * Get the state of this object.

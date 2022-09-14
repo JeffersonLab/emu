@@ -203,7 +203,7 @@ public class DataChannelImplCmsg extends DataChannelAdapter {
 
     /**
      * Constructor to create a new DataChannelImplCmsg instance. Used only by
-     * {@link DataTransportImplCmsg#createChannel(String, Map, boolean, Emu, EmuModule, int)}
+     * {@link DataTransportImplCmsg#createChannel(String, Map, boolean, Emu, EmuModule, int, int)}
      * which is only used during PRESTART in the EmuModuleFactory.
      *
      * @param name          the name of this channel
