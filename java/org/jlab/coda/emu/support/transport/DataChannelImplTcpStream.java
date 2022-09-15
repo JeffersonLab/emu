@@ -397,20 +397,9 @@ logger.info("      DataChannel TcpStream: max buf size attribute string = " + at
         // Reducing numBufs to 32 increases barrier.waitfor() time from .02% to .4% of EB time
         int numBufs = 32;
 
-        // Initialize things once
-        if (socketChannel == null) {
-            parserMergerThread = new ParserMerger();
-            nodePools = new EvioNodePool[numBufs];
-//logger.info("      DataChannel TcpStream in: allocated " + numBufs + " node pools in array");
-        }
-        // If establishing multiple sockets for this single emu channel,
-        // make sure their settings are compatible.
-        else {
-            if (sourceId != this.sourceId) {
-                System.out.println("Bad sourceId: " + sourceId + ", != previous " + this.sourceId);
-            }
-        }
-
+        // Initialize things
+        parserMergerThread = new ParserMerger();
+        nodePools = new EvioNodePool[numBufs];
         this.sourceId = sourceId;
         this.maxBufferSize = maxBufferSize;
 
@@ -424,7 +413,7 @@ logger.info("      DataChannel TcpStream: max buf size attribute string = " + at
         }
 
         // Use buffered streams for efficiency
-        socketChannel= channel;
+        socketChannel = channel;
         in = new DataInputStream(new BufferedInputStream(socket.getInputStream()));
 
         // EBs release events sequentially if there's only 1 build thread,

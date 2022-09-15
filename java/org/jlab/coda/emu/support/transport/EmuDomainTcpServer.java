@@ -284,7 +284,7 @@ public class EmuDomainTcpServer extends Thread {
 
                         // Look up the associated channel in the transport object.
                         // The second arg is only used to find TcpStream channels.
-                        DataChannel inputChannel = server.transport.getChannel(codaId, socketPosition);
+                        DataChannel inputChannel = server.transport.getChannel(codaId, socketPosition - 1);
                         if (inputChannel == null) {
                             if (debug >= cMsgConstants.debugError) {
                                 System.out.println("********\n    Emu TCP Server: no emu input channel found for CODA id = " +

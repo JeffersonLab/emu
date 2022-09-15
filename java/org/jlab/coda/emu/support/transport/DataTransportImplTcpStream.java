@@ -112,7 +112,7 @@ logger.debug("    Transport Emu: start up emu server in " + emu.name() + " @ por
 
     /** {@inheritDoc} */
     public DataChannel getChannel(int id, int streamNumber) {
-        int actualId = streamNumber << 4 | id;
+        int actualId = streamNumber << 16 | id;
         return inputChannelTable.get(actualId);
     }
 
@@ -134,7 +134,7 @@ logger.debug("    Transport Emu: start up emu server in " + emu.name() + " @ por
             // The aggregator emu will create an input channel for each stream, even tho
             // the config shows only 1 channel. To be able to distinguish between the streams,
             // we'll do encode the stream # in more significant bits.
-            int id = streamNumber << 4 | newChannel.getID();
+            int id = streamNumber << 16 | newChannel.getID();
             inputChannelTable.put(id, newChannel);
         }
 
