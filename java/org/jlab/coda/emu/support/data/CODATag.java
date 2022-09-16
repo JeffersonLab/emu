@@ -64,29 +64,24 @@ public enum CODATag {
     // Streaming
     //---------------------------------------------
 
-    /** Streaming Stream Info Bank (SIB) containing timestamp and frame number. */
+    /** Streaming Stream Info Bank (SIB) coming from ROC. */
     STREAMING_SIB                (0xFF30),
-    /** Streaming Time Info Bank (TIB) containing timestamp and frame number. */
-    STREAMING_TIB                (0xFF31),
-    /** Streaming Time Info Bank (TIB) containing timestamp and frame number with non-fatal error. */
-    STREAMING_TIB_ERROR          (0xFF32),
+    /** Streaming Stream Info Bank (SIB) of built event. */
+    STREAMING_SIB_BUILT          (0xFF31),
 
-    /** Time Slice Segment (TSS) containing timestamp and frame number. */
+    /** Time Slice Segment (TSS) coming from ROC. */
     STREAMING_TSS                (0x31),
-    /** Aggregation Info Segment (AIS). */
+    /** Aggregation Info Segment (AIS) coming from ROC. */
     STREAMING_AIS                (0x41),
+
+    /** Time Slice Segment (TSS) built in aggregator. */
+    STREAMING_TSS_BUILT          (0x32),
+    /** Aggregation Info Segment (AIS) built in aggregator. */
+    STREAMING_AIS_BUILT          (0x42),
 
     // Physics event
     /** Event built from data sent by ROC/VTP in streaming mode. */
-    ROCRAW_STREAMING            (0xFF60),
-    /** Event built from data sent by ROC/VTP in streaming mode with non-fatal error. */
-    ROCRAW_STREAMING_ERROR      (0xFF61),
-    /** Event built by DC event builder in streaming mode. */
-    BUILT_BY_DC_STREAMING       (0xFF62),
-    /** Event built by SEB event builder in streaming mode. */
-    BUILT_BY_SEB_STREAMING      (0xFF64),
-    /** Event built by PEB event builder in streaming mode. */
-    BUILT_BY_PEB_STREAMING      (0xFF66)
+    STREAMING_PHYSICS(0xFF60),
     ;
 
     private int value;
@@ -329,39 +324,30 @@ public enum CODATag {
      * @param val value to test
      * @return <code>true</code> if tag is for a streaming physics event of any type, else <code>false</code>.
      */
-    public static boolean isStreamingPhysics(int val) {
-         return (val == ROCRAW_STREAMING.value)       |
-                (val == ROCRAW_STREAMING_ERROR.value) |
-                (val == BUILT_BY_DC_STREAMING.value)  |
-                (val == BUILT_BY_SEB_STREAMING.value) |
-                (val == BUILT_BY_PEB_STREAMING.value);}
+    public static boolean isStreamingPhysics(int val) {return (val == STREAMING_PHYSICS.value);}
 
     /**
      * Is this a Stream Info Bank tag?
      * @param value value to test
      * @return <code>true</code> if tag of Stream Info Bank, else <code>false</code>.
      */
-    public static boolean isSIB(int value) {return (value == STREAMING_SIB.value);}
-
-    /**
-     * Is this a Time Info Bank tag?
-     * @param value value to test
-     * @return <code>true</code> if tag of Time Info Bank, else <code>false</code>.
-     */
-    public static boolean isTIB(int value) {return (value == STREAMING_TIB.value);}
+    public static boolean isSIB(int value) {return (value == STREAMING_SIB.value ||
+                                                    value == STREAMING_SIB_BUILT.value);}
 
     /**
      * Is this a Time Slice Segment tag?
      * @param value value to test
      * @return <code>true</code> if tag of Time Slice Segment, else <code>false</code>.
      */
-    public static boolean isTSS(int value) {return (value == STREAMING_TSS.value);}
+    public static boolean isTSS(int value) {return (value == STREAMING_TSS.value ||
+                                                    value == STREAMING_TSS_BUILT.value);}
 
     /**
      * Is this a Aggregation Info Segment tag?
      * @param value value to test
      * @return <code>true</code> if tag of Aggregation Info Segment, else <code>false</code>.
      */
-    public static boolean isAIS(int value) {return (value == STREAMING_AIS.value);}
+    public static boolean isAIS(int value) {return (value == STREAMING_AIS.value ||
+                                                    value == STREAMING_AIS_BUILT.value);}
 
 }

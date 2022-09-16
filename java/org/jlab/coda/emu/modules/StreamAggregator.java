@@ -1564,6 +1564,7 @@ System.out.println("  EB mod: bbSupply -> " + ringItemCount + " # of bufs, direc
                 PayloadBuffer[] sameStampBanks = new PayloadBuffer[200];
                 EvioNode[] inputNodes = new EvioNode[200];
                 ByteBuffer[] backingBufs = new ByteBuffer[200];
+                sameStampBanks[0].getBuffer();
 
                 PayloadBuffer bank, storedBank = null;
                 TimeSliceBankItem timeSliceItem;
@@ -1747,40 +1748,19 @@ System.out.println("  EB mod: bt" + btIndex + " ***** found END event at seq " +
 //                    int builtEventHeaderWord2;
 
                     // Create a (top-level) physics event from payload banks
-                    // and the combined SIB bank. First create the tag:
-                    //   -if I'm a data concentrator or DCAG
-                    //   -if I'm a primary aggregatpr or PAG
-                    //   -if I'm a secondary aggregator or SAG
+                    // and the combined SIB bank.
                     CODAClass myClass = emu.getCodaClass();
                     eventType = EventType.PHYSICS_STREAM;
-                    switch (myClass) {
-                        case SAG:
-                            tag = CODATag.BUILT_BY_SEB_STREAMING.getValue();
-                            break;
+                    tag = CODATag.STREAMING_PHYSICS.getValue();
 
-                        case PAG:
-                            tag = CODATag.BUILT_BY_PEB_STREAMING.getValue();
-                            break;
-
-                        case DCAG:
-                        default:
-                            tag = CODATag.BUILT_BY_DC_STREAMING.getValue();
-                            // Check input banks for non-fatal errors
-                            for (int i=0; i < sliceCount; i++) {
-                                nonFatalError |= sameStampBanks[i].hasNonFatalBuildingError();
-                            }
+                    if (myClass == CODAClass.DCAG) {
+                        // Check input roc banks for non-fatal errors
+                        for (int i=0; i < sliceCount; i++) {
+                            // sorting thread checks to see if coda id matches tag, stored in payload bank
+                            nonFatalError |= sameStampBanks[i].hasNonFatalBuildingError();
+                        }
                     }
 
-//                    // 2nd word of top level header
-//                    builtEventHeaderWord2 = (tag << 16) |
-//                            ((DataType.BANK.getValue() & 0x3f) << 8) |
-//                            (sliceCount & 0xff);
-//
-//                    // Start top level. Write the length later, now, just the 2nd header word of top bank
-//                    evBuf.putInt(4, builtEventHeaderWord2);
-
-                    // Reset this to see if creating trigger bank causes an error
-                    nonFatalError = false;
                     int writeIndex=0;
 
                     // If building with Physics events ...
@@ -1789,7 +1769,7 @@ System.out.println("  EB mod: bt" + btIndex + " ***** found END event at seq " +
                         // Combine the SIB banks of input events into one
                         //-----------------------------------------------------------------------------------
 //System.out.println("  EB mod: bt" + btIndex + " ***** Building frame " + prevFrame + " with " + sliceCount + " BUILT slices");
-                        nonFatalError |= Evio.combineAggregatedStreams(
+                        nonFatalError = Evio.combineAggregatedStreams(
                                 sliceCount,
                                 sameStampBanks,
                                 evBuf,
@@ -1800,7 +1780,8 @@ System.out.println("  EB mod: bt" + btIndex + " ***** found END event at seq " +
                                 returnLen,
                                 backingBufs,
                                 inputNodes,
-                                fastCopyReady);
+                                fastCopyReady,
+                                nonFatalError);
 
                             writeIndex = returnLen[0];
 
@@ -1814,7 +1795,7 @@ System.out.println("  EB mod: bt" + btIndex + " ***** found END event at seq " +
                     else {
                         // If all inputs are from 1 VTP and can be combined into one ROC Time Slice Bank, do it
                         if (singleVTPInputs()) {
-                            nonFatalError |= Evio.combineSingleVtpStreamsToPhysics(
+                            nonFatalError = Evio.combineSingleVtpStreamsToPhysics(
                                     sliceCount,
                                     sameStampBanks,
                                     evBuf,
@@ -1823,11 +1804,12 @@ System.out.println("  EB mod: bt" + btIndex + " ***** found END event at seq " +
                                     returnLen,
                                     backingBufs,
                                     inputNodes,
-                                    fastCopyReady);
+                                    fastCopyReady,
+                                    nonFatalError);
                         }
                         else {
 //System.out.println("  EB mod: bt" + btIndex + " ***** Building frame " + prevFrame + " with " + sliceCount + " ROC RAW time slices");
-                            nonFatalError |= Evio.combineRocStreams(
+                            nonFatalError = Evio.combineRocStreams(
                                     sliceCount,
                                     sameStampBanks,
                                     evBuf,
@@ -1838,19 +1820,11 @@ System.out.println("  EB mod: bt" + btIndex + " ***** found END event at seq " +
                                     returnLen,
                                     backingBufs,
                                     inputNodes,
-                                    fastCopyReady);
+                                    fastCopyReady,
+                                    nonFatalError);
                         }
 
                         writeIndex = returnLen[0];
-                    }
-
-                    // If there is a non-fatal error, go back and reset built event's tag
-                    if (nonFatalError && emu.getCodaClass() == CODAClass.DC) {
-                        // Update tag only of 2nd word of top level header
-                        tag = CODATag.ROCRAW_STREAMING_ERROR.getValue();
-                        int word2 = evBuf.getInt(4);
-                        word2 = (word2 & 0x0000ffff) | (tag << 16);
-                        evBuf.putInt(4, word2);
                     }
 
 //                    // Write the length of top bank
