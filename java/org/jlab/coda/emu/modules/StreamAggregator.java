@@ -1564,7 +1564,6 @@ System.out.println("  EB mod: bbSupply -> " + ringItemCount + " # of bufs, direc
                 PayloadBuffer[] sameStampBanks = new PayloadBuffer[200];
                 EvioNode[] inputNodes = new EvioNode[200];
                 ByteBuffer[] backingBufs = new ByteBuffer[200];
-                sameStampBanks[0].getBuffer();
 
                 PayloadBuffer bank, storedBank = null;
                 TimeSliceBankItem timeSliceItem;
