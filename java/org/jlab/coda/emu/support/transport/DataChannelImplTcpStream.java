@@ -1226,8 +1226,8 @@ System.out.println("      DataChannel TcpStream in: " + name +
                     int pos = node.getPosition();
                     // Find the frame and timestamp now for later ease of use (skip over 4 ints)
                     ByteBuffer buff = node.getBuffer();
-                    frame = buff.getInt(16 + pos);
-                    timestamp = EmuUtilities.intsToLong(buff.getInt(20 + pos), buff.getInt(24 + pos));
+                    frame = buff.getInt(20 + pos);
+                    timestamp = EmuUtilities.intsToLong(buff.getInt(24 + pos), buff.getInt(28 + pos));
 //System.out.println("      DataChannel TcpStream in: buildable has frame = " + frame + ", timestamp = " + timestamp + ", pos = " + pos);
                 }
                 else if (eventType == EventType.CONTROL) {
@@ -1328,7 +1328,8 @@ logger.info("      DataChannel TcpStream in: got " + controlType + " event from 
                             node.getNum(), name, item, bbSupply);
                     ri.setTimeFrame(frame);
                     ri.setTimestamp(timestamp);
-                } else {
+                }
+                else {
 logger.info("      DataChannel TcpStream in: put CONTROL (user?) event into channel ring, event from " + name);
                     ri.setAll(null, null, node, eventType, controlType,
                             isUser, hasFirstEvent, module.isStreamingData(), id, recordId, sourceId,

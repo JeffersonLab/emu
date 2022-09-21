@@ -584,20 +584,18 @@ System.out.println("checkPayload: buf source id = " + pBuf.getSourceId() +
 
         // Only worry about record id if event to be built.
         // Initial recordId stored is 0, ignore that.
-        if (eventType != null && eventType.isBuildable()) {
-            int tag = inputNode.getTag();
-
-            if (sourceId != getTagCodaId(tag)) {
-//                System.out.println("checkInput: buf source Id (" + sourceId +
-//                        ") != buf's id from tag (" + getTagCodaId(tag) + ')');
+        if (eventType != null && eventType.isROCRawStream()) {
+            if (sourceId != inputNode.getTag()) {
+                System.out.println("checkInput: buf source Id (" + sourceId +
+                        ") != buf's id from tag (0x" + Integer.toHexString(inputNode.getTag()) + ')');
                 nonFatalError = true;
             }
         }
 
         // Check source ID of bank to see if it matches channel id
         if (!pBuf.matchesId()) {
-//            System.out.println("checkInput: buf source id = " + sourceId +
-//                    " != input channel id = " + channel.getID());
+            System.out.println("checkInput: buf source id = " + sourceId +
+                    " != input channel id = " + channel.getID());
             nonFatalError = true;
         }
 
@@ -2215,11 +2213,6 @@ System.out.println("                         : segWords from event 0 = " + dataW
     }
 
 
-    //////////////////////////////////////////////////////
-    // Called for aggregating already aggregated streams
-    //////////////////////////////////////////////////////
-
-
     /**
      * <p>Combine banks from an Aggregator output into an event
      * with a Stream Info Bank, and appended ROC Time Slice Banks. Any error
@@ -2273,10 +2266,9 @@ System.out.println("                         : segWords from event 0 = " + dataW
         // If this method is being called, the output of streaming ROCs have been combined by
         // the combineRocStreams() or combineSingleVtpStreamsToPhysics() method,
         // thus assuring us each input has a Stream Info Bank (SIB).
-
         int childrenCount, byteLen, pos;
         boolean switchEndianFastCopyReady = false;
-        EvioNode timeSliceBank, node;
+        EvioNode timeSliceBank, node, bank, seg;
         boolean switchEndian = builtEventBuf.order() != ebBuf[0].order();
 
         // Start building combined Stream Info Bank
@@ -2303,30 +2295,40 @@ System.out.println("                         : segWords from event 0 = " + dataW
         //----------------------------
 
         long ts, tsAvg = 0, frameNum, timestampsMax=Long.MIN_VALUE, timestampsMin=Long.MAX_VALUE;
-        EvioNode bank;
         long tsTotal=0L;
-        int num, sliceCount = 0;
-//        boolean isError;
+        int num, streams, sliceCount = 0;
 
         for (int j=0; j < inputSliceCount; j++) {
 
             num = inputNodes[j].getNum();
-            sliceCount += num & 0x7f;
- //           isError = (num & 0x80) > 0;
+            streams = num & 0x7f;
+            sliceCount += streams;
+
+            if (streams  < 1) {
+                System.out.println("combineAggStreams: streams from " + j + " = " + streams);
+            }
+
             // Look at err bit
             if ((num & 0x80) > 0) {
                 nonFatalError = true;
             }
 
             // SIB
-            bank = inputNodes[j].getChildAt(0).getChildAt(0);
+            bank = inputNodes[j].getChildAt(0);
             // If input bank has no frame and timestamp info, error
             if (bank == null) {
                 throw new EmuException("no Stream Info Bank found");
             }
 
+            // Time Slice Segment
+            seg = bank.getChildAt(0);
+            // If input bank has no frame and timestamp info, error
+            if (seg == null) {
+                throw new EmuException("no Stream Info Bank found");
+            }
+
             // Check frame number consistency
-            bank.getIntData(bankData, returnLen);
+            seg.getIntData(bankData, returnLen);
 
             // If they exist, store timestamp related
             // values so consistency can be checked below
@@ -2334,6 +2336,9 @@ System.out.println("                         : segWords from event 0 = " + dataW
                 // Pull out the frame number and compare with what we expect
                 frameNum = bankData[0] & 0xffffffffL;
                 if (frameNum != frame) {
+                    // start on 20 bytes boundary for printing purposes
+                    int ppos = inputNodes[j].getChildAt(0).getPosition() / 20 * 20;
+                    Utilities.printBytes(ebBuf[j].array(), ppos, 256, "TSS");
                     throw new EmuException("data contains frame = " + frameNum + " but should be " + frame);
                 }
 
@@ -2382,8 +2387,8 @@ System.out.println("                         : segWords from event 0 = " + dataW
         // Skip over event's evio header length for now
         int writeIndex = 4;
 
-        int ssNum = ((nonFatalError ? 1 : 0) << 7) & sliceCount;
-        builtEventBuf.putInt(writeIndex, CODATag.STREAMING_PHYSICS.getValue() << 16 | (0x10 << 8) | ssNum);
+        int ssNum = ((nonFatalError ? 1 : 0) << 7) | sliceCount;
+        builtEventBuf.putInt(writeIndex, tag << 16 | (0x10 << 8) | ssNum);
         writeIndex += 4;
         int totalWords = 1; // (not including the first/top bank length)
         //------------------------------------------------------------------
@@ -2397,7 +2402,7 @@ System.out.println("                         : segWords from event 0 = " + dataW
         //------------------------------------------------------------------
         // Time Slice Segment
         //------------------------------------------------------------------
-        builtEventBuf.putInt(writeIndex, (CODATag.STREAMING_TSS_BUILT.getValue() << 24) | (1 << 8) | 3);
+        builtEventBuf.putInt(writeIndex, (CODATag.STREAMING_TSS_BUILT.getValue() << 24) | (1 << 16) | 3);
         writeIndex += 4;
         // Add int data
         builtEventBuf.putInt(writeIndex, (int)frame);            writeIndex += 4;
@@ -2406,13 +2411,13 @@ System.out.println("                         : segWords from event 0 = " + dataW
         //------------------------------------------------------------------
         // Aggregation Info Segment
         //------------------------------------------------------------------
-        builtEventBuf.putInt(writeIndex, CODATag.STREAMING_AIS_BUILT.getValue() << 24 | (1 << 8) | sliceCount);
+        builtEventBuf.putInt(writeIndex, CODATag.STREAMING_AIS_BUILT.getValue() << 24 | (1 << 16) | sliceCount);
         writeIndex += 4;
 
         // Copy over each event's entries for the AIS for combined AIS
         for (int i=0; i < inputSliceCount; i++) {
             // # streams for this physics event
-            int streams = inputNodes[i].getNum() & 0x7f;
+            streams = inputNodes[i].getNum() & 0x7f;
             // Starting position of data to be copied
             pos = inputNodes[i].getChildAt(0).getChildAt(1).getDataPosition();
 
@@ -2548,7 +2553,7 @@ System.out.println("                         : segWords from event 0 = " + dataW
             throws EmuException {
 
         int pos;
-        EvioNode bank, node, sibBank;
+        EvioNode bank, node, sibBank, seg;
         boolean switchEndian = builtEventBuf.order() != rocBuf[0].order();
 
         // In each payload bank (of banks) is a Stream Info Bank. Examine their tags.
@@ -2592,14 +2597,14 @@ System.out.println("                         : segWords from event 0 = " + dataW
         long ts, frameNum, tsAvg=0L, tsMax=Long.MIN_VALUE, tsMin=Long.MAX_VALUE;
 
         for (int j=0; j < sliceCount; j++) {
-            bank = rocNodes[j].getChildAt(0).getChildAt(0);
+            seg = rocNodes[j].getChildAt(0).getChildAt(0);
             // If Roc has no frame and timestamp info, error
-            if (bank == null) {
+            if (seg == null) {
                 throw new EmuException("no Stream Info Bank's time-slice-segment found");
             }
 
             // Check frame number consistency
-            bank.getIntData(bankData, returnLen);
+            seg.getIntData(bankData, returnLen);
 
             // If they exist, store timestamp related
             // values so consistency can be checked below
@@ -2774,11 +2779,7 @@ System.out.println("                         : segWords from event 0 = " + dataW
      * are quickly found in StreamAggregator and easy to pass in.
      *
      * @param sliceCount        number of input buffers/banks/timeslices.
-     * @param inputPayloadBanks array containing all banks of the same time slice from all
-     *                          input channels.
      * @param builtEventBuf     ByteBuffer of event being built.
-     * @param timestampSlop     maximum number of timestamp ticks that timestamps can differ
-     *                          between input events before an error is set.
      * @param timestamps        convenience array to hold 4 long timestamps.
      * @param returnLen         int array used to return index into builtEventBuf of where to write.
      * @param rocBuf            array of rocNodes' backing buffers.
@@ -2793,9 +2794,7 @@ System.out.println("                         : segWords from event 0 = " + dataW
      */
     public static boolean combineSingleVtpStreamsToPhysics(
             int sliceCount,
-            PayloadBuffer[] inputPayloadBanks,
             ByteBuffer builtEventBuf,
-            int timestampSlop,
             long[] timestamps,
             int[] returnLen,
             ByteBuffer[] rocBuf,
@@ -2914,7 +2913,7 @@ System.out.println("                         : segWords from event 0 = " + dataW
 
         // 2nd word is top bank's tag/type/num.
         // Num => 1 stream & error bit
-        int ssNum = ((isError | (nonFatalError ? 1 : 0)) << 7)  & 1;
+        int ssNum = ((isError | (nonFatalError ? 1 : 0)) << 7) | 1;
         builtEventBuf.putInt(destPos, CODATag.STREAMING_PHYSICS.getValue() << 16 | 0x10 << 8 | ssNum);
         destPos += 4;
 
@@ -2927,7 +2926,7 @@ System.out.println("                         : segWords from event 0 = " + dataW
         destPos += 4;
 
         // 5th word it Time Slice Seg's tag/type/num (len = 3 words)
-        builtEventBuf.putInt(destPos, CODATag.STREAMING_TSS_BUILT.getValue() << 24 | 1 << 8 | 3);
+        builtEventBuf.putInt(destPos, CODATag.STREAMING_TSS_BUILT.getValue() << 24 | 1 << 16 | 3);
         destPos += 4;
 
         // Write TSS data. Because this is generated data, use same endian as headers
@@ -2936,7 +2935,7 @@ System.out.println("                         : segWords from event 0 = " + dataW
         builtEventBuf.putInt(destPos, (int)(timestamps[0] >>> 32));  destPos += 4;
 
         // 9th word it Aggregation Info Seg's tag/type/num (len = # rocs, 1 word/roc)
-        builtEventBuf.putInt(destPos, CODATag.STREAMING_AIS_BUILT.getValue() << 24 | 1 << 8 | sliceCount);
+        builtEventBuf.putInt(destPos, CODATag.STREAMING_AIS_BUILT.getValue() << 24 | 1 << 16 | sliceCount);
         destPos += 4;
 
         // Copy over each Top bank's 2nd header word and copy it here
@@ -2947,18 +2946,17 @@ System.out.println("                         : segWords from event 0 = " + dataW
         }
 
         //-----------------------------------------
-        // (Combined) ROC Time Slice Bank
+        // ROC Time Slice Bank
         //-----------------------------------------
 
         // Aggregation info seg data's byte padding
-        int padding = 2*(payloadCount % 2);
+        int padding = 2 * (payloadCount % 2);
         // Aggregation info segment len
-        int aggDataWords = (2*payloadCount + padding)/4;
+        int aggDataWords = (2 * payloadCount + padding) / 4;
 
         int combinedNum = (isError << 7) | totalStreams << 4 | streamMask;
 
         // 1st word is roc time slice (top) bank len which we'll fill in later.
-        int tsbLen = 0;
         int tsbPos = destPos;
         destPos += 4;
 
@@ -2971,7 +2969,7 @@ System.out.println("                         : segWords from event 0 = " + dataW
         destPos += 4;
 
         // 4th word it SIB's tag/type/num
-        builtEventBuf.putInt(destPos, sibTag << 16 | 0x20 << 8 | combinedNum);
+        builtEventBuf.putInt(destPos, CODATag.STREAMING_SIB.getValue() << 16 | 0x20 << 8 | combinedNum);
         destPos += 4;
 
         //------------------------------
@@ -2979,12 +2977,15 @@ System.out.println("                         : segWords from event 0 = " + dataW
         //------------------------------
 
         // 5th word it TSS seg header tag/type/len
-        builtEventBuf.putInt(destPos, CODATag.STREAMING_TSS.getValue() << 24 | 0x1 << 16 | 3);  destPos += 4;
+        builtEventBuf.putInt(destPos, CODATag.STREAMING_TSS.getValue() << 24 | 0x1 << 16 | 3);
+        destPos += 4;
         // TSS data
-        builtEventBuf.putInt(destPos, tframe); destPos += 4;
-        builtEventBuf.putInt(destPos, ts1);    destPos += 4;
-        builtEventBuf.putInt(destPos, ts2);    destPos += 4;
-// destPos = 4*(17 + sliceCount) right here
+        builtEventBuf.putInt(destPos, tframe);
+        destPos += 4;
+        builtEventBuf.putInt(destPos, ts1);
+        destPos += 4;
+        builtEventBuf.putInt(destPos, ts2);
+        destPos += 4;
 
         //------------------------------
         // Create Aggregation Info Segment
@@ -2998,19 +2999,19 @@ System.out.println("                         : segWords from event 0 = " + dataW
         int destPos2 = destPos;
         byte[] backingArray = builtEventBuf.array();
 
-        for (int i=0; i < sliceCount; i++) {
+        for (int i = 0; i < sliceCount; i++) {
             aggInfoSeg = rocNodes[i].getChildAt(0).getChildAt(1);
             rocBuf0 = aggInfoSeg.getBuffer();
             pos = aggInfoSeg.getDataPosition(); // position of data in array/buffer
-            int dataBytes = 4*aggInfoSeg.getDataLength() - aggInfoSeg.getPad();
+            int dataBytes = 4 * aggInfoSeg.getDataLength() - aggInfoSeg.getPad();
 
             if (fastCopyReady) {
                 // If same endian and 2 backing arrays
-                System.arraycopy(rocBuf0.array(), pos, backingArray, destPos2, dataBytes);
+                System.arraycopy(rocBuf0.array(), pos, builtEventBuf.array(), destPos2, dataBytes);
                 destPos2 += dataBytes;
             }
             else {
-                for (int j=0; j < dataBytes/2; j++) {
+                for (int j = 0; j < dataBytes/2; j++) {
                     builtEventBuf.putShort(destPos2, rocBuf0.getShort(pos));
                     destPos2 += 2;
                     pos += 2;
@@ -3018,41 +3019,44 @@ System.out.println("                         : segWords from event 0 = " + dataW
             }
         }
 
-        destPos += 4*aggDataWords;
+        destPos += 4 * aggDataWords;
 
         //-------------------------------------------------------
         // Add Data/Payload Banks
         //-------------------------------------------------------
 
-        for (int i=0; i < sliceCount; i++) {
-            rocNode = rocNodes[i];
-            rocBuf0 = rocBuf[i];
-
-            if (fastCopyReady) {
-                // If fast copy can be done, append all data banks with a single copy
+        // Do a fast copy if possible
+        if (fastCopyReady) {
+            for (int i = 0; i < sliceCount; i++) {
+                rocNode = rocNodes[i];
+                int copyBytes = 4*rocNode.getDataLength() - rocNode.getChildAt(0).getTotalBytes();
                 pos = rocNode.getChildAt(1).getPosition();
-                // Data to copy is top node's length of data minus stream info bank length
-                int dataBanksBytes = 4 * rocNode.getDataLength() - rocNode.getChildAt(0).getTotalBytes();
-                System.arraycopy(rocBuf0.array(), pos, backingArray, destPos, dataBanksBytes);
-                destPos += dataBanksBytes;
+
+                System.arraycopy(rocBuf[i].array(), pos, builtEventBuf.array(), destPos, copyBytes);
+                destPos += copyBytes;
             }
-            else {
-                // Otherwise we need to go bank-by-bank
+        }
+        else {
+            for (int i = 0; i < sliceCount; i++) {
+                rocNode = rocNodes[i];
+                rocBuf0 = rocBuf[i];
 
                 // Number of data banks = total child banks of top bank - stream info bank
                 int dataBankCount = rocNode.getChildCount() - 1;
 
-                for (int j=0; j < dataBankCount; j++) {
-                    EvioNode node = rocNode.getChildAt(j+1);
+                for (int j = 0; j < dataBankCount; j++) {
+                    EvioNode node = rocNode.getChildAt(j + 1);
                     pos = node.getPosition();
-                    int dataLen = 4*node.getDataLength();
+                    int dataLen = 4 * node.getDataLength();
 
                     // To keep this as simple as possible, first copy over 2 word
                     // bank header, swapping endian automatically
                     builtEventBuf.putInt(destPos, rocBuf0.getInt(pos));
-                    destPos += 4; pos += 4;
+                    destPos += 4;
+                    pos += 4;
                     builtEventBuf.putInt(destPos, rocBuf0.getInt(pos));
-                    destPos += 4; pos += 4;
+                    destPos += 4;
+                    pos += 4;
 
                     // Now the data which is NOT swapped
                     if (switchEndianFastCopyReady) {

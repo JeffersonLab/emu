@@ -1796,9 +1796,7 @@ System.out.println("  EB mod: bt" + btIndex + " ***** found END event at seq " +
                         if (singleVTPInputs()) {
                             nonFatalError = Evio.combineSingleVtpStreamsToPhysics(
                                     sliceCount,
-                                    sameStampBanks,
                                     evBuf,
-                                    timestampSlop,
                                     timeStamps,
                                     returnLen,
                                     backingBufs,

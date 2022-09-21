@@ -1540,10 +1540,9 @@ System.out.println("      DataChannel Emu in: incoming data's evio version = " +
                     throw new EvioException("ROC Raw bank should have 1 child, not " + topNode.getChildCount());
                 }
 
-                int physicsTag = topNode.getTag();
-                if (physicsTag != CODATag.STREAMING_PHYSICS.getValue())  {
+                if (!CODATag.isStreamingPhysics(topNode.getTag()))  {
                     throw new EvioException("Wrong tag for streaming Physics bank, got " +
-                            CODATag.getName(physicsTag));
+                            CODATag.getName(topNode.getTag()));
                 }
             }
 
