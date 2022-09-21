@@ -739,7 +739,9 @@ System.out.println("WRITE CONTROL EVENT to chan #" + i + ", ring 0");
 
         if (diff != FrameNumberDiff.SAME) {
             if ((tf - lookedForTF) < 0) {
-                throw new EmuException("time frame moving backward");
+                System.out.println("\nAggregator: looking for frame 0x" + Long.toHexString(lookedForTF) +
+                                   " but found 0x" + Long.toHexString(tf) + "\n");
+                throw new EmuException("time frame decreasing, looking for " + lookedForTF + " but found " + tf);
             }
         }
 
