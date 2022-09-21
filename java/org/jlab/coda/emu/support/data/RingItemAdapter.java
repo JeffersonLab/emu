@@ -149,12 +149,18 @@ abstract class RingItemAdapter implements RingItem {
         event                  = ringItem.getEvent();
         buffer                 = ringItem.getBuffer();
         node                   = ringItem.getNode();
+
         eventType              = ringItem.getEventType();
         controlType            = ringItem.getControlType();
         isUser                 = ringItem.isUser();
         isFirst                = ringItem.isFirstEvent();
+
         isStreaming            = ringItem.isStreaming();
         timestamp              = ringItem.getTimestamp();
+        timeFrame              = ringItem.getTimeFrame();
+        channelSequenceObj     = ringItem.getChannelSequenceObj();
+        channelSequence        = ringItem.getChannelSequence();
+
         sourceId               = ringItem.getSourceId();
         matchesId              = ringItem.matchesId();
         sourceName             = ringItem.getSourceName();
@@ -191,7 +197,6 @@ abstract class RingItemAdapter implements RingItem {
         isUser                 = user;
         isFirst                = first;
         isStreaming            = streaming;
-        timestamp              = timestamp;
         recordId               = rId;
         sourceId               = sId;
         matchesId              = sId == chanId;
