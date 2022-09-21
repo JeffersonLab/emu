@@ -555,14 +555,14 @@ System.out.println("  Roc mod: done killThreads()");
         }
 
         // TODO: assumes only one output channel ...
-        RingBuffer rb = outputChannels.get(0).getRingBuffersOut()[ringNum];
+        RingBuffer<RingItem> rb = outputChannels.get(0).getRingBuffersOut()[ringNum];
 
 //System.out.println("  Roc mod: wait for next ring buf for writing");
         long nextRingItem = rb.next();
 //System.out.println("  Roc mod: GOT next ring buf");
 
 //System.out.println("  Roc mod: get out sequence " + nextRingItem);
-        RingItem ri = (RingItem) rb.get(nextRingItem);
+        RingItem ri = rb.get(nextRingItem);
 //System.out.println("  Roc mod: GOT out sequence " + nextRingItem);
         ri.setBuffer(buf);
         if (streamingData) {
@@ -832,11 +832,10 @@ System.out.println("  Roc mod: NEED TO GENERATE MORE REAL DATA, have " + arrayBy
             CompactEventBuilder builder = new CompactEventBuilder(4*totalLen, outputOrder, false);
 
             // ROC Time Slice Bank
-            int rocId = 7;
             int totalStreams = 2;
             int streamMask = 3;
-            int streamStatus = ((totalStreams << 4) & 0x7) | (streamMask & 0xf);
-            builder.openBank(rocId, streamStatus, DataType.BANK);
+            int streamStatus = ((totalStreams << 4) & 0x7f) | (streamMask & 0xf);
+            builder.openBank(id, streamStatus, DataType.BANK);
 
             // Stream Info Bank (SIB)
             builder.openBank(CODATag.STREAMING_SIB.getValue(), streamStatus, DataType.SEGMENT);
@@ -854,28 +853,28 @@ System.out.println("  Roc mod: NEED TO GENERATE MORE REAL DATA, have " + arrayBy
             builder.openSegment(0x41, DataType.USHORT16);
             short[] shortData = new short[4];
 
-            int payloadPort1 = 0;
+            int payloadPort1 = 8;
             int laneId = 0;
             int bond = 0;
             int moduleId = 2;
             short payload1 = (short) (((moduleId << 8) & 0xf) | ((bond << 7) & 0x1) | ((laneId << 5) & 0x3)| (payloadPort1 & 0x1f));
             shortData[0] = payload1;
 
-            int payloadPort2 = 1;
+            int payloadPort2 = 9;
             laneId = 1;
             bond = 0;
             moduleId = 3;
             short payload2 = (short) (((moduleId << 8) & 0xf) | ((bond << 7) & 0x1) | ((laneId << 5) & 0x3)| (payloadPort2 & 0x1f));
             shortData[1] = payload2;
 
-            int payloadPort3 = 2;
+            int payloadPort3 = 10;
             laneId = 2;
             bond = 0;
             moduleId = 5;
             short payload3 = (short) (((moduleId << 8) & 0xf) | ((bond << 7) & 0x1) | ((laneId << 5) & 0x3)| (payloadPort3 & 0x1f));
             shortData[2] = payload3;
 
-            int payloadPort4 = 3;
+            int payloadPort4 = 11;
             laneId = 3;
             bond = 0;
             moduleId = 7;
@@ -1531,7 +1530,7 @@ System.out.println("  Roc mod: NEED TO GENERATE MORE REAL DATA, have " + arrayBy
         private volatile boolean killThd;
 
         // Streaming stuff
-        private long frameNumber;
+        private long frameNumber = 0L;
         int singleTSBsize;
 
 
