@@ -1183,7 +1183,15 @@ System.out.println("  EB mod: sorter got user event from channel " + inputChanne
                             // Compare bank's TS to the one we're looking for -
                             // those to be placed into the current build thread's ring.
                             // First time thru this comes back as "SAME".
-                            FrameNumberDiff diff = compareWithLookedForTF(frame, lookingForFrame);
+                            FrameNumberDiff diff = null;
+                            try {
+                                diff = compareWithLookedForTF(frame, lookingForFrame);
+                            }
+                            catch (EmuException e) {
+System.out.println("  EB mod: ch" + chan + ", got frame = " + frame + ", looking for " + lookingForFrame + ", going backwards, ignore bad frame");
+                                nextSequences[chan]++;
+                                continue;
+                            }
 
 //System.out.println("  EB mod: ch" + chan + ", sorter NOT CONTROL EVENT, frame = " + frame + ", looking for " + lookingForFrame + ", diff = " + diff);
                             // Bank was has same Time Slice as the one we're looking for.
