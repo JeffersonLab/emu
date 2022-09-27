@@ -2555,7 +2555,7 @@ System.out.println("                         : segWords from event 0 = " + dataW
                                             boolean nonFatalError)
             throws EmuException {
 
-        int pos;
+        int pos, totalStreams = 0;
         EvioNode bank, node, sibBank, seg;
         boolean switchEndian = builtEventBuf.order() != rocBuf[0].order();
         long ts, frameNum, tsAvg=0L, tsMax=Long.MIN_VALUE, tsMin=Long.MAX_VALUE;
@@ -2584,6 +2584,10 @@ System.out.println("                         : segWords from event 0 = " + dataW
         //----------------------------
 
         for (int j=0; j < sliceCount; j++) {
+            int num = rocNodes[j].getNum();
+            // pick out 3 bits of total stream info
+            totalStreams += (num >> 4) & 0x7;
+
             // Find the SIB bank - first child bank
             sibBank = rocNodes[j].getChildAt(0);
             if (sibBank == null) {
@@ -2659,7 +2663,7 @@ System.out.println("                         : segWords from event 0 = " + dataW
         // Skip over event's evio header length for now
         int writeIndex = 4;
 
-        int ssNum = ((nonFatalError ? 1 : 0) << 7) | sliceCount;
+        int ssNum = ((nonFatalError ? 1 : 0) << 7) | totalStreams;
         builtEventBuf.putInt(writeIndex, tag << 16 | (0x10 << 8) | ssNum);
         writeIndex += 4;
         int totalWords = 1; // (not including the first/top bank length)
@@ -2932,12 +2936,11 @@ System.out.println("                         : segWords from event 0 = " + dataW
         builtEventBuf.putInt(destPos, CODATag.STREAMING_AIS_BUILT.getValue() << 24 | 1 << 16 | sliceCount);
         destPos += 4;
 
-        // Copy over each Top bank's 2nd header word and copy it here
-        for (int i=0; i < sliceCount; i++) {
-            pos = rocNodes[i].getPosition(); // position of header in backing array
-            builtEventBuf.putInt(destPos, rocBuf[i].getInt(pos + 4));
-            destPos += 4;
-        }
+        // In this case, the ROCS are combined into one, so only one word is written here:
+        // ROC_ID  |  ??  | SS
+        int combinedRocNum = (isError << 7) | totalStreams << 4 | streamMask;
+        builtEventBuf.putInt(destPos, rocId << 16 | combinedRocNum);
+        destPos += 4;
 
         //-----------------------------------------
         // ROC Time Slice Bank
@@ -2948,14 +2951,12 @@ System.out.println("                         : segWords from event 0 = " + dataW
         // Aggregation info segment len
         int aggDataWords = (2 * payloadCount + padding) / 4;
 
-        int combinedNum = (isError << 7) | totalStreams << 4 | streamMask;
-
         // 1st word is roc time slice (top) bank len which we'll fill in later.
         int tsbPos = destPos;
         destPos += 4;
 
         // 2nd word is top bank's tag/type/num
-        builtEventBuf.putInt(destPos, rocId << 16 | 0x10 << 8 | combinedNum);
+        builtEventBuf.putInt(destPos, rocId << 16 | 0x10 << 8 | combinedRocNum);
         destPos += 4;
 
         // 3rd word is Stream Info Bank's evio length in words.
@@ -2963,7 +2964,7 @@ System.out.println("                         : segWords from event 0 = " + dataW
         destPos += 4;
 
         // 4th word it SIB's tag/type/num
-        builtEventBuf.putInt(destPos, CODATag.STREAMING_SIB.getValue() << 16 | 0x20 << 8 | combinedNum);
+        builtEventBuf.putInt(destPos, CODATag.STREAMING_SIB.getValue() << 16 | 0x20 << 8 | combinedRocNum);
         destPos += 4;
 
         //------------------------------
