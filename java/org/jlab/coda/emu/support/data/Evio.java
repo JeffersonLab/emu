@@ -2932,8 +2932,8 @@ System.out.println("                         : segWords from event 0 = " + dataW
         builtEventBuf.putInt(destPos, (int)timestamps[0]);           destPos += 4;
         builtEventBuf.putInt(destPos, (int)(timestamps[0] >>> 32));  destPos += 4;
 
-        // 9th word it Aggregation Info Seg's tag/type/num (len = # rocs, 1 word/roc)
-        builtEventBuf.putInt(destPos, CODATag.STREAMING_AIS_BUILT.getValue() << 24 | 1 << 16 | sliceCount);
+        // 9th word it Aggregation Info Seg's tag/type/num (len = # rocs, 1 word/roc, only 1 roc in this case)
+        builtEventBuf.putInt(destPos, CODATag.STREAMING_AIS_BUILT.getValue() << 24 | 1 << 16 | 1);
         destPos += 4;
 
         // In this case, the ROCS are combined into one, so only one word is written here:
