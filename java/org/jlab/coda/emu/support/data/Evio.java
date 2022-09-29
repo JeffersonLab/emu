@@ -2901,7 +2901,8 @@ System.out.println("                         : segWords from event 0 = " + dataW
         }
 
         //-------------------------------------------------------------------
-        // There are 7 words (top bank header, Time Info Bank header & data)
+        // There are 9 words, not including first evio bank length,
+        // (top bank header, Stream Info Bank header & data)
         // which will come before the ROC Time Slice Bank.
         //-------------------------------------------------------------------
 
@@ -2916,7 +2917,7 @@ System.out.println("                         : segWords from event 0 = " + dataW
         destPos += 4;
 
         // 3rd word is Stream Info Bank's length
-        builtEventBuf.putInt(destPos, 6+sliceCount);
+        builtEventBuf.putInt(destPos, 7);
         destPos += 4;
 
         // 4th word it SIB's tag/type/num (type = segments)
