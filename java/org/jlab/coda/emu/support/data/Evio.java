@@ -2555,7 +2555,7 @@ System.out.println("                         : segWords from event 0 = " + dataW
                                             boolean nonFatalError)
             throws EmuException {
 
-        int pos, totalStreams = 0;
+        int pos;
         EvioNode bank, node, sibBank, seg;
         boolean switchEndian = builtEventBuf.order() != rocBuf[0].order();
         long ts, frameNum, tsAvg=0L, tsMax=Long.MIN_VALUE, tsMin=Long.MAX_VALUE;
@@ -2584,9 +2584,6 @@ System.out.println("                         : segWords from event 0 = " + dataW
         //----------------------------
 
         for (int j=0; j < sliceCount; j++) {
-            int num = rocNodes[j].getNum();
-            // pick out 3 bits of total stream info
-            totalStreams += (num >> 4) & 0x7;
 
             // Find the SIB bank - first child bank
             sibBank = rocNodes[j].getChildAt(0);
@@ -2663,7 +2660,7 @@ System.out.println("                         : segWords from event 0 = " + dataW
         // Skip over event's evio header length for now
         int writeIndex = 4;
 
-        int ssNum = ((nonFatalError ? 1 : 0) << 7) | totalStreams;
+        int ssNum = ((nonFatalError ? 1 : 0) << 7) | sliceCount;
         builtEventBuf.putInt(writeIndex, tag << 16 | (0x10 << 8) | ssNum);
         writeIndex += 4;
         int totalWords = 1; // (not including the first/top bank length)
@@ -2843,8 +2840,10 @@ System.out.println("                         : segWords from event 0 = " + dataW
             rocNode = rocNodes[j];
 
             int num = rocNode.getNum();
-            // pick out 3 bits of total stream info
-            totalStreams += (num >> 4) & 0x7;
+            // Pick out 3 bits of total stream info.
+            // Since we're merging streams from same ROC, this will
+            // be identical across ROCs
+            totalStreams = (num >> 4) & 0x7;
             // created combined stream mask of lowest 4 bits
             streamMask |= num & 0xf;
 
