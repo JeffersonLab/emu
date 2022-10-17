@@ -1496,6 +1496,7 @@ System.out.println("Got packet, seq " + sequence);
                                 // and possibly others after it.
                                 // So go ahead and dump the rest of the tick in an effort to keep up.
 System.out.println("UDP in stream: dropped at least first packet of frame, dump whole frame");
+Utilities.printBytes(buffer, 0, 200, "Streamed buf");
                                 putDataAt = 0;
                                 remainingLen = bufLen;
                                 veryFirstRead = true;
