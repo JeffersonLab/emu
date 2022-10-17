@@ -1377,7 +1377,7 @@ logger.info("    DataChannel UDP stream: total header bytes = " + HEADER_BYTES);
                                 packetFirst  = reHeader[2] == 1 ? true : false;
                                 packetLast   = reHeader[3] == 1 ? true : false;
                                 packetDataId = reHeader[4];
-                                sequence     = reHeader[5];
+                                sequence     = reHeader[5] - 1; // VTP starts at 1, not 0
                                 pktCount     = reHeader[6];
                             }
 
@@ -1427,7 +1427,7 @@ System.out.println("Got what should be first packet of buf, seq " + sequence);
                                 packetFirst  = reHeader[2] == 1 ? true : false;
                                 packetLast   = reHeader[3] == 1 ? true : false;
                                 packetDataId = reHeader[4];
-                                sequence     = reHeader[5];
+                                sequence     = reHeader[5] - 1; // VTP starts at 1, not 0
                                 pktCount     = reHeader[6];
                             }
 System.out.println("Got packet, seq " + sequence);
