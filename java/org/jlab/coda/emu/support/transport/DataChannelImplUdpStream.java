@@ -358,7 +358,7 @@ logger.info("    DataChannel UDP stream: total header bytes = " + HEADER_BYTES);
                 catch (NumberFormatException e) {/* go with default */}
             }
 
-            // Port to use for a receiving UDP socket, use default if not given
+            // Host to use for a sending UDP socket
             attribString = attributeMap.get("host");
             if (attribString != null) {
                 destHost = attribString;
