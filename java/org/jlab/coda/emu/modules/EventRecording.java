@@ -493,7 +493,7 @@ System.out.println("  ER mod: will end thread but no END event!");
                              // Now place one copy on each output channel
                              for (int j=0; j < outputChannelCount; j++) {
  System.out.println("  ER mod: writing control/first (seq " + mainNextSequence +
-                    ") to channel " + fileOutputChannels[j].name());
+                    ") to channel #" + outputChannels.get(j).name());
                                  eventToOutputChannel(outputEvents[j], j, 0);
                              }
 
