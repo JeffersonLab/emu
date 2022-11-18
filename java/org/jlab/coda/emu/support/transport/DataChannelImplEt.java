@@ -1683,13 +1683,31 @@ logger.info("      DataChannel Et in: wake up GETTER's getEvents() call so it ca
             }
 
             try {getter.join(oneThreadWaitTime);}
-            catch (InterruptedException e) {}
+            catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+
+            if (getter.isAlive()) {
+                logger.debug("            waitForThreadsToEnd: " + name + " channel, getter is still alive!!");
+            }
 
             try {putter.join(oneThreadWaitTime);}
-            catch (InterruptedException e) {}
+            catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+
+            if (getter.isAlive()) {
+                logger.debug("            waitForThreadsToEnd: " + name + " channel, putter is still alive!!");
+            }
 
             try {this.join(oneThreadWaitTime);}
-            catch (InterruptedException e) {}
+            catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+
+            if (getter.isAlive()) {
+                logger.debug("            waitForThreadsToEnd: " + name + " channel, main thd is still alive!!");
+            }
 
             return !(this.isAlive() || putter.isAlive() || getter.isAlive());
         }
