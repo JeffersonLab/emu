@@ -803,9 +803,7 @@ logger.info("      DataChannel Et: # copy-ET-buffers in input supply -> " + numE
         }
 
         if (dataOutputThread != null) {
-logger.debug("          DataChannel Et interruptThds: " + name + " channel, try shutdowning output thread");
             dataOutputThread.shutdown();
-logger.debug("          DataChannel Et interruptThds: " + name + " channel, shutdown output thread");
         }
     }
 
@@ -823,9 +821,8 @@ logger.debug("          DataChannel Et interruptThds: " + name + " channel, shut
         catch (InterruptedException e) {}
 
         if (dataOutputThread != null) {
-logger.debug("          DataChannel Et joinThreads: " + name + " channel, try joining output thread (1 sec)");
             boolean ended = dataOutputThread.waitForThreadsToEnd(1000);
-logger.debug("          DataChannel Et joinThreads: " + name + " channel, past joining output thread, ended = " + ended);
+logger.debug("          DataChannel Et joinThreads: " + name + " channel, past joining output threads, ended = " + ended);
         }
     }
 
@@ -878,9 +875,9 @@ logger.debug("\n\n      DataChannel Et reset: " + name + " channel");
         stopGetterThread = true;
 
         interruptThreads();
-logger.debug("      DataChannel Et reset: done interrupting threads");
+//logger.debug("      DataChannel Et reset: done interrupting threads");
         joinThreads();
-logger.debug("      DataChannel Et reset: done joining threads");
+//logger.debug("      DataChannel Et reset: done joining threads");
 
         try {
             closeEtSystem();
@@ -888,7 +885,7 @@ logger.debug("      DataChannel Et reset: done joining threads");
         catch (DataTransportException e) {
             e.printStackTrace();
         }
-logger.debug("      DataChannel Et reset: done closing ET system");
+//logger.debug("      DataChannel Et reset: done closing ET system");
 
         errorMsg.set(null);
         channelState = CODAState.CONFIGURED;
