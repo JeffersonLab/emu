@@ -1727,6 +1727,12 @@ logger.debug("          DataChannel Et shutdown: " + name + " channel, try to wa
                 this.interrupt();
                 Thread.sleep(400);
                 putter.interrupt();
+                Thread.sleep(400);
+                putter.interrupt();
+                Thread.sleep(400);
+                putter.interrupt();
+                Thread.sleep(400);
+                putter.interrupt();
 
                 logger.debug("          DataChannel Et shutdown: " + name + " channel, woke up attachments and interrupted threads");
             }
@@ -2168,7 +2174,7 @@ logger.debug("          DataChannel Et shutdown: " + name + " channel, try to wa
             }
             catch (InterruptedException e) {
                 // Interrupted while waiting for ring item
-//logger.warn("      DataChannel Et out: " + name + "  interrupted thd, exiting");
+logger.warn("      DataChannel Et out: " + name + "  interrupted main thd, exiting");
             }
             catch (Exception e) {
 logger.warn("      DataChannel Et out: exit thd w/ error = " + e.getMessage());
