@@ -2411,7 +2411,17 @@ System.out.println("      DataChannel Et out: " + name + " Et connection closed"
                         logger.info("      DataChannel Et out: wake up " + name + ", other thd found END, quit");
                     }
                     else if (gotResetCmd) {
-                        logger.info("      DataChannel Et out: " + name + " got RESET cmd, quitting");
+                        logger.info("      DataChannel Et out: wake up " + name + " got RESET cmd, quitting");
+                    }
+                    return;
+                }
+                catch (InterruptedException e) {
+                    // Told to wake up because we're ending or resetting
+                    if (haveInputEndEvent) {
+                        logger.info("      DataChannel Et out: interrupt " + name + ", other thd found END, quit");
+                    }
+                    else if (gotResetCmd) {
+                        logger.info("      DataChannel Et out: interrupt " + name + " got RESET cmd, quitting");
                     }
                     return;
                 }
