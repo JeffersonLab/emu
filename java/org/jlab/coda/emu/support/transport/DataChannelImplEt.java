@@ -1729,10 +1729,8 @@ logger.debug("          DataChannel Et shutdown: " + name + " channel, try to wa
                 getter.interrupt();
                 this.interrupt();
                 Thread.sleep(400);
-                putter.interrupt();
 logger.debug("          DataChannel Et shutdown: " + name + " channel, raise alert for put barrier");
                 etPutBarrier.alert();
-
 logger.debug("          DataChannel Et shutdown: " + name + " channel, woke up attachments and interrupted threads");
             }
             catch (Exception e) {
@@ -2238,10 +2236,8 @@ logger.warn("      DataChannel Et out: exit thd w/ error = " + e.getMessage());
                         if (availableSequence < nextSequence) {
                             // Wait for next available ring slot
 //System.out.println("      DataChannel Et out (" + name + "): PUTTER try getting seq " + nextSequence);
-System.out.println("B");
                             availableSequence = barrier.waitFor(nextSequence);
                         }
-System.out.println("G");
                         etContainer = rb.get(nextSequence);
 
                         // Total # of events obtained by newEvents()
@@ -2266,13 +2262,11 @@ System.out.println("G");
 //                   ", " + validEvents + " valid, hasEnd = " + hasEnd + ", lastIndex = " + lastIndex +
 //                   ", toPut = " + eventsToPut + ", toDump = " + eventsToDump);
 
-                        System.out.println("P");
                         // Put all events with valid data back in ET system.
                         etContainer.putEvents(attachment, 0, eventsToPut);
                         etSystem.putEvents(etContainer);
 
                         if (eventsToDump > 0) {
-                            System.out.println("D");
                             // Dump all events with NO valid data. END is last valid event.
                             etContainer.dumpEvents(attachment, lastIndex+1, eventsToDump);
                             etSystem.dumpEvents(etContainer);
@@ -2291,8 +2285,8 @@ System.out.println("      DataChannel Et out (" + name + "): PUTTER got END even
                     }
                 }
                 catch (AlertException e) {
-                    channelState = CODAState.ERROR;
-                    emu.setErrorState("DataChannel Et out: ring buffer error");
+                    // Quit thread
+System.out.println("      DataChannel Et out: " + name + " putter thd, alerted, quitting");
                 }
                 catch (InterruptedException e) {
                     // Quit thread
