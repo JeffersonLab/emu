@@ -1696,7 +1696,7 @@ logger.info("      DataChannel Et in: wake up GETTER's getEvents() call so it ca
                 e.printStackTrace();
             }
 
-            if (getter.isAlive()) {
+            if (putter.isAlive()) {
                 logger.debug("            waitForThreadsToEnd: " + name + " channel, putter is still alive!!");
             }
 
@@ -1705,7 +1705,7 @@ logger.info("      DataChannel Et in: wake up GETTER's getEvents() call so it ca
                 e.printStackTrace();
             }
 
-            if (getter.isAlive()) {
+            if (this.isAlive()) {
                 logger.debug("            waitForThreadsToEnd: " + name + " channel, main thd is still alive!!");
             }
 
@@ -1724,9 +1724,11 @@ logger.debug("          DataChannel Et shutdown: " + name + " channel, try to wa
                 etSystem.wakeUpAttachment(attachment);
                 Thread.sleep(100);
                 getter.interrupt();
-                putter.interrupt();
                 this.interrupt();
-logger.debug("          DataChannel Et shutdown: " + name + " channel, woke up attachments and interrupted threads");
+                Thread.sleep(400);
+                putter.interrupt();
+
+                logger.debug("          DataChannel Et shutdown: " + name + " channel, woke up attachments and interrupted threads");
             }
             catch (Exception e) {
                 e.printStackTrace();
