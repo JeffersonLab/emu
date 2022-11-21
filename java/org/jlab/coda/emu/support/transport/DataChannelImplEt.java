@@ -2231,8 +2231,10 @@ logger.warn("      DataChannel Et out: exit thd w/ error = " + e.getMessage());
                         if (availableSequence < nextSequence) {
                             // Wait for next available ring slot
 //System.out.println("      DataChannel Et out (" + name + "): PUTTER try getting seq " + nextSequence);
+System.out.println("B");
                             availableSequence = barrier.waitFor(nextSequence);
                         }
+System.out.println("G");
                         etContainer = rb.get(nextSequence);
 
                         // Total # of events obtained by newEvents()
@@ -2257,11 +2259,13 @@ logger.warn("      DataChannel Et out: exit thd w/ error = " + e.getMessage());
 //                   ", " + validEvents + " valid, hasEnd = " + hasEnd + ", lastIndex = " + lastIndex +
 //                   ", toPut = " + eventsToPut + ", toDump = " + eventsToDump);
 
+                        System.out.println("P");
                         // Put all events with valid data back in ET system.
                         etContainer.putEvents(attachment, 0, eventsToPut);
                         etSystem.putEvents(etContainer);
 
                         if (eventsToDump > 0) {
+                            System.out.println("D");
                             // Dump all events with NO valid data. END is last valid event.
                             etContainer.dumpEvents(attachment, lastIndex+1, eventsToDump);
                             etSystem.dumpEvents(etContainer);
@@ -2285,7 +2289,7 @@ System.out.println("      DataChannel Et out (" + name + "): PUTTER got END even
                 }
                 catch (InterruptedException e) {
                     // Quit thread
-System.out.println("      DataChannel Et out: " + name + " interrupted thread");
+System.out.println("      DataChannel Et out: " + name + " putter thd, interrupted");
                 }
                 catch (TimeoutException e) {
                     // Never happen in our ring buffer
@@ -2408,20 +2412,20 @@ System.out.println("      DataChannel Et out: " + name + " Et connection closed"
                 catch (EtWakeUpException e) {
                     // Told to wake up because we're ending or resetting
                     if (haveInputEndEvent) {
-                        logger.info("      DataChannel Et out: wake up " + name + ", other thd found END, quit");
+                        logger.info("      DataChannel Et out: wake up " + name + " getter thd, other thd found END, quit");
                     }
                     else if (gotResetCmd) {
-                        logger.info("      DataChannel Et out: wake up " + name + " got RESET cmd, quitting");
+                        logger.info("      DataChannel Et out: wake up " + name + "getter thd, got RESET cmd, quitting");
                     }
                     return;
                 }
                 catch (InterruptedException e) {
                     // Told to wake up because we're ending or resetting
                     if (haveInputEndEvent) {
-                        logger.info("      DataChannel Et out: interrupt " + name + ", other thd found END, quit");
+                        logger.info("      DataChannel Et out: interrupt " + name + " getter thd, other thd found END, quit");
                     }
                     else if (gotResetCmd) {
-                        logger.info("      DataChannel Et out: interrupt " + name + " got RESET cmd, quitting");
+                        logger.info("      DataChannel Et out: interrupt " + name + " getter thd, got RESET cmd, quitting");
                     }
                     return;
                 }
