@@ -1722,7 +1722,11 @@ logger.info("      DataChannel Et in: wake up GETTER's getEvents() call so it ca
                 // Wake up getter thread
 logger.debug("          DataChannel Et shutdown: " + name + " channel, try to wake up attachment");
                 etSystem.wakeUpAttachment(attachment);
-logger.debug("          DataChannel Et shutdown: " + name + " channel, woke up attachment");
+                Thread.sleep(100);
+                getter.interrupt();
+                putter.interrupt();
+                this.interrupt();
+logger.debug("          DataChannel Et shutdown: " + name + " channel, woke up attachments and interrupted threads");
             }
             catch (Exception e) {
                 e.printStackTrace();
