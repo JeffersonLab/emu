@@ -1615,8 +1615,11 @@ logger.info("      DataChannel Et in: wake up GETTER's getEvents() call so it ca
         /** Used by first consumer (DataOutputHelper) to get ring buffer items. */
         private Sequence etFillSequence;
 
-        /** Used by first consumer to get ring buffer items. */
+        /** Used by first consumer (main thread) to get ring buffer items. */
         private SequenceBarrier etFillBarrier;
+
+        /** Used by second consumer (putter) to get ring buffer items. */
+        private SequenceBarrier etPutBarrier;
 
         /** Maximum allowed number of evio ring items per ET event. */
         private static final int maxEvioItemsPerEtBuf = 10000;
@@ -1647,7 +1650,7 @@ logger.info("      DataChannel Et in: wake up GETTER's getEvents() call so it ca
 
             // 2nd consumer to take filled ET buffers and put back into ET system,
             // depends on filling consumer.
-            SequenceBarrier etPutBarrier = rb.newBarrier(etFillSequence);
+            etPutBarrier = rb.newBarrier(etFillSequence);
             Sequence etPutSequence = new Sequence(Sequencer.INITIAL_CURSOR_VALUE);
             // Last sequence before producer can grab ring item
             rb.addGatingSequences(etPutSequence);
@@ -1727,14 +1730,10 @@ logger.debug("          DataChannel Et shutdown: " + name + " channel, try to wa
                 this.interrupt();
                 Thread.sleep(400);
                 putter.interrupt();
-                Thread.sleep(400);
-                putter.interrupt();
-                Thread.sleep(400);
-                putter.interrupt();
-                Thread.sleep(400);
-                putter.interrupt();
+logger.debug("          DataChannel Et shutdown: " + name + " channel, raise alert for put barrier");
+                etPutBarrier.alert();
 
-                logger.debug("          DataChannel Et shutdown: " + name + " channel, woke up attachments and interrupted threads");
+logger.debug("          DataChannel Et shutdown: " + name + " channel, woke up attachments and interrupted threads");
             }
             catch (Exception e) {
                 e.printStackTrace();
