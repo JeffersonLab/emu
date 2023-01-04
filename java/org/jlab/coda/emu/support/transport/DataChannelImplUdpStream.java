@@ -936,7 +936,24 @@ logger.info("    DataChannel UDP stream: total header bytes = " + HEADER_BYTES);
 
                     while (true) {
 
+                        // Another packet of data might exceed buffer space, so expand
+                        if (remainingLen < 9000) {
+                            // Double buffer size
+                            itemBB = expandBuffer(itemBB, putDataAt, 2);
+                            item.setBuffer(itemBB);
+                            buffer = itemBB.array();
+                            bufLen = buffer.length;
+                            remainingLen = bufLen - putDataAt;
+System.out.println("reallocated buffer to " + bufLen + " bytes");
+                        }
+
                         if (veryFirstRead) {
+
+                            maxPacketBytes   = 0;
+                            expectedSequence = 0;
+                            putDataAt        = 0;
+                            remainingLen     = bufLen;
+
                             // Read in first packet into temporary storage
                             packet.setData(pkt, 0, biggestPacketLen);
 //System.out.println("\nWait to receive packet on port " + inSocket.getLocalPort() + ", other end is port " + inSocket.getPort());
@@ -999,6 +1016,13 @@ logger.info("    DataChannel UDP stream: total header bytes = " + HEADER_BYTES);
                             bytesRead = packet.getLength();
                             nBytes = bytesRead - HEADER_BYTES;
 
+                            if (nBytes == 0) {
+                                // Something clearly wrong. There should be SOME data besides header returned.
+System.out.println("Internal error: got packet with no data, buf's unused bytes = " + remainingLen);
+                                outOfOrderPackets.clear();
+                                throw new EmuException("Got packet with no data, internal error");
+                            }
+
                             // Parse header
                             if (useErsapReHeader) {
                                 // Parse Ersap format RE header
@@ -1019,38 +1043,14 @@ logger.info("    DataChannel UDP stream: total header bytes = " + HEADER_BYTES);
                                 packetTick   = reHeader[1]; // recordId (1 byte)
                                 packetFirst  = reHeader[2] == 1 ? true : false;
                                 packetLast   = reHeader[3] == 1 ? true : false;
-                                packetDataId = reHeader[4];
+                                packetDataId = reHeader[4]; // source id
                                 sequence     = reHeader[5] - 1; // VTP starts at 1, not 0
                                 pktCount     = reHeader[6];
                             }
 System.out.println("Got packet, seq " + sequence);
 
-                            // If seq > 0 && tick has advanced, then the logic a few lines down
-                            // will dump this new tick and the previous incomplete one.
-
-                            // Sequence should never be 0 here, but we can dump the buffer we
-                            // were working on and go to the next
-                            if (sequence == 0) {
-//                                // This should never happen. Tick is not incrementing.
-//                                if (packetTick == prevTick) {
-//                                    throw new EmuException("Tick did NOT advance with sequence = 0");
-//                                }
-
-                                // If we're here then we dropped (at least) a packet with the "last" flag set,
-                                // thus we missed the last packet of a buffer and have now written
-                                // this packet's data into the wrong place. Probably a rare occurance.
-                                // Copy it into the beginning of the buffer and dump what came before
-                                // (dump is a several lines below).
-
-                                // This method automatically takes care of overlapping src and dest
-                                System.arraycopy(buffer, putDataAt, buffer, 0, nBytes);
-                                putDataAt = 0;
-                                remainingLen = bufLen;
-                            }
-                            else {
-                                // Replace what was written over
-                                System.arraycopy(headerStorage, 0, buffer, writeHeaderAt, HEADER_BYTES);
-                            }
+                            // Replace what was written over
+                            System.arraycopy(headerStorage, 0, buffer, writeHeaderAt, HEADER_BYTES);
                         }
 
 //                        if (useErsapReHeader) {
@@ -1079,8 +1079,8 @@ System.out.println("Got packet, seq " + sequence);
                         // For the VTP, the "tick" is one byte so it rolls over constantly,
                         // but is not a problem.
 
-                        // If we've moved on to another buffer OR we have a control/user event ...
-                        if ((packetTick != prevTick) || (packetTick == 0)) {
+                        // If we've moved on to another buffer
+                        if (packetTick != prevTick) {
 
                             // If we're here, either we've just read the very first legitimate packet,
                             // or we've dropped some packets and advanced to another tick/recordId in the process.
@@ -1092,18 +1092,30 @@ System.out.println("Got packet, seq " + sequence);
                                 // So go ahead and dump the rest of the tick in an effort to keep up.
 System.out.println("UDP in stream: dropped at least first packet of frame, dump whole frame");
 Utilities.printBytes(buffer, 0, 200, "Streamed buf");
-                                putDataAt = 0;
-                                remainingLen = bufLen;
                                 veryFirstRead = true;
                                 dumpTick = true;
+                                prevTick = packetTick;
                                 prevSequence = sequence;
+                                prevPacketLast = packetLast;
+
                                 continue;
                             }
 
-                            if (prevPacketLast != true) {
+                            if (putDataAt != 0) {
                                 // The last tick's buffer was not fully contructed
                                 // before this new tick showed up!
-System.out.println("Discarding record id " + packetTick + ", last packet sequence dropped = " + (prevSequence + 1));
+System.out.println("Discarding record id " + packetTick);
+
+                                // We have a problem here, the first packet of this tick, unfortunately,
+                                // is at the end of the buffer storing the previous tick. We must move it
+                                // to the front of the buffer and overwrite the previous tick.
+                                // This will happen if the end of the previous tick is completely dropped
+                                // and the first packet of the new tick is read.
+                                System.arraycopy(buffer, putDataAt, buffer, 0, nBytes);
+
+                                maxPacketBytes   = 0;
+                                putDataAt        = 0;
+                                remainingLen     = bufLen;
                             }
 
                             // If here, new record, seq = 0
@@ -1116,19 +1128,24 @@ System.out.println("Discarding record id " + packetTick + ", last packet sequenc
                         }
                         // Same record as last packet
                         else {
+
+                            if (sequence - prevSequence <= 0) {
+System.out.println("Got SAME or DECREASING seq, " + sequence + " (from " + prevSequence + ")");
+                                continue;
+                            }
+
                             if (dumpTick || (sequence - prevSequence > 1)) {
                                 // If here, the sequence hopped by at least 2,
                                 // probably dropped at least 1,
                                 // so drop rest of packets for record.
                                 // This branch of the "if" will no longer
                                 // be executed once the next record shows up.
-System.out.println("UDP in stream: missing member of sequence");
-                                putDataAt = 0;
-                                remainingLen = bufLen;
+System.out.println("Missing seq (" + (prevSequence + 1) + ", dump record " + packetTick);
                                 veryFirstRead = true;
-                                expectedSequence = 0;
                                 dumpTick = true;
                                 prevSequence = sequence;
+                                prevPacketLast = packetLast;
+
                                 continue;
                             }
                         }
@@ -1137,6 +1154,7 @@ System.out.println("UDP in stream: missing member of sequence");
 
                         if (sequence == 0) {
                             firstReadForBuf = true;
+                            putDataAt = 0;
                         }
 
                         prevTick = packetTick;
@@ -1148,21 +1166,19 @@ System.out.println("UDP in stream: missing member of sequence");
 
                         // Check to see if packet is out-of-sequence
                         // The challenge here is to TEMPORARILY store the out-of-order packets.
-                        // TODO: I see difficulties with the algorithm here. How do we go to next
-                        // TODO: buffer gracefully? The first packet of the next buffer can easily
-                        // TODO: endup in the old buffer at nonzero putDataAt value!
-                        // TODO: This needs to be corrected in C++ code as well!
                         if (sequence != expectedSequence) {
-                             System.out.println("\n\n\n   ID " + id + ": got seq " + sequence +
-                                                ", expecting " + expectedSequence + ", record id = " + recordId + "\n\n");
+                             System.out.println("\n   ID " + id + ": got seq " + sequence +
+                                                ", expecting " + expectedSequence);
 
                             // If we get a sequence that we already received, ERROR!
                             if (sequence < expectedSequence) {
+                                outOfOrderPackets.clear();
                                 throw new EmuException("got seq " + sequence + " before!");
                             }
 
                             // Set a limit on how much we're going to store (100 packets) while we wait
                             if (outOfOrderPackets.size() >= 100) {
+                                outOfOrderPackets.clear();
                                 throw new EmuException("Reached limit of stored out-of-order packets\n");
                             }
 
@@ -1222,21 +1238,6 @@ System.out.println("UDP in stream: missing member of sequence");
                                 if (packetLast) {
                                     break;
                                 }
-
-                                // Another mtu of data (as reckoned by source) will exceed buffer space,
-                                // so expand it
-                                if (remainingLen < maxPacketBytes) {
-                                    // This method differs from the C++ equivalent getCompletePacketizedBuffer
-                                    // function. That one gets provided a buffer in the args so it cannot be expanded.
-                                    // This one gets it from the supply and therefore can expand it.
-                                    // There is only 1 user of this item/buffer at the moment, so expanding it
-                                    // is possible without multithreading issues.
-                                    itemBB = expandBuffer(itemBB, putDataAt, 2);
-                                    item.setBuffer(itemBB);
-                                    buffer = itemBB.array();
-                                    bufLen = buffer.length;
-                                    remainingLen = bufLen - putDataAt;
-                                }
                             }
                             // If there were previous packets out-of-order, they may now be in order.
                             // If so, write them into buffer.
@@ -1256,6 +1257,18 @@ System.out.println("UDP in stream: missing member of sequence");
                                     packetLast = val.getValue2();
                                     packetFirst = val.getValue3();
                                     sequence = expectedSequence;
+
+                                    // Not enough room for this packet
+                                    if (remainingLen < nBytes) {
+                                        // There is only 1 user of this item/buffer at the moment, so expanding it
+                                        // is possible without multithreading issues.
+                                        itemBB = expandBuffer(itemBB, putDataAt, 2);
+                                        item.setBuffer(itemBB);
+                                        buffer = itemBB.array();
+                                        bufLen = buffer.length;
+                                        remainingLen = bufLen - putDataAt;
+                                        System.out.println("reallocated buffer to " + bufLen + " bytes");
+                                    }
 
                                     System.arraycopy(dat, 0, buffer, putDataAt, nBytes);
 
@@ -1283,7 +1296,7 @@ System.out.println("UDP in stream: missing member of sequence");
 
 
                     // Print out part of buffer
-                    Utilities.printBytes(buffer, 0, 200, "Streamed buf");
+                    Utilities.printBytes(buffer, 0, 100, "Streamed buf");
 
                     //System.out.println("publish, seq " + sequence);
                     itemBB.limit(putDataAt);
