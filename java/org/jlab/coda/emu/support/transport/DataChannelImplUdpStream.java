@@ -1047,7 +1047,7 @@ System.out.println("Internal error: got packet with no data, buf's unused bytes 
                                 sequence     = reHeader[5] - 1; // VTP starts at 1, not 0
                                 pktCount     = reHeader[6];
                             }
-System.out.println("Got packet, seq " + sequence);
+//System.out.println("Got packet, seq " + sequence);
 
                             // Replace what was written over
                             System.arraycopy(headerStorage, 0, buffer, writeHeaderAt, HEADER_BYTES);
@@ -1295,9 +1295,9 @@ System.out.println("Missing seq (" + (prevSequence + 1) + ", dump record " + pac
                     }
 
 
-                    // Print out part of buffer
-                    Utilities.printBytes(buffer, 0, 100, "Streamed buf");
-
+//                    // Print out part of buffer
+//                    Utilities.printBytes(buffer, 0, 100, "Streamed buf");
+                    
                     //System.out.println("publish, seq " + sequence);
                     itemBB.limit(putDataAt);
                     bbSupply.publish(item);
