@@ -1090,8 +1090,12 @@ System.out.println("Internal error: got packet with no data, buf's unused bytes 
                                 // Already have trouble, looks like we dropped the first packet of a tick,
                                 // and possibly others after it.
                                 // So go ahead and dump the rest of the tick in an effort to keep up.
-System.out.println("UDP in stream: dropped at least first packet of frame, dump whole frame");
-Utilities.printBytes(buffer, 0, 200, "Streamed buf");
+System.out.println("New rec: dropped at least first pkt");
+System.out.println("Hdr: recId = " + packetTick + " (prev " + prevTick +
+                       "), seq = " + sequence + " (prev " + prevSequence +
+                       "), first = " + packetFirst + ", last = " + packetLast + "\n");
+
+//Utilities.printBytes(buffer, 0, 200, "Streamed buf");
                                 veryFirstRead = true;
                                 dumpTick = true;
                                 prevTick = packetTick;
@@ -1104,7 +1108,10 @@ Utilities.printBytes(buffer, 0, 200, "Streamed buf");
                             if (putDataAt != 0) {
                                 // The last tick's buffer was not fully contructed
                                 // before this new tick showed up!
-System.out.println("Discarding record id " + packetTick);
+System.out.println("New rec: previous rec unfinished");
+System.out.println("Hdr: recId = " + packetTick + " (prev " + prevTick +
+                       "), seq = " + sequence + " (prev " + prevSequence +
+                       "), first = " + packetFirst + ", last = " + packetLast + "\n");
 
                                 // We have a problem here, the first packet of this tick, unfortunately,
                                 // is at the end of the buffer storing the previous tick. We must move it
@@ -1117,6 +1124,23 @@ System.out.println("Discarding record id " + packetTick);
                                 putDataAt        = 0;
                                 remainingLen     = bufLen;
                             }
+
+                            // See if we skipped an entire buffer / record / frame / tick
+                            // How do we get the difference in ticks taking rollover into account?
+                            // packetTick is a long, but CODA uses only 8 bits, so
+                            // prevTick is fine, but packetTick may need adjustment.
+                            //
+                            // The other "gotcha" is that an out-of-order packet may arrive from a previous tick.
+                            // It may have seq = 0, in which case we end up here.
+                            //
+                            // I don't know of a way to distinguish these in every case ...
+                            if ((packetTick - prevTick) > 1) {
+System.out.println("New rec: MAY have skipped whole record(s)");
+System.out.println("Hdr: recId = " + packetTick + " (prev " + prevTick +
+                       "), seq = " + sequence + " (prev " + prevSequence +
+                       "), first = " + packetFirst + ", last = " + packetLast + "\n");
+                            }
+
 
                             // If here, new record, seq = 0
                             // There's a chance we can construct a full buffer.
@@ -1140,7 +1164,10 @@ System.out.println("Got SAME or DECREASING seq, " + sequence + " (from " + prevS
                                 // so drop rest of packets for record.
                                 // This branch of the "if" will no longer
                                 // be executed once the next record shows up.
-System.out.println("Missing seq (" + (prevSequence + 1) + ", dump record " + packetTick);
+System.out.println("Same rec: missing seq");
+System.out.println("Hdr: recId = " + packetTick + " (prev " + prevTick +
+                       "), seq = " + sequence + " (prev " + prevSequence +
+                       "), first = " + packetFirst + ", last = " + packetLast + "\n");
                                 veryFirstRead = true;
                                 dumpTick = true;
                                 prevSequence = sequence;
