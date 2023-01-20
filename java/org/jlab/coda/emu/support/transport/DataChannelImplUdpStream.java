@@ -2026,7 +2026,7 @@ System.out.println("SocketSender: killThread, set flag, interrupt");
              */
             public void run() {
                 boolean isEnd;
-                boolean debug = false;
+                boolean debug = true;
                 int[] packetsSent = new int[1];
                 byte[] packetStorage = new byte[10000];
                 int delay = 0;
