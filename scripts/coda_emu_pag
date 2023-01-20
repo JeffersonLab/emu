@@ -24,7 +24,7 @@ $JAVA_HOME/bin/java -cp $CODA/common/jar/\* \
     -Djava.library.path=$CODA/$MACHINE/lib \
     -DcmsgUDL="rc://multicast/"$EXPID \
     -Dname=$1 \
-    -Dtype=PAG org.jlab.coda.emu.EmuFactory
+    -Dtype=PAGG org.jlab.coda.emu.EmuFactory
 else
 $JAVA_HOME/bin/java -cp $CODA/common/jar/\* \
     -XX:PerMethodRecompilationCutoff=40 \
@@ -34,5 +34,5 @@ $JAVA_HOME/bin/java -cp $CODA/common/jar/\* \
     -Djava.library.path=$CODA/$MACHINE/lib \
     -DcmsgUDL="rc://multicast/"$EXPID \
     -Dname=$1 \
-    -Dtype=PAG org.jlab.coda.emu.EmuFactory
+    -Dtype=PAGG org.jlab.coda.emu.EmuFactory
 endif
