@@ -1762,7 +1762,7 @@ System.out.println("  EB mod: bt" + btIndex + " ***** found END event at seq " +
                     eventType = EventType.PHYSICS_STREAM;
                     tag = CODATag.STREAMING_PHYSICS.getValue();
 
-                    if (myClass == CODAClass.DCAG) {
+                    if (myClass == CODAClass.PAGG) {
                         // Check input roc banks for non-fatal errors
                         for (int i=0; i < sliceCount; i++) {
                             // sorting thread checks to see if coda id matches tag, stored in payload bank

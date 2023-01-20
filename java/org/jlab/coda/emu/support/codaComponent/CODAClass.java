@@ -16,7 +16,7 @@ import java.util.HashMap;
 
 /**
  * This class is an enum which lists all the possible CODA class values,
- * which are the types of CODA components such as ROC, EMU, or ER.
+ * which are the types of CODA components such as ROC, EB, or ER.
  *
  * @author timmer
  */
@@ -28,15 +28,14 @@ public enum CODAClass {
     /** GT */
     GT("gt", 1110),
 
+    /** FPGA (not used in emu) */
+    FPGA("fpga", 960),
+
     /** Read out controller. */
     ROC("read out controller", 1010),
 
     /** Data concentrator, first level event builder to be followed by SEB. */
     DC("data concentrator", 910),
-
-    /** Data concentrating aggregator, first level aggregator to be followed by SAG.
-     *  Used in place of DC when streaming. */
-    DCAG("data concentrating aggregator", 910),
 
     /** Generic representation of either PEBER or SEBER. */
     EBER("event builder and recorder", 810),
@@ -53,13 +52,11 @@ public enum CODAClass {
     /** Primary event builder (one and only one event builder). */
     PEB("primary event builder", 510),
 
-    /** Secondary time slice aggregator - to be used with DCAG's.
-     *  Used in place of SEB when streaming.*/
-    SAG("secondary slice aggregator", 610),
+    /** Secondary time slice aggregator - to be used after PAGG's when streaming.*/
+    SAGG("secondary slice aggregator", 660),
 
-    /** Primary time slice aggregator (one and only one aggregator).
-     *  Used in place of PEB when streaming. */
-    PAG("primary slice aggregator", 510),
+    /** Primary time slice aggregator to be used in place of DC or PEB when streaming. */
+    PAGG("primary slice aggregator", 560),
 
     /** Farm Controller. */
     FCS("farm controller", 410),
@@ -154,7 +151,7 @@ public enum CODAClass {
      *         else {@code false}.
      */
     public boolean isAggregator() {
-        return (this == DCAG || this == SAG || this == PAG);
+        return (this == SAGG || this == PAGG);
     }
 
     /**
@@ -162,16 +159,7 @@ public enum CODAClass {
      * @return {@code true} if this class represents an aggregating DC,
      *         else {@code false}.
      */
-    public boolean isDcAggregator() { return (this == DCAG); }
-
-    /**
-     * Is this class representative of a final time slice aggregator emu (NOT DCAG)?
-     * @return {@code true} if this class represents a final aggregating emu,
-     *         else {@code false}.
-     */
-    public boolean isFinalAggregator() {
-        return (this == SAG || this == PAG);
-    }
+    public boolean isPrimaryAggregator() { return (this == PAGG); }
 
     /**
      * Is this class representative of an event recording emu?

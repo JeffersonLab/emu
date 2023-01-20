@@ -1097,16 +1097,6 @@ System.out.println("\n\n");
                     if (codaClass == codaClass.PEBER || codaClass == codaClass.SEBER) {
                         reportMsg.addPayloadItem(new cMsgPayloadItem(RCConstants.codaClass, codaClass.EBER.name()));
                     }
- // TODO:  For now masquerade as DC, SEB, and PEB
-                    else if (codaClass == codaClass.DCAG) {
-                        reportMsg.addPayloadItem(new cMsgPayloadItem(RCConstants.codaClass, codaClass.DC.name()));
-                    }
-                    else if (codaClass == codaClass.SAG) {
-                        reportMsg.addPayloadItem(new cMsgPayloadItem(RCConstants.codaClass, codaClass.SEB.name()));
-                    }
-                    else if (codaClass == codaClass.PAG) {
-                        reportMsg.addPayloadItem(new cMsgPayloadItem(RCConstants.codaClass, codaClass.PEB.name()));
-                    }
                     else {
                         reportMsg.addPayloadItem(new cMsgPayloadItem(RCConstants.codaClass, codaClass.name()));
                     }
@@ -2235,7 +2225,7 @@ System.out.println("\nEmu " + name + " prestart: looking at module = " + moduleN
                     // First entry in streams corresponds to first entry in portArrays, etc.
                     ArrayList<Integer[]> portArrays = new ArrayList<>();
 
-                    if (codaClass.isDcAggregator() && firstModule) {
+                    if (codaClass.isPrimaryAggregator() && firstModule) {
                         for (int i = 0; i < childList.getLength(); i++) {
                             Node channelNode = childList.item(i);
                             if (channelNode.getNodeType() != Node.ELEMENT_NODE) continue;
@@ -2377,7 +2367,7 @@ System.out.println("Emu " + name + " prestart: childList length = " + childList.
                         boolean haveVTP = false;
                         String chanName = channelName;
 
-                        if (codaClass.isDcAggregator() && firstModule && isInputChan) {
+                        if (codaClass.isPrimaryAggregator() && firstModule && isInputChan) {
 System.out.println("Emu " + name + " prestart: extract streamCount for vtpIndex = " + vtpIndex);
                             streamCount = streams.get(vtpIndex);
 System.out.println("Emu " + name + " prestart: streamCount = " + streamCount);
