@@ -2610,8 +2610,8 @@ System.out.println("DataOutputHelper constr: making BB supply of 16 bufs @ bytes
                 }
 
                 //recordId++;
-//System.out.println("    DataChannel UDP stream out: writeEvioData: record Id set to " + blockNum +
-//                   ", then incremented to " + recordId);
+System.out.println("    DataChannel UDP stream out: writeEvioData: record Id set to " + blockNum +
+                   ", then incremented to " + recordId);
 
                 // Make sure there's enough room for that one event
                 if (rItem.getTotalBytes() > currentBuffer.capacity()) {
@@ -2625,7 +2625,7 @@ System.out.println("DataOutputHelper constr: making BB supply of 16 bufs @ bytes
                 if (rItem.isFirstEvent()) {
                     EmuUtilities.setFirstEvent(bitInfo);
                 }
-//System.out.println("    DataChannel UDP stream out: writeEvioData: single write into buffer");
+System.out.println("    DataChannel UDP stream out: writeEvioData: single write into buffer");
                 writer.setBuffer(currentBuffer, bitInfo, blockNum);
 
                 // Unset first event for next round
@@ -2634,8 +2634,8 @@ System.out.println("DataOutputHelper constr: making BB supply of 16 bufs @ bytes
                 ByteBuffer buf = rItem.getBuffer();
                 if (buf != null) {
                     try {
-//System.out.println("    DataChannel UDP stream out: writeEvioData: single ev buf, pos = " + buf.position() +
-//                   ", lim = " + buf.limit() + ", cap = " + buf.capacity());
+System.out.println("    DataChannel UDP stream out: writeEvioData: single ev buf, pos = " + buf.position() +
+                   ", lim = " + buf.limit() + ", cap = " + buf.capacity());
                         boolean fit = writer.writeEvent(buf);
                         if (!fit) {
                             // Our buffer is too small to fit even 1 event!
@@ -2686,13 +2686,13 @@ System.out.println("      c: single ev buf, pos = " + buf.position() +
                     flushEvents(false, false, true);
                 }
                 else {
-//System.out.println("    DataChannel UDP stream out: writeEvioData: flush " + eType + " type event, FORCE");
+System.out.println("    DataChannel UDP stream out: writeEvioData: flush " + eType + " type event, FORCE");
                     if (rItem.getControlType() == ControlType.END) {
-//System.out.println("    DataChannel UDP stream out: writeEvioData: call flushEvents for END");
+System.out.println("    DataChannel UDP stream out: writeEvioData: call flushEvents for END");
                         flushEvents(true, true, false);
                     }
                     else {
-//System.out.println("    DataChannel UDP stream out: writeEvioData: call flushEvents for non-END");
+System.out.println("    DataChannel UDP stream out: writeEvioData: call flushEvents for non-END");
                         flushEvents(true, false, false);
                     }
                 }
