@@ -28,10 +28,10 @@ public enum CODAClass {
     /** GT */
     GT("gt", 1110),
 
-    /** FPGA (not used in emu) */
+    /** FPGA (simulated, streaming ROC in emu). */
     FPGA("fpga", 960),
 
-    /** Read out controller. */
+    /** Read out controller (simulated, non-streaming ROC in emu). */
     ROC("read out controller", 1010),
 
     /** Data concentrator, first level event builder to be followed by SEB. */
