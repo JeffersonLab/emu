@@ -2049,7 +2049,7 @@ System.out.println("SocketSender thread told to return");
 //                        Thread.sleep(2000);
 
                         // Get a buffer filled by the other thread
-//logger.info("    DataChannel UDP out: get BB from BBsupply");
+logger.info("    DataChannel UDP stream out: get BB from BBsupply");
                         ByteBufferItem item = supply.consumerGet();
                         ByteBuffer buf = item.getBufferAsIs();
                         boolean isBuildable = item.getUserInt() == 1;
@@ -2057,7 +2057,7 @@ System.out.println("SocketSender thread told to return");
 
                         packetsSent[0] = 0;
 
-//Utilities.printBuffer(buf, 0, 40, "PRESTART EVENT, buf lim = " + buf.limit());
+Utilities.printBuffer(buf, 0, 40, "PRESTART EVENT, buf lim = " + buf.limit());
 
                         // Put data into message:
                         // - first the meta data for reassembly
@@ -2069,7 +2069,7 @@ System.out.println("SocketSender thread told to return");
                         // Fast version overwrites part of incoming data buffer, but that's OK.
                         // It's not used after this.
 
-//logger.info("    DataChannel UDP stream put: " + name + " - send packetized buffer of len " + buf.limit());
+logger.info("    DataChannel UDP stream out: " + name + " - send packetized buffer of len " + buf.limit());
                         sendPacketizedBufferFast(
                                 buf.array(), 0, buf.limit(),
                                 packetStorage, maxUdpPayload,
@@ -2096,9 +2096,9 @@ System.out.println("SocketSender thread told to return");
                         }
 
                         // Release this buffer so it can be filled again
-//System.out.println("release " + item.getMyId() + ", rec # = " + item.getConsumerSequence());
+System.out.println("    DataChannel UDP stream out: release " + item.getMyId() + ", rec # = " + item.getConsumerSequence());
                         supply.release(item);
-//System.out.println("released rec # = " + item.getConsumerSequence());
+System.out.println("    DataChannel UDP stream out: released rec # = " + item.getConsumerSequence());
                     }
                     catch (InterruptedException e) {
 System.out.println("SocketSender thread interrupted");
@@ -2533,8 +2533,8 @@ System.out.println("DataOutputHelper constr: making BB supply of 16 bufs @ bytes
             currentBuffer.limit(writer.getBytesWrittenToBuffer());
 
 
-//System.out.println("flushEvents: reading buf limit = " + bb.limit());
-//System.out.println("flushEvents: setting current buf lim = " + currentBuffer.limit());
+System.out.println("flushEvents: reading buf limit = " + bb.limit());
+System.out.println("flushEvents: setting current buf lim = " + currentBuffer.limit());
 
             bbOutSupply.publish(currentBBitem);
 
@@ -2544,7 +2544,7 @@ System.out.println("DataOutputHelper constr: making BB supply of 16 bufs @ bytes
 //Thread.sleep(200);
             currentBBitem = bbOutSupply.get();
             currentBuffer = currentBBitem.getBuffer();
-//System.out.println("flushEvents: out\n");
+System.out.println("flushEvents: out\n");
         }
 
 
