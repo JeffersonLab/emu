@@ -101,7 +101,7 @@ public class Configurer implements DOMErrorHandler, LSParserFilter {
             config.setParameter("xml-declaration", Boolean.FALSE);
 
         } catch (Exception e) {
-            //System.out.println("Exception initializing class Configurer : " + e.getMessage());
+            System.out.println("Exception initializing class Configurer : " + e.getMessage());
         }
     }
 
