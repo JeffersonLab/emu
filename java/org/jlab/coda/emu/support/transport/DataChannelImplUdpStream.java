@@ -1483,9 +1483,9 @@ System.out.println("Hdr: recId = " + packetTick + " (prev " + prevTick +
             // Check record for sequential record id
             expectedRecordId = Evio.checkRecordIdSequence(recordId, expectedRecordId, false,
                                                           eventType, DataChannelImplUdpStream.this);
-System.out.println("    DataChannel UDP stream in: expected record id = " + expectedRecordId +
-                    ", actual = " + recordId);
-System.out.println("    DataChannel UDP stream in: event type = " + eventType + ", event count = " + reader.getEventCount() + " from " + name);
+//System.out.println("    DataChannel UDP stream in: expected record id = " + expectedRecordId +
+//                    ", actual = " + recordId);
+//System.out.println("    DataChannel UDP stream in: event type = " + eventType + ", event count = " + reader.getEventCount() + " from " + name);
 
             int eventCount = reader.getEventCount();
             boolean gotRocRaw  = eventType.isFromROC();
