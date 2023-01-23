@@ -998,11 +998,14 @@ System.out.println("reallocated buffer to " + bufLen + " bytes");
 
                                 // VTP starts at 1, not 0. HOWEVER, the simulated fpga / secondary agg start at 0!!
                                 sequence = reHeader[5];
+System.out.println("     plain seq = " + sequence);
                                 if (vtpSource) {
                                     sequence--;
+                                    System.out.println("     vtp seq -> " + sequence);
                                     if (sequence == -1) {
                                         vtpSource = false;
                                         sequence++;
+                                        System.out.println("     non-vtp seq -> " + sequence);
                                     }
                                 }
                             }
