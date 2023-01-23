@@ -798,7 +798,7 @@ logger.info("    DataChannel UDP stream: total header bytes = " + HEADER_BYTES);
         // Each stream is from 1 data source
 
         // Map to hold out-of-order packets, sorted by key:
-        //     key   = pair of {sequence, recordId} (unique for each packet)
+        //     key   = sequence (unique for each record id)
         //     value = tuple of {byte array holding packet data bytes, data length,
         //                       is last packet, is first packet}
         private final TreeMap<Integer,
@@ -980,7 +980,7 @@ System.out.println("\nWait to receive packet on port " + inSocket.getLocalPort()
                                 parseReHeader(pkt, 0, reHeader);
 
                                 version      = reHeader[0];
-                                // recordId (1 byte), 0 if control/user event
+                                // recordId (1 byte), must be sequential
                                 packetTick   = reHeader[1];
                                 packetFirst  = reHeader[2] == 1 ? true : false;
                                 packetLast   = reHeader[3] == 1 ? true : false;
@@ -995,8 +995,8 @@ System.out.println("\nWait to receive packet on port " + inSocket.getLocalPort()
                             // When receiving from a ROC or a CODA reassembly header, the "packetTick"
                             // (a concept from ERSAP reassembly) is really LIKE the "record id" or block/record
                             // number of the evio header containing event being sent
-                            // (-1 if control or user event). In this 1 byte form,
-                            // it is 0. In addition we are not going to stop receiving if
+                            // (even if control or user event). Starts at 0.
+                            // In addition we are not going to stop receiving if
                             // a buffer is dropped and the record id is not sequential.
 
 System.out.println("Got what should be first packet of buf, seq " + sequence);
@@ -1263,6 +1263,7 @@ System.out.println("Hdr: recId = " + packetTick + " (prev " + prevTick +
                             if (outOfOrderPackets.isEmpty()) {
                                 // If very last packet, on to next buffer
                                 if (packetLast) {
+                                    item.setUserInt((int)packetTick);
                                     break;
                                 }
                             }
@@ -1478,13 +1479,13 @@ System.out.println("Hdr: recId = " + packetTick + " (prev " + prevTick +
             // Stored the record id previously when reassembling packets
             recordId = item.getUserInt();
             //recordId = blockHeader.getNumber();
-
+// THis NEEDS RETHINKING, recordId is different than in TCP communications
             // Check record for sequential record id
             expectedRecordId = Evio.checkRecordIdSequence(recordId, expectedRecordId, false,
                                                           eventType, DataChannelImplUdpStream.this);
-//System.out.println("    DataChannel UDP stream in: expected record id = " + expectedRecordId +
-//                    ", actual = " + recordId);
-//System.out.println("    DataChannel UDP stream in: event type = " + eventType + ", event count = " + reader.getEventCount() + " from " + name);
+System.out.println("    DataChannel UDP stream in: expected record id = " + expectedRecordId +
+                    ", actual = " + recordId);
+System.out.println("    DataChannel UDP stream in: event type = " + eventType + ", event count = " + reader.getEventCount() + " from " + name);
 
             int eventCount = reader.getEventCount();
             boolean gotRocRaw  = eventType.isFromROC();
@@ -2274,6 +2275,7 @@ System.out.println("DataOutputHelper constr: making BB supply of 16 bufs @ bytes
                 if (debug) System.out.println("Send " + bytesToWrite +
                                               " bytes, very first = " + veryFirstPacket +
                                               ", very last = " + veryLastPacket +
+                        ", record id = " + recordId +
                         ", total packets = " + totalPackets +
                         ", packet counter = " + packetCounter +
                         ", writing to LB = " + useEjfatLoadBalancer +
