@@ -965,7 +965,7 @@ System.out.println("reallocated buffer to " + bufLen + " bytes");
 
                             // Read in first packet into temporary storage
                             packet.setData(pkt, 0, biggestPacketLen);
-System.out.println("\nWait to receive packet on port " + inSocket.getLocalPort() + ", other end is port " + inSocket.getPort());
+//System.out.println("\nWait to receive packet on port " + inSocket.getLocalPort() + ", other end is port " + inSocket.getPort());
                             inSocket.receive(packet);
 
                             // Bytes in packet
@@ -1017,7 +1017,7 @@ System.out.println("\nWait to receive packet on port " + inSocket.getLocalPort()
                             // In addition we are not going to stop receiving if
                             // a buffer is dropped and the record id is not sequential.
 
-System.out.println("Got what should be first packet of buf, seq " + sequence);
+//System.out.println("Got what should be first packet of buf, seq " + sequence);
                             veryFirstRead = false;
                         }
                         else {
@@ -1065,22 +1065,22 @@ System.out.println("Internal error: got packet with no data, buf's unused bytes 
                                 sequence     = reHeader[5] - 1; // VTP starts at 1, not 0
                                 pktCount     = reHeader[6];
                             }
-System.out.println("Got packet, seq " + sequence);
+//System.out.println("Got packet, seq " + sequence);
 
                             // Replace what was written over
                             System.arraycopy(headerStorage, 0, buffer, writeHeaderAt, HEADER_BYTES);
                         }
 
-                        if (useErsapReHeader) {
-                            System.out.println("\nPkt hdr: ver = " + version + ", first = " + packetFirst + ", last = " +
-                                    packetLast + ", tick = " + packetTick + ", seq = " + sequence +
-                                    ", source id = " + packetDataId + ", nBytes = " + nBytes);
-                        }
-                        else {
-                            System.out.println("\nPkt hdr: ver = " + version + ", first = " + packetFirst + ", last = " +
-                                    packetLast + ", recordId = " + packetTick + ", seq = " + sequence +
-                                    ", pktCount = " +pktCount + ", source id = " + packetDataId + ", nBytes = " + nBytes);
-                        }
+//                        if (useErsapReHeader) {
+//                            System.out.println("\nPkt hdr: ver = " + version + ", first = " + packetFirst + ", last = " +
+//                                    packetLast + ", tick = " + packetTick + ", seq = " + sequence +
+//                                    ", source id = " + packetDataId + ", nBytes = " + nBytes);
+//                        }
+//                        else {
+//                            System.out.println("\nPkt hdr: ver = " + version + ", first = " + packetFirst + ", last = " +
+//                                    packetLast + ", recordId = " + packetTick + ", seq = " + sequence +
+//                                    ", pktCount = " +pktCount + ", source id = " + packetDataId + ", nBytes = " + nBytes);
+//                        }
 
                         //
                         // The assumption here is that:
@@ -1281,7 +1281,8 @@ System.out.println("Hdr: recId = " + packetTick + " (prev " + prevTick +
                             if (outOfOrderPackets.isEmpty()) {
                                 // If very last packet, on to next buffer
                                 if (packetLast) {
-                                    item.setUserInt((int)packetTick);
+                                    // For UDP we don't need to track if ticks are sequential
+                                    //item.setUserInt((int)packetTick);
                                     break;
                                 }
                             }
@@ -1494,13 +1495,15 @@ System.out.println("Hdr: recId = " + packetTick + " (prev " + prevTick +
                 throw new EvioException("bad evio format or improper event type");
             }
 
-            // Stored the record id previously when reassembling packets
-            recordId = item.getUserInt();
-            //recordId = blockHeader.getNumber();
-// THis NEEDS RETHINKING, recordId is different than in TCP communications
-            // Check record for sequential record id
-            expectedRecordId = Evio.checkRecordIdSequence(recordId, expectedRecordId, false,
-                                                          eventType, DataChannelImplUdpStream.this);
+            // For UDP, we don't need to track if records are sequential
+
+//            // Stored the record id previously when reassembling packets
+//            recordId = item.getUserInt();
+//
+//            // Check record for sequential record id
+//            expectedRecordId = Evio.checkRecordIdSequence(recordId, expectedRecordId, false,
+//                                                          eventType, DataChannelImplUdpStream.this);
+
 //System.out.println("    DataChannel UDP stream in: expected record id = " + expectedRecordId +
 //                    ", actual = " + recordId);
 //System.out.println("    DataChannel UDP stream in: event type = " + eventType + ", event count = " + reader.getEventCount() + " from " + name);
@@ -2045,7 +2048,7 @@ System.out.println("SocketSender: killThread, set flag, interrupt");
              */
             public void run() {
                 boolean isEnd;
-                boolean debug = true;
+                boolean debug = false;
                 int[] packetsSent = new int[1];
                 byte[] packetStorage = new byte[10000];
                 int delay = 0;
