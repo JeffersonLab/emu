@@ -2048,7 +2048,7 @@ System.out.println("SocketSender: killThread, set flag, interrupt");
              */
             public void run() {
                 boolean isEnd;
-                boolean debug = false;
+                boolean debug = true;
                 int[] packetsSent = new int[1];
                 byte[] packetStorage = new byte[10000];
                 int delay = 0;
@@ -2231,7 +2231,7 @@ System.out.println("DataOutputHelper constr: making BB supply of 16 bufs @ bytes
          * @param readFromIndex  index into dataBuffer to start reading.
          * @param dataLen        number of bytes to be sent.
          * @param packetStorage  array in which to build a packet to send.
-         *                       It's pssed in as a parameter to avoid object creation and its
+         *                       It's passed in as a parameter to avoid object creation and its
          *                       attendant strain on the garbage collector with each call.
          * @param maxUdpPayload  maximum number of bytes to place into one UDP packet.
          *
@@ -2269,8 +2269,6 @@ System.out.println("DataOutputHelper constr: making BB supply of 16 bufs @ bytes
             // How many total packets are we sending? Round up.
             int totalPackets = (dataLen + maxUdpPayload - 1)/maxUdpPayload;
 
-            // The very first packet goes in here
-            //byte[] packetStorage = new byte[maxUdpPayload + HEADER_BYTES];
             // Index into packetStorage to write
             int writeToIndex = 0;
 
