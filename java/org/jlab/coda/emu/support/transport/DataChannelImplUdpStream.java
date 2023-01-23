@@ -897,6 +897,15 @@ logger.info("    DataChannel UDP stream: total header bytes = " + HEADER_BYTES);
             DatagramPacket packet = new DatagramPacket(recvBuf, biggestPacketLen);
             long[] tick = new long[1];
 
+            // Need to handle a complication. The VTP sends buffers in which the first packet has sequence 1, not 0!
+            // The simulated FPGA and any secondary aggregators, on the other hand, use the output section of this
+            // class to send buffers and start with sequence 0, not 1.
+            // The incoming sequence has 1 substracted from it to handle VTPs.
+            // We know it's not from a VTP if we get a -1 value for
+            // the sequence, indicating that the sender has started its sequence from 0. Follow me?
+            // To account for this, assume input is from VTP, if -1 is received as a sequence,
+            // set boolean indicating source is not a VTP.
+            boolean vtpSource = true;
 
             try {
 
@@ -985,8 +994,17 @@ System.out.println("\nWait to receive packet on port " + inSocket.getLocalPort()
                                 packetFirst  = reHeader[2] == 1 ? true : false;
                                 packetLast   = reHeader[3] == 1 ? true : false;
                                 packetDataId = reHeader[4];
-                                sequence     = reHeader[5] - 1; // VTP starts at 1, not 0
                                 pktCount     = reHeader[6];
+
+                                // VTP starts at 1, not 0. HOWEVER, the simulated fpga / secondary agg start at 0!!
+                                sequence = reHeader[5];
+                                if (vtpSource) {
+                                    sequence--;
+                                    if (sequence == -1) {
+                                        vtpSource = false;
+                                        sequence++;
+                                    }
+                                }
                             }
 
                             // Copy data (NOT header) into main buffer
