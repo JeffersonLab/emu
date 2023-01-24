@@ -252,7 +252,7 @@ public class StreamAggregator extends ModuleAdapter {
             buildingThreadCount = eventProducingThreads = 2;
         }
         //buildingThreadCount = eventProducingThreads = 2;
-logger.info("  EB mod: # of event building threads = " + buildingThreadCount);
+logger.info("  Agg mod: # of event building threads = " + buildingThreadCount);
 
         // set "data dump" option on
         String str = attributeMap.get("dump");
@@ -309,7 +309,7 @@ logger.info("  EB mod: # of event building threads = " + buildingThreadCount);
         // Make sure it's a power of 2, round up
         ringItemCount = EmuUtilities.powerOfTwo(ringCount, true);
         outputRingSize = getInternalRingCount();
-logger.info("  EB mod: internal ring buf count -> " + ringItemCount);
+logger.info("  Agg mod: internal ring buf count -> " + ringItemCount);
 
         //--------------------------------------------------------------------
         // Create rings to hold TimeSliceBanks, 1 ring for each build thread.
@@ -372,10 +372,10 @@ logger.info("  EB mod: internal ring buf count -> " + ringItemCount);
 
         RingBuffer<RingItem> rb = outputChannels.get(channelNum).getRingBuffersOut()[ringNum];
 
-//System.out.println(  EB mod: wait for next ring buf for writing");
+//System.out.println(  Agg mod: wait for next ring buf for writing");
         long lastRingItem = rb.next(banksOut.size());
         long ringItem = lastRingItem - banksOut.size() + 1;
-//System.out.println("  EB mod: Got last sequence " + lastRingItem);
+//System.out.println("  Agg mod: Got last sequence " + lastRingItem);
 
         for (int i = 0; i < banksOut.size(); i++) {
             ringItem += i;
@@ -388,7 +388,7 @@ logger.info("  EB mod: internal ring buf count -> " + ringItemCount);
             pb.setReusableByteBuffer(banksOut.get(i).getByteBufferSupply(),
                                      banksOut.get(i).getByteBufferItem());
 
-//System.out.println("  EB mod: published item " + ringItem + " to ring " + ringNum);
+//System.out.println("  Agg mod: published item " + ringItem + " to ring " + ringNum);
             rb.publish(ringItem);
         }
     }
@@ -420,9 +420,9 @@ logger.info("  EB mod: internal ring buf count -> " + ringItemCount);
 
         RingBuffer<RingItem> rb = outputChannels.get(channelNum).getRingBuffersOut()[ringNum];
 
-//System.out.println("  EB mod: wait for out buf, ch" + channelNum + ", ring " + ringNum);
+//System.out.println("  Agg mod: wait for out buf, ch" + channelNum + ", ring " + ringNum);
         long nextRingItem = rb.nextIntr(1);
-//System.out.println("  EB mod: Got sequence " + nextRingItem + " for " + channelNum + ":" + ringNum);
+//System.out.println("  Agg mod: Got sequence " + nextRingItem + " for " + channelNum + ":" + ringNum);
         RingItem ri = rb.get(nextRingItem);
         ri.setBuffer(buf);
         ri.setEventType(eventType);
@@ -431,9 +431,9 @@ logger.info("  EB mod: internal ring buf count -> " + ringItemCount);
         ri.setReusableByteBuffer(bbSupply, item);
         ri.setEventCount(eventCount);
 
-//System.out.println("  EB mod: will publish to ring " + ringNum);
+//System.out.println("  Agg mod: will publish to ring " + ringNum);
         rb.publish(nextRingItem);
-//System.out.println("  EB mod: published to ring " + ringNum);
+//System.out.println("  Agg mod: published to ring " + ringNum);
     }
 
 
@@ -457,19 +457,19 @@ logger.info("  EB mod: internal ring buf count -> " + ringItemCount);
             throws EmuException, InterruptedException {
 
         ControlType controlType = null;
-System.out.println("  EB mod: getAllControlEvents IN");
+System.out.println("  Agg mod: getAllControlEvents IN");
 
         // First thing we do is look for the go or prestart event and pass it on
         // Grab one control event from each ring buffer.
         for (int i=0; i < inputChannelCount; i++) {
-System.out.println("  EB mod: getAllControlEvents input chan " + i);
+System.out.println("  Agg mod: getAllControlEvents input chan " + i);
             try  {
                 ControlType cType;
                 while (true) {
-System.out.println("  EB mod: getAllControlEvents wait for seq " + nextSequences[i]);
+System.out.println("  Agg mod: getAllControlEvents wait for seq " + nextSequences[i]);
                     barriers[i].waitFor(nextSequences[i]);
                     buildingBanks[i] = (PayloadBuffer) ringBuffersIn[i].get(nextSequences[i]);
-System.out.println("  EB mod: getAllControlEvents got seq " + nextSequences[i]);
+System.out.println("  Agg mod: getAllControlEvents got seq " + nextSequences[i]);
 
                     cType = buildingBanks[i].getControlType();
                     if (cType == null) {
@@ -580,13 +580,13 @@ System.out.println("WRITE CONTROL EVENT to chan #" + i + ", ring 0");
         }
 
         if (isEnd) {
-            System.out.println("  EB mod: wrote immediate END from sorter thread");
+            System.out.println("  Agg mod: wrote immediate END from sorter thread");
         }
         else if (isPrestart) {
-            System.out.println("  EB mod: wrote PRESTART from sorter thread");
+            System.out.println("  Agg mod: wrote PRESTART from sorter thread");
         }
         else {
-            System.out.println("  EB mod: wrote GO from sorter thread");
+            System.out.println("  Agg mod: wrote GO from sorter thread");
         }
     }
 
@@ -804,7 +804,7 @@ System.out.println("WRITE CONTROL EVENT to chan #" + i + ", ring 0");
                                     throws InterruptedException {
 
             getSequences[btIndex] = sorterRingBuffers[btIndex].nextIntr(1);
-// System.out.println("  EB mod: sendToTimeSliceBankRing: got sorter ring seq = " + getSequences[btIndex] + ". type = " + bank.getEventType());
+// System.out.println("  Agg mod: sendToTimeSliceBankRing: got sorter ring seq = " + getSequences[btIndex] + ". type = " + bank.getEventType());
             TimeSliceBankItem item = sorterRingBuffers[btIndex].get(getSequences[btIndex]);
             item.setBuf(bank);
             sorterRingBuffers[btIndex].publish(getSequences[btIndex]);
@@ -843,14 +843,14 @@ System.out.println("WRITE CONTROL EVENT to chan #" + i + ", ring 0");
                         // Check to see if there is anything to read so we don't block.
                         // If not, move on to the next ring.
                         if (ringBuffersIn[ch].getCursor() < veryNextSequence) {
-//System.out.println("  EB mod: findEnd, for chan " + ch + ", sequence " + veryNextSequence + " not available yet");
+//System.out.println("  Agg mod: findEnd, for chan " + ch + ", sequence " + veryNextSequence + " not available yet");
 
                             // Only break (and throw a major error) if this EB has
                             // received the END command. Because only then do we know
                             // that all ROCS have ENDED and sent all their data.
                             if (moduleState == CODAState.DOWNLOADED ||
                                     moduleState != CODAState.ACTIVE) {
-                                System.out.println("  EB mod: findEnd, stop looking for END on channel " + ch + " as module state = " + moduleState);
+                                System.out.println("  Agg mod: findEnd, stop looking for END on channel " + ch + " as module state = " + moduleState);
                                 break;
                             }
                             // Wait for events to arrive
@@ -859,14 +859,14 @@ System.out.println("WRITE CONTROL EVENT to chan #" + i + ", ring 0");
                             continue;
                         }
 
-//System.out.println("  EB mod: findEnd, waiting for next item from chan " + ch + " at sequence " + veryNextSequence);
+//System.out.println("  Agg mod: findEnd, waiting for next item from chan " + ch + " at sequence " + veryNextSequence);
                         available = sorterBarrierIn[ch].waitFor(veryNextSequence);
-//System.out.println("  EB mod: findEnd, got items from chan " + ch + " up to sequence " + available);
+//System.out.println("  Agg mod: findEnd, got items from chan " + ch + " up to sequence " + available);
 
                         while (veryNextSequence <= available) {
                             PayloadBuffer bank = (PayloadBuffer) ringBuffersIn[ch].get(veryNextSequence);
                             String source = bank.getSourceName();
-//System.out.println("  EB mod: findEnd, on chan " + ch + " found event of type " + bank.getEventType() + " from " + source + ", back " + offset +
+//System.out.println("  Agg mod: findEnd, on chan " + ch + " found event of type " + bank.getEventType() + " from " + source + ", back " + offset +
 //                   " places in ring with seq = " + veryNextSequence);
                             EventType eventType = bank.getEventType();
                             written = false;
@@ -874,7 +874,7 @@ System.out.println("WRITE CONTROL EVENT to chan #" + i + ", ring 0");
                             if (eventType == EventType.CONTROL) {
                                 if (bank.getControlType() == ControlType.END) {
                                     // Found the END event
-System.out.println("  EB mod: findEnd, chan " + ch + " got END from " + source + ", back " + offset + " places in ring");
+System.out.println("  Agg mod: findEnd, chan " + ch + " got END from " + source + ", back " + offset + " places in ring");
                                     // Release buffer back to ByteBufferSupply
                                     bank.releaseByteBuffer();
                                     endEventCount++;
@@ -992,7 +992,7 @@ System.out.println("  EB mod: findEnd, chan " + ch + " got END from " + source +
                 }
                 catch (EmuException e) {
                     e.printStackTrace();
-                    if (debug) System.out.println("  EB mod: error getting prestart event");
+                    if (debug) System.out.println("  Agg mod: error getting prestart event");
                     emu.setErrorState("EB error getting prestart event");
                     moduleState = CODAState.ERROR;
                     return;
@@ -1000,7 +1000,7 @@ System.out.println("  EB mod: findEnd, chan " + ch + " got END from " + source +
                 catch (InterruptedException e) {
                     e.printStackTrace();
                     // If interrupted we must quit
-                    if (debug) System.out.println("  EB mod: interrupted while waiting for prestart event");
+                    if (debug) System.out.println("  Agg mod: interrupted while waiting for prestart event");
                     emu.setErrorState("EB interrupted waiting for prestart event");
                     moduleState = CODAState.ERROR;
                     return;
@@ -1013,7 +1013,7 @@ System.out.println("  EB mod: findEnd, chan " + ch + " got END from " + source +
 //                catch (InterruptedException e) {
 //                    e.printStackTrace();
 //                    // If interrupted we must quit
-//                    if (debug) System.out.println("  EB mod: interrupted while waiting for prestart event");
+//                    if (debug) System.out.println("  Agg mod: interrupted while waiting for prestart event");
 //                    emu.setErrorState("EB interrupted waiting for prestart event");
 //                    moduleState = CODAState.ERROR;
 //                    return;
@@ -1023,7 +1023,7 @@ System.out.println("  EB mod: findEnd, chan " + ch + " got END from " + source +
 
             prestartCallback.endWait();
             haveAllPrestartEvents = true;
-            System.out.println("  EB mod: got all PRESTART events");
+            System.out.println("  Agg mod: got all PRESTART events");
 
 
             // To help with FPGA-based VTP - with no GO event - ignore its lack
@@ -1040,7 +1040,7 @@ System.out.println("  EB mod: findEnd, chan " + ch + " got END from " + source +
                             haveEndEvent = true;
                             controlToOutputAsync(false, true, name);
                             if (endCallback != null) endCallback.endWait();
-                            System.out.println("  EB mod: got all END events");
+                            System.out.println("  Agg mod: got all END events");
                             return;
                         }
                         else {
@@ -1052,7 +1052,7 @@ System.out.println("  EB mod: findEnd, chan " + ch + " got END from " + source +
                 }
                 catch (EmuException e) {
                     e.printStackTrace();
-                    if (debug) System.out.println("  EB mod: error getting go event");
+                    if (debug) System.out.println("  Agg mod: error getting go event");
                     emu.setErrorState("EB error getting go event");
                     moduleState = CODAState.ERROR;
                     return;
@@ -1060,7 +1060,7 @@ System.out.println("  EB mod: findEnd, chan " + ch + " got END from " + source +
                 catch (InterruptedException e) {
                     e.printStackTrace();
                     // If interrupted, then we must quit
-                    if (debug) System.out.println("  EB mod: interrupted while waiting for go event");
+                    if (debug) System.out.println("  Agg mod: interrupted while waiting for go event");
                     emu.setErrorState("EB interrupted waiting for go event");
                     moduleState = CODAState.ERROR;
                     return;
@@ -1073,14 +1073,14 @@ System.out.println("  EB mod: findEnd, chan " + ch + " got END from " + source +
 //                catch (InterruptedException e) {
 //                    e.printStackTrace();
 //                    // If interrupted, then we must quit
-//                    if (debug) System.out.println("  EB mod: interrupted while waiting for go event");
+//                    if (debug) System.out.println("  Agg mod: interrupted while waiting for go event");
 //                    emu.setErrorState("EB interrupted waiting for go event");
 //                    moduleState = CODAState.ERROR;
 //                    return;
 //                }
 //            }
 
-            System.out.println("  EB mod: got all GO events");
+            System.out.println("  Agg mod: got all GO events");
 
 
             try {
@@ -1103,7 +1103,7 @@ System.out.println("  EB mod: findEnd, chan " + ch + " got END from " + source +
                     // build thread - round and round.
                     while (true) {
 
-//System.out.println("  EB mod: ch" + chan + ",sorter set gotBank = FALSE");
+//System.out.println("  Agg mod: ch" + chan + ",sorter set gotBank = FALSE");
                         gotBank = false;
 
                         //----------------------------------------------------
@@ -1114,16 +1114,16 @@ System.out.println("  EB mod: findEnd, chan " + ch + " got END from " + source +
                             // Make sure there are available data on this channel.
                             // Only wait if necessary ...
                             if (availableSequences[chan] < nextSequences[chan]) {
-//System.out.println("  EB mod: ch" + chan + ", sorter wait for event (seq [" + chan + "] = " + nextSequences[chan] + ")");
+//System.out.println("  Agg mod: ch" + chan + ", sorter wait for event (seq [" + chan + "] = " + nextSequences[chan] + ")");
                                 availableSequences[chan] = sorterBarrierIn[chan].waitFor(nextSequences[chan]);
-//System.out.println("  EB mod: ch" + chan + ", sorter available seq[" + chan + "]  = " + availableSequences[chan]);
+//System.out.println("  Agg mod: ch" + chan + ", sorter available seq[" + chan + "]  = " + availableSequences[chan]);
                             }
 
                             // While we have new data to work with ...
                             while ((nextSequences[chan] <= availableSequences[chan]) || (storedBank[chan] != null)) {
                                 // The stored bank is never a user or control event, always a time slice
                                 if (storedBank[chan] != null) {
-//System.out.println("  EB mod: sorter picking up stored bank at seq = " + nextSequences[chan]);
+//System.out.println("  Agg mod: sorter picking up stored bank at seq = " + nextSequences[chan]);
                                     bank = storedBank[chan];
                                     storedBank[chan] = null;
                                     eventType = bank.getEventType();
@@ -1133,22 +1133,22 @@ System.out.println("  EB mod: findEnd, chan " + ch + " got END from " + source +
                                     inputNode = bank.getNode();
                                     eventType = bank.getEventType();
                                     recordIdError = false;
-//System.out.println("  EB mod: ch" + chan + ",sorter event type = " + eventType);
+//System.out.println("  Agg mod: ch" + chan + ",sorter event type = " + eventType);
 
                                     // Deal with user event
                                     if (eventType.isUser()) {
                                         // User events are placed in first output channel's first ring.
                                         // Only the first build thread will deal with them.
-System.out.println("  EB mod: sorter got user event from channel " + inputChannels.get(chan).name());
-                                        //System.out.println("  EB mod: ch" + chan + ", skip user item " + nextSequences[chan]);
-                                        //System.out.println("  EB mod: user event order = " + bank.getByteOrder());
+System.out.println("  Agg mod: sorter got user event from channel " + inputChannels.get(chan).name());
+                                        //System.out.println("  Agg mod: ch" + chan + ", skip user item " + nextSequences[chan]);
+                                        //System.out.println("  Agg mod: user event order = " + bank.getByteOrder());
                                         handleUserEvent(bank, inputChannels.get(chan), recordIdError);
                                         sorterSequenceIn[chan].set(nextSequences[chan]);
                                         nextSequences[chan]++;
                                     }
                                     // Found a bank, so do something with it
                                     else {
-//System.out.println("  EB mod: ch" + chan + ", sorter accept item " + nextSequences[chan] + ", set gotBank = true");
+//System.out.println("  Agg mod: ch" + chan + ", sorter accept item " + nextSequences[chan] + ", set gotBank = true");
                                         // Check payload buffer for source id.
                                         // Store error info in payload buffer.
                                         Evio.checkStreamInput(bank, inputChannels.get(chan),
@@ -1164,7 +1164,7 @@ System.out.println("  EB mod: sorter got user event from channel " + inputChanne
                             }
                         }
 
-//System.out.println("  EB mod: ch" + chan + ", sorter out of TOP LOOP");
+//System.out.println("  Agg mod: ch" + chan + ", sorter out of TOP LOOP");
                         //----------------------------------------------------
 
                         // If event needs to be built - a real time slice ...
@@ -1188,18 +1188,18 @@ System.out.println("  EB mod: sorter got user event from channel " + inputChanne
                                 diff = compareWithLookedForTF(frame, lookingForFrame);
                             }
                             catch (EmuException e) {
-System.out.println("  EB mod: ch" + chan + ", got frame = " + frame + ", looking for " + lookingForFrame + ", going backwards, ignore bad frame");
+System.out.println("  Agg mod: ch" + chan + ", got frame = " + frame + ", looking for " + lookingForFrame + ", going backwards, ignore bad frame");
                                 nextSequences[chan]++;
                                 continue;
                             }
 
-//System.out.println("  EB mod: ch" + chan + ", sorter NOT CONTROL EVENT, frame = " + frame + ", looking for " + lookingForFrame + ", diff = " + diff);
+//System.out.println("  Agg mod: ch" + chan + ", sorter NOT CONTROL EVENT, frame = " + frame + ", looking for " + lookingForFrame + ", diff = " + diff);
                             // Bank was has same Time Slice as the one we're looking for.
                             // This means that this bank must be written out to the current
                             // receiving ring buffer. That's because all identical time slices
                             // go to the same ring buffer no matter the input channel.
                             if (diff == FrameNumberDiff.SAME) {
-//System.out.println("  EB mod: ch" + chan + ", sorter send time slice to BT# = " + currentBT +", event type = " + bank.getEventType() + ", frame = " + frame);
+//System.out.println("  Agg mod: ch" + chan + ", sorter send time slice to BT# = " + currentBT +", event type = " + bank.getEventType() + ", frame = " + frame);
                                 sendToTimeSliceBankRing(bank, currentBT);
                                 // This bank must be released AFTER build thread finishes with it
                                 nextSequences[chan]++;
@@ -1217,7 +1217,7 @@ System.out.println("  EB mod: ch" + chan + ", got frame = " + frame + ", looking
                             // as the one last written.
 //                            else if (diff == FrameNumberDiff.NEXT) {
                             else  {
-//System.out.println("  EB mod: ch" + chan + ", sorter DIFF timestamp, frame = " + frame);
+//System.out.println("  Agg mod: ch" + chan + ", sorter DIFF timestamp, frame = " + frame);
                                 // If the last write was on this channel, then the bank we just
                                 // read from that channel is part of the next time slice.
                                 // This is our clue to move to the next channel to see if it has
@@ -1249,7 +1249,7 @@ System.out.println("  EB mod: ch" + chan + ", got frame = " + frame + ", looking
                                 }
                             }
 //                            else {
-//System.out.println("  EB mod: ch" + chan + ", sorter DIFF frames, time frame = " + frame + ", looking for " + lookingForFrame);
+//System.out.println("  Agg mod: ch" + chan + ", sorter DIFF frames, time frame = " + frame + ", looking for " + lookingForFrame);
 //                                throw new EmuException("Too big of a jump in time frame #");
 //                            }
 
@@ -1263,7 +1263,7 @@ System.out.println("  EB mod: ch" + chan + ", got frame = " + frame + ", looking
                         // If not END, we got problems
                         if (!bank.getControlType().isEnd()) {
                             EmuUtilities.printStackTrace();
-                            if (debug) System.out.println("  EB mod: " + bank.getControlType() +
+                            if (debug) System.out.println("  Agg mod: " + bank.getControlType() +
                                                           " control events not allowed");
                             emu.setErrorState("EB error: " + bank.getControlType() +
                                               " control events not allowed");
@@ -1278,7 +1278,7 @@ System.out.println("  EB mod: ch" + chan + ", got frame = " + frame + ", looking
                         // We need one from each channel so find them now.
                         int endEventCount = findEnds(chan, lookingForFrame);
 
-System.out.println("  EB mod: sorter found END event from " + bank.getSourceName() + " at seq " + nextSequences[chan]);
+System.out.println("  Agg mod: sorter found END event from " + bank.getSourceName() + " at seq " + nextSequences[chan]);
 
                         if (endEventCount != inputChannelCount) {
                             // We do NOT have all END events
@@ -1288,7 +1288,7 @@ System.out.println("  EB mod: sorter found END event from " + bank.getSourceName
                                                    inputChannelCount + " channels");
                         }
                         else {
-System.out.println("  EB mod: sorter found END events on all input channels");
+System.out.println("  Agg mod: sorter found END events on all input channels");
                             endEventToBuildThread(name);
                             return;
                         }
@@ -1379,7 +1379,7 @@ System.out.println("  EB mod: sorter found END events on all input channels");
             this.btIndex = btIndex;
             evIndex = btIndex;
             btCount = buildingThreadCount;
-System.out.println("  EB mod: create Build Thread (" + name + ") with index " + btIndex + ", count = " + btCount);
+System.out.println("  Agg mod: create Build Thread (" + name + ") with index " + btIndex + ", count = " + btCount);
         }
 
 
@@ -1390,7 +1390,7 @@ System.out.println("  EB mod: create Build Thread (" + name + ") with index " + 
          */
         private void handleEndEvent(PayloadBuffer bank) {
 
-System.out.println("  EB mod: in handleEndEvent(), bt #" + btIndex + ", output chan count = " +
+System.out.println("  Agg mod: in handleEndEvent(), bt #" + btIndex + ", output chan count = " +
                            outputChannelCount);
 
             PayloadBuffer[] endBufs;
@@ -1448,7 +1448,7 @@ System.out.println("  EB mod: in handleEndEvent(), bt #" + btIndex + ", output c
                 // The channel due to receive the next physics event is ...
                 outputChannelIndex = (int) (evIndex % outputChannelCount);
 
-System.out.println("  EB mod: try sending END event to output channel " + outputChannelIndex +
+System.out.println("  Agg mod: try sending END event to output channel " + outputChannelIndex +
                ", ring " + btIndex + ", ev# = " + evIndex);
                 // Send END event to that channel
                 try {
@@ -1457,7 +1457,7 @@ System.out.println("  EB mod: try sending END event to output channel " + output
                 catch (InterruptedException e) {
                     return;
                 }
-System.out.println("  EB mod: sent END event to output channel  " + outputChannelIndex);
+System.out.println("  Agg mod: sent END event to output channel  " + outputChannelIndex);
 
                 // If there are multiple channels,
                 // give any other build threads time to finish writing their last event
@@ -1468,7 +1468,7 @@ System.out.println("  EB mod: sent END event to output channel  " + outputChanne
                             Thread.sleep(2000);
                         }
                         catch (InterruptedException e) {}
-System.out.println("  EB mod: WARNING, might have a problem writing END event");
+System.out.println("  Agg mod: WARNING, might have a problem writing END event");
                 }
 
                 // Now send END to the other channels. Do this by going forward.
@@ -1497,7 +1497,7 @@ System.out.println("  EB mod: WARNING, might have a problem writing END event");
                     // Already waited for other build threads to finish before
                     // writing END to first channel above, so now we can go ahead
                     // and write END to other channels without waiting.
-System.out.println("  EB mod: try sending END event to output channel " + nextChannel +
+System.out.println("  Agg mod: try sending END event to output channel " + nextChannel +
                    ", ring " + nextBtIndex + ", ev# = " + evIndex);
                     // Send END event to first output channel
                     try {
@@ -1506,7 +1506,7 @@ System.out.println("  EB mod: try sending END event to output channel " + nextCh
                     catch (InterruptedException e) {
                         return;
                     }
-System.out.println("  EB mod: sent END event to output channel  " + nextChannel);
+System.out.println("  Agg mod: sent END event to output channel  " + nextChannel);
                 }
 
                 // Stats
@@ -1540,7 +1540,7 @@ System.out.println("  EB mod: sent END event to output channel  " + nextChannel)
                 boolean useDirectBB = false;
                 ByteBufferSupply bbSupply = new ByteBufferSupply(ringItemCount, 2000, outputOrder,
                                                                  useDirectBB, releaseSequentially);
-System.out.println("  EB mod: bbSupply -> " + ringItemCount + " # of bufs, direct = " + false +
+System.out.println("  Agg mod: bbSupply -> " + ringItemCount + " # of bufs, direct = " + false +
                    ", seq = " + releaseSequentially);
 
 
@@ -1615,16 +1615,16 @@ System.out.println("  EB mod: bbSupply -> " + ringItemCount + " # of bufs, direc
                         if (availableSequence < nextSequence) {
                             // Can BLOCK here waiting for item if none available, but can be interrupted
                             // Available sequence may be larger than what we asked for.
-//System.out.println("  EB mod: bt" + btIndex + " ***** wait for event seq = " + nextSequence + ")");
+//System.out.println("  Agg mod: bt" + btIndex + " ***** wait for event seq = " + nextSequence + ")");
                             availableSequence = buildBarrierIn[btIndex].waitFor(nextSequence);
-//System.out.println("  EB mod: bt" + btIndex + " ***** available seq  = " + availableSequence);
+//System.out.println("  Agg mod: bt" + btIndex + " ***** available seq  = " + availableSequence);
                         }
 
                         if (storedBank != null) {
                             bank = storedBank;
                             nextSequence = storedSequence;
                             storedBank = null;
-//System.out.println("  EB mod: bt" + btIndex + " ***** picking up stored bank at seq = " + nextSequence);
+//System.out.println("  Agg mod: bt" + btIndex + " ***** picking up stored bank at seq = " + nextSequence);
                         }
                         else {
                             // Next bank to work with ...
@@ -1635,11 +1635,11 @@ System.out.println("  EB mod: bbSupply -> " + ringItemCount + " # of bufs, direc
                         frame = bank.getTimeFrame();
                         eventType = bank.getEventType();
 //                        ControlType controlType = bank.getControlType();
-//System.out.println("  EB mod: bt" + btIndex + " ***** event order = " + bank.getByteOrder());
-//System.out.println("  EB mod: bt" + btIndex + " ***** frame = " + frame + ", event type = " + eventType + ", control type = " + controlType);
+//System.out.println("  Agg mod: bt" + btIndex + " ***** event order = " + bank.getByteOrder());
+//System.out.println("  Agg mod: bt" + btIndex + " ***** frame = " + frame + ", event type = " + eventType + ", control type = " + controlType);
 
                         // Found a bank, so do something with it
-//System.out.println("  EB mod: bt" + btIndex + " ***** accept item " + thisSequence);
+//System.out.println("  Agg mod: bt" + btIndex + " ***** accept item " + thisSequence);
 
                         // If event needs to be built ...
                         if (!eventType.isControl()) {
@@ -1685,7 +1685,7 @@ System.out.println("  EB mod: bbSupply -> " + ringItemCount + " # of bufs, direc
                                 if (sameStampBanks.length < (sliceCount + 1)) {
                                     // If not enough room, double the relevant arrays
                                     int newLength = 2*sameStampBanks.length;
-//System.out.println("\n  EB mod: bt" + btIndex + " ***** EXPAND arrays from " + sameStampBanks.length + " to " + newLength);
+//System.out.println("\n  Agg mod: bt" + btIndex + " ***** EXPAND arrays from " + sameStampBanks.length + " to " + newLength);
                                     PayloadBuffer[] sameStampBanksNew = new PayloadBuffer[newLength];
                                     inputNodes  = new EvioNode[newLength];
                                     backingBufs = new ByteBuffer[newLength];
@@ -1699,7 +1699,7 @@ System.out.println("  EB mod: bbSupply -> " + ringItemCount + " # of bufs, direc
                                 sliceCount++;
                                 nextSequence++;
                                 prevFrame = frame;
-//System.out.println("\n  EB mod: bt" + btIndex + " ***** found bank, look for another ---> continue, next seq = " + nextSequence +
+//System.out.println("\n  Agg mod: bt" + btIndex + " ***** found bank, look for another ---> continue, next seq = " + nextSequence +
 //        ", frame (prevFrame) = " + frame + ", lookingForTF = " +lookingForTF);
                                 continue;
                             }
@@ -1711,7 +1711,7 @@ System.out.println("  EB mod: bbSupply -> " + ringItemCount + " # of bufs, direc
                                 storedSequence = nextSequence;
                                 // Start looking for the next frame
                                 lookingForTF = frame;
-//System.out.println("\n  EB mod: bt" + btIndex + " ***** at next timestamp, got to next seq = " + nextSequence + ", frame = " + frame +
+//System.out.println("\n  Agg mod: bt" + btIndex + " ***** at next timestamp, got to next seq = " + nextSequence + ", frame = " + frame +
 //        ", prevFrame = " + prevFrame + ", lookingForTF = " + lookingForTF);
                             }
 
@@ -1725,7 +1725,7 @@ System.out.println("  EB mod: bbSupply -> " + ringItemCount + " # of bufs, direc
                         endSequence = nextSequence;
                         haveEndEvent = true;
                         handleEndEvent(bank);
-System.out.println("  EB mod: bt" + btIndex + " ***** found END event at seq " + endSequence);
+System.out.println("  Agg mod: bt" + btIndex + " ***** found END event at seq " + endSequence);
                         return;
                     }
 
@@ -1752,7 +1752,7 @@ System.out.println("  EB mod: bt" + btIndex + " ***** found END event at seq " +
                     // Grab a stored ByteBuffer
                     ByteBufferItem bufItem = bbSupply.get();
                     bufItem.ensureCapacity(memSize);
-//System.out.println("  EB mod: bt" + btIndex + " ***** ensure buf has size " + memSize + ", frame = " + frame + ", prevFrame = " + prevFrame);
+//System.out.println("  Agg mod: bt" + btIndex + " ***** ensure buf has size " + memSize + ", frame = " + frame + ", prevFrame = " + prevFrame);
                     ByteBuffer evBuf = bufItem.getBuffer();
 //                    int builtEventHeaderWord2;
 
@@ -1777,7 +1777,7 @@ System.out.println("  EB mod: bt" + btIndex + " ***** found END event at seq " +
                         //-----------------------------------------------------------------------------------
                         // Combine the SIB banks of input events into one
                         //-----------------------------------------------------------------------------------
-//System.out.println("  EB mod: bt" + btIndex + " ***** Building frame " + prevFrame + " with " + sliceCount + " BUILT slices");
+//System.out.println("  Agg mod: bt" + btIndex + " ***** Building frame " + prevFrame + " with " + sliceCount + " BUILT slices");
                         nonFatalError = Evio.combineAggregatedStreams(
                                 sliceCount,
                                 sameStampBanks,
@@ -1815,7 +1815,7 @@ System.out.println("  EB mod: bt" + btIndex + " ***** found END event at seq " +
                                     nonFatalError);
                         }
                         else {
-//System.out.println("  EB mod: bt" + btIndex + " ***** Building frame " + prevFrame + " with " + sliceCount + " ROC RAW time slices");
+//System.out.println("  Agg mod: bt" + btIndex + " ***** Building frame " + prevFrame + " with " + sliceCount + " ROC RAW time slices");
                             nonFatalError = Evio.combineRocStreams(
                                     sliceCount,
                                     sameStampBanks,
@@ -1860,7 +1860,7 @@ System.out.println("  EB mod: bt" + btIndex + " ***** found END event at seq " +
                     }
 
                     // Put event in the correct output channel.
-//System.out.println("  EB mod: bt#" + btIndex + " write event " + evIndex + " on ch" + outputChannelIndex + ", ring " + btIndex);
+//System.out.println("  Agg mod: bt#" + btIndex + " write event " + evIndex + " on ch" + outputChannelIndex + ", ring " + btIndex);
                     eventToOutputRing(btIndex, outputChannelIndex, sliceCount,
                                       evBuf, eventType, bufItem, bbSupply);
 
@@ -1880,7 +1880,7 @@ System.out.println("  EB mod: bt" + btIndex + " ***** found END event at seq " +
 
                     // Each build thread must release the "slots" in the build thread ring
                     // buffer of the components it uses to build the physics event.
-//System.out.println("  EB mod: bt#" + btIndex + " release build seq " + (nextSequence - 1));
+//System.out.println("  Agg mod: bt#" + btIndex + " release build seq " + (nextSequence - 1));
                     buildSequenceIn[btIndex].set(nextSequence - 1);
 
                     // Stats (need to be thread-safe)
@@ -1892,17 +1892,17 @@ System.out.println("  EB mod: bt" + btIndex + " ***** found END event at seq " +
                 }
             }
             catch (InterruptedException e) {
-                System.out.println("  EB mod: INTERRUPTED build thread " + Thread.currentThread().getName());
+                System.out.println("  Agg mod: INTERRUPTED build thread " + Thread.currentThread().getName());
                 return;
             }
             catch (final TimeoutException e) {
-                System.out.println("  EB mod: timeout in ring buffer");
+                System.out.println("  Agg mod: timeout in ring buffer");
                 emu.setErrorState("EB timeout in ring buffer");
                 moduleState = CODAState.ERROR;
                 return;
             }
             catch (final AlertException e) {
-                System.out.println("  EB mod: alert in ring buffer");
+                System.out.println("  Agg mod: alert in ring buffer");
                 emu.setErrorState("EB alert in ring buffer");
                 moduleState = CODAState.ERROR;
                 return;
@@ -1911,14 +1911,14 @@ System.out.println("  EB mod: bt" + btIndex + " ***** found END event at seq " +
                 // EmuException from Evio.checkPayload() if
                 // Roc raw or physics banks are in the wrong format
                 e.printStackTrace();
-                System.out.println("  EB mod: Roc raw or physics event in wrong format");
+                System.out.println("  Agg mod: Roc raw or physics event in wrong format");
                 emu.setErrorState("EB: Roc raw or physics event in wrong format");
                 moduleState = CODAState.ERROR;
                 return;
             }
             catch (Exception e) {
                 e.printStackTrace();
-                System.out.println("  EB mod: MAJOR ERROR building event: " + e.getMessage());
+                System.out.println("  Agg mod: MAJOR ERROR building event: " + e.getMessage());
                 emu.setErrorState("EB MAJOR ERROR building event: " + e.getMessage());
                 moduleState = CODAState.ERROR;
                 return;
@@ -1944,13 +1944,13 @@ System.out.println("  EB mod: bt" + btIndex + " ***** found END event at seq " +
                         // While we have data to read ...
                         while (nextSequences[i] <= availableSequences[i]) {
                             buildingBank = (PayloadBuffer) ringBuffersIn[i].get(nextSequences[i]);
-System.out.println("  EB mod: bt" + btIndex + " %%%%% clean inputs, releasing input seq " + nextSequences[i] + " from channel #" + i);
+System.out.println("  Agg mod: bt" + btIndex + " %%%%% clean inputs, releasing input seq " + nextSequences[i] + " from channel #" + i);
                             //if (btCount == 1) {
                             buildingBank.releaseByteBuffer();
                             //}
                             nextSequences[i]++;
                         }
-System.out.println("  EB mod: bt" + btIndex + " %%%%% clean inputs, releasing sorter seq " + availableSequences[i] + " from channel #" + i);
+System.out.println("  Agg mod: bt" + btIndex + " %%%%% clean inputs, releasing sorter seq " + availableSequences[i] + " from channel #" + i);
                         sorterSequenceIn[i].set(availableSequences[i]);
 
                         lastCursor = cursor;
@@ -1963,7 +1963,7 @@ System.out.println("  EB mod: bt" + btIndex + " %%%%% clean inputs, releasing so
                 }
             }
 
-            if (debug) System.out.println("  EB mod: Building thread is ending");
+            if (debug) System.out.println("  Agg mod: Building thread is ending");
         }
 
     } // BuildingThread
@@ -1980,7 +1980,7 @@ System.out.println("  EB mod: bt" + btIndex + " %%%%% clean inputs, releasing so
         // at each channel or module.
         // Check again if END event has arrived.
         if (end && !haveEndEvent) {
-System.out.println("  EB mod: interruptThreads: will end building/filling threads but no END event");
+System.out.println("  Agg mod: interruptThreads: will end building/filling threads but no END event");
             if (!dataFromVTP()) {
                 moduleState = CODAState.ERROR;
                 emu.setErrorState("EB will end building/filling threads but no END event");
@@ -2077,7 +2077,7 @@ System.out.println("  EB mod: interruptThreads: will end building/filling thread
             for (int i = 0; i < buildingThreadCount; i++) {
                 BuildingThread thd1 = new BuildingThread(i, emu.getThreadGroup(), name + ":builder" + i);
                 buildingThreadList.add(thd1);
-//System.out.println("  EB mod: startThreads(), start build thread " + i);
+//System.out.println("  Agg mod: startThreads(), start build thread " + i);
                 thd1.start();
             }
 //        }
@@ -2117,12 +2117,12 @@ System.out.println("  EB mod: interruptThreads: will end building/filling thread
 
     /** {@inheritDoc} */
     public void end() {
-//System.out.println("  EB mod: end(), set state to DOWNLOADED");
+//System.out.println("  Agg mod: end(), set state to DOWNLOADED");
         moduleState = CODAState.DOWNLOADED;
 
         // Print out time-to-build-event histogram
         if (timeStatsOn) {
-//System.out.println("  EB mod: end(), print histogram");
+//System.out.println("  Agg mod: end(), print histogram");
             statistics.printBuildTimeHistogram("Time to build one event:", "nsec");
         }
 
@@ -2139,7 +2139,7 @@ System.out.println("  EB mod: interruptThreads: will end building/filling thread
 
         try {
             // Set end-of-run time in local XML config / debug GUI
-//System.out.println("  EB mod: end(), set internal ending time parameter");
+//System.out.println("  Agg mod: end(), set internal ending time parameter");
             Configurer.setValue(emu.parameters(), "status/run_end_time", (new Date()).toString());
         }
         catch (DataNotFoundException e) {}
@@ -2152,7 +2152,7 @@ System.out.println("  EB mod: interruptThreads: will end building/filling thread
         // Event builder needs input
         if (inputChannelCount < 1) {
             moduleState = CODAState.ERROR;
-            System.out.println("  EB mod: prestart, no input channels to EB");
+            System.out.println("  Agg mod: prestart, no input channels to EB");
             emu.setErrorState("no input channels to EB");
             throw new CmdExecException("no input channels to EB");
         }
@@ -2163,7 +2163,7 @@ System.out.println("  EB mod: interruptThreads: will end building/filling thread
 //            for (int j=i+1; j < inputChannelCount; j++) {
 //                if (inputChannels.get(i).getID() == inputChannels.get(j).getID()) {
 //                    moduleState = CODAState.ERROR;
-//                    System.out.println("  EB mod: prestart, input channels have duplicate rocIDs");
+//                    System.out.println("  Agg mod: prestart, input channels have duplicate rocIDs");
 //                    emu.setErrorState("input channels have duplicate rocIDs");
 //                    throw new CmdExecException("input channels have duplicate rocIDs");
 //                }
@@ -2279,7 +2279,7 @@ System.out.println("  EB mod: interruptThreads: will end building/filling thread
      */
     public void go() throws CmdExecException {
         if (!haveAllPrestartEvents && !dumpData) {
-System.out.println("  EB mod: go, have not received all prestart events");
+System.out.println("  Agg mod: go, have not received all prestart events");
             throw new CmdExecException("have not received all prestart events");
         }
 
