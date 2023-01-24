@@ -1080,16 +1080,16 @@ System.out.println("Internal error: got packet with no data, buf's unused bytes 
                             System.arraycopy(headerStorage, 0, buffer, writeHeaderAt, HEADER_BYTES);
                         }
 
-                        if (useErsapReHeader) {
-                            System.out.println("\nPkt hdr: ver = " + version + ", first = " + packetFirst + ", last = " +
-                                    packetLast + ", tick = " + packetTick + ", seq = " + sequence +
-                                    ", source id = " + packetDataId + ", nBytes = " + nBytes);
-                        }
-                        else {
-                            System.out.println("\nPkt hdr: ver = " + version + ", first = " + packetFirst + ", last = " +
-                                    packetLast + ", recordId = " + packetTick + ", seq = " + sequence +
-                                    ", pktCount = " +pktCount + ", source id = " + packetDataId + ", nBytes = " + nBytes);
-                        }
+//                        if (useErsapReHeader) {
+//                            System.out.println("\nPkt hdr: ver = " + version + ", first = " + packetFirst + ", last = " +
+//                                    packetLast + ", tick = " + packetTick + ", seq = " + sequence +
+//                                    ", source id = " + packetDataId + ", nBytes = " + nBytes);
+//                        }
+//                        else {
+//                            System.out.println("\nPkt hdr: ver = " + version + ", first = " + packetFirst + ", last = " +
+//                                    packetLast + ", recordId = " + packetTick + ", seq = " + sequence +
+//                                    ", pktCount = " +pktCount + ", source id = " + packetDataId + ", nBytes = " + nBytes);
+//                        }
 
                         //
                         // The assumption here is that:
