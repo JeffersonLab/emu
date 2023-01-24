@@ -998,14 +998,14 @@ System.out.println("reallocated buffer to " + bufLen + " bytes");
 
                                 // VTP starts at 1, not 0. HOWEVER, the simulated fpga / secondary agg start at 0!!
                                 sequence = reHeader[5];
-System.out.println("     first seq = " + sequence);
+//System.out.println("     first seq = " + sequence);
                                 if (vtpSource) {
                                     sequence--;
-                                    System.out.println("     vtp seq -> " + sequence);
+//System.out.println("     vtp seq -> " + sequence);
                                     if (sequence == -1) {
                                         vtpSource = false;
                                         sequence++;
-                                        System.out.println("     non-vtp seq -> " + sequence);
+//System.out.println("     non-vtp seq -> " + sequence);
                                     }
                                 }
                             }
@@ -1072,7 +1072,7 @@ System.out.println("Internal error: got packet with no data, buf's unused bytes 
                                 if (vtpSource) {
                                     sequence--;
                                 }
-                                System.out.println("     plain seq = " + sequence);
+//System.out.println("     plain seq = " + sequence);
                             }
 //System.out.println("Got packet, seq " + sequence);
 
@@ -2057,7 +2057,7 @@ System.out.println("SocketSender: killThread, set flag, interrupt");
              */
             public void run() {
                 boolean isEnd;
-                boolean debug = true;
+                boolean debug = false;
                 int[] packetsSent = new int[1];
                 byte[] packetStorage = new byte[10000];
                 int delay = 0;
