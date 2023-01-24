@@ -1744,7 +1744,7 @@ System.out.println("\n  Roc mod: Starting sim ROC frame at " + frameNumber + "\n
                         }
 
 
-                        Thread.sleep(1);
+                   //     Thread.sleep(1);
 
                         if (loops != 0 && loopCount++ % loops == 0) {
                             Thread.sleep(1);
