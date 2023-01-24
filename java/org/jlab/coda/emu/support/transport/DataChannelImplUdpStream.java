@@ -862,6 +862,7 @@ logger.info("    DataChannel UDP stream: total header bytes = " + HEADER_BYTES);
             // Next expected sequence or packet # from UDP reassembly header
             int expectedSequence = 0;
 
+            boolean debug = false;
             boolean dumpTick = false;
             boolean packetFirst, packetLast;
             boolean prevPacketLast = true;
@@ -953,7 +954,7 @@ logger.info("    DataChannel UDP stream: total header bytes = " + HEADER_BYTES);
                             buffer = itemBB.array();
                             bufLen = buffer.length;
                             remainingLen = bufLen - putDataAt;
-System.out.println("reallocated buffer to " + bufLen + " bytes");
+if (debug) System.out.println("reallocated buffer to " + bufLen + " bytes");
                         }
 
                         if (veryFirstRead) {
@@ -1117,12 +1118,15 @@ System.out.println("Internal error: got packet with no data, buf's unused bytes 
                                 // Already have trouble, looks like we dropped the first packet of a tick,
                                 // and possibly others after it.
                                 // So go ahead and dump the rest of the tick in an effort to keep up.
-System.out.println("New rec: dropped at least first pkt");
-System.out.println("Hdr: recId = " + packetTick + " (prev " + prevTick +
-                       "), seq = " + sequence + " (prev " + prevSequence +
-                       "), first = " + packetFirst + ", last = " + packetLast + "\n");
+                                if (debug) {
+                                    System.out.println("New rec: dropped at least first pkt");
+                                    System.out.println("Hdr: recId = " + packetTick + " (prev " + prevTick +
+                                            "), seq = " + sequence + " (prev " + prevSequence +
+                                            "), first = " + packetFirst + ", last = " + packetLast + "\n");
 
-//Utilities.printBytes(buffer, 0, 200, "Streamed buf");
+                                    //Utilities.printBytes(buffer, 0, 200, "Streamed buf");
+                                }
+
                                 veryFirstRead = true;
                                 dumpTick = true;
                                 prevTick = packetTick;
@@ -1135,10 +1139,12 @@ System.out.println("Hdr: recId = " + packetTick + " (prev " + prevTick +
                             if (putDataAt != 0) {
                                 // The last tick's buffer was not fully contructed
                                 // before this new tick showed up!
-System.out.println("New rec: previous rec unfinished");
-System.out.println("Hdr: recId = " + packetTick + " (prev " + prevTick +
-                       "), seq = " + sequence + " (prev " + prevSequence +
-                       "), first = " + packetFirst + ", last = " + packetLast + "\n");
+                                if (debug) {
+                                    System.out.println("New rec: previous rec unfinished");
+                                    System.out.println("Hdr: recId = " + packetTick + " (prev " + prevTick +
+                                            "), seq = " + sequence + " (prev " + prevSequence +
+                                            "), first = " + packetFirst + ", last = " + packetLast + "\n");
+                                }
 
                                 // We have a problem here, the first packet of this tick, unfortunately,
                                 // is at the end of the buffer storing the previous tick. We must move it
@@ -1162,12 +1168,13 @@ System.out.println("Hdr: recId = " + packetTick + " (prev " + prevTick +
                             //
                             // I don't know of a way to distinguish these in every case ...
                             if ((packetTick - prevTick) > 1) {
-System.out.println("New rec: MAY have skipped whole record(s)");
-System.out.println("Hdr: recId = " + packetTick + " (prev " + prevTick +
-                       "), seq = " + sequence + " (prev " + prevSequence +
-                       "), first = " + packetFirst + ", last = " + packetLast + "\n");
+                                if (debug) {
+                                    System.out.println("New rec: MAY have skipped whole record(s)");
+                                    System.out.println("Hdr: recId = " + packetTick + " (prev " + prevTick +
+                                            "), seq = " + sequence + " (prev " + prevSequence +
+                                            "), first = " + packetFirst + ", last = " + packetLast + "\n");
+                                }
                             }
-
 
                             // If here, new record, seq = 0
                             // There's a chance we can construct a full buffer.
@@ -1181,7 +1188,9 @@ System.out.println("Hdr: recId = " + packetTick + " (prev " + prevTick +
                         else {
 
                             if (sequence - prevSequence <= 0) {
-System.out.println("Got SAME or DECREASING seq, " + sequence + " (from " + prevSequence + "), recId = " + packetTick);
+                                if (debug) {
+                                    System.out.println("Got SAME or DECREASING seq, " + sequence + " (from " + prevSequence + "), recId = " + packetTick);
+                                }
                                 continue;
                             }
 
@@ -1191,10 +1200,12 @@ System.out.println("Got SAME or DECREASING seq, " + sequence + " (from " + prevS
                                 // so drop rest of packets for record.
                                 // This branch of the "if" will no longer
                                 // be executed once the next record shows up.
-System.out.println("Same rec: missing seq");
-System.out.println("Hdr: recId = " + packetTick + " (prev " + prevTick +
-                       "), seq = " + sequence + " (prev " + prevSequence +
-                       "), first = " + packetFirst + ", last = " + packetLast + "\n");
+                                if (debug) {
+                                    System.out.println("Same rec: missing seq");
+                                    System.out.println("Hdr: recId = " + packetTick + " (prev " + prevTick +
+                                            "), seq = " + sequence + " (prev " + prevSequence +
+                                            "), first = " + packetFirst + ", last = " + packetLast + "\n");
+                                }
                                 veryFirstRead = true;
                                 dumpTick = true;
                                 prevSequence = sequence;
