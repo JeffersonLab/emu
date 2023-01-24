@@ -719,34 +719,37 @@ System.out.println("WRITE CONTROL EVENT to chan #" + i + ", ring 0");
     }
 
 
-    /**
-     * <p>
-     * Find the difference in time frames between the given value and the value
-     * being looked for. This is difference is expressed in relation to
-     * time slices. In other words, are they in the same, in the next, or in a
-     * multiply removed time slice?.</p>
-     *
-     * @param tf          time frame to examine (>= lookedForTF)
-     * @param lookedForTF time frame we're looking for on a channel.
-     *
-     * @return {@link FrameNumberDiff#SAME} if in same time frame,
-     *         {@link FrameNumberDiff#NEXT} if in sequential time frame, or
-     *         {@link FrameNumberDiff#MULTIPLE} if in different and non-sequential time slices.
-     * @throws EmuException if given timestamp is moving backward in time.
-     */
-    private FrameNumberDiff compareWithLookedForTF(long tf, long lookedForTF) throws EmuException {
-        FrameNumberDiff diff = compareTimeFrames(tf, lookedForTF);
+    // This method is NOT useful since the 32 bit frame number wraps around,
+    // going back to 0, and it appears to move back in time.
 
-        if (diff != FrameNumberDiff.SAME) {
-            if ((tf - lookedForTF) < 0) {
-                System.out.println("\nAggregator: looking for frame 0x" + Long.toHexString(lookedForTF) +
-                                   " but found 0x" + Long.toHexString(tf) + "\n");
-                throw new EmuException("time frame decreasing, looking for " + lookedForTF + " but found " + tf);
-            }
-        }
-
-        return diff;
-    }
+//    /**
+//     * <p>
+//     * Find the difference in time frames between the given value and the value
+//     * being looked for. This is difference is expressed in relation to
+//     * time slices. In other words, are they in the same, in the next, or in a
+//     * multiply removed time slice?.</p>
+//     *
+//     * @param tf          time frame to examine (>= lookedForTF)
+//     * @param lookedForTF time frame we're looking for on a channel.
+//     *
+//     * @return {@link FrameNumberDiff#SAME} if in same time frame,
+//     *         {@link FrameNumberDiff#NEXT} if in sequential time frame, or
+//     *         {@link FrameNumberDiff#MULTIPLE} if in different and non-sequential time slices.
+//     * @throws EmuException if given timestamp is moving backward in time.
+//     */
+//    private FrameNumberDiff compareWithLookedForTF(long tf, long lookedForTF) throws EmuException {
+//        FrameNumberDiff diff = compareTimeFrames(tf, lookedForTF);
+//
+//        if (diff != FrameNumberDiff.SAME) {
+//            if ((tf - lookedForTF) < 0) {
+//                System.out.println("\nAggregator: looking for frame 0x" + Long.toHexString(lookedForTF) +
+//                                   " but found 0x" + Long.toHexString(tf) + "\n");
+//                throw new EmuException("time frame decreasing, looking for " + lookedForTF + " but found " + tf);
+//            }
+//        }
+//
+//        return diff;
+//    }
 
 
     /**
@@ -893,7 +896,7 @@ System.out.println("  Agg mod: findEnd, chan " + ch + " got END from " + source 
 
                                 // Get TF from bank just read from chan
                                 // Compare to what we're looking for
-                                FrameNumberDiff diff = compareWithLookedForTF(bank.getTimeFrame(), lookedForTF);
+                                FrameNumberDiff diff = compareTimeFrames(bank.getTimeFrame(), lookedForTF);
                                 if (diff == FrameNumberDiff.SAME) {
                                     // If it's what we're looking for, write it out
                                     sendToTimeSliceBankRing(bank, currentBT);
@@ -1102,7 +1105,7 @@ System.out.println("  Agg mod: findEnd, chan " + ch + " got END from " + source 
                     // Next go to the next slice, copy them to the ring of the next
                     // build thread - round and round.
 
-                    long frame, prevFrame = 0L;
+                    long frame;
 
                     while (true) {
 
@@ -1182,30 +1185,11 @@ System.out.println("  Agg mod: sorter got user event from channel " + inputChann
                                 lookingForFrame = frame;
                                 firstTimeThru = false;
                             }
-                            else {
-                                // Watch out for rollover of frame since it's a 32 bit quantity from an evio bank
-                                // even tho we keep it in a 64 bit long. but lookingForFrame is 64 bits.
-                                if (frame < prevFrame) {
-System.out.println("  Agg mod: ch" + chan + ", prev frame = " + prevFrame + ", but now = " + frame);
-System.out.println("              , looking4frame = " + lookingForFrame + " but change to " + (lookingForFrame & 0xffffffffL));
-// This is NOT going to work since int is signed in Java!!
-                                    lookingForFrame = lookingForFrame & 0xffffffffL;
-                                }
-                            }
 
                             // Compare bank's TS to the one we're looking for -
                             // those to be placed into the current build thread's ring.
                             // First time thru this comes back as "SAME".
-                            FrameNumberDiff diff = null;
-                            try {
-                                diff = compareWithLookedForTF(frame, lookingForFrame);
-                            }
-                            catch (EmuException e) {
-System.out.println("  Agg mod: ch" + chan + ", got frame = " + frame + ", looking for " + lookingForFrame + ", going backwards, ignore bad frame");
-                                nextSequences[chan]++;
-                                prevFrame = frame;
-                                continue;
-                            }
+                            FrameNumberDiff diff = compareTimeFrames(frame, lookingForFrame);
 
 //System.out.println("  Agg mod: ch" + chan + ", sorter NOT CONTROL EVENT, frame = " + frame + ", looking for " + lookingForFrame + ", diff = " + diff);
                             // Bank was has same Time Slice as the one we're looking for.
@@ -1218,7 +1202,6 @@ System.out.println("  Agg mod: ch" + chan + ", got frame = " + frame + ", lookin
                                 // This bank must be released AFTER build thread finishes with it
                                 nextSequences[chan]++;
                                 lastWrittenChan = chan;
-                                prevFrame = frame;
 
                                 // Next read will be on the same channel to see if there are
                                 // more identical time slice banks there. Keep at it until all
@@ -1230,7 +1213,6 @@ System.out.println("  Agg mod: ch" + chan + ", got frame = " + frame + ", lookin
                             // it for later use.
                             // Check the other channels to see if they have banks with the same time slices
                             // as the one last written.
-//                            else if (diff == FrameNumberDiff.NEXT) {
                             else  {
 //System.out.println("  Agg mod: ch" + chan + ", sorter DIFF timestamp, frame = " + frame);
                                 // If the last write was on this channel, then the bank we just
@@ -1263,12 +1245,7 @@ System.out.println("  Agg mod: ch" + chan + ", got frame = " + frame + ", lookin
                                     throw new EmuException("Too big of a jump in timestamp");
                                 }
                             }
-//                            else {
-//System.out.println("  Agg mod: ch" + chan + ", sorter DIFF frames, time frame = " + frame + ", looking for " + lookingForFrame);
-//                                throw new EmuException("Too big of a jump in time frame #");
-//                            }
 
-                            prevFrame = frame;
                             continue;
                         }
 
@@ -1693,7 +1670,7 @@ System.out.println("  Agg mod: bbSupply -> " + ringItemCount + " # of bufs, dire
                                 generalInitDone = true;
                             }
 
-                            FrameNumberDiff diff = compareWithLookedForTF(frame, lookingForTF);
+                            FrameNumberDiff diff = compareTimeFrames(frame, lookingForTF);
 
                             if (diff == FrameNumberDiff.SAME) {
 
