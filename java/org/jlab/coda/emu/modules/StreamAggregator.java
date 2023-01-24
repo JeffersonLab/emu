@@ -1187,8 +1187,9 @@ System.out.println("  Agg mod: sorter got user event from channel " + inputChann
                                 // even tho we keep it in a 64 bit long. but lookingForFrame is 64 bits.
                                 if (frame < prevFrame) {
 System.out.println("  Agg mod: ch" + chan + ", prev frame = " + prevFrame + ", but now = " + frame);
-System.out.println("              , looking4frame = " + lookingForFrame + " but change to " + (lookingForFrame % Integer.MAX_VALUE));
-                                    lookingForFrame = lookingForFrame % Integer.MAX_VALUE;
+System.out.println("              , looking4frame = " + lookingForFrame + " but change to " + (lookingForFrame & 0xffffffffL));
+// This is NOT going to work since int is signed in Java!!
+                                    lookingForFrame = lookingForFrame & 0xffffffffL;
                                 }
                             }
 
