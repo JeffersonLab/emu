@@ -1101,6 +1101,9 @@ System.out.println("  Agg mod: findEnd, chan " + ch + " got END from " + source 
                     // ring of the same build thread.
                     // Next go to the next slice, copy them to the ring of the next
                     // build thread - round and round.
+
+                    long frame, prevFrame = 0L;
+
                     while (true) {
 
 //System.out.println("  Agg mod: ch" + chan + ",sorter set gotBank = FALSE");
@@ -1171,13 +1174,22 @@ System.out.println("  Agg mod: sorter got user event from channel " + inputChann
                         if (!eventType.isControl()) {
 
                             // Get time frame from bank just read from chan
-                            long frame = bank.getTimeFrame();
+                            frame = bank.getTimeFrame();
 
                             // If this is the first read from the first channel
                             if (firstTimeThru) {
                                 // This is the time frame will be looking for in each channel
                                 lookingForFrame = frame;
                                 firstTimeThru = false;
+                            }
+                            else {
+                                // Watch out for rollover of frame since it's a 32 bit quantity from an evio bank
+                                // even tho we keep it in a 64 bit long. but lookingForFrame is 64 bits.
+                                if (frame < prevFrame) {
+System.out.println("  Agg mod: ch" + chan + ", prev frame = " + prevFrame + ", but now = " + frame);
+System.out.println("              , looking4frame = " + lookingForFrame + " but change to " + (lookingForFrame % Integer.MAX_VALUE));
+                                    lookingForFrame = lookingForFrame % Integer.MAX_VALUE;
+                                }
                             }
 
                             // Compare bank's TS to the one we're looking for -
@@ -1190,6 +1202,7 @@ System.out.println("  Agg mod: sorter got user event from channel " + inputChann
                             catch (EmuException e) {
 System.out.println("  Agg mod: ch" + chan + ", got frame = " + frame + ", looking for " + lookingForFrame + ", going backwards, ignore bad frame");
                                 nextSequences[chan]++;
+                                prevFrame = frame;
                                 continue;
                             }
 
@@ -1204,6 +1217,7 @@ System.out.println("  Agg mod: ch" + chan + ", got frame = " + frame + ", lookin
                                 // This bank must be released AFTER build thread finishes with it
                                 nextSequences[chan]++;
                                 lastWrittenChan = chan;
+                                prevFrame = frame;
 
                                 // Next read will be on the same channel to see if there are
                                 // more identical time slice banks there. Keep at it until all
@@ -1253,6 +1267,7 @@ System.out.println("  Agg mod: ch" + chan + ", got frame = " + frame + ", lookin
 //                                throw new EmuException("Too big of a jump in time frame #");
 //                            }
 
+                            prevFrame = frame;
                             continue;
                         }
 
