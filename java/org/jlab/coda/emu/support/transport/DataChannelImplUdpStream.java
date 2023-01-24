@@ -998,7 +998,7 @@ System.out.println("reallocated buffer to " + bufLen + " bytes");
 
                                 // VTP starts at 1, not 0. HOWEVER, the simulated fpga / secondary agg start at 0!!
                                 sequence = reHeader[5];
-System.out.println("     plain seq = " + sequence);
+System.out.println("     first seq = " + sequence);
                                 if (vtpSource) {
                                     sequence--;
                                     System.out.println("     vtp seq -> " + sequence);
@@ -1065,8 +1065,14 @@ System.out.println("Internal error: got packet with no data, buf's unused bytes 
                                 packetFirst  = reHeader[2] == 1 ? true : false;
                                 packetLast   = reHeader[3] == 1 ? true : false;
                                 packetDataId = reHeader[4]; // source id
-                                sequence     = reHeader[5] - 1; // VTP starts at 1, not 0
                                 pktCount     = reHeader[6];
+
+                                // VTP starts at 1, not 0. HOWEVER, the simulated fpga / secondary agg start at 0!!
+                                sequence = reHeader[5];
+                                if (vtpSource) {
+                                    sequence--;
+                                }
+                                System.out.println("     plain seq = " + sequence);
                             }
 //System.out.println("Got packet, seq " + sequence);
 
