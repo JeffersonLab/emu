@@ -46,8 +46,8 @@ public class ByteBufferItem {
     /** Sequence in which this object was taken from ring for use by a consumer with consumerGet(). */
     private long consumerSequence;
 
-    /** Track more than one user so this object can be released for reuse. */
-    private AtomicInteger atomicCounter;
+    /** Track more than one user so this object can be released for reuse. Allocate object once. */
+    private AtomicInteger atomicCounter = new AtomicInteger(0);;
 
     /** Track more than one user so this object can be released for reuse. */
     private volatile int volatileCounter;
@@ -382,7 +382,7 @@ public class ByteBufferItem {
                 volatileCounter = users;
             }
             else {
-                atomicCounter = new AtomicInteger(users);
+                atomicCounter.set(users);
             }
         }
     }
@@ -440,7 +440,7 @@ public class ByteBufferItem {
                 volatileCounter = additionalUsers + 1;
             }
             else {
-                atomicCounter = new AtomicInteger(additionalUsers + 1);
+                atomicCounter.set(additionalUsers + 1);
             }
         }
         else {
