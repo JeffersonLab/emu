@@ -857,12 +857,12 @@ logger.info("    DataChannel UDP stream: total header bytes = " + HEADER_BYTES);
             // Statistics
             // "Record ID" in VTP format, euivalent to "tick" in Ersap format
             long prevTick = -1;
-            long packetTick;
+            long packetTick, tickDiff;
             int packetDataId, sequence, prevSequence = 0, pktCount = 0;
             // Next expected sequence or packet # from UDP reassembly header
             int expectedSequence = 0;
 
-            boolean debug = false;
+            boolean debug = true;
             boolean dumpTick = false;
             boolean packetFirst, packetLast;
             boolean prevPacketLast = true;
@@ -1167,12 +1167,25 @@ System.out.println("Internal error: got packet with no data, buf's unused bytes 
                             // It may have seq = 0, in which case we end up here.
                             //
                             // I don't know of a way to distinguish these in every case ...
-                            if ((packetTick - prevTick) > 1) {
+                            tickDiff = packetTick - prevTick;
+
+                            if (tickDiff > 1) {
                                 if (debug) {
-                                    System.out.println("New rec: MAY have skipped whole record(s)");
+                                    System.out.println("New rec: may have skipped whole record(s)");
                                     System.out.println("Hdr: recId = " + packetTick + " (prev " + prevTick +
                                             "), seq = " + sequence + " (prev " + prevSequence +
                                             "), first = " + packetFirst + ", last = " + packetLast + "\n");
+                                }
+                            }
+                            else if (tickDiff < 0) {
+                                // if not legitimate rollover ...
+                                if (!(packetTick == 0 && prevTick == 255)) {
+                                    if (debug) {
+                                        System.out.println("New rec: may have skipped whole record(s)");
+                                        System.out.println("Hdr: recId = " + packetTick + " (prev " + prevTick +
+                                                "), seq = " + sequence + " (prev " + prevSequence +
+                                                "), first = " + packetFirst + ", last = " + packetLast + "\n");
+                                    }
                                 }
                             }
 
