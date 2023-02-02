@@ -154,6 +154,9 @@ public class DataChannelImplUdpStream extends DataChannelAdapter {
 
     private long nextRingItem;
 
+    /** How many buffers were reassembled successfully between GO and END. */
+    private long buffersReassembled;
+
 
 
     /**
@@ -499,6 +502,7 @@ logger.info("    DataChannel UDP stream: total header bytes = " + HEADER_BYTES);
             parserMergerThread = null;
             if (inSocket != null) inSocket.close();
         }
+        logger.info("    DataChannel UDP stream: buffers reassembled = " + buffersReassembled);
 
         channelState = CODAState.DOWNLOADED;
     }
@@ -521,6 +525,8 @@ logger.info("    DataChannel UDP stream: total header bytes = " + HEADER_BYTES);
             parserMergerThread = null;
             if (inSocket != null) inSocket.close();
         }
+
+        logger.info("    DataChannel UDP stream: buffers reassembled = " + buffersReassembled);
 
         errorMsg.set(null);
         channelState = CODAState.CONFIGURED;
@@ -907,6 +913,9 @@ logger.info("    DataChannel UDP stream: total header bytes = " + HEADER_BYTES);
             // To account for this, assume input is from VTP, if -1 is received as a sequence,
             // set boolean indicating source is not a VTP.
             boolean vtpSource = true;
+
+            // Keep count of buffers reassembled
+            buffersReassembled = 0;
 
             try {
 
@@ -1316,6 +1325,7 @@ System.out.println("Internal error: got packet with no data, buf's unused bytes 
                                 if (packetLast) {
                                     // For UDP we don't need to track if ticks are sequential
                                     //item.setUserInt((int)packetTick);
+                                    buffersReassembled++;
                                     break;
                                 }
                             }
