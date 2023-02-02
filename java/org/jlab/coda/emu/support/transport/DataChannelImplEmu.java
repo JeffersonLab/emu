@@ -1189,7 +1189,7 @@ System.out.println("      DataChannel Emu in: " + name +
                 pool.reset();
                 if (reader == null) {
 //System.out.println("      DataChannel Emu in: create reader, buf's pos/lim = " + buf.position() + "/" + buf.limit());
-                    reader = new EvioCompactReader(buf, pool, false);
+                    reader = new EvioCompactReader(buf, pool, false, false);
                 }
                 else {
 //System.out.println("      DataChannel Emu in: set buffer, expected id = " + expectedRecordId);
@@ -1459,7 +1459,7 @@ logger.info("      DataChannel Emu in: got " + controlType + " event from " + na
                 pool.reset();
                 if (reader == null) {
 System.out.println("      DataChannel Emu in: create reader, buf's pos/lim = " + buf.position() + "/" + buf.limit());
-                    reader = new EvioCompactReader(buf, pool, false);
+                    reader = new EvioCompactReader(buf, pool, false, false);
 System.out.println("      DataChannel Emu in: incoming data's evio version = " + reader.getEvioVersion());
                 }
                 else {

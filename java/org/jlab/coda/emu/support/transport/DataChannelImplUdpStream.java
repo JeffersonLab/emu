@@ -1477,7 +1477,7 @@ System.out.println("Internal error: got packet with no data, buf's unused bytes 
                 // which overwrites the default big endian setting in creating bbSupply.
                 if (reader == null) {
 //System.out.println("    DataChannel UDP stream in: create reader, buf's pos/lim = " + buf.position() + "/" + buf.limit());
-                    reader = new EvioCompactReader(buf, pool, false);
+                    reader = new EvioCompactReader(buf, pool, false, false);
                 }
                 else {
 //System.out.println("    DataChannel UDP stream in: set buffer, expected id = " + expectedRecordId);

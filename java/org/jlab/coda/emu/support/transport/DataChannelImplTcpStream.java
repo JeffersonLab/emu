@@ -1072,7 +1072,7 @@ System.out.println("      DataChannel TcpStream in: " + name +
                 pool.reset();
                 if (reader == null) {
 //System.out.println("      DataChannel TcpStream in: create reader, buf's pos/lim = " + buf.position() + "/" + buf.limit());
-                    reader = new EvioCompactReader(buf, pool, false);
+                    reader = new EvioCompactReader(buf, pool, false, false);
 //System.out.println("      DataChannel TcpStream in: incoming data's evio version = " + reader.getEvioVersion());
                 }
                 else {

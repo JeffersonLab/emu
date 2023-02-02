@@ -1252,7 +1252,7 @@ System.out.println("      DataChannel Et in: GETTER is Quitting");
 
                             // These calls do not change buf position
                             if (compactReader == null) {
-                                compactReader = new EvioCompactReader(buf, nodePool, false);
+                                compactReader = new EvioCompactReader(buf, nodePool, false, false);
                             }
                             else {
                                 compactReader.setBuffer(buf, nodePool);
