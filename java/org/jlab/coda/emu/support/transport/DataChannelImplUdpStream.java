@@ -287,7 +287,7 @@ public class DataChannelImplUdpStream extends DataChannelAdapter {
             }
 
 
-            int ringSize = 256;
+            int ringSize = 512;
 
             nodePools = new EvioNodePool[ringSize];
             // Create the EvioNode pools - the BBsupply gets ringSize number of pools -
