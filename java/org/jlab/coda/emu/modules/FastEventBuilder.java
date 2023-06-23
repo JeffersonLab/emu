@@ -1032,8 +1032,6 @@ System.out.println("  EB mod: try sending END event to output channel " + nextCh
                 // Release input channel's ring's slot
                 buildSequences[i].set(nextSequences[i]++);
                 // Release byte buffer from a supply holding END event.
-                // If more than 1 BT, release is done by ReleaseRingResourceThread
-                //if (btCount == 1 && buildingBanks != null) {
                 if (buildingBanks != null) {
                     buildingBanks[i].releaseByteBuffer();
                 }
@@ -1365,6 +1363,8 @@ System.out.println("  EB mod: findEnd, chan " + ch + " got END from " + source +
                      // Start the clock on how long it takes to build the next event
                      if (timeStatsOn) startTime = System.nanoTime();
 
+System.out.println("  EB mod: bt" + btIndex + " out of " + btCount + " running");
+
                      // Grab one buildable (non-user/control) bank from each channel.
                      top:
                      for (int i=0; i < inputChannelCount; i++) {
@@ -1378,10 +1378,12 @@ System.out.println("  EB mod: findEnd, chan " + ch + " got END from " + source +
                              if (availableSequences[i] < nextSequences[i]) {
                                  // Can BLOCK here waiting for item if none available, but can be interrupted
                                  // Available sequence may be larger than what we asked for.
- //System.out.println("  EB mod: bt" + btIndex + " ch" + i + ", wait for event (seq [" + i + "] = " +
- //                           nextSequences[i] + ")");
+ System.out.println("  EB mod: bt" + btIndex + ", ch" + i + ", wait for " + nextSequences[i]);
                                  availableSequences[i] = buildBarrierIn[i].waitFor(nextSequences[i]);
- //System.out.println("  EB mod: bt" + btIndex + " ch" + i + ", available seq[" + i + "]  = " + availableSequences[i]);
+ System.out.println("  EB mod: bt" + btIndex + ", ch" + i + ", avail " + availableSequences[i]);
+                             }
+                             else {
+System.out.println("  EB mod: bt" + btIndex + ", ch" + i + ", already have " + availableSequences[i]);
                              }
 
                              // While we have new data to work with ...
@@ -1397,24 +1399,27 @@ System.out.println("  EB mod: findEnd, chan " + ch + " got END from " + source +
                                      // User events are placed in first output channel's first ring.
                                      // Only the first build thread will deal with them.
                                      if (btIndex == 0) {
-System.out.println("  EB mod: got user event from channel " + inputChannels.get(i).name());
+System.out.println("  EB mod: bt 0, handle user evt chan " + inputChannels.get(i).name());
  //System.out.println("  EB mod: bt" + btIndex + " ch" + i + ", skip user item " + nextSequences[i]);
  //System.out.println("  EB mod: user event order = " + pBuf.getByteOrder());
                                          handleUserEvent(buildingBanks[i], inputChannels.get(i),
                                                          recordIdError);
                                          buildSequences[i].set(nextSequences[i]);
                                      }
+                                     else {
+System.out.println("  EB mod: bt " + btIndex + ", skip user evt chan " + inputChannels.get(i).name());
+                                     }
                                      nextSequences[i]++;
                                  }
                                  // Skip over events being built by other build threads
                                  else if (skipCounter[i] - 1 > 0)  {
- //System.out.println("  EB mod: bt" + btIndex + " ch" + i + ", skip item " + nextSequences[i]);
+System.out.println("  EB mod: bt" + btIndex + ", ch" + i + ", skip " + nextSequences[i]);
                                      nextSequences[i]++;
                                      skipCounter[i]--;
                                  }
                                  // Found a bank, so do something with it (skipCounter[i] - 1 == 0)
                                  else {
- //System.out.println("  EB mod: bt" + btIndex + " ch" + i + ", accept item " + nextSequences[i]);
+System.out.println("  EB mod: bt" + btIndex + ", ch" + i + ", accept " + nextSequences[i]);
                                      // Check payload buffer for source id.
                                      // Store sync and error info in payload buffer.
                                      //if (!dumpData)
@@ -1539,6 +1544,7 @@ System.out.println("  EB mod: got user event from channel " + inputChannels.get(
 
                                  // Go to next input channel
                                  skipCounter[i] = btCount;
+ System.out.println("  EB mod: bt" + btIndex + ", done with physics, ch" + i + ", go to next chan");
                                  break;
                              }
 
@@ -1555,7 +1561,7 @@ System.out.println("  EB mod: got user event from channel " + inputChannels.get(
                              endEventCount++;
                              endSequence = nextSequences[i];
                              endChannel = i;
-                             System.out.println("  EB mod: bt" + btIndex + ", found END event from " + buildingBanks[i].getSourceName() + " at seq " + endSequence);
+System.out.println("  EB mod: bt" + btIndex + ", found END event from " + buildingBanks[i].getSourceName() + " at seq " + endSequence);
 
                              if (!gotFirstBuildEvent) {
                                  // Don't do all the stuff for a
