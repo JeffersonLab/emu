@@ -1336,6 +1336,9 @@ System.out.println("  EB mod: findEnd, chan " + ch + " got END from " + source +
                  }
 
                  long endSequence = -1;
+                 int loopsAfterEnd = 0;
+
+                 System.out.println("  EB mod: bt" + btIndex + " out of " + btCount + " running");
 
                  // Now do the event building
                  while (moduleState == CODAState.ACTIVE || paused) {
@@ -1362,8 +1365,6 @@ System.out.println("  EB mod: findEnd, chan " + ch + " got END from " + source +
 
                      // Start the clock on how long it takes to build the next event
                      if (timeStatsOn) startTime = System.nanoTime();
-
-System.out.println("  EB mod: bt" + btIndex + " out of " + btCount + " running");
 
                      // Grab one buildable (non-user/control) bank from each channel.
                      top:
@@ -1561,6 +1562,10 @@ System.out.println("  EB mod: bt" + btIndex + ", ch" + i + ", accept " + nextSeq
                              endEventCount++;
                              endSequence = nextSequences[i];
                              endChannel = i;
+                             // How many more loops in main for-loop to go before breaking.
+                             // We only want to finish the rest of this round of looking at each channel.
+                             loopsAfterEnd = inputChannelCount - i - 1;
+
 System.out.println("  EB mod: bt" + btIndex + ", found END event from " + buildingBanks[i].getSourceName() + " at seq " + endSequence);
 
                              if (!gotFirstBuildEvent) {
@@ -1571,6 +1576,12 @@ System.out.println("  EB mod: bt" + btIndex + ", found END event from " + buildi
 
                              // Go to next input channel
                              skipCounter[i] = btCount;
+                             break;
+                         }
+
+                         if (haveEnd && loopsAfterEnd <= 0) {
+                             // We have at least one END and have looked at all chans,
+                             // so time to exit loop or possibly block forever.
                              break;
                          }
 
