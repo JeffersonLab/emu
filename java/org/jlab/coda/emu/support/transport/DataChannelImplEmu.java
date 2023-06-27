@@ -1195,6 +1195,8 @@ System.out.println("      DataChannel Emu in: " + e.getMessage());
 
             EventType eventType = EventType.getEventType(blockHeader.getEventType());
             if (eventType == null || !eventType.isEbFriendly()) {
+System.out.println("      DataChannel Emu in: Record's event type int = " + blockHeader.getEventType() +
+                   ", type = " + eventType);
                 throw new EvioException("bad evio format or improper event type");
             }
 
