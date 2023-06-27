@@ -1216,6 +1216,9 @@ System.out.println("      DataChannel Emu in: " + name +
 //                       ", recd id = " + recordId + ", event cnt = " + eventCount);
 
              for (int i = 1; i < eventCount + 1; i++) {
+                 // Type may change if there are mixed types in record
+                 EventType evType = eventType;
+
                  nextRingItem = ringBufferIn.nextIntr(1);
                  ri = ringBufferIn.get(nextRingItem);
 
@@ -1238,7 +1241,7 @@ System.out.println("      DataChannel Emu in: WARNING, event count = " + eventCo
                  // Complication: from the ROC, we'll be receiving USER events
                  // mixed in with and labeled as ROC Raw events. Check for that
                  // and fix it.
-                 if (eventType == EventType.ROC_RAW) {
+                 if (evType.isROCRaw()) {
                      if (Evio.isUserEvent(node)) {
                          isUser = true;
                          eventType = EventType.USER;
@@ -1254,21 +1257,21 @@ System.out.println("      DataChannel Emu in: WARNING, event count = " + eventCo
                          if (!node.getDataTypeObj().isBank()) {
                              DataType eventDataType = node.getDataTypeObj();
                              throw new EvioException("ROC raw record contains " + eventDataType +
-                                                     " instead of banks (data corruption?)");
+                                     " instead of banks (data corruption?)");
                          }
                      }
                  }
-                 else if (eventType == EventType.CONTROL) {
+                 else if (evType.isControl()) {
                      // Find out exactly what type of control event it is
                      // (May be null if there is an error).
                      controlType = ControlType.getControlType(node.getTag());
-logger.info("      DataChannel Emu in: got " + controlType + " event from " + name);
+                     logger.info("      DataChannel Emu in: got " + controlType + " event from " + name);
                      if (controlType == null) {
                          logger.info("      DataChannel Emu in: found unidentified control event");
                          throw new EvioException("Found unidentified control event");
                      }
                  }
-                 else if (eventType == EventType.USER) {
+                 else if (eventType.isUser()) {
                      isUser = true;
                      if (hasFirstEvent) {
                          logger.info("      DataChannel Emu in: " + name + " got FIRST event");
@@ -1277,12 +1280,52 @@ logger.info("      DataChannel Emu in: got " + controlType + " event from " + na
                          logger.info("      DataChannel Emu in: " + name + " got USER event");
                      }
                  }
+                 else if (evType.isMixed()) {
+                     // Mix of event types.
+                     // Can occur for combo of user, ROC RAW and possibly control events.
+                     // Only occurs when a user inserts a User event during the End transition.
+                     // What happens is that the User Event gets put into a EVIO Record which can
+                     // also contain ROC RAW events. The evio record gets labeled as containing
+                     // mixed events.
+                     //
+                     // This will NOT occur in ER, so headers are all parsed at this point.
+                     // Look at the very first header, second word.
+                     // num = 0  --> it's a control or User event (tag tells which):
+                     //          0xffd0 <= tag <= 0xffdf --> control event
+                     //          else                    --> User event
+                     // num > 0  --> block level for ROC RAW
+
+                     int num = node.getNum();
+                     if (num == 0) {
+                         int tag = node.getTag();
+                         if (ControlType.isControl(tag)) {
+                             controlType = ControlType.getControlType(tag);
+                             evType = EventType.CONTROL;
+                             logger.info("      DataChannel Emu in: " + name + " mixed type to " + controlType.name());
+                         }
+                         else {
+                             isUser = true;
+                             evType = EventType.USER;
+                             logger.info("      DataChannel Emu in: " + name + " mixed type to user type");
+                         }
+                     }
+                     else {
+                         logger.info("      DataChannel Emu in: " + name + " mixed type to ROC RAW");
+                         evType = EventType.ROC_RAW;
+                         // Pick this raw data event apart a little
+                         if (!node.getDataTypeObj().isBank()) {
+                             DataType eventDataType = node.getDataTypeObj();
+                             throw new EvioException("ROC raw record contains " + eventDataType +
+                                     " instead of banks (data corruption?)");
+                         }
+                     }
+                 }
                  else {
                      // Physics or partial physics event must have BANK as data type
                      if (!node.getDataTypeObj().isBank()) {
                          DataType eventDataType = node.getDataTypeObj();
                          throw new EvioException("physics record contains " + eventDataType +
-                                                 " instead of banks (data corruption?)");
+                                 " instead of banks (data corruption?)");
                      }
                  }
 
@@ -1302,8 +1345,8 @@ logger.info("      DataChannel Emu in: got " + controlType + " event from " + na
 //                     }
 //
 //                     // Send control events on to module so we can prestart, go and take data
-//                     if (!eventType.isBuildable()) {
-//                         ri.setAll(null, null, node, eventType, controlType,
+//                     if (!evType.isBuildable()) {
+//                         ri.setAll(null, null, node, evType, controlType,
 //                                   isUser, hasFirstEvent, id, recordId, sourceId,
 //                                   1, name, item, bbSupply);
 //
@@ -1314,13 +1357,13 @@ logger.info("      DataChannel Emu in: got " + controlType + " event from " + na
 //                 }
 
                  // Set & reset all parameters of the ringItem
-                 if (eventType.isBuildable()) {
-                     ri.setAll(null, null, node, eventType, controlType,
+                 if (evType.isBuildable()) {
+                     ri.setAll(null, null, node, evType, controlType,
                                isUser, hasFirstEvent, id, recordId, sourceId,
                                node.getNum(), name, item, bbSupply);
                  }
                  else {
-                     ri.setAll(null, null, node, eventType, controlType,
+                     ri.setAll(null, null, node, evType, controlType,
                                isUser, hasFirstEvent, id, recordId, sourceId,
                                1, name, item, bbSupply);
                  }
