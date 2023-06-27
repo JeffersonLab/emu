@@ -1089,16 +1089,16 @@ System.out.println("  EB mod: findEnd, stop looking for END on channel " + ch + 
                             continue;
                         }
 
-//System.out.println("  EB mod: findEnd, waiting for next item from chan " + ch + " at sequence " + veryNextSequence);
+System.out.println("  EB mod: findEnd, waiting for next item from chan " + ch + " at sequence " + veryNextSequence);
                         available = buildBarrierIn[ch].waitFor(veryNextSequence);
-//System.out.println("  EB mod: findEnd, got items from chan " + ch + " up to sequence " + available);
+System.out.println("  EB mod: findEnd, got items from chan " + ch + " up to sequence " + available);
 
                         while (veryNextSequence <= available) {
                             offset++;
                             PayloadBuffer pBuf = (PayloadBuffer) ringBuffersIn[ch].get(veryNextSequence);
                             String source = pBuf.getSourceName();
-//System.out.println("  EB mod: findEnd, on chan " + ch + " found event of type " + pBuf.getEventType() + " from " + source + ", back " + offset +
-//                   " places in ring with seq = " + veryNextSequence);
+System.out.println("  EB mod: findEnd, on chan " + ch + " found event type " + pBuf.getEventType() + " from " + source + ", back " + offset +
+                   " places in ring with seq = " + veryNextSequence);
                             if (pBuf.getControlType() == ControlType.END) {
                                 // Found the END event
 System.out.println("  EB mod: findEnd, chan " + ch + " got END from " + source + ", back " + offset + " places in ring");
@@ -1584,7 +1584,7 @@ System.out.println("  EB mod: bt" + btIndex + ", look at " + loopsAfterEnd + " m
                              if (loopsAfterEnd-- <= 0) {
                                  // We have at least one END and have looked at all chans,
                                  // so time to exit loop or possibly block forever.
-                                 System.out.println("  EB mod: bt" + btIndex + ", have END " + loopsAfterEnd + " more channels, then handle ENDS & build event");
+                                 System.out.println("  EB mod: bt" + btIndex + ", have " + endEventCount + " END evts" + ", handle END & build event");
                                  break;
                              }
                          }
