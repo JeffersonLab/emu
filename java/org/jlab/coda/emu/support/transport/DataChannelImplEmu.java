@@ -2463,8 +2463,8 @@ logger.info("      DataChannel Emu out: " + name + " got RESET cmd, quitting");
 //System.out.println("time = " + emu.getTime() + ", lastSendTime = " + lastSendTime);
                     long t = emu.getTime();
                     if (!regulateBufferRate && (t - lastSendTime > timeout)) {
-System.out.println("TIME FLUSH ******************, time = " + t + ", last time = " + lastSendTime +
-        ", delta = " + (t - lastSendTime));
+//System.out.println("TIME /FLUSH ******************, time = " + t + ", last time = " + lastSendTime +
+//        ", delta = " + (t - lastSendTime));
                         flushExistingEvioData();
                     }
                 }

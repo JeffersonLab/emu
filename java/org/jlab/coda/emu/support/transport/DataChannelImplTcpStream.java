@@ -2046,8 +2046,8 @@ logger.info("      DataChannel TcpStream out: " + name + " got RESET cmd, quitti
 //System.out.println("time = " + emu.getTime() + ", lastSendTime = " + lastSendTime);
                     long t = emu.getTime();
                     if (!regulateBufferRate && (t - lastSendTime > timeout)) {
-System.out.println("TIME FLUSH ******************, time = " + t + ", last time = " + lastSendTime +
-        ", delta = " + (t - lastSendTime));
+//System.out.println("TIME FLUSH ******************, time = " + t + ", last time = " + lastSendTime +
+//        ", delta = " + (t - lastSendTime));
                         flushExistingEvioData();
                     }
                 }
