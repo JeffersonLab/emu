@@ -1590,33 +1590,50 @@ System.out.println("Internal error: got packet with no data, buf's unused bytes 
             item.setUsers(eventCount);
 
             for (int i = 1; i < eventCount+1; i++) {
+                // Type may change if there are mixed types in record
+                EventType evType = eventType;
 
                 long frame = 0L;
                 long timestamp = 0L;
-                EvioNode topNode;
 
                 // getScannedEvent will clear child and allNodes lists
-                topNode = reader.getScannedEvent(i, pool);
+                EvioNode node = reader.getScannedEvent(i, pool);
 
                 // This should NEVER happen
-                if (topNode == null) {
+                if (node == null) {
                     System.out.println("    DataChannel UDP stream in: WARNING, event count = " + eventCount +
                             " but get(Scanned)Event(" + i + ") is null - evio parsing bug");
                     continue;
                 }
 
-                // RocRaw's, Time Slice Bank
-                EvioNode node = topNode;
+                // Mix of event types can occur from ROC for combo of user,
+                // ROC RAW and possibly control events. Assign proper types.
+                if (evType.isMixed()) {
+                    int num = node.getNum();
+                    if (num == 0) {
+                        if (ControlType.isControl(node.getTag())) {
+                            evType = EventType.CONTROL;
+                        }
+                        else {
+                            evType = EventType.USER;
+                        }
+                    }
+                    else {
+                        evType = EventType.ROC_RAW_STREAM;
+                        gotRocRaw = true;
+                    }
+                }
 
                 if (gotRocRaw) {
                     // Complication: from the ROC, we'll be receiving USER events mixed
                     // in with and labeled as ROC Raw events. Check for that & fix it.
                     if (Evio.isUserEvent(node)) {
                         isUser = true;
-                        eventType = EventType.USER;
+                        evType = EventType.USER;
                         if (hasFirstEvent) {
                             System.out.println("    DataChannel UDP stream in: " + name + "  FIRST event from ROC RAW");
-                        } else {
+                        }
+                        else {
                             System.out.println("    DataChannel UDP stream in: " + name + " USER event from ROC RAW");
                         }
                     }
@@ -1637,7 +1654,7 @@ System.out.println("Internal error: got packet with no data, buf's unused bytes 
 //System.out.println("    DataChannel UDP stream in: roc raw has frame = " + frame + ", timestamp = " + timestamp + ", pos = " + pos);
                     }
                 }
-                else if (eventType.isBuildable()) {
+                else if (evType.isBuildable()) {
                     // If time slices coming from DCAG, SAG, or PAG
                     // Physics or partial physics event must have BANK as data type
                     if (!node.getDataTypeObj().isBank()) {
@@ -1653,7 +1670,7 @@ System.out.println("Internal error: got packet with no data, buf's unused bytes 
                     timestamp = EmuUtilities.intsToLong(buff.getInt(24 + pos), buff.getInt(28 + pos));
 //System.out.println("    DataChannel UDP stream in: buildable has frame = " + frame + ", timestamp = " + timestamp + ", pos = " + pos);
                 }
-                else if (eventType == EventType.CONTROL) {
+                else if (evType.isControl()) {
                     // Find out exactly what type of control event it is
                     // (May be null if there is an error).
                     controlType = ControlType.getControlType(node.getTag());
@@ -1663,11 +1680,12 @@ System.out.println("Internal error: got packet with no data, buf's unused bytes 
                         throw new EvioException("Found unidentified control event");
                     }
                 }
-                else if (eventType == EventType.USER) {
+                else if (evType.isUser()) {
                     isUser = true;
                     if (hasFirstEvent) {
                         logger.info("    DataChannel UDP stream in: " + name + " got FIRST event");
-                    } else {
+                    }
+                    else {
                         logger.info("    DataChannel UDP stream in: " + name + " got USER event");
                     }
                 }
@@ -1676,16 +1694,17 @@ System.out.println("Internal error: got packet with no data, buf's unused bytes 
                 ri = ringBufferIn.get(nextRingItem);
 
                 // Set & reset all parameters of the ringItem
-                if (eventType.isBuildable()) {
+                if (evType.isBuildable()) {
 //logger.info("    DataChannel UDP stream in: put buildable event into channel ring, event from " + name);
-                    ri.setAll(null, null, node, eventType, controlType,
+                    ri.setAll(null, null, node, evType, controlType,
                             isUser, hasFirstEvent, module.isStreamingData(), id, recordId, id,
                             node.getNum(), name, item, bbSupply);
                     ri.setTimeFrame(frame);
                     ri.setTimestamp(timestamp);
-                } else {
+                }
+                else {
 //logger.info("    DataChannel UDP stream in: put CONTROL (user?) event into channel ring, event from " + name);
-                    ri.setAll(null, null, node, eventType, controlType,
+                    ri.setAll(null, null, node, evType, controlType,
                             isUser, hasFirstEvent, module.isStreamingData(), id, recordId, id,
                             1, name, item, bbSupply);
                 }
