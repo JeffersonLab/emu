@@ -1379,13 +1379,13 @@ System.out.println("  EB mod: findEnd, chan " + ch + " got END from " + source +
                              if (availableSequences[i] < nextSequences[i]) {
                                  // Can BLOCK here waiting for item if none available, but can be interrupted
                                  // Available sequence may be larger than what we asked for.
- System.out.println("  EB mod: bt" + btIndex + ", ch" + i + ", wait for " + nextSequences[i]);
+// System.out.println("  EB mod: bt" + btIndex + ", ch" + i + ", wait for " + nextSequences[i]);
                                  availableSequences[i] = buildBarrierIn[i].waitFor(nextSequences[i]);
- System.out.println("  EB mod: bt" + btIndex + ", ch" + i + ", avail " + availableSequences[i]);
+// System.out.println("  EB mod: bt" + btIndex + ", ch" + i + ", avail " + availableSequences[i]);
                              }
-                             else {
-System.out.println("  EB mod: bt" + btIndex + ", ch" + i + ", already have " + availableSequences[i]);
-                             }
+//                             else {
+//System.out.println("  EB mod: bt" + btIndex + ", ch" + i + ", already have " + availableSequences[i]);
+//                             }
 
                              // While we have new data to work with ...
                              while (nextSequences[i] <= availableSequences[i]) {
@@ -1407,20 +1407,20 @@ System.out.println("  EB mod: bt0, handle user evt chan " + inputChannels.get(i)
                                                          recordIdError);
                                          buildSequences[i].set(nextSequences[i]);
                                      }
-                                     else {
-System.out.println("  EB mod: bt" + btIndex + ", skip user evt chan " + inputChannels.get(i).name());
-                                     }
+//                                     else {
+//System.out.println("  EB mod: bt" + btIndex + ", skip user evt chan " + inputChannels.get(i).name());
+//                                     }
                                      nextSequences[i]++;
                                  }
                                  // Skip over events being built by other build threads
                                  else if (skipCounter[i] - 1 > 0)  {
-System.out.println("  EB mod: bt" + btIndex + ", ch" + i + ", skip " + nextSequences[i]);
+//System.out.println("  EB mod: bt" + btIndex + ", ch" + i + ", skip " + nextSequences[i]);
                                      nextSequences[i]++;
                                      skipCounter[i]--;
                                  }
                                  // Found a bank, so do something with it (skipCounter[i] - 1 == 0)
                                  else {
-System.out.println("  EB mod: bt" + btIndex + ", ch" + i + ", accept " + nextSequences[i]);
+//System.out.println("  EB mod: bt" + btIndex + ", ch" + i + ", accept " + nextSequences[i]);
                                      // Check payload buffer for source id.
                                      // Store sync and error info in payload buffer.
                                      //if (!dumpData)
@@ -1545,7 +1545,7 @@ System.out.println("  EB mod: bt" + btIndex + ", ch" + i + ", accept " + nextSeq
 
                                  // Go to next input channel
                                  skipCounter[i] = btCount;
- System.out.println("  EB mod: bt" + btIndex + ", done with physics, ch" + i + ", go to next chan");
+//System.out.println("  EB mod: bt" + btIndex + ", done with physics, ch" + i + ", go to next chan");
                                  break;
                              }
 
@@ -1584,7 +1584,7 @@ System.out.println("  EB mod: bt" + btIndex + ", look at " + loopsAfterEnd + " m
                              if (loopsAfterEnd-- <= 0) {
                                  // We have at least one END and have looked at all chans,
                                  // so time to exit loop or possibly block forever.
-                                 System.out.println("  EB mod: bt" + btIndex + ", have " + endEventCount + " END evts" + ", handle END & build event");
+System.out.println("  EB mod: bt" + btIndex + ", have " + endEventCount + " END evts" + ", handle END & build event");
                                  break;
                              }
                          }
