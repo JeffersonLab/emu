@@ -1135,7 +1135,7 @@ System.out.println("      DataChannel Emu in: " + e.getMessage());
          * @throws EvioException
          * @throws InterruptedException
          */
-        private final boolean parseToRing(ByteBufferItem item, ByteBufferSupply bbSupply)
+        private boolean parseToRing(ByteBufferItem item, ByteBufferSupply bbSupply)
                 throws EvioException, InterruptedException {
 
             RingItem ri;
@@ -1195,8 +1195,8 @@ System.out.println("      DataChannel Emu in: " + e.getMessage());
 
             EventType eventType = EventType.getEventType(blockHeader.getEventType());
             if (eventType == null || !eventType.isEbFriendly()) {
-System.out.println("      DataChannel Emu in: Record's event type int = " + blockHeader.getEventType() +
-                   ", type = " + eventType);
+//System.out.println("      DataChannel Emu in: Record's event type int = " + blockHeader.getEventType() +
+//                   ", type = " + eventType);
                 throw new EvioException("bad evio format or improper event type");
             }
 
@@ -1297,10 +1297,10 @@ System.out.println("      DataChannel Emu in: WARNING, event count = " + eventCo
                      //          0xffd0 <= tag <= 0xffdf --> control event
                      //          else                    --> User event
                      // num > 0  --> block level for ROC RAW
-logger.info("      DataChannel Emu in: " + name + " dealing with MIXED event type!");
+//logger.info("      DataChannel Emu in: " + name + " dealing with MIXED event type!");
 
                      int num = node.getNum();
-logger.info("      DataChannel Emu in: " + name + " event num = " + num);
+//logger.info("      DataChannel Emu in: " + name + " event num = " + num);
                      if (num == 0) {
                          int tag = node.getTag();
                          if (ControlType.isControl(tag)) {
@@ -1315,7 +1315,7 @@ logger.info("      DataChannel Emu in: " + name + " event num = " + num);
                          }
                      }
                      else {
-logger.info("      DataChannel Emu in: " + name + " mixed type to ROC RAW");
+//logger.info("      DataChannel Emu in: " + name + " mixed type to ROC RAW");
                          evType = EventType.ROC_RAW;
                          // Pick this raw data event apart a little
                          if (!node.getDataTypeObj().isBank()) {
@@ -1326,7 +1326,7 @@ logger.info("      DataChannel Emu in: " + name + " mixed type to ROC RAW");
                      }
                  }
                  else {
-logger.info("      DataChannel Emu in: " + name + " dealing with unknown event type!");
+//logger.info("      DataChannel Emu in: " + name + " dealing with physics");
                      // Physics or partial physics event must have BANK as data type
                      if (!node.getDataTypeObj().isBank()) {
                          DataType eventDataType = node.getDataTypeObj();
