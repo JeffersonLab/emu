@@ -1221,7 +1221,7 @@ System.out.println("      DataChannel Emu in: WARNING, event count = " + eventCo
                  // Complication: from the ROC, we'll be receiving USER events
                  // mixed in with and labeled as ROC Raw events. Check for that
                  // and fix it.
-                 if (evType == EventType.ROC_RAW) {
+                 if (evType.isROCRaw()) {
 //logger.info("      DataChannel Emu in: got ROC Raw event type from " + name);
                      if (Evio.isUserEvent(node)) {
                          isUser = true;
@@ -1242,7 +1242,7 @@ System.out.println("      DataChannel Emu in: WARNING, event count = " + eventCo
                          }
                      }
                  }
-                 else if (evType == EventType.CONTROL) {
+                 else if (evType.isControl()) {
                      // Find out exactly what type of control event it is
                      // (May be null if there is an error).
                      controlType = ControlType.getControlType(node.getTag());
@@ -1252,7 +1252,7 @@ logger.info("      DataChannel Emu in: got " + controlType + " event from " + na
                          throw new EvioException("Found unidentified control event");
                      }
                  }
-                 else if (evType == EventType.USER) {
+                 else if (eventType.isUser()) {
                      isUser = true;
                      if (hasFirstEvent) {
                          logger.info("      DataChannel Emu in: " + name + " got FIRST event");
@@ -1261,7 +1261,7 @@ logger.info("      DataChannel Emu in: got " + controlType + " event from " + na
                          logger.info("      DataChannel Emu in: " + name + " got USER event");
                      }
                  }
-                 else if (evType == EventType.MIXED) {
+                 else if (evType.isMixed()) {
                      // Mix of event types.
                      // Can occur for combo of user, ROC RAW and possibly control events.
                      // Only occurs when a user inserts a User event during the End transition.
@@ -1291,7 +1291,7 @@ logger.info("      DataChannel Emu in: " + name + " mixed type to user type");
                          }
                      }
                      else {
-logger.info("      DataChannel Emu in: " + name + " mixed type to ROC RAW");
+//logger.info("      DataChannel Emu in: " + name + " mixed type to ROC RAW");
                          evType = EventType.ROC_RAW;
                          // Pick this raw data event apart a little
                          if (!node.getDataTypeObj().isBank()) {
@@ -1310,32 +1310,32 @@ logger.info("      DataChannel Emu in: " + name + " mixed type to ROC RAW");
                      }
                  }
 
-                 if (dumpData) {
-                     bbSupply.release(item);
-
-                     // Handle end event ...
-                     if (controlType == ControlType.END) {
-//TODO: what to do about having got the next ringItem
-                         // There should be no more events coming down the pike so
-                         // go ahead write out existing events and then shut this
-                         // thread down.
-                         haveInputEndEvent = true;
-                         // Run callback saying we got end event
-                         if (endCallback != null) endCallback.endWait();
-                         break;
-                     }
-
-                     // Send control events on to module so we can prestart, go and take data
-                     if (!evType.isBuildable()) {
-                         ri.setAll(null, null, node, evType, controlType,
-                                   isUser, hasFirstEvent, id, recordId, sourceId,
-                                   1, name, item, bbSupply);
-
-                         ringBufferIn.publish(nextRingItem);
-                     }
-
-                     continue;
-                 }
+//                 if (dumpData) {
+//                     bbSupply.release(item);
+//
+//                     // Handle end event ...
+//                     if (controlType == ControlType.END) {
+////TODO: what to do about having got the next ringItem
+//                         // There should be no more events coming down the pike so
+//                         // go ahead write out existing events and then shut this
+//                         // thread down.
+//                         haveInputEndEvent = true;
+//                         // Run callback saying we got end event
+//                         if (endCallback != null) endCallback.endWait();
+//                         break;
+//                     }
+//
+//                     // Send control events on to module so we can prestart, go and take data
+//                     if (!evType.isBuildable()) {
+//                         ri.setAll(null, null, node, evType, controlType,
+//                                   isUser, hasFirstEvent, id, recordId, sourceId,
+//                                   1, name, item, bbSupply);
+//
+//                         ringBufferIn.publish(nextRingItem);
+//                     }
+//
+//                     continue;
+//                 }
 
                  // Set & reset all parameters of the ringItem
                  if (evType.isBuildable()) {

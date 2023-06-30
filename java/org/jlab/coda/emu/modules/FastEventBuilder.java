@@ -1037,8 +1037,6 @@ System.out.println("  EB mod: try sending END event to output channel " + nextCh
                 // Release input channel's ring's slot
                 buildSequences[i].set(nextSequences[i]++);
                 // Release byte buffer from a supply holding END event.
-                // If more than 1 BT, release is done by ReleaseRingResourceThread
-                //if (btCount == 1 && buildingBanks != null) {
                 if (buildingBanks != null) {
                     buildingBanks[i].releaseByteBuffer();
                 }
@@ -1193,74 +1191,74 @@ System.out.println("  EB mod: findEnd, chan " + ch + " got END from " + source +
                 // The others can just skip over them.
                 //
                 // Easiest to implement this with one counter per input channel.
-                 int[] skipCounter = new int[inputChannelCount];
-                 Arrays.fill(skipCounter, btIndex + 1);
+                int[] skipCounter = new int[inputChannelCount];
+                Arrays.fill(skipCounter, btIndex + 1);
 
-                 // Initialize
-                 int     tag, endEventCount, entangledEventCount=0, entangledEventCountNew;
-                 long    firstEventNumber=1, startTime=0L;
-                 boolean haveEnd, havePhysicsEvents;
-                 boolean isSync, nonFatalError;
-                 boolean gotBank, gotFirstBuildEvent, recordIdError;
-                 boolean isEventNumberInitiallySet = false, generalInitDone = false;
-                 EventType eventType = null;
-                 EvioNode  inputNode = null;
+                // Initialize
+                int     tag, endEventCount, entangledEventCount=0, entangledEventCountNew;
+                long    firstEventNumber=1, startTime=0L;
+                boolean haveEnd, havePhysicsEvents;
+                boolean isSync, nonFatalError;
+                boolean gotBank, gotFirstBuildEvent, recordIdError;
+                boolean isEventNumberInitiallySet = false, generalInitDone = false;
+                EventType eventType = null;
+                EvioNode  inputNode = null;
 
-                 // Allocate arrays once here so building method does not have to
-                 // allocate once per built event. Size is set later when the # of
-                 // entangled events (block level) is known.
-                 long[]  longData   = null; // allocated later
-                 long[]  commonLong = null;
-                 long[]  firstInputCommonLong = null;
-                 long[]  timeStampMin = null;
-                 long[]  timeStampMax = null;
-                 short[] evData       = null;
-                 short[] eventTypesRoc1 = null;
+                // Allocate arrays once here so building method does not have to
+                // allocate once per built event. Size is set later when the # of
+                // entangled events (block level) is known.
+                long[]  longData   = null; // allocated later
+                long[]  commonLong = null;
+                long[]  firstInputCommonLong = null;
+                long[]  timeStampMin = null;
+                long[]  timeStampMax = null;
+                short[] evData       = null;
+                short[] eventTypesRoc1 = null;
 
-                 int[]   segmentData = new int[20];  // currently only use 3 ints
-                 int[]   returnLen   = new int[1];
-                 int[] backBufOffsets     = new int[inputChannelCount];
-                 ByteBuffer[] backingBufs = new ByteBuffer[inputChannelCount];
-                 EvioNode[] rocNodes      = new EvioNode[inputChannelCount];
+                int[]   segmentData = new int[20];  // currently only use 3 ints
+                int[]   returnLen   = new int[1];
+                int[] backBufOffsets     = new int[inputChannelCount];
+                ByteBuffer[] backingBufs = new ByteBuffer[inputChannelCount];
+                EvioNode[] rocNodes      = new EvioNode[inputChannelCount];
 
-                 //TODO: only if SEB
-                 EvioNode[] trigNodes     = new EvioNode[inputChannelCount];
+                //TODO: only if SEB
+                EvioNode[] trigNodes     = new EvioNode[inputChannelCount];
 
-                 // Some of the above arrays need to be cleared for each event being built.
-                 // Copy the contents (all 0's) of the following arrays for efficient clearing.
-                 long[]  longDataZero    = null;  // allocated later
-                 long[]  longDataMin     = null;  // allocated later
+                // Some of the above arrays need to be cleared for each event being built.
+                // Copy the contents (all 0's) of the following arrays for efficient clearing.
+                long[]  longDataZero    = null;  // allocated later
+                long[]  longDataMin     = null;  // allocated later
 //                 short[] evDataZero      = null;  // allocated later
 //                 int[]   segmentDataZero = new int[20];
 
-                 if (outputChannelCount > 1) outputChannelIndex = -1;
+                if (outputChannelCount > 1) outputChannelIndex = -1;
 
-                 PayloadBuffer[] buildingBanks = new PayloadBuffer[inputChannelCount];
+                PayloadBuffer[] buildingBanks = new PayloadBuffer[inputChannelCount];
 
-                 minEventSize = Integer.MAX_VALUE;
+                minEventSize = Integer.MAX_VALUE;
 
-                 if (timeStatsOn) {
-                     statistics = new Statistics(1000000, 30);
-                 }
+                if (timeStatsOn) {
+                    statistics = new Statistics(1000000, 30);
+                }
 
-                 // Ring Buffer stuff - define array for convenience
-                 nextSequences = new long[inputChannelCount];
-                 availableSequences = new long[inputChannelCount];
-                 Arrays.fill(availableSequences, -2L);
-                 buildSequences = new Sequence[inputChannelCount];
-                 for (int i=0; i < inputChannelCount; i++) {
-                     // Gating sequence for each of the input channel rings
-                     buildSequences[i] = buildSequenceIn[btIndex][i];
-                     nextSequences[i]  = buildSequences[i].get() + 1L;
-                 }
+                // Ring Buffer stuff - define array for convenience
+                nextSequences = new long[inputChannelCount];
+                availableSequences = new long[inputChannelCount];
+                Arrays.fill(availableSequences, -2L);
+                buildSequences = new Sequence[inputChannelCount];
+                for (int i=0; i < inputChannelCount; i++) {
+                    // Gating sequence for each of the input channel rings
+                    buildSequences[i] = buildSequenceIn[btIndex][i];
+                    nextSequences[i]  = buildSequences[i].get() + 1L;
+                }
 
-                 // First thing we do is look for the PRESTART event(s) and pass it on
-                 try {
-                      // 1st build thread writes prestart event on all output channels, ring 0.
-                     // Other build threads ignore this.
-                     if (btIndex == 0) {
-                         // Get prestart from each input channel
-      //TODO: can pass in buildingBanks and save some mem allocation/garbage
+                // First thing we do is look for the PRESTART event(s) and pass it on
+                try {
+                     // 1st build thread writes prestart event on all output channels, ring 0.
+                    // Other build threads ignore this.
+                    if (btIndex == 0) {
+                        // Get prestart from each input channel
+//TODO: can pass in buildingBanks and save some mem allocation/garbage
                           ControlType cType = getAllControlEvents(buildSequences, buildBarrierIn,
                                                                   nextSequences, btIndex);
                           if (!cType.isPrestart()) {
@@ -1268,81 +1266,82 @@ System.out.println("  EB mod: findEnd, chan " + ch + " got END from " + source +
                           }
 
                          controlToOutputAsync(true);
-                     }
-                     else {
-                         // Get prestart from each input channel
-      //TODO: can pass in buildingBanks and save some mem allocation/garbage
-                          ControlType cType = hopOverControlEvents(buildBarrierIn,
+                    }
+                    else {
+                        // Get prestart from each input channel
+//TODO: can pass in buildingBanks and save some mem allocation/garbage
+                         ControlType cType = hopOverControlEvents(buildBarrierIn,
                                                                   nextSequences, btIndex);
-                          if (!cType.isPrestart()) {
-                              throw new EmuException("Expecting prestart event, got " + cType);
-                          }
-                     }
-                 }
-                 catch (Exception e) {
-                     // If interrupted we must quit
-                     e.printStackTrace();
-                     if (debug) System.out.println("  EB mod: interrupted while waiting for prestart event");
-                     emu.setErrorState("EB interrupted waiting for prestart event");
-                     moduleState = CODAState.ERROR;
-                     return;
-                 }
+                         if (!cType.isPrestart()) {
+                             throw new EmuException("Expecting prestart event, got " + cType);
+                         }
+                    }
+                }
+                catch (Exception e) {
+                    // If interrupted we must quit
+                    e.printStackTrace();
+                    if (debug) System.out.println("  EB mod: interrupted while waiting for prestart event");
+                    emu.setErrorState("EB interrupted waiting for prestart event");
+                    moduleState = CODAState.ERROR;
+                    return;
+                }
 
-                 prestartCallback.endWait();
-                 haveAllPrestartEvents = true;
-                 if (btIndex == 0) {
-                     System.out.println("  EB mod: got all PRESTART events");
-                 }
+                prestartCallback.endWait();
+                haveAllPrestartEvents = true;
+                if (btIndex == 0) {
+                    System.out.println("  EB mod: got all PRESTART events");
+                }
 
-                 // Second thing we do is look for the GO or END event and pass it on
-                 try {
-                     // 1st build thread writes prestart event on all output channels, ring 0.
-                     // Other build threads ignore this.
-                     ControlType cType = null;
-                     if (btIndex == 0) {
-                         // Get prestart from each input channel
+                // Second thing we do is look for the GO or END event and pass it on
+                try {
+                    // 1st build thread writes prestart event on all output channels, ring 0.
+                    // Other build threads ignore this.
+                    ControlType cType = null;
+                    if (btIndex == 0) {
+                        // Get prestart from each input channel
       //TODO: can pass in buildingBanks and save some mem allocation/garbage
                           cType = getAllControlEvents(buildSequences, buildBarrierIn,
                                                       nextSequences, btIndex);
-                     }
-                     else {
+                    }
+                    else {
                          // Get prestart from each input channel
       //TODO: can pass in buildingBanks and save some mem allocation/garbage
                           cType = hopOverControlEvents(buildBarrierIn, nextSequences, btIndex);
-                     }
-                     
-                     if (!cType.isGo()) {
-                         if (cType.isEnd()) {
-                             haveEndEvent = true;
-                             if (btIndex == 0) {
-                                 handleEndEvent(null);
-                                 System.out.println("  EB mod: got all END events");
-                             }
-                             return;
-                         }
-                         else {
-                             throw new EmuException("Expecting GO or END event, got " + cType);
-                         }
-                     }
+                    }
 
-                     if (btIndex == 0) {
-                         controlToOutputAsync(false);
-                     }
-                 }
-                 catch (InterruptedException e) {
-                     e.printStackTrace();
-                     // If interrupted, then we must quit
-                     if (debug) System.out.println("  EB mod: interrupted while waiting for go event");
-                     emu.setErrorState("EB interrupted waiting for go event");
-                     moduleState = CODAState.ERROR;
-                     return;
-                 }
+                    if (!cType.isGo()) {
+                        if (cType.isEnd()) {
+                            haveEndEvent = true;
+                            if (btIndex == 0) {
+                                handleEndEvent(null);
+                                System.out.println("  EB mod: got all END events");
+                            }
+                            return;
+                        }
+                        else {
+                            throw new EmuException("Expecting GO or END event, got " + cType);
+                        }
+                    }
 
-                 if (btIndex == 0) {
-                     System.out.println("  EB mod: got all GO events");
-                 }
+                    if (btIndex == 0) {
+                        controlToOutputAsync(false);
+                    }
+                }
+                catch (InterruptedException e) {
+                    e.printStackTrace();
+                    // If interrupted, then we must quit
+                    if (debug) System.out.println("  EB mod: interrupted while waiting for go event");
+                    emu.setErrorState("EB interrupted waiting for go event");
+                    moduleState = CODAState.ERROR;
+                    return;
+                }
 
-                 long endSequence = -1;
+                if (btIndex == 0) {
+                    System.out.println("  EB mod: got all GO events");
+                }
+
+                long endSequence = -1;
+                int loopsAfterEnd = 0;
 
                  // Now do the event building
                  while (moduleState == CODAState.ACTIVE || paused) {
@@ -1560,7 +1559,12 @@ System.out.println("  EB mod: got user event from channel " + inputChannels.get(
                              endEventCount++;
                              endSequence = nextSequences[i];
                              endChannel = i;
-                             System.out.println("  EB mod: bt" + btIndex + ", found END event from " + buildingBanks[i].getSourceName() + " at seq " + endSequence);
+                             // How many more loops in main for-loop to go before breaking.
+                             // We only want to finish the rest of this round of looking at each channel.
+                             loopsAfterEnd = inputChannelCount - i - 1;
+
+System.out.println("  EB mod: bt" + btIndex + ", found END event from " + buildingBanks[i].getSourceName() + " at seq " + endSequence);
+System.out.println("  EB mod: bt" + btIndex + ", look at " + loopsAfterEnd + " more channels, then handle ENDS & build event");
 
                              if (!gotFirstBuildEvent) {
                                  // Don't do all the stuff for a
@@ -1571,6 +1575,15 @@ System.out.println("  EB mod: got user event from channel " + inputChannels.get(
                              // Go to next input channel
                              skipCounter[i] = btCount;
                              break;
+                         }
+
+                         if (haveEnd) {
+                             if (loopsAfterEnd-- <= 0) {
+                                 // We have at least one END and have looked at all chans,
+                                 // so time to exit loop or possibly block forever.
+System.out.println("  EB mod: bt" + btIndex + ", have " + endEventCount + " END evts" + ", handle END & build event");
+                                 break;
+                             }
                          }
 
                          // repeat for loop endlessly
