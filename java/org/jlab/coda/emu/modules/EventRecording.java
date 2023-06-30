@@ -493,7 +493,7 @@ System.out.println("  ER mod: will end thread but no END event!");
                              // Now place one copy on each output channel
                              for (int j=0; j < outputChannelCount; j++) {
  System.out.println("  ER mod: writing control/first (seq " + mainNextSequence +
-                    ") to channel #" + outputChannels.get(j).name());
+                    ") to channel " + fileOutputChannels[j].name());
                                  eventToOutputChannel(outputEvents[j], j, 0);
                              }
 
@@ -1017,6 +1017,7 @@ if (debug) System.out.println("  ER mod: recording thread ending");
 
     /** {@inheritDoc} */
     public void end() {
+        System.out.println("  ER mod: running end()");
         moduleState = CODAState.DOWNLOADED;
 
         // Recording thread should already be ended by END event.
