@@ -152,6 +152,9 @@ public class ModuleAdapter implements EmuModule {
     /** Targeted time period in milliseconds over which instantaneous rates will be calculated. */
     protected static final int statGatheringPeriod = 2000;
 
+    /** Time in milliseconds to wait for an END events to arrive before throwing exception. */
+    protected static final int waitForEndPeriod = 10000;
+
     /** If {@code true}, this module's statistics represents that of the EMU. */
     protected boolean representStatistics;
 
