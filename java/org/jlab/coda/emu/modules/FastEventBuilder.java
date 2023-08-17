@@ -1040,68 +1040,71 @@ System.out.println("  EB mod: try sending END event to output channel " + nextCh
             if (endCallback != null) endCallback.endWait();
         }
 
-        
+
         /**
          * Method to search for END event on each channel when END found on one channel but
          * not at the same place on the other channels. Takes multiple build threads into
          * account.
-         * @param endChannel  channel on which END event was already found
-         * @param endSequence sequence at which the END event was found
+         * @param endChannel  element true if END event was found on that channel
+         * @param endSequence sequences at which the END event was found
          * @return total number of END events found
          */
-        private int findEnd(int endChannel, long endSequence, int endEventCount) {
+        private int findEnd(boolean[] endChannel, long[] endSequence, int endEventCount) {
             // If the END event is far back on any of the communication channels, in order to be able
             // to read in those events, resources must be released after being read/used.
             // All build sequences must advance together for things to be released.
 
             try {
                 long available;
+                int millisecWait = 0;
 
                 // For each channel ...
+                channelLoop:
                 for (int ch=0; ch < inputChannelCount; ch++) {
 
-                    if (ch == endChannel) {
-                        // We've already found the END event on this channel
+                    // Have we found END on this channel already? If so, go to next
+                    if (endChannel[ch]) {
                         continue;
                     }
 
                     int offset = 0;
                     boolean done = false;
-                    long veryNextSequence = endSequence + 1L;
+                    long veryNextSequence = endSequence[ch] + 1L;
 
                     while (true) {
                         // Check to see if there is anything to read so we don't block.
                         // If not, move on to the next ring.
                         if (ringBuffersIn[ch].getCursor() < veryNextSequence) {
-                        //if (!ringBuffersIn[ch].isPublished(veryNextSequence)) {
 //System.out.println("  EB mod: findEnd, for chan " + ch + ", sequence " + veryNextSequence + " not available yet");
-                            // Only break (and throw a major error) if this EB has
-                            // received the END command. Because only then do we know
-                            // that all ROCS have ENDED and sent all their data.
-                            if (moduleState == CODAState.DOWNLOADED ||
-                                moduleState != CODAState.ACTIVE) {
-System.out.println("  EB mod: findEnd, stop looking for END on channel " + ch + " as module state = " + moduleState);
-                                break;
+                            // So the question is, when do we quit if no END event is coming?
+                            // If the EB does not end its threads and complete the END transition,
+                            // then the whole state machine gets stuck and it cannot go to DOWNLOAD.
+                            if (millisecWait >= waitForEndPeriod) {
+                                System.out.println("  EB mod: findEnd, stop looking for END on chan " + ch + " since no more events available, module state = " + moduleState);
+                                continue channelLoop;
                             }
+
                             // Wait for events to arrive
-                            Thread.sleep(100);
+                            Thread.sleep(200);
+                            millisecWait += 200;
+
                             // Try again
                             continue;
                         }
 
-System.out.println("  EB mod: findEnd, waiting for next item from chan " + ch + " at sequence " + veryNextSequence);
+//System.out.println("  EB mod: findEnd, waiting for next item from chan " + ch + " at sequence " + veryNextSequence);
                         available = buildBarrierIn[ch].waitFor(veryNextSequence);
-System.out.println("  EB mod: findEnd, got items from chan " + ch + " up to sequence " + available);
+//System.out.println("  EB mod: findEnd, got items from chan " + ch + " up to sequence " + available);
 
                         while (veryNextSequence <= available) {
                             offset++;
                             PayloadBuffer pBuf = (PayloadBuffer) ringBuffersIn[ch].get(veryNextSequence);
                             String source = pBuf.getSourceName();
-System.out.println("  EB mod: findEnd, on chan " + ch + " found event type " + pBuf.getEventType() + " from " + source + ", back " + offset +
-                   " places in ring with seq = " + veryNextSequence);
+//System.out.println("  EB mod: findEnd, on chan " + ch + " found event of type " + pBuf.getEventType() + " from " + source + ", back " + offset +
+//                   " places in ring with seq = " + veryNextSequence);
                             if (pBuf.getControlType() == ControlType.END) {
                                 // Found the END event
-System.out.println("  EB mod: findEnd, chan " + ch + " got END from " + source + ", back " + offset + " places in ring");
+                                System.out.println("  EB mod: findEnd, chan " + ch + " got END from " + source + ", back " + offset + " places in ring");
                                 endEventCount++;
                                 done = true;
                                 break;
@@ -1112,6 +1115,8 @@ System.out.println("  EB mod: findEnd, chan " + ch + " got END from " + source +
 
                             // Advance sequence for all build threads
                             for (int bt = 0; bt < btCount; bt++) {
+                                // For each input channel, 1 sequence per build thread.
+                                // So for the single channel, we advance seq for all build threads.
                                 buildSequenceIn[bt][ch].set(veryNextSequence);
                             }
                             veryNextSequence++;
@@ -1176,7 +1181,7 @@ System.out.println("  EB mod: findEnd, chan " + ch + " got END from " + source +
                  Arrays.fill(skipCounter, btIndex + 1);
 
                  // Initialize
-                 int     tag, endEventCount, entangledEventCount=0, entangledEventCountNew;
+                 int     tag, entangledEventCount=0, entangledEventCountNew;
                  long    firstEventNumber=1, startTime=0L;
                  boolean haveEnd, havePhysicsEvents;
                  boolean isSync, nonFatalError;
@@ -1335,8 +1340,15 @@ System.out.println("  EB mod: findEnd, chan " + ch + " got END from " + source +
                      System.out.println("  EB mod: got all GO events");
                  }
 
-                 long endSequence = -1;
+
+                 // Track who got END event
+                 long[] endSequence = new long[inputChannelCount];
+                 Arrays.fill(endSequence, -1);
+                 boolean[] endChannel = new boolean[inputChannelCount];
+                 Arrays.fill(endChannel, false);
+                 int endEventCount = 0;
                  int loopsAfterEnd = 0;
+
 
                  System.out.println("  EB mod: bt" + btIndex + " out of " + btCount + " running");
 
@@ -1359,8 +1371,6 @@ System.out.println("  EB mod: findEnd, chan " + ch + " got END from " + source +
                      // Set variables/flags
                      haveEnd = false;
                      gotFirstBuildEvent = false;
-                     endEventCount = 0;
-                     int endChannel = -1;
                      //int printCounter = 0;
 
                      // Start the clock on how long it takes to build the next event
@@ -1560,8 +1570,8 @@ System.out.println("  EB mod: bt0, handle user evt chan " + inputChannels.get(i)
                              // At this point all controls are END events
                              haveEnd = true;
                              endEventCount++;
-                             endSequence = nextSequences[i];
-                             endChannel = i;
+                             endSequence[i] = nextSequences[i];
+                             endChannel[i] = true;
                              // How many more loops in main for-loop to go before breaking.
                              // We only want to finish the rest of this round of looking at each channel.
                              loopsAfterEnd = inputChannelCount - i - 1;
