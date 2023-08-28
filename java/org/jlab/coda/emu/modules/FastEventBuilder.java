@@ -1567,7 +1567,8 @@ System.out.println("  EB mod: got user event from channel " + inputChannels.get(
                              endEventCount++;
                              endSequence[i] = nextSequences[i];
                              endChannel[i] = true;
-                             System.out.println("  EB mod: bt" + btIndex + ", found END event from " + buildingBanks[i].getSourceName() + " at seq " + endSequence);
+                             System.out.println("  EB mod: bt" + btIndex + ", found END event from " +
+                                     buildingBanks[i].getSourceName() + " at seq " + endSequence[i]);
 
                              if (!gotFirstBuildEvent) {
                                  // Don't do all the stuff for a
