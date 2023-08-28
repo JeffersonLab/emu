@@ -1576,8 +1576,10 @@ System.out.println("  EB mod: bt0, handle user evt chan " + inputChannels.get(i)
                              // We only want to finish the rest of this round of looking at each channel.
                              loopsAfterEnd = inputChannelCount - i - 1;
 
-System.out.println("  EB mod: bt" + btIndex + ", found END event from " + buildingBanks[i].getSourceName() + " at seq " + endSequence);
-System.out.println("  EB mod: bt" + btIndex + ", look at " + loopsAfterEnd + " more channels, then handle ENDS & build event");
+System.out.println("  EB mod: bt" + btIndex + ", found END event from " +
+        buildingBanks[i].getSourceName() + " at seq " + endSequence[i]);
+System.out.println("  EB mod: bt" + btIndex + ", look at " + loopsAfterEnd +
+        " more channels, then handle ENDS & build event");
 
                              if (!gotFirstBuildEvent) {
                                  // Don't do all the stuff for a
