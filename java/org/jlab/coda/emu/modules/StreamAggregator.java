@@ -826,11 +826,13 @@ System.out.println("WRITE CONTROL EVENT to chan #" + i + ", ring 0");
             // to read in those events, resources must be released after being read/used.
 
             long available;
+            int millisecWait = 0;
             // One channel already found END event
             int endEventCount = 1;
 
             try {
                 // For each channel ...
+                channelLoop:
                 for (int ch=0; ch < inputChannelCount; ch++) {
 
                     if (ch == endChannel) {
@@ -847,17 +849,18 @@ System.out.println("WRITE CONTROL EVENT to chan #" + i + ", ring 0");
                         // If not, move on to the next ring.
                         if (ringBuffersIn[ch].getCursor() < veryNextSequence) {
 //System.out.println("  Agg mod: findEnd, for chan " + ch + ", sequence " + veryNextSequence + " not available yet");
-
-                            // Only break (and throw a major error) if this EB has
-                            // received the END command. Because only then do we know
-                            // that all ROCS have ENDED and sent all their data.
-                            if (moduleState == CODAState.DOWNLOADED ||
-                                    moduleState != CODAState.ACTIVE) {
-                                System.out.println("  Agg mod: findEnd, stop looking for END on channel " + ch + " as module state = " + moduleState);
-                                break;
+                            // So the question is, when do we quit if no END event is coming?
+                            // If the Agg does not end its threads and complete the END transition,
+                            // then the whole state machine gets stuck and it cannot go to DOWNLOAD.
+                            if (millisecWait >= waitForEndPeriod) {
+System.out.println("  Agg mod: findEnd, stop looking for END on chan " + ch + " since no more events available, module state = " + moduleState);
+                                continue channelLoop;
                             }
+
                             // Wait for events to arrive
-                            Thread.sleep(100);
+                            Thread.sleep(200);
+                            millisecWait += 200;
+
                             // Try again
                             continue;
                         }

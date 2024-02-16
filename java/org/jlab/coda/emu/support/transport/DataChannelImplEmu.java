@@ -1189,7 +1189,7 @@ System.out.println("      DataChannel Emu in: " + name +
                 pool.reset();
                 if (reader == null) {
 //System.out.println("      DataChannel Emu in: create reader, buf's pos/lim = " + buf.position() + "/" + buf.limit());
-                    reader = new EvioCompactReader(buf, pool, false);
+                    reader = new EvioCompactReader(buf, pool, false, false);
                 }
                 else {
 //System.out.println("      DataChannel Emu in: set buffer, expected id = " + expectedRecordId);
@@ -1226,6 +1226,8 @@ System.out.println("      DataChannel Emu in: " + name +
 
             EventType eventType = EventType.getEventType(blockHeader.getEventType());
             if (eventType == null || !eventType.isEbFriendly()) {
+//System.out.println("      DataChannel Emu in: Record's event type int = " + blockHeader.getEventType() +
+//                   ", type = " + eventType);
                 throw new EvioException("bad evio format or improper event type");
             }
 
@@ -1342,7 +1344,7 @@ logger.info("      DataChannel Emu in: got " + controlType + " event from " + na
                          }
                      }
                      else {
-                         logger.info("      DataChannel Emu in: " + name + " mixed type to ROC RAW");
+//logger.info("      DataChannel Emu in: " + name + " mixed type to ROC RAW");
                          evType = EventType.ROC_RAW;
                          // Pick this raw data event apart a little
                          if (!node.getDataTypeObj().isBank()) {
@@ -1377,8 +1379,8 @@ logger.info("      DataChannel Emu in: got " + controlType + " event from " + na
 //                     }
 //
 //                     // Send control events on to module so we can prestart, go and take data
-//                     if (!eventType.isBuildable()) {
-//                         ri.setAll(null, null, node, eventType, controlType,
+//                     if (!evType.isBuildable()) {
+//                         ri.setAll(null, null, node, evType, controlType,
 //                                   isUser, hasFirstEvent, module.isStreamingData(), id, recordId, sourceId,
 //                                   1, name, item, bbSupply);
 //
@@ -1389,7 +1391,7 @@ logger.info("      DataChannel Emu in: got " + controlType + " event from " + na
 //                 }
 
                  // Set & reset all parameters of the ringItem
-                 if (eventType.isBuildable()) {
+                 if (evType.isBuildable()) {
                      ri.setAll(null, null, node, evType, controlType,
                                isUser, hasFirstEvent, module.isStreamingData(), id, recordId, sourceId,
                                node.getNum(), name, item, bbSupply);
@@ -1459,7 +1461,7 @@ logger.info("      DataChannel Emu in: got " + controlType + " event from " + na
                 pool.reset();
                 if (reader == null) {
 System.out.println("      DataChannel Emu in: create reader, buf's pos/lim = " + buf.position() + "/" + buf.limit());
-                    reader = new EvioCompactReader(buf, pool, false);
+                    reader = new EvioCompactReader(buf, pool, false, false);
 System.out.println("      DataChannel Emu in: incoming data's evio version = " + reader.getEvioVersion());
                 }
                 else {
@@ -2461,8 +2463,8 @@ logger.info("      DataChannel Emu out: " + name + " got RESET cmd, quitting");
 //System.out.println("time = " + emu.getTime() + ", lastSendTime = " + lastSendTime);
                     long t = emu.getTime();
                     if (!regulateBufferRate && (t - lastSendTime > timeout)) {
-System.out.println("TIME FLUSH ******************, time = " + t + ", last time = " + lastSendTime +
-        ", delta = " + (t - lastSendTime));
+//System.out.println("TIME /FLUSH ******************, time = " + t + ", last time = " + lastSendTime +
+//        ", delta = " + (t - lastSendTime));
                         flushExistingEvioData();
                     }
                 }

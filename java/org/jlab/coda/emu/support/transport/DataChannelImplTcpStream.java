@@ -1072,7 +1072,7 @@ System.out.println("      DataChannel TcpStream in: " + name +
                 pool.reset();
                 if (reader == null) {
 //System.out.println("      DataChannel TcpStream in: create reader, buf's pos/lim = " + buf.position() + "/" + buf.limit());
-                    reader = new EvioCompactReader(buf, pool, false);
+                    reader = new EvioCompactReader(buf, pool, false, false);
 //System.out.println("      DataChannel TcpStream in: incoming data's evio version = " + reader.getEvioVersion());
                 }
                 else {
@@ -2046,8 +2046,8 @@ logger.info("      DataChannel TcpStream out: " + name + " got RESET cmd, quitti
 //System.out.println("time = " + emu.getTime() + ", lastSendTime = " + lastSendTime);
                     long t = emu.getTime();
                     if (!regulateBufferRate && (t - lastSendTime > timeout)) {
-System.out.println("TIME FLUSH ******************, time = " + t + ", last time = " + lastSendTime +
-        ", delta = " + (t - lastSendTime));
+//System.out.println("TIME FLUSH ******************, time = " + t + ", last time = " + lastSendTime +
+//        ", delta = " + (t - lastSendTime));
                         flushExistingEvioData();
                     }
                 }

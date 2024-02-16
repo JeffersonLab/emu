@@ -154,6 +154,9 @@ public class DataChannelImplUdpStream extends DataChannelAdapter {
 
     private long nextRingItem;
 
+    /** How many buffers were reassembled successfully between GO and END. */
+    private long buffersReassembled;
+
 
 
     /**
@@ -284,7 +287,7 @@ public class DataChannelImplUdpStream extends DataChannelAdapter {
             }
 
 
-            int ringSize = 256;
+            int ringSize = 512;
 
             nodePools = new EvioNodePool[ringSize];
             // Create the EvioNode pools - the BBsupply gets ringSize number of pools -
@@ -499,6 +502,7 @@ logger.info("    DataChannel UDP stream: total header bytes = " + HEADER_BYTES);
             parserMergerThread = null;
             if (inSocket != null) inSocket.close();
         }
+        logger.info("    DataChannel UDP stream: buffers reassembled = " + buffersReassembled);
 
         channelState = CODAState.DOWNLOADED;
     }
@@ -521,6 +525,8 @@ logger.info("    DataChannel UDP stream: total header bytes = " + HEADER_BYTES);
             parserMergerThread = null;
             if (inSocket != null) inSocket.close();
         }
+
+        logger.info("    DataChannel UDP stream: buffers reassembled = " + buffersReassembled);
 
         errorMsg.set(null);
         channelState = CODAState.CONFIGURED;
@@ -857,12 +863,12 @@ logger.info("    DataChannel UDP stream: total header bytes = " + HEADER_BYTES);
             // Statistics
             // "Record ID" in VTP format, euivalent to "tick" in Ersap format
             long prevTick = -1;
-            long packetTick;
+            long packetTick, tickDiff;
             int packetDataId, sequence, prevSequence = 0, pktCount = 0;
             // Next expected sequence or packet # from UDP reassembly header
             int expectedSequence = 0;
 
-            boolean debug = false;
+            boolean debug = true;
             boolean dumpTick = false;
             boolean packetFirst, packetLast;
             boolean prevPacketLast = true;
@@ -907,6 +913,9 @@ logger.info("    DataChannel UDP stream: total header bytes = " + HEADER_BYTES);
             // To account for this, assume input is from VTP, if -1 is received as a sequence,
             // set boolean indicating source is not a VTP.
             boolean vtpSource = true;
+
+            // Keep count of buffers reassembled
+            buffersReassembled = 0;
 
             try {
 
@@ -1167,12 +1176,25 @@ System.out.println("Internal error: got packet with no data, buf's unused bytes 
                             // It may have seq = 0, in which case we end up here.
                             //
                             // I don't know of a way to distinguish these in every case ...
-                            if ((packetTick - prevTick) > 1) {
+                            tickDiff = packetTick - prevTick;
+
+                            if (tickDiff > 1) {
                                 if (debug) {
-                                    System.out.println("New rec: MAY have skipped whole record(s)");
+                                    System.out.println("New rec: may have skipped whole record(s)");
                                     System.out.println("Hdr: recId = " + packetTick + " (prev " + prevTick +
                                             "), seq = " + sequence + " (prev " + prevSequence +
                                             "), first = " + packetFirst + ", last = " + packetLast + "\n");
+                                }
+                            }
+                            else if (tickDiff < 0) {
+                                // if not legitimate rollover ...
+                                if (!(packetTick == 0 && prevTick == 255)) {
+                                    if (debug) {
+                                        System.out.println("New rec: may have skipped whole record(s)");
+                                        System.out.println("Hdr: recId = " + packetTick + " (prev " + prevTick +
+                                                "), seq = " + sequence + " (prev " + prevSequence +
+                                                "), first = " + packetFirst + ", last = " + packetLast + "\n");
+                                    }
                                 }
                             }
 
@@ -1303,6 +1325,7 @@ System.out.println("Internal error: got packet with no data, buf's unused bytes 
                                 if (packetLast) {
                                     // For UDP we don't need to track if ticks are sequential
                                     //item.setUserInt((int)packetTick);
+                                    buffersReassembled++;
                                     break;
                                 }
                             }
@@ -1477,7 +1500,7 @@ System.out.println("Internal error: got packet with no data, buf's unused bytes 
                 // which overwrites the default big endian setting in creating bbSupply.
                 if (reader == null) {
 //System.out.println("    DataChannel UDP stream in: create reader, buf's pos/lim = " + buf.position() + "/" + buf.limit());
-                    reader = new EvioCompactReader(buf, pool, false);
+                    reader = new EvioCompactReader(buf, pool, false, false);
                 }
                 else {
 //System.out.println("    DataChannel UDP stream in: set buffer, expected id = " + expectedRecordId);
@@ -1567,33 +1590,50 @@ System.out.println("Internal error: got packet with no data, buf's unused bytes 
             item.setUsers(eventCount);
 
             for (int i = 1; i < eventCount+1; i++) {
+                // Type may change if there are mixed types in record
+                EventType evType = eventType;
 
                 long frame = 0L;
                 long timestamp = 0L;
-                EvioNode topNode;
 
                 // getScannedEvent will clear child and allNodes lists
-                topNode = reader.getScannedEvent(i, pool);
+                EvioNode node = reader.getScannedEvent(i, pool);
 
                 // This should NEVER happen
-                if (topNode == null) {
+                if (node == null) {
                     System.out.println("    DataChannel UDP stream in: WARNING, event count = " + eventCount +
                             " but get(Scanned)Event(" + i + ") is null - evio parsing bug");
                     continue;
                 }
 
-                // RocRaw's, Time Slice Bank
-                EvioNode node = topNode;
+                // Mix of event types can occur from ROC for combo of user,
+                // ROC RAW and possibly control events. Assign proper types.
+                if (evType.isMixed()) {
+                    int num = node.getNum();
+                    if (num == 0) {
+                        if (ControlType.isControl(node.getTag())) {
+                            evType = EventType.CONTROL;
+                        }
+                        else {
+                            evType = EventType.USER;
+                        }
+                    }
+                    else {
+                        evType = EventType.ROC_RAW_STREAM;
+                        gotRocRaw = true;
+                    }
+                }
 
                 if (gotRocRaw) {
                     // Complication: from the ROC, we'll be receiving USER events mixed
                     // in with and labeled as ROC Raw events. Check for that & fix it.
                     if (Evio.isUserEvent(node)) {
                         isUser = true;
-                        eventType = EventType.USER;
+                        evType = EventType.USER;
                         if (hasFirstEvent) {
                             System.out.println("    DataChannel UDP stream in: " + name + "  FIRST event from ROC RAW");
-                        } else {
+                        }
+                        else {
                             System.out.println("    DataChannel UDP stream in: " + name + " USER event from ROC RAW");
                         }
                     }
@@ -1614,7 +1654,7 @@ System.out.println("Internal error: got packet with no data, buf's unused bytes 
 //System.out.println("    DataChannel UDP stream in: roc raw has frame = " + frame + ", timestamp = " + timestamp + ", pos = " + pos);
                     }
                 }
-                else if (eventType.isBuildable()) {
+                else if (evType.isBuildable()) {
                     // If time slices coming from DCAG, SAG, or PAG
                     // Physics or partial physics event must have BANK as data type
                     if (!node.getDataTypeObj().isBank()) {
@@ -1630,7 +1670,7 @@ System.out.println("Internal error: got packet with no data, buf's unused bytes 
                     timestamp = EmuUtilities.intsToLong(buff.getInt(24 + pos), buff.getInt(28 + pos));
 //System.out.println("    DataChannel UDP stream in: buildable has frame = " + frame + ", timestamp = " + timestamp + ", pos = " + pos);
                 }
-                else if (eventType == EventType.CONTROL) {
+                else if (evType.isControl()) {
                     // Find out exactly what type of control event it is
                     // (May be null if there is an error).
                     controlType = ControlType.getControlType(node.getTag());
@@ -1640,11 +1680,12 @@ System.out.println("Internal error: got packet with no data, buf's unused bytes 
                         throw new EvioException("Found unidentified control event");
                     }
                 }
-                else if (eventType == EventType.USER) {
+                else if (evType.isUser()) {
                     isUser = true;
                     if (hasFirstEvent) {
                         logger.info("    DataChannel UDP stream in: " + name + " got FIRST event");
-                    } else {
+                    }
+                    else {
                         logger.info("    DataChannel UDP stream in: " + name + " got USER event");
                     }
                 }
@@ -1653,16 +1694,17 @@ System.out.println("Internal error: got packet with no data, buf's unused bytes 
                 ri = ringBufferIn.get(nextRingItem);
 
                 // Set & reset all parameters of the ringItem
-                if (eventType.isBuildable()) {
+                if (evType.isBuildable()) {
 //logger.info("    DataChannel UDP stream in: put buildable event into channel ring, event from " + name);
-                    ri.setAll(null, null, node, eventType, controlType,
+                    ri.setAll(null, null, node, evType, controlType,
                             isUser, hasFirstEvent, module.isStreamingData(), id, recordId, id,
                             node.getNum(), name, item, bbSupply);
                     ri.setTimeFrame(frame);
                     ri.setTimestamp(timestamp);
-                } else {
+                }
+                else {
 //logger.info("    DataChannel UDP stream in: put CONTROL (user?) event into channel ring, event from " + name);
-                    ri.setAll(null, null, node, eventType, controlType,
+                    ri.setAll(null, null, node, evType, controlType,
                             isUser, hasFirstEvent, module.isStreamingData(), id, recordId, id,
                             1, name, item, bbSupply);
                 }
@@ -2980,8 +3022,8 @@ logger.info("    DataChannel UDP stream out: " + name + " got RESET cmd, quittin
 //System.out.println("time = " + emu.getTime() + ", lastSendTime = " + lastSendTime);
                     long t = emu.getTime();
                     if (!regulateBufferRate && (t - lastSendTime > timeout)) {
-System.out.println("TIME FLUSH ******************, time = " + t + ", last time = " + lastSendTime +
-        ", delta = " + (t - lastSendTime));
+//System.out.println("TIME FLUSH ******************, time = " + t + ", last time = " + lastSendTime +
+//        ", delta = " + (t - lastSendTime));
                         flushExistingEvioData();
                     }
                 }
