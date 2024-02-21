@@ -117,16 +117,16 @@
     <!-- if $CODA is set, use that for classpath -->
     <target name="CODA_cp" depends="installCheck" if="codaDefined">
         <path id="classpath">
-            <!-- use jars from this distribution first -->
-            <fileset dir="${local.jars}" >
-                <include name="*.jar" />
-            </fileset>
-            <!-- look in $CODA next -->
+            <!-- look in $CODA first -->
             <fileset dir="${env.CODA}/common/jar" >
                 <include name="*.jar" />
             </fileset>
+            <!-- use jars from this distribution next -->
+            <fileset dir="${local.jars}" >
+                <include name="*.jar" />
+            </fileset>
         </path>
-        <echo message="Compile with jars in $CODA/common/jar" />
+        <echo message="Compile with jars in $CODA/common/jar first, then ${local.jars}" />
     </target>
 
     <!-- ************************************************************* -->
