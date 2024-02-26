@@ -14,6 +14,7 @@ package org.jlab.coda.emu.modules;
 import com.lmax.disruptor.RingBuffer;
 import org.jlab.coda.emu.Emu;
 import org.jlab.coda.emu.EmuEventNotify;
+import org.jlab.coda.emu.EmuException;
 import org.jlab.coda.emu.EmuModule;
 import org.jlab.coda.emu.support.codaComponent.CODAClass;
 import org.jlab.coda.emu.support.codaComponent.CODAState;
@@ -70,6 +71,14 @@ public class ModuleAdapter implements EmuModule {
 
     /** Map containing attributes of this module given in config file. */
     protected final Map<String,String> attributeMap;
+
+
+    /** A template for future empty time frame PayloadBuffers that
+     * need to be inserted into the event flow as a place holder. */
+    protected PayloadBuffer emptyFrameBuffer;
+
+    /** Contains all input channel CODA ids in one array for convenience (2/26/2024). */
+    protected int[] inputIds;
 
     /**
      * ArrayList of DataChannel objects for this module that are inputs.
@@ -516,7 +525,24 @@ logger.info("  Module Adapter: output byte order = " + outputOrder);
     public void addInputChannels(ArrayList<DataChannel> input_channels) {
         if (input_channels == null) return;
         inputChannels.addAll(input_channels);
-        inputChannelCount  = inputChannels.size();
+        inputChannelCount = inputChannels.size();
+
+        // Keep all input channels' CODA ids in one array for convenience
+        inputIds = new int[inputChannelCount];
+        for (int i=0; i < inputChannelCount; i++) {
+            inputIds[i] = inputChannels.get(i).getID();
+        }
+
+        // Now create a template buffer for empty time frames so it
+        // can be cloned, updated, and placed into the event flow as
+        // a place-holder for the missing frame.
+        try {
+            emptyFrameBuffer = Evio.createEmptyFrameBuffer(0, 0, inputChannelCount,
+                                                           id, inputIds,
+                                                           outputOrder, name);
+        }
+        catch (EmuException e) {/*never happen*/}
+
     }
 
     /** {@inheritDoc} */
