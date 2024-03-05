@@ -24,6 +24,7 @@ import org.jlab.coda.emu.support.codaComponent.CODAClass;
 import org.jlab.coda.emu.support.codaComponent.CODAState;
 import org.jlab.coda.emu.support.control.CmdExecException;
 import org.jlab.coda.emu.support.data.*;
+import org.jlab.coda.hipo.RecordHeader;
 import org.jlab.coda.jevio.*;
 
 import java.io.BufferedInputStream;
@@ -1729,15 +1730,15 @@ System.out.println("DataOutputHelper constr: making BB supply of 8 bufs @ bytes 
                 }
 
                 // Write the event ..
-                EmuUtilities.setEventType(bitInfo, eType);
+                RecordHeader.setEventType(bitInfo, eType.getValue());
                 if (rItem.isFirstEvent()) {
-                    EmuUtilities.setFirstEvent(bitInfo);
+                    RecordHeader.setFirstEvent(bitInfo);
                 }
 //System.out.println("      DataChannel TcpStream out: writeEvioData: single write into buffer");
                 writer.setBuffer(currentBuffer, bitInfo, blockNum);
 
                 // Unset first event for next round
-                EmuUtilities.unsetFirstEvent(bitInfo);
+                RecordHeader.unsetFirstEvent(bitInfo);
 
                 ByteBuffer buf = rItem.getBuffer();
                 if (buf != null) {
@@ -1843,7 +1844,7 @@ System.out.println("      c: single ev buf, pos = " + buf.position() +
                     }
 
                     // Reinitialize writer
-                    EmuUtilities.setEventType(bitInfo, eType);
+                    RecordHeader.setEventType(bitInfo, eType.getValue());
 //System.out.println("\nwriteEvioData: setBuffer, eventsWritten = " + eventsWritten + ", writer -> " +
 //                           writer.getEventsWritten());
                     writer.setBuffer(currentBuffer, bitInfo, recordId++);

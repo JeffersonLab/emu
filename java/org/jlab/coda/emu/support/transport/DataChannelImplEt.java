@@ -2010,7 +2010,7 @@ logger.debug("          DataChannel Et shutdown: " + name + " channel, woke up a
 
                                 // Encode event type into bits
                                 bitInfo.clear();
-                                EmuUtilities.setEventType(bitInfo, pBankType);
+                                RecordHeader.setEventType(bitInfo, pBankType.getValue());
 
                                 // Set recordId depending on what type this bank is
                                 myRecordId = -1;
@@ -2020,7 +2020,7 @@ logger.debug("          DataChannel Et shutdown: " + name + " channel, woke up a
                                 // If user event which is to be the first event,
                                 // mark it in the block header's bit info word.
                                 else if (ringItem.isFirstEvent()) {
-                                    EmuUtilities.setFirstEvent(bitInfo);
+                                    RecordHeader.setFirstEvent(bitInfo);
                                 }
                                 recordId++;
 

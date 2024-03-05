@@ -13,13 +13,13 @@ package org.jlab.coda.emu.support.transport;
 
 import org.jlab.coda.emu.EmuException;
 import org.jlab.coda.emu.EmuModule;
-import org.jlab.coda.emu.EmuUtilities;
 import org.jlab.coda.emu.support.codaComponent.CODAClass;
 import org.jlab.coda.emu.support.codaComponent.CODAState;
 import org.jlab.coda.emu.support.data.*;
 import org.jlab.coda.emu.Emu;
 import org.jlab.coda.cMsg.*;
 import org.jlab.coda.hipo.CompressionType;
+import org.jlab.coda.hipo.RecordHeader;
 import org.jlab.coda.jevio.*;
 
 
@@ -954,9 +954,9 @@ logger.warn("      DataChannel cmsg out: " + name + " exit thd: " + e.getMessage
 
                 // Encode the event type into bits
                 BitSet bitInfo = new BitSet(24);
-                EmuUtilities.setEventType(bitInfo, bankList.get(0).getEventType());
+                RecordHeader.setEventType(bitInfo, bankList.get(0).getEventType().getValue());
                 if (bankList.get(0).isFirstEvent()) {
-                    EmuUtilities.setFirstEvent(bitInfo);
+                    RecordHeader.setFirstEvent(bitInfo);
                 }
 
                 try {
