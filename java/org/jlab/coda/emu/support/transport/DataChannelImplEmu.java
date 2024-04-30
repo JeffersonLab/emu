@@ -72,7 +72,7 @@ public class DataChannelImplEmu extends DataChannelAdapter {
     /** Thread used to output data. */
     private DataOutputHelper dataOutputThread;
 
-    /** UDP port of emu domain server. */
+    /** TCP port of emu domain server. */
     private int sendPort;
 
     /** TCP send buffer size in bytes. */
