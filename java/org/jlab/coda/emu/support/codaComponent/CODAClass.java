@@ -55,7 +55,7 @@ public enum CODAClass {
     /** Secondary time slice aggregator - to be used after PAGG's when streaming.*/
     SAGG("secondary slice aggregator", 660),
 
-    /** Primary time slice aggregator to be used in place of DC or PEB when streaming. */
+    /** Primary time slice aggregator to be used in place of DC or PEB when streaming, ROC input. */
     PAGG("primary slice aggregator", 560),
 
     /** Farm Controller. */
