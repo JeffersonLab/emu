@@ -1166,6 +1166,7 @@ System.out.println("      DataChannel TcpStream in: " + name +
 
                 int frame = 0;
                 long timestamp = 0L;
+                boolean isEmptyFrame = false;
                 EvioNode topNode;
 
                 if (isER) {
@@ -1216,7 +1217,7 @@ System.out.println("      DataChannel TcpStream in: " + name +
                     }
                 }
                 else if (eventType.isBuildable()) {
-                    // If time slices coming from DCAG, SAG, or PAG
+                    // If time slices coming from SAGG, or PAGG
                     // Physics or partial physics event must have BANK as data type
                     if (!node.getDataTypeObj().isBank()) {
                         DataType eventDataType = node.getDataTypeObj();
@@ -1224,6 +1225,9 @@ System.out.println("      DataChannel TcpStream in: " + name +
                                 " instead of banks (data corruption?)");
                     }
 
+                    // Check tag to see if this event represents an empty frame
+                    isEmptyFrame = CODATag.isEmptyFrame(node.getTag());
+                    
                     int pos = node.getPosition();
                     // Find the frame and timestamp now for later ease of use (skip over 4 ints)
                     ByteBuffer buff = node.getBuffer();
@@ -1329,6 +1333,7 @@ logger.info("      DataChannel TcpStream in: got " + controlType + " event from 
                             node.getNum(), name, item, bbSupply);
                     ri.setTimeFrame(frame);
                     ri.setTimestamp(timestamp);
+                    ri.setEmptyFrame(isEmptyFrame);
                 }
                 else {
 logger.info("      DataChannel TcpStream in: put CONTROL (user?) event into channel ring, event from " + name);

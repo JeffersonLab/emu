@@ -328,6 +328,18 @@ public interface RingItem extends Cloneable, Attached {
     void setStreaming(boolean sync);
 
     /**
+     * Does this object represent a missing frame?
+     * @return {@code true} if this object represents a missing frame, else {@code false}.
+     */
+    boolean isEmptyFrame();
+
+    /**
+     * Sets whether this object represents a missing frame.
+     * @param empty {@code true} if this object represents a missing frame, else {@code false}.
+     */
+    void setEmptyFrame(boolean empty);
+
+    /**
      * Get the timestamp if DAQ in streaming mode.
      * @see #isStreaming()
      * @return timestamp, only meaningful in streaming mode.

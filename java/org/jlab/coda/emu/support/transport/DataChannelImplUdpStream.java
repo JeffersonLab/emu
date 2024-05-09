@@ -1596,6 +1596,7 @@ System.out.println("Internal error: got packet with no data, buf's unused bytes 
 
                 long frame = 0L;
                 long timestamp = 0L;
+                boolean isEmptyFrame = false;
 
                 // getScannedEvent will clear child and allNodes lists
                 EvioNode node = reader.getScannedEvent(i, pool);
@@ -1664,6 +1665,9 @@ System.out.println("Internal error: got packet with no data, buf's unused bytes 
                                 " instead of banks (data corruption?)");
                     }
 
+                    // Check tag to see if this event represents an empty frame
+                    isEmptyFrame = CODATag.isEmptyFrame(node.getTag());
+
                     int pos = node.getPosition();
                     // Find the frame and timestamp now for later ease of use (skip over 4 ints)
                     ByteBuffer buff = node.getBuffer();
@@ -1702,6 +1706,7 @@ System.out.println("Internal error: got packet with no data, buf's unused bytes 
                             node.getNum(), name, item, bbSupply);
                     ri.setTimeFrame(frame);
                     ri.setTimestamp(timestamp);
+                    ri.setEmptyFrame(isEmptyFrame);
                 }
                 else {
 //logger.info("    DataChannel UDP stream in: put CONTROL (user?) event into channel ring, event from " + name);

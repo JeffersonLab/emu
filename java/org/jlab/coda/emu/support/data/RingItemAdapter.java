@@ -105,6 +105,9 @@ abstract class RingItemAdapter implements RingItem {
     /** Is the DAQ streaming or triggered? from evio block header bit set in ROC. */
     protected boolean isStreaming;
 
+    /** Does this object represent a missing frame? */
+    protected boolean isEmptyFrame;
+
     /** In the DAQ streaming mode, the timestamp of data in this item. */
     protected long timestamp;
 
@@ -156,6 +159,7 @@ abstract class RingItemAdapter implements RingItem {
         isFirst                = ringItem.isFirstEvent();
 
         isStreaming            = ringItem.isStreaming();
+        isEmptyFrame           = ringItem.isEmptyFrame();
         timestamp              = ringItem.getTimestamp();
         timeFrame              = ringItem.getTimeFrame();
         channelSequenceObj     = ringItem.getChannelSequenceObj();
@@ -346,6 +350,11 @@ abstract class RingItemAdapter implements RingItem {
     public boolean isStreaming() {return isStreaming;}
     /** {@inheritDoc} */
     public void setStreaming(boolean streaming) {isStreaming = streaming;}
+
+    /** {@inheritDoc} */
+    public boolean isEmptyFrame() {return isEmptyFrame;}
+    /** {@inheritDoc} */
+    public void setEmptyFrame(boolean empty) {isEmptyFrame = empty;}
 
     /** {@inheritDoc} */
     public long getTimestamp() {return timestamp;}
