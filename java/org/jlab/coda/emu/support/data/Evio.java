@@ -1089,6 +1089,8 @@ if (debug) System.out.println("gotValidControlEvents: found control event of typ
     /**
      * Create a Bank representing an <b>empty</b> frame - a frame which is missing
      * from all input channels but must still be present in the output stream.
+     * <b>This method generates garbage</b>, however it's only called once, before data
+     * taking starts.
      *
      * @param skippedFrame    frame # skipped in all input channels.
      * @param timestamp       estimated timestamp of frame or else 0.
@@ -1121,7 +1123,8 @@ if (debug) System.out.println("gotValidControlEvents: found control event of typ
         if (timestamp < 0) timestamp = 0L;
 
         try {
-            CompactEventBuilder builder = new CompactEventBuilder(20, order);
+            // This call generates garbage
+            CompactEventBuilder builder = new CompactEventBuilder(4*(9+sliceCount), order);
 
             // Start building combined Streaming Physics Event
             // for missing timeslice / frame#.
@@ -1136,8 +1139,8 @@ if (debug) System.out.println("gotValidControlEvents: found control event of typ
             //    | Time Slice Segment Header |
             //    |___________________________|
             //    |   Skipped Frame Number    |
-            //    |     Avg timestamp = 0     |
-            //    |            0              |
+            //    |   Avg timestamp (0-31)    |
+            //    |         (32-63)           |
             //    |___________________________|
             //    |  Agg Info Segment Header  |
             //    |___________________________|
@@ -1149,8 +1152,8 @@ if (debug) System.out.println("gotValidControlEvents: found control event of typ
 
             int ssNum = (1 << 7) | sliceCount;
 
-            builder.openBank(CODATag.STREAMING_PHYSICS.getValue(), ssNum, DataType.BANK);
-                builder.openBank(CODATag.STREAMING_SIB_BUILT.getValue(), ssNum, DataType.SEGMENT);
+            builder.openBank(CODATag.EMPTY_FRAME.getValue(), ssNum, DataType.BANK);
+                builder.openBank(CODATag.STREAMING_SIB_BUILT_ERR.getValue(), ssNum, DataType.SEGMENT);
 
                     //-------------------------------------------
                     builder.openSegment(CODATag.STREAMING_TSS_BUILT.getValue(), DataType.UINT32);
@@ -1167,6 +1170,7 @@ if (debug) System.out.println("gotValidControlEvents: found control event of typ
                     // err bit & low 7 bits of frame #
                     byte ss2 = (byte) ((1 << 7) | (skippedFrame & 0x7f));
 
+                    // This call generates garbage
                     int[] data2 = new int[sliceCount];
                     for (int i=0; i < sliceCount; i++) {
                         data2[i] = (inputIds[i] << 16) | (ss2 << 8);
@@ -1174,10 +1178,11 @@ if (debug) System.out.println("gotValidControlEvents: found control event of typ
                     builder.addIntData(data2);
             builder.closeAll();
 
-            // Use ready-to-read buffer
+            // Use ready-to-read buffer. This call generates garbage.
             PayloadBuffer pBuf = new PayloadBuffer(builder.getBuffer(), EventType.PHYSICS_STREAM,
                                                    null, 0, sourceId, sourceName, null);
 
+            pBuf.setEmptyFrame(true);
             pBuf.setTimeFrame(skippedFrame);
             pBuf.setError(true);
             pBuf.setStreaming(true);
@@ -1202,12 +1207,14 @@ if (debug) System.out.println("gotValidControlEvents: found control event of typ
      * and simply update it as need be.
      * </p>
      *
-     * <b>This proper way to use this method is to call createEmptyFrameBuffer
+     * <b>
+     * The proper way to use this method is to call createEmptyFrameBuffer
      * once to get a PayloadBuffer object. To actually use it, clone it first.
      * Then call this method on the clone and use the clone.
      * That way you'll never run into issues
      * when multithreading (i.e. you'll never overwrite the data in one of these
-     * objects).</b>
+     * objects).
+     * </b>
      *
      * @param skippedFrame  new frame number.
      * @param timestamp     estimated timestamp or 0.
@@ -1225,7 +1232,7 @@ if (debug) System.out.println("gotValidControlEvents: found control event of typ
         ByteBuffer bb = buf.getBuffer();
         if (bb.limit() < 4*(9 + sliceCount)) {
             throw new EmuException("buf too small to hold sliceCount (" +
-                                    sliceCount + ") streams");
+                                           sliceCount + ") streams");
         }
 
         // put new frame# in 6th int, absolute write
@@ -1244,7 +1251,139 @@ if (debug) System.out.println("gotValidControlEvents: found control event of typ
         }
     }
 
-    
+
+    /**
+     * Create a Bank representing an <b>empty</b> frame - a frame which is missing
+     * from all input channels but must still be present in the output stream.
+     * This call does <b>NOT</b> generate garbage.
+     *
+     * @param skippedFrame    frame # skipped in all input channels.
+     * @param sliceCount      number of input channels
+     * @param emptyFrames     the empty frame events that must be combined.
+     *
+     * @return created PayloadBuffer object containing Control event in byte buffer
+     * @throws EmuException if frame numbers of empty frames don't agree.
+     */
+    public static void combineEmptyFrameBuffers(long skippedFrame,
+                                                int sliceCount,
+                                                ByteBuffer evBuf,
+                                                PayloadBuffer emptyFrames[]
+                        ) throws EmuException {
+
+        // Let's avg (estimated) timestamps, leave out zeros
+
+        int frNum, frFirst=0;
+        int rocCnt, totalRocs = 0;
+        int validTimestamps = 0;
+        long ts, tsAvg = 0L, tsTotal = 0L;
+
+        for (int i=0; i < sliceCount; i++) {
+            ByteBuffer bb = emptyFrames[i].getBuffer();
+
+            // Check to see if frame numbers are all the same
+            frNum = bb.getInt(20);
+            if (i == 0) {
+                frFirst = frNum;
+            }
+            else if (frNum != frFirst) {
+                throw new EmuException("first fr # " + frFirst + " != other fr # " + frNum);
+            }
+
+            // To find out how many Rocs a particular empty frame represents,
+            // find the length (in words) of its Aggregation Info Segment
+            // (lowest 16 bits, see diagram below).
+            rocCnt = (bb.getInt(32)) & 0xffff;
+            totalRocs += rocCnt;
+
+//            // That should be the same as the # of streams (lower 6 bits of num)
+//            int streamCnt = (bb.getInt(1)) & 0x7f;
+//            if (rocCnt != streamCnt) {
+//                System.out.println("Roc count (" + rocCnt + " != stream count (" + streamCnt + ")");
+//            }
+
+            ts = ((long)bb.getInt(24) & 0xffffffffL) & ((long)bb.getInt(28) << 32);
+            if (ts < 1) continue;
+            tsTotal += ts;
+            validTimestamps++;
+        }
+
+        if (validTimestamps > 0) {
+            tsAvg = tsTotal/validTimestamps;
+        }
+
+        // Start building combined Streaming Physics Event
+        // for missing timeslice / frame#.
+        //
+        //    MSB(63)                LSB(0)
+        //    _____________________________
+        //    |      Streaming Physics    |
+        //    |         Bank Header       |
+        //    |___________________________|
+        //    |  Stream Info Bank Header  |
+        //    |___________________________|
+        //    | Time Slice Segment Header |
+        //    |___________________________|
+        //    |   Skipped Frame Number    |
+        //    | Avg Est timestamp (0-31)  |
+        //    |         (32-63)           |
+        //    |___________________________|
+        //    |  Agg Info Segment Header  |
+        //    |___________________________|
+        //    |  ROC 1 ID   |  SS2  |  0  |
+        //    |  ROC 2 ID   |  SS2  |  0  |
+        //    |  ROC N ID   |  SS2  |  0  |
+        //    |___________________________|
+
+
+        int ssNum = (1 << 7) | totalRocs;
+        int secondWord = (CODATag.EMPTY_FRAME.getValue() << 16) |
+                (DataType.BANK.getValue() << 8) | ssNum;
+        // Top bank
+        evBuf.clear();
+        evBuf.putInt(8+totalRocs);   // pos = 0
+        evBuf.putInt(secondWord);    // pos = 4
+
+        secondWord = (CODATag.STREAMING_SIB_BUILT_ERR.getValue() << 16) |
+                (DataType.SEGMENT.getValue() << 8) | ssNum;
+
+        // Stream Info Bank
+        evBuf.putInt(6+totalRocs);    // pos = 8
+        evBuf.putInt(secondWord);     // pos = 12
+
+        //-------------------------------------------
+        // Time Slice Segment
+        int segHdrWord = (CODATag.STREAMING_TSS_BUILT.getValue() << 24) |
+                (DataType.UINT32.getValue() << 16) | 3;
+
+        evBuf.putInt(segHdrWord);                 // pos = 16
+        evBuf.putInt((int)skippedFrame);          // pos = 20
+        evBuf.putInt((int)(tsAvg & 0xffffffffL)); // pos = 24
+        evBuf.putInt((int)(tsAvg >>> 32));        // pos = 28
+
+        //-------------------------------------------
+        // Aggregation Info Bank
+
+        segHdrWord = (CODATag.STREAMING_AIS_BUILT.getValue() << 24) |
+                (DataType.UINT32.getValue() << 16) | totalRocs;
+
+        evBuf.putInt(segHdrWord);   // pos = 32
+
+        // Copy over all the ROC words, frame counters are all the same,
+        // so they don't need to be reformulated
+        for (int i=0; i < sliceCount; i++) {
+            ByteBuffer bb = emptyFrames[i].getBuffer();
+            rocCnt = (bb.getInt(32)) & 0xffff;
+            for (int j=0; j < rocCnt; j++) {
+                int rocWord = bb.getInt(4*j + 36);
+                evBuf.putInt(rocWord);
+            }
+        }
+        
+        // Use ready-to-read buffer
+        evBuf.flip();
+    }
+
+
     /**
      * Combine the trigger banks of all input payload banks of Physics event format (from previous
      * event builder) into a single trigger bank which will be used in the final built event.
@@ -2370,9 +2509,7 @@ System.out.println("                         : segWords from event 0 = " + dataW
         return writeIndex;
     }
 
-
-    // TODO: figure in mission frames
-
+    
     /**
      * <p>Combine banks from an Aggregator output into an event
      * with a Stream Info Bank, and appended ROC Time Slice Banks. Any error
@@ -3077,7 +3214,7 @@ System.out.println("                         : segWords from event 0 = " + dataW
         // 2nd word is top bank's tag/type/num.
         // Num => 1 stream & error bit
         int ssNum = ((isError | (nonFatalError ? 1 : 0)) << 7) | 1;
-        builtEventBuf.putInt(destPos, CODATag.STREAMING_PHYSICS.getValue() << 16 | 0x10 << 8 | ssNum);
+        builtEventBuf.putInt(destPos, CODATag.STREAMING_PHYS.getValue() << 16 | 0x10 << 8 | ssNum);
         destPos += 4;
 
         // 3rd word is Stream Info Bank's length
