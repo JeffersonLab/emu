@@ -1952,7 +1952,7 @@ System.out.println("  Agg mod: bt" + btIndex + " ***** found END event at seq " 
                                 // Take the banks (sameStampBanks) from the input channels,
                                 // use them to construct an event in evBuf
                                 // (part of this building thread's supply of ByteBuffers).
-                                Evio.combineEmptyFrameBuffers(frame,
+                                Evio.combineEmptyFrameBuffers(prevFrame,
                                                               sliceCount,
                                                               evBuf,
                                                               sameStampBanks);
