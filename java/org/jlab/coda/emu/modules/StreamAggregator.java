@@ -414,7 +414,9 @@ logger.info("  Agg mod: internal ring buf count -> " + ringItemCount);
 
         // Have output channels?
         if (outputChannelCount < 1) {
-            bbSupply.release(item);
+            if (item != null && bbSupply != null) {
+                bbSupply.release(item);
+            }
             return;
         }
 
@@ -690,6 +692,10 @@ System.out.println("WRITE CONTROL EVENT to chan #" + i + ", ring 0");
 
 
 
+    //TODO: next method needs to account for 32 bit frame number which wraps around,
+    //      going back to 0.
+
+
     /**
      * Compare two time frames to see if they're the same,
      * in sequential, or differ by multiple time slices.
@@ -719,39 +725,6 @@ System.out.println("WRITE CONTROL EVENT to chan #" + i + ", ring 0");
     }
 
 
-    // This method is NOT useful since the 32 bit frame number wraps around,
-    // going back to 0, and it appears to move back in time.
-
-//    /**
-//     * <p>
-//     * Find the difference in time frames between the given value and the value
-//     * being looked for. This is difference is expressed in relation to
-//     * time slices. In other words, are they in the same, in the next, or in a
-//     * multiply removed time slice?.</p>
-//     *
-//     * @param tf          time frame to examine (>= lookedForTF)
-//     * @param lookedForTF time frame we're looking for on a channel.
-//     *
-//     * @return {@link FrameNumberDiff#SAME} if in same time frame,
-//     *         {@link FrameNumberDiff#NEXT} if in sequential time frame, or
-//     *         {@link FrameNumberDiff#MULTIPLE} if in different and non-sequential time slices.
-//     * @throws EmuException if given timestamp is moving backward in time.
-//     */
-//    private FrameNumberDiff compareWithLookedForTF(long tf, long lookedForTF) throws EmuException {
-//        FrameNumberDiff diff = compareTimeFrames(tf, lookedForTF);
-//
-//        if (diff != FrameNumberDiff.SAME) {
-//            if ((tf - lookedForTF) < 0) {
-//                System.out.println("\nAggregator: looking for frame 0x" + Long.toHexString(lookedForTF) +
-//                                   " but found 0x" + Long.toHexString(tf) + "\n");
-//                throw new EmuException("time frame decreasing, looking for " + lookedForTF + " but found " + tf);
-//            }
-//        }
-//
-//        return diff;
-//    }
-
-
     /**
      * The leading consumer of each input channel ring is the sorter thread. This thread
      * sends all events of the same time frame to the ring of the same build thread.
@@ -770,6 +743,13 @@ System.out.println("WRITE CONTROL EVENT to chan #" + i + ", ring 0");
         boolean firstTimeThru = true;
         /** Time frame currently being written to a build thread ring. */
         long lookingForFrame = 0L;
+
+        /**
+         * Find the average difference between timestamps of sequential frames.
+         * Use this to find an estimated timestamp for missing frames.
+         */
+        int  avgTimestampDiff = 0;
+        long lastWrittenTs = 0L;
 
         // RingBuffer Stuff
 
@@ -804,12 +784,45 @@ System.out.println("WRITE CONTROL EVENT to chan #" + i + ", ring 0");
          * @throws InterruptedException if thread interrupted waiting on ring get().
          */
         private void sendToTimeSliceBankRing(PayloadBuffer bank, int btIndex)
-                                    throws InterruptedException {
+                throws InterruptedException {
 
             getSequences[btIndex] = sorterRingBuffers[btIndex].nextIntr(1);
 // System.out.println("  Agg mod: sendToTimeSliceBankRing: got sorter ring seq = " + getSequences[btIndex] + ". type = " + bank.getEventType());
             TimeSliceBankItem item = sorterRingBuffers[btIndex].get(getSequences[btIndex]);
             item.setBuf(bank);
+            sorterRingBuffers[btIndex].publish(getSequences[btIndex]);
+        }
+
+
+        /**
+         * Create a place-holding bank to represent a missing frame
+         * only when no input channels contain this frame.
+         * Send it to a TimeSliceBank ring buffer that feeds the build thread
+         * corresponding to its timestamp.
+         *
+         * @param skippedFrame frame for which to generate an "empty" frame
+         * @param timestamp    estimated timestamp or 0.
+         * @param btIndex index indicating which build thread's ring to send bank to.
+         * @throws InterruptedException if thread interrupted waiting on ring get().
+         */
+        private void sendEmptyFrameToTimeSliceRing(long skippedFrame, long timestamp, int btIndex)
+                throws InterruptedException {
+
+            // We use clone here since we want each of these buffers to be
+            // completely independent. If they were copies, then 2 successive
+            // bufs would result in multiple threads overwriting the contents.
+            //
+            // This creates garbage, but empty frames should be very rare.
+            PayloadBuffer emptyBuffer = (PayloadBuffer)emptyFrameBuffer.clone();
+            try {
+                Evio.updateEmptyFrameBuffer(skippedFrame, timestamp, inputChannelCount, emptyBuffer);
+            }
+            catch (EmuException e) {/*never happen*/}
+
+            getSequences[btIndex] = sorterRingBuffers[btIndex].nextIntr(1);
+// System.out.println("  Agg mod: sendToTimeSliceBankRing: got sorter ring seq = " + getSequences[btIndex] + ". type = " + bank.getEventType());
+            TimeSliceBankItem item = sorterRingBuffers[btIndex].get(getSequences[btIndex]);
+            item.setBuf(emptyBuffer);
             sorterRingBuffers[btIndex].publish(getSequences[btIndex]);
         }
 
@@ -962,7 +975,13 @@ System.out.println("  Agg mod: findEnd, chan " + ch + " got END from " + source 
             int chan = 0;
             int lastWrittenChan = 0;
 
-
+            // How many contiguous frames must we skip over for this input channel
+            // because there is no data for them? Most of the time this will be 0.
+            // Tracking this will enable us to build frames even if some input channels
+            // are missing them. It will also enable us to detect completely missing
+            // frames.
+            long[] frameSkips = new long[inputChannelCount];
+            
             // Ring Buffer stuff - define array for convenience
             nextSequences = new long[inputChannelCount];
             availableSequences = new long[inputChannelCount];
@@ -972,119 +991,85 @@ System.out.println("  Agg mod: findEnd, chan " + ch + " got END from " + source 
                 nextSequences[i] = sorterSequenceIn[i].get() + 1L;
             }
 
-            // To help with FPGA-based VTP - with no PRESTART event - ignore its lack
-//            if (!dataFromVTP()) {
-                // First thing we do is look for the PRESTART event(s) and pass it on
-                try {
-                    // Sorter thread writes prestart event on all output channels, ring 0.
-                    // Get prestart from each input channel.
-                    ControlType cType = getAllControlEvents(sorterSequenceIn, sorterBarrierIn,
-                            buildingBanks, nextSequences);
+            // First thing we do is look for the PRESTART event(s) and pass it on
+            try {
+                // Sorter thread writes prestart event on all output channels, ring 0.
+                // Get prestart from each input channel.
+                ControlType cType = getAllControlEvents(sorterSequenceIn, sorterBarrierIn,
+                        buildingBanks, nextSequences);
 
-                    // In previous call, buildingBanks filled with control events from each channel
-                    streaming = buildingBanks[0].isStreaming();
-                    if (streaming != streamingData) {
-                        if (streamingData) {
-                            throw new EmuException("Expecting streamed data, got triggered");
-                        }
-                        throw new EmuException("Expecting triggered data, got streamed");
+                // In previous call, buildingBanks filled with control events from each channel
+                streaming = buildingBanks[0].isStreaming();
+                if (streaming != streamingData) {
+                    if (streamingData) {
+                        throw new EmuException("Expecting streamed data, got triggered");
                     }
+                    throw new EmuException("Expecting triggered data, got streamed");
+                }
 
-                    if (!cType.isPrestart()) {
-                        throw new EmuException("Expecting prestart event, got " + cType);
-                    }
+                if (!cType.isPrestart()) {
+                    throw new EmuException("Expecting prestart event, got " + cType);
+                }
 
-                    controlToOutputAsync(true, false, name);
-                }
-                catch (EmuException e) {
-                    e.printStackTrace();
-                    if (debug) System.out.println("  Agg mod: error getting prestart event");
-                    emu.setErrorState("EB error getting prestart event");
-                    moduleState = CODAState.ERROR;
-                    return;
-                }
-                catch (InterruptedException e) {
-                    e.printStackTrace();
-                    // If interrupted we must quit
-                    if (debug) System.out.println("  Agg mod: interrupted while waiting for prestart event");
-                    emu.setErrorState("EB interrupted waiting for prestart event");
-                    moduleState = CODAState.ERROR;
-                    return;
-                }
-//            }
-//            else {
-//                try {
-//                    controlToOutputAsync(true, false, name);
-//                }
-//                catch (InterruptedException e) {
-//                    e.printStackTrace();
-//                    // If interrupted we must quit
-//                    if (debug) System.out.println("  Agg mod: interrupted while waiting for prestart event");
-//                    emu.setErrorState("EB interrupted waiting for prestart event");
-//                    moduleState = CODAState.ERROR;
-//                    return;
-//                }
-//            }
-//
+                controlToOutputAsync(true, false, name);
+            }
+            catch (EmuException e) {
+                e.printStackTrace();
+                if (debug) System.out.println("  Agg mod: error getting prestart event");
+                emu.setErrorState("EB error getting prestart event");
+                moduleState = CODAState.ERROR;
+                return;
+            }
+            catch (InterruptedException e) {
+                e.printStackTrace();
+                // If interrupted we must quit
+                if (debug) System.out.println("  Agg mod: interrupted while waiting for prestart event");
+                emu.setErrorState("EB interrupted waiting for prestart event");
+                moduleState = CODAState.ERROR;
+                return;
+            }
 
             prestartCallback.endWait();
             haveAllPrestartEvents = true;
             System.out.println("  Agg mod: got all PRESTART events");
 
-
-            // To help with FPGA-based VTP - with no GO event - ignore its lack
-//            if (!dataFromVTP()) {
-                // Second thing we do is look for the GO or END event and pass it on
-                try {
-                    // Sorter thread writes GO event on all output channels, ring 0.
-                    // Other build threads ignore this.
-                    // Get GO from each input channel
-                    ControlType cType = getAllControlEvents(sorterSequenceIn, sorterBarrierIn,
-                            buildingBanks, nextSequences);
-                    if (!cType.isGo()) {
-                        if (cType.isEnd()) {
-                            haveEndEvent = true;
-                            controlToOutputAsync(false, true, name);
-                            if (endCallback != null) endCallback.endWait();
-                            System.out.println("  Agg mod: got all END events");
-                            return;
-                        }
-                        else {
-                            throw new EmuException("Expecting GO or END event, got " + cType);
-                        }
+            // Second thing we do is look for the GO or END event and pass it on
+            try {
+                // Sorter thread writes GO event on all output channels, ring 0.
+                // Other build threads ignore this.
+                // Get GO from each input channel
+                ControlType cType = getAllControlEvents(sorterSequenceIn, sorterBarrierIn,
+                        buildingBanks, nextSequences);
+                if (!cType.isGo()) {
+                    if (cType.isEnd()) {
+                        haveEndEvent = true;
+                        controlToOutputAsync(false, true, name);
+                        if (endCallback != null) endCallback.endWait();
+                        System.out.println("  Agg mod: got all END events");
+                        return;
                     }
+                    else {
+                        throw new EmuException("Expecting GO or END event, got " + cType);
+                    }
+                }
 
-                    controlToOutputAsync(false, false, name);
-                }
-                catch (EmuException e) {
-                    e.printStackTrace();
-                    if (debug) System.out.println("  Agg mod: error getting go event");
-                    emu.setErrorState("EB error getting go event");
-                    moduleState = CODAState.ERROR;
-                    return;
-                }
-                catch (InterruptedException e) {
-                    e.printStackTrace();
-                    // If interrupted, then we must quit
-                    if (debug) System.out.println("  Agg mod: interrupted while waiting for go event");
-                    emu.setErrorState("EB interrupted waiting for go event");
-                    moduleState = CODAState.ERROR;
-                    return;
-                }
-//            }
-//            else {
-//                try {
-//                    controlToOutputAsync(false, false, name);
-//                }
-//                catch (InterruptedException e) {
-//                    e.printStackTrace();
-//                    // If interrupted, then we must quit
-//                    if (debug) System.out.println("  Agg mod: interrupted while waiting for go event");
-//                    emu.setErrorState("EB interrupted waiting for go event");
-//                    moduleState = CODAState.ERROR;
-//                    return;
-//                }
-//            }
+                controlToOutputAsync(false, false, name);
+            }
+            catch (EmuException e) {
+                e.printStackTrace();
+                if (debug) System.out.println("  Agg mod: error getting go event");
+                emu.setErrorState("EB error getting go event");
+                moduleState = CODAState.ERROR;
+                return;
+            }
+            catch (InterruptedException e) {
+                e.printStackTrace();
+                // If interrupted, then we must quit
+                if (debug) System.out.println("  Agg mod: interrupted while waiting for go event");
+                emu.setErrorState("EB interrupted waiting for go event");
+                moduleState = CODAState.ERROR;
+                return;
+            }
 
             System.out.println("  Agg mod: got all GO events");
 
@@ -1092,6 +1077,61 @@ System.out.println("  Agg mod: findEnd, chan " + ch + " got END from " + source 
             try {
                 // Now do the sorting
                 while (moduleState == CODAState.ACTIVE || paused) {
+
+                    if (firstTimeThru) {
+
+                        firstTimeThru = false;
+
+                        // Before we do anything else, find the first (lowest) frame #
+                        // from all the input channels. That will enable us to find any missing
+                        // frames right off the bat.
+
+                        long firstFrame = Long.MAX_VALUE;
+                        // Use copies so we don't mess up the real thing
+                        long[] nextSeqs = Arrays.copyOf(nextSequences, inputChannelCount);
+                        long[] availableSeqs = Arrays.copyOf(availableSequences, inputChannelCount);
+
+                        search:
+                        for (int i=0; i < inputChannelCount; i++) {
+
+                            boolean gotFirstTsBank = false;
+
+                            while (!gotFirstTsBank) {
+                                // Make sure there are available data on this channel
+                                if (availableSeqs[i] < nextSeqs[i]) {
+                                    availableSeqs[i] = sorterBarrierIn[i].waitFor(nextSeqs[i]);
+                                }
+
+                                // While we have data to work with ...
+                                while (nextSeqs[i] <= availableSeqs[i]) {
+                                    bank = (PayloadBuffer) ringBuffersIn[i].get(nextSeqs[i]);
+                                    eventType = bank.getEventType();
+
+                                    // Skip over user and non-END control events
+                                    if (!eventType.isBuildable()) {
+                                        if (eventType.isControl() && bank.getControlType().isEnd()) {
+                                            // We ran into an END event even before any data,
+                                            // so abandon this search and move on to ending
+                                            firstTimeThru = true;
+                                            break search;
+                                        }
+                                        nextSeqs[i]++;
+                                    }
+                                    // Found a bank, so do something with it
+                                    else {
+                                        gotFirstTsBank = true;
+                                        long bankFrame = bank.getTimeFrame();
+                                        firstFrame = Math.min(firstFrame, bankFrame);
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+
+                        // We found the lowest frame # so we start looking for that on each channel
+                        lookingForFrame = firstFrame;
+System.out.println("  Agg mod: lowest frame = " + lookingForFrame);
+                    }
 
                     // Here we have what we need to build:
                     // ROC raw events from all ROCs (or partially built events from
@@ -1103,12 +1143,44 @@ System.out.println("  Agg mod: findEnd, chan " + ch + " got END from " + source 
 
                     // Cycle through the channels over and over.
                     // Grab all identical TSs from the first channel. Go to the next and
-                    // and so on until all identical slices are read and placed into the
+                    // so on until all identical slices are read and placed into the
                     // ring of the same build thread.
                     // Next go to the next slice, copy them to the ring of the next
                     // build thread - round and round.
 
-                    long frame;
+                    //----------------------------------------------------------------------
+                    // We also need to calculate the avg difference in timestamps between
+                    // successive frames. This will be used to find the estimated
+                    // timestamps of frames that are completely missing from all input
+                    // channels.
+                    // To do this we also need the last written timestamp. To keep this
+                    // simple, since it's just an estimate, only get this info from the
+                    // first input channel (0).
+                    // Added to totalTimeDiff is the recent diff between sequential
+                    // frames. Also keep track of # of these diffs that are added up
+                    // in timeFrameDiffCount.
+                    // Avg frame diff = totalFramesDiff / timeFrameDiffCount;
+                    // Estimate timestamp = lastWrittenTs + (framesSkipped * avgFrameDiff).
+                    // Limit how long this is done so totalFramesDiff doesn't roll over.
+                    long prevTs = -1L, prevFr = -1L;
+                    long totalFrameDiff = 0L;
+                    long timeFrameDiffCount = 0L;
+                    long lastWrittenTs = 0L;
+                    long lastWrittenFr = 0L;
+                    boolean continueDiffCalc = true;
+                    //----------------------------------------------------------------------
+
+                    long frame = 0L;
+                    // Last timestamp where frame passed to build thread.
+                    // Could have come from any of input channels.
+                    long lastTs = 0L;
+                    // Frame that's being skipped
+                    long skippedFrame = -1L;
+                    // Track to see if all channels are missing the same frame
+                    int emptyChannelCount = 0;
+
+                // If there is no data for the frame being looked for, go to next channel
+                nextChannel:
 
                     while (true) {
 
@@ -1130,12 +1202,71 @@ System.out.println("  Agg mod: findEnd, chan " + ch + " got END from " + source 
 
                             // While we have new data to work with ...
                             while ((nextSequences[chan] <= availableSequences[chan]) || (storedBank[chan] != null)) {
+
+                                // If true, this channel needs to skip over a frame for which it has no data.
+                                // Note: this should only be an issue for data coming directly from a ROC.
+                                // That's because just below we insert a substitute frame for missing frames,
+                                // so for a 2nd level aggregator, all frames should be represented.
+                                if (frameSkips[chan] > 0) {
+                                    if (emu.getCodaClass() != CODAClass.PAGG) {
+System.out.println("  Agg mod: ch" + chan + ", skipping frame " + lookingForFrame +
+                   ", even though input in not ROC/VTP, so something wrong here!");
+                                        throw new EmuException("no frame for timestamp, but input not ROC/VTP");
+                                    }
+
+                                    frameSkips[chan]--;
+System.out.println("  Agg mod: ch" + chan + ", skip frame " + lookingForFrame +
+                   ", " + frameSkips[chan] + " more skips to go");
+
+                                    // Counting starts from channel 0 in order to find
+                                    // a completely missing frame
+                                    if (chan == 0) {
+                                        emptyChannelCount = 1;
+                                        skippedFrame = lookingForFrame;
+                                    }
+                                    else if (lookingForFrame == skippedFrame) {
+                                        emptyChannelCount++;
+                                    }
+
+                                    // If this is the last channel
+                                    if (chan >= inputChannelCount - 1) {
+                                        if (emptyChannelCount == inputChannelCount) {
+                                            // All channels are missing skippedFrame,
+                                            // so generate empty frame and pass that on somehow.
+                                            // Should only be an issue with ROC data.
+
+                                            // Last TS written + likely delta T.
+                                            // Increase lastTS in case multiple frames missing.
+                                            lastTs += avgTimestampDiff;
+                                            sendEmptyFrameToTimeSliceRing(skippedFrame,
+                                                                          lastTs, currentBT);
+                                        }
+
+                                        // Go back to the first channel
+                                        chan = 0;
+                                        // Start looking for the next slice
+                                        lookingForFrame++;
+                                        // Which will go to the next build thread
+                                        currentBT = (currentBT + 1) % buildingThreadCount;
+                                        // Reset so we can look for next completely empty frame
+                                        emptyChannelCount = 0;
+                                    }
+                                    else {
+                                        // Go to the next channel since no data available
+                                        chan++;
+                                    }
+                                    
+                                    continue nextChannel;
+                                }
+
                                 // The stored bank is never a user or control event, always a time slice
                                 if (storedBank[chan] != null) {
 //System.out.println("  Agg mod: sorter picking up stored bank at seq = " + nextSequences[chan]);
                                     bank = storedBank[chan];
                                     storedBank[chan] = null;
                                     eventType = bank.getEventType();
+                                    gotBank = true;
+                                    break;
                                 }
                                 else {
                                     bank = (PayloadBuffer) ringBuffersIn[chan].get(nextSequences[chan]);
@@ -1170,8 +1301,8 @@ System.out.println("  Agg mod: sorter got user event from channel " + inputChann
                                         break;
                                     }
                                 }
-                            }
-                        }
+                            } // while (nextSequences[chan] ...
+                        }  //while (!gotBank) {
 
 //System.out.println("  Agg mod: ch" + chan + ", sorter out of TOP LOOP");
                         //----------------------------------------------------
@@ -1179,73 +1310,94 @@ System.out.println("  Agg mod: sorter got user event from channel " + inputChann
                         // If event needs to be built - a real time slice ...
                         if (!eventType.isControl()) {
 
+                            if (continueDiffCalc && (chan == 0)) {
+                                // Compare the current data's frame with the previous.
+                                // If they differ by 1, then we can use this to find
+                                // avg TS diff between successive frames.
+
+                                long newFr = bank.getTimeFrame();
+                                long newTs = bank.getTimestamp();
+
+                                if (prevFr > -1L && (newFr == (prevFr + 1)))  {
+                                    totalFrameDiff += newTs - prevTs;
+                                    timeFrameDiffCount++;
+                                    avgTimestampDiff = (int)(totalFrameDiff / timeFrameDiffCount);
+                                }
+
+                                prevFr = newFr;
+                                prevTs = newTs;
+
+                                // Only use first 1M points to get avg TS diff
+                                if (timeFrameDiffCount > 1000000) {
+                                    continueDiffCalc = false;
+                                }
+                            }
+
                             // Get time frame from bank just read from chan
                             frame = bank.getTimeFrame();
 
                             // If this is the first read from the first channel
                             if (firstTimeThru) {
-                                // This is the time frame will be looking for in each channel
+                                // We only end up here if an END event has come before data
+                                // for at least one channel.
                                 lookingForFrame = frame;
                                 firstTimeThru = false;
                             }
 
-                            // Compare bank's TS to the one we're looking for -
-                            // those to be placed into the current build thread's ring.
-                            // First time thru this comes back as "SAME".
-                            FrameNumberDiff diff = compareTimeFrames(frame, lookingForFrame);
-
 //System.out.println("  Agg mod: ch" + chan + ", sorter NOT CONTROL EVENT, frame = " + frame + ", looking for " + lookingForFrame + ", diff = " + diff);
-                            // Bank was has same Time Slice as the one we're looking for.
+                            // Bank was has same frame# as the one we're looking for.
                             // This means that this bank must be written out to the current
-                            // receiving ring buffer. That's because all identical time slices
+                            // receiving ring buffer. That's because all identical timeslices
                             // go to the same ring buffer no matter the input channel.
-                            if (diff == FrameNumberDiff.SAME) {
+//                            if (diff == FrameNumberDiff.SAME) {
+                            if (frame == lookingForFrame) {
 //System.out.println("  Agg mod: ch" + chan + ", sorter send time slice to BT# = " + currentBT +", event type = " + bank.getEventType() + ", frame = " + frame);
                                 sendToTimeSliceBankRing(bank, currentBT);
                                 // This bank must be released AFTER build thread finishes with it
                                 nextSequences[chan]++;
-                                lastWrittenChan = chan;
+
+                                // Track this so we can estimate TS for completely missing frame
+                                lastTs = bank.getTimestamp();
 
                                 // Next read will be on the same channel to see if there are
                                 // more identical time slice banks there. Keep at it until all
                                 // identical time slices from this channel are in one ring.
                                 continue;
                             }
-                            // Bank was has DIFFERENT Time Slice than previous bank from same channel that was
-                            // written out. This means that this bank must be put on hold for a while - store
-                            // it for later use.
-                            // Check the other channels to see if they have banks with the same time slices
-                            // as the one last written.
+                            // This bank has a DIFFERENT frame# than the one we're looking for.
+                            // This means that this bank must be put on
+                            // hold for a while - store it for later use.
+                            // Check the other channels to see if they have banks with the same
+                            // frame# as the one we're looking for.
                             else  {
 //System.out.println("  Agg mod: ch" + chan + ", sorter DIFF timestamp, frame = " + frame);
-                                // If the last write was on this channel, then the bank we just
-                                // read from that channel is part of the next time slice.
-                                // This is our clue to move to the next channel to see if it has
-                                // banks with the previous time slice.
-                                if (chan == lastWrittenChan) {
-                                    // Store what we just read for the next time
-                                    // we're getting data from this channel
-                                    storedBank[chan] = bank;
 
-                                    // if this is the last input channel ...
-                                    if (chan >= inputChannelCount - 1) {
-                                        // Go back to the first channel
-                                        chan = 0;
-                                        // Start looking for the next slice
-                                        lookingForFrame = frame;
-                                        // Which will go to the next build thread
-                                        currentBT = (currentBT + 1) % buildingThreadCount;
-                                    }
-                                    else {
-                                        // Go to the next channel & keep looking for the SAME slice
-                                        chan++;
-                                    }
+                                // Store what we just read for the next time
+                                // we're getting data from this channel
+                                storedBank[chan] = bank;
+
+                                // Because timestamps are increasing, the following will be positive.
+                                // The projected next frame# = lookingForFrame + 1
+                                // but we're getting, frame# = frame
+                                // Thus find out how many frames will be skipped in this channel
+                                // the next time we access it =
+                                // frame - projected-next = frame - (lookingForFrame + 1)
+                                frameSkips[chan] = frame - lookingForFrame - 1;
+
+                                // Move on to the next channel
+
+                                // if this is the last input channel ...
+                                if (chan >= inputChannelCount - 1) {
+                                    // Go back to the first channel
+                                    chan = 0;
+                                    // Start looking for the next slice
+                                    lookingForFrame++;
+                                    // Which will go to the next build thread
+                                    currentBT = (currentBT + 1) % buildingThreadCount;
                                 }
-                                // If the last write was on a previous channel ...
                                 else {
-                                    // This channel should have had an event with an identical timestamp.
-                                    // Since it didn't, there's a slice missing!
-                                    throw new EmuException("Too big of a jump in timestamp");
+                                    // Go to the next channel & keep looking for the SAME frame#
+                                    chan++;
                                 }
                             }
 
@@ -1686,7 +1838,7 @@ System.out.println("  Agg mod: bbSupply -> " + ringItemCount + " # of bufs, dire
                                     inputNodes  = new EvioNode[newLength];
                                     backingBufs = new ByteBuffer[newLength];
 
-                                    // Copy over array elements
+                                    // Copy over array elements (shallow copy which is fine)
                                     System.arraycopy(sameStampBanks, 0, sameStampBanksNew, 0, sameStampBanks.length);
                                     sameStampBanks = sameStampBanksNew;
                                 }
@@ -1725,48 +1877,161 @@ System.out.println("  Agg mod: bt" + btIndex + " ***** found END event at seq " 
                         return;
                     }
 
+                    // How many banks do we aggregate?
+                    // This may be < sliceCount if some banks are empty frames.
+                    int aggCount = sliceCount;
+                    int emptyFrameCount = 0;
 
-                    // At this point there are only physics or ROC raw events, which do we have?
-                    havePhysicsEvents = sameStampBanks[0].getEventType().isAnyPhysics();
-
-
-                    //--------------------------------------------------------------------
-                    // Build Stream Info Bank (SIB)
-                    //--------------------------------------------------------------------
-                    // The tag will be finally set when this bank is fully created
-
-                    // Get an estimate on the buffer memory needed.
+                    // Look to see if inputs have no/empty frames.
+                    //
+                    // For empty frames on only some of the inputs:
+                    //   - If aggregating ROC streams,
+                    //     there will be a data bank for each channel with data,
+                    //     and nothing to represent the other channels.
+                    //
+                    //   - If aggregating previously aggregated streams,
+                    //     there will be a data bank for each channel with data, and
+                    //     there will be 1 empty frame for each of the other channels.
+                    //
+                    // For empty frames on all inputs:
+                    //   - If aggregating ROC streams, we will only have 1 empty frame
+                    //     representing all input channels (generated above).
+                    //
+                    //   - If aggregating previously aggregated streams,
+                    //     there will be 1 empty frame for each input channel.
+                    //
+                    // Count empty and regular frames.
+                    //
+                    // At same time, get an estimate on the buffer memory needed.
                     // Start with 10K and add roughly the amount of trigger bank data + data wrapper
-                    int memSize = 10000; // Start with a little extra room
+                    int memSize = 10000;
                     for (int i=0; i < sliceCount; i++) {
+                        if (sameStampBanks[i].isEmptyFrame()) {
+                            emptyFrameCount++;
+                            aggCount--;
+                        }
                         inputNodes[i] = sameStampBanks[i].getNode();
                         memSize += inputNodes[i].getTotalBytes();
                         // Get the backing buffer
                         backingBufs[i] = inputNodes[i].getBuffer();
                     }
 
+                    
+                    // What do we do when we have no data for this frame?
+                    //
+                    // Missing frames in ROC streams are represented by special frames
+                    // created by hand and placed into the ring of only 1 build thread.
+                    // If this is the case, then we're careful not to release resources not used.
+                    //
+                    // If we're aggregating from Aggregators, then slices representing empty frames
+                    // come to us like all the other events, thru input channels, and must be
+                    // treated as such.
+                    if (emptyFrameCount == sliceCount) {
+
+                        // Which output channel do we use?  Round-robin.
+                        if (outputChannelCount > 1) {
+                            outputChannelIndex = (int) (evIndex % outputChannelCount);
+                        }
+
+                        // What kind of aggregator is this?
+                        CODAClass myClass = emu.getCodaClass();
+
+                        if (!myClass.isPrimaryAggregator()) {
+                            // We're aggregating physics events, so all channels have empty frames
+                            // which need to be combined into one.
+
+                            if (sliceCount != inputChannelCount) {
+                                throw new EmuException("missing " + (inputChannelCount - sliceCount) + " empty frames");
+                            }
+
+                            try {
+                                // Can we build this in a buffer from supply? YES
+                                ByteBufferItem bufItem = bbSupply.get();
+                                ByteBuffer evBuf = bufItem.getBuffer();
+
+                                // Take the banks (sameStampBanks) from the input channels,
+                                // use them to construct an event in evBuf
+                                // (part of this building thread's supply of ByteBuffers).
+                                Evio.combineEmptyFrameBuffers(frame,
+                                                              sliceCount,
+                                                              evBuf,
+                                                              sameStampBanks);
+                                
+                                // Put event in the correct output channel
+                                eventToOutputRing(btIndex, outputChannelIndex, sliceCount,
+                                                  evBuf, eventType, bufItem, bbSupply);
+
+                                for (int i=0; i < sliceCount; i++) {
+                                    // The ByteBufferSupply takes care of releasing buffers in proper order.
+                                    sameStampBanks[i].releaseByteBuffer();
+
+                                    // Since we're done building with sameStampBanks,
+                                    // we can release them back to input channel rings.
+                                    long seq = sameStampBanks[i].getChannelSequence();
+                                    Sequence seqObj = sameStampBanks[i].getChannelSequenceObj();
+                                    // The ring will now have access to this sequence
+                                    seqObj.set(seq);
+                                }
+                            }
+                            catch (EmuException e) {/*never happen*/}
+                        }
+                        else {
+                            // We're aggregating from ROCS, sliceCount has to be = 1,
+                            // everything is already done, and we just pass it on
+                            // to the next output channel.
+                            //
+                            // This buf was created in the sorter thread "by hand" and
+                            // does NOT come from a buffer supply in an input channel,
+                            // hence the nulls below.
+                            // It was stored in sameStampBanks[0] and should just be
+                            // garbage-collected. Doesn't need to be released.
+                            ByteBuffer evBuf = sameStampBanks[0].getBuffer();
+
+                            // Put event in the correct output channel
+                            eventToOutputRing(btIndex, outputChannelIndex, sliceCount,
+                                              evBuf, eventType, null, null);
+                        }
+
+                        evIndex += btCount;
+
+                        // Each build thread must release the "slots" in the build thread ring
+                        // buffer of the components it uses to build the physics event.
+                        buildSequenceIn[btIndex].set(nextSequence - 1);
+
+                        // Does any empty frame count as an event? No. Don't keep stats on it.
+                        // Do we still count the frame? Yes?
+                        frameCountTotal++;
+                        continue;
+                    }
+                    
+                    // At this point we filtered out empty frames.
+                    // So we must have physics or ROC raw events, which do we have?
+                    havePhysicsEvents = sameStampBanks[0].getEventType().isAnyPhysics();
+
                     // Grab a stored ByteBuffer
                     ByteBufferItem bufItem = bbSupply.get();
                     bufItem.ensureCapacity(memSize);
-//System.out.println("  Agg mod: bt" + btIndex + " ***** ensure buf has size " + memSize + ", frame = " + frame + ", prevFrame = " + prevFrame);
                     ByteBuffer evBuf = bufItem.getBuffer();
-//                    int builtEventHeaderWord2;
 
                     // Create a (top-level) physics event from payload banks
                     // and the combined SIB bank.
                     CODAClass myClass = emu.getCodaClass();
                     eventType = EventType.PHYSICS_STREAM;
-                    tag = CODATag.STREAMING_PHYSICS.getValue();
+                    tag = CODATag.STREAMING_PHYS.getValue();
 
                     if (myClass == CODAClass.PAGG) {
                         // Check input roc banks for non-fatal errors
                         for (int i=0; i < sliceCount; i++) {
+                            if (sameStampBanks[i].isEmptyFrame()) {
+                                nonFatalError = true;
+                                break;
+                            }
                             // sorting thread checks to see if coda id matches tag, stored in payload bank
                             nonFatalError |= sameStampBanks[i].hasNonFatalBuildingError();
                         }
                     }
 
-                    int writeIndex=0;
+                    int writeIndex;
 
                     // If building with Physics events ...
                     if (havePhysicsEvents) {
@@ -1774,8 +2039,8 @@ System.out.println("  Agg mod: bt" + btIndex + " ***** found END event at seq " 
                         // Combine the SIB banks of input events into one
                         //-----------------------------------------------------------------------------------
 //System.out.println("  Agg mod: bt" + btIndex + " ***** Building frame " + prevFrame + " with " + sliceCount + " BUILT slices");
-                        nonFatalError = Evio.combineAggregatedStreams(
-                                sliceCount,
+                        Evio.combineAggregatedStreams(
+                                aggCount,
                                 sameStampBanks,
                                 evBuf,
                                 tag,
@@ -1784,24 +2049,18 @@ System.out.println("  Agg mod: bt" + btIndex + " ***** found END event at seq " 
                                 bankData,
                                 returnLen,
                                 backingBufs,
-                                inputNodes,
+                                inputNodes,    
                                 fastCopyReady,
                                 nonFatalError);
 
-                            writeIndex = returnLen[0];
-
-//                        if (emu.getCodaClass() != CODAClass.DC) {
-//                            Utilities.printBufferBytes(evBuf, 0, writeIndex, "NEW Built TRIGGER BANK");
-//                            System.out.println("PAUSE ..................................................");
-//                            Thread.sleep(1000);
-//                        }
+                        writeIndex = returnLen[0];
                     }
                     // else if building with ROC raw records ...
                     else {
                         // If all inputs are from 1 VTP and can be combined into one ROC Time Slice Bank, do it
                         if (singleVTPInputs()) {
-                            nonFatalError = Evio.combineSingleVtpStreamsToPhysics(
-                                    sliceCount,
+                            Evio.combineSingleVtpStreamsToPhysics(
+                                    aggCount,
                                     evBuf,
                                     timeStamps,
                                     returnLen,
@@ -1812,8 +2071,8 @@ System.out.println("  Agg mod: bt" + btIndex + " ***** found END event at seq " 
                         }
                         else {
 //System.out.println("  Agg mod: bt" + btIndex + " ***** Building frame " + prevFrame + " with " + sliceCount + " ROC RAW time slices");
-                            nonFatalError = Evio.combineRocStreams(
-                                    sliceCount,
+                            Evio.combineRocStreams(
+                                    aggCount,
                                     sameStampBanks,
                                     evBuf,
                                     tag,
@@ -1830,9 +2089,7 @@ System.out.println("  Agg mod: bt" + btIndex + " ***** found END event at seq " 
                         writeIndex = returnLen[0];
                     }
 
-//                    // Write the length of top bank
-////                    System.out.println("writeIndex = " + writeIndex + ", %4 = " + (writeIndex % 4));
-//                    evBuf.putInt(0, writeIndex/4 - 1);
+                    // Get buffer ready to read
                     evBuf.limit(writeIndex).position(0);
 
                     //-------------------------
@@ -1905,10 +2162,11 @@ System.out.println("  Agg mod: bt" + btIndex + " ***** found END event at seq " 
             }
             catch (EmuException e) {
                 // EmuException from Evio.checkPayload() if
-                // Roc raw or physics banks are in the wrong format
+                // Roc raw or physics banks are in the wrong format.
+                // Or if all slices are empty but not all channels have a bank for that frame.
                 e.printStackTrace();
-                System.out.println("  Agg mod: Roc raw or physics event in wrong format");
-                emu.setErrorState("EB: Roc raw or physics event in wrong format");
+                System.out.println("  Agg mod: Event in wrong format or missing empty frame");
+                emu.setErrorState("EB: Event in wrong format or missing empty frame");
                 moduleState = CODAState.ERROR;
                 return;
             }
