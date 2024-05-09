@@ -64,10 +64,12 @@ public enum CODATag {
     // Streaming
     //---------------------------------------------
 
-    /** Streaming Stream Info Bank (SIB) coming from ROC. */
+    /** Stream Info Bank (SIB) coming from ROC. */
     STREAMING_SIB                (0xFF30),
-    /** Streaming Stream Info Bank (SIB) of built event. */
+    /** Stream Info Bank (SIB) of built event. */
     STREAMING_SIB_BUILT          (0xFF31),
+    /** Stream Info Bank (SIB) of built event with non-fatal error. */
+    STREAMING_SIB_BUILT_ERR       (0xFF32),
 
     /** Time Slice Segment (TSS) coming from ROC. */
     STREAMING_TSS                (0x31),
@@ -81,7 +83,13 @@ public enum CODATag {
 
     // Physics event
     /** Event built from data sent by ROC/VTP in streaming mode. */
-    STREAMING_PHYSICS(0xFF60),
+    STREAMING_PHYS(0xFF60),
+    /** Event built from data sent by ROC/VTP in streaming mode with non-fatal error. */
+    STREAMING_PHYS_ERR(0xFF61),
+
+    // Empty frame
+    /** No events associated with frame. */
+    EMPTY_FRAME(0xFF68)
     ;
 
     private int value;
@@ -138,14 +146,11 @@ public enum CODATag {
     }
 
     /**
-     * Is this a built trigger tag?
-     * Values can range from 0xff20 to 0xff4f.
-     * Currently only 0xff20 to 0xff27 are used.
-     *
-     * @return <code>true</code> if built trigger tag, else <code>false</code>
+     * Is this an empty frame?
+     * @return <code>true</code> if empty frame, else <code>false</code>
      */
-    public boolean isBuiltTrigger() {
-        return (value >= 0xff20 && value <= 0xff27);
+    public boolean isEmptyFrame() {
+        return (this == EMPTY_FRAME);
     }
 
     /**
@@ -167,9 +172,7 @@ public enum CODATag {
      *
      * @return <code>true</code> if raw trigger tag, else <code>false</code>
      */
-     public boolean isRawTrigger() {
-         return (value >= 0xff10 && value <= 0xff12);
-     }
+     public boolean isRawTrigger() {return (value >= 0xff10 && value <= 0xff12);}
 
     /**
      * Is this a raw trigger tag?
@@ -320,11 +323,30 @@ public enum CODATag {
     ////////////////////
 
     /**
+     * Is this an empty frame?
+     * @param value the tag value to check
+     * @return <code>true</code> if empty frame, else <code>false</code>
+     */
+    public static boolean isEmptyFrame(int value) {return (value == EMPTY_FRAME.getValue());}
+
+    /**
+     * Is this a built trigger tag?
+     * Values can range from 0xff20 to 0xff4f.
+     * Currently only 0xff20 to 0xff27 are used.
+     *
+     * @return <code>true</code> if built trigger tag, else <code>false</code>
+     */
+    public boolean isBuiltTrigger() {
+        return (value >= 0xff20 && value <= 0xff27);
+    }
+
+    /**
      * Is this the tag of a streaming physics event of any type?
      * @param val value to test
      * @return <code>true</code> if tag is for a streaming physics event of any type, else <code>false</code>.
      */
-    public static boolean isStreamingPhysics(int val) {return (val == STREAMING_PHYSICS.value);}
+    public static boolean isStreamingPhysics(int val) {return (val == STREAMING_PHYS.value ||
+                                                               val == STREAMING_PHYS_ERR.value);}
 
     /**
      * Is this a Stream Info Bank tag?
@@ -332,7 +354,8 @@ public enum CODATag {
      * @return <code>true</code> if tag of Stream Info Bank, else <code>false</code>.
      */
     public static boolean isSIB(int value) {return (value == STREAMING_SIB.value ||
-                                                    value == STREAMING_SIB_BUILT.value);}
+                                                    value == STREAMING_SIB_BUILT.value ||
+                                                    value == STREAMING_SIB_BUILT_ERR.value);}
 
     /**
      * Is this a Time Slice Segment tag?
