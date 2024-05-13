@@ -1497,7 +1497,7 @@ System.out.println("      DataChannel Emu in: incoming data's evio version = " +
             hasFirstEvent = blockHeader.hasFirstEvent();
 
             int evtType = blockHeader.getEventType();
-            EventType eventType = EventType.getEventType(blockHeader.getEventType());
+            EventType eventType = EventType.getEventType(evtType);
             if (eventType == null || !eventType.isEbFriendly()) {
                 System.out.println("bad evio format or improper event type (" + evtType + ")\n");
                 Utilities.printBytes(buf, 0, 200, "Incoming (bad format bytes");
