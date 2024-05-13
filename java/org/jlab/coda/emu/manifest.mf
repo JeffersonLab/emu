@@ -3,7 +3,7 @@ Created-By: coda.jlab.org
 Specification-Title: CODA III EMU
 Sealed: true
 Main-Class: org.jlab.coda.emu.EmuFactory
-Class-Path: cMsg-5.0.jar et-16.0.jar jevio-5.0.jar swing-layout.jar disruptor-3.3.jar
+Class-Path: cMsg-6.0.jar et-16.4.jar jevio-6.0.jar swing-layout.jar disruptor-3.4.3.jar disruptor-4.0.0.jar
 
 
 
