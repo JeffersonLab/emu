@@ -14,6 +14,10 @@ endif
 
 #setenv MALLOC_ARENA_MAX 2
 
+# add these for java mission control (jmc)
+# -XX:+UnlockCommercialFeatures -XX:+FlightRecorder
+# -Djavax.xml.parsers.SAXParserFactory=com.sun.org.apache.xerces.internal.jaxp.SAXParserFactoryImpl
+
 if ($#argv > 1) then
 $JAVA_HOME/bin/java -cp $CODA/common/jar/\* \
     -XX:PerMethodRecompilationCutoff=40 \
