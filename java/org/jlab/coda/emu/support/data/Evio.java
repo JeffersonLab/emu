@@ -2528,7 +2528,7 @@ System.out.println("                         : segWords from event 0 = " + dataW
      *
      * @param inputSliceCount   number of input buffers/banks/timeslices.
      * @param inputPayloadBanks array containing all banks of the same time slice from all
-     *                          input channels.
+     *                          input channels with data.
      * @param builtEventBuf     ByteBuffer of event being built.
      * @param tag               evio tag of top level bank to create.
      * @param timestampSlop     maximum number of timestamp ticks that timestamps can differ
@@ -2820,7 +2820,7 @@ System.out.println("                         : segWords from event 0 = " + dataW
      *
      * @param sliceCount        number of input buffers/banks/timeslices.
      * @param inputPayloadBanks array containing all banks of the same time slice from all
-     *                          input channels.
+     *                          input channels that have data.
      * @param builtEventBuf     ByteBuffer of event being built.
      * @param tag               evio tag of top level bank to create.
      * @param timestampSlop     maximum number of timestamp ticks that timestamps can differ
