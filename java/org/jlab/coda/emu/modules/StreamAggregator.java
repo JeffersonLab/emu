@@ -1238,6 +1238,7 @@ System.out.println("  Agg mod: ch" + chan + ", skip frame " + lookingForFrame +
                                             // Last TS written + likely delta T.
                                             // Increase lastTS in case multiple frames missing.
                                             lastTs += avgTimestampDiff;
+System.out.println("  Agg mod: last chan = " + chan + ", inserting empty frame for fr = " + skippedFrame);
                                             sendEmptyFrameToTimeSliceRing(skippedFrame,
                                                                           lastTs, currentBT);
                                         }
@@ -1720,6 +1721,8 @@ System.out.println("  Agg mod: bbSupply -> " + ringItemCount + " # of bufs, dire
                 // The array should be sliceCount size, but we don't know
                 // what that is yet. If it needs to be increased, do it later.
                 PayloadBuffer[] sameStampBanks = new PayloadBuffer[200];
+                // storage for banks of same stamp w/ real data
+                PayloadBuffer[] dataBanks = new PayloadBuffer[200];
                 EvioNode[] inputNodes = new EvioNode[200];
                 ByteBuffer[] backingBufs = new ByteBuffer[200];
 
@@ -1835,6 +1838,7 @@ System.out.println("  Agg mod: bbSupply -> " + ringItemCount + " # of bufs, dire
                                     int newLength = 2*sameStampBanks.length;
 //System.out.println("\n  Agg mod: bt" + btIndex + " ***** EXPAND arrays from " + sameStampBanks.length + " to " + newLength);
                                     PayloadBuffer[] sameStampBanksNew = new PayloadBuffer[newLength];
+                                    dataBanks   = new PayloadBuffer[newLength];
                                     inputNodes  = new EvioNode[newLength];
                                     backingBufs = new ByteBuffer[newLength];
 
@@ -1877,10 +1881,6 @@ System.out.println("  Agg mod: bt" + btIndex + " ***** found END event at seq " 
                         return;
                     }
 
-                    // How many banks do we aggregate?
-                    // This may be < sliceCount if some banks are empty frames.
-                    int aggCount = sliceCount;
-                    int emptyFrameCount = 0;
 
                     // Look to see if inputs have no/empty frames.
                     //
@@ -1900,20 +1900,52 @@ System.out.println("  Agg mod: bt" + btIndex + " ***** found END event at seq " 
                     //   - If aggregating previously aggregated streams,
                     //     there will be 1 empty frame for each input channel.
                     //
-                    // Count empty and regular frames.
+                    //
+                    // So, the question is, what do we do at this point?
+                    //
+                    //   - Roc input
+                    //      - if no input from any ROCs
+                    //          There will be one and only one empty frame generated.
+                    //          Thus sliceCount = 1 and frame is empty.
+                    //          This will be dealt with a little further down so an
+                    //          empty frame will be propagated to next level.
+                    //      - if only some ROCs have input
+                    //          Collect the existing banks and build with that.
+                    //          Ignore channels without data.
+                    //
+                    //   - Aggregator input
+                    //      - if empty frames from all channels (there will always be a bank).
+                    //          This will be dealt with a little further down so an
+                    //          empty frame will be propagated to next level.
+                    //      - if only some channels have data input
+                    //          Collect the existing banks and build with that.
+                    //          Ignore channels without data.
                     //
                     // At same time, get an estimate on the buffer memory needed.
                     // Start with 10K and add roughly the amount of trigger bank data + data wrapper
+
+                    // How many banks do we aggregate?
+                    // This may be < sliceCount if some banks are empty frames.
+                    int aggCount = sliceCount;
+                    int emptyFrameCount = 0;
+
                     int memSize = 10000;
+                    int sliceIndex = 0;
                     for (int i=0; i < sliceCount; i++) {
                         if (sameStampBanks[i].isEmptyFrame()) {
                             emptyFrameCount++;
                             aggCount--;
+                            continue;
                         }
-                        inputNodes[i] = sameStampBanks[i].getNode();
-                        memSize += inputNodes[i].getTotalBytes();
+
+                        // Track the banks/nodes/buffers with real data
+                        dataBanks[sliceIndex] = sameStampBanks[i];
+                        EvioNode node = sameStampBanks[i].getNode();
+                        inputNodes[sliceIndex] = node;
+                        memSize += node.getTotalBytes();
                         // Get the backing buffer
-                        backingBufs[i] = inputNodes[i].getBuffer();
+                        backingBufs[sliceIndex] = node.getBuffer();
+                        sliceIndex++;
                     }
 
                     
@@ -2041,7 +2073,7 @@ System.out.println("  Agg mod: bt" + btIndex + " ***** found END event at seq " 
 //System.out.println("  Agg mod: bt" + btIndex + " ***** Building frame " + prevFrame + " with " + sliceCount + " BUILT slices");
                         Evio.combineAggregatedStreams(
                                 aggCount,
-                                sameStampBanks,
+                                dataBanks, // only used to get source name for error msg
                                 evBuf,
                                 tag,
                                 timestampSlop,
@@ -2073,7 +2105,7 @@ System.out.println("  Agg mod: bt" + btIndex + " ***** found END event at seq " 
 //System.out.println("  Agg mod: bt" + btIndex + " ***** Building frame " + prevFrame + " with " + sliceCount + " ROC RAW time slices");
                             Evio.combineRocStreams(
                                     aggCount,
-                                    sameStampBanks,
+                                    dataBanks, // only used to get source name for error msg
                                     evBuf,
                                     tag,
                                     timestampSlop,
