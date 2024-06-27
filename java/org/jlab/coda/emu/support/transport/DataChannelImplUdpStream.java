@@ -1651,7 +1651,7 @@ System.out.println("Internal error: got packet with no data, buf's unused bytes 
                         int pos = node.getPosition();
 //System.out.println("    DataChannel UDP stream in: read ts, node pos = " + pos + ", datalen = " + 4*node.getDataLength());
                         ByteBuffer buff = node.getBuffer();
-                        frame = EmuUtilities.intsToLong(buff.getInt(20 + pos), 0);
+                        frame = (long)(buff.getInt(20 + pos)) & 0xffffffffL;
                         timestamp = EmuUtilities.intsToLong(buff.getInt(24 + pos), buff.getInt(28 + pos));
 //System.out.println("    DataChannel UDP stream in: roc raw has frame = " + frame + ", timestamp = " + timestamp + ", pos = " + pos);
                     }
@@ -1669,9 +1669,9 @@ System.out.println("Internal error: got packet with no data, buf's unused bytes 
                     isEmptyFrame = CODATag.isEmptyFrame(node.getTag());
 
                     int pos = node.getPosition();
-                    // Find the frame and timestamp now for later ease of use (skip over 4 ints)
+                    // Find the frame and timestamp now for later ease of use (skip over 5 ints)
                     ByteBuffer buff = node.getBuffer();
-                    frame = EmuUtilities.intsToLong(buff.getInt(20 + pos), 0);
+                    frame = (long)(buff.getInt(20 + pos)) & 0xffffffffL;
                     timestamp = EmuUtilities.intsToLong(buff.getInt(24 + pos), buff.getInt(28 + pos));
 //System.out.println("    DataChannel UDP stream in: buildable has frame = " + frame + ", timestamp = " + timestamp + ", pos = " + pos);
                 }

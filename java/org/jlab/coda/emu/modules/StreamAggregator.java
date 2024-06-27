@@ -726,9 +726,15 @@ System.out.println("WRITE CONTROL EVENT to chan #" + i + ", ring 0");
 
 
     /**
-     * The leading consumer of each input channel ring is the sorter thread. This thread
+     * <p>The leading consumer of each input channel ring is the sorter thread. This thread
      * sends all events of the same time frame to the ring of the same build thread.
-     * Each build thread consumes ring items that the sorter thread fills.
+     * Each build thread consumes ring items that the sorter thread fills.</p>
+     *
+     * This thread deals with rollover in the value of the frame #.
+     * Each frame # is read as a 32 bit int and stored as a long in a PayloadBuffer
+     * object in the data channel. When max frame # (2^32 - 1) is reached,
+     * then that value is added to
+     * the next frame # and so on each time the limit is reached.
      */
     class TimeSliceSorter extends Thread {
 
@@ -749,7 +755,6 @@ System.out.println("WRITE CONTROL EVENT to chan #" + i + ", ring 0");
          * Use this to find an estimated timestamp for missing frames.
          */
         int  avgTimestampDiff = 0;
-        long lastWrittenTs = 0L;
 
         // RingBuffer Stuff
 
@@ -1165,9 +1170,17 @@ System.out.println("  Agg mod: lowest frame = " + lookingForFrame);
                     long prevTs = -1L, prevFr = -1L;
                     long totalFrameDiff = 0L;
                     long timeFrameDiffCount = 0L;
-                    long lastWrittenTs = 0L;
-                    long lastWrittenFr = 0L;
                     boolean continueDiffCalc = true;
+                    //----------------------------------------------------------------------
+
+                    //----------------------------------------------------------------------
+                    // Handling Rollover
+                    //
+                    // rolloverOffset is added to "frame" to account for the fact that it's 32 bits
+                    // and rolls over in value.
+                    long rolloverOffset = 0L;
+                    // Max frame # to look for signaling next rollover
+                    long maxFrameNumber = 0xffffffffL;
                     //----------------------------------------------------------------------
 
                     long frame = 0L;
@@ -1335,7 +1348,9 @@ System.out.println("  Agg mod: sorter got user event from channel " + inputChann
                             }
 
                             // Get time frame from bank just read from chan
-                            frame = bank.getTimeFrame();
+                            frame = bank.getTimeFrame() + rolloverOffset;
+                            // Write it back in case there's an offset
+                            bank.setTimeFrame(frame);
 
                             // If this is the first read from the first channel
                             if (firstTimeThru) {
@@ -1343,6 +1358,62 @@ System.out.println("  Agg mod: sorter got user event from channel " + inputChann
                                 // for at least one channel.
                                 lookingForFrame = frame;
                                 firstTimeThru = false;
+                            }
+                            else if (frame < lookingForFrame) {
+                                // We have rollover!
+                                //
+                                // Ignoring rollover for the moment, frame >= lookingForFrame, always.
+                                // It will be the same value or be larger by 1 99.99999% of the time.
+                                //
+                                // We need to think what happens when frame # increases:
+                                //  1) if frame > lookingForFrame, but both are < maxFrameNumber,
+                                //     then everything will be fine. frameSkips[chan] will be set
+                                //     and the missing frames will be skipped when building. Or,
+                                //  2) if frame goes "beyond" maxFrameNumber, it rolls over and suddenly
+                                //     becomes much less than lookingForFrame. It becomes rolloverOffset
+                                //     or something on that order.
+                                //
+                                // So how do we detect this second scenario?
+                                //      Since, in general, frame >= lookingForFrame, any time
+                                //      frame < lookingForFrame, the rollover happened.
+                                //      Generally this happens when:
+                                //          a)  the maxFrameNumber limit is hit by both frame and lookingForFrame.
+                                //              In the normal examination of the frames in a channel, the
+                                //              next frame is hit and it goes beyond maxFrameNumber and rolls over.
+                                //              In other words, it happens in the normal, perfectly sequential
+                                //              flow of frames.
+                                //          b)  or it can happen when many frames are missing and need to be
+                                //              skipped when building. One of the skipped frames would be the
+                                //              one to experience rollover.
+                                //
+                                //      In either case, the result is the same, the next value for frame
+                                //      taken from the data will be < lookingForFrame.
+                                //
+                                // The way we fix rollover is to adjust the frame # with on offset, adding
+                                // an additional max-32-bit-int to the frame each time a rollover occurs.
+                                //
+                                rolloverOffset += 0xffffffffL; // started at 0
+                                maxFrameNumber += 0xffffffffL; // started at 0xffff_ffff
+System.out.println("  Agg mod: detected ROLLOVER, looking for fr#" + lookingForFrame + ", adjust found frame: " + frame +
+                   " -> " + (frame + 0xffffffffL));
+                                frame += 0xffffffffL;
+
+                                // Now frame must be >= lookingForFrame, if not, there is an error in this algorithm!
+                                if (frame < lookingForFrame) {
+                                    EmuUtilities.printStackTrace();
+                                    System.out.println("  Agg mod: rollover in frame # occurred, but not fixed!");
+                                    emu.setErrorState("Agg error: rollover in frame # occurred, but not fixed!");
+                                    moduleState = CODAState.ERROR;
+                                    return;
+                                }
+                            }
+                            else if (lookingForFrame > maxFrameNumber) {
+                                // This should never happen!
+                                EmuUtilities.printStackTrace();
+                                System.out.println("  Agg mod: error in rollover detection algorithm");
+                                emu.setErrorState("Agg error: error in rollover detection algorithm");
+                                moduleState = CODAState.ERROR;
+                                return;
                             }
 
 //System.out.println("  Agg mod: ch" + chan + ", sorter NOT CONTROL EVENT, frame = " + frame + ", looking for " + lookingForFrame + ", diff = " + diff);
@@ -1377,7 +1448,7 @@ System.out.println("  Agg mod: sorter got user event from channel " + inputChann
                                 // we're getting data from this channel
                                 storedBank[chan] = bank;
 
-                                // Because timestamps are increasing, the following will be positive.
+                                // Because frame#s are increasing, the following will be positive.
                                 // The projected next frame# = lookingForFrame + 1
                                 // but we're getting, frame# = frame
                                 // Thus find out how many frames will be skipped in this channel
@@ -1412,9 +1483,9 @@ System.out.println("  Agg mod: sorter got user event from channel " + inputChann
                         // If not END, we got problems
                         if (!bank.getControlType().isEnd()) {
                             EmuUtilities.printStackTrace();
-                            if (debug) System.out.println("  Agg mod: " + bank.getControlType() +
+                            System.out.println("  Agg mod: " + bank.getControlType() +
                                                           " control events not allowed");
-                            emu.setErrorState("EB error: " + bank.getControlType() +
+                            emu.setErrorState("Agg error: " + bank.getControlType() +
                                               " control events not allowed");
                             moduleState = CODAState.ERROR;
                             return;
@@ -1447,8 +1518,8 @@ System.out.println("  Agg mod: sorter found END events on all input channels");
             }
             catch (EmuException e) {
                 e.printStackTrace();
-                emu.sendRcErrorMessage("EB: Error sorting time slices");
-                emu.setErrorState("EB: Error sorting time slices: " + e.getMessage());
+                emu.sendRcErrorMessage("Agg: error sorting time slices");
+                emu.setErrorState("Agg: error sorting time slices: " + e.getMessage());
                 moduleState = CODAState.ERROR;
             }
             catch (InterruptedException e) {

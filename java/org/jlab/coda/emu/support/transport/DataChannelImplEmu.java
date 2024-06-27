@@ -1557,7 +1557,7 @@ System.out.println("      DataChannel Emu in: incoming data's evio version = " +
 
             for (int i = 1; i < eventCount+1; i++) {
 
-                int frame = 0;
+                long frame = 0;
                 long timestamp = 0L;
                 EvioNode topNode;
 
@@ -1603,7 +1603,7 @@ System.out.println("      DataChannel Emu in: incoming data's evio version = " +
                         // Find the frame and timestamp now for later ease of use (skip over 5 ints)
                         int pos = node.getPosition();
                         ByteBuffer buff = node.getBuffer();
-                        frame = buff.getInt(20 + pos);
+                        frame = (long)(buff.getInt(20 + pos)) & 0xffffffffL;
                         timestamp = EmuUtilities.intsToLong(buff.getInt(24 + pos), buff.getInt(28 + pos));
 //System.out.println("      DataChannel Emu in: roc raw has frame = " + frame + ", timestamp = " + timestamp + ", pos = " + pos);
                     }
@@ -1618,10 +1618,10 @@ System.out.println("      DataChannel Emu in: incoming data's evio version = " +
                     }
 
                     int pos = node.getPosition();
-                    // Find the frame and timestamp now for later ease of use (skip over 4 ints)
+                    // Find the frame and timestamp now for later ease of use (skip over 5 ints)
                     ByteBuffer buff = node.getBuffer();
-                    frame = buff.getInt(16 + pos);
-                    timestamp = EmuUtilities.intsToLong(buff.getInt(20 + pos), buff.getInt(24 + pos));
+                    frame = (long)(buff.getInt(20 + pos)) & 0xffffffffL;
+                    timestamp = EmuUtilities.intsToLong(buff.getInt(24 + pos), buff.getInt(28 + pos));
 //System.out.println("      DataChannel Emu in: buildable has frame = " + frame + ", timestamp = " + timestamp + ", pos = " + pos);
                 }
                 else if (eventType == EventType.CONTROL) {

@@ -1164,7 +1164,8 @@ System.out.println("      DataChannel TcpStream in: " + name +
 
             for (int i = 1; i < eventCount+1; i++) {
 
-                int frame = 0;
+                //int frame = 0;
+                long frame = 0;
                 long timestamp = 0L;
                 boolean isEmptyFrame = false;
                 EvioNode topNode;
@@ -1211,7 +1212,7 @@ System.out.println("      DataChannel TcpStream in: " + name +
                         // Find the frame and timestamp now for later ease of use (skip over 5 ints)
                         int pos = node.getPosition();
                         ByteBuffer buff = node.getBuffer();
-                        frame = buff.getInt(20 + pos);
+                        frame = (long)(buff.getInt(20 + pos)) & 0xffffffffL;
                         timestamp = EmuUtilities.intsToLong(buff.getInt(24 + pos), buff.getInt(28 + pos));
 //System.out.println("      DataChannel TcpStream in: roc raw has frame = " + frame + ", timestamp = " + timestamp + ", pos = " + pos);
                     }
@@ -1229,9 +1230,9 @@ System.out.println("      DataChannel TcpStream in: " + name +
                     isEmptyFrame = CODATag.isEmptyFrame(node.getTag());
                     
                     int pos = node.getPosition();
-                    // Find the frame and timestamp now for later ease of use (skip over 4 ints)
+                    // Find the frame and timestamp now for later ease of use (skip over 5 ints)
                     ByteBuffer buff = node.getBuffer();
-                    frame = buff.getInt(20 + pos);
+                    frame = (long)(buff.getInt(20 + pos)) & 0xffffffffL;
                     timestamp = EmuUtilities.intsToLong(buff.getInt(24 + pos), buff.getInt(28 + pos));
 //System.out.println("      DataChannel TcpStream in: buildable has frame = " + frame + ", timestamp = " + timestamp + ", pos = " + pos);
                 }
