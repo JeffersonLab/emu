@@ -422,9 +422,9 @@ logger.info("  Agg mod: internal ring buf count -> " + ringItemCount);
 
         RingBuffer<RingItem> rb = outputChannels.get(channelNum).getRingBuffersOut()[ringNum];
 
-//System.out.println("  Agg mod: wait for out buf, ch" + channelNum + ", ring " + ringNum);
+System.out.println("  Agg mod: wait ch" + channelNum + ", ring " + ringNum);
         long nextRingItem = rb.nextIntr(1);
-//System.out.println("  Agg mod: Got sequence " + nextRingItem + " for " + channelNum + ":" + ringNum);
+System.out.println("  Agg mod: got item for " + channelNum + ":" + ringNum);
         RingItem ri = rb.get(nextRingItem);
         ri.setBuffer(buf);
         ri.setEventType(eventType);
@@ -871,7 +871,7 @@ System.out.println("WRITE CONTROL EVENT to chan #" + i + ", ring 0");
                             // If the Agg does not end its threads and complete the END transition,
                             // then the whole state machine gets stuck and it cannot go to DOWNLOAD.
                             if (millisecWait >= waitForEndPeriod) {
-System.out.println("  Agg mod: findEnd, stop looking for END on chan " + ch + " since no more events available, module state = " + moduleState);
+        System.out.println("  Agg mod: findEnd, stop looking for END on chan " + ch + " since no more events available, module state = " + moduleState);
                                 continue channelLoop;
                             }
 
@@ -898,7 +898,7 @@ System.out.println("  Agg mod: findEnd, stop looking for END on chan " + ch + " 
                             if (eventType == EventType.CONTROL) {
                                 if (bank.getControlType() == ControlType.END) {
                                     // Found the END event
-System.out.println("  Agg mod: findEnd, chan " + ch + " got END from " + source + ", back " + offset + " places in ring");
+       System.out.println("  Agg mod: findEnd, chan " + ch + " got END from " + source + ", back " + offset + " places in ring");
                                     // Release buffer back to ByteBufferSupply
                                     bank.releaseByteBuffer();
                                     endEventCount++;
@@ -1135,7 +1135,7 @@ System.out.println("  Agg mod: findEnd, chan " + ch + " got END from " + source 
 
                         // We found the lowest frame # so we start looking for that on each channel
                         lookingForFrame = firstFrame;
-System.out.println("  Agg mod: lowest frame = " + lookingForFrame);
+       System.out.println("  Agg mod: lowest frame = " + lookingForFrame);
                     }
 
                     // Here we have what we need to build:
@@ -1222,13 +1222,13 @@ System.out.println("  Agg mod: lowest frame = " + lookingForFrame);
                                 // so for a 2nd level aggregator, all frames should be represented.
                                 if (frameSkips[chan] > 0) {
                                     if (emu.getCodaClass() != CODAClass.PAGG) {
-System.out.println("  Agg mod: ch" + chan + ", skipping frame " + lookingForFrame +
+      System.out.println("  Agg mod: ch" + chan + ", skipping frame " + lookingForFrame +
                    ", even though input in not ROC/VTP, so something wrong here!");
                                         throw new EmuException("no frame for timestamp, but input not ROC/VTP");
                                     }
 
                                     frameSkips[chan]--;
-System.out.println("  Agg mod: ch" + chan + ", skip frame " + lookingForFrame +
+      System.out.println("  Agg mod: ch" + chan + ", skip frame " + lookingForFrame +
                    ", " + frameSkips[chan] + " more skips to go");
 
                                     // Counting starts from channel 0 in order to find
@@ -1251,7 +1251,7 @@ System.out.println("  Agg mod: ch" + chan + ", skip frame " + lookingForFrame +
                                             // Last TS written + likely delta T.
                                             // Increase lastTS in case multiple frames missing.
                                             lastTs += avgTimestampDiff;
-System.out.println("  Agg mod: last chan = " + chan + ", inserting empty frame for fr = " + skippedFrame);
+       System.out.println("  Agg mod: last chan = " + chan + ", inserting empty frame for fr = " + skippedFrame);
                                             sendEmptyFrameToTimeSliceRing(skippedFrame,
                                                                           lastTs, currentBT);
                                         }
@@ -1293,7 +1293,7 @@ System.out.println("  Agg mod: last chan = " + chan + ", inserting empty frame f
                                     if (eventType.isUser()) {
                                         // User events are placed in first output channel's first ring.
                                         // Only the first build thread will deal with them.
-System.out.println("  Agg mod: sorter got user event from channel " + inputChannels.get(chan).name());
+      System.out.println("  Agg mod: sorter got user event from channel " + inputChannels.get(chan).name());
                                         //System.out.println("  Agg mod: ch" + chan + ", skip user item " + nextSequences[chan]);
                                         //System.out.println("  Agg mod: user event order = " + bank.getByteOrder());
                                         handleUserEvent(bank, inputChannels.get(chan), recordIdError);
@@ -1394,7 +1394,7 @@ System.out.println("  Agg mod: sorter got user event from channel " + inputChann
                                 //
                                 rolloverOffset += 0xffffffffL; // started at 0
                                 maxFrameNumber += 0xffffffffL; // started at 0xffff_ffff
-System.out.println("  Agg mod: detected ROLLOVER, looking for fr#" + lookingForFrame + ", adjust found frame: " + frame +
+      System.out.println("  Agg mod: detected ROLLOVER, looking for fr#" + lookingForFrame + ", adjust found frame: " + frame +
                    " -> " + (frame + 0xffffffffL));
                                 frame += 0xffffffffL;
 
@@ -1417,7 +1417,7 @@ System.out.println("  Agg mod: detected ROLLOVER, looking for fr#" + lookingForF
                             }
 
 //System.out.println("  Agg mod: ch" + chan + ", sorter NOT CONTROL EVENT, frame = " + frame + ", looking for " + lookingForFrame + ", diff = " + diff);
-                            // Bank was has same frame# as the one we're looking for.
+                            // Bank has same frame# as the one we're looking for.
                             // This means that this bank must be written out to the current
                             // receiving ring buffer. That's because all identical timeslices
                             // go to the same ring buffer no matter the input channel.
@@ -1498,7 +1498,7 @@ System.out.println("  Agg mod: detected ROLLOVER, looking for fr#" + lookingForF
                         // We need one from each channel so find them now.
                         int endEventCount = findEnds(chan, lookingForFrame);
 
-System.out.println("  Agg mod: sorter found END event from " + bank.getSourceName() + " at seq " + nextSequences[chan]);
+       System.out.println("  Agg mod: sorter found END event from " + bank.getSourceName() + " at seq " + nextSequences[chan]);
 
                         if (endEventCount != inputChannelCount) {
                             // We do NOT have all END events
@@ -1508,7 +1508,7 @@ System.out.println("  Agg mod: sorter found END event from " + bank.getSourceNam
                                                    inputChannelCount + " channels");
                         }
                         else {
-System.out.println("  Agg mod: sorter found END events on all input channels");
+       System.out.println("  Agg mod: sorter found END events on all input channels");
                             endEventToBuildThread(name);
                             return;
                         }
@@ -1950,7 +1950,8 @@ System.out.println("  Agg mod: bbSupply -> " + ringItemCount + " # of bufs, dire
                         handleEndEvent(bank);
 System.out.println("  Agg mod: bt" + btIndex + " ***** found END event at seq " + endSequence);
                         return;
-                    }
+
+                    } // while(true
 
 
                     // Look to see if inputs have no/empty frames.
@@ -2099,6 +2100,7 @@ System.out.println("  Agg mod: bt" + btIndex + " ***** found END event at seq " 
 
                         // Each build thread must release the "slots" in the build thread ring
                         // buffer of the components it uses to build the physics event.
+System.out.println("  Agg mod: bt#" + btIndex + " release(1) " + (nextSequence - 1));
                         buildSequenceIn[btIndex].set(nextSequence - 1);
 
                         // Does any empty frame count as an event? No. Don't keep stats on it.
@@ -2236,7 +2238,7 @@ System.out.println("  Agg mod: bt" + btIndex + " ***** found END event at seq " 
 
                     // Each build thread must release the "slots" in the build thread ring
                     // buffer of the components it uses to build the physics event.
-//System.out.println("  Agg mod: bt#" + btIndex + " release build seq " + (nextSequence - 1));
+System.out.println("  Agg mod: bt#" + btIndex + " release(2) " + (nextSequence - 1));
                     buildSequenceIn[btIndex].set(nextSequence - 1);
 
                     // Stats (need to be thread-safe)
