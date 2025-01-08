@@ -1550,7 +1550,7 @@ System.out.println("\n  Roc mod: Starting sim ROC frame at " + frameNumber + "\n
                 templateBuffer = createSingleTimeSliceBuffer(generatedDataWords, frameNumber, timestamp);
 //Utilities.printBuffer(templateBuffer, 0, 56, "TEMPLATE BUFFER");
                 eventWordSize = templateBuffer.remaining()/4;
-                frameNumber++;
+                //frameNumber++;
                 timestamp += 10;
             }
             // or ain't we?
@@ -1618,6 +1618,7 @@ System.out.println("\n  Roc mod: Starting sim ROC frame at " + frameNumber + "\n
             else {
                 frameChange = fChange = 2;
             }
+System.out.println("  Roc mod: frameChange = " + frameChange);
 
             // We need for the # of buffers in our bbSupply object to be >=
             // the # of ring buffer slots in the output channel or we can get
@@ -1743,8 +1744,9 @@ System.out.println("\n  Roc mod: Starting sim ROC frame at " + frameNumber + "\n
                             }
                         }
 
-
-                   //     Thread.sleep(1);
+                        // Slow rate to 20 Hz
+//System.out.println("  Roc mod: sleep(50);");
+                        //Thread.sleep(50);
 
                         if (loops != 0 && loopCount++ % loops == 0) {
                             Thread.sleep(1);
@@ -1770,6 +1772,18 @@ System.out.println("\n  Roc mod: Starting sim ROC frame at " + frameNumber + "\n
                                 eventCountTotal++;
                                 userCountLoop--;
                             }
+
+                            // Fake hop in event #s to simulate missing frames
+//
+//                            // Right after frame #100, simulate over 4096 missing frames
+//                            if (frameNumber == 101) {
+//                                //System.out.println("  Roc mod: jump to frame# 4200");
+//                                frameNumber = 4200;
+//                            }
+//                            else if (frameNumber == 50001) {
+//                                frameNumber = 60000;
+//                            }
+//
                         }
                         else {
                             eventCountTotal += eventBlockSize;
