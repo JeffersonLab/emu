@@ -823,6 +823,9 @@ System.out.println("WRITE CONTROL EVENT to chan #" + i + ", ring 0");
                 Evio.updateEmptyFrameBuffer(skippedFrame, timestamp, inputChannelCount, emptyBuffer);
             }
             catch (EmuException e) {/*never happen*/}
+            
+            // Important for Build Thread cause this is where it gets frame #
+            emptyBuffer.setTimeFrame(skippedFrame);
 
             getSequences[btIndex] = sorterRingBuffers[btIndex].nextIntr(1);
 // System.out.println("  Agg mod: sendToTimeSliceBankRing: got sorter ring seq = " + getSequences[btIndex] + ". type = " + bank.getEventType());
@@ -2100,7 +2103,7 @@ System.out.println("  Agg mod: bt" + btIndex + " ***** found END event at seq " 
 
                         // Each build thread must release the "slots" in the build thread ring
                         // buffer of the components it uses to build the physics event.
-System.out.println("  Agg mod: bt#" + btIndex + " release(1) " + (nextSequence - 1));
+//System.out.println("  Agg mod: bt#" + btIndex + " release(1) " + (nextSequence - 1));
                         buildSequenceIn[btIndex].set(nextSequence - 1);
 
                         // Does any empty frame count as an event? No. Don't keep stats on it.
@@ -2238,7 +2241,7 @@ System.out.println("  Agg mod: bt#" + btIndex + " release(1) " + (nextSequence -
 
                     // Each build thread must release the "slots" in the build thread ring
                     // buffer of the components it uses to build the physics event.
-System.out.println("  Agg mod: bt#" + btIndex + " release(2) " + (nextSequence - 1));
+//System.out.println("  Agg mod: bt#" + btIndex + " release(2) " + (nextSequence - 1));
                     buildSequenceIn[btIndex].set(nextSequence - 1);
 
                     // Stats (need to be thread-safe)
