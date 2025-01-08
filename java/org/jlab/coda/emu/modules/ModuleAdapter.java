@@ -295,6 +295,7 @@ logger.info("  Module Adapter: output byte order = " + outputOrder);
                 streamingData = true;
             }
         }
+logger.info("  Module Adapter: streaming = " + streamingData);
 
         // For a single VTP, how many streams are going to the aggregator?
         streamCount = 1;
