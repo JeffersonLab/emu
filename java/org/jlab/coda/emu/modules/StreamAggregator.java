@@ -1231,8 +1231,8 @@ System.out.println("WRITE CONTROL EVENT to chan #" + i + ", ring 0");
                                     }
 
                                     frameSkips[chan]--;
-      System.out.println("  Agg mod: ch" + chan + ", skip frame " + lookingForFrame +
-                   ", " + frameSkips[chan] + " more skips to go");
+//      System.out.println("  Agg mod: ch" + chan + ", skip frame " + lookingForFrame +
+//                   ", " + frameSkips[chan] + " more skips to go");
 
                                     // Counting starts from channel 0 in order to find
                                     // a completely missing frame
@@ -1254,7 +1254,7 @@ System.out.println("WRITE CONTROL EVENT to chan #" + i + ", ring 0");
                                             // Last TS written + likely delta T.
                                             // Increase lastTS in case multiple frames missing.
                                             lastTs += avgTimestampDiff;
-       System.out.println("  Agg mod: last chan = " + chan + ", inserting empty frame for fr = " + skippedFrame);
+//       System.out.println("  Agg mod: last chan = " + chan + ", inserting empty frame for fr = " + skippedFrame);
                                             sendEmptyFrameToTimeSliceRing(skippedFrame,
                                                                           lastTs, currentBT);
                                         }
