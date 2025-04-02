@@ -66,4 +66,4 @@ jobs:
           author_email: timmer@jlab.org
           message: 'Update docs'
           branch: gh-pages
-          add: '["doc-streaming/javadoc/", "doc-streaming/usersGuide/emuUsersGuide.pdf"]'
+          add: '["doc-streaming/javadoc/", "doc-streaming/Streaming.pdf", "doc-streaming/usersGuide/emuUsersGuide.pdf"]'
