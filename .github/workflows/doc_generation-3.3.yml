@@ -12,7 +12,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # checkout the emu-3.3 branch
+      # checkout the emu-streaming branch
       - uses: actions/checkout@v2
 
       # generate the javadoc files
