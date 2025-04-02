@@ -212,7 +212,7 @@ extends java.lang.Thread</pre>
 </td>
 </tr>
 <tr class="altColor">
-<td class="colFirst"><code>(package private) SequenceBarrier[]</code></td>
+<td class="colFirst"><code>(package private) com.lmax.disruptor.SequenceBarrier[]</code></td>
 <td class="colLast"><code><span class="memberNameLink"><a href="../../../../../org/jlab/coda/emu/test/VardanERSAP.html#crateBarriers">crateBarriers</a></span></code>
 <div class="block">1 barrier per stream</div>
 </td>
@@ -224,7 +224,7 @@ extends java.lang.Thread</pre>
 </td>
 </tr>
 <tr class="altColor">
-<td class="colFirst"><code>(package private) &lt;any&gt;[]</code></td>
+<td class="colFirst"><code>(package private) com.lmax.disruptor.RingBuffer&lt;java.nio.ByteBuffer&gt;[]</code></td>
 <td class="colLast"><code><span class="memberNameLink"><a href="../../../../../org/jlab/coda/emu/test/VardanERSAP.html#crateRingBuffers">crateRingBuffers</a></span></code>
 <div class="block">1 RingBuffer per stream.</div>
 </td>
@@ -236,7 +236,7 @@ extends java.lang.Thread</pre>
 </td>
 </tr>
 <tr class="altColor">
-<td class="colFirst"><code>(package private) Sequence[]</code></td>
+<td class="colFirst"><code>(package private) com.lmax.disruptor.Sequence[]</code></td>
 <td class="colLast"><code><span class="memberNameLink"><a href="../../../../../org/jlab/coda/emu/test/VardanERSAP.html#crateSequences">crateSequences</a></span></code>
 <div class="block">1 sequence per stream</div>
 </td>
@@ -248,7 +248,7 @@ extends java.lang.Thread</pre>
 </td>
 </tr>
 <tr class="altColor">
-<td class="colFirst"><code>(package private) SequenceBarrier</code></td>
+<td class="colFirst"><code>(package private) com.lmax.disruptor.SequenceBarrier</code></td>
 <td class="colLast"><code><span class="memberNameLink"><a href="../../../../../org/jlab/coda/emu/test/VardanERSAP.html#outputBarrier">outputBarrier</a></span></code>
 <div class="block">1 barrier for output ring's consumer</div>
 </td>
@@ -260,13 +260,13 @@ extends java.lang.Thread</pre>
 </td>
 </tr>
 <tr class="altColor">
-<td class="colFirst"><code>(package private) &lt;any&gt;</code></td>
+<td class="colFirst"><code>(package private) com.lmax.disruptor.RingBuffer&lt;java.nio.ByteBuffer&gt;</code></td>
 <td class="colLast"><code><span class="memberNameLink"><a href="../../../../../org/jlab/coda/emu/test/VardanERSAP.html#outputRingBuffer">outputRingBuffer</a></span></code>
 <div class="block">1 output RingBuffer.</div>
 </td>
 </tr>
 <tr class="rowColor">
-<td class="colFirst"><code>(package private) Sequence</code></td>
+<td class="colFirst"><code>(package private) com.lmax.disruptor.Sequence</code></td>
 <td class="colLast"><code><span class="memberNameLink"><a href="../../../../../org/jlab/coda/emu/test/VardanERSAP.html#outputSequence">outputSequence</a></span></code>
 <div class="block">1 sequence for the output ring's consumer</div>
 </td>
@@ -392,7 +392,7 @@ extends java.lang.Thread</pre>
 <ul class="blockList">
 <li class="blockList">
 <h4>crateRingBuffers</h4>
-<pre>&lt;any&gt;[] crateRingBuffers</pre>
+<pre>com.lmax.disruptor.RingBuffer&lt;java.nio.ByteBuffer&gt;[] crateRingBuffers</pre>
 <div class="block">1 RingBuffer per stream.</div>
 </li>
 </ul>
@@ -402,7 +402,7 @@ extends java.lang.Thread</pre>
 <ul class="blockList">
 <li class="blockList">
 <h4>crateSequences</h4>
-<pre>Sequence[] crateSequences</pre>
+<pre>com.lmax.disruptor.Sequence[] crateSequences</pre>
 <div class="block">1 sequence per stream</div>
 </li>
 </ul>
@@ -412,7 +412,7 @@ extends java.lang.Thread</pre>
 <ul class="blockList">
 <li class="blockList">
 <h4>crateBarriers</h4>
-<pre>SequenceBarrier[] crateBarriers</pre>
+<pre>com.lmax.disruptor.SequenceBarrier[] crateBarriers</pre>
 <div class="block">1 barrier per stream</div>
 </li>
 </ul>
@@ -442,7 +442,7 @@ extends java.lang.Thread</pre>
 <ul class="blockList">
 <li class="blockList">
 <h4>outputRingBuffer</h4>
-<pre>&lt;any&gt; outputRingBuffer</pre>
+<pre>com.lmax.disruptor.RingBuffer&lt;java.nio.ByteBuffer&gt; outputRingBuffer</pre>
 <div class="block">1 output RingBuffer.</div>
 </li>
 </ul>
@@ -452,7 +452,7 @@ extends java.lang.Thread</pre>
 <ul class="blockList">
 <li class="blockList">
 <h4>outputSequence</h4>
-<pre>Sequence outputSequence</pre>
+<pre>com.lmax.disruptor.Sequence outputSequence</pre>
 <div class="block">1 sequence for the output ring's consumer</div>
 </li>
 </ul>
@@ -462,7 +462,7 @@ extends java.lang.Thread</pre>
 <ul class="blockList">
 <li class="blockList">
 <h4>outputBarrier</h4>
-<pre>SequenceBarrier outputBarrier</pre>
+<pre>com.lmax.disruptor.SequenceBarrier outputBarrier</pre>
 <div class="block">1 barrier for output ring's consumer</div>
 </li>
 </ul>

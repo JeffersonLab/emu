@@ -393,13 +393,13 @@ implements <a href="../../../../../../org/jlab/coda/emu/support/transport/DataCh
 </td>
 </tr>
 <tr class="rowColor">
-<td class="colFirst"><code>protected &lt;any&gt;</code></td>
+<td class="colFirst"><code>protected com.lmax.disruptor.RingBuffer&lt;<a href="../../../../../../org/jlab/coda/emu/support/data/RingItem.html" title="interface in org.jlab.coda.emu.support.data">RingItem</a>&gt;</code></td>
 <td class="colLast"><code><span class="memberNameLink"><a href="../../../../../../org/jlab/coda/emu/support/transport/DataChannelAdapter.html#ringBufferIn">ringBufferIn</a></span></code>
 <div class="block">Ring buffer - one per input channel.</div>
 </td>
 </tr>
 <tr class="altColor">
-<td class="colFirst"><code>protected &lt;any&gt;[]</code></td>
+<td class="colFirst"><code>protected com.lmax.disruptor.RingBuffer&lt;<a href="../../../../../../org/jlab/coda/emu/support/data/RingItem.html" title="interface in org.jlab.coda.emu.support.data">RingItem</a>&gt;[]</code></td>
 <td class="colLast"><code><span class="memberNameLink"><a href="../../../../../../org/jlab/coda/emu/support/transport/DataChannelAdapter.html#ringBuffersOut">ringBuffersOut</a></span></code>
 <div class="block">Array holding all ring buffers for output.</div>
 </td>
@@ -411,13 +411,13 @@ implements <a href="../../../../../../org/jlab/coda/emu/support/transport/DataCh
 </td>
 </tr>
 <tr class="altColor">
-<td class="colFirst"><code>protected SequenceBarrier[]</code></td>
+<td class="colFirst"><code>protected com.lmax.disruptor.SequenceBarrier[]</code></td>
 <td class="colLast"><code><span class="memberNameLink"><a href="../../../../../../org/jlab/coda/emu/support/transport/DataChannelAdapter.html#sequenceBarriers">sequenceBarriers</a></span></code>
 <div class="block">One barrier for each output ring.</div>
 </td>
 </tr>
 <tr class="rowColor">
-<td class="colFirst"><code>protected Sequence[]</code></td>
+<td class="colFirst"><code>protected com.lmax.disruptor.Sequence[]</code></td>
 <td class="colLast"><code><span class="memberNameLink"><a href="../../../../../../org/jlab/coda/emu/support/transport/DataChannelAdapter.html#sequences">sequences</a></span></code>
 <div class="block">One sequence for each output ring.</div>
 </td>
@@ -562,13 +562,13 @@ implements <a href="../../../../../../org/jlab/coda/emu/support/transport/DataCh
 </td>
 </tr>
 <tr id="i13" class="rowColor">
-<td class="colFirst"><code>&lt;any&gt;</code></td>
+<td class="colFirst"><code>com.lmax.disruptor.RingBuffer&lt;<a href="../../../../../../org/jlab/coda/emu/support/data/RingItem.html" title="interface in org.jlab.coda.emu.support.data">RingItem</a>&gt;</code></td>
 <td class="colLast"><code><span class="memberNameLink"><a href="../../../../../../org/jlab/coda/emu/support/transport/DataChannelAdapter.html#getRingBufferIn--">getRingBufferIn</a></span>()</code>
 <div class="block">Get the one and only input ring buffer of this data channel.</div>
 </td>
 </tr>
 <tr id="i14" class="altColor">
-<td class="colFirst"><code>&lt;any&gt;[]</code></td>
+<td class="colFirst"><code>com.lmax.disruptor.RingBuffer&lt;<a href="../../../../../../org/jlab/coda/emu/support/data/RingItem.html" title="interface in org.jlab.coda.emu.support.data">RingItem</a>&gt;[]</code></td>
 <td class="colLast"><code><span class="memberNameLink"><a href="../../../../../../org/jlab/coda/emu/support/transport/DataChannelAdapter.html#getRingBuffersOut--">getRingBuffersOut</a></span>()</code>
 <div class="block">Get the array of output ring buffers.</div>
 </td>
@@ -1077,7 +1077,7 @@ implements <a href="../../../../../../org/jlab/coda/emu/support/transport/DataCh
 <ul class="blockList">
 <li class="blockList">
 <h4>ringBufferIn</h4>
-<pre>protected&nbsp;&lt;any&gt; ringBufferIn</pre>
+<pre>protected&nbsp;com.lmax.disruptor.RingBuffer&lt;<a href="../../../../../../org/jlab/coda/emu/support/data/RingItem.html" title="interface in org.jlab.coda.emu.support.data">RingItem</a>&gt; ringBufferIn</pre>
 <div class="block">Ring buffer - one per input channel.</div>
 </li>
 </ul>
@@ -1097,7 +1097,7 @@ implements <a href="../../../../../../org/jlab/coda/emu/support/transport/DataCh
 <ul class="blockList">
 <li class="blockList">
 <h4>ringBuffersOut</h4>
-<pre>protected&nbsp;&lt;any&gt;[] ringBuffersOut</pre>
+<pre>protected&nbsp;com.lmax.disruptor.RingBuffer&lt;<a href="../../../../../../org/jlab/coda/emu/support/data/RingItem.html" title="interface in org.jlab.coda.emu.support.data">RingItem</a>&gt;[] ringBuffersOut</pre>
 <div class="block">Array holding all ring buffers for output.</div>
 </li>
 </ul>
@@ -1127,7 +1127,7 @@ implements <a href="../../../../../../org/jlab/coda/emu/support/transport/DataCh
 <ul class="blockList">
 <li class="blockList">
 <h4>sequenceBarriers</h4>
-<pre>protected&nbsp;SequenceBarrier[] sequenceBarriers</pre>
+<pre>protected&nbsp;com.lmax.disruptor.SequenceBarrier[] sequenceBarriers</pre>
 <div class="block">One barrier for each output ring.</div>
 </li>
 </ul>
@@ -1137,7 +1137,7 @@ implements <a href="../../../../../../org/jlab/coda/emu/support/transport/DataCh
 <ul class="blockList">
 <li class="blockList">
 <h4>sequences</h4>
-<pre>protected&nbsp;Sequence[] sequences</pre>
+<pre>protected&nbsp;com.lmax.disruptor.Sequence[] sequences</pre>
 <div class="block">One sequence for each output ring.</div>
 </li>
 </ul>
@@ -1490,7 +1490,7 @@ implements <a href="../../../../../../org/jlab/coda/emu/support/transport/DataCh
 <ul class="blockList">
 <li class="blockList">
 <h4>getRingBufferIn</h4>
-<pre>public&nbsp;&lt;any&gt;&nbsp;getRingBufferIn()</pre>
+<pre>public&nbsp;com.lmax.disruptor.RingBuffer&lt;<a href="../../../../../../org/jlab/coda/emu/support/data/RingItem.html" title="interface in org.jlab.coda.emu.support.data">RingItem</a>&gt;&nbsp;getRingBufferIn()</pre>
 <div class="block">Get the one and only input ring buffer of this data channel.</div>
 <dl>
 <dt><span class="overrideSpecifyLabel">Specified by:</span></dt>
@@ -1506,7 +1506,7 @@ implements <a href="../../../../../../org/jlab/coda/emu/support/transport/DataCh
 <ul class="blockList">
 <li class="blockList">
 <h4>getRingBuffersOut</h4>
-<pre>public&nbsp;&lt;any&gt;[]&nbsp;getRingBuffersOut()</pre>
+<pre>public&nbsp;com.lmax.disruptor.RingBuffer&lt;<a href="../../../../../../org/jlab/coda/emu/support/data/RingItem.html" title="interface in org.jlab.coda.emu.support.data">RingItem</a>&gt;[]&nbsp;getRingBuffersOut()</pre>
 <div class="block">Get the array of output ring buffers.</div>
 <dl>
 <dt><span class="overrideSpecifyLabel">Specified by:</span></dt>

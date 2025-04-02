@@ -166,13 +166,13 @@ extends <a href="../../../../../org/jlab/coda/emu/modules/ModuleAdapter.html" ti
 <th class="colLast" scope="col">Field and Description</th>
 </tr>
 <tr class="altColor">
-<td class="colFirst"><code>SequenceBarrier[]</code></td>
+<td class="colFirst"><code>com.lmax.disruptor.SequenceBarrier[]</code></td>
 <td class="colLast"><code><span class="memberNameLink"><a href="../../../../../org/jlab/coda/emu/modules/Dummy.html#buildBarrierIn">buildBarrierIn</a></span></code>
 <div class="block">For each input channel, all event-moving threads share one barrier.</div>
 </td>
 </tr>
 <tr class="rowColor">
-<td class="colFirst"><code>Sequence[][]</code></td>
+<td class="colFirst"><code>com.lmax.disruptor.Sequence[][]</code></td>
 <td class="colLast"><code><span class="memberNameLink"><a href="../../../../../org/jlab/coda/emu/modules/Dummy.html#buildSequenceIn">buildSequenceIn</a></span></code>
 <div class="block">For each input channel, 1 sequence per event-moving thread.</div>
 </td>
@@ -285,7 +285,7 @@ extends <a href="../../../../../org/jlab/coda/emu/modules/ModuleAdapter.html" ti
 <ul class="blockList">
 <li class="blockList">
 <h4>buildSequenceIn</h4>
-<pre>public&nbsp;Sequence[][] buildSequenceIn</pre>
+<pre>public&nbsp;com.lmax.disruptor.Sequence[][] buildSequenceIn</pre>
 <div class="block">For each input channel, 1 sequence per event-moving thread.</div>
 </li>
 </ul>
@@ -295,7 +295,7 @@ extends <a href="../../../../../org/jlab/coda/emu/modules/ModuleAdapter.html" ti
 <ul class="blockListLast">
 <li class="blockList">
 <h4>buildBarrierIn</h4>
-<pre>public&nbsp;SequenceBarrier[] buildBarrierIn</pre>
+<pre>public&nbsp;com.lmax.disruptor.SequenceBarrier[] buildBarrierIn</pre>
 <div class="block">For each input channel, all event-moving threads share one barrier.</div>
 </li>
 </ul>

@@ -211,6 +211,21 @@
 <!--   -->
 </a>
 <h3>Uses of <a href="../../../../../../../org/jlab/coda/emu/support/data/RingItem.html" title="interface in org.jlab.coda.emu.support.data">RingItem</a> in <a href="../../../../../../../org/jlab/coda/emu/support/transport/package-summary.html">org.jlab.coda.emu.support.transport</a></h3>
+<table class="useSummary" border="0" cellpadding="3" cellspacing="0" summary="Use table, listing fields, and an explanation">
+<caption><span>Fields in <a href="../../../../../../../org/jlab/coda/emu/support/transport/package-summary.html">org.jlab.coda.emu.support.transport</a> with type parameters of type <a href="../../../../../../../org/jlab/coda/emu/support/data/RingItem.html" title="interface in org.jlab.coda.emu.support.data">RingItem</a></span><span class="tabEnd">&nbsp;</span></caption>
+<tr>
+<th class="colFirst" scope="col">Modifier and Type</th>
+<th class="colLast" scope="col">Field and Description</th>
+</tr>
+<tbody>
+<tr class="altColor">
+<td class="colFirst"><code>protected com.lmax.disruptor.RingBuffer&lt;<a href="../../../../../../../org/jlab/coda/emu/support/data/RingItem.html" title="interface in org.jlab.coda.emu.support.data">RingItem</a>&gt;</code></td>
+<td class="colLast"><span class="typeNameLabel">DataChannelAdapter.</span><code><span class="memberNameLink"><a href="../../../../../../../org/jlab/coda/emu/support/transport/DataChannelAdapter.html#ringBufferIn">ringBufferIn</a></span></code>
+<div class="block">Ring buffer - one per input channel.</div>
+</td>
+</tr>
+</tbody>
+</table>
 <table class="useSummary" border="0" cellpadding="3" cellspacing="0" summary="Use table, listing methods, and an explanation">
 <caption><span>Methods in <a href="../../../../../../../org/jlab/coda/emu/support/transport/package-summary.html">org.jlab.coda.emu.support.transport</a> that return <a href="../../../../../../../org/jlab/coda/emu/support/data/RingItem.html" title="interface in org.jlab.coda.emu.support.data">RingItem</a></span><span class="tabEnd">&nbsp;</span></caption>
 <tr>
@@ -222,6 +237,27 @@
 <td class="colFirst"><code>protected <a href="../../../../../../../org/jlab/coda/emu/support/data/RingItem.html" title="interface in org.jlab.coda.emu.support.data">RingItem</a></code></td>
 <td class="colLast"><span class="typeNameLabel">DataChannelAdapter.</span><code><span class="memberNameLink"><a href="../../../../../../../org/jlab/coda/emu/support/transport/DataChannelAdapter.html#getNextOutputRingItem-int-">getNextOutputRingItem</a></span>(int&nbsp;ringIndex)</code>
 <div class="block">Gets the next ring buffer item placed there by the last module.</div>
+</td>
+</tr>
+</tbody>
+</table>
+<table class="useSummary" border="0" cellpadding="3" cellspacing="0" summary="Use table, listing methods, and an explanation">
+<caption><span>Methods in <a href="../../../../../../../org/jlab/coda/emu/support/transport/package-summary.html">org.jlab.coda.emu.support.transport</a> that return types with arguments of type <a href="../../../../../../../org/jlab/coda/emu/support/data/RingItem.html" title="interface in org.jlab.coda.emu.support.data">RingItem</a></span><span class="tabEnd">&nbsp;</span></caption>
+<tr>
+<th class="colFirst" scope="col">Modifier and Type</th>
+<th class="colLast" scope="col">Method and Description</th>
+</tr>
+<tbody>
+<tr class="altColor">
+<td class="colFirst"><code>com.lmax.disruptor.RingBuffer&lt;<a href="../../../../../../../org/jlab/coda/emu/support/data/RingItem.html" title="interface in org.jlab.coda.emu.support.data">RingItem</a>&gt;</code></td>
+<td class="colLast"><span class="typeNameLabel">DataChannel.</span><code><span class="memberNameLink"><a href="../../../../../../../org/jlab/coda/emu/support/transport/DataChannel.html#getRingBufferIn--">getRingBufferIn</a></span>()</code>
+<div class="block">Get the one and only input ring buffer of this data channel.</div>
+</td>
+</tr>
+<tr class="rowColor">
+<td class="colFirst"><code>com.lmax.disruptor.RingBuffer&lt;<a href="../../../../../../../org/jlab/coda/emu/support/data/RingItem.html" title="interface in org.jlab.coda.emu.support.data">RingItem</a>&gt;</code></td>
+<td class="colLast"><span class="typeNameLabel">DataChannelAdapter.</span><code><span class="memberNameLink"><a href="../../../../../../../org/jlab/coda/emu/support/transport/DataChannelAdapter.html#getRingBufferIn--">getRingBufferIn</a></span>()</code>
+<div class="block">Get the one and only input ring buffer of this data channel.</div>
 </td>
 </tr>
 </tbody>
