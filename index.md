@@ -18,7 +18,8 @@ Here are links to the documentation contained in the github repository
 ___________________________
 ## **Version streaming**
 
-* [User's Guide PDF](https://jeffersonlab.github.io/emu/doc-streaming/usersGuide/emuUsersGuide.pdf)
+* [User's Guide](https://jeffersonlab.github.io/emu/doc-streaming/usersGuide/emuUsersGuide.pdf)
+* [Streaming Format](https://jeffersonlab.github.io/emu/doc-streaming/Streaming.pdf)
 * [Javadoc for Java Library](https://jeffersonlab.github.io/emu/doc-streaming/javadoc/index.html)
 
 ___________________________
